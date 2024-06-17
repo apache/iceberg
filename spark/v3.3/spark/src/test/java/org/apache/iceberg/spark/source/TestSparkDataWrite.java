@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ManifestFile;
@@ -691,20 +690,21 @@ public class TestSparkDataWrite {
     ManualSource.setTable(manualTableName, sparkTable);
 
     // Although an exception is thrown here, write and commit have succeeded
-    AssertHelpers.assertThrowsWithCause(
-        "Should throw a Commit State Unknown Exception",
-        SparkException.class,
-        "Writing job aborted",
-        CommitStateUnknownException.class,
-        "Datacenter on Fire",
-        () ->
-            df2.select("id", "data")
-                .sort("data")
-                .write()
-                .format("org.apache.iceberg.spark.source.ManualSource")
-                .option(ManualSource.TABLE_NAME, manualTableName)
-                .mode(SaveMode.Append)
-                .save(targetLocation));
+    Assertions.assertThatThrownBy(
+            () ->
+                df2.select("id", "data")
+                    .sort("data")
+                    .write()
+                    .format("org.apache.iceberg.spark.source.ManualSource")
+                    .option(ManualSource.TABLE_NAME, manualTableName)
+                    .mode(SaveMode.Append)
+                    .save(targetLocation))
+        .as("Should throw a Commit State Unknown Exception")
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining("Writing job aborted")
+        .cause()
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageContaining("Datacenter on Fire");
 
     // Since write and commit succeeded, the rows should be readable
     Dataset<Row> result = spark.read().format("iceberg").load(targetLocation);

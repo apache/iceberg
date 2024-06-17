@@ -23,13 +23,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -103,11 +103,10 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
     Assert.assertTrue(
         "Table should exist", validationCatalog.tableExists(TableIdentifier.of(NS, "table")));
 
-    AssertHelpers.assertThrows(
-        "Should fail if trying to delete a non-empty namespace",
-        NamespaceNotEmptyException.class,
-        "Namespace db is not empty.",
-        () -> sql("DROP NAMESPACE %s", fullNamespace));
+    Assertions.assertThatThrownBy(() -> sql("DROP NAMESPACE %s", fullNamespace))
+        .as("Should fail if trying to delete a non-empty namespace")
+        .isInstanceOf(NamespaceNotEmptyException.class)
+        .hasMessageContaining("Namespace db is not empty.");
 
     sql("DROP TABLE %s.table", fullNamespace);
   }

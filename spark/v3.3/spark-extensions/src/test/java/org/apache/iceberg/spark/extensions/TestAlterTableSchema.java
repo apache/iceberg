@@ -19,9 +19,9 @@
 package org.apache.iceberg.spark.extensions;
 
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -77,17 +77,16 @@ public class TestAlterTableSchema extends SparkExtensionsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertTrue(
         "Table should start without identifier", table.schema().identifierFieldIds().isEmpty());
-    AssertHelpers.assertThrows(
-        "should not allow setting unknown fields",
-        IllegalArgumentException.class,
-        "not found in current schema or added columns",
-        () -> sql("ALTER TABLE %s SET IDENTIFIER FIELDS unknown", tableName));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s SET IDENTIFIER FIELDS unknown", tableName))
+        .as("should not allow setting unknown fields")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not found in current schema or added columns");
 
-    AssertHelpers.assertThrows(
-        "should not allow setting optional fields",
-        IllegalArgumentException.class,
-        "not a required field",
-        () -> sql("ALTER TABLE %s SET IDENTIFIER FIELDS id2", tableName));
+    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s SET IDENTIFIER FIELDS id2", tableName))
+        .as("should not allow setting optional fields")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("not a required field");
   }
 
   @Test
@@ -140,23 +139,23 @@ public class TestAlterTableSchema extends SparkExtensionsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertTrue(
         "Table should start without identifier", table.schema().identifierFieldIds().isEmpty());
-    AssertHelpers.assertThrows(
-        "should not allow dropping unknown fields",
-        IllegalArgumentException.class,
-        "field unknown not found",
-        () -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS unknown", tableName));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS unknown", tableName))
+        .as("should not allow dropping unknown fields")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("field unknown not found");
 
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
-    AssertHelpers.assertThrows(
-        "should not allow dropping a field that is not an identifier",
-        IllegalArgumentException.class,
-        "data is not an identifier field",
-        () -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS data", tableName));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS data", tableName))
+        .as("should not allow dropping a field that is not an identifier")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("data is not an identifier field");
 
-    AssertHelpers.assertThrows(
-        "should not allow dropping a nested field that is not an identifier",
-        IllegalArgumentException.class,
-        "location.lon is not an identifier field",
-        () -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS location.lon", tableName));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS location.lon", tableName))
+        .as("should not allow dropping a nested field that is not an identifier")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("location.lon is not an identifier field");
   }
 }

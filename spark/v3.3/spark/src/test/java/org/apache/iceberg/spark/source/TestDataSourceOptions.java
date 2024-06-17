@@ -25,7 +25,6 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
@@ -246,50 +245,52 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<Long> snapshotIds = SnapshotUtil.currentAncestorIds(table);
 
     // start-snapshot-id and snapshot-id are both configured.
-    AssertHelpers.assertThrows(
-        "Check both start-snapshot-id and snapshot-id are configured",
-        IllegalArgumentException.class,
-        "Cannot set start-snapshot-id and end-snapshot-id for incremental scans",
-        () -> {
-          spark
-              .read()
-              .format("iceberg")
-              .option("snapshot-id", snapshotIds.get(3).toString())
-              .option("start-snapshot-id", snapshotIds.get(3).toString())
-              .load(tableLocation)
-              .explain();
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              spark
+                  .read()
+                  .format("iceberg")
+                  .option("snapshot-id", snapshotIds.get(3).toString())
+                  .option("start-snapshot-id", snapshotIds.get(3).toString())
+                  .load(tableLocation)
+                  .explain();
+            })
+        .as("Check both start-snapshot-id and snapshot-id are configured")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set start-snapshot-id and end-snapshot-id for incremental scans");
 
     // end-snapshot-id and as-of-timestamp are both configured.
-    AssertHelpers.assertThrows(
-        "Check both start-snapshot-id and snapshot-id are configured",
-        IllegalArgumentException.class,
-        "Cannot set start-snapshot-id and end-snapshot-id for incremental scans",
-        () -> {
-          spark
-              .read()
-              .format("iceberg")
-              .option(
-                  SparkReadOptions.AS_OF_TIMESTAMP,
-                  Long.toString(table.snapshot(snapshotIds.get(3)).timestampMillis()))
-              .option("end-snapshot-id", snapshotIds.get(2).toString())
-              .load(tableLocation)
-              .explain();
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              spark
+                  .read()
+                  .format("iceberg")
+                  .option(
+                      SparkReadOptions.AS_OF_TIMESTAMP,
+                      Long.toString(table.snapshot(snapshotIds.get(3)).timestampMillis()))
+                  .option("end-snapshot-id", snapshotIds.get(2).toString())
+                  .load(tableLocation)
+                  .explain();
+            })
+        .as("Check both start-snapshot-id and snapshot-id are configured")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot set start-snapshot-id and end-snapshot-id for incremental scans");
 
     // only end-snapshot-id is configured.
-    AssertHelpers.assertThrows(
-        "Check both start-snapshot-id and snapshot-id are configured",
-        IllegalArgumentException.class,
-        "Cannot set only end-snapshot-id for incremental scans",
-        () -> {
-          spark
-              .read()
-              .format("iceberg")
-              .option("end-snapshot-id", snapshotIds.get(2).toString())
-              .load(tableLocation)
-              .explain();
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              spark
+                  .read()
+                  .format("iceberg")
+                  .option("end-snapshot-id", snapshotIds.get(2).toString())
+                  .load(tableLocation)
+                  .explain();
+            })
+        .as("Check both start-snapshot-id and snapshot-id are configured")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot set only end-snapshot-id for incremental scans");
 
     // test (1st snapshot, current snapshot] incremental scan.
     List<SimpleRecord> result =

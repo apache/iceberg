@@ -227,7 +227,6 @@ This product includes code from Apache Parquet.
 
 * DynMethods.java
 * DynConstructors.java
-* AssertHelpers.java
 * IOUtil.java readFully and tests
 * ByteBufferInputStream implementations and tests
 

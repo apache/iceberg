@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.extensions;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopFileIO;
@@ -39,6 +38,7 @@ import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -105,23 +105,23 @@ public class TestWriteAborts extends SparkExtensionsTestBase {
             new SimpleRecord(4, "b"));
     Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
 
-    AssertHelpers.assertThrows(
-        "Write must fail",
-        SparkException.class,
-        "Writing job aborted",
-        () -> {
-          try {
-            // incoming records are not ordered by partitions so the job must fail
-            inputDF
-                .coalesce(1)
-                .sortWithinPartitions("id")
-                .writeTo(tableName)
-                .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
-                .append();
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              try {
+                // incoming records are not ordered by partitions so the job must fail
+                inputDF
+                    .coalesce(1)
+                    .sortWithinPartitions("id")
+                    .writeTo(tableName)
+                    .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
+                    .append();
+              } catch (NoSuchTableException e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .as("Write must fail")
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining("Writing job aborted");
 
     assertEquals("Should be no records", sql("SELECT * FROM %s", tableName), ImmutableList.of());
 

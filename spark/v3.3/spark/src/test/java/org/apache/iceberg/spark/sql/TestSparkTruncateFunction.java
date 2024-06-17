@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.sql;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
@@ -298,95 +297,106 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testWrongNumberOfArguments() {
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with zero arguments",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (): Wrong number of inputs (expected width and value)",
-        () -> scalarSql("SELECT system.truncate()"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate()"))
+        .as("Function resolution should not work with zero arguments")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (): Wrong number of inputs (expected width and value)");
 
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with only one argument",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (int): Wrong number of inputs (expected width and value)",
-        () -> scalarSql("SELECT system.truncate(1)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(1)"))
+        .as("Function resolution should not work with only one argument")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (int): Wrong number of inputs (expected width and value)");
 
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with more than two arguments",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (int, bigint, int): Wrong number of inputs (expected width and value)",
-        () -> scalarSql("SELECT system.truncate(1, 1L, 1)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(1, 1L, 1)"))
+        .as("Function resolution should not work with more than two arguments")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (int, bigint, int): Wrong number of inputs (expected width and value)");
   }
 
   @Test
   public void testInvalidTypesCannotBeUsedForWidth() {
-    AssertHelpers.assertThrows(
-        "Decimal type should not be coercible to the width field",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (decimal(9,2), int): Expected truncation width to be tinyint, shortint or int",
-        () -> scalarSql("SELECT system.truncate(CAST('12.34' as DECIMAL(9, 2)), 10)"));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("SELECT system.truncate(CAST('12.34' as DECIMAL(9, 2)), 10)"))
+        .as("Decimal type should not be coercible to the width field")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (decimal(9,2), int): Expected truncation width to be tinyint, shortint or int");
 
-    AssertHelpers.assertThrows(
-        "String type should not be coercible to the width field",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (string, int): Expected truncation width to be tinyint, shortint or int",
-        () -> scalarSql("SELECT system.truncate('5', 10)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate('5', 10)"))
+        .as("String type should not be coercible to the width field")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (string, int): Expected truncation width to be tinyint, shortint or int");
 
-    AssertHelpers.assertThrows(
-        "Interval year to month type should not be coercible to the width field",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (interval year to month, int): Expected truncation width to be tinyint, shortint or int",
-        () -> scalarSql("SELECT system.truncate(INTERVAL '100-00' YEAR TO MONTH, 10)"));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("SELECT system.truncate(INTERVAL '100-00' YEAR TO MONTH, 10)"))
+        .as("Interval year to month type should not be coercible to the width field")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (interval year to month, int): Expected truncation width to be tinyint, shortint or int");
 
-    AssertHelpers.assertThrows(
-        "Interval day-time type should not be coercible to the width field",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (interval day to second, int): Expected truncation width to be tinyint, shortint or int",
-        () -> scalarSql("SELECT system.truncate(CAST('11 23:4:0' AS INTERVAL DAY TO SECOND), 10)"));
+    Assertions.assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "SELECT system.truncate(CAST('11 23:4:0' AS INTERVAL DAY TO SECOND), 10)"))
+        .as("Interval day-time type should not be coercible to the width field")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (interval day to second, int): Expected truncation width to be tinyint, shortint or int");
   }
 
   @Test
   public void testInvalidTypesForTruncationColumn() {
-    AssertHelpers.assertThrows(
-        "FLoat type should not be truncatable",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (int, float): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
-        () -> scalarSql("SELECT system.truncate(10, cast(12.3456 as float))"));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("SELECT system.truncate(10, cast(12.3456 as float))"))
+        .as("FLoat type should not be truncatable")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (int, float): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    AssertHelpers.assertThrows(
-        "Double type should not be truncatable",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (int, double): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
-        () -> scalarSql("SELECT system.truncate(10, cast(12.3456 as double))"));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("SELECT system.truncate(10, cast(12.3456 as double))"))
+        .as("Double type should not be truncatable")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (int, double): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    AssertHelpers.assertThrows(
-        "Boolean type should not be truncatable",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (int, boolean): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
-        () -> scalarSql("SELECT system.truncate(10, true)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, true)"))
+        .as("Boolean type should not be truncatable")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (int, boolean): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    AssertHelpers.assertThrows(
-        "Map types should not be truncatable",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (int, map<int,int>): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
-        () -> scalarSql("SELECT system.truncate(10, map(1, 1))"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, map(1, 1))"))
+        .as("Map types should not be truncatable")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (int, map<int,int>): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    AssertHelpers.assertThrows(
-        "Array types should not be truncatable",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (int, array<bigint>): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
-        () -> scalarSql("SELECT system.truncate(10, array(1L))"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, array(1L))"))
+        .as("Array types should not be truncatable")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (int, array<bigint>): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    AssertHelpers.assertThrows(
-        "Interval year-to-month type should not be truncatable",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (int, interval year to month): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
-        () -> scalarSql("SELECT system.truncate(10, INTERVAL '100-00' YEAR TO MONTH)"));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("SELECT system.truncate(10, INTERVAL '100-00' YEAR TO MONTH)"))
+        .as("Interval year-to-month type should not be truncatable")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (int, interval year to month): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    AssertHelpers.assertThrows(
-        "Interval day-time type should not be truncatable",
-        AnalysisException.class,
-        "Function 'truncate' cannot process input: (int, interval day to second): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary",
-        () -> scalarSql("SELECT system.truncate(10, CAST('11 23:4:0' AS INTERVAL DAY TO SECOND))"));
+    Assertions.assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "SELECT system.truncate(10, CAST('11 23:4:0' AS INTERVAL DAY TO SECOND))"))
+        .as("Interval day-time type should not be truncatable")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'truncate' cannot process input: (int, interval day to second): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
   }
 
   @Test

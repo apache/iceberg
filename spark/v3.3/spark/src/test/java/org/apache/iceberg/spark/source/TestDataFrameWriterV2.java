@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
@@ -33,6 +32,7 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.internal.SQLConf;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -76,18 +76,18 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
 
     // this has a different error message than the case without accept-any-schema because it uses
     // Iceberg checks
-    AssertHelpers.assertThrows(
-        "Should fail when merge-schema is not enabled on the writer",
-        IllegalArgumentException.class,
-        "Field new_col not found in source schema",
-        () -> {
-          try {
-            threeColDF.writeTo(tableName).append();
-          } catch (NoSuchTableException e) {
-            // needed because append has checked exceptions
-            throw new RuntimeException(e);
-          }
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              try {
+                threeColDF.writeTo(tableName).append();
+              } catch (NoSuchTableException e) {
+                // needed because append has checked exceptions
+                throw new RuntimeException(e);
+              }
+            })
+        .as("Should fail when merge-schema is not enabled on the writer")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Field new_col not found in source schema");
   }
 
   @Test
@@ -111,18 +111,18 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
             "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
 
-    AssertHelpers.assertThrows(
-        "Should fail when accept-any-schema is not enabled on the table",
-        AnalysisException.class,
-        "too many data columns",
-        () -> {
-          try {
-            threeColDF.writeTo(tableName).option("merge-schema", "true").append();
-          } catch (NoSuchTableException e) {
-            // needed because append has checked exceptions
-            throw new RuntimeException(e);
-          }
-        });
+    Assertions.assertThatThrownBy(
+            () -> {
+              try {
+                threeColDF.writeTo(tableName).option("merge-schema", "true").append();
+              } catch (NoSuchTableException e) {
+                // needed because append has checked exceptions
+                throw new RuntimeException(e);
+              }
+            })
+        .as("Should fail when accept-any-schema is not enabled on the table")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("too many data columns");
   }
 
   @Test

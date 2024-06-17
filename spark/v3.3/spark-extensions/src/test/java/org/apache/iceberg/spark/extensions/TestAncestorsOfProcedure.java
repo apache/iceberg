@@ -20,10 +20,10 @@ package org.apache.iceberg.spark.extensions;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Test;
 
@@ -147,22 +147,20 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testInvalidAncestorOfCases() {
-    AssertHelpers.assertThrows(
-        "Should reject calls without all required args",
-        AnalysisException.class,
-        "Missing required parameters",
-        () -> sql("CALL %s.system.ancestors_of()", catalogName));
+    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of()", catalogName))
+        .as("Should reject calls without all required args")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Missing required parameters");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with empty table identifier",
-        IllegalArgumentException.class,
-        "Cannot handle an empty identifier for parameter 'table'",
-        () -> sql("CALL %s.system.ancestors_of('')", catalogName));
+    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of('')", catalogName))
+        .as("Should reject calls with empty table identifier")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot handle an empty identifier for parameter 'table'");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with invalid arg types",
-        AnalysisException.class,
-        "Wrong arg type for snapshot_id: cannot cast",
-        () -> sql("CALL %s.system.ancestors_of('%s', 1.1)", catalogName, tableIdent));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.ancestors_of('%s', 1.1)", catalogName, tableIdent))
+        .as("Should reject calls with invalid arg types")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Wrong arg type for snapshot_id: cannot cast");
   }
 }

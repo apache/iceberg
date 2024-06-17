@@ -27,7 +27,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -49,6 +48,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -231,11 +231,13 @@ public class TestWriteMetricsConfig {
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts");
     properties.put("write.metadata.metrics.column.ids", "full");
 
-    AssertHelpers.assertThrows(
-        "Creating a table with invalid metrics should fail",
-        ValidationException.class,
-        null,
-        () -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation));
+    Assertions.assertThatThrownBy(
+            () -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation))
+        .as("Creating a table with invalid metrics should fail")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith(
+            "Invalid metrics config, could not find column ids from table prop write.metadata.metrics.column.ids in "
+                + "schema table");
   }
 
   @Test

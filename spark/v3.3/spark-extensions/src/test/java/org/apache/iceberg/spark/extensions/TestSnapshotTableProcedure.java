@@ -20,11 +20,11 @@ package org.apache.iceberg.spark.extensions;
 
 import java.io.IOException;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -195,37 +195,34 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
 
-    AssertHelpers.assertThrows(
-        "Should reject calls without all required args",
-        AnalysisException.class,
-        "Missing required parameters",
-        () -> sql("CALL %s.system.snapshot('foo')", catalogName));
+    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.snapshot('foo')", catalogName))
+        .as("Should reject calls without all required args")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Missing required parameters");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with invalid arg types",
-        AnalysisException.class,
-        "Wrong arg type",
-        () -> sql("CALL %s.system.snapshot('n', 't', map('foo', 'bar'))", catalogName));
+    Assertions.assertThatThrownBy(
+            () -> sql("CALL %s.system.snapshot('n', 't', map('foo', 'bar'))", catalogName))
+        .as("Should reject calls with invalid arg types")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Wrong arg type");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with invalid map args",
-        AnalysisException.class,
-        "cannot resolve 'map",
-        () ->
-            sql(
-                "CALL %s.system.snapshot('%s', 'fable', 'loc', map(2, 1, 1))",
-                catalogName, sourceName));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.snapshot('%s', 'fable', 'loc', map(2, 1, 1))",
+                    catalogName, sourceName))
+        .as("Should reject calls with invalid map args")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("cannot resolve 'map");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with empty table identifier",
-        IllegalArgumentException.class,
-        "Cannot handle an empty identifier",
-        () -> sql("CALL %s.system.snapshot('', 'dest')", catalogName));
+    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.snapshot('', 'dest')", catalogName))
+        .as("Should reject calls with empty table identifier")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot handle an empty identifier");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with empty table identifier",
-        IllegalArgumentException.class,
-        "Cannot handle an empty identifier",
-        () -> sql("CALL %s.system.snapshot('src', '')", catalogName));
+    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.snapshot('src', '')", catalogName))
+        .as("Should reject calls with empty table identifier")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot handle an empty identifier");
   }
 }
