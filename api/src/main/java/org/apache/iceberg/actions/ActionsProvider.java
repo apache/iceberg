@@ -47,6 +47,12 @@ public interface ActionsProvider {
         this.getClass().getName() + " does not implement rewriteManifests");
   }
 
+  /** Instantiates an action to repair manifests. */
+  default RepairManifests repairManifests(Table table) {
+    throw new UnsupportedOperationException(
+            this.getClass().getName() + " does not implement repairManifests");
+  }
+
   /** Instantiates an action to rewrite data files. */
   default RewriteDataFiles rewriteDataFiles(Table table) {
     throw new UnsupportedOperationException(

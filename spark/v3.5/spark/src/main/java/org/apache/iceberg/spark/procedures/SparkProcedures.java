@@ -45,6 +45,7 @@ public class SparkProcedures {
     mapBuilder.put("cherrypick_snapshot", CherrypickSnapshotProcedure::builder);
     mapBuilder.put("rewrite_data_files", RewriteDataFilesProcedure::builder);
     mapBuilder.put("rewrite_manifests", RewriteManifestsProcedure::builder);
+    mapBuilder.put("repair_manifests", RepairManifestsProcedure::builder);
     mapBuilder.put("remove_orphan_files", RemoveOrphanFilesProcedure::builder);
     mapBuilder.put("expire_snapshots", ExpireSnapshotsProcedure::builder);
     mapBuilder.put("migrate", MigrateTableProcedure::builder);

@@ -83,6 +83,11 @@ public class SparkActions implements ActionsProvider {
   }
 
   @Override
+  public RepairManifestsSparkAction repairManifests(Table table) {
+    return new RepairManifestsSparkAction(spark, table);
+  }
+
+  @Override
   public ExpireSnapshotsSparkAction expireSnapshots(Table table) {
     return new ExpireSnapshotsSparkAction(spark, table);
   }
