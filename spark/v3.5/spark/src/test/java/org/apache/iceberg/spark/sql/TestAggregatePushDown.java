@@ -815,4 +815,124 @@ public class TestAggregatePushDown extends CatalogTestBase {
         });
     assertEquals("min/max/count push down", expected, actual);
   }
+
+  @TestTemplate
+  public void testAggregatePushDownWithOnlyIdentityPartitionInfo() {
+    String createTable = "CREATE TABLE %s (id LONG, data INT) USING iceberg PARTITIONED BY (id)";
+
+    sql(createTable, tableName);
+
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "id", "none");
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES('%s' '%s')",
+        tableName, TableProperties.METRICS_MODE_COLUMN_CONF_PREFIX + "data", "none");
+
+    sql(
+        "INSERT INTO TABLE %s VALUES"
+            + " (1, 11),"
+            + " (1, 22),"
+            + " (2, 33),"
+            + " (2, 44),"
+            + " (3, 55),"
+            + " (3, 66) ",
+        tableName);
+
+    String select = "SELECT COUNT(id), COUNT(distinct id), MIN(id), MAX(id) FROM %s WHERE id < 3";
+
+    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
+    String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
+    boolean explainContainsPushDownAggregates = false;
+    if (explainString.contains("count(id)")
+        && explainString.contains("count(distinct id)")
+        && explainString.contains("min(id)")
+        && explainString.contains("max(id)")) {
+      explainContainsPushDownAggregates = true;
+    }
+
+    // Filters are not completely pushed down, we can push down aggregates
+    assertThat(explainContainsPushDownAggregates)
+        .as("explain should contain the pushed down aggregates")
+        .isTrue();
+
+    List<Object[]> actual = sql(select, tableName);
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {4L, 2L, 1L, 2L});
+    assertEquals("expected and actual should equal", expected, actual);
+  }
+
+  @TestTemplate
+  public void testCountDistinctPushDownForIdentityPartitionColumn() {
+    String createTable = "CREATE TABLE %s (id STRING, data INT) USING iceberg PARTITIONED BY (id)";
+
+    sql(createTable, tableName);
+
+    sql(
+        "INSERT INTO TABLE %s VALUES"
+            + " ('1', 11),"
+            + " ('1', 22),"
+            + " ('2', 33),"
+            + " ('2', 44),"
+            + " ('3', 55),"
+            + " ('3', 66) ",
+        tableName);
+
+    String select = "SELECT COUNT(distinct id) FROM %s WHERE id != '3'";
+
+    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
+    String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
+    boolean explainContainsPushDownAggregates = false;
+    if (explainString.contains("count(distinct id)")) {
+      explainContainsPushDownAggregates = true;
+    }
+
+    // Filters are not completely pushed down, we can push down aggregates
+    assertThat(explainContainsPushDownAggregates)
+        .as("explain should contain the pushed down aggregates")
+        .isTrue();
+
+    List<Object[]> actual = sql(select, tableName);
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {2L});
+    assertEquals("expected and actual should equal", expected, actual);
+  }
+
+  @TestTemplate
+  public void testCountDistinctPushDownForNonIdentityPartitionColumn() {
+    String createTable = "CREATE TABLE %s (id LONG, data INT) USING iceberg";
+
+    sql(createTable, tableName);
+
+    sql(
+        "INSERT INTO TABLE %s VALUES"
+            + " (1, 11),"
+            + " (1, 22),"
+            + " (2, 33),"
+            + " (2, 44),"
+            + " (3, 55),"
+            + " (3, 66) ",
+        tableName);
+
+    String select = "SELECT COUNT(distinct data) FROM %s";
+
+    List<Object[]> explain = sql("EXPLAIN " + select, tableName);
+    String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
+    boolean explainContainsPushDownAggregates = false;
+    if (explainString.contains("count(distinct data)")) {
+      explainContainsPushDownAggregates = true;
+    }
+
+    assertThat(explainContainsPushDownAggregates)
+        .as("explain should not contain the pushed down aggregates")
+        .isFalse();
+
+    List<Object[]> actual = sql(select, tableName);
+    List<Object[]> expected = Lists.newArrayList();
+    expected.add(new Object[] {6L});
+    assertEquals("expected and actual should equal", expected, actual);
+  }
 }

@@ -51,6 +51,8 @@ public class UnboundAggregate<T> extends Aggregate<UnboundTerm<T>>
         return new CountStar<>(null);
       case COUNT:
         return new CountNonNull<>(boundTerm(struct, caseSensitive));
+      case COUNT_DISTINCT:
+        return new CountDistinct<>(boundTerm(struct, caseSensitive));
       case MAX:
         return new MaxAggregate<>(boundTerm(struct, caseSensitive));
       case MIN:

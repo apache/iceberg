@@ -37,6 +37,16 @@ public class CountStar<T> extends CountAggregate<T> {
   }
 
   @Override
+  protected boolean hasColumnValue(DataFile file) {
+    return file.recordCount() >= 0;
+  }
+
+  @Override
+  protected Long countFor(DataFile file, StructLike row) {
+    return countFor(file);
+  }
+
+  @Override
   protected Long countFor(DataFile file) {
     long count = file.recordCount();
     if (count < 0) {

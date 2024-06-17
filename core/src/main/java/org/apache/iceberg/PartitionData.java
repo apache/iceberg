@@ -22,7 +22,9 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
@@ -30,6 +32,7 @@ import org.apache.avro.specific.SpecificData;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.hash.Hasher;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Type;
@@ -48,17 +51,24 @@ public class PartitionData
   private final String stringSchema;
   private transient Schema schema;
 
+  private Map<String, Integer> nameToPos;
+
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   PartitionData(Schema schema) {
     this.partitionType = AvroSchemaUtil.convert(schema).asNestedType().asStructType();
     this.size = partitionType.fields().size();
     this.data = new Object[size];
+    this.nameToPos = Maps.newHashMap();
     this.stringSchema = schema.toString();
     this.schema = schema;
   }
 
   public PartitionData(Types.StructType partitionType) {
+    this.nameToPos = Maps.newHashMap();
+    int pos = 0;
     for (Types.NestedField field : partitionType.fields()) {
+      nameToPos.put(field.name(), pos);
+      pos++;
       Preconditions.checkArgument(
           field.type().isPrimitiveType(),
           "Partitions cannot contain nested types: %s",
@@ -77,6 +87,8 @@ public class PartitionData
     this.partitionType = toCopy.partitionType;
     this.size = toCopy.size;
     this.data = copyData(toCopy.partitionType, toCopy.data);
+    this.nameToPos = Maps.newHashMap();
+    this.nameToPos.putAll(toCopy.nameToPos);
     this.stringSchema = toCopy.stringSchema;
     this.schema = toCopy.schema;
   }
@@ -126,6 +138,17 @@ public class PartitionData
         String.format(
             "Wrong class, expected %s, but was %s, for object: %s",
             javaClass.getName(), value.getClass().getName(), value));
+  }
+
+  @Override
+  public <T> T get(String name, Class<T> javaClass) {
+    int pos = this.nameToPos.get(name);
+    return get(pos, javaClass);
+  }
+
+  @Override
+  public Set<String> getPartitionNames() {
+    return this.nameToPos.keySet();
   }
 
   @Override

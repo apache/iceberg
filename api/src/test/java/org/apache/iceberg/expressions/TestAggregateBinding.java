@@ -30,7 +30,11 @@ import org.junit.jupiter.api.Test;
 
 public class TestAggregateBinding {
   private static final List<UnboundAggregate<Integer>> list =
-      ImmutableList.of(Expressions.count("x"), Expressions.max("x"), Expressions.min("x"));
+      ImmutableList.of(
+          Expressions.count("x"),
+          Expressions.max("x"),
+          Expressions.min("x"),
+          Expressions.countDistinct("x"));
   private static final StructType struct =
       StructType.of(Types.NestedField.required(10, "x", Types.IntegerType.get()));
 
@@ -38,7 +42,7 @@ public class TestAggregateBinding {
   public void testAggregateBinding() {
     for (UnboundAggregate<Integer> unbound : list) {
       Expression expr = unbound.bind(struct, true);
-      BoundAggregate<Integer, ?> bound = assertAndUnwrapAggregate(expr);
+      BoundAggregate<Integer, ?, ?> bound = assertAndUnwrapAggregate(expr);
       assertThat(bound.ref().fieldId()).as("Should reference correct field ID").isEqualTo(10);
       assertThat(bound.op())
           .as("Should not change the comparison operation")
@@ -50,7 +54,7 @@ public class TestAggregateBinding {
   public void testCountStarBinding() {
     UnboundAggregate<?> unbound = Expressions.countStar();
     Expression expr = unbound.bind(null, false);
-    BoundAggregate<?, Long> bound = assertAndUnwrapAggregate(expr);
+    BoundAggregate<?, Long, Long> bound = assertAndUnwrapAggregate(expr);
 
     assertThat(bound.op())
         .as("Should not change the comparison operation")
@@ -69,7 +73,7 @@ public class TestAggregateBinding {
   public void testCaseInsensitiveReference() {
     Expression expr = Expressions.max("X");
     Expression boundExpr = Binder.bind(struct, expr, false);
-    BoundAggregate<Integer, Integer> bound = assertAndUnwrapAggregate(boundExpr);
+    BoundAggregate<Integer, ?, Integer> bound = assertAndUnwrapAggregate(boundExpr);
     assertThat(bound.ref().fieldId()).as("Should reference correct field ID").isEqualTo(10);
     assertThat(bound.op())
         .as("Should not change the comparison operation")
@@ -92,8 +96,8 @@ public class TestAggregateBinding {
         .hasMessageContaining("Cannot find field 'missing' in struct:");
   }
 
-  private static <T, C> BoundAggregate<T, C> assertAndUnwrapAggregate(Expression expr) {
+  private static <T, C, R> BoundAggregate<T, C, R> assertAndUnwrapAggregate(Expression expr) {
     Assertions.assertThat(expr).isInstanceOf(BoundAggregate.class);
-    return (BoundAggregate<T, C>) expr;
+    return (BoundAggregate<T, C, R>) expr;
   }
 }

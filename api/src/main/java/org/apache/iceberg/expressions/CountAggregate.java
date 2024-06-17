@@ -21,7 +21,7 @@ package org.apache.iceberg.expressions;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.StructLike;
 
-public class CountAggregate<T> extends BoundAggregate<T, Long> {
+public class CountAggregate<T> extends BoundAggregate<T, Long, Long> {
   protected CountAggregate(Operation op, BoundTerm<T> term) {
     super(op, term);
   }
@@ -47,14 +47,24 @@ public class CountAggregate<T> extends BoundAggregate<T, Long> {
   }
 
   @Override
+  public Long eval(DataFile file, StructLike struct) {
+    return countFor(file, struct);
+  }
+
+  protected Long countFor(DataFile file, StructLike row) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement countFor(DataFile)");
+  }
+
+  @Override
   public Aggregator<Long> newAggregator() {
     return new CountAggregator<>(this);
   }
 
-  private static class CountAggregator<T> extends NullSafeAggregator<T, Long> {
+  private static class CountAggregator<T> extends NullSafeAggregator<T, Long, Long> {
     private Long count = 0L;
 
-    CountAggregator(BoundAggregate<T, Long> aggregate) {
+    CountAggregator(BoundAggregate<T, Long, Long> aggregate) {
       super(aggregate);
     }
 

@@ -70,8 +70,11 @@ public class TestSparkAggregates {
               .isEqualTo(expectedCount.toString());
 
           Count countDistinct = new Count(namedReference, true);
-          Expression convertedCountDistinct = SparkAggregates.convert(countDistinct);
-          assertThat(convertedCountDistinct).as("Count Distinct is converted to null").isNull();
+          Expression expectedCountDistinct = Expressions.countDistinct(unquoted);
+          Expression actualCountDistinct = SparkAggregates.convert(countDistinct);
+          assertThat(String.valueOf(actualCountDistinct))
+              .as("Count Distinct must match")
+              .isEqualTo(expectedCountDistinct.toString());
 
           CountStar countStar = new CountStar();
           Expression expectedCountStar = Expressions.countStar();

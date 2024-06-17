@@ -47,9 +47,10 @@ public class SparkAggregates {
       switch (op) {
         case COUNT:
           Count countAgg = (Count) aggregate;
-          if (countAgg.isDistinct()) {
-            // manifest file doesn't have count distinct so this can't be pushed down
-            return null;
+          if (countAgg.isDistinct() && countAgg.column() instanceof NamedReference) {
+            // partition info have partition value so this can be converted
+            return Expressions.countDistinct(
+                SparkUtil.toColumnName((NamedReference) countAgg.column()));
           }
 
           if (countAgg.column() instanceof NamedReference) {

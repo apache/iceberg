@@ -165,7 +165,7 @@ public class Binder {
     }
 
     @Override
-    public <T, C> Expression aggregate(BoundAggregate<T, C> agg) {
+    public <T, C> Expression aggregate(BoundAggregate<T, C, ?> agg) {
       throw new IllegalStateException("Found already bound aggregate: " + agg);
     }
   }

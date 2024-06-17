@@ -21,7 +21,7 @@ package org.apache.iceberg.expressions;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.StructLike;
 
-class ValueAggregate<T> extends BoundAggregate<T, T> {
+class ValueAggregate<T> extends BoundAggregate<T, T, T> {
   private final SingleValueStruct valueStruct = new SingleValueStruct();
 
   protected ValueAggregate(Operation op, BoundTerm<T> term) {
