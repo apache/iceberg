@@ -324,6 +324,8 @@ public class TestAlterTable extends SparkCatalogTestBase {
     Assertions.assertThatThrownBy(
             () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('sort-order'='value')", tableName))
         .as("Cannot specify the 'sort-order' because it's a reserved table property")
-        .isInstanceOf(UnsupportedOperationException.class);
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageStartingWith(
+            "Cannot specify the 'sort-order' because it's a reserved table property");
   }
 }

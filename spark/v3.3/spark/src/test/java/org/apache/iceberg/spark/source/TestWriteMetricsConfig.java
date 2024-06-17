@@ -234,7 +234,10 @@ public class TestWriteMetricsConfig {
     Assertions.assertThatThrownBy(
             () -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation))
         .as("Creating a table with invalid metrics should fail")
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith(
+            "Invalid metrics config, could not find column ids from table prop write.metadata.metrics.column.ids in "
+                + "schema table");
   }
 
   @Test

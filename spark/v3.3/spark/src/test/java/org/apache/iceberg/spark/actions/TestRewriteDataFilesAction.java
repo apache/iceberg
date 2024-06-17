@@ -644,7 +644,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     Assertions.assertThatThrownBy(() -> spyRewrite.execute())
         .as("Should fail entire rewrite if part fails")
-        .isInstanceOf(RuntimeException.class);
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("Rewrite Failed");
 
     table.refresh();
 
@@ -678,7 +679,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     Assertions.assertThatThrownBy(() -> spyRewrite.execute())
         .as("Should fail entire rewrite if commit fails")
-        .isInstanceOf(RuntimeException.class);
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("Commit Failure");
 
     table.refresh();
 
@@ -713,7 +715,8 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     Assertions.assertThatThrownBy(() -> spyRewrite.execute())
         .as("Should fail entire rewrite if part fails")
-        .isInstanceOf(RuntimeException.class);
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage("Rewrite Failed");
 
     table.refresh();
 
@@ -862,7 +865,10 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
                     .option(RewriteDataFiles.PARTIAL_PROGRESS_MAX_COMMITS, "-5")
                     .execute())
         .as("No negative values for partial progress max commits")
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot set partial-progress.max-commits to -5, "
+                + "the value must be positive when partial-progress.enabled is true");
 
     Assertions.assertThatThrownBy(
             () ->
@@ -870,16 +876,21 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
                     .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "-5")
                     .execute())
         .as("No negative values for max concurrent groups")
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot set max-concurrent-file-group-rewrites to -5, the value must be positive.");
 
     Assertions.assertThatThrownBy(() -> basicRewrite(table).option("foobarity", "-5").execute())
         .as("No unknown options allowed")
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot use options [foobarity], they are not supported by the action or the rewriter BIN-PACK");
 
     Assertions.assertThatThrownBy(
             () -> basicRewrite(table).option(RewriteDataFiles.REWRITE_JOB_ORDER, "foo").execute())
         .as("Cannot set rewrite-job-order to foo")
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid rewrite job order name: foo");
   }
 
   @Test
@@ -1117,7 +1128,9 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     Assertions.assertThatThrownBy(() -> spyAction.execute())
         .as("Should propagate CommitStateUnknown Exception")
-        .isInstanceOf(CommitStateUnknownException.class);
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith(
+            "Unknown State\n" + "Cannot determine whether the commit was successful or not");
 
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
