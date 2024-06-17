@@ -64,8 +64,7 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   project.ext.extraJvmArgs = []
 } else if (JavaVersion.current() == JavaVersion.VERSION_17) {
   project.ext.jdkVersion = '17'
-  project.ext.extraJvmArgs = ["-XX:+IgnoreUnrecognizedVMOptions",
-                              "--add-opens", "java.base/java.io=ALL-UNNAMED",
+  project.ext.extraJvmArgs = ["--add-opens", "java.base/java.io=ALL-UNNAMED",
                               "--add-opens", "java.base/java.lang.invoke=ALL-UNNAMED",
                               "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED",
                               "--add-opens", "java.base/java.lang=ALL-UNNAMED",
