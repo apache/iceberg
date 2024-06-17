@@ -55,7 +55,6 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
   private final List<TriggerEvaluator> evaluators;
   private final long minFireDelayMs;
   private final long lockCheckDelayMs;
-  private final boolean clearLocks;
   private transient Counter rateLimiterTriggeredCounter;
   private transient Counter concurrentRunTriggeredCounter;
   private transient Counter nothingToTriggerCounter;
@@ -75,8 +74,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
       List<String> taskNames,
       List<TriggerEvaluator> evaluators,
       long minFireDelayMs,
-      long lockCheckDelayMs,
-      boolean clearLocks) {
+      long lockCheckDelayMs) {
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
     Preconditions.checkNotNull(lockFactory, "Lock factory should no be null");
     Preconditions.checkArgument(
@@ -93,7 +91,6 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     this.evaluators = evaluators;
     this.minFireDelayMs = minFireDelayMs;
     this.lockCheckDelayMs = lockCheckDelayMs;
-    this.clearLocks = clearLocks;
   }
 
   @Override
@@ -101,26 +98,29 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     this.rateLimiterTriggeredCounter =
         getRuntimeContext()
             .getMetricGroup()
-            .addGroup(MetricConstants.GROUP_KEY, MetricConstants.GROUP_VALUE_DEFAULT)
-            .counter(MetricConstants.RATE_LIMITER_TRIGGERED);
+            .addGroup(
+                TableMaintenanceMetrics.GROUP_KEY, TableMaintenanceMetrics.GROUP_VALUE_DEFAULT)
+            .counter(TableMaintenanceMetrics.RATE_LIMITER_TRIGGERED);
     this.concurrentRunTriggeredCounter =
         getRuntimeContext()
             .getMetricGroup()
-            .addGroup(MetricConstants.GROUP_KEY, MetricConstants.GROUP_VALUE_DEFAULT)
-            .counter(MetricConstants.CONCURRENT_RUN_TRIGGERED);
+            .addGroup(
+                TableMaintenanceMetrics.GROUP_KEY, TableMaintenanceMetrics.GROUP_VALUE_DEFAULT)
+            .counter(TableMaintenanceMetrics.CONCURRENT_RUN_TRIGGERED);
     this.nothingToTriggerCounter =
         getRuntimeContext()
             .getMetricGroup()
-            .addGroup(MetricConstants.GROUP_KEY, MetricConstants.GROUP_VALUE_DEFAULT)
-            .counter(MetricConstants.NOTHING_TO_TRIGGER);
+            .addGroup(
+                TableMaintenanceMetrics.GROUP_KEY, TableMaintenanceMetrics.GROUP_VALUE_DEFAULT)
+            .counter(TableMaintenanceMetrics.NOTHING_TO_TRIGGER);
     this.triggerCounters =
         taskNames.stream()
             .map(
                 name ->
                     getRuntimeContext()
                         .getMetricGroup()
-                        .addGroup(MetricConstants.GROUP_KEY, name)
-                        .counter(MetricConstants.TRIGGERED))
+                        .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
+                        .counter(TableMaintenanceMetrics.TRIGGERED))
             .collect(Collectors.toList());
 
     this.nextEvaluationTime =
@@ -134,6 +134,8 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     this.lastTriggerTimes =
         getRuntimeContext()
             .getListState(new ListStateDescriptor<>("triggerManagerLastTriggerTime", Types.LONG));
+
+    tableLoader.open();
   }
 
   @Override
@@ -143,23 +145,21 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
 
   @Override
   public void initializeState(FunctionInitializationContext context) {
-    LOG.info("Initializing state restored: {}, clearLocks: {}", context.isRestored(), clearLocks);
+    LOG.info("Initializing state restored: {}", context.isRestored());
     this.lock = lockFactory.createLock();
     this.recoveryLock = lockFactory.createRecoveryLock();
     if (context.isRestored()) {
       isCleanUp = true;
-    } else if (clearLocks) {
-      // Remove old lock if we are not restoring the job
-      lock.unlock();
     }
   }
 
   @Override
   public void processElement(TableChange change, Context ctx, Collector<Trigger> out)
       throws Exception {
+    init(out, ctx.timerService());
+
     long current = ctx.timerService().currentProcessingTime();
     Long nextTime = nextEvaluationTime.value();
-    init(out, ctx.timerService(), current);
 
     // Add the new changes to the already accumulated ones
     List<TableChange> accumulated = Lists.newArrayList(accumulatedChanges.get());
@@ -180,7 +180,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
 
   @Override
   public void onTimer(long timestamp, OnTimerContext ctx, Collector<Trigger> out) throws Exception {
-    init(out, ctx.timerService(), timestamp);
+    init(out, ctx.timerService());
     nextEvaluationTime.clear();
     checkAndFire(ctx.timerService().currentProcessingTime(), ctx.timerService(), out);
   }
@@ -261,9 +261,10 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     return null;
   }
 
-  private void init(Collector<Trigger> out, TimerService timerService, long current)
-      throws Exception {
+  private void init(Collector<Trigger> out, TimerService timerService) throws Exception {
     if (!inited) {
+      long current = timerService.currentProcessingTime();
+
       // Initialize with empty changes and current timestamp
       if (!accumulatedChanges.get().iterator().hasNext()) {
         List<TableChange> changes = Lists.newArrayListWithCapacity(evaluators.size());

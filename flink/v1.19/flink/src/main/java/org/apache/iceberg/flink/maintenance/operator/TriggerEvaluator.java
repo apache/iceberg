@@ -38,13 +38,13 @@ class TriggerEvaluator implements Serializable {
     this.predicates = predicates;
   }
 
-  boolean check(TableChange event, long lastTime, long currentTime) {
+  boolean check(TableChange event, long lastTimeMs, long currentTimeMs) {
     boolean result =
         predicates.stream()
             .anyMatch(
                 p -> {
                   try {
-                    return p.evaluate(event, lastTime, currentTime);
+                    return p.evaluate(event, lastTimeMs, currentTimeMs);
                   } catch (Exception e) {
                     throw new RuntimeException("Error accessing state", e);
                   }
@@ -52,8 +52,8 @@ class TriggerEvaluator implements Serializable {
     LOG.debug(
         "Checking event: {}, at {}, last: {} with result: {}",
         event,
-        currentTime,
-        lastTime,
+        currentTimeMs,
+        lastTimeMs,
         result);
     return result;
   }
@@ -114,7 +114,8 @@ class TriggerEvaluator implements Serializable {
 
       if (timeout != null) {
         predicates.add(
-            (change, lastTime, currentTime) -> currentTime - lastTime >= timeout.toMillis());
+            (change, lastTimeMs, currentTimeMs) ->
+                currentTimeMs - lastTimeMs >= timeout.toMillis());
       }
 
       return new TriggerEvaluator(predicates);
@@ -122,6 +123,6 @@ class TriggerEvaluator implements Serializable {
   }
 
   private interface Predicate extends Serializable {
-    boolean evaluate(TableChange event, long lastTime, long currentTime);
+    boolean evaluate(TableChange event, long lastTimeMs, long currentTimeMs);
   }
 }

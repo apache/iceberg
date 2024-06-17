@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-public class MetricConstants {
+public class TableMaintenanceMetrics {
   public static final String GROUP_KEY = "maintenanceTask";
   public static final String GROUP_VALUE_DEFAULT = "maintenanceTask";
 
@@ -28,7 +28,7 @@ public class MetricConstants {
   public static final String TRIGGERED = "triggered";
   public static final String NOTHING_TO_TRIGGER = "nothingToTrigger";
 
-  private MetricConstants() {
+  private TableMaintenanceMetrics() {
     // do not instantiate
   }
 }

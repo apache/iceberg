@@ -41,7 +41,7 @@ public class MetricsReporterFactoryForTests implements MetricReporterFactory {
   private static final Pattern FULL_METRIC_NAME =
       Pattern.compile(
           "\\.taskmanager\\.[^.]+\\.[^.]+\\.([^.]+)\\.\\d+\\."
-              + MetricConstants.GROUP_KEY
+              + TableMaintenanceMetrics.GROUP_KEY
               + "\\.([^.]+)\\.([^.]+)");
 
   private static Map<String, Counter> counters = Maps.newConcurrentMap();
@@ -50,7 +50,7 @@ public class MetricsReporterFactoryForTests implements MetricReporterFactory {
 
   public MetricsReporterFactoryForTests() {
     monitoredMetricNames =
-        Arrays.stream(MetricConstants.class.getDeclaredFields())
+        Arrays.stream(TableMaintenanceMetrics.class.getDeclaredFields())
             .map(
                 f -> {
                   try {

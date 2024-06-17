@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import java.util.Objects;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -53,30 +52,12 @@ class Trigger {
     return table;
   }
 
+  Integer taskId() {
+    return taskId;
+  }
+
   boolean isCleanUp() {
     return isCleanUp;
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-
-    Trigger other = (Trigger) o;
-    return timestamp == other.timestamp
-        && Objects.equals(table, other.table)
-        && Objects.equals(taskId, other.taskId)
-        && isCleanUp == other.isCleanUp;
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(timestamp, isCleanUp, taskId, table);
   }
 
   @Override

@@ -21,14 +21,15 @@ package org.apache.iceberg.flink.maintenance.operator;
 import static org.apache.iceberg.flink.maintenance.operator.ConstantsForTests.DUMMY_NAME;
 import static org.apache.iceberg.flink.maintenance.operator.ConstantsForTests.EVENT_TIME;
 import static org.apache.iceberg.flink.maintenance.operator.ConstantsForTests.EVENT_TIME_2;
-import static org.apache.iceberg.flink.maintenance.operator.MetricConstants.CONCURRENT_RUN_TRIGGERED;
-import static org.apache.iceberg.flink.maintenance.operator.MetricConstants.GROUP_VALUE_DEFAULT;
-import static org.apache.iceberg.flink.maintenance.operator.MetricConstants.NOTHING_TO_TRIGGER;
-import static org.apache.iceberg.flink.maintenance.operator.MetricConstants.RATE_LIMITER_TRIGGERED;
-import static org.apache.iceberg.flink.maintenance.operator.MetricConstants.TRIGGERED;
+import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.CONCURRENT_RUN_TRIGGERED;
+import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.GROUP_VALUE_DEFAULT;
+import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.NOTHING_TO_TRIGGER;
+import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.RATE_LIMITER_TRIGGERED;
+import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.TRIGGERED;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
+import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -40,6 +41,7 @@ import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
 import org.apache.flink.streaming.util.KeyedOneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.SerializableTable;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -49,7 +51,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class TestTriggerManager extends OperatorTestBase {
   private static final long DELAY = 10L;
@@ -62,8 +63,10 @@ class TestTriggerManager extends OperatorTestBase {
   @BeforeEach
   void before() {
     sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    lock = new TagBasedLockFactory(sql.tableLoader(TABLE_NAME)).createLock();
-    recoveringLock = new TagBasedLockFactory(sql.tableLoader(TABLE_NAME)).createRecoveryLock();
+    lock = new JVMBasedLockFactory().createLock();
+    recoveringLock = new JVMBasedLockFactory().createRecoveryLock();
+    lock.unlock();
+    recoveringLock.unlock();
     MetricsReporterFactoryForTests.reset();
   }
 
@@ -76,16 +79,16 @@ class TestTriggerManager extends OperatorTestBase {
         harness(manager)) {
       testHarness.open();
 
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 0, 0, 1), 0);
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 0, 0, 2), 1);
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 0, 0, 3), 2);
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 0, 0, 10), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(1).build(), 0);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(2).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(3).build(), 2);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(10).build(), 3);
 
       // No trigger in this case
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 0, 0, 1), 3);
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 0, 0, 1), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(1).build(), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(1).build(), 3);
 
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 0, 0, 1), 4);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(1).build(), 4);
     }
   }
 
@@ -97,17 +100,19 @@ class TestTriggerManager extends OperatorTestBase {
         harness(manager)) {
       testHarness.open();
 
-      addEventAndCheckResult(testHarness, new TableChange(1, 0, 0, 0, 0), 0);
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileNum(1).build(), 0);
 
-      addEventAndCheckResult(testHarness, new TableChange(1, 1, 0, 0, 0), 1);
-      addEventAndCheckResult(testHarness, new TableChange(0, 3, 0, 0, 0), 2);
-      addEventAndCheckResult(testHarness, new TableChange(5, 7, 0, 0, 0), 3);
+      addEventAndCheckResult(
+          testHarness, TableChange.builder().dataFileNum(1).deleteFileNum(1).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(3).build(), 2);
+      addEventAndCheckResult(
+          testHarness, TableChange.builder().dataFileNum(5).deleteFileNum(7).build(), 3);
 
       // No trigger in this case
-      addEventAndCheckResult(testHarness, new TableChange(1, 0, 0, 0, 0), 3);
-      addEventAndCheckResult(testHarness, new TableChange(0, 1, 0, 0, 0), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileNum(1).build(), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(1).build(), 3);
 
-      addEventAndCheckResult(testHarness, new TableChange(1, 0, 0, 0, 0), 4);
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileNum(1).build(), 4);
     }
   }
 
@@ -119,16 +124,18 @@ class TestTriggerManager extends OperatorTestBase {
         harness(manager)) {
       testHarness.open();
 
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 1, 0, 0), 0);
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 1, 1, 0), 1);
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 0, 3, 0), 2);
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 5, 7, 0), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileSize(1L).build(), 0);
+      addEventAndCheckResult(
+          testHarness, TableChange.builder().dataFileSize(1L).deleteFileSize(1L).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileSize(3L).build(), 2);
+      addEventAndCheckResult(
+          testHarness, TableChange.builder().dataFileSize(5L).deleteFileSize(7L).build(), 3);
 
       // No trigger in this case
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 1, 0, 0), 3);
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 0, 1, 0), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileSize(1L).build(), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileSize(1L).build(), 3);
 
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 1, 0, 0), 4);
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileSize(1L).build(), 4);
     }
   }
 
@@ -142,16 +149,17 @@ class TestTriggerManager extends OperatorTestBase {
         harness(manager)) {
       testHarness.open();
 
-      addEventAndCheckResult(testHarness, new TableChange(3, 1, 0, 0, 0), 0);
-      addEventAndCheckResult(testHarness, new TableChange(0, 2, 0, 0, 0), 1);
-      addEventAndCheckResult(testHarness, new TableChange(0, 3, 0, 0, 0), 2);
-      addEventAndCheckResult(testHarness, new TableChange(0, 10, 0, 0, 0), 3);
+      addEventAndCheckResult(
+          testHarness, TableChange.builder().dataFileNum(3).deleteFileNum(1).build(), 0);
+      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(2).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(3).build(), 2);
+      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(10).build(), 3);
 
       // No trigger in this case
-      addEventAndCheckResult(testHarness, new TableChange(0, 1, 0, 0, 0), 3);
-      addEventAndCheckResult(testHarness, new TableChange(0, 1, 0, 0, 0), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(1).build(), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(1).build(), 3);
 
-      addEventAndCheckResult(testHarness, new TableChange(0, 1, 0, 0, 0), 4);
+      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(1).build(), 4);
     }
   }
 
@@ -165,7 +173,7 @@ class TestTriggerManager extends OperatorTestBase {
         harness(manager)) {
       testHarness.open();
 
-      TableChange event = new TableChange(1, 0, 0, 0, 1);
+      TableChange event = TableChange.builder().dataFileSize(1).commitNum(1).build();
 
       // Wait for one trigger
       testHarness.processElement(event, EVENT_TIME);
@@ -188,7 +196,8 @@ class TestTriggerManager extends OperatorTestBase {
         harness(manager)) {
       testHarness.open();
 
-      testHarness.processElement(new TableChange(1, 0, 0, 0, 1), EVENT_TIME);
+      testHarness.processElement(
+          TableChange.builder().dataFileSize(1).commitNum(1).build(), EVENT_TIME);
 
       assertThat(testHarness.extractOutputValues()).isEmpty();
 
@@ -203,9 +212,10 @@ class TestTriggerManager extends OperatorTestBase {
       testHarness.open();
 
       // Arrives the first real change
-      testHarness.processElement(new TableChange(0, 0, 0, 0, 1), EVENT_TIME_2);
-      assertThat(testHarness.extractOutputValues())
-          .isEqualTo(Lists.newArrayList(Trigger.cleanUp(testHarness.getProcessingTime())));
+      testHarness.processElement(TableChange.builder().commitNum(1).build(), EVENT_TIME_2);
+      assertTriggers(
+          testHarness.extractOutputValues(),
+          Lists.newArrayList(Trigger.cleanUp(testHarness.getProcessingTime())));
 
       recoveringLock.unlock();
       testHarness.setProcessingTime(EVENT_TIME_2);
@@ -216,16 +226,16 @@ class TestTriggerManager extends OperatorTestBase {
   @Test
   void testMinFireDelay() throws Exception {
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    TriggerManager manager = manager(tableLoader, DELAY, 1, false);
+    TriggerManager manager = manager(tableLoader, DELAY, 1);
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
       testHarness.open();
 
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 0, 0, 2), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(2).build(), 1);
       long currentTime = testHarness.getProcessingTime();
 
       // No new fire yet
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 0, 0, 2), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(2).build(), 1);
 
       // Check that the trigger fired after the delay
       testHarness.setProcessingTime(currentTime + DELAY);
@@ -236,16 +246,16 @@ class TestTriggerManager extends OperatorTestBase {
   @Test
   void testLogCheckDelay() throws Exception {
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    TriggerManager manager = manager(tableLoader, 1, DELAY, false);
+    TriggerManager manager = manager(tableLoader, 1, DELAY);
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
       testHarness.open();
 
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 0, 0, 2), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(2).build(), 1);
 
       // Create a lock to prevent execution, and check that there is no result
       assertThat(lock.tryLock()).isTrue();
-      addEventAndCheckResult(testHarness, new TableChange(0, 0, 0, 0, 2), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(2).build(), 1);
       long currentTime = testHarness.getProcessingTime();
 
       // Remove the lock, and still no trigger
@@ -255,22 +265,6 @@ class TestTriggerManager extends OperatorTestBase {
       // Check that the trigger fired after the delay
       testHarness.setProcessingTime(currentTime + DELAY);
       assertThat(testHarness.extractOutputValues()).hasSize(2);
-    }
-  }
-
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  void testCleanup(boolean cleanup) throws Exception {
-    // Simulate a lock remaining from a previous run
-    assertThat(lock.tryLock()).isTrue();
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    TriggerManager manager = manager(tableLoader, 1, 1, cleanup);
-    try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
-        harness(manager)) {
-      testHarness.open();
-
-      assertThat(lock.isHeld()).isEqualTo(!cleanup);
     }
   }
 
@@ -307,13 +301,13 @@ class TestTriggerManager extends OperatorTestBase {
       ++processingTime;
       expected.add(Trigger.cleanUp(processingTime));
       testHarness.setProcessingTime(processingTime);
-      testHarness.processElement(new TableChange(0, 0, 0, 0, 2), processingTime);
-      assertThat(testHarness.extractOutputValues()).isEqualTo(expected);
+      testHarness.processElement(TableChange.builder().commitNum(2).build(), processingTime);
+      assertTriggers(testHarness.extractOutputValues(), expected);
 
       // Nothing happens until the recovery is finished
       ++processingTime;
       testHarness.setProcessingTime(processingTime);
-      assertThat(testHarness.extractOutputValues()).isEqualTo(expected);
+      assertTriggers(testHarness.extractOutputValues(), expected);
 
       if (runningTask) {
         lock.unlock();
@@ -322,8 +316,8 @@ class TestTriggerManager extends OperatorTestBase {
       // Still no results as the recovery is ongoing
       ++processingTime;
       testHarness.setProcessingTime(processingTime);
-      testHarness.processElement(new TableChange(0, 0, 0, 0, 2), processingTime);
-      assertThat(testHarness.extractOutputValues()).isEqualTo(expected);
+      testHarness.processElement(TableChange.builder().commitNum(2).build(), processingTime);
+      assertTriggers(testHarness.extractOutputValues(), expected);
 
       // All locks are removed when the recovery trigger is received by the lock cleaner
       lock.unlock();
@@ -332,14 +326,14 @@ class TestTriggerManager extends OperatorTestBase {
       // Emit only a single trigger
       ++processingTime;
       testHarness.setProcessingTime(processingTime);
-      testHarness.processElement(new TableChange(0, 0, 0, 0, 2), processingTime);
+      testHarness.processElement(TableChange.builder().commitNum(2).build(), processingTime);
       // Releasing lock will create a new snapshot, and we receive this in the trigger
       expected.add(
           Trigger.create(
               processingTime,
               (SerializableTable) SerializableTable.copyOf(tableLoader.loadTable()),
               0));
-      assertThat(testHarness.extractOutputValues()).isEqualTo(expected);
+      assertTriggers(testHarness.extractOutputValues(), expected);
     }
   }
 
@@ -355,14 +349,13 @@ class TestTriggerManager extends OperatorTestBase {
     TriggerManager manager =
         new TriggerManager(
             tableLoader,
-            new TagBasedLockFactory(tableLoader),
+            new JVMBasedLockFactory(),
             Lists.newArrayList(NAME_1, NAME_2),
             Lists.newArrayList(
                 new TriggerEvaluator.Builder().commitNumber(2).build(),
                 new TriggerEvaluator.Builder().commitNumber(4).build()),
             1L,
-            1L,
-            false);
+            1L);
     source
         .dataStream()
         .keyBy(unused -> true)
@@ -376,7 +369,7 @@ class TestTriggerManager extends OperatorTestBase {
       jobClient = env.executeAsync();
 
       // This one doesn't trigger - tests NOTHING_TO_TRIGGER
-      source.sendRecord(new TableChange(0, 0, 0L, 0L, 1));
+      source.sendRecord(TableChange.builder().commitNum(1).build());
 
       Awaitility.await()
           .until(
@@ -388,7 +381,7 @@ class TestTriggerManager extends OperatorTestBase {
               });
 
       // Trigger one of the tasks - tests TRIGGERED
-      source.sendRecord(new TableChange(0, 0, 0L, 0L, 1));
+      source.sendRecord(TableChange.builder().commitNum(1).build());
       // Wait until we receive the trigger
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
       assertThat(
@@ -397,7 +390,7 @@ class TestTriggerManager extends OperatorTestBase {
       lock.unlock();
 
       // Trigger both of the tasks - tests TRIGGERED
-      source.sendRecord(new TableChange(0, 0, 0L, 0L, 2));
+      source.sendRecord(TableChange.builder().commitNum(2).build());
       // Wait until we receive the trigger
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
       lock.unlock();
@@ -434,7 +427,7 @@ class TestTriggerManager extends OperatorTestBase {
     CollectingSink<Trigger> sink = new CollectingSink<>();
 
     // High delay, so only triggered once
-    TriggerManager manager = manager(tableLoader, 1_000_000L, 1L, false);
+    TriggerManager manager = manager(tableLoader, 1_000_000L, 1L);
     source
         .dataStream()
         .keyBy(unused -> true)
@@ -448,12 +441,12 @@ class TestTriggerManager extends OperatorTestBase {
       jobClient = env.executeAsync();
 
       // Start the first trigger
-      source.sendRecord(new TableChange(0, 0, 0L, 0L, 2));
+      source.sendRecord(TableChange.builder().commitNum(2).build());
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
       lock.unlock();
 
       // The second trigger will be blocked
-      source.sendRecord(new TableChange(0, 0, 0L, 0L, 2));
+      source.sendRecord(TableChange.builder().commitNum(2).build());
       Awaitility.await()
           .until(
               () ->
@@ -478,7 +471,7 @@ class TestTriggerManager extends OperatorTestBase {
     CollectingSink<Trigger> sink = new CollectingSink<>();
 
     // High delay, so only triggered once
-    TriggerManager manager = manager(tableLoader, 1L, 1_000_000L, false);
+    TriggerManager manager = manager(tableLoader, 1L, 1_000_000L);
     source
         .dataStream()
         .keyBy(unused -> true)
@@ -492,11 +485,11 @@ class TestTriggerManager extends OperatorTestBase {
       jobClient = env.executeAsync();
 
       // Start the first trigger - notice that we do not remove the lock after the trigger
-      source.sendRecord(new TableChange(0, 0, 0L, 0L, 2));
+      source.sendRecord(TableChange.builder().commitNum(2).build());
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       // The second trigger will be blocked by the lock
-      source.sendRecord(new TableChange(0, 0, 0L, 0L, 2));
+      source.sendRecord(TableChange.builder().commitNum(2).build());
       Awaitility.await()
           .until(
               () ->
@@ -551,37 +544,50 @@ class TestTriggerManager extends OperatorTestBase {
     lock.unlock();
   }
 
-  private static TriggerManager manager(
-      TableLoader tableLoader,
-      TriggerEvaluator evaluator,
-      long minFireDelayMs,
-      long lockCheckDelayMs,
-      boolean clearLocks) {
+  private static TriggerManager manager(TableLoader tableLoader, TriggerEvaluator evaluator) {
     return new TriggerManager(
         tableLoader,
-        new TagBasedLockFactory(tableLoader),
+        new JVMBasedLockFactory(),
         Lists.newArrayList(NAME_1),
         Lists.newArrayList(evaluator),
-        minFireDelayMs,
-        lockCheckDelayMs,
-        clearLocks);
-  }
-
-  private static TriggerEvaluator triggerEvaluatorWith2Commits() {
-    return new TriggerEvaluator.Builder().commitNumber(2).build();
-  }
-
-  private static TriggerManager manager(TableLoader tableLoader, TriggerEvaluator evaluator) {
-    return manager(tableLoader, evaluator, 1, 1, false);
+        1,
+        1);
   }
 
   private static TriggerManager manager(TableLoader tableLoader) {
-    return manager(tableLoader, triggerEvaluatorWith2Commits());
+    return manager(tableLoader, new TriggerEvaluator.Builder().commitNumber(2).build());
   }
 
   private static TriggerManager manager(
-      TableLoader tableLoader, long minFireDelayMs, long lockCheckDelayMs, boolean clearLocks) {
-    return manager(
-        tableLoader, triggerEvaluatorWith2Commits(), minFireDelayMs, lockCheckDelayMs, clearLocks);
+      TableLoader tableLoader, long minFireDelayMs, long lockCheckDelayMs) {
+    return new TriggerManager(
+        tableLoader,
+        new JVMBasedLockFactory(),
+        Lists.newArrayList(NAME_1),
+        Lists.newArrayList(new TriggerEvaluator.Builder().commitNumber(2).build()),
+        minFireDelayMs,
+        lockCheckDelayMs);
+  }
+
+  private static void assertTriggers(List<Trigger> expected, List<Trigger> actual) {
+    assertThat(actual).hasSize(expected.size());
+    for (int i = 0; i < expected.size(); ++i) {
+      Trigger expectedTrigger = expected.get(i);
+      Trigger actualTrigger = actual.get(i);
+      assertThat(actualTrigger.timestamp()).isEqualTo(expectedTrigger.timestamp());
+      assertThat(actualTrigger.taskId()).isEqualTo(expectedTrigger.taskId());
+      assertThat(actualTrigger.isCleanUp()).isEqualTo(expectedTrigger.isCleanUp());
+      if (expectedTrigger.table() == null) {
+        assertThat(actualTrigger.table()).isNull();
+      } else {
+        Iterator<Snapshot> expectedSnapshots = expectedTrigger.table().snapshots().iterator();
+        Iterator<Snapshot> actualSnapshots = actualTrigger.table().snapshots().iterator();
+        while (expectedSnapshots.hasNext()) {
+          assertThat(actualSnapshots.hasNext()).isTrue();
+          assertThat(expectedSnapshots.next().snapshotId())
+              .isEqualTo(actualSnapshots.next().snapshotId());
+        }
+      }
+    }
   }
 }

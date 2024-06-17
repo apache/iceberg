@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.encryption.EncryptionManager;
@@ -396,25 +395,6 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
 
   private String errorMsg(String operation) {
     return String.format("Operation %s is not supported after the table is serialized", operation);
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-
-    SerializableTable other = (SerializableTable) o;
-    return Objects.equals(metadataFileLocation, other.metadataFileLocation);
-  }
-
-  @Override
-  public int hashCode() {
-    return metadataFileLocation.hashCode();
   }
 
   public static class SerializableMetadataTable extends SerializableTable {

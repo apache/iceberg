@@ -18,28 +18,18 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.BeforeEach;
 
-import org.apache.iceberg.flink.TableLoader;
-import org.junit.jupiter.api.Test;
-
-class TestTagBasedLockFactory extends TestLockFactoryBase {
-  @Override
-  TriggerLockFactory lockFactory() {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    return new TagBasedLockFactory(tableLoader);
+class TestJVMBasedLockFactory extends TestLockFactoryBase {
+  @BeforeEach
+  void reset() {
+    TriggerLockFactory factory = lockFactory();
+    factory.createLock().unlock();
+    factory.createRecoveryLock().unlock();
   }
 
-  @Test
-  void testTryLockWithEmptyTable() {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    TriggerLockFactory lockFactory = new TagBasedLockFactory(tableLoader);
-    TriggerLockFactory.Lock lock = lockFactory.createLock();
-    assertThat(lock.tryLock()).isTrue();
+  @Override
+  TriggerLockFactory lockFactory() {
+    return new JVMBasedLockFactory();
   }
 }
