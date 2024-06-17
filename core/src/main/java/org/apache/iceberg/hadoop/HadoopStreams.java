@@ -21,7 +21,6 @@ package org.apache.iceberg.hadoop;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -121,10 +120,6 @@ public class HadoopStreams {
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
       return stream.read(b, off, len);
-    }
-
-    public int read(ByteBuffer buf) throws IOException {
-      return stream.read(buf);
     }
 
     @SuppressWarnings("checkstyle:NoFinalizer")
