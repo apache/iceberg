@@ -80,6 +80,8 @@ subprojects {
           // TODO this is a recently added check. Figure out whether we adjust the code or suppress for good
           '-Xep:DangerousJavaDeserialization:WARN',
           '-Xep:DangerousThreadPoolExecutorUsage:OFF',
+          '-Xep:DefaultCharset:ERROR',
+          '-Xep:DefaultLocale:ERROR',
           // subclasses are not equal
           '-Xep:EqualsGetClass:OFF',
           // specific to Palantir
@@ -121,6 +123,7 @@ subprojects {
           '-Xep:TypeParameterUnusedInFormals:OFF',
           // Palantir's UnnecessarilyQualified may throw during analysis
           '-Xep:UnnecessarilyQualified:OFF',
+          '-Xep:UnusedMethod:ERROR',
       )
     }
   }
