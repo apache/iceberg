@@ -22,10 +22,10 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.theta.CompactSketch;
 import org.apache.datasketches.theta.Sketch;
-import org.apache.datasketches.theta.Sketches;
 import org.apache.datasketches.theta.UpdateSketch;
 
 class ThetaSketchJavaSerializable implements Serializable {
@@ -46,13 +46,15 @@ class ThetaSketchJavaSerializable implements Serializable {
     if (sketch == null) {
       return null;
     }
+
     if (sketch instanceof UpdateSketch) {
       return sketch.compact();
     }
+
     return (CompactSketch) sketch;
   }
 
-  void update(final String value) {
+  void update(final ByteBuffer value) {
     if (sketch == null) {
       sketch = UpdateSketch.builder().build();
     }
@@ -87,6 +89,6 @@ class ThetaSketchJavaSerializable implements Serializable {
     }
     final byte[] serializedSketchBytes = new byte[length];
     in.readFully(serializedSketchBytes);
-    sketch = Sketches.wrapSketch(Memory.wrap(serializedSketchBytes));
+    sketch = CompactSketch.wrap(Memory.wrap(serializedSketchBytes));
   }
 }

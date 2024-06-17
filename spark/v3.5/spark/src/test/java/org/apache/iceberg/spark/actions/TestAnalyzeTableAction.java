@@ -25,6 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.util.List;
+import org.apache.iceberg.BlobMetadata;
+import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.AnalyzeTable;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -33,14 +35,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.source.SimpleRecord;
-import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
-import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
-import org.apache.spark.sql.types.DataTypes;
-import org.apache.spark.sql.types.StructField;
-import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.TestTemplate;
@@ -68,9 +65,17 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
     AnalyzeTable.Result results = actions.analyzeTable(table).columns("id", "data").execute();
     assertNotNull(results);
 
-    Assertions.assertEquals(table.statisticsFiles().size(), 1);
-    Assertions.assertEquals(table.statisticsFiles().get(0).blobMetadata().size(), 2);
-    assertNotEquals(table.statisticsFiles().get(0).fileSizeInBytes(), 0);
+    List<StatisticsFile> statisticsFiles = table.statisticsFiles();
+    Assertions.assertEquals(statisticsFiles.size(), 1);
+
+    StatisticsFile statisticsFile = statisticsFiles.get(0);
+    assertNotEquals(statisticsFile.fileSizeInBytes(), 0);
+    Assertions.assertEquals(statisticsFile.blobMetadata().size(), 2);
+
+    BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
+    Assertions.assertEquals(
+        blobMetadata.properties().get(NDVSketchGenerator.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY),
+        String.valueOf(4));
   }
 
   @TestTemplate
@@ -104,6 +109,8 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
   public void testAnalyzeTableForInvalidColumns() throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+    // Append data to create snapshot
+    sql("INSERT into %s values(1, 'abcd')", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
     ValidationException validationException =
@@ -118,6 +125,8 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
       throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+    // Append data to create snapshot
+    sql("INSERT into %s values(1, 'abcd')", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
     String statsName = "abcd";
@@ -128,7 +137,7 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
             () ->
                 actions
                     .analyzeTable(table)
-                    .types(Sets.newHashSet(statsName))
+                    .blobTypes(Sets.newHashSet(statsName))
                     .columns("id", "data")
                     .execute());
 
@@ -136,26 +145,16 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testAnalyzeTableShouldThrowErrorForTypes()
-      throws NoSuchTableException, ParseException {
+  public void testAnalyzeTableWithNoSnapshots() throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
-    // Define schema
-    StructType schema =
-        new StructType(
-            new StructField[] {
-              DataTypes.createStructField("name", DataTypes.StringType, true),
-              DataTypes.createStructField(
-                  "scores", DataTypes.createArrayType(DataTypes.IntegerType), true)
-            });
-    Dataset<Row> dataFrame = spark.createDataFrame(Lists.newArrayList(), schema);
-    dataFrame.writeTo(tableName).using("iceberg").createOrReplace();
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
-    IllegalArgumentException illegalArgumentException =
+    ValidationException validationException =
         assertThrows(
-            IllegalArgumentException.class, () -> actions.analyzeTable(table).columns("scores"));
-    assertTrue(
-        illegalArgumentException.getMessage().contains("Cannot be applied to the given columns"));
+            ValidationException.class, () -> actions.analyzeTable(table).columns("id1").execute());
+    String message = validationException.getMessage();
+    assertTrue(message.contains("Cannot analyze a table that has no snapshots"));
   }
 
   @AfterEach

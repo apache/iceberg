@@ -32,12 +32,12 @@ public interface AnalyzeTable extends Action<AnalyzeTable, AnalyzeTable.Result> 
   AnalyzeTable columns(String... columnNames);
 
   /**
-   * A set of statistics to be collected
+   * A set of statistics to be collected. Allowed values: apache-datasketches-theta-v1
    *
-   * @param types set of statistics to be collected
+   * @param blobTypes set of statistics to be collected
    * @return this for method chaining
    */
-  AnalyzeTable types(Set<String> types);
+  AnalyzeTable blobTypes(Set<String> blobTypes);
 
   /**
    * id of the snapshot for which stats need to be collected
@@ -45,7 +45,7 @@ public interface AnalyzeTable extends Action<AnalyzeTable, AnalyzeTable.Result> 
    * @param snapshotId long id of the snapshot for which stats need to be collected
    * @return this for method chaining
    */
-  AnalyzeTable snapshot(String snapshotId);
+  AnalyzeTable snapshot(long snapshotId);
 
   /** The action result that contains summaries of the Analysis. */
   interface Result {
