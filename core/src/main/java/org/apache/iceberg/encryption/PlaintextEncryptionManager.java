@@ -27,9 +27,7 @@ public class PlaintextEncryptionManager implements EncryptionManager {
   private static final EncryptionManager INSTANCE = new PlaintextEncryptionManager();
   private static final Logger LOG = LoggerFactory.getLogger(PlaintextEncryptionManager.class);
 
-  /** @deprecated will be removed in 1.6.0. use {@link #instance()} instead. */
-  @Deprecated
-  public PlaintextEncryptionManager() {}
+  private PlaintextEncryptionManager() {}
 
   public static EncryptionManager instance() {
     return INSTANCE;

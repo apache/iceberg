@@ -165,7 +165,7 @@ public class TestIcebergSourceReader {
             null,
             true,
             new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
-            new PlaintextEncryptionManager(),
+            PlaintextEncryptionManager.instance(),
             Collections.emptyList());
     return new IcebergSourceReader<>(
         SerializableRecordEmitter.defaultEmitter(),

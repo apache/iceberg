@@ -1024,6 +1024,38 @@ acceptedBreaks:
       old: "class org.apache.iceberg.types.Types.NestedField"
       new: "class org.apache.iceberg.types.Types.NestedField"
       justification: "new Constructor added"
+    org.apache.iceberg:iceberg-core:
+    - code: "java.method.visibilityReduced"
+      old: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
+      new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
+      justification: "Deprecations for 1.6.0 release"
+    - code: "java.element.noLongerDeprecated"
+      old: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
+      new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
+      justification: "Constructor became private as part of deprecations cleanup for 1.6.0 release"
+    - code: "java.element.noLongerDeprecated"
+      old: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
+        \ java.lang.String>, java.lang.String, java.lang.String, java.lang.String,\
+        \ java.lang.String)"
+      new: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
+        \ java.lang.String>, org.apache.iceberg.rest.auth.AuthConfig)"
+      justification: "This is actually a removal of a deprecated constructor as part\
+        \ of deprecations for 1.6.0 release, apparently mis-reported by rev-api"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
+        \ java.lang.String>, java.lang.String, java.lang.String, java.lang.String,\
+        \ java.lang.String)"
+      new: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
+        \ java.lang.String>, org.apache.iceberg.rest.auth.AuthConfig)"
+      justification: "This is actually a removal of a deprecated constructor as part\
+        \ of deprecations for 1.6.0 release, apparently mis-reported by rev-api"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> org.apache.iceberg.ReachableFileUtil::statisticsFilesLocations(org.apache.iceberg.Table,\
+        \ java.util.function.Predicate<org.apache.iceberg.StatisticsFile>)"
+      justification: "Deprecations for 1.6.0 release"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.DataFiles.Builder org.apache.iceberg.DataFiles.Builder::withEqualityFieldIds(java.util.List<java.lang.Integer>)"
+      justification: "Deprecations for 1.6.0 release"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

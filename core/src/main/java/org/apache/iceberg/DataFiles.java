@@ -299,12 +299,6 @@ public class DataFiles {
       return this;
     }
 
-    /** @deprecated since 1.5.0, will be removed in 1.6.0; must not be set for data files. */
-    @Deprecated
-    public Builder withEqualityFieldIds(List<Integer> equalityIds) {
-      throw new UnsupportedOperationException("Equality field IDs must not be set for data files");
-    }
-
     public Builder withEncryptionKeyMetadata(ByteBuffer newKeyMetadata) {
       this.keyMetadata = newKeyMetadata;
       return this;

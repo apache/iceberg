@@ -694,18 +694,6 @@ public class SparkTableUtil {
         .run(item -> io.deleteFile(item.path()));
   }
 
-  /**
-   * Loads a metadata table.
-   *
-   * @deprecated since 0.14.0, will be removed in 0.15.0; use {@link
-   *     #loadMetadataTable(SparkSession, Table, MetadataTableType)}.
-   */
-  @Deprecated
-  public static Dataset<Row> loadCatalogMetadataTable(
-      SparkSession spark, Table table, MetadataTableType type) {
-    return loadMetadataTable(spark, table, type);
-  }
-
   public static Dataset<Row> loadMetadataTable(
       SparkSession spark, Table table, MetadataTableType type) {
     return loadMetadataTable(spark, table, type, ImmutableMap.of());
