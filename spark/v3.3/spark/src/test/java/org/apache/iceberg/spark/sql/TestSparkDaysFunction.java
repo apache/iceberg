@@ -19,9 +19,9 @@
 package org.apache.iceberg.spark.sql;
 
 import java.sql.Date;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -69,31 +69,31 @@ public class TestSparkDaysFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testWrongNumberOfArguments() {
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with zero arguments",
-        AnalysisException.class,
-        "Function 'days' cannot process input: (): Wrong number of inputs",
-        () -> scalarSql("SELECT system.days()"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.days()"))
+        .as("Function resolution should not work with zero arguments")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Function 'days' cannot process input: (): Wrong number of inputs");
 
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with more than one argument",
-        AnalysisException.class,
-        "Function 'days' cannot process input: (date, date): Wrong number of inputs",
-        () -> scalarSql("SELECT system.days(date('1969-12-31'), date('1969-12-31'))"));
+    Assertions.assertThatThrownBy(
+            () -> scalarSql("SELECT system.days(date('1969-12-31'), date('1969-12-31'))"))
+        .as("Function resolution should not work with more than one argument")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'days' cannot process input: (date, date): Wrong number of inputs");
   }
 
   @Test
   public void testInvalidInputTypes() {
-    AssertHelpers.assertThrows(
-        "Int type should not be coercible to date/timestamp",
-        AnalysisException.class,
-        "Function 'days' cannot process input: (int): Expected value to be date or timestamp",
-        () -> scalarSql("SELECT system.days(1)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.days(1)"))
+        .as("Int type should not be coercible to date/timestamp")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'days' cannot process input: (int): Expected value to be date or timestamp");
 
-    AssertHelpers.assertThrows(
-        "Long type should not be coercible to date/timestamp",
-        AnalysisException.class,
-        "Function 'days' cannot process input: (bigint): Expected value to be date or timestamp",
-        () -> scalarSql("SELECT system.days(1L)"));
+    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.days(1L)"))
+        .as("Long type should not be coercible to date/timestamp")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'days' cannot process input: (bigint): Expected value to be date or timestamp");
   }
 }

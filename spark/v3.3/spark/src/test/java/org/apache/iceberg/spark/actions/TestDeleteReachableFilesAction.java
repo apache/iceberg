@@ -27,7 +27,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
@@ -51,6 +50,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -362,22 +362,22 @@ public class TestDeleteReachableFilesAction extends SparkTestBase {
   public void testEmptyIOThrowsException() {
     DeleteReachableFiles baseRemoveFilesSparkAction =
         sparkActions().deleteReachableFiles(metadataLocation(table)).io(null);
-    AssertHelpers.assertThrows(
-        "FileIO can't be null in DeleteReachableFiles action",
-        IllegalArgumentException.class,
-        "File IO cannot be null",
-        baseRemoveFilesSparkAction::execute);
+    Assertions.assertThatThrownBy(baseRemoveFilesSparkAction::execute)
+        .as("FileIO can't be null in DeleteReachableFiles action")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("File IO cannot be null");
   }
 
   @Test
   public void testRemoveFilesActionWhenGarbageCollectionDisabled() {
     table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
 
-    AssertHelpers.assertThrows(
-        "Should complain about removing files when GC is disabled",
-        ValidationException.class,
-        "Cannot delete files: GC is disabled (deleting files may corrupt other tables)",
-        () -> sparkActions().deleteReachableFiles(metadataLocation(table)).execute());
+    Assertions.assertThatThrownBy(
+            () -> sparkActions().deleteReachableFiles(metadataLocation(table)).execute())
+        .as("Should complain about removing files when GC is disabled")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Cannot delete files: GC is disabled (deleting files may corrupt other tables)");
   }
 
   private String metadataLocation(Table tbl) {

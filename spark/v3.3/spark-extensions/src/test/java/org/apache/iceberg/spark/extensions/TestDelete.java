@@ -44,7 +44,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.RowLevelOperationMode;
@@ -448,11 +447,11 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
     createBranchIfNeeded();
 
-    AssertHelpers.assertThrows(
-        "Should complain about non-deterministic expressions",
-        AnalysisException.class,
-        "nondeterministic expressions are only allowed",
-        () -> sql("DELETE FROM %s WHERE id = 1 AND rand() > 0.5", commitTarget()));
+    Assertions.assertThatThrownBy(
+            () -> sql("DELETE FROM %s WHERE id = 1 AND rand() > 0.5", commitTarget()))
+        .as("Should complain about non-deterministic expressions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("nondeterministic expressions are only allowed");
   }
 
   @Test
@@ -737,11 +736,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteOnNonIcebergTableNotSupported() {
     createOrReplaceView("testtable", "{ \"c1\": -100, \"c2\": -200 }");
 
-    AssertHelpers.assertThrows(
-        "Delete is supported only for Iceberg tables",
-        AnalysisException.class,
-        "DELETE is only supported with v2 tables.",
-        () -> sql("DELETE FROM %s WHERE c1 = -100", "testtable"));
+    Assertions.assertThatThrownBy(() -> sql("DELETE FROM %s WHERE c1 = -100", "testtable"))
+        .as("Delete is supported only for Iceberg tables")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("DELETE is only supported with v2 tables.");
   }
 
   @Test

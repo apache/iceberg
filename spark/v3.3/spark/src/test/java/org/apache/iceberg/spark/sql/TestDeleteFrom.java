@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.sql;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -30,6 +29,7 @@ import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -86,11 +86,11 @@ public class TestDeleteFrom extends SparkCatalogTestBase {
 
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     String prefix = "snapshot_id_";
-    AssertHelpers.assertThrows(
-        "Should not be able to delete from a table at a specific snapshot",
-        IllegalArgumentException.class,
-        "Cannot delete from table at a specific snapshot",
-        () -> sql("DELETE FROM %s.%s WHERE id < 4", tableName, prefix + snapshotId));
+    Assertions.assertThatThrownBy(
+            () -> sql("DELETE FROM %s.%s WHERE id < 4", tableName, prefix + snapshotId))
+        .as("Should not be able to delete from a table at a specific snapshot")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot delete from table at a specific snapshot");
   }
 
   @Test

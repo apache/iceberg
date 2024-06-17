@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.sql;
 import java.io.File;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -168,14 +167,14 @@ public class TestCreateTable extends SparkCatalogTestBase {
         "parquet",
         table.properties().get(TableProperties.DEFAULT_FILE_FORMAT));
 
-    AssertHelpers.assertThrows(
-        "Should reject unsupported format names",
-        IllegalArgumentException.class,
-        "Unsupported format in USING: crocodile",
-        () ->
-            sql(
-                "CREATE TABLE %s.default.fail (id BIGINT NOT NULL, data STRING) USING crocodile",
-                catalogName));
+    Assertions.assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE TABLE %s.default.fail (id BIGINT NOT NULL, data STRING) USING crocodile",
+                    catalogName))
+        .as("Should reject unsupported format names")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported format in USING: crocodile");
   }
 
   @Test
@@ -382,10 +381,11 @@ public class TestCreateTable extends SparkCatalogTestBase {
     TableOperations ops = ((BaseTable) table).operations();
     Assert.assertEquals("should create table using format v2", 2, ops.refresh().formatVersion());
 
-    AssertHelpers.assertThrowsCause(
-        "should fail to downgrade to v1",
-        IllegalArgumentException.class,
-        "Cannot downgrade v2 table to v1",
-        () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='1')", tableName));
+    Assertions.assertThatThrownBy(
+            () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='1')", tableName))
+        .as("should fail to downgrade to v1")
+        .cause()
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot downgrade v2 table to v1");
   }
 }
