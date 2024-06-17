@@ -195,12 +195,15 @@ public class TestAwsClientFactories {
   public void assertAllClientObjectsThrownBy(
       AwsClientFactory defaultAwsClientFactory, String containsMessage) {
     // invoking sdk client apis to ensure resolveCredentials() being called
-    assertThatThrownBy(() -> defaultAwsClientFactory.s3().listBuckets(), containsMessage);
-    assertThatThrownBy(
+    assertIllegalArgumentException(
+        () -> defaultAwsClientFactory.s3().listBuckets(), containsMessage);
+    assertIllegalArgumentException(
         () -> defaultAwsClientFactory.glue().getTables(GetTablesRequest.builder().build()),
         containsMessage);
-    assertThatThrownBy(() -> defaultAwsClientFactory.dynamo().listTables(), containsMessage);
-    assertThatThrownBy(() -> defaultAwsClientFactory.kms().listAliases(), containsMessage);
+    assertIllegalArgumentException(
+        () -> defaultAwsClientFactory.dynamo().listTables(), containsMessage);
+    assertIllegalArgumentException(
+        () -> defaultAwsClientFactory.kms().listAliases(), containsMessage);
   }
 
   private void assertClientObjectsNotNull(AwsClientFactory defaultAwsClientFactory) {
@@ -210,7 +213,7 @@ public class TestAwsClientFactories {
     Assertions.assertThat(defaultAwsClientFactory.kms()).isNotNull();
   }
 
-  private void assertThatThrownBy(
+  private void assertIllegalArgumentException(
       ThrowableAssert.ThrowingCallable shouldRaiseThrowable, String containsMessage) {
     Assertions.assertThatThrownBy(shouldRaiseThrowable)
         .isInstanceOf(IllegalArgumentException.class)
