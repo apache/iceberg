@@ -22,7 +22,6 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundReference;
@@ -36,7 +35,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -111,8 +109,6 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
    */
   private static class ManifestContentEvaluator {
 
-    private static final Set<Integer> DELETE_CONTENT_SET =
-        ImmutableSet.of(FileContent.EQUALITY_DELETES.id(), FileContent.POSITION_DELETES.id());
     private final Expression boundExpr;
 
     private ManifestContentEvaluator(
@@ -164,7 +160,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean isNull(BoundReference<T> ref) {
-        if (isDateFileContent(ref)) {
+        if (fileContent(ref)) {
           return ROWS_CANNOT_MATCH; // date_file.content should not be null
         } else {
           return ROWS_MIGHT_MATCH;
@@ -178,7 +174,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean isNaN(BoundReference<T> ref) {
-        if (isDateFileContent(ref)) {
+        if (fileContent(ref)) {
           return ROWS_CANNOT_MATCH; // date_file.content should not be nan
         } else {
           return ROWS_MIGHT_MATCH;
@@ -192,37 +188,46 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
-        return compareDateFileContent(ref, lit, compareResult -> compareResult < 0);
+        return ROWS_MIGHT_MATCH;
       }
 
       @Override
       public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
-        return compareDateFileContent(ref, lit, compareResult -> compareResult <= 0);
+        return ROWS_MIGHT_MATCH;
       }
 
       @Override
       public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
-        return compareDateFileContent(ref, lit, compareResult -> compareResult > 0);
+        return ROWS_MIGHT_MATCH;
       }
 
       @Override
       public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
-        return compareDateFileContent(ref, lit, compareResult -> compareResult >= 0);
+        return ROWS_MIGHT_MATCH;
       }
 
       @Override
       public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
-        return compareDateFileContent(ref, lit, compareResult -> compareResult == 0);
+        if (fileContent(ref)) {
+          Literal<Integer> intLit = lit.to(Types.IntegerType.get());
+          Integer fileContentId = intLit.value();
+          if (fileContentId == FileContent.DATA.id()) {
+            return manifestContentId == ManifestContent.DATA.id();
+          } else {
+            return manifestContentId == ManifestContent.DELETES.id();
+          }
+        }
+        return ROWS_MIGHT_MATCH;
       }
 
       @Override
       public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
-        return compareDateFileContent(ref, lit, compareResult -> compareResult != 0);
+        return ROWS_MIGHT_MATCH;
       }
 
       @Override
       public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
-        if (isDateFileContent(ref)) {
+        if (fileContent(ref)) {
           if (!literalSet.contains(manifestContentId)) {
             return ROWS_CANNOT_MATCH;
           }
@@ -232,11 +237,6 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
-        if (isDateFileContent(ref)) {
-          if (literalSet.contains(manifestContentId)) {
-            return ROWS_CANNOT_MATCH;
-          }
-        }
         return ROWS_MIGHT_MATCH;
       }
 
@@ -250,39 +250,8 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
         return ROWS_MIGHT_MATCH;
       }
 
-      /**
-       * Comparison of data file content and literal, using integer comparator.
-       *
-       * @param ref bound reference, comparison attempted only if reference is for date_file.content
-       * @param lit literal value to compare with date file content.
-       * @param desiredResult function to apply to int comparator result, returns true if result is
-       *     as expected.
-       * @return false if comparator does not achieve desired result, true otherwise
-       */
-      private <T> Boolean compareDateFileContent(
-          BoundReference<T> ref, Literal<T> lit, Function<Integer, Boolean> desiredResult) {
-        if (isDateFileContent(ref)) {
-          Literal<Integer> intLit = lit.to(Types.IntegerType.get());
-          int literalValueToCompare = toManifestContentId(intLit.value());
-          int cmp = intLit.comparator().compare(manifestContentId, literalValueToCompare);
-          if (!desiredResult.apply(cmp)) {
-            return ROWS_CANNOT_MATCH;
-          }
-        }
-        return ROWS_MIGHT_MATCH;
-      }
-
-      private <T> boolean isDateFileContent(BoundReference<T> ref) {
+      private <T> boolean fileContent(BoundReference<T> ref) {
         return ref.fieldId() == DataFile.CONTENT.fieldId();
-      }
-
-      /** Bridge the gap between {@link FileContent} and {@link ManifestContent} */
-      private int toManifestContentId(int dataFileContentId) {
-        if (DELETE_CONTENT_SET.contains(dataFileContentId)) {
-          return ManifestContent.DELETES.id();
-        } else {
-          return dataFileContentId;
-        }
       }
     }
   }
