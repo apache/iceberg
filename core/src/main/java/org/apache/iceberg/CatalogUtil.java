@@ -447,32 +447,36 @@ public class CatalogUtil {
     }
 
     LOG.info("Loading custom MetricsReporter implementation: {}", impl);
-    DynConstructors.Ctor<MetricsReporter> ctor;
-    try {
-      ctor =
-          DynConstructors.builder(MetricsReporter.class)
-              .loader(CatalogUtil.class.getClassLoader())
-              .impl(impl)
-              .buildChecked();
-    } catch (NoSuchMethodException e) {
-      throw new IllegalArgumentException(
-          String.format("Cannot initialize MetricsReporter, missing no-arg constructor: %s", impl),
-          e);
-    }
 
     MetricsReporter reporter;
+
     try {
-      reporter = ctor.newInstance();
+      reporter = initMetricsReporter(impl, CatalogUtil.class.getClassLoader());
+    } catch (NoSuchMethodException e) {
+      try {
+        reporter = initMetricsReporter(impl, Thread.currentThread().getContextClassLoader());
+      } catch (NoSuchMethodException e2) {
+        throw new IllegalArgumentException(
+            String.format("Cannot initialize MetricsReporter, missing no-arg constructor: %s", impl), e2);
+      }
+    }
+
+    reporter.initialize(properties);
+    return reporter;
+  }
+
+  private static MetricsReporter initMetricsReporter(String impl, ClassLoader loader)
+      throws NoSuchMethodException {
+    DynConstructors.Ctor<MetricsReporter> ctor =
+        DynConstructors.builder(MetricsReporter.class).loader(loader).impl(impl).buildChecked();
+    try {
+      return ctor.newInstance();
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
           String.format(
               "Cannot initialize MetricsReporter, %s does not implement MetricsReporter.", impl),
           e);
     }
-
-    reporter.initialize(properties);
-
-    return reporter;
   }
 
   public static String fullTableName(String catalogName, TableIdentifier identifier) {
