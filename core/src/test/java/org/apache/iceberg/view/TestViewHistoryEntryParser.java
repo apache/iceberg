@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.view;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.databind.JsonNode;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestViewHistoryEntryParser {
@@ -29,7 +31,7 @@ public class TestViewHistoryEntryParser {
     String json = "{\"timestamp-ms\":123,\"version-id\":1}";
     ViewHistoryEntry viewHistoryEntry =
         ImmutableViewHistoryEntry.builder().versionId(1).timestampMillis(123).build();
-    Assertions.assertThat(ViewHistoryEntryParser.fromJson(json))
+    assertThat(ViewHistoryEntryParser.fromJson(json))
         .as("Should be able to deserialize valid view history entry")
         .isEqualTo(viewHistoryEntry);
   }
@@ -39,34 +41,33 @@ public class TestViewHistoryEntryParser {
     String json = "{\"timestamp-ms\":123,\"version-id\":1}";
     ViewHistoryEntry viewHistoryEntry =
         ImmutableViewHistoryEntry.builder().versionId(1).timestampMillis(123).build();
-    Assertions.assertThat(ViewHistoryEntryParser.toJson(viewHistoryEntry))
+    assertThat(ViewHistoryEntryParser.toJson(viewHistoryEntry))
         .as("Should be able to serialize view history entry")
         .isEqualTo(json);
   }
 
   @Test
   public void testNullViewHistoryEntry() {
-    Assertions.assertThatThrownBy(() -> ViewHistoryEntryParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> ViewHistoryEntryParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse view history entry from null object");
 
-    Assertions.assertThatThrownBy(() -> ViewHistoryEntryParser.toJson(null))
+    assertThatThrownBy(() -> ViewHistoryEntryParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid view history entry: null");
   }
 
   @Test
   public void testViewHistoryEntryMissingFields() {
-    Assertions.assertThatThrownBy(() -> ViewHistoryEntryParser.fromJson("{}"))
+    assertThatThrownBy(() -> ViewHistoryEntryParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing int: version-id");
 
-    Assertions.assertThatThrownBy(
-            () -> ViewHistoryEntryParser.fromJson("{\"timestamp-ms\":\"123\"}"))
+    assertThatThrownBy(() -> ViewHistoryEntryParser.fromJson("{\"timestamp-ms\":\"123\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing int: version-id");
 
-    Assertions.assertThatThrownBy(() -> ViewHistoryEntryParser.fromJson("{\"version-id\":1}"))
+    assertThatThrownBy(() -> ViewHistoryEntryParser.fromJson("{\"version-id\":1}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: timestamp-ms");
   }

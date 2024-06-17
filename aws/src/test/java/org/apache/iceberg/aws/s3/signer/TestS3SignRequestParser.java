@@ -18,43 +18,45 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestS3SignRequestParser {
 
   @Test
   public void nullRequest() {
-    Assertions.assertThatThrownBy(() -> S3SignRequestParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> S3SignRequestParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse s3 sign request from null object");
 
-    Assertions.assertThatThrownBy(() -> S3SignRequestParser.toJson(null))
+    assertThatThrownBy(() -> S3SignRequestParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid s3 sign request: null");
   }
 
   @Test
   public void missingFields() {
-    Assertions.assertThatThrownBy(() -> S3SignRequestParser.fromJson("{}"))
+    assertThatThrownBy(() -> S3SignRequestParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: region");
 
-    Assertions.assertThatThrownBy(() -> S3SignRequestParser.fromJson("{\"region\":\"us-west-2\"}"))
+    assertThatThrownBy(() -> S3SignRequestParser.fromJson("{\"region\":\"us-west-2\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: method");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> S3SignRequestParser.fromJson("{\"region\":\"us-west-2\", \"method\" : \"PUT\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: uri");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 S3SignRequestParser.fromJson(
                     "{\n"
@@ -68,7 +70,7 @@ public class TestS3SignRequestParser {
 
   @Test
   public void invalidMethod() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 S3SignRequestParser.fromJson(
                     "{\n"
@@ -83,7 +85,7 @@ public class TestS3SignRequestParser {
 
   @Test
   public void invalidUri() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 S3SignRequestParser.fromJson(
                     "{\n"
@@ -98,7 +100,7 @@ public class TestS3SignRequestParser {
 
   @Test
   public void invalidRegion() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 S3SignRequestParser.fromJson(
                     "{\n"
@@ -131,8 +133,8 @@ public class TestS3SignRequestParser {
             .build();
 
     String json = S3SignRequestParser.toJson(s3SignRequest, true);
-    Assertions.assertThat(S3SignRequestParser.fromJson(json)).isEqualTo(s3SignRequest);
-    Assertions.assertThat(json)
+    assertThat(S3SignRequestParser.fromJson(json)).isEqualTo(s3SignRequest);
+    assertThat(json)
         .isEqualTo(
             "{\n"
                 + "  \"region\" : \"us-west-2\",\n"
@@ -168,8 +170,8 @@ public class TestS3SignRequestParser {
             .build();
 
     String json = S3SignRequestParser.toJson(s3SignRequest, true);
-    Assertions.assertThat(S3SignRequestParser.fromJson(json)).isEqualTo(s3SignRequest);
-    Assertions.assertThat(json)
+    assertThat(S3SignRequestParser.fromJson(json)).isEqualTo(s3SignRequest);
+    assertThat(json)
         .isEqualTo(
             "{\n"
                 + "  \"region\" : \"us-west-2\",\n"
@@ -209,8 +211,8 @@ public class TestS3SignRequestParser {
             .build();
 
     String json = S3SignRequestParser.toJson(s3SignRequest, true);
-    Assertions.assertThat(S3SignRequestParser.fromJson(json)).isEqualTo(s3SignRequest);
-    Assertions.assertThat(json)
+    assertThat(S3SignRequestParser.fromJson(json)).isEqualTo(s3SignRequest);
+    assertThat(json)
         .isEqualTo(
             "{\n"
                 + "  \"region\" : \"us-west-2\",\n"

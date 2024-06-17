@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.metrics;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.withinPercentage;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestDefaultMetricsContext {
@@ -30,7 +31,7 @@ public class TestDefaultMetricsContext {
   @Test
   public void unsupportedCounter() {
     MetricsContext metricsContext = new DefaultMetricsContext();
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> metricsContext.counter("test", Double.class, MetricsContext.Unit.COUNT))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Counter for type java.lang.Double is not supported");
@@ -38,8 +39,7 @@ public class TestDefaultMetricsContext {
 
   @Test
   public void intCounterNullCheck() {
-    Assertions.assertThatThrownBy(
-            () -> new DefaultMetricsContext().counter("name", Integer.class, null))
+    assertThatThrownBy(() -> new DefaultMetricsContext().counter("name", Integer.class, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid count unit: null");
   }
@@ -50,8 +50,8 @@ public class TestDefaultMetricsContext {
     MetricsContext.Counter<Integer> counter =
         metricsContext.counter("intCounter", Integer.class, MetricsContext.Unit.BYTES);
     counter.increment(5);
-    Assertions.assertThat(counter.value()).isEqualTo(5);
-    Assertions.assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.BYTES);
+    assertThat(counter.value()).isEqualTo(5);
+    assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.BYTES);
   }
 
   @Test
@@ -61,15 +61,14 @@ public class TestDefaultMetricsContext {
         metricsContext.counter("test", Integer.class, MetricsContext.Unit.COUNT);
     counter.increment(Integer.MAX_VALUE);
     counter.increment();
-    Assertions.assertThatThrownBy(counter::value)
+    assertThatThrownBy(counter::value)
         .isInstanceOf(ArithmeticException.class)
         .hasMessage("integer overflow");
   }
 
   @Test
   public void longCounterNullCheck() {
-    Assertions.assertThatThrownBy(
-            () -> new DefaultMetricsContext().counter("name", Long.class, null))
+    assertThatThrownBy(() -> new DefaultMetricsContext().counter("name", Long.class, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid count unit: null");
   }
@@ -80,8 +79,8 @@ public class TestDefaultMetricsContext {
     MetricsContext.Counter<Long> counter =
         metricsContext.counter("longCounter", Long.class, MetricsContext.Unit.COUNT);
     counter.increment(5L);
-    Assertions.assertThat(counter.value()).isEqualTo(5L);
-    Assertions.assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.COUNT);
+    assertThat(counter.value()).isEqualTo(5L);
+    assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.COUNT);
   }
 
   @Test
@@ -89,7 +88,7 @@ public class TestDefaultMetricsContext {
     MetricsContext metricsContext = new DefaultMetricsContext();
     Timer timer = metricsContext.timer("test", TimeUnit.MICROSECONDS);
     timer.record(10, TimeUnit.MINUTES);
-    Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ofMinutes(10L));
+    assertThat(timer.totalDuration()).isEqualTo(Duration.ofMinutes(10L));
   }
 
   @Test
@@ -101,18 +100,18 @@ public class TestDefaultMetricsContext {
       histogram.update(i);
     }
 
-    Assertions.assertThat(histogram.count()).isEqualTo(reservoirSize);
+    assertThat(histogram.count()).isEqualTo(reservoirSize);
     Histogram.Statistics statistics = histogram.statistics();
-    Assertions.assertThat(statistics.size()).isEqualTo(reservoirSize);
-    Assertions.assertThat(statistics.mean()).isEqualTo(500.5);
-    Assertions.assertThat(statistics.stdDev()).isCloseTo(288.67499, withinPercentage(0.001));
-    Assertions.assertThat(statistics.max()).isEqualTo(1000L);
-    Assertions.assertThat(statistics.min()).isEqualTo(1L);
-    Assertions.assertThat(statistics.percentile(0.50)).isEqualTo(500);
-    Assertions.assertThat(statistics.percentile(0.75)).isEqualTo(750);
-    Assertions.assertThat(statistics.percentile(0.90)).isEqualTo(900);
-    Assertions.assertThat(statistics.percentile(0.95)).isEqualTo(950);
-    Assertions.assertThat(statistics.percentile(0.99)).isEqualTo(990);
-    Assertions.assertThat(statistics.percentile(0.999)).isEqualTo(999);
+    assertThat(statistics.size()).isEqualTo(reservoirSize);
+    assertThat(statistics.mean()).isEqualTo(500.5);
+    assertThat(statistics.stdDev()).isCloseTo(288.67499, withinPercentage(0.001));
+    assertThat(statistics.max()).isEqualTo(1000L);
+    assertThat(statistics.min()).isEqualTo(1L);
+    assertThat(statistics.percentile(0.50)).isEqualTo(500);
+    assertThat(statistics.percentile(0.75)).isEqualTo(750);
+    assertThat(statistics.percentile(0.90)).isEqualTo(900);
+    assertThat(statistics.percentile(0.95)).isEqualTo(950);
+    assertThat(statistics.percentile(0.99)).isEqualTo(990);
+    assertThat(statistics.percentile(0.999)).isEqualTo(999);
   }
 }

@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.inmemory;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestInMemoryInputFile {
@@ -30,8 +32,8 @@ public class TestInMemoryInputFile {
     InMemoryInputFile inputFile =
         new InMemoryInputFile("abc".getBytes(StandardCharsets.ISO_8859_1));
     InputStream inputStream = inputFile.newStream();
-    Assertions.assertThat(inputStream.read()).isEqualTo('a');
+    assertThat(inputStream.read()).isEqualTo('a');
     inputStream.close();
-    Assertions.assertThatThrownBy(inputStream::read).hasMessage("Stream is closed");
+    assertThatThrownBy(inputStream::read).hasMessage("Stream is closed");
   }
 }

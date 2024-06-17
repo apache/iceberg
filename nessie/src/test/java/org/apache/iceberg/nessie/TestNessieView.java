@@ -20,6 +20,8 @@ package org.apache.iceberg.nessie;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,7 +37,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.view.SQLViewRepresentation;
 import org.apache.iceberg.view.View;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -127,10 +128,10 @@ public class TestNessieView extends BaseTestIceberg {
     View viewInitialMain = catalog.loadView(VIEW_IDENTIFIER);
 
     // verify view-metadata-location + version-id
-    Assertions.assertThat(contentInitialMain)
+    assertThat(contentInitialMain)
         .as("global-contents + snapshot-id equal on both branches in Nessie")
         .isEqualTo(contentInitialBranch);
-    Assertions.assertThat(viewInitialMain.currentVersion().versionId()).isEqualTo(2);
+    assertThat(viewInitialMain.currentVersion().versionId()).isEqualTo(2);
 
     //  3. modify view in "main" branch
     icebergView
@@ -146,19 +147,19 @@ public class TestNessieView extends BaseTestIceberg {
 
     //  --> assert getValue() against both branches returns the updated metadata-location
     // verify view-metadata-location
-    Assertions.assertThat(contentInitialMain.getMetadataLocation())
+    assertThat(contentInitialMain.getMetadataLocation())
         .describedAs("metadata-location must change on %s", BRANCH)
         .isNotEqualTo(contentsAfter1Main.getMetadataLocation());
-    Assertions.assertThat(contentInitialBranch.getMetadataLocation())
+    assertThat(contentInitialBranch.getMetadataLocation())
         .describedAs("metadata-location must not change on %s", testCaseBranch)
         .isEqualTo(contentsAfter1Branch.getMetadataLocation());
-    Assertions.assertThat(contentsAfter1Main)
+    assertThat(contentsAfter1Main)
         .extracting(IcebergView::getSchemaId)
         .describedAs("schema ID must be same across branches")
         .isEqualTo(contentsAfter1Branch.getSchemaId());
     // verify updates
-    Assertions.assertThat(viewAfter1Main.currentVersion().versionId()).isEqualTo(3);
-    Assertions.assertThat(
+    assertThat(viewAfter1Main.currentVersion().versionId()).isEqualTo(3);
+    assertThat(
             ((SQLViewRepresentation) viewAfter1Main.currentVersion().representations().get(0))
                 .dialect())
         .isEqualTo("trino");
@@ -178,16 +179,16 @@ public class TestNessieView extends BaseTestIceberg {
 
     //  --> assert getValue() against both branches returns the updated metadata-location
     // verify view-metadata-location
-    Assertions.assertThat(contentsAfter2Main.getVersionId()).isEqualTo(4);
-    Assertions.assertThat(contentsAfter2Main.getMetadataLocation())
+    assertThat(contentsAfter2Main.getVersionId()).isEqualTo(4);
+    assertThat(contentsAfter2Main.getMetadataLocation())
         .describedAs("metadata-location must change on %s", BRANCH)
         .isNotEqualTo(contentsAfter1Main.getMetadataLocation());
-    Assertions.assertThat(contentsAfter1Main.getVersionId()).isEqualTo(3);
-    Assertions.assertThat(contentsAfter2Branch.getMetadataLocation())
+    assertThat(contentsAfter1Main.getVersionId()).isEqualTo(3);
+    assertThat(contentsAfter2Branch.getMetadataLocation())
         .describedAs("on-reference-state must not change on %s", testCaseBranch)
         .isEqualTo(contentsAfter1Branch.getMetadataLocation());
-    Assertions.assertThat(viewAfter2Main.currentVersion().versionId()).isEqualTo(4);
-    Assertions.assertThat(
+    assertThat(viewAfter2Main.currentVersion().versionId()).isEqualTo(4);
+    assertThat(
             ((SQLViewRepresentation) viewAfter2Main.currentVersion().representations().get(0))
                 .dialect())
         .isEqualTo("flink");
@@ -208,9 +209,9 @@ public class TestNessieView extends BaseTestIceberg {
     getView(KEY); // sanity, check view exists
     // check parameters are in expected state
     String expected = temp.toUri() + DB_NAME + "/" + viewName;
-    Assertions.assertThat(getViewBasePath(viewName)).isEqualTo(expected);
+    assertThat(getViewBasePath(viewName)).isEqualTo(expected);
 
-    Assertions.assertThat(metadataVersionFiles(viewLocation)).isNotNull().hasSize(2);
+    assertThat(metadataVersionFiles(viewLocation)).isNotNull().hasSize(2);
 
     verifyCommitMetadata();
   }
@@ -237,10 +238,10 @@ public class TestNessieView extends BaseTestIceberg {
         TableIdentifier.of(VIEW_IDENTIFIER.namespace(), toTableReference.toString());
 
     catalog.renameView(fromIdentifier, toIdentifier);
-    Assertions.assertThat(catalog.viewExists(fromIdentifier)).isFalse();
-    Assertions.assertThat(catalog.viewExists(toIdentifier)).isTrue();
+    assertThat(catalog.viewExists(fromIdentifier)).isFalse();
+    assertThat(catalog.viewExists(toIdentifier)).isTrue();
 
-    Assertions.assertThat(catalog.dropView(toIdentifier)).isTrue();
+    assertThat(catalog.dropView(toIdentifier)).isTrue();
 
     verifyCommitMetadata();
   }
@@ -266,7 +267,7 @@ public class TestNessieView extends BaseTestIceberg {
     TableIdentifier toIdentifier =
         TableIdentifier.of(VIEW_IDENTIFIER.namespace(), toTableReference.toString());
 
-    Assertions.assertThatThrownBy(() -> catalog.renameView(fromIdentifier, toIdentifier))
+    assertThatThrownBy(() -> catalog.renameView(fromIdentifier, toIdentifier))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot rename view 'view' on reference 'Something' to 'rename_view_name' on reference 'iceberg-view-test': source and target references must be the same.");
@@ -286,7 +287,7 @@ public class TestNessieView extends BaseTestIceberg {
     TableIdentifier toIdentifierNew =
         TableIdentifier.of(VIEW_IDENTIFIER.namespace(), toTableReference.toString());
 
-    Assertions.assertThatThrownBy(() -> catalog.renameView(fromIdentifierNew, toIdentifierNew))
+    assertThatThrownBy(() -> catalog.renameView(fromIdentifierNew, toIdentifierNew))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot rename view 'view' on reference 'iceberg-view-test' to 'rename_view_name' on reference 'Something': source and target references must be the same.");
@@ -295,29 +296,29 @@ public class TestNessieView extends BaseTestIceberg {
   private void verifyCommitMetadata() throws NessieNotFoundException {
     // check that the author is properly set
     List<LogEntry> log = api.getCommitLog().refName(BRANCH).get().getLogEntries();
-    Assertions.assertThat(log)
+    assertThat(log)
         .isNotNull()
         .isNotEmpty()
         .filteredOn(e -> !e.getCommitMeta().getMessage().startsWith("create namespace "))
         .allSatisfy(
             logEntry -> {
               CommitMeta commit = logEntry.getCommitMeta();
-              Assertions.assertThat(commit.getAuthor())
+              assertThat(commit.getAuthor())
                   .isNotNull()
                   .isNotEmpty()
                   .isEqualTo(System.getProperty("user.name"));
-              Assertions.assertThat(commit.getProperties())
+              assertThat(commit.getProperties())
                   .containsEntry(NessieUtil.APPLICATION_TYPE, "iceberg");
-              Assertions.assertThat(commit.getMessage()).startsWith("Iceberg");
+              assertThat(commit.getMessage()).startsWith("Iceberg");
             });
   }
 
   @Test
   public void testDrop() throws NessieNotFoundException {
-    Assertions.assertThat(catalog.viewExists(VIEW_IDENTIFIER)).isTrue();
-    Assertions.assertThat(catalog.dropView(VIEW_IDENTIFIER)).isTrue();
-    Assertions.assertThat(catalog.viewExists(VIEW_IDENTIFIER)).isFalse();
-    Assertions.assertThat(catalog.dropView(VIEW_IDENTIFIER)).isFalse();
+    assertThat(catalog.viewExists(VIEW_IDENTIFIER)).isTrue();
+    assertThat(catalog.dropView(VIEW_IDENTIFIER)).isTrue();
+    assertThat(catalog.viewExists(VIEW_IDENTIFIER)).isFalse();
+    assertThat(catalog.dropView(VIEW_IDENTIFIER)).isFalse();
     verifyCommitMetadata();
   }
 
@@ -327,9 +328,9 @@ public class TestNessieView extends BaseTestIceberg {
     createView(catalog, newIdentifier, SCHEMA);
 
     List<TableIdentifier> viewIdents = catalog.listViews(VIEW_IDENTIFIER.namespace());
-    Assertions.assertThat(viewIdents).contains(VIEW_IDENTIFIER, newIdentifier);
-    Assertions.assertThat(catalog.viewExists(VIEW_IDENTIFIER)).isTrue();
-    Assertions.assertThat(catalog.viewExists(newIdentifier)).isTrue();
+    assertThat(viewIdents).contains(VIEW_IDENTIFIER, newIdentifier);
+    assertThat(catalog.viewExists(VIEW_IDENTIFIER)).isTrue();
+    assertThat(catalog.viewExists(newIdentifier)).isTrue();
   }
 
   private String getViewBasePath(String viewName) {
