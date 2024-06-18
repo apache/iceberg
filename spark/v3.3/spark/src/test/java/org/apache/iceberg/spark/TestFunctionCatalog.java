@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.functions.IcebergVersionFunction;
@@ -27,7 +30,6 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -56,10 +58,10 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
 
   @Test
   public void testListFunctionsViaCatalog() throws NoSuchNamespaceException {
-    Assertions.assertThat(asFunctionCatalog.listFunctions(EMPTY_NAMESPACE))
+    assertThat(asFunctionCatalog.listFunctions(EMPTY_NAMESPACE))
         .anyMatch(func -> "iceberg_version".equals(func.name()));
 
-    Assertions.assertThat(asFunctionCatalog.listFunctions(SYSTEM_NAMESPACE))
+    assertThat(asFunctionCatalog.listFunctions(SYSTEM_NAMESPACE))
         .anyMatch(func -> "iceberg_version".equals(func.name()));
 
     Assert.assertArrayEquals(
@@ -67,7 +69,7 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
         new Identifier[0],
         asFunctionCatalog.listFunctions(DEFAULT_NAMESPACE));
 
-    Assertions.assertThatThrownBy(() -> asFunctionCatalog.listFunctions(DB_NAMESPACE))
+    assertThatThrownBy(() -> asFunctionCatalog.listFunctions(DB_NAMESPACE))
         .as("Listing functions in a namespace that does not exist should throw")
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessageContaining("Namespace 'db' not found");
@@ -79,13 +81,13 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
       Identifier identifier = Identifier.of(namespace, "iceberg_version");
       UnboundFunction func = asFunctionCatalog.loadFunction(identifier);
 
-      Assertions.assertThat(func)
+      assertThat(func)
           .isNotNull()
           .isInstanceOf(UnboundFunction.class)
           .isExactlyInstanceOf(IcebergVersionFunction.class);
     }
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 asFunctionCatalog.loadFunction(Identifier.of(DEFAULT_NAMESPACE, "iceberg_version")))
         .as(
@@ -94,12 +96,12 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
         .hasMessageContaining("Undefined function: default.iceberg_version");
 
     Identifier undefinedFunction = Identifier.of(SYSTEM_NAMESPACE, "undefined_function");
-    Assertions.assertThatThrownBy(() -> asFunctionCatalog.loadFunction(undefinedFunction))
+    assertThatThrownBy(() -> asFunctionCatalog.loadFunction(undefinedFunction))
         .as("Cannot load a function that does not exist")
         .isInstanceOf(NoSuchFunctionException.class)
         .hasMessageContaining("Undefined function: system.undefined_function");
 
-    Assertions.assertThatThrownBy(() -> sql("SELECT undefined_function(1, 2)"))
+    assertThatThrownBy(() -> sql("SELECT undefined_function(1, 2)"))
         .as("Using an undefined function from SQL should fail analysis")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Undefined function");

@@ -37,7 +37,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.spark.sql.SparkSession;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
@@ -579,15 +578,9 @@ public class TestAggregatePushDown extends CatalogTestBase {
     Object actualMax = actual.get(0)[1];
     Object actualMin = actual.get(0)[2];
 
-    Assertions.assertThat(actualCount)
-        .as("Expected and actual count should equal")
-        .isEqualTo(expectedCount);
-    Assertions.assertThat(actualMax)
-        .as("Expected and actual max should equal")
-        .isEqualTo(expectedMax);
-    Assertions.assertThat(actualMin)
-        .as("Expected and actual min should equal")
-        .isEqualTo(expectedMin);
+    assertThat(actualCount).as("Expected and actual count should equal").isEqualTo(expectedCount);
+    assertThat(actualMax).as("Expected and actual max should equal").isEqualTo(expectedMax);
+    assertThat(actualMin).as("Expected and actual min should equal").isEqualTo(expectedMin);
   }
 
   private void assertExplainContains(List<Object[]> explain, String... expectedFragments) {
@@ -595,7 +588,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
     Arrays.stream(expectedFragments)
         .forEach(
             fragment ->
-                Assertions.assertThat(explainString)
+                assertThat(explainString)
                     .as("Expected to find plan fragment in explain plan")
                     .contains(fragment));
   }

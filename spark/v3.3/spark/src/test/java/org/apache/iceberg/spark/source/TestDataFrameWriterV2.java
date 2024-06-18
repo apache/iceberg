@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -32,7 +34,6 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -76,7 +77,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
 
     // this has a different error message than the case without accept-any-schema because it uses
     // Iceberg checks
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               try {
                 threeColDF.writeTo(tableName).append();
@@ -111,7 +112,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
             "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               try {
                 threeColDF.writeTo(tableName).option("merge-schema", "true").append();

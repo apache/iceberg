@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
@@ -29,7 +30,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.functions;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -94,7 +94,7 @@ public abstract class UnpartitionedWritesTestBase extends CatalogTestBase {
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     String prefix = "snapshot_id_";
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql("INSERT INTO %s.%s VALUES (4, 'd'), (5, 'e')", tableName, prefix + snapshotId))
         .isInstanceOf(IllegalArgumentException.class)
@@ -107,7 +107,7 @@ public abstract class UnpartitionedWritesTestBase extends CatalogTestBase {
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     String prefix = "snapshot_id_";
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "INSERT OVERWRITE %s.%s VALUES (4, 'd'), (5, 'e')",

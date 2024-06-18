@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
@@ -30,7 +31,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Test;
@@ -193,7 +193,7 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
     Namespace namespace = tableIdent.namespace();
     String tableName = tableIdent.name();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.set_current_snapshot('%s', -1L)", catalogName, tableIdent))
         .as("Should reject invalid snapshot id")
         .isInstanceOf(ValidationException.class)
@@ -202,7 +202,7 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testInvalidRollbackToSnapshotCases() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.set_current_snapshot(namespace => 'n1', table => 't', 1L)",
@@ -211,43 +211,38 @@ public class TestSetCurrentSnapshotProcedure extends SparkExtensionsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Named and positional arguments cannot be mixed");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.custom.set_current_snapshot('n', 't', 1L)", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.custom.set_current_snapshot('n', 't', 1L)", catalogName))
         .as("Should not resolve procedures in arbitrary namespaces")
         .isInstanceOf(NoSuchProcedureException.class)
         .hasMessageContaining("not found");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.set_current_snapshot('t')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot('t')", catalogName))
         .as("Should reject calls without all required args")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Missing required parameters");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot(1L)", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot(1L)", catalogName))
         .as("Should reject calls without all required args")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Missing required parameters");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.set_current_snapshot(snapshot_id => 1L)", catalogName))
         .as("Should reject calls without all required args")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Missing required parameters");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.set_current_snapshot(table => 't')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot(table => 't')", catalogName))
         .as("Should reject calls without all required args")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Missing required parameters");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.set_current_snapshot('t', 2.2)", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot('t', 2.2)", catalogName))
         .as("Should reject calls with invalid arg types")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Wrong arg type for snapshot_id: cannot cast");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.set_current_snapshot('', 1L)", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.set_current_snapshot('', 1L)", catalogName))
         .as("Should reject calls with empty table identifier")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot handle an empty identifier");

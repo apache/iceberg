@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,7 +57,6 @@ import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -447,7 +447,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     table.newAppend().appendFile(FILE_A).commit();
 
-    Assertions.assertThatThrownBy(() -> SparkActions.get().expireSnapshots(table))
+    assertThatThrownBy(() -> SparkActions.get().expireSnapshots(table))
         .as("Should complain about expiring snapshots")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot expire snapshots: GC is disabled");
@@ -528,8 +528,7 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
   @Test
   public void testRetainZeroSnapshots() {
-    Assertions.assertThatThrownBy(
-            () -> SparkActions.get().expireSnapshots(table).retainLast(0).execute())
+    assertThatThrownBy(() -> SparkActions.get().expireSnapshots(table).retainLast(0).execute())
         .as(
             "Should fail retain 0 snapshots "
                 + "because number of snapshots to retain cannot be zero")

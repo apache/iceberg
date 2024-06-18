@@ -25,6 +25,7 @@ import static org.apache.iceberg.TableProperties.PARQUET_BATCH_SIZE;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,7 +53,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -224,7 +224,7 @@ public class TestSparkMetadataColumns extends SparkTestBase {
     TableMetadata base = ops.current();
     ops.commit(base, base.updatePartitionSpec(UNKNOWN_SPEC));
 
-    Assertions.assertThatThrownBy(() -> sql("SELECT _partition FROM %s", TABLE_NAME))
+    assertThatThrownBy(() -> sql("SELECT _partition FROM %s", TABLE_NAME))
         .as("Should fail to query the partition metadata column")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot build table partition type, unknown transforms");
@@ -245,7 +245,7 @@ public class TestSparkMetadataColumns extends SparkTestBase {
         ImmutableList.of(row(1L, "a1")),
         sql("SELECT id, category FROM %s", TABLE_NAME));
 
-    Assertions.assertThatThrownBy(() -> sql("SELECT * FROM %s", TABLE_NAME))
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", TABLE_NAME))
         .as("Should fail to query conflicting columns")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("column names conflict");
