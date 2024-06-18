@@ -53,20 +53,21 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
     implements AnalyzeTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(AnalyzeTableSparkAction.class);
+  private static final Set<String> supportedBlobTypes =
+      ImmutableSet.of(StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1);
 
   private final Table table;
-  private final Set<String> supportedBlobTypes =
-      ImmutableSet.of(StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1);
   private Set<String> columns;
   private Set<String> blobTypesToAnalyze = supportedBlobTypes;
-  private Long snapshotId;
+  private Long snapshotToAnalyze;
 
   AnalyzeTableSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
     Snapshot snapshot = table.currentSnapshot();
-    ValidationException.check(snapshot != null, "Cannot analyze a table that has no snapshots");
-    snapshotId = snapshot.snapshotId();
+    if (snapshot != null) {
+      snapshotToAnalyze = snapshot.snapshotId();
+    }
     columns =
         table.schema().columns().stream().map(Types.NestedField::name).collect(Collectors.toSet());
   }
@@ -78,14 +79,20 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
 
   @Override
   public Result execute() {
-    String desc = String.format("Analyzing table %s for snapshot id %s", table.name(), snapshotId);
+    String desc =
+        String.format("Analyzing table %s for snapshot id %s", table.name(), snapshotToAnalyze);
     JobGroupInfo info = newJobGroupInfo("ANALYZE-TABLE", desc);
     return withJobGroupInfo(info, this::doExecute);
   }
 
   private Result doExecute() {
-    LOG.info("Starting analysis of {} for snapshot {}", table.name(), snapshotId);
     List<AnalysisResult> results = Lists.newArrayList();
+    LOG.info("Starting analysis of {} for snapshot {}", table.name(), snapshotToAnalyze);
+    if (snapshotToAnalyze == null) {
+      LOG.info("Unable to analyze the table since the table has no snapshots");
+      return ImmutableAnalyzeTable.Result.builder().analyzed(false).build();
+    }
+
     List<Blob> blobs =
         blobTypesToAnalyze.stream()
             .flatMap(
@@ -106,7 +113,8 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
                       }
                       break;
                     default:
-                      throw new UnsupportedOperationException();
+                      throw new UnsupportedOperationException(
+                          String.format("%s is not supported", type));
                   }
                   return Stream.empty();
                 })
@@ -116,7 +124,7 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
-    return ImmutableAnalyzeTable.Result.builder().analysisResults(results).build();
+    return ImmutableAnalyzeTable.Result.builder().analyzed(true).analysisResults(results).build();
   }
 
   private void writeAndCommitPuffin(List<Blob> blobs) throws Exception {
@@ -131,7 +139,7 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
       writer.finish();
       statisticsFile =
           new GenericStatisticsFile(
-              snapshotId,
+              snapshotToAnalyze,
               path,
               writer.fileSize(),
               writer.footerSize(),
@@ -139,11 +147,12 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
                   .map(GenericBlobMetadata::from)
                   .collect(ImmutableList.toImmutableList()));
     }
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+    table.updateStatistics().setStatistics(snapshotToAnalyze, statisticsFile).commit();
   }
 
   private List<Blob> generateNDVBlobs() {
-    return NDVSketchGenerator.generateNDVSketchesAndBlobs(spark(), table, snapshotId, columns);
+    return NDVSketchGenerator.generateNDVSketchesAndBlobs(
+        spark(), table, snapshotToAnalyze, columns);
   }
 
   @Override
@@ -161,15 +170,15 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
   }
 
   @Override
-  public AnalyzeTable blobTypes(Set<String> types) {
-    Preconditions.checkArgument(supportedBlobTypes.containsAll(types), "type not supported");
-    this.blobTypesToAnalyze = types;
+  public AnalyzeTable blobTypes(Set<String> blobTypes) {
+    Preconditions.checkArgument(supportedBlobTypes.containsAll(blobTypes), "type not supported");
+    this.blobTypesToAnalyze = blobTypes;
     return this;
   }
 
   @Override
-  public AnalyzeTable snapshot(long snapId) {
-    this.snapshotId = snapId;
+  public AnalyzeTable snapshot(long snapshotId) {
+    this.snapshotToAnalyze = snapshotId;
     return this;
   }
 }

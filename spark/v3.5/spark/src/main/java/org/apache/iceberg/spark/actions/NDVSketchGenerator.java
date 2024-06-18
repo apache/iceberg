@@ -91,10 +91,10 @@ public class NDVSketchGenerator {
             .read()
             .option(SNAPSHOT_ID, snapshotId)
             .table(tableName)
-            .select(toBeAnalyzedColumns.stream().map(functions::col).toArray(Column[]::new));
+            .select(columns.stream().map(functions::col).toArray(Column[]::new));
     Schema schema = table.schema();
     List<Types.NestedField> nestedFields =
-        toBeAnalyzedColumns.stream().map(schema::findField).collect(Collectors.toList());
+        columns.stream().map(schema::findField).collect(Collectors.toList());
 
     final JavaPairRDD<String, ByteBuffer> colNameAndSketchPair =
         data.javaRDD()

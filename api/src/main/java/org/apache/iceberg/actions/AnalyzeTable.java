@@ -49,6 +49,10 @@ public interface AnalyzeTable extends Action<AnalyzeTable, AnalyzeTable.Result> 
 
   /** The action result that contains summaries of the Analysis. */
   interface Result {
+
+    /** Returns if the table was analyzed* */
+    boolean analyzed();
+
     /** Returns summary of analysis */
     List<AnalysisResult> analysisResults();
   }
