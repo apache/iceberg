@@ -40,16 +40,38 @@ public class FileScanTaskParser {
 
   private FileScanTaskParser() {}
 
+  /**
+   * Serialize file scan task to JSON string
+   *
+   * @deprecated will be removed in 1.7.0; use {@link ScanTaskParser#toJson(FileScanTask)} instead
+   */
+  @Deprecated
   public static String toJson(FileScanTask fileScanTask) {
+    Preconditions.checkArgument(fileScanTask != null, "Invalid file scan task: null");
     return JsonUtil.generate(
-        generator -> FileScanTaskParser.toJson(fileScanTask, generator), false);
+        generator -> {
+          generator.writeStartObject();
+          toJson(fileScanTask, generator);
+          generator.writeEndObject();
+        },
+        false);
   }
 
-  private static void toJson(FileScanTask fileScanTask, JsonGenerator generator)
-      throws IOException {
+  /**
+   * Deserialize file scan task from JSON string
+   *
+   * @deprecated will be removed in 1.7.0; use {@link ScanTaskParser#fromJson(String, boolean)}
+   *     instead
+   */
+  @Deprecated
+  public static FileScanTask fromJson(String json, boolean caseSensitive) {
+    Preconditions.checkArgument(json != null, "Invalid JSON string for file scan task: null");
+    return JsonUtil.parse(json, node -> fromJson(node, caseSensitive));
+  }
+
+  static void toJson(FileScanTask fileScanTask, JsonGenerator generator) throws IOException {
     Preconditions.checkArgument(fileScanTask != null, "Invalid file scan task: null");
     Preconditions.checkArgument(generator != null, "Invalid JSON generator: null");
-    generator.writeStartObject();
 
     generator.writeFieldName(SCHEMA);
     SchemaParser.toJson(fileScanTask.schema(), generator);
@@ -78,16 +100,9 @@ public class FileScanTaskParser {
       generator.writeFieldName(RESIDUAL);
       ExpressionParser.toJson(fileScanTask.residual(), generator);
     }
-
-    generator.writeEndObject();
   }
 
-  public static FileScanTask fromJson(String json, boolean caseSensitive) {
-    Preconditions.checkArgument(json != null, "Invalid JSON string for file scan task: null");
-    return JsonUtil.parse(json, node -> FileScanTaskParser.fromJson(node, caseSensitive));
-  }
-
-  private static FileScanTask fromJson(JsonNode jsonNode, boolean caseSensitive) {
+  static FileScanTask fromJson(JsonNode jsonNode, boolean caseSensitive) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for file scan task: null");
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for file scan task: non-object (%s)", jsonNode);
