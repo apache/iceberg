@@ -73,12 +73,7 @@ public class TableMetadata implements Serializable {
 
   public static TableMetadata newTableMetadata(
       Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
-    SortOrder sortOrder = SortOrder.unsorted();
-    int formatVersion =
-        PropertyUtil.propertyAsInt(
-            properties, TableProperties.FORMAT_VERSION, DEFAULT_TABLE_FORMAT_VERSION);
-    return newTableMetadata(
-        schema, spec, sortOrder, location, persistedProperties(properties), formatVersion);
+    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties);
   }
 
   private static Map<String, String> unreservedProperties(Map<String, String> rawProperties) {
