@@ -21,6 +21,7 @@ package org.apache.iceberg.hadoop;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Locale;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.StaticTableOperations;
@@ -113,8 +114,8 @@ public class TestStaticTable extends HadoopTableTestBase {
   @Test
   public void testMetadataTables() {
     for (MetadataTableType type : MetadataTableType.values()) {
-      String enumName = type.name().replace("_", "").toLowerCase();
-      assertThat(getStaticTable(type).getClass().getName().toLowerCase())
+      String enumName = type.name().replace("_", "").toLowerCase(Locale.ROOT);
+      assertThat(getStaticTable(type).getClass().getName().toLowerCase(Locale.ROOT))
           .as("Should be able to get MetadataTable of type : " + type)
           .contains(enumName);
     }

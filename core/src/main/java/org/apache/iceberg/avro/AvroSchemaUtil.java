@@ -19,6 +19,7 @@
 package org.apache.iceberg.avro;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
@@ -528,6 +529,6 @@ public class AvroSchemaUtil {
     if (Character.isDigit(character)) {
       return "_" + character;
     }
-    return "_x" + Integer.toHexString(character).toUpperCase();
+    return "_x" + Integer.toHexString(character).toUpperCase(Locale.ROOT);
   }
 }

@@ -28,6 +28,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.Enumeration;
+import java.util.Locale;
 import java.util.Map;
 import javax.crypto.SecretKey;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -50,13 +51,13 @@ public class KeyStoreKmsClient extends MemoryMockKMS {
   @Override
   public ByteBuffer wrapKey(ByteBuffer key, String wrappingKeyId) {
     // keytool keeps key names in lower case
-    return super.wrapKey(key, wrappingKeyId.toLowerCase());
+    return super.wrapKey(key, wrappingKeyId.toLowerCase(Locale.ROOT));
   }
 
   @Override
   public ByteBuffer unwrapKey(ByteBuffer wrappedKey, String wrappingKeyId) {
     // keytool keeps key names in lower case
-    return super.unwrapKey(wrappedKey, wrappingKeyId.toLowerCase());
+    return super.unwrapKey(wrappedKey, wrappingKeyId.toLowerCase(Locale.ROOT));
   }
 
   @Override

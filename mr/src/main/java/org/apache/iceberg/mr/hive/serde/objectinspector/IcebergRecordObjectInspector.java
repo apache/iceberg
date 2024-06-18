@@ -20,6 +20,7 @@ package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -52,7 +53,7 @@ public final class IcebergRecordObjectInspector extends StructObjectInspector {
           Types.NestedField.of(
               field.fieldId(),
               field.isOptional(),
-              field.name().toLowerCase(),
+              field.name().toLowerCase(Locale.ROOT),
               field.type(),
               field.doc());
       IcebergRecordStructField structField =
