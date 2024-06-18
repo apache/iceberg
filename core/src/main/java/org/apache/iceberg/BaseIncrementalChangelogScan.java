@@ -21,15 +21,17 @@ package org.apache.iceberg;
 import java.util.ArrayDeque;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestGroup.CreateTasksFunction;
 import org.apache.iceberg.ManifestGroup.TaskContext;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 
@@ -63,21 +65,27 @@ class BaseIncrementalChangelogScan
       return CloseableIterable.empty();
     }
 
-    Set<Long> changelogSnapshotIds = toSnapshotIds(changelogSnapshots);
-
-    Set<ManifestFile> newDataManifests =
-        FluentIterable.from(changelogSnapshots)
-            .transformAndConcat(snapshot -> snapshot.dataManifests(table().io()))
-            .filter(manifest -> changelogSnapshotIds.contains(manifest.snapshotId()))
-            .toSet();
+    Set<ManifestFile> newDataManifests = Sets.newHashSet();
+    Set<ManifestFile> newDeleteManifests = Sets.newHashSet();
+    Map<Long, Snapshot> addedToChangedSnapshots = Maps.newHashMap();
+    for (Snapshot snapshot : changelogSnapshots) {
+      List<ManifestFile> dataManifests = snapshot.dataManifests(table().io());
+      for (ManifestFile manifest : dataManifests) {
+        if (!newDataManifests.contains(manifest)) {
+          addedToChangedSnapshots.put(manifest.snapshotId(), snapshot);
+          newDataManifests.add(manifest);
+        }
+      }
+      newDeleteManifests.addAll(snapshot.deleteManifests(table().io()));
+    }
 
     ManifestGroup manifestGroup =
-        new ManifestGroup(table().io(), newDataManifests, ImmutableList.of())
+        new ManifestGroup(table().io(), newDataManifests, newDeleteManifests)
             .specsById(table().specs())
             .caseSensitive(isCaseSensitive())
             .select(scanColumns())
             .filterData(filter())
-            .filterManifestEntries(entry -> changelogSnapshotIds.contains(entry.snapshotId()))
+            .filterManifestEntries(entry -> addedToChangedSnapshots.containsKey(entry.snapshotId()))
             .ignoreExisting()
             .columnsToKeepStats(columnsToKeepStats());
 
@@ -89,7 +97,8 @@ class BaseIncrementalChangelogScan
       manifestGroup = manifestGroup.planWith(planExecutor());
     }
 
-    return manifestGroup.plan(new CreateDataFileChangeTasks(changelogSnapshots));
+    return manifestGroup.plan(
+        new CreateDataFileChangeTasks(changelogSnapshots, addedToChangedSnapshots));
   }
 
   @Override
@@ -105,11 +114,6 @@ class BaseIncrementalChangelogScan
 
     for (Snapshot snapshot : SnapshotUtil.ancestorsBetween(table(), toIdIncl, fromIdExcl)) {
       if (!snapshot.operation().equals(DataOperations.REPLACE)) {
-        if (!snapshot.deleteManifests(table().io()).isEmpty()) {
-          throw new UnsupportedOperationException(
-              "Delete files are currently not supported in changelog scans");
-        }
-
         changelogSnapshots.addFirst(snapshot);
       }
     }
@@ -134,50 +138,81 @@ class BaseIncrementalChangelogScan
   }
 
   private static class CreateDataFileChangeTasks implements CreateTasksFunction<ChangelogScanTask> {
-    private static final DeleteFile[] NO_DELETES = new DeleteFile[0];
 
     private final Map<Long, Integer> snapshotOrdinals;
+    private final Map<Long, Snapshot> addedToChangedSnapshots;
 
-    CreateDataFileChangeTasks(Deque<Snapshot> snapshots) {
+    CreateDataFileChangeTasks(
+        Deque<Snapshot> snapshots, Map<Long, Snapshot> addedToChangedSnapshots) {
       this.snapshotOrdinals = computeSnapshotOrdinals(snapshots);
+      this.addedToChangedSnapshots = addedToChangedSnapshots;
     }
 
     @Override
     public CloseableIterable<ChangelogScanTask> apply(
         CloseableIterable<ManifestEntry<DataFile>> entries, TaskContext context) {
 
-      return CloseableIterable.transform(
-          entries,
-          entry -> {
-            long commitSnapshotId = entry.snapshotId();
-            int changeOrdinal = snapshotOrdinals.get(commitSnapshotId);
-            DataFile dataFile = entry.file().copy(context.shouldKeepStats());
+      return CloseableIterable.filter(
+          CloseableIterable.transform(
+              entries,
+              entry -> {
+                long snapshotId = entry.snapshotId();
+                Snapshot snapshot = addedToChangedSnapshots.get(snapshotId);
+                long commitSnapshotId = snapshot.snapshotId();
+                int changeOrdinal = snapshotOrdinals.get(snapshot.snapshotId());
+                DataFile dataFile = entry.file().copy(context.shouldKeepStats());
+                DeleteFile[] deleteFiles = context.deletes().forDataFile(dataFile);
+                List<DeleteFile> addedDeletes = Lists.newArrayList();
+                List<DeleteFile> existingDeletes = Lists.newArrayList();
+                for (DeleteFile file : deleteFiles) {
+                  if (file.dataSequenceNumber() == snapshot.sequenceNumber()) {
+                    addedDeletes.add(file);
+                  } else {
+                    existingDeletes.add(file);
+                  }
+                }
 
-            switch (entry.status()) {
-              case ADDED:
-                return new BaseAddedRowsScanTask(
-                    changeOrdinal,
-                    commitSnapshotId,
-                    dataFile,
-                    NO_DELETES,
-                    context.schemaAsString(),
-                    context.specAsString(),
-                    context.residuals());
+                switch (entry.status()) {
+                  case ADDED:
+                    if (snapshotId == commitSnapshotId) {
+                      return new BaseAddedRowsScanTask(
+                          changeOrdinal,
+                          commitSnapshotId,
+                          dataFile,
+                          addedDeletes.toArray(new DeleteFile[0]),
+                          context.schemaAsString(),
+                          context.specAsString(),
+                          context.residuals());
+                    } else if (deleteFiles.length > 0) {
+                      return new BaseDeletedRowsScanTask(
+                          changeOrdinal,
+                          commitSnapshotId,
+                          dataFile,
+                          addedDeletes.toArray(new DeleteFile[0]),
+                          existingDeletes.toArray(new DeleteFile[0]),
+                          context.schemaAsString(),
+                          context.specAsString(),
+                          context.residuals());
+                    } else {
+                      return null;
+                    }
 
-              case DELETED:
-                return new BaseDeletedDataFileScanTask(
-                    changeOrdinal,
-                    commitSnapshotId,
-                    dataFile,
-                    NO_DELETES,
-                    context.schemaAsString(),
-                    context.specAsString(),
-                    context.residuals());
+                  case DELETED:
+                    return new BaseDeletedDataFileScanTask(
+                        changeOrdinal,
+                        commitSnapshotId,
+                        dataFile,
+                        existingDeletes.toArray(new DeleteFile[0]),
+                        context.schemaAsString(),
+                        context.specAsString(),
+                        context.residuals());
 
-              default:
-                throw new IllegalArgumentException("Unexpected entry status: " + entry.status());
-            }
-          });
+                  default:
+                    throw new IllegalArgumentException(
+                        "Unexpected entry status: " + entry.status());
+                }
+              }),
+          Objects::nonNull);
     }
   }
 }
