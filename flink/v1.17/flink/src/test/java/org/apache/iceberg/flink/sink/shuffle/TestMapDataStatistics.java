@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Map;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.StringData;
@@ -28,7 +30,6 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestMapDataStatistics {
@@ -85,6 +86,6 @@ public class TestMapDataStatistics {
     SortKey keyC = sortKey.copy();
 
     Map<SortKey, Long> expected = ImmutableMap.of(keyA, 2L, keyB, 3L, keyC, 1L);
-    Assertions.assertThat(actual).isEqualTo(expected);
+    assertThat(actual).isEqualTo(expected);
   }
 }

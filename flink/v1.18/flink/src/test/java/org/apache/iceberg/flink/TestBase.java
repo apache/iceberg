@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.nio.file.Path;
 import java.util.List;
 import org.apache.flink.table.api.EnvironmentSettings;
@@ -33,7 +35,6 @@ import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -105,14 +106,11 @@ public abstract class TestBase extends TestBaseUtils {
   }
 
   protected void assertSameElements(Iterable<Row> expected, Iterable<Row> actual) {
-    Assertions.assertThat(actual).isNotNull().containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(actual).isNotNull().containsExactlyInAnyOrderElementsOf(expected);
   }
 
   protected void assertSameElements(String message, Iterable<Row> expected, Iterable<Row> actual) {
-    Assertions.assertThat(actual)
-        .isNotNull()
-        .as(message)
-        .containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(actual).isNotNull().as(message).containsExactlyInAnyOrderElementsOf(expected);
   }
 
   /**
