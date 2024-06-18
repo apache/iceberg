@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
@@ -201,7 +202,7 @@ public class TestIcebergStreamWriter {
         LocatedFileStatus status = iterators.next();
         if (status.isFile()) {
           Path path = status.getPath();
-          if (path.getName().endsWith("." + format.toString().toLowerCase())) {
+          if (path.getName().endsWith("." + format.toString().toLowerCase(Locale.ROOT))) {
             paths.add(path.toString());
           }
         }
