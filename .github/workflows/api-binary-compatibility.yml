@@ -27,6 +27,9 @@ on:
       - 'apache-iceberg-**'
   pull_request:
     paths:
+      - '.github/workflows/api-binary-compatibility.yml'
+      - '*.gradle'
+      - 'gradle*'
       - 'api/**'
       - '.palantir/revapi.yml'
 
