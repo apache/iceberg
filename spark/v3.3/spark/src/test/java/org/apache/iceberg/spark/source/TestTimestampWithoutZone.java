@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.Files.localOutput;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -52,7 +53,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Before;
@@ -159,7 +159,7 @@ public class TestTimestampWithoutZone extends SparkTestBase {
 
   @Test
   public void testUnpartitionedTimestampWithoutZoneError() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -218,7 +218,7 @@ public class TestTimestampWithoutZone extends SparkTestBase {
                 .mode(SaveMode.Append)
                 .save(unpartitioned.toString());
 
-    Assertions.assertThatThrownBy(writeOperation::run)
+    assertThatThrownBy(writeOperation::run)
         .as(errorMessage)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);

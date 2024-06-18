@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -51,12 +52,12 @@ public class TestSparkHoursFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testWrongNumberOfArguments() {
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.hours()"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.hours()"))
         .as("Function resolution should not work with zero arguments")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Function 'hours' cannot process input: (): Wrong number of inputs");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> scalarSql("SELECT system.hours(date('1969-12-31'), date('1969-12-31'))"))
         .as("Function resolution should not work with more than one argument")
         .isInstanceOf(AnalysisException.class)
@@ -66,13 +67,13 @@ public class TestSparkHoursFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testInvalidInputTypes() {
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.hours(1)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.hours(1)"))
         .as("Int type should not be coercible to timestamp")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "Function 'hours' cannot process input: (int): Expected value to be timestamp");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.hours(1L)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.hours(1L)"))
         .as("Long type should not be coercible to timestamp")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(

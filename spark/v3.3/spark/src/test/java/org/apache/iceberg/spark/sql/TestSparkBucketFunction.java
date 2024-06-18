@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -28,7 +31,6 @@ import org.apache.iceberg.spark.functions.BucketFunction;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.types.DataTypes;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -190,19 +192,19 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testWrongNumberOfArguments() {
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket()"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.bucket()"))
         .as("Function resolution should not work with zero arguments")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "Function 'bucket' cannot process input: (): Wrong number of inputs (expected numBuckets and value)");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(1)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.bucket(1)"))
         .as("Function resolution should not work with only one argument")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "Function 'bucket' cannot process input: (int): Wrong number of inputs (expected numBuckets and value)");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(1, 1L, 1)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.bucket(1, 1L, 1)"))
         .as("Function resolution should not work with more than two arguments")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
@@ -211,33 +213,31 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testInvalidTypesCannotBeUsedForNumberOfBuckets() {
-    Assertions.assertThatThrownBy(
-            () -> scalarSql("SELECT system.bucket(CAST('12.34' as DECIMAL(9, 2)), 10)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.bucket(CAST('12.34' as DECIMAL(9, 2)), 10)"))
         .as("Decimal type should not be coercible to the number of buckets")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "Function 'bucket' cannot process input: (decimal(9,2), int): Expected number of buckets to be tinyint, shortint or int");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(12L, 10)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.bucket(12L, 10)"))
         .as("Long type should not be coercible to the number of buckets")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "Function 'bucket' cannot process input: (bigint, int): Expected number of buckets to be tinyint, shortint or int");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket('5', 10)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.bucket('5', 10)"))
         .as("String type should not be coercible to the number of buckets")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "Function 'bucket' cannot process input: (string, int): Expected number of buckets to be tinyint, shortint or int");
 
-    Assertions.assertThatThrownBy(
-            () -> scalarSql("SELECT system.bucket(INTERVAL '100-00' YEAR TO MONTH, 10)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.bucket(INTERVAL '100-00' YEAR TO MONTH, 10)"))
         .as("Interval year to month  type should not be coercible to the number of buckets")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "Function 'bucket' cannot process input: (interval year to month, int): Expected number of buckets to be tinyint, shortint or int");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql("SELECT system.bucket(CAST('11 23:4:0' AS INTERVAL DAY TO SECOND), 10)"))
         .as("Interval day-time type should not be coercible to the number of buckets")
@@ -248,43 +248,40 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testInvalidTypesForBucketColumn() {
-    Assertions.assertThatThrownBy(
-            () -> scalarSql("SELECT system.bucket(10, cast(12.3456 as float))"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, cast(12.3456 as float))"))
         .as("Double type should not be bucketable")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "Function 'bucket' cannot process input: (int, float): Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary");
 
-    Assertions.assertThatThrownBy(
-            () -> scalarSql("SELECT system.bucket(10, cast(12.3456 as double))"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, cast(12.3456 as double))"))
         .as("Double type should not be bucketable")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "Function 'bucket' cannot process input: (int, double): Expected column to be date, tinyint, smallint, int, bigint, decimal, timestamp, string, or binary");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, true)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, true)"))
         .as("Boolean type should not be bucketable")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Function 'bucket' cannot process input: (int, boolean)");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, map(1, 1))"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, map(1, 1))"))
         .as("Map types should not be bucketable")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Function 'bucket' cannot process input: (int, map<int,int>)");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, array(1L))"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, array(1L))"))
         .as("Array types should not be bucketable")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Function 'bucket' cannot process input: (int, array<bigint>)");
 
-    Assertions.assertThatThrownBy(
-            () -> scalarSql("SELECT system.bucket(10, INTERVAL '100-00' YEAR TO MONTH)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.bucket(10, INTERVAL '100-00' YEAR TO MONTH)"))
         .as("Interval year-to-month type should not be bucketable")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "Function 'bucket' cannot process input: (int, interval year to month)");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql("SELECT system.bucket(10, CAST('11 23:4:0' AS INTERVAL DAY TO SECOND))"))
         .as("Interval day-time type should not be bucketable")
@@ -296,63 +293,59 @@ public class TestSparkBucketFunction extends SparkTestBaseWithCatalog {
   @Test
   public void testThatMagicFunctionsAreInvoked() {
     // TinyInt
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6Y)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6Y)"))
         .asString()
         .isNotNull()
         .contains("staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketInt");
 
     // SmallInt
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6S)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6S)"))
         .asString()
         .isNotNull()
         .contains("staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketInt");
 
     // Int
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6)"))
         .asString()
         .isNotNull()
         .contains("staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketInt");
 
     // Date
-    Assertions.assertThat(
-            scalarSql("EXPLAIN EXTENDED SELECT system.bucket(100, DATE '2022-08-08')"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(100, DATE '2022-08-08')"))
         .asString()
         .isNotNull()
         .contains("staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketInt");
 
     // Long
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6L)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 6L)"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketLong");
 
     // Timestamp
-    Assertions.assertThat(
-            scalarSql("EXPLAIN EXTENDED SELECT system.bucket(100, TIMESTAMP '2022-08-08')"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(100, TIMESTAMP '2022-08-08')"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketLong");
 
     // String
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 'abcdefg')"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, 'abcdefg')"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketString");
 
     // Decimal
-    Assertions.assertThat(
-            scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, CAST('12.34' AS DECIMAL))"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(5, CAST('12.34' AS DECIMAL))"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.BucketFunction$BucketDecimal");
 
     // Binary
-    Assertions.assertThat(
-            scalarSql("EXPLAIN EXTENDED SELECT system.bucket(4, X'0102030405060708')"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.bucket(4, X'0102030405060708')"))
         .asString()
         .isNotNull()
         .contains(
