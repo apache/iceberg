@@ -38,6 +38,7 @@ import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -46,7 +47,6 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestPredicateBinding {
@@ -79,7 +79,7 @@ public class TestPredicateBinding {
     StructType struct = StructType.of(required(13, "x", Types.IntegerType.get()));
 
     UnboundPredicate<Integer> unbound = new UnboundPredicate<>(LT, ref("missing"), 6);
-    Assertions.assertThatThrownBy(() -> unbound.bind(struct))
+    assertThatThrownBy(() -> unbound.bind(struct))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'missing' in struct:");
   }
@@ -147,7 +147,7 @@ public class TestPredicateBinding {
     for (Expression.Operation op : COMPARISONS) {
       UnboundPredicate<String> unbound = new UnboundPredicate<>(op, ref("f"), "12.40");
 
-      Assertions.assertThatThrownBy(() -> unbound.bind(struct))
+      assertThatThrownBy(() -> unbound.bind(struct))
           .isInstanceOf(ValidationException.class)
           .hasMessage("Invalid value for conversion to type float: 12.40 (java.lang.String)");
     }
@@ -377,7 +377,7 @@ public class TestPredicateBinding {
 
     // string (non-compatible)
     StructType strStruct = StructType.of(optional(21, "s", Types.StringType.get()));
-    Assertions.assertThatThrownBy(() -> new UnboundPredicate<>(IS_NAN, ref("s")).bind(strStruct))
+    assertThatThrownBy(() -> new UnboundPredicate<>(IS_NAN, ref("s")).bind(strStruct))
         .isInstanceOf(ValidationException.class)
         .hasMessage("IsNaN cannot be used with a non-floating-point column");
   }
@@ -406,7 +406,7 @@ public class TestPredicateBinding {
 
     // string (non-compatible)
     StructType strStruct = StructType.of(optional(21, "s", Types.StringType.get()));
-    Assertions.assertThatThrownBy(() -> new UnboundPredicate<>(NOT_NAN, ref("s")).bind(strStruct))
+    assertThatThrownBy(() -> new UnboundPredicate<>(NOT_NAN, ref("s")).bind(strStruct))
         .isInstanceOf(ValidationException.class)
         .hasMessage("NotNaN cannot be used with a non-floating-point column");
   }

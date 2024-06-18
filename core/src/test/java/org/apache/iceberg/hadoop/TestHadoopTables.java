@@ -21,6 +21,8 @@ package org.apache.iceberg.hadoop;
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -40,7 +42,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -57,10 +58,10 @@ public class TestHadoopTables {
 
   @Test
   public void testTableExists() {
-    Assertions.assertThat(TABLES.exists(tableDir.toURI().toString())).isFalse();
+    assertThat(TABLES.exists(tableDir.toURI().toString())).isFalse();
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
     TABLES.create(SCHEMA, spec, tableDir.toURI().toString());
-    Assertions.assertThat(TABLES.exists(tableDir.toURI().toString())).isTrue();
+    assertThat(TABLES.exists(tableDir.toURI().toString())).isTrue();
   }
 
   @Test
@@ -68,7 +69,7 @@ public class TestHadoopTables {
     TABLES.create(SCHEMA, tableDir.toURI().toString());
     TABLES.dropTable(tableDir.toURI().toString());
 
-    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
+    assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
   }
@@ -79,13 +80,13 @@ public class TestHadoopTables {
     createDummyTable(tableDir, dataDir);
 
     TABLES.dropTable(tableDir.toURI().toString(), true);
-    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
+    assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
 
-    Assertions.assertThat(dataDir.listFiles()).hasSize(0);
-    Assertions.assertThat(tableDir).doesNotExist();
-    Assertions.assertThat(TABLES.dropTable(tableDir.toURI().toString())).isFalse();
+    assertThat(dataDir.listFiles()).hasSize(0);
+    assertThat(tableDir).doesNotExist();
+    assertThat(TABLES.dropTable(tableDir.toURI().toString())).isFalse();
   }
 
   @Test
@@ -93,13 +94,13 @@ public class TestHadoopTables {
     createDummyTable(tableDir, dataDir);
 
     TABLES.dropTable(tableDir.toURI().toString(), false);
-    Assertions.assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
+    assertThatThrownBy(() -> TABLES.load(tableDir.toURI().toString()))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessageStartingWith("Table does not exist");
 
-    Assertions.assertThat(dataDir.listFiles()).hasSize(1);
-    Assertions.assertThat(tableDir).doesNotExist();
-    Assertions.assertThat(TABLES.dropTable(tableDir.toURI().toString())).isFalse();
+    assertThat(dataDir.listFiles()).hasSize(1);
+    assertThat(tableDir).doesNotExist();
+    assertThat(TABLES.dropTable(tableDir.toURI().toString())).isFalse();
   }
 
   @Test
@@ -108,8 +109,8 @@ public class TestHadoopTables {
     Table table = TABLES.create(SCHEMA, spec, tableDir.toURI().toString());
 
     SortOrder sortOrder = table.sortOrder();
-    Assertions.assertThat(sortOrder.orderId()).as("Order ID must match").isEqualTo(0);
-    Assertions.assertThat(sortOrder.isUnsorted()).as("Order must be unsorted").isTrue();
+    assertThat(sortOrder.orderId()).as("Order ID must match").isEqualTo(0);
+    assertThat(sortOrder.isUnsorted()).as("Order must be unsorted").isTrue();
   }
 
   @Test
@@ -120,16 +121,14 @@ public class TestHadoopTables {
         TABLES.create(SCHEMA, spec, order, Maps.newHashMap(), tableDir.toURI().toString());
 
     SortOrder sortOrder = table.sortOrder();
-    Assertions.assertThat(sortOrder.orderId()).as("Order ID must match").isEqualTo(1);
-    Assertions.assertThat(sortOrder.fields()).as("Order must have 1 field").hasSize(1);
-    Assertions.assertThat(sortOrder.fields().get(0).direction())
-        .as("Direction must match")
-        .isEqualTo(ASC);
-    Assertions.assertThat(sortOrder.fields().get(0).nullOrder())
+    assertThat(sortOrder.orderId()).as("Order ID must match").isEqualTo(1);
+    assertThat(sortOrder.fields()).as("Order must have 1 field").hasSize(1);
+    assertThat(sortOrder.fields().get(0).direction()).as("Direction must match").isEqualTo(ASC);
+    assertThat(sortOrder.fields().get(0).nullOrder())
         .as("Null order must match")
         .isEqualTo(NULLS_FIRST);
     Transform<?, ?> transform = Transforms.identity();
-    Assertions.assertThat(sortOrder.fields().get(0).transform())
+    assertThat(sortOrder.fields().get(0).transform())
         .as("Transform must match")
         .isEqualTo(transform);
   }
@@ -141,12 +140,10 @@ public class TestHadoopTables {
     TABLES.create(SCHEMA, spec, location);
 
     Table table = TABLES.load(location);
-    Assertions.assertThat(table.name()).as("Name must match").isEqualTo(location);
+    assertThat(table.name()).as("Name must match").isEqualTo(location);
 
     Table snapshotsTable = TABLES.load(location + "#snapshots");
-    Assertions.assertThat(snapshotsTable.name())
-        .as("Name must match")
-        .isEqualTo(location + "#snapshots");
+    assertThat(snapshotsTable.name()).as("Name must match").isEqualTo(location + "#snapshots");
   }
 
   private static void createDummyTable(File tableDir, File dataDir) throws IOException {
@@ -164,7 +161,7 @@ public class TestHadoopTables {
     append.commit();
 
     // Make sure that the data file and the manifest dir is created
-    Assertions.assertThat(dataDir.listFiles()).hasSize(1);
-    Assertions.assertThat(tableDir.listFiles()).hasSize(1);
+    assertThat(dataDir.listFiles()).hasSize(1);
+    assertThat(tableDir.listFiles()).hasSize(1);
   }
 }

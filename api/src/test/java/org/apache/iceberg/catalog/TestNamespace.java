@@ -18,46 +18,48 @@
  */
 package org.apache.iceberg.catalog;
 
-import org.assertj.core.api.Assertions;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.junit.jupiter.api.Test;
 
 public class TestNamespace {
 
   @Test
   public void testWithNullAndEmpty() {
-    Assertions.assertThatThrownBy(() -> Namespace.of((String[]) null))
+    assertThatThrownBy(() -> Namespace.of((String[]) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create Namespace from null array");
 
-    Assertions.assertThat(Namespace.of()).isEqualTo(Namespace.empty());
+    assertThat(Namespace.of()).isEqualTo(Namespace.empty());
   }
 
   @Test
   public void testNamespace() {
     String[] levels = {"a", "b", "c", "d"};
     Namespace namespace = Namespace.of(levels);
-    Assertions.assertThat(namespace).isNotNull();
-    Assertions.assertThat(namespace.levels()).hasSize(4);
-    Assertions.assertThat(namespace).hasToString("a.b.c.d");
+    assertThat(namespace).isNotNull();
+    assertThat(namespace.levels()).hasSize(4);
+    assertThat(namespace).hasToString("a.b.c.d");
     for (int i = 0; i < levels.length; i++) {
-      Assertions.assertThat(namespace.level(i)).isEqualTo(levels[i]);
+      assertThat(namespace.level(i)).isEqualTo(levels[i]);
     }
   }
 
   @Test
   public void testWithNullInLevel() {
-    Assertions.assertThatThrownBy(() -> Namespace.of("a", null, "b"))
+    assertThatThrownBy(() -> Namespace.of("a", null, "b"))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Cannot create a namespace with a null level");
   }
 
   @Test
   public void testDisallowsNamespaceWithNullByte() {
-    Assertions.assertThatThrownBy(() -> Namespace.of("ac", "\u0000c", "b"))
+    assertThatThrownBy(() -> Namespace.of("ac", "\u0000c", "b"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create a namespace with the null-byte character");
 
-    Assertions.assertThatThrownBy(() -> Namespace.of("ac", "c\0", "b"))
+    assertThatThrownBy(() -> Namespace.of("ac", "c\0", "b"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create a namespace with the null-byte character");
   }

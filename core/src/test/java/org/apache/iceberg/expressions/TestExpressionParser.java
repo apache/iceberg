@@ -20,6 +20,8 @@ package org.apache.iceberg.expressions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
@@ -27,7 +29,6 @@ import java.nio.ByteBuffer;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestExpressionParser {
@@ -101,12 +102,12 @@ public class TestExpressionParser {
       String boundJson = ExpressionParser.toJson(bound, true);
       String unboundJson = ExpressionParser.toJson(expr, true);
 
-      Assertions.assertThat(boundJson)
+      assertThat(boundJson)
           .as("Bound and unbound should produce identical json")
           .isEqualTo(unboundJson);
 
       Expression parsed = ExpressionParser.fromJson(boundJson, SCHEMA);
-      Assertions.assertThat(ExpressionUtil.equivalent(expr, parsed, SUPPORTED_PRIMITIVES, true))
+      assertThat(ExpressionUtil.equivalent(expr, parsed, SUPPORTED_PRIMITIVES, true))
           .as("Round-trip value should be equivalent")
           .isTrue();
     }
@@ -114,45 +115,42 @@ public class TestExpressionParser {
 
   @Test
   public void nullExpression() {
-    Assertions.assertThatThrownBy(() -> ExpressionParser.toJson(null))
+    assertThatThrownBy(() -> ExpressionParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid expression: null");
 
-    Assertions.assertThatThrownBy(() -> ExpressionParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> ExpressionParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse expression from null object");
   }
 
   @Test
   public void trueExpression() {
-    Assertions.assertThat(ExpressionParser.toJson(Expressions.alwaysTrue(), true))
-        .isEqualTo("true");
-    Assertions.assertThat(ExpressionParser.fromJson("true")).isEqualTo(Expressions.alwaysTrue());
+    assertThat(ExpressionParser.toJson(Expressions.alwaysTrue(), true)).isEqualTo("true");
+    assertThat(ExpressionParser.fromJson("true")).isEqualTo(Expressions.alwaysTrue());
 
     // type=literal is also supported
     String longJson = "{\n  \"type\" : \"literal\",\n  \"value\" : true\n}";
-    Assertions.assertThat(ExpressionParser.fromJson(longJson)).isEqualTo(Expressions.alwaysTrue());
+    assertThat(ExpressionParser.fromJson(longJson)).isEqualTo(Expressions.alwaysTrue());
   }
 
   @Test
   public void falseExpression() {
-    Assertions.assertThat(ExpressionParser.toJson(Expressions.alwaysFalse(), true))
-        .isEqualTo("false");
-    Assertions.assertThat(ExpressionParser.fromJson("false")).isEqualTo(Expressions.alwaysFalse());
+    assertThat(ExpressionParser.toJson(Expressions.alwaysFalse(), true)).isEqualTo("false");
+    assertThat(ExpressionParser.fromJson("false")).isEqualTo(Expressions.alwaysFalse());
 
     // type=literal is also supported
     String longJson = "{\n  \"type\" : \"literal\",\n  \"value\" : false\n}";
-    Assertions.assertThat(ExpressionParser.fromJson(longJson)).isEqualTo(Expressions.alwaysFalse());
+    assertThat(ExpressionParser.fromJson(longJson)).isEqualTo(Expressions.alwaysFalse());
   }
 
   @Test
   public void eqExpression() {
     String expected =
         "{\n" + "  \"type\" : \"eq\",\n" + "  \"term\" : \"name\",\n" + "  \"value\" : 25\n" + "}";
-    Assertions.assertThat(ExpressionParser.toJson(Expressions.equal("name", 25), true))
-        .isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(Expressions.equal("name", 25), true)).isEqualTo(expected);
     Expression expression = ExpressionParser.fromJson(expected);
-    Assertions.assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
   }
 
   @Test
@@ -168,19 +166,18 @@ public class TestExpressionParser {
             + "  \"value\" : 50\n"
             + "}";
 
-    Assertions.assertThat(
+    assertThat(
             ExpressionParser.toJson(
                 Expressions.lessThanOrEqual(Expressions.bucket("id", 100), 50), true))
         .isEqualTo(expected);
     // schema is required to parse transform expressions
-    Assertions.assertThat(
-            ExpressionParser.toJson(ExpressionParser.fromJson(expected, SCHEMA), true))
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected, SCHEMA), true))
         .isEqualTo(expected);
   }
 
   @Test
   public void extraFields() {
-    Assertions.assertThat(
+    assertThat(
             ExpressionParser.toJson(
                 ExpressionParser.fromJson(
                     "{\n"
@@ -201,7 +198,7 @@ public class TestExpressionParser {
 
   @Test
   public void invalidTerm() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ExpressionParser.fromJson(
                     "{\n"
@@ -218,7 +215,7 @@ public class TestExpressionParser {
 
   @Test
   public void invalidValues() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ExpressionParser.fromJson(
                     "{\n"
@@ -229,7 +226,7 @@ public class TestExpressionParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse NOT_NAN predicate: has invalid value field");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ExpressionParser.fromJson(
                     "{\n"
@@ -240,7 +237,7 @@ public class TestExpressionParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse IS_NAN predicate: has invalid values field");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ExpressionParser.fromJson(
                     "{\n"
@@ -251,7 +248,7 @@ public class TestExpressionParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse LT predicate: missing value");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ExpressionParser.fromJson(
                     "{\n"
@@ -263,7 +260,7 @@ public class TestExpressionParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse LT predicate: has invalid values field");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ExpressionParser.fromJson(
                     "{\n"
@@ -274,7 +271,7 @@ public class TestExpressionParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse NOT_IN predicate: missing values");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ExpressionParser.fromJson(
                     "{\n"
@@ -289,7 +286,7 @@ public class TestExpressionParser {
 
   @Test
   public void invalidOperationType() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ExpressionParser.fromJson(
                     "{\n"
@@ -303,7 +300,7 @@ public class TestExpressionParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid operation type: illegal");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ExpressionParser.fromJson(
                     "{\n"
@@ -320,16 +317,16 @@ public class TestExpressionParser {
 
   @Test
   public void invalidAnd() {
-    Assertions.assertThatThrownBy(() -> ExpressionParser.fromJson("{\n  \"type\" : \"and\"\n}"))
+    assertThatThrownBy(() -> ExpressionParser.fromJson("{\n  \"type\" : \"and\"\n}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing field: left");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> ExpressionParser.fromJson("{\n  \"type\" : \"and\",\n  \"left\": true}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing field: right");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> ExpressionParser.fromJson("{\n  \"type\" : \"and\",\n  \"right\": true}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing field: left");
@@ -344,10 +341,9 @@ public class TestExpressionParser {
             + "  \"value\" : 50\n"
             + "}";
 
-    Assertions.assertThat(
-            ExpressionParser.toJson(Expressions.lessThanOrEqual("column-name", 50), true))
+    assertThat(ExpressionParser.toJson(Expressions.lessThanOrEqual("column-name", 50), true))
         .isEqualTo(expected);
-    Assertions.assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
         .isEqualTo(expected);
   }
 
@@ -370,8 +366,7 @@ public class TestExpressionParser {
             + "  }\n"
             + "}";
 
-    Assertions.assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(json), true))
-        .isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(json), true)).isEqualTo(expected);
   }
 
   @Test
@@ -393,8 +388,7 @@ public class TestExpressionParser {
             + "  \"value\" : 50\n"
             + "}";
 
-    Assertions.assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(json), true))
-        .isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(json), true)).isEqualTo(expected);
   }
 
   @Test
@@ -419,8 +413,8 @@ public class TestExpressionParser {
             Expressions.greaterThanOrEqual("column-name-1", 50),
             Expressions.in("column-name-2", "one", "two"));
 
-    Assertions.assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
-    Assertions.assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
         .isEqualTo(expected);
   }
 
@@ -443,8 +437,8 @@ public class TestExpressionParser {
     Expression expression =
         Expressions.or(
             Expressions.lessThan("column-name-1", 50), Expressions.notNull("column-name-2"));
-    Assertions.assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
-    Assertions.assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
         .isEqualTo(expected);
   }
 
@@ -462,8 +456,8 @@ public class TestExpressionParser {
 
     Expression expression = Expressions.not(Expressions.greaterThanOrEqual("column-name-1", 50));
 
-    Assertions.assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
-    Assertions.assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
         .isEqualTo(expected);
   }
 
@@ -497,8 +491,8 @@ public class TestExpressionParser {
             Expressions.equal("column-name-2", "test"));
     Expression expression = Expressions.or(and, Expressions.isNaN("column-name-3"));
 
-    Assertions.assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
-    Assertions.assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
         .isEqualTo(expected);
   }
 
@@ -514,8 +508,8 @@ public class TestExpressionParser {
     ByteBuffer byteBuffer = ByteBuffer.wrap(new byte[] {1, 2, 3});
     Expression expression = Expressions.equal("column-name", byteBuffer);
 
-    Assertions.assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
-    Assertions.assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
         .isEqualTo(expected);
   }
 
@@ -530,8 +524,8 @@ public class TestExpressionParser {
 
     Expression expression = Expressions.in("column-name", new BigDecimal("3.14"));
 
-    Assertions.assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
-    Assertions.assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
         .isEqualTo(expected);
   }
 
@@ -546,8 +540,8 @@ public class TestExpressionParser {
 
     Expression expression = Expressions.in("column-name", new BigDecimal("3.14E+4"));
 
-    Assertions.assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
-    Assertions.assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
+    assertThat(ExpressionParser.toJson(expression, true)).isEqualTo(expected);
+    assertThat(ExpressionParser.toJson(ExpressionParser.fromJson(expected), true))
         .isEqualTo(expected);
   }
 }

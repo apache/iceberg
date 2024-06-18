@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.orc;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.util.Random;
 import org.apache.hadoop.conf.Configuration;
@@ -38,7 +40,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.orc.CompressionKind;
 import org.apache.orc.OrcConf;
 import org.apache.orc.OrcFile.CompressionStrategy;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -73,14 +74,12 @@ public class TestTableProperties {
 
     String warehouse = folder.getAbsolutePath();
     String tablePath = warehouse.concat("/test");
-    Assertions.assertThat(new File(tablePath).mkdir())
-        .as("Should create the table path correctly.")
-        .isTrue();
+    assertThat(new File(tablePath).mkdir()).as("Should create the table path correctly.").isTrue();
 
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Table table = new HadoopTables().create(SCHEMA, spec, properties, tablePath);
 
-    Assertions.assertThat(testFile.delete()).isTrue();
+    assertThat(testFile.delete()).isTrue();
 
     FileAppender<Record> writer =
         ORC.write(Files.localOutput(testFile))
@@ -92,12 +91,11 @@ public class TestTableProperties {
         DynFields.builder().hiddenImpl(writer.getClass(), "conf").build(writer);
 
     Configuration configuration = confField.get();
-    Assertions.assertThat(OrcConf.BLOCK_SIZE.getLong(configuration)).isEqualTo(blockSizeBytes);
-    Assertions.assertThat(OrcConf.STRIPE_SIZE.getLong(configuration)).isEqualTo(stripeSizeBytes);
-    Assertions.assertThat(OrcConf.COMPRESS.getString(configuration)).isEqualTo(codecAsString);
-    Assertions.assertThat(OrcConf.COMPRESSION_STRATEGY.getString(configuration))
-        .isEqualTo(strategyAsString);
-    Assertions.assertThat(configuration.get(TableProperties.DEFAULT_FILE_FORMAT))
+    assertThat(OrcConf.BLOCK_SIZE.getLong(configuration)).isEqualTo(blockSizeBytes);
+    assertThat(OrcConf.STRIPE_SIZE.getLong(configuration)).isEqualTo(stripeSizeBytes);
+    assertThat(OrcConf.COMPRESS.getString(configuration)).isEqualTo(codecAsString);
+    assertThat(OrcConf.COMPRESSION_STRATEGY.getString(configuration)).isEqualTo(strategyAsString);
+    assertThat(configuration.get(TableProperties.DEFAULT_FILE_FORMAT))
         .isEqualTo(FileFormat.ORC.name());
   }
 
@@ -122,14 +120,12 @@ public class TestTableProperties {
 
     String warehouse = folder.getAbsolutePath();
     String tablePath = warehouse.concat("/test");
-    Assertions.assertThat(new File(tablePath).mkdir())
-        .as("Should create the table path correctly.")
-        .isTrue();
+    assertThat(new File(tablePath).mkdir()).as("Should create the table path correctly.").isTrue();
 
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Table table = new HadoopTables().create(SCHEMA, spec, properties, tablePath);
 
-    Assertions.assertThat(testFile.delete()).isTrue();
+    assertThat(testFile.delete()).isTrue();
 
     EqualityDeleteWriter<Object> deleteWriter =
         ORC.writeDeletes(Files.localOutput(testFile))
@@ -146,12 +142,11 @@ public class TestTableProperties {
         DynFields.builder().hiddenImpl(orcFileAppender.getClass(), "conf").build(orcFileAppender);
 
     Configuration configuration = confField.get();
-    Assertions.assertThat(OrcConf.BLOCK_SIZE.getLong(configuration)).isEqualTo(blockSizeBytes);
-    Assertions.assertThat(OrcConf.STRIPE_SIZE.getLong(configuration)).isEqualTo(stripeSizeBytes);
-    Assertions.assertThat(OrcConf.COMPRESS.getString(configuration)).isEqualTo(codecAsString);
-    Assertions.assertThat(OrcConf.COMPRESSION_STRATEGY.getString(configuration))
-        .isEqualTo(strategyAsString);
-    Assertions.assertThat(configuration.get(TableProperties.DEFAULT_FILE_FORMAT))
+    assertThat(OrcConf.BLOCK_SIZE.getLong(configuration)).isEqualTo(blockSizeBytes);
+    assertThat(OrcConf.STRIPE_SIZE.getLong(configuration)).isEqualTo(stripeSizeBytes);
+    assertThat(OrcConf.COMPRESS.getString(configuration)).isEqualTo(codecAsString);
+    assertThat(OrcConf.COMPRESSION_STRATEGY.getString(configuration)).isEqualTo(strategyAsString);
+    assertThat(configuration.get(TableProperties.DEFAULT_FILE_FORMAT))
         .isEqualTo(FileFormat.ORC.name());
   }
 }

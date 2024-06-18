@@ -19,6 +19,7 @@
 package org.apache.iceberg.mr.hive;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.sql.Date;
@@ -39,7 +40,6 @@ import org.apache.iceberg.expressions.Or;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestHiveIcebergFilterFactory {
@@ -159,7 +159,7 @@ public class TestHiveIcebergFilterFactory {
                 .between("salary", PredicateLeaf.Type.LONG, 9000L, 15000L)
                 .end()
                 .build());
-    Assertions.assertThatThrownBy(() -> HiveIcebergFilterFactory.generateFilterExpression(arg))
+    assertThatThrownBy(() -> HiveIcebergFilterFactory.generateFilterExpression(arg))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Missing leaf literals: Leaf[empty]");
   }

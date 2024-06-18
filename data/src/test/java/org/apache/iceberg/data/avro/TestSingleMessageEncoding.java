@@ -20,6 +20,7 @@ package org.apache.iceberg.data.avro;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -40,7 +41,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Ordering;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -132,7 +132,7 @@ public class TestSingleMessageEncoding {
 
     ByteBuffer v1Buffer = v1Encoder.encode(V1_RECORDS.get(3));
 
-    Assertions.assertThatThrownBy(() -> v2Decoder.decode(v1Buffer))
+    assertThatThrownBy(() -> v2Decoder.decode(v1Buffer))
         .isInstanceOf(MissingSchemaException.class)
         .hasMessageContaining("Cannot resolve schema for fingerprint");
   }
@@ -206,7 +206,7 @@ public class TestSingleMessageEncoding {
 
     buffer.limit(12);
 
-    Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
+    assertThatThrownBy(() -> decoder.decode(buffer))
         .isInstanceOf(AvroRuntimeException.class)
         .hasMessageContaining("Decoding datum failed");
   }
@@ -220,7 +220,7 @@ public class TestSingleMessageEncoding {
 
     buffer.limit(8);
 
-    Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
+    assertThatThrownBy(() -> decoder.decode(buffer))
         .isInstanceOf(BadHeaderException.class)
         .hasMessage("Not enough header bytes");
   }
@@ -233,7 +233,7 @@ public class TestSingleMessageEncoding {
     ByteBuffer buffer = encoder.encode(V2_RECORDS.get(0));
     buffer.array()[0] = 0x00;
 
-    Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
+    assertThatThrownBy(() -> decoder.decode(buffer))
         .isInstanceOf(BadHeaderException.class)
         .hasMessageContaining("Unrecognized header bytes");
   }
@@ -246,7 +246,7 @@ public class TestSingleMessageEncoding {
     ByteBuffer buffer = encoder.encode(V2_RECORDS.get(0));
     buffer.array()[1] = 0x00;
 
-    Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
+    assertThatThrownBy(() -> decoder.decode(buffer))
         .isInstanceOf(BadHeaderException.class)
         .hasMessageContaining("Unrecognized header bytes");
   }
@@ -259,7 +259,7 @@ public class TestSingleMessageEncoding {
     ByteBuffer buffer = encoder.encode(V2_RECORDS.get(0));
     buffer.array()[4] = 0x00;
 
-    Assertions.assertThatThrownBy(() -> decoder.decode(buffer))
+    assertThatThrownBy(() -> decoder.decode(buffer))
         .isInstanceOf(MissingSchemaException.class)
         .hasMessageContaining("Cannot resolve schema for fingerprint");
   }

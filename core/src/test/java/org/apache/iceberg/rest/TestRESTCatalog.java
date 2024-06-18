@@ -84,7 +84,6 @@ import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
 import org.eclipse.jetty.server.Server;
@@ -292,15 +291,15 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     restCat.setConf(new Configuration());
     restCat.initialize("prod", initialConfig);
 
-    Assertions.assertThat(restCat.properties().get(CatalogProperties.CACHE_ENABLED))
+    assertThat(restCat.properties().get(CatalogProperties.CACHE_ENABLED))
         .as("Catalog properties after initialize should use the server's override properties")
         .isEqualTo("false");
 
-    Assertions.assertThat(restCat.properties().get(CatalogProperties.CLIENT_POOL_SIZE))
+    assertThat(restCat.properties().get(CatalogProperties.CLIENT_POOL_SIZE))
         .as("Catalog after initialize should use the server's default properties if not specified")
         .isEqualTo("1");
 
-    Assertions.assertThat(restCat.properties().get(CatalogProperties.WAREHOUSE_LOCATION))
+    assertThat(restCat.properties().get(CatalogProperties.WAREHOUSE_LOCATION))
         .as("Catalog should return final warehouse location")
         .isEqualTo("s3://bucket/warehouse");
 
@@ -310,12 +309,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   @Test
   public void testInitializeWithBadArguments() throws IOException {
     RESTCatalog restCat = new RESTCatalog();
-    org.assertj.core.api.Assertions.assertThatThrownBy(() -> restCat.initialize("prod", null))
+    assertThatThrownBy(() -> restCat.initialize("prod", null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid configuration: null");
 
-    org.assertj.core.api.Assertions.assertThatThrownBy(
-            () -> restCat.initialize("prod", ImmutableMap.of()))
+    assertThatThrownBy(() -> restCat.initialize("prod", ImmutableMap.of()))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid uri for http client: null");
 
@@ -333,7 +331,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "token", "bearer-token"));
 
-    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
+    assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     // the bearer token should be used for all interactions
     Mockito.verify(adapter)
@@ -369,7 +367,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.initialize(
         "prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "credential", "catalog:secret"));
 
-    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
+    assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     // no token or credential for catalog token exchange
     Mockito.verify(adapter)
@@ -424,7 +422,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             OAuth2Properties.OAUTH2_SERVER_URI,
             oauth2ServerUri));
 
-    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
+    assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     // no token or credential for catalog token exchange
     Mockito.verify(adapter)
@@ -485,7 +483,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             OAuth2Properties.OAUTH2_SERVER_URI,
             oauth2ServerUri));
 
-    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
+    assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     // use the bearer token for config
     Mockito.verify(adapter)
@@ -548,7 +546,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             OAuth2Properties.OAUTH2_SERVER_URI,
             oauth2ServerUri));
 
-    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
+    assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     // call client credentials with no initial auth
     Mockito.verify(adapter)
@@ -623,7 +621,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             OAuth2Properties.OAUTH2_SERVER_URI,
             oauth2ServerUri));
 
-    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
+    assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     // use the bearer token for client credentials
     Mockito.verify(adapter)
@@ -819,7 +817,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             .build();
     catalog.initialize("prod", initializationProperties);
 
-    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
+    assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     Mockito.verify(adapter)
         .execute(
@@ -971,7 +969,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
           // don't call snapshots() directly as that would cause to load all snapshots. Instead,
           // make sure the snapshots field holds exactly 1 snapshot
-          Assertions.assertThat(refsMetadata)
+          assertThat(refsMetadata)
               .extracting("snapshots")
               .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
               .hasSize(1);
@@ -1097,7 +1095,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           // don't call snapshots() directly as that would cause to load all snapshots. Instead,
           // make sure the snapshots field holds exactly 2 snapshots (the latest snapshot for main
           // and the branch)
-          Assertions.assertThat(refsMetadata)
+          assertThat(refsMetadata)
               .extracting("snapshots")
               .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
               .hasSize(2);
@@ -1213,7 +1211,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
           // don't call snapshots() directly as that would cause to load all snapshots. Instead,
           // make sure the snapshots field holds exactly 1 snapshot
-          Assertions.assertThat(refsMetadata)
+          assertThat(refsMetadata)
               .extracting("snapshots")
               .asInstanceOf(InstanceOfAssertFactories.list(Snapshot.class))
               .hasSize(1);
@@ -1312,12 +1310,12 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
 
     Table table = catalog.createTable(ident, expectedSchema);
-    Assertions.assertThat(table.schema().asStruct())
+    assertThat(table.schema().asStruct())
         .as("Schema should match")
         .isEqualTo(expectedSchema.asStruct());
 
     Table loaded = catalog.loadTable(ident); // the first load will send the token
-    Assertions.assertThat(loaded.schema().asStruct())
+    assertThat(loaded.schema().asStruct())
         .as("Schema should match")
         .isEqualTo(expectedSchema.asStruct());
 
@@ -1570,8 +1568,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .untilAsserted(
             () -> {
               // use the exchanged catalog token
-              Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table")))
-                  .isFalse();
+              assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
               // call client credentials with no initial auth
               Mockito.verify(adapter)
@@ -1732,7 +1729,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             OAuth2Properties.OAUTH2_SERVER_URI,
             oauth2ServerUri));
 
-    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
+    assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     // call client credentials with no initial auth
     Mockito.verify(adapter)
@@ -1818,7 +1815,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalog catalog = new RESTCatalog(context, (config) -> adapter);
     catalog.initialize("prod", ImmutableMap.of(CatalogProperties.URI, "ignored", "token", token));
 
-    Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
+    assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
     Mockito.verify(adapter)
         .execute(
@@ -1919,8 +1916,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .untilAsserted(
             () -> {
               // use the exchanged catalog token
-              Assertions.assertThat(catalog.tableExists(TableIdentifier.of("ns", "table")))
-                  .isFalse();
+              assertThat(catalog.tableExists(TableIdentifier.of("ns", "table"))).isFalse();
 
               // call client credentials with no initial auth
               Mockito.verify(adapter)
@@ -2337,7 +2333,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 catalog.initialize(
                     "test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "-1")))
@@ -2505,8 +2501,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // cleaned up
     UpdateTableRequest request = captor.getValue();
     MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) request.updates().get(0);
-    Assertions.assertThatThrownBy(
-            () -> table.io().newInputFile(addSnapshot.snapshot().manifestListLocation()))
+    assertThatThrownBy(() -> table.io().newInputFile(addSnapshot.snapshot().manifestListLocation()))
         .isInstanceOf(NotFoundException.class);
   }
 
@@ -2535,8 +2530,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // exist even though the commit failed
     UpdateTableRequest request = captor.getValue();
     MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) request.updates().get(0);
-    Assertions.assertThat(
-            table.io().newInputFile(addSnapshot.snapshot().manifestListLocation()).exists())
+    assertThat(table.io().newInputFile(addSnapshot.snapshot().manifestListLocation()).exists())
         .isTrue();
   }
 
@@ -2570,7 +2564,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     assertThat(appendSnapshot).isPresent();
     MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) appendSnapshot.get();
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 catalog
                     .loadTable(TABLE)
@@ -2608,7 +2602,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(appendSnapshot).isPresent();
 
     MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) appendSnapshot.get();
-    Assertions.assertThat(
+    assertThat(
             catalog
                 .loadTable(TABLE)
                 .io()
@@ -2646,7 +2640,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     assertThat(appendSnapshot).isPresent();
     MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) appendSnapshot.get();
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 catalog
                     .loadTable(TABLE)
@@ -2683,7 +2677,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     assertThat(appendSnapshot).isPresent();
 
     MetadataUpdate.AddSnapshot addSnapshot = (MetadataUpdate.AddSnapshot) appendSnapshot.get();
-    Assertions.assertThat(
+    assertThat(
             catalog
                 .loadTable(TABLE)
                 .io()

@@ -37,6 +37,7 @@ import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
@@ -47,7 +48,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.StringType;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestStrictMetricsEvaluator {
@@ -280,8 +280,7 @@ public class TestStrictMetricsEvaluator {
 
   @Test
   public void testMissingColumn() {
-    Assertions.assertThatThrownBy(
-            () -> new StrictMetricsEvaluator(SCHEMA, lessThan("missing", 5)).eval(FILE))
+    assertThatThrownBy(() -> new StrictMetricsEvaluator(SCHEMA, lessThan("missing", 5)).eval(FILE))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'missing'");
   }

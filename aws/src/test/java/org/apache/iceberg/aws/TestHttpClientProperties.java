@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.aws;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -45,7 +47,7 @@ public class TestHttpClientProperties {
     Mockito.verify(mockS3ClientBuilder).httpClientBuilder(httpClientBuilderCaptor.capture());
     SdkHttpClient.Builder capturedHttpClientBuilder = httpClientBuilderCaptor.getValue();
 
-    Assertions.assertThat(capturedHttpClientBuilder)
+    assertThat(capturedHttpClientBuilder)
         .as("Should use url connection http client")
         .isInstanceOf(UrlConnectionHttpClient.Builder.class);
   }
@@ -62,7 +64,7 @@ public class TestHttpClientProperties {
     httpProperties.applyHttpClientConfigurations(mockS3ClientBuilder);
     Mockito.verify(mockS3ClientBuilder).httpClientBuilder(httpClientBuilderCaptor.capture());
     SdkHttpClient.Builder capturedHttpClientBuilder = httpClientBuilderCaptor.getValue();
-    Assertions.assertThat(capturedHttpClientBuilder)
+    assertThat(capturedHttpClientBuilder)
         .as("Should use apache http client")
         .isInstanceOf(ApacheHttpClient.Builder.class);
   }
@@ -74,8 +76,7 @@ public class TestHttpClientProperties {
     HttpClientProperties httpProperties = new HttpClientProperties(properties);
     S3ClientBuilder s3ClientBuilder = S3Client.builder();
 
-    Assertions.assertThatThrownBy(
-            () -> httpProperties.applyHttpClientConfigurations(s3ClientBuilder))
+    assertThatThrownBy(() -> httpProperties.applyHttpClientConfigurations(s3ClientBuilder))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Unrecognized HTTP client type test");
   }

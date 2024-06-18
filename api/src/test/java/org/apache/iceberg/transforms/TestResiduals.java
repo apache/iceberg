@@ -33,6 +33,7 @@ import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.function.Function;
 import org.apache.iceberg.PartitionSpec;
@@ -45,7 +46,6 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestResiduals {
@@ -144,7 +144,7 @@ public class TestResiduals {
 
     ResidualEvaluator resEval = ResidualEvaluator.of(spec, lessThan("DATEINT", 20170815), true);
 
-    Assertions.assertThatThrownBy(() -> resEval.residualFor(Row.of(20170815)))
+    assertThatThrownBy(() -> resEval.residualFor(Row.of(20170815)))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'DATEINT' in struct");
   }

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.lakeformation;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -30,7 +31,6 @@ import org.apache.iceberg.aws.HttpClientProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -138,7 +138,7 @@ public class TestLakeFormationAwsClientFactory {
         .atMost(Duration.ofSeconds(10))
         .untilAsserted(
             () ->
-                Assertions.assertThat(
+                assertThat(
                         iam.getRolePolicy(
                             GetRolePolicyRequest.builder()
                                 .roleName(roleName)

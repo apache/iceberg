@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.orc;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -41,7 +43,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -87,11 +88,11 @@ public class TestOrcDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assertions.assertThat(metadata.format()).isEqualTo(FileFormat.ORC);
-    Assertions.assertThat(metadata.content()).isEqualTo(FileContent.EQUALITY_DELETES);
-    Assertions.assertThat(metadata.recordCount()).isEqualTo(records.size());
-    Assertions.assertThat(metadata.partition().size()).isEqualTo(0);
-    Assertions.assertThat(metadata.keyMetadata()).isNull();
+    assertThat(metadata.format()).isEqualTo(FileFormat.ORC);
+    assertThat(metadata.content()).isEqualTo(FileContent.EQUALITY_DELETES);
+    assertThat(metadata.recordCount()).isEqualTo(records.size());
+    assertThat(metadata.partition().size()).isEqualTo(0);
+    assertThat(metadata.keyMetadata()).isNull();
 
     List<Record> deletedRecords;
     try (CloseableIterable<Record> reader =
@@ -102,9 +103,7 @@ public class TestOrcDeleteWriters {
       deletedRecords = Lists.newArrayList(reader);
     }
 
-    Assertions.assertThat(deletedRecords)
-        .as("Deleted records should match expected")
-        .isEqualTo(records);
+    assertThat(deletedRecords).as("Deleted records should match expected").isEqualTo(records);
   }
 
   @Test
@@ -143,11 +142,11 @@ public class TestOrcDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assertions.assertThat(metadata.format()).isEqualTo(FileFormat.ORC);
-    Assertions.assertThat(metadata.content()).isEqualTo(FileContent.POSITION_DELETES);
-    Assertions.assertThat(metadata.recordCount()).isEqualTo(records.size());
-    Assertions.assertThat(metadata.partition().size()).isEqualTo(0);
-    Assertions.assertThat(metadata.keyMetadata()).isNull();
+    assertThat(metadata.format()).isEqualTo(FileFormat.ORC);
+    assertThat(metadata.content()).isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(metadata.recordCount()).isEqualTo(records.size());
+    assertThat(metadata.partition().size()).isEqualTo(0);
+    assertThat(metadata.keyMetadata()).isNull();
 
     List<Record> deletedRecords;
     try (CloseableIterable<Record> reader =
@@ -158,7 +157,7 @@ public class TestOrcDeleteWriters {
       deletedRecords = Lists.newArrayList(reader);
     }
 
-    Assertions.assertThat(deletedRecords)
+    assertThat(deletedRecords)
         .as("Deleted records should match expected")
         .isEqualTo(expectedDeleteRecords);
   }
@@ -196,11 +195,11 @@ public class TestOrcDeleteWriters {
     }
 
     DeleteFile metadata = deleteWriter.toDeleteFile();
-    Assertions.assertThat(metadata.format()).isEqualTo(FileFormat.ORC);
-    Assertions.assertThat(metadata.content()).isEqualTo(FileContent.POSITION_DELETES);
-    Assertions.assertThat(metadata.recordCount()).isEqualTo(records.size());
-    Assertions.assertThat(metadata.partition().size()).isEqualTo(0);
-    Assertions.assertThat(metadata.keyMetadata()).isNull();
+    assertThat(metadata.format()).isEqualTo(FileFormat.ORC);
+    assertThat(metadata.content()).isEqualTo(FileContent.POSITION_DELETES);
+    assertThat(metadata.recordCount()).isEqualTo(records.size());
+    assertThat(metadata.partition().size()).isEqualTo(0);
+    assertThat(metadata.keyMetadata()).isNull();
 
     List<Record> deletedRecords;
     try (CloseableIterable<Record> reader =
@@ -210,7 +209,7 @@ public class TestOrcDeleteWriters {
             .build()) {
       deletedRecords = Lists.newArrayList(reader);
     }
-    Assertions.assertThat(deletedRecords)
+    assertThat(deletedRecords)
         .as("Deleted records should match expected")
         .isEqualTo(expectedDeleteRecords);
   }

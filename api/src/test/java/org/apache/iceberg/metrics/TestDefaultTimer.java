@@ -20,6 +20,8 @@ package org.apache.iceberg.metrics;
 
 import static java.util.concurrent.Executors.newFixedThreadPool;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.util.List;
@@ -31,14 +33,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestDefaultTimer {
 
   @Test
   public void nullCheck() {
-    Assertions.assertThatThrownBy(() -> new DefaultTimer(null))
+    assertThatThrownBy(() -> new DefaultTimer(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid time unit: null");
   }
@@ -46,20 +47,20 @@ public class TestDefaultTimer {
   @Test
   public void nameAndUnit() {
     DefaultTimer timer = new DefaultTimer(TimeUnit.MINUTES);
-    Assertions.assertThat(timer.unit()).isEqualTo(TimeUnit.MINUTES);
-    Assertions.assertThat(timer.isNoop()).isFalse();
+    assertThat(timer.unit()).isEqualTo(TimeUnit.MINUTES);
+    assertThat(timer.isNoop()).isFalse();
   }
 
   @Test
   public void noop() {
-    Assertions.assertThat(Timer.NOOP.isNoop()).isTrue();
-    Assertions.assertThatThrownBy(Timer.NOOP::count)
+    assertThat(Timer.NOOP.isNoop()).isTrue();
+    assertThatThrownBy(Timer.NOOP::count)
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("NOOP timer has no count");
-    Assertions.assertThatThrownBy(Timer.NOOP::totalDuration)
+    assertThatThrownBy(Timer.NOOP::totalDuration)
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("NOOP timer has no duration");
-    Assertions.assertThatThrownBy(Timer.NOOP::unit)
+    assertThatThrownBy(Timer.NOOP::unit)
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("NOOP timer has no unit");
   }
@@ -67,12 +68,12 @@ public class TestDefaultTimer {
   @Test
   public void recordNegativeAmount() {
     Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
-    Assertions.assertThat(timer.count()).isEqualTo(0);
-    Assertions.assertThatThrownBy(() -> timer.record(-1, TimeUnit.NANOSECONDS))
+    assertThat(timer.count()).isEqualTo(0);
+    assertThatThrownBy(() -> timer.record(-1, TimeUnit.NANOSECONDS))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot record -1 NANOSECONDS: must be >= 0");
-    Assertions.assertThat(timer.count()).isEqualTo(0);
-    Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
+    assertThat(timer.count()).isEqualTo(0);
+    assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
   }
 
   @Test
@@ -81,7 +82,7 @@ public class TestDefaultTimer {
     Timer.Timed timed = timer.start();
     timed.stop();
     // we didn't start the timer again
-    Assertions.assertThatThrownBy(timed::stop)
+    assertThatThrownBy(timed::stop)
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("stop() called multiple times");
   }
@@ -89,13 +90,13 @@ public class TestDefaultTimer {
   @Test
   public void closeableTimer() throws InterruptedException {
     Timer timer = new DefaultTimer(TimeUnit.NANOSECONDS);
-    Assertions.assertThat(timer.count()).isEqualTo(0);
-    Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
+    assertThat(timer.count()).isEqualTo(0);
+    assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
     try (Timer.Timed sample = timer.start()) {
       Thread.sleep(500L);
     }
-    Assertions.assertThat(timer.count()).isEqualTo(1);
-    Assertions.assertThat(timer.totalDuration()).isGreaterThan(Duration.ZERO);
+    assertThat(timer.count()).isEqualTo(1);
+    assertThat(timer.totalDuration()).isGreaterThan(Duration.ZERO);
   }
 
   @Test
@@ -109,18 +110,18 @@ public class TestDefaultTimer {
             throw new RuntimeException(e);
           }
         };
-    Assertions.assertThat(timer.count()).isEqualTo(0);
-    Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
+    assertThat(timer.count()).isEqualTo(0);
+    assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
 
     timer.time(runnable);
-    Assertions.assertThat(timer.count()).isEqualTo(1);
+    assertThat(timer.count()).isEqualTo(1);
     Duration duration = timer.totalDuration();
-    Assertions.assertThat(duration).isGreaterThan(Duration.ZERO);
+    assertThat(duration).isGreaterThan(Duration.ZERO);
 
     timer.time(runnable);
-    Assertions.assertThat(timer.count()).isEqualTo(2);
+    assertThat(timer.count()).isEqualTo(2);
     Duration secondDuration = timer.totalDuration();
-    Assertions.assertThat(secondDuration).isGreaterThan(duration);
+    assertThat(secondDuration).isGreaterThan(duration);
   }
 
   @Test
@@ -135,18 +136,18 @@ public class TestDefaultTimer {
           }
           return true;
         };
-    Assertions.assertThat(timer.count()).isEqualTo(0);
-    Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
+    assertThat(timer.count()).isEqualTo(0);
+    assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
 
-    Assertions.assertThat(timer.timeCallable(callable).booleanValue()).isTrue();
-    Assertions.assertThat(timer.count()).isEqualTo(1);
+    assertThat(timer.timeCallable(callable).booleanValue()).isTrue();
+    assertThat(timer.count()).isEqualTo(1);
     Duration duration = timer.totalDuration();
-    Assertions.assertThat(duration).isGreaterThan(Duration.ZERO);
+    assertThat(duration).isGreaterThan(Duration.ZERO);
 
-    Assertions.assertThat(timer.timeCallable(callable).booleanValue()).isTrue();
-    Assertions.assertThat(timer.count()).isEqualTo(2);
+    assertThat(timer.timeCallable(callable).booleanValue()).isTrue();
+    assertThat(timer.count()).isEqualTo(2);
     Duration secondDuration = timer.totalDuration();
-    Assertions.assertThat(secondDuration).isGreaterThan(duration);
+    assertThat(secondDuration).isGreaterThan(duration);
   }
 
   @Test
@@ -161,18 +162,18 @@ public class TestDefaultTimer {
           }
           return true;
         };
-    Assertions.assertThat(timer.count()).isEqualTo(0);
-    Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
+    assertThat(timer.count()).isEqualTo(0);
+    assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
 
-    Assertions.assertThat(timer.time(supplier).booleanValue()).isTrue();
-    Assertions.assertThat(timer.count()).isEqualTo(1);
+    assertThat(timer.time(supplier).booleanValue()).isTrue();
+    assertThat(timer.count()).isEqualTo(1);
     Duration duration = timer.totalDuration();
-    Assertions.assertThat(duration).isGreaterThan(Duration.ZERO);
+    assertThat(duration).isGreaterThan(Duration.ZERO);
 
-    Assertions.assertThat(timer.time(supplier).booleanValue()).isTrue();
-    Assertions.assertThat(timer.count()).isEqualTo(2);
+    assertThat(timer.time(supplier).booleanValue()).isTrue();
+    assertThat(timer.count()).isEqualTo(2);
     Duration secondDuration = timer.totalDuration();
-    Assertions.assertThat(secondDuration).isGreaterThan(duration);
+    assertThat(secondDuration).isGreaterThan(duration);
   }
 
   @Test
@@ -198,19 +199,19 @@ public class TestDefaultTimer {
           }
         };
 
-    Assertions.assertThat(timer.count()).isEqualTo(0);
-    Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
-    Assertions.assertThat(innerTimer.count()).isEqualTo(0);
-    Assertions.assertThat(innerTimer.totalDuration()).isEqualTo(Duration.ZERO);
+    assertThat(timer.count()).isEqualTo(0);
+    assertThat(timer.totalDuration()).isEqualTo(Duration.ZERO);
+    assertThat(innerTimer.count()).isEqualTo(0);
+    assertThat(innerTimer.totalDuration()).isEqualTo(Duration.ZERO);
 
     timer.time(outer);
-    Assertions.assertThat(timer.count()).isEqualTo(1);
+    assertThat(timer.count()).isEqualTo(1);
     Duration outerDuration = timer.totalDuration();
-    Assertions.assertThat(outerDuration).isGreaterThan(Duration.ZERO);
-    Assertions.assertThat(innerTimer.count()).isEqualTo(1);
+    assertThat(outerDuration).isGreaterThan(Duration.ZERO);
+    assertThat(innerTimer.count()).isEqualTo(1);
     Duration innerDuration = innerTimer.totalDuration();
-    Assertions.assertThat(innerDuration).isGreaterThan(Duration.ZERO);
-    Assertions.assertThat(outerDuration).isGreaterThan(innerDuration);
+    assertThat(innerDuration).isGreaterThan(Duration.ZERO);
+    assertThat(outerDuration).isGreaterThan(innerDuration);
   }
 
   @Test
@@ -249,7 +250,7 @@ public class TestDefaultTimer {
     executor.shutdownNow();
     executor.awaitTermination(5, SECONDS);
 
-    Assertions.assertThat(timer.totalDuration()).isEqualTo(Duration.ofNanos(5 * threads));
-    Assertions.assertThat(timer.count()).isEqualTo(threads);
+    assertThat(timer.totalDuration()).isEqualTo(Duration.ofNanos(5 * threads));
+    assertThat(timer.count()).isEqualTo(threads);
   }
 }

@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg.io;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.Closeable;
 import java.io.IOException;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -91,7 +92,7 @@ public class TestCloseableGroup {
     closeableGroup.addCloseable(closeable2);
     closeableGroup.addCloseable(closeable3);
 
-    Assertions.assertThatThrownBy(closeableGroup::close).isEqualTo(ioException);
+    assertThatThrownBy(closeableGroup::close).isEqualTo(ioException);
     Mockito.verify(closeable1).close();
     Mockito.verify(closeable2).close();
     Mockito.verifyNoInteractions(closeable3);
@@ -111,7 +112,7 @@ public class TestCloseableGroup {
     closeableGroup.addCloseable(closeable2);
     closeableGroup.addCloseable(closeable3);
 
-    Assertions.assertThatThrownBy(closeableGroup::close).isEqualTo(ioException);
+    assertThatThrownBy(closeableGroup::close).isEqualTo(ioException);
     Mockito.verify(closeable1).close();
     Mockito.verify(closeable2).close();
     Mockito.verifyNoInteractions(closeable3);
@@ -126,7 +127,7 @@ public class TestCloseableGroup {
     CloseableGroup closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(throwingAutoCloseable);
 
-    Assertions.assertThatThrownBy(closeableGroup::close)
+    assertThatThrownBy(closeableGroup::close)
         .isInstanceOf(RuntimeException.class)
         .hasRootCause(generalException);
   }
@@ -141,7 +142,7 @@ public class TestCloseableGroup {
     CloseableGroup closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(throwingCloseable);
 
-    Assertions.assertThatThrownBy(closeableGroup::close).isEqualTo(runtimeException);
+    assertThatThrownBy(closeableGroup::close).isEqualTo(runtimeException);
   }
 
   @Test
@@ -153,6 +154,6 @@ public class TestCloseableGroup {
     CloseableGroup closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(throwingAutoCloseable);
 
-    Assertions.assertThatThrownBy(closeableGroup::close).isEqualTo(runtimeException);
+    assertThatThrownBy(closeableGroup::close).isEqualTo(runtimeException);
   }
 }

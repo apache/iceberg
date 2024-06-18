@@ -19,36 +19,35 @@
 package org.apache.iceberg.rest.requests;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestRegisterTableRequestParser {
 
   @Test
   public void nullCheck() {
-    Assertions.assertThatThrownBy(() -> RegisterTableRequestParser.toJson(null))
+    assertThatThrownBy(() -> RegisterTableRequestParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid register table request: null");
 
-    Assertions.assertThatThrownBy(() -> RegisterTableRequestParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> RegisterTableRequestParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse register table request from null object");
   }
 
   @Test
   public void missingFields() {
-    Assertions.assertThatThrownBy(() -> RegisterTableRequestParser.fromJson("{}"))
+    assertThatThrownBy(() -> RegisterTableRequestParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: name");
 
-    Assertions.assertThatThrownBy(
-            () -> RegisterTableRequestParser.fromJson("{\"name\" : \"test_tbl\"}"))
+    assertThatThrownBy(() -> RegisterTableRequestParser.fromJson("{\"name\" : \"test_tbl\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: metadata-location");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 RegisterTableRequestParser.fromJson(
                     "{\"metadata-location\" : \"file://tmp/NS/test_tbl/metadata/00000-d4f60d2f-2ad2-408b-8832-0ed7fbd851ee.metadata.json\"}"))

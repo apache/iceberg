@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.delta;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -27,7 +29,6 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -53,7 +54,7 @@ public class TestBaseSnapshotDeltaLakeTableAction {
             .icebergCatalog(testCatalog)
             .deltaLakeConfiguration(testHadoopConf)
             .tableLocation(newTableLocation);
-    Assertions.assertThatThrownBy(testAction::execute)
+    assertThatThrownBy(testAction::execute)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Iceberg catalog and identifier cannot be null. Make sure to configure the action with a valid Iceberg catalog and identifier.");
@@ -66,7 +67,7 @@ public class TestBaseSnapshotDeltaLakeTableAction {
             .as(TableIdentifier.of("test", "test"))
             .deltaLakeConfiguration(testHadoopConf)
             .tableLocation(newTableLocation);
-    Assertions.assertThatThrownBy(testAction::execute)
+    assertThatThrownBy(testAction::execute)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Iceberg catalog and identifier cannot be null. Make sure to configure the action with a valid Iceberg catalog and identifier.");
@@ -79,7 +80,7 @@ public class TestBaseSnapshotDeltaLakeTableAction {
             .as(TableIdentifier.of("test", "test"))
             .icebergCatalog(testCatalog)
             .tableLocation(newTableLocation);
-    Assertions.assertThatThrownBy(testAction::execute)
+    assertThatThrownBy(testAction::execute)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Make sure to configure the action with a valid deltaLakeConfiguration");
   }
@@ -92,7 +93,7 @@ public class TestBaseSnapshotDeltaLakeTableAction {
             .deltaLakeConfiguration(testHadoopConf)
             .icebergCatalog(testCatalog)
             .tableLocation(newTableLocation);
-    Assertions.assertThatThrownBy(testAction::execute)
+    assertThatThrownBy(testAction::execute)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Delta Lake table does not exist at the given location: %s", sourceTableLocation);

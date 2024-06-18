@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.aws;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.Map;
 import org.apache.hc.core5.http.HttpHeaders;
@@ -28,7 +30,6 @@ import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -101,7 +102,7 @@ public class TestRESTSigV4Signer {
         client.get("v1/config", ConfigResponse.class, ImmutableMap.of(), e -> {});
 
     mockServer.verify(request, VerificationTimes.exactly(1));
-    Assertions.assertThat(response).isNotNull();
+    assertThat(response).isNotNull();
   }
 
   @Test
@@ -141,6 +142,6 @@ public class TestRESTSigV4Signer {
             "v1/oauth/token", formData, OAuthTokenResponse.class, ImmutableMap.of(), e -> {});
 
     mockServer.verify(request, VerificationTimes.exactly(1));
-    Assertions.assertThat(response).isNotNull();
+    assertThat(response).isNotNull();
   }
 }

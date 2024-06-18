@@ -19,6 +19,7 @@
 package org.apache.iceberg.dell.ecs;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.emc.object.Range;
 import java.io.IOException;
@@ -28,7 +29,6 @@ import org.apache.iceberg.dell.mock.ecs.EcsS3MockRule;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -87,7 +87,7 @@ public class TestEcsOutputFile {
       output.write("1234567890".getBytes());
     }
 
-    Assertions.assertThatThrownBy(outputFile::create)
+    assertThatThrownBy(outputFile::create)
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("ECS object already exists: " + outputFile.location());
   }

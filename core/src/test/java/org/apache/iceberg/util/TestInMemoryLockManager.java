@@ -19,6 +19,7 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.UUID;
@@ -28,7 +29,6 @@ import java.util.stream.IntStream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,7 +56,7 @@ public class TestInMemoryLockManager {
   @Test
   public void testAcquireOnceSingleProcess() {
     lockManager.acquireOnce(lockEntityId, ownerId);
-    Assertions.assertThatThrownBy(() -> lockManager.acquireOnce(lockEntityId, ownerId))
+    assertThatThrownBy(() -> lockManager.acquireOnce(lockEntityId, ownerId))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageStartingWith("Lock for")
         .hasMessageContaining("currently held by")

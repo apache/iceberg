@@ -19,9 +19,9 @@
 package org.apache.iceberg.dell.ecs;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.exceptions.ValidationException;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestEcsURI {
@@ -55,7 +55,7 @@ public class TestEcsURI {
 
   @Test
   public void testInvalidLocation() {
-    Assertions.assertThatThrownBy(() -> new EcsURI("http://bucket/a"))
+    assertThatThrownBy(() -> new EcsURI("http://bucket/a"))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Invalid ecs location: http://bucket/a");
   }

@@ -31,12 +31,12 @@ import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestExpressionBinding {
@@ -50,7 +50,7 @@ public class TestExpressionBinding {
   @Test
   public void testMissingReference() {
     Expression expr = and(equal("t", 5), equal("x", 7));
-    Assertions.assertThatThrownBy(() -> Binder.bind(STRUCT, expr))
+    assertThatThrownBy(() -> Binder.bind(STRUCT, expr))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 't' in struct");
   }
@@ -58,7 +58,7 @@ public class TestExpressionBinding {
   @Test
   public void testBoundExpressionFails() {
     Expression expr = not(equal("x", 7));
-    Assertions.assertThatThrownBy(() -> Binder.bind(STRUCT, Binder.bind(STRUCT, expr)))
+    assertThatThrownBy(() -> Binder.bind(STRUCT, Binder.bind(STRUCT, expr)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Found already bound predicate");
   }
@@ -78,7 +78,7 @@ public class TestExpressionBinding {
   @Test
   public void testCaseSensitiveReference() {
     Expression expr = not(equal("X", 7));
-    Assertions.assertThatThrownBy(() -> Binder.bind(STRUCT, expr, true))
+    assertThatThrownBy(() -> Binder.bind(STRUCT, expr, true))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'X' in struct");
   }
@@ -204,7 +204,7 @@ public class TestExpressionBinding {
     Expression bound = Binder.bind(STRUCT, equal(bucket("x", 16), 10));
     TestHelpers.assertAllReferencesBound("BoundTransform", bound);
     BoundPredicate<?> pred = TestHelpers.assertAndUnwrap(bound);
-    Assertions.assertThat(pred.term())
+    assertThat(pred.term())
         .as("Should use a BoundTransform child")
         .isInstanceOf(BoundTransform.class);
     BoundTransform<?, ?> transformExpr = (BoundTransform<?, ?>) pred.term();

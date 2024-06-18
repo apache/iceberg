@@ -18,31 +18,32 @@
  */
 package org.apache.iceberg.aliyun;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.aliyun.oss.OSS;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestAliyunClientFactories {
 
   @Test
   public void testLoadDefault() {
-    Assertions.assertThat(AliyunClientFactories.defaultFactory())
+    assertThat(AliyunClientFactories.defaultFactory())
         .as("Default client should be singleton")
         .isEqualTo(AliyunClientFactories.defaultFactory());
 
     AliyunClientFactory defaultFactory = AliyunClientFactories.from(Maps.newHashMap());
-    Assertions.assertThat(defaultFactory)
+    assertThat(defaultFactory)
         .as("Should load default when factory impl not configured")
         .isInstanceOf(AliyunClientFactories.DefaultAliyunClientFactory.class);
 
-    Assertions.assertThat(defaultFactory.aliyunProperties().accessKeyId())
+    assertThat(defaultFactory.aliyunProperties().accessKeyId())
         .as("Should have no Aliyun properties set")
         .isNull();
 
-    Assertions.assertThat(defaultFactory.aliyunProperties().securityToken())
+    assertThat(defaultFactory.aliyunProperties().securityToken())
         .as("Should have no security token")
         .isNull();
 
@@ -53,15 +54,15 @@ public class TestAliyunClientFactories {
                 "key",
                 AliyunProperties.CLIENT_SECURITY_TOKEN,
                 "token"));
-    Assertions.assertThat(defaultFactoryWithConfig)
+    assertThat(defaultFactoryWithConfig)
         .as("Should load default when factory impl not configured")
         .isInstanceOf(AliyunClientFactories.DefaultAliyunClientFactory.class);
 
-    Assertions.assertThat(defaultFactoryWithConfig.aliyunProperties().accessKeyId())
+    assertThat(defaultFactoryWithConfig.aliyunProperties().accessKeyId())
         .as("Should have access key set")
         .isEqualTo("key");
 
-    Assertions.assertThat(defaultFactoryWithConfig.aliyunProperties().securityToken())
+    assertThat(defaultFactoryWithConfig.aliyunProperties().securityToken())
         .as("Should have security token set")
         .isEqualTo("token");
   }
@@ -70,7 +71,7 @@ public class TestAliyunClientFactories {
   public void testLoadCustom() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AliyunProperties.CLIENT_FACTORY, CustomFactory.class.getName());
-    Assertions.assertThat(AliyunClientFactories.from(properties))
+    assertThat(AliyunClientFactories.from(properties))
         .as("Should load custom class")
         .isInstanceOf(CustomFactory.class);
   }

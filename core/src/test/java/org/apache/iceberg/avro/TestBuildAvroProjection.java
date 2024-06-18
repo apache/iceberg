@@ -19,13 +19,13 @@
 package org.apache.iceberg.avro;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
 import java.util.function.Supplier;
 import org.apache.avro.SchemaBuilder;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestBuildAvroProjection {
@@ -68,11 +68,8 @@ public class TestBuildAvroProjection {
 
     final org.apache.avro.Schema actual = testSubject.array(expected, supplier);
 
-    Assertions.assertThat(actual)
-        .as("Array projection produced undesired array schema")
-        .isEqualTo(expected);
-    Assertions.assertThat(
-            Integer.valueOf(actual.getProp(AvroSchemaUtil.ELEMENT_ID_PROP)).intValue())
+    assertThat(actual).as("Array projection produced undesired array schema").isEqualTo(expected);
+    assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.ELEMENT_ID_PROP)).intValue())
         .as("Unexpected element ID discovered on the projected array schema")
         .isEqualTo(0);
   }
@@ -143,11 +140,8 @@ public class TestBuildAvroProjection {
 
     final org.apache.avro.Schema actual = testSubject.array(extraField, supplier);
 
-    Assertions.assertThat(actual)
-        .as("Array projection produced undesired array schema")
-        .isEqualTo(expected);
-    Assertions.assertThat(
-            Integer.valueOf(actual.getProp(AvroSchemaUtil.ELEMENT_ID_PROP)).intValue())
+    assertThat(actual).as("Array projection produced undesired array schema").isEqualTo(expected);
+    assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.ELEMENT_ID_PROP)).intValue())
         .as("Unexpected element ID discovered on the projected array schema")
         .isEqualTo(0);
   }
@@ -206,11 +200,8 @@ public class TestBuildAvroProjection {
 
     final org.apache.avro.Schema actual = testSubject.array(lessField, supplier);
 
-    Assertions.assertThat(actual)
-        .as("Array projection produced undesired array schema")
-        .isEqualTo(expected);
-    Assertions.assertThat(
-            Integer.valueOf(actual.getProp(AvroSchemaUtil.ELEMENT_ID_PROP)).intValue())
+    assertThat(actual).as("Array projection produced undesired array schema").isEqualTo(expected);
+    assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.ELEMENT_ID_PROP)).intValue())
         .as("Unexpected element ID discovered on the projected array schema")
         .isEqualTo(0);
   }
@@ -256,13 +247,11 @@ public class TestBuildAvroProjection {
 
     final org.apache.avro.Schema actual = testSubject.map(expected, supplier);
 
-    Assertions.assertThat(actual)
-        .as("Map projection produced undesired map schema")
-        .isEqualTo(expected);
-    Assertions.assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.KEY_ID_PROP)).intValue())
+    assertThat(actual).as("Map projection produced undesired map schema").isEqualTo(expected);
+    assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.KEY_ID_PROP)).intValue())
         .as("Unexpected key ID discovered on the projected map schema")
         .isEqualTo(0);
-    Assertions.assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue())
+    assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue())
         .as("Unexpected value ID discovered on the projected map schema")
         .isEqualTo(1);
   }
@@ -337,13 +326,11 @@ public class TestBuildAvroProjection {
 
     final org.apache.avro.Schema actual = testSubject.map(extraField, supplier);
 
-    Assertions.assertThat(actual)
-        .as("Map projection produced undesired map schema")
-        .isEqualTo(expected);
-    Assertions.assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.KEY_ID_PROP)).intValue())
+    assertThat(actual).as("Map projection produced undesired map schema").isEqualTo(expected);
+    assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.KEY_ID_PROP)).intValue())
         .as("Unexpected key ID discovered on the projected map schema")
         .isEqualTo(0);
-    Assertions.assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue())
+    assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue())
         .as("Unexpected value ID discovered on the projected map schema")
         .isEqualTo(1);
   }
@@ -406,13 +393,11 @@ public class TestBuildAvroProjection {
 
     final org.apache.avro.Schema actual = testSubject.map(lessField, supplier);
 
-    Assertions.assertThat(actual)
-        .as("Map projection produced undesired map schema")
-        .isEqualTo(expected);
-    Assertions.assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.KEY_ID_PROP)).intValue())
+    assertThat(actual).as("Map projection produced undesired map schema").isEqualTo(expected);
+    assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.KEY_ID_PROP)).intValue())
         .as("Unexpected key ID discovered on the projected map schema")
         .isEqualTo(0);
-    Assertions.assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue())
+    assertThat(Integer.valueOf(actual.getProp(AvroSchemaUtil.VALUE_ID_PROP)).intValue())
         .as("Unexpected value ID discovered on the projected map schema")
         .isEqualTo(1);
   }

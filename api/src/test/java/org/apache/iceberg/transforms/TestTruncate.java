@@ -19,13 +19,13 @@
 package org.apache.iceberg.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestTruncate {
@@ -112,7 +112,7 @@ public class TestTruncate {
 
   @Test
   public void testVerifiedIllegalWidth() {
-    Assertions.assertThatThrownBy(() -> Truncate.get(0))
+    assertThatThrownBy(() -> Truncate.get(0))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid truncate width: 0 (must be > 0)");
   }

@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.aws.glue;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,7 +38,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.LockManagers;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -104,8 +106,7 @@ public class TestGlueCatalog {
     Mockito.doThrow(EntityNotFoundException.builder().build())
         .when(glue)
         .getTable(Mockito.any(GetTableRequest.class));
-    Assertions.assertThatThrownBy(
-            () -> catalog.createTable(TableIdentifier.of("db", "table"), new Schema()))
+    assertThatThrownBy(() -> catalog.createTable(TableIdentifier.of("db", "table"), new Schema()))
         .hasMessageContaining(
             "Cannot derive default warehouse location, warehouse path must not be null or empty")
         .isInstanceOf(ValidationException.class);
@@ -127,7 +128,7 @@ public class TestGlueCatalog {
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
     String location = catalogWithSlash.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
-    Assertions.assertThat(location).isEqualTo(WAREHOUSE_PATH + "/db.db/table");
+    assertThat(location).isEqualTo(WAREHOUSE_PATH + "/db.db/table");
   }
 
   @Test
@@ -137,7 +138,7 @@ public class TestGlueCatalog {
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
     String location = glueCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
-    Assertions.assertThat(location).isEqualTo(WAREHOUSE_PATH + "/db.db/table");
+    assertThat(location).isEqualTo(WAREHOUSE_PATH + "/db.db/table");
   }
 
   @Test
@@ -149,7 +150,7 @@ public class TestGlueCatalog {
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
     String location = glueCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
-    Assertions.assertThat(location).isEqualTo("s3://bucket2/db/table");
+    assertThat(location).isEqualTo("s3://bucket2/db/table");
   }
 
   @Test
@@ -162,7 +163,7 @@ public class TestGlueCatalog {
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
     String location = glueCatalog.defaultWarehouseLocation(TableIdentifier.of("db", "table"));
 
-    Assertions.assertThat(location).isEqualTo("s3://bucket2/db/table");
+    assertThat(location).isEqualTo("s3://bucket2/db/table");
   }
 
   @Test
@@ -239,7 +240,7 @@ public class TestGlueCatalog {
                 .build())
         .when(glue)
         .getTables(Mockito.any(GetTablesRequest.class));
-    Assertions.assertThat(glueCatalog.listTables(Namespace.of("db1")))
+    assertThat(glueCatalog.listTables(Namespace.of("db1")))
         .isEqualTo(
             Lists.newArrayList(TableIdentifier.of("db1", "t1"), TableIdentifier.of("db1", "t2")));
   }
@@ -285,7 +286,7 @@ public class TestGlueCatalog {
             })
         .when(glue)
         .getTables(Mockito.any(GetTablesRequest.class));
-    Assertions.assertThat(glueCatalog.listTables(Namespace.of("db1"))).hasSize(10);
+    assertThat(glueCatalog.listTables(Namespace.of("db1"))).hasSize(10);
   }
 
   @Test
@@ -343,7 +344,7 @@ public class TestGlueCatalog {
         .when(glue)
         .deleteTable(Mockito.any(DeleteTableRequest.class));
     glueCatalog.dropTable(TableIdentifier.of("db1", "t1"));
-    Assertions.assertThat(counter.get()).isEqualTo(0);
+    assertThat(counter.get()).isEqualTo(0);
   }
 
   @Test
@@ -397,7 +398,7 @@ public class TestGlueCatalog {
         .createTable(Mockito.any(CreateTableRequest.class));
 
     glueCatalog.renameTable(TableIdentifier.of("db", "t"), TableIdentifier.of("db", "x_renamed"));
-    Assertions.assertThat(counter.get()).isEqualTo(0);
+    assertThat(counter.get()).isEqualTo(0);
   }
 
   @Test
@@ -417,7 +418,7 @@ public class TestGlueCatalog {
         Lists.newArrayList(Namespace.of("db-1"), Namespace.of("db", "db2"));
 
     for (Namespace namespace : invalidNamespaces) {
-      Assertions.assertThatThrownBy(() -> glueCatalog.createNamespace(namespace))
+      assertThatThrownBy(() -> glueCatalog.createNamespace(namespace))
           .isInstanceOf(ValidationException.class)
           .hasMessageStartingWith("Cannot convert namespace")
           .hasMessageEndingWith(
@@ -435,7 +436,7 @@ public class TestGlueCatalog {
                 .build())
         .when(glue)
         .getDatabases(Mockito.any(GetDatabasesRequest.class));
-    Assertions.assertThat(glueCatalog.listNamespaces())
+    assertThat(glueCatalog.listNamespaces())
         .isEqualTo(Lists.newArrayList(Namespace.of("db1"), Namespace.of("db2")));
   }
 
@@ -463,7 +464,7 @@ public class TestGlueCatalog {
             })
         .when(glue)
         .getDatabases(Mockito.any(GetDatabasesRequest.class));
-    Assertions.assertThat(glueCatalog.listNamespaces()).hasSize(10);
+    assertThat(glueCatalog.listNamespaces()).hasSize(10);
   }
 
   @Test
@@ -472,7 +473,7 @@ public class TestGlueCatalog {
             GetDatabaseResponse.builder().database(Database.builder().name("db1").build()).build())
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
-    Assertions.assertThat(glueCatalog.listNamespaces(Namespace.of("db1")))
+    assertThat(glueCatalog.listNamespaces(Namespace.of("db1")))
         .as("list self should return empty list")
         .isEmpty();
   }
@@ -480,7 +481,7 @@ public class TestGlueCatalog {
   @Test
   public void testListNamespacesBadName() {
 
-    Assertions.assertThatThrownBy(() -> glueCatalog.listNamespaces(Namespace.of("db-1")))
+    assertThatThrownBy(() -> glueCatalog.listNamespaces(Namespace.of("db-1")))
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Cannot convert namespace db-1 to Glue database name, "
@@ -503,8 +504,7 @@ public class TestGlueCatalog {
                 .build())
         .when(glue)
         .getDatabase(Mockito.any(GetDatabaseRequest.class));
-    Assertions.assertThat(glueCatalog.loadNamespaceMetadata(Namespace.of("db1")))
-        .isEqualTo(parameters);
+    assertThat(glueCatalog.loadNamespaceMetadata(Namespace.of("db1"))).isEqualTo(parameters);
   }
 
   @Test
@@ -546,7 +546,7 @@ public class TestGlueCatalog {
         .when(glue)
         .deleteDatabase(Mockito.any(DeleteDatabaseRequest.class));
 
-    Assertions.assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of("db1")))
+    assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of("db1")))
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessage("Cannot drop namespace db1 because it still contains Iceberg tables");
   }
@@ -567,7 +567,7 @@ public class TestGlueCatalog {
         .when(glue)
         .deleteDatabase(Mockito.any(DeleteDatabaseRequest.class));
 
-    Assertions.assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of("db1")))
+    assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of("db1")))
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessage("Cannot drop namespace db1 because it still contains non-Iceberg tables");
   }
@@ -622,7 +622,7 @@ public class TestGlueCatalog {
         LockManagers.defaultLockManager(),
         catalogProps);
     Map<String, String> properties = glueCatalog.properties();
-    Assertions.assertThat(properties)
+    assertThat(properties)
         .isNotEmpty()
         .containsEntry("table-default.key1", "catalog-default-key1")
         .containsEntry("table-default.key2", "catalog-default-key2")
@@ -644,8 +644,7 @@ public class TestGlueCatalog {
         glue,
         LockManagers.defaultLockManager(),
         ImmutableMap.of());
-    Assertions.assertThat(glueCatalog.isValidIdentifier(TableIdentifier.parse("db-1.a-1")))
-        .isEqualTo(true);
+    assertThat(glueCatalog.isValidIdentifier(TableIdentifier.parse("db-1.a-1"))).isEqualTo(true);
   }
 
   @Test
@@ -671,7 +670,7 @@ public class TestGlueCatalog {
             glueCatalog.newTableOps(TableIdentifier.of(Namespace.of("db"), "table"));
     Map<String, String> tableCatalogProperties = glueTableOperations.tableCatalogProperties();
 
-    Assertions.assertThat(tableCatalogProperties)
+    assertThat(tableCatalogProperties)
         .containsEntry(
             S3FileIOProperties.WRITE_TAGS_PREFIX.concat(S3FileIOProperties.S3_TAG_ICEBERG_TABLE),
             "table")

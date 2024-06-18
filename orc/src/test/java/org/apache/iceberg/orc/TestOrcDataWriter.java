@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.orc;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
@@ -47,7 +50,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcFile;
 import org.apache.orc.StripeInformation;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -112,13 +114,13 @@ public class TestOrcDataWriter {
     }
 
     DataFile dataFile = dataWriter.toDataFile();
-    Assertions.assertThat(dataFile.splitOffsets()).isEqualTo(stripeOffsetsFromReader(dataFile));
-    Assertions.assertThat(dataFile.format()).isEqualTo(FileFormat.ORC);
-    Assertions.assertThat(dataFile.content()).isEqualTo(FileContent.DATA);
-    Assertions.assertThat(dataFile.recordCount()).isEqualTo(records.size());
-    Assertions.assertThat(dataFile.partition().size()).isEqualTo(0);
-    Assertions.assertThat(dataFile.sortOrderId()).isEqualTo(sortOrder.orderId());
-    Assertions.assertThat(dataFile.keyMetadata()).isNull();
+    assertThat(dataFile.splitOffsets()).isEqualTo(stripeOffsetsFromReader(dataFile));
+    assertThat(dataFile.format()).isEqualTo(FileFormat.ORC);
+    assertThat(dataFile.content()).isEqualTo(FileContent.DATA);
+    assertThat(dataFile.recordCount()).isEqualTo(records.size());
+    assertThat(dataFile.partition().size()).isEqualTo(0);
+    assertThat(dataFile.sortOrderId()).isEqualTo(sortOrder.orderId());
+    assertThat(dataFile.keyMetadata()).isNull();
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =
         ORC.read(file.toInputFile())
@@ -127,7 +129,7 @@ public class TestOrcDataWriter {
             .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
-    Assertions.assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
+    assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
   }
 
   @Test
@@ -138,8 +140,7 @@ public class TestOrcDataWriter {
     // use a scheme `dummy` that is not handled. Note that Hadoop 2.7.3 throws IOException
     // while latest Hadoop versions throw UnsupportedFileSystemException (extends IOException)
     ProxyOutputFile outFile = new ProxyOutputFile(Files.localOutput(temp));
-    Assertions.assertThatThrownBy(
-            () -> new Path(outFile.location()).getFileSystem(new Configuration()))
+    assertThatThrownBy(() -> new Path(outFile.location()).getFileSystem(new Configuration()))
         .isInstanceOf(IOException.class)
         .hasMessageStartingWith("No FileSystem for scheme");
 
@@ -167,13 +168,12 @@ public class TestOrcDataWriter {
         OrcFile.readerOptions(new Configuration())
             .filesystem(new FileIOFSUtil.InputFileSystem(outFile.toInputFile()))
             .maxLength(outFile.toInputFile().getLength());
-    Assertions.assertThat(dataFile.splitOffsets())
-        .isEqualTo(stripeOffsetsFromReader(dataFile, options));
-    Assertions.assertThat(dataFile.format()).isEqualTo(FileFormat.ORC);
-    Assertions.assertThat(dataFile.content()).isEqualTo(FileContent.DATA);
-    Assertions.assertThat(dataFile.recordCount()).isEqualTo(records.size());
-    Assertions.assertThat(dataFile.partition().size()).isEqualTo(0);
-    Assertions.assertThat(dataFile.keyMetadata()).isNull();
+    assertThat(dataFile.splitOffsets()).isEqualTo(stripeOffsetsFromReader(dataFile, options));
+    assertThat(dataFile.format()).isEqualTo(FileFormat.ORC);
+    assertThat(dataFile.content()).isEqualTo(FileContent.DATA);
+    assertThat(dataFile.recordCount()).isEqualTo(records.size());
+    assertThat(dataFile.partition().size()).isEqualTo(0);
+    assertThat(dataFile.keyMetadata()).isNull();
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =
         ORC.read(outFile.toInputFile())
@@ -182,7 +182,7 @@ public class TestOrcDataWriter {
             .build()) {
       writtenRecords = Lists.newArrayList(reader);
     }
-    Assertions.assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
+    assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
   }
 
   private static class ProxyInputFile implements InputFile {

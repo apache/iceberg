@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -29,11 +31,11 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class TestFileScanTaskParser {
   @Test
   public void testNullArguments() {
-    Assertions.assertThatThrownBy(() -> FileScanTaskParser.toJson(null))
+    assertThatThrownBy(() -> FileScanTaskParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid file scan task: null");
 
-    Assertions.assertThatThrownBy(() -> FileScanTaskParser.fromJson(null, true))
+    assertThatThrownBy(() -> FileScanTaskParser.fromJson(null, true))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid JSON string for file scan task: null");
   }
@@ -44,7 +46,7 @@ public class TestFileScanTaskParser {
     PartitionSpec spec = TestBase.SPEC;
     FileScanTask fileScanTask = createScanTask(spec, caseSensitive);
     String jsonStr = FileScanTaskParser.toJson(fileScanTask);
-    Assertions.assertThat(jsonStr).isEqualTo(expectedFileScanTaskJson());
+    assertThat(jsonStr).isEqualTo(expectedFileScanTaskJson());
     FileScanTask deserializedTask = FileScanTaskParser.fromJson(jsonStr, caseSensitive);
     assertFileScanTaskEquals(fileScanTask, deserializedTask, spec, caseSensitive);
   }
@@ -87,17 +89,15 @@ public class TestFileScanTaskParser {
   private static void assertFileScanTaskEquals(
       FileScanTask expected, FileScanTask actual, PartitionSpec spec, boolean caseSensitive) {
     TestContentFileParser.assertContentFileEquals(expected.file(), actual.file(), spec);
-    Assertions.assertThat(actual.deletes()).hasSameSizeAs(expected.deletes());
+    assertThat(actual.deletes()).hasSameSizeAs(expected.deletes());
     for (int pos = 0; pos < expected.deletes().size(); ++pos) {
       TestContentFileParser.assertContentFileEquals(
           expected.deletes().get(pos), actual.deletes().get(pos), spec);
     }
 
-    Assertions.assertThat(expected.schema().sameSchema(actual.schema()))
-        .as("Schema should match")
-        .isTrue();
-    Assertions.assertThat(actual.spec()).isEqualTo(expected.spec());
-    Assertions.assertThat(
+    assertThat(expected.schema().sameSchema(actual.schema())).as("Schema should match").isTrue();
+    assertThat(actual.spec()).isEqualTo(expected.spec());
+    assertThat(
             ExpressionUtil.equivalent(
                 expected.residual(), actual.residual(), TestBase.SCHEMA.asStruct(), caseSensitive))
         .as("Residual expression should match")

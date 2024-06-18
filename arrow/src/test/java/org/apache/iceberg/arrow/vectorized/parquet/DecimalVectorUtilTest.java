@@ -19,9 +19,9 @@
 package org.apache.iceberg.arrow.vectorized.parquet;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigInteger;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class DecimalVectorUtilTest {
@@ -68,7 +68,7 @@ public class DecimalVectorUtilTest {
   @Test
   public void testPadBigEndianBytesOverflow() {
     byte[] bytes = new byte[17];
-    Assertions.assertThatThrownBy(() -> DecimalVectorUtil.padBigEndianBytes(bytes, 16))
+    assertThatThrownBy(() -> DecimalVectorUtil.padBigEndianBytes(bytes, 16))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Buffer size of 17 is larger than requested size of 16");
   }

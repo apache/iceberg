@@ -34,7 +34,6 @@ import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.MetricsContext;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class GCSInputStreamTest {
@@ -157,7 +156,7 @@ public class GCSInputStreamTest {
       throws IOException {
     in.readFully(position, buffer, offset, length);
 
-    Assertions.assertThat(Arrays.copyOfRange(buffer, offset, offset + length))
+    assertThat(Arrays.copyOfRange(buffer, offset, offset + length))
         .isEqualTo(Arrays.copyOfRange(original, offset, offset + length));
   }
 

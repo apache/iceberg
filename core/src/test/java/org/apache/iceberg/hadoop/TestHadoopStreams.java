@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg.hadoop;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.concurrent.Executors;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.s3a.S3ABlockOutputStream;
 import org.apache.iceberg.io.PositionOutputStream;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class TestHadoopStreams {
@@ -46,7 +47,7 @@ class TestHadoopStreams {
               s3ABlockOutputStream.interruptClose();
             });
 
-    Assertions.assertThatThrownBy(wrap::close)
+    assertThatThrownBy(wrap::close)
         .isInstanceOf(IOException.class)
         .hasMessage("S3ABlockOutputStream failed to upload object after stream was closed");
   }

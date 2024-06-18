@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Map;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestS3URI {
@@ -32,9 +34,9 @@ public class TestS3URI {
     String p1 = "s3://bucket/path/to/file";
     S3URI uri1 = new S3URI(p1);
 
-    Assertions.assertThat(uri1.bucket()).isEqualTo("bucket");
-    Assertions.assertThat(uri1.key()).isEqualTo("path/to/file");
-    Assertions.assertThat(uri1.toString()).isEqualTo(p1);
+    assertThat(uri1.bucket()).isEqualTo("bucket");
+    assertThat(uri1.key()).isEqualTo("path/to/file");
+    assertThat(uri1.toString()).isEqualTo(p1);
   }
 
   @Test
@@ -42,15 +44,15 @@ public class TestS3URI {
     String p1 = "s3://bucket/path%20to%20file";
     S3URI uri1 = new S3URI(p1);
 
-    Assertions.assertThat(uri1.bucket()).isEqualTo("bucket");
-    Assertions.assertThat(uri1.key()).isEqualTo("path%20to%20file");
-    Assertions.assertThat(uri1.toString()).isEqualTo(p1);
+    assertThat(uri1.bucket()).isEqualTo("bucket");
+    assertThat(uri1.key()).isEqualTo("path%20to%20file");
+    assertThat(uri1.toString()).isEqualTo(p1);
   }
 
   @Test
   public void testMissingScheme() {
 
-    Assertions.assertThatThrownBy(() -> new S3URI("/path/to/file"))
+    assertThatThrownBy(() -> new S3URI("/path/to/file"))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Invalid S3 URI, cannot determine scheme: /path/to/file");
   }
@@ -60,9 +62,9 @@ public class TestS3URI {
     String p1 = "s3://bucket";
     S3URI url1 = new S3URI(p1);
 
-    Assertions.assertThat(url1.bucket()).isEqualTo("bucket");
-    Assertions.assertThat(url1.key()).isEqualTo("");
-    Assertions.assertThat(url1.toString()).isEqualTo(p1);
+    assertThat(url1.bucket()).isEqualTo("bucket");
+    assertThat(url1.key()).isEqualTo("");
+    assertThat(url1.toString()).isEqualTo(p1);
   }
 
   @Test
@@ -70,17 +72,17 @@ public class TestS3URI {
     String p1 = "s3://bucket/path/to/file?query=foo#bar";
     S3URI uri1 = new S3URI(p1);
 
-    Assertions.assertThat(uri1.bucket()).isEqualTo("bucket");
-    Assertions.assertThat(uri1.key()).isEqualTo("path/to/file");
-    Assertions.assertThat(uri1.toString()).isEqualTo(p1);
+    assertThat(uri1.bucket()).isEqualTo("bucket");
+    assertThat(uri1.key()).isEqualTo("path/to/file");
+    assertThat(uri1.toString()).isEqualTo(p1);
   }
 
   @Test
   public void testValidSchemes() {
     for (String scheme : Lists.newArrayList("https", "s3", "s3a", "s3n", "gs")) {
       S3URI uri = new S3URI(scheme + "://bucket/path/to/file");
-      Assertions.assertThat(uri.bucket()).isEqualTo("bucket");
-      Assertions.assertThat(uri.key()).isEqualTo("path/to/file");
+      assertThat(uri.bucket()).isEqualTo("bucket");
+      assertThat(uri.key()).isEqualTo("path/to/file");
     }
   }
 
@@ -90,8 +92,8 @@ public class TestS3URI {
     Map<String, String> bucketToAccessPointMapping = ImmutableMap.of("bucket", "access-point");
     S3URI uri1 = new S3URI(p1, bucketToAccessPointMapping);
 
-    Assertions.assertThat(uri1.bucket()).isEqualTo("access-point");
-    Assertions.assertThat(uri1.key()).isEqualTo("path/to/file");
-    Assertions.assertThat(uri1.toString()).isEqualTo(p1);
+    assertThat(uri1.bucket()).isEqualTo("access-point");
+    assertThat(uri1.key()).isEqualTo("path/to/file");
+    assertThat(uri1.toString()).isEqualTo(p1);
   }
 }

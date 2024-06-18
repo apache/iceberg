@@ -39,6 +39,8 @@ import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -77,7 +79,6 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.schema.MessageType;
-import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -397,7 +398,7 @@ public class TestMetricsRowGroupFilter {
 
   @Test
   public void testMissingColumn() {
-    Assertions.assertThatThrownBy(() -> shouldRead(lessThan("missing", 5)))
+    assertThatThrownBy(() -> shouldRead(lessThan("missing", 5)))
         .as("Should complain about missing column in expression")
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot find field 'missing'");
@@ -946,7 +947,7 @@ public class TestMetricsRowGroupFilter {
     boolean shouldRead =
         new ParquetMetricsRowGroupFilter(SCHEMA, equal(truncate("required", 2), "some_value"), true)
             .shouldRead(parquetSchema, rowGroupMetadata);
-    Assertions.assertThat(shouldRead)
+    assertThat(shouldRead)
         .as("Should read: filter contains non-reference evaluate as True")
         .isTrue();
   }

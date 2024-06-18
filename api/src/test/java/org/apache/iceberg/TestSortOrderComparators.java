@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.time.LocalDateTime;
@@ -31,7 +33,6 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestSortOrderComparators {
@@ -46,26 +47,25 @@ public class TestSortOrderComparators {
 
     Comparator<StructLike> comparator = SortOrderComparators.forSchema(schema, sortOrder);
     // all fields should have the same sort direction in this test class
-    Assertions.assertThat(sortOrder.fields().stream().map(SortField::direction).distinct())
-        .hasSize(1);
+    assertThat(sortOrder.fields().stream().map(SortField::direction).distinct()).hasSize(1);
     SortDirection direction = sortOrder.fields().get(0).direction();
 
-    Assertions.assertThat(comparator.compare(less, less)).isEqualTo(0);
-    Assertions.assertThat(comparator.compare(greater, greater)).isEqualTo(0);
-    Assertions.assertThat(comparator.compare(less, lessCopy)).isEqualTo(0);
+    assertThat(comparator.compare(less, less)).isEqualTo(0);
+    assertThat(comparator.compare(greater, greater)).isEqualTo(0);
+    assertThat(comparator.compare(less, lessCopy)).isEqualTo(0);
 
     if (direction == SortDirection.ASC) {
-      Assertions.assertThat(comparator.compare(less, greater)).isEqualTo(-1);
-      Assertions.assertThat(comparator.compare(greater, less)).isEqualTo(1);
+      assertThat(comparator.compare(less, greater)).isEqualTo(-1);
+      assertThat(comparator.compare(greater, less)).isEqualTo(1);
       // null first
-      Assertions.assertThat(comparator.compare(nullValue, less)).isEqualTo(-1);
-      Assertions.assertThat(comparator.compare(less, nullValue)).isEqualTo(1);
+      assertThat(comparator.compare(nullValue, less)).isEqualTo(-1);
+      assertThat(comparator.compare(less, nullValue)).isEqualTo(1);
     } else {
-      Assertions.assertThat(comparator.compare(less, greater)).isEqualTo(1);
-      Assertions.assertThat(comparator.compare(greater, less)).isEqualTo(-1);
+      assertThat(comparator.compare(less, greater)).isEqualTo(1);
+      assertThat(comparator.compare(greater, less)).isEqualTo(-1);
       // null last
-      Assertions.assertThat(comparator.compare(nullValue, greater)).isEqualTo(1);
-      Assertions.assertThat(comparator.compare(less, nullValue)).isEqualTo(-1);
+      assertThat(comparator.compare(nullValue, greater)).isEqualTo(1);
+      assertThat(comparator.compare(less, nullValue)).isEqualTo(-1);
     }
   }
 
@@ -196,8 +196,8 @@ public class TestSortOrderComparators {
         TimeUnit.SECONDS.toMicros(
             LocalDateTime.of(2022, 1, 10, 1, 0, 0).toEpochSecond(ZoneOffset.UTC));
 
-    Assertions.assertThat(transform.apply(lessMicro)).isLessThan(transform.apply(greaterMicro));
-    Assertions.assertThat(transform.apply(lessMicro)).isEqualTo(transform.apply(lessCopyMicro));
+    assertThat(transform.apply(lessMicro)).isLessThan(transform.apply(greaterMicro));
+    assertThat(transform.apply(lessMicro)).isEqualTo(transform.apply(lessCopyMicro));
 
     TestHelpers.Row less = TestHelpers.Row.of("id3", lessMicro);
     TestHelpers.Row greater = TestHelpers.Row.of("id2", greaterMicro);
@@ -226,8 +226,8 @@ public class TestSortOrderComparators {
     Transform<String, Integer> bucket = Transforms.bucket(4);
     SerializableFunction<String, Integer> transform = bucket.bind(Types.StringType.get());
 
-    Assertions.assertThat(transform.apply("bbb")).isLessThan(transform.apply("aaa"));
-    Assertions.assertThat(transform.apply("bbb")).isEqualTo(transform.apply("cca"));
+    assertThat(transform.apply("bbb")).isLessThan(transform.apply("aaa"));
+    assertThat(transform.apply("bbb")).isEqualTo(transform.apply("cca"));
 
     TestHelpers.Row less = TestHelpers.Row.of("id3", "bbb");
     TestHelpers.Row greater = TestHelpers.Row.of("id2", "aaa");
@@ -260,9 +260,9 @@ public class TestSortOrderComparators {
     Transform<UUID, Integer> bucket = Transforms.bucket(4);
     SerializableFunction<UUID, Integer> transform = bucket.bind(Types.UUIDType.get());
 
-    Assertions.assertThat(transform.apply(UUID.fromString("fd02441d-1423-4a3f-8785-c7dd5647e26b")))
+    assertThat(transform.apply(UUID.fromString("fd02441d-1423-4a3f-8785-c7dd5647e26b")))
         .isLessThan(transform.apply(UUID.fromString("86873e7d-1374-4493-8e1d-9095eff7046c")));
-    Assertions.assertThat(transform.apply(UUID.fromString("fd02441d-1423-4a3f-8785-c7dd5647e26b")))
+    assertThat(transform.apply(UUID.fromString("fd02441d-1423-4a3f-8785-c7dd5647e26b")))
         .isEqualTo(transform.apply(UUID.fromString("81873e7d-1374-4493-8e1d-9095eff7046c")));
 
     TestHelpers.Row less =
@@ -305,9 +305,9 @@ public class TestSortOrderComparators {
     Transform<ByteBuffer, ByteBuffer> truncate = Transforms.truncate(2);
     SerializableFunction<ByteBuffer, ByteBuffer> transform = truncate.bind(Types.BinaryType.get());
 
-    Assertions.assertThat(transform.apply(ByteBuffer.wrap(new byte[] {1, 2, 3})))
+    assertThat(transform.apply(ByteBuffer.wrap(new byte[] {1, 2, 3})))
         .isLessThan(transform.apply(ByteBuffer.wrap(new byte[] {1, 3, 1})));
-    Assertions.assertThat(transform.apply(ByteBuffer.wrap(new byte[] {1, 2, 3})))
+    assertThat(transform.apply(ByteBuffer.wrap(new byte[] {1, 2, 3})))
         .isEqualTo(transform.apply(ByteBuffer.wrap(new byte[] {1, 2, 5, 6})));
 
     TestHelpers.Row less = TestHelpers.Row.of("id3", ByteBuffer.wrap(new byte[] {1, 2, 3}));
@@ -414,9 +414,9 @@ public class TestSortOrderComparators {
     Transform<ByteBuffer, ByteBuffer> bucket = Transforms.truncate(2);
     SerializableFunction<ByteBuffer, ByteBuffer> transform = bucket.bind(Types.BinaryType.get());
 
-    Assertions.assertThat(transform.apply(ByteBuffer.wrap(new byte[] {2, 3, 4})))
+    assertThat(transform.apply(ByteBuffer.wrap(new byte[] {2, 3, 4})))
         .isLessThan(transform.apply(ByteBuffer.wrap(new byte[] {9, 3, 4})));
-    Assertions.assertThat(transform.apply(ByteBuffer.wrap(new byte[] {2, 3, 4})))
+    assertThat(transform.apply(ByteBuffer.wrap(new byte[] {2, 3, 4})))
         .isEqualTo(transform.apply(ByteBuffer.wrap(new byte[] {2, 3, 9})));
 
     TestHelpers.Row less =

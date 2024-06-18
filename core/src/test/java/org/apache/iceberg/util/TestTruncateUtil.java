@@ -18,17 +18,19 @@
  */
 package org.apache.iceberg.util;
 
-import org.assertj.core.api.Assertions;
+import static org.assertj.core.api.Assertions.assertThatException;
+import static org.assertj.core.api.Assertions.assertThatNoException;
+
 import org.junit.jupiter.api.Test;
 
 class TestTruncateUtil {
   @Test
   public void testInvalidInputWidthBehavior() {
-    Assertions.assertThatNoException()
+    assertThatNoException()
         .as("Invalid width input shouldn't necessarily throw an exception as it's not validated")
         .isThrownBy(() -> TruncateUtil.truncateInt(-1, 100));
 
-    Assertions.assertThatException()
+    assertThatException()
         .as("Invalid width input can possibly throw an exception")
         .isThrownBy(() -> TruncateUtil.truncateInt(0, 100));
   }

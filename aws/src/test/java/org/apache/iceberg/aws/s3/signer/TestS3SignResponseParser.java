@@ -18,34 +18,36 @@
  */
 package org.apache.iceberg.aws.s3.signer;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestS3SignResponseParser {
 
   @Test
   public void nullResponse() {
-    Assertions.assertThatThrownBy(() -> S3SignResponseParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> S3SignResponseParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse s3 sign response from null object");
 
-    Assertions.assertThatThrownBy(() -> S3SignResponseParser.toJson(null))
+    assertThatThrownBy(() -> S3SignResponseParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid s3 sign response: null");
   }
 
   @Test
   public void missingFields() {
-    Assertions.assertThatThrownBy(() -> S3SignResponseParser.fromJson("{}"))
+    assertThatThrownBy(() -> S3SignResponseParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: uri");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 S3SignResponseParser.fromJson(
                     "{\"uri\" : \"http://localhost:49208/iceberg-signer-test\"}"))
@@ -55,8 +57,7 @@ public class TestS3SignResponseParser {
 
   @Test
   public void invalidUri() {
-    Assertions.assertThatThrownBy(
-            () -> S3SignResponseParser.fromJson("{\"uri\" : 45, \"headers\" : {}}}"))
+    assertThatThrownBy(() -> S3SignResponseParser.fromJson("{\"uri\" : 45, \"headers\" : {}}}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a string value: uri: 45");
   }
@@ -79,8 +80,8 @@ public class TestS3SignResponseParser {
             .build();
 
     String json = S3SignResponseParser.toJson(s3SignResponse, true);
-    Assertions.assertThat(S3SignResponseParser.fromJson(json)).isEqualTo(s3SignResponse);
-    Assertions.assertThat(json)
+    assertThat(S3SignResponseParser.fromJson(json)).isEqualTo(s3SignResponse);
+    assertThat(json)
         .isEqualTo(
             "{\n"
                 + "  \"uri\" : \"http://localhost:49208/iceberg-signer-test\",\n"

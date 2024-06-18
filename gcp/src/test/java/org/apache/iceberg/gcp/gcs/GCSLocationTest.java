@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.gcp.gcs;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.exceptions.ValidationException;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class GCSLocationTest {
@@ -28,8 +30,8 @@ public class GCSLocationTest {
     String p1 = "gs://bucket/path/to/prefix";
     GCSLocation location = new GCSLocation(p1);
 
-    Assertions.assertThat(location.bucket()).isEqualTo("bucket");
-    Assertions.assertThat(location.prefix()).isEqualTo("path/to/prefix");
+    assertThat(location.bucket()).isEqualTo("bucket");
+    assertThat(location.prefix()).isEqualTo("path/to/prefix");
   }
 
   @Test
@@ -37,20 +39,20 @@ public class GCSLocationTest {
     String p1 = "gs://bucket/path%20to%20prefix";
     GCSLocation location = new GCSLocation(p1);
 
-    Assertions.assertThat(location.bucket()).isEqualTo("bucket");
-    Assertions.assertThat(location.prefix()).isEqualTo("path%20to%20prefix");
+    assertThat(location.bucket()).isEqualTo("bucket");
+    assertThat(location.prefix()).isEqualTo("path%20to%20prefix");
   }
 
   @Test
   public void testMissingScheme() {
-    Assertions.assertThatThrownBy(() -> new GCSLocation("/path/to/prefix"))
+    assertThatThrownBy(() -> new GCSLocation("/path/to/prefix"))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Invalid GCS URI, cannot determine scheme: /path/to/prefix");
   }
 
   @Test
   public void testInvalidScheme() {
-    Assertions.assertThatThrownBy(() -> new GCSLocation("s3://bucket/path/to/prefix"))
+    assertThatThrownBy(() -> new GCSLocation("s3://bucket/path/to/prefix"))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Invalid GCS URI, invalid scheme: s3");
   }
@@ -60,8 +62,8 @@ public class GCSLocationTest {
     String p1 = "gs://bucket";
     GCSLocation location = new GCSLocation(p1);
 
-    Assertions.assertThat(location.bucket()).isEqualTo("bucket");
-    Assertions.assertThat(location.prefix()).isEqualTo("");
+    assertThat(location.bucket()).isEqualTo("bucket");
+    assertThat(location.prefix()).isEqualTo("");
   }
 
   @Test
@@ -69,7 +71,7 @@ public class GCSLocationTest {
     String p1 = "gs://bucket/path/to/prefix?query=foo#bar";
     GCSLocation location = new GCSLocation(p1);
 
-    Assertions.assertThat(location.bucket()).isEqualTo("bucket");
-    Assertions.assertThat(location.prefix()).isEqualTo("path/to/prefix");
+    assertThat(location.bucket()).isEqualTo("bucket");
+    assertThat(location.prefix()).isEqualTo("path/to/prefix");
   }
 }

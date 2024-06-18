@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.view;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.databind.JsonNode;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestSQLViewRepresentationParser {
@@ -33,7 +35,7 @@ public class TestSQLViewRepresentationParser {
             .dialect("spark-sql")
             .build();
 
-    Assertions.assertThat(SQLViewRepresentationParser.fromJson(requiredFields))
+    assertThat(SQLViewRepresentationParser.fromJson(requiredFields))
         .as("Should be able to parse valid SQL view representation")
         .isEqualTo(viewRepresentation);
 
@@ -45,7 +47,7 @@ public class TestSQLViewRepresentationParser {
             .sql("select * from foo")
             .dialect("spark-sql")
             .build();
-    Assertions.assertThat(SQLViewRepresentationParser.fromJson(requiredAndOptionalFields))
+    assertThat(SQLViewRepresentationParser.fromJson(requiredAndOptionalFields))
         .as("Should be able to parse valid SQL view representation")
         .isEqualTo(viewWithOptionalFields);
   }
@@ -53,12 +55,12 @@ public class TestSQLViewRepresentationParser {
   @Test
   public void testParseSqlViewRepresentationMissingRequiredFields() {
     String missingDialect = "{\"type\":\"sql\", \"sql\": \"select * from foo\"}";
-    Assertions.assertThatThrownBy(() -> ViewRepresentationParser.fromJson(missingDialect))
+    assertThatThrownBy(() -> ViewRepresentationParser.fromJson(missingDialect))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: dialect");
 
     String missingType = "{\"sql\":\"select * from foo\",\"dialect\":\"spark-sql\"}";
-    Assertions.assertThatThrownBy(() -> ViewRepresentationParser.fromJson(missingType))
+    assertThatThrownBy(() -> ViewRepresentationParser.fromJson(missingType))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: type");
   }
@@ -71,21 +73,21 @@ public class TestSQLViewRepresentationParser {
             .sql("select * from foo")
             .dialect("spark-sql")
             .build();
-    Assertions.assertThat(ViewRepresentationParser.toJson(viewRepresentation))
+    assertThat(ViewRepresentationParser.toJson(viewRepresentation))
         .as("Should be able to serialize valid SQL view representation")
         .isEqualTo(json);
-    Assertions.assertThat(
+    assertThat(
             ViewRepresentationParser.fromJson(ViewRepresentationParser.toJson(viewRepresentation)))
         .isEqualTo(viewRepresentation);
   }
 
   @Test
   public void testNullSqlViewRepresentation() {
-    Assertions.assertThatThrownBy(() -> SQLViewRepresentationParser.toJson(null))
+    assertThatThrownBy(() -> SQLViewRepresentationParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid SQL view representation: null");
 
-    Assertions.assertThatThrownBy(() -> SQLViewRepresentationParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> SQLViewRepresentationParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse SQL view representation from null object");
   }

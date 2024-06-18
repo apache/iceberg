@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.rest.requests;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.TableIdentifierParser;
 import org.apache.iceberg.rest.RequestResponseTestBase;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableRequest> {
@@ -51,44 +53,44 @@ public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableR
     String jsonSourceNullName =
         "{\"source\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":null},"
             + "\"destination\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid_2022\"}}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonSourceNullName))
+    assertThatThrownBy(() -> deserialize(jsonSourceNullName))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageStartingWith("Cannot parse to a string value: name: null");
 
     String jsonDestinationNullName =
         "{\"source\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"},"
             + "\"destination\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":null}}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonDestinationNullName))
+    assertThatThrownBy(() -> deserialize(jsonDestinationNullName))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageStartingWith("Cannot parse to a string value: name: null");
 
     String jsonSourceMissingName =
         "{\"source\":{\"namespace\":[\"accounting\",\"tax\"]},"
             + "\"destination\":{\"name\":\"paid_2022\"}}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonSourceMissingName))
+    assertThatThrownBy(() -> deserialize(jsonSourceMissingName))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageStartingWith("Cannot parse missing string: name");
 
     String jsonDestinationMissingName =
         "{\"source\":{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"},"
             + "\"destination\":{\"namespace\":[\"accounting\",\"tax\"]}}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonDestinationMissingName))
+    assertThatThrownBy(() -> deserialize(jsonDestinationMissingName))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageStartingWith("Cannot parse missing string: name");
 
     String emptyJson = "{}";
-    Assertions.assertThatThrownBy(() -> deserialize(emptyJson))
+    assertThatThrownBy(() -> deserialize(emptyJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid source table: null");
 
-    Assertions.assertThatThrownBy(() -> deserialize(null))
+    assertThatThrownBy(() -> deserialize(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotBuildInvalidRequests() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 RenameTableRequest.builder()
                     .withSource(null)
@@ -97,7 +99,7 @@ public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableR
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid source table identifier: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> RenameTableRequest.builder().withSource(TAX_PAID).withDestination(null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid destination table identifier: null");
@@ -118,10 +120,10 @@ public class TestRenameTableRequest extends RequestResponseTestBase<RenameTableR
 
   @Override
   public void assertEquals(RenameTableRequest actual, RenameTableRequest expected) {
-    Assertions.assertThat(actual.source())
+    assertThat(actual.source())
         .as("Source table identifier should be equal")
         .isEqualTo(expected.source());
-    Assertions.assertThat(actual.destination())
+    assertThat(actual.destination())
         .as("Destination table identifier should be equal")
         .isEqualTo(expected.destination());
   }

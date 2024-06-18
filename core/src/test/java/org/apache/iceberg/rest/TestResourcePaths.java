@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestResourcePaths {
@@ -33,161 +34,149 @@ public class TestResourcePaths {
   @Test
   public void testConfigPath() {
     // prefix does not affect the config route because config is merged into catalog properties
-    Assertions.assertThat(ResourcePaths.config()).isEqualTo("v1/config");
+    assertThat(ResourcePaths.config()).isEqualTo("v1/config");
   }
 
   @Test
   public void testNamespaces() {
-    Assertions.assertThat(withPrefix.namespaces()).isEqualTo("v1/ws/catalog/namespaces");
-    Assertions.assertThat(withoutPrefix.namespaces()).isEqualTo("v1/namespaces");
+    assertThat(withPrefix.namespaces()).isEqualTo("v1/ws/catalog/namespaces");
+    assertThat(withoutPrefix.namespaces()).isEqualTo("v1/namespaces");
   }
 
   @Test
   public void testNamespace() {
     Namespace ns = Namespace.of("ns");
-    Assertions.assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/ns");
-    Assertions.assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/ns");
+    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/ns");
+    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/ns");
   }
 
   @Test
   public void testNamespaceWithSlash() {
     Namespace ns = Namespace.of("n/s");
-    Assertions.assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Fs");
-    Assertions.assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%2Fs");
+    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Fs");
+    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%2Fs");
   }
 
   @Test
   public void testNamespaceWithMultipartNamespace() {
     Namespace ns = Namespace.of("n", "s");
-    Assertions.assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs");
-    Assertions.assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%1Fs");
+    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs");
+    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%1Fs");
   }
 
   @Test
   public void testNamespaceProperties() {
     Namespace ns = Namespace.of("ns");
-    Assertions.assertThat(withPrefix.namespaceProperties(ns))
+    assertThat(withPrefix.namespaceProperties(ns))
         .isEqualTo("v1/ws/catalog/namespaces/ns/properties");
-    Assertions.assertThat(withoutPrefix.namespaceProperties(ns))
-        .isEqualTo("v1/namespaces/ns/properties");
+    assertThat(withoutPrefix.namespaceProperties(ns)).isEqualTo("v1/namespaces/ns/properties");
   }
 
   @Test
   public void testNamespacePropertiesWithSlash() {
     Namespace ns = Namespace.of("n/s");
-    Assertions.assertThat(withPrefix.namespaceProperties(ns))
+    assertThat(withPrefix.namespaceProperties(ns))
         .isEqualTo("v1/ws/catalog/namespaces/n%2Fs/properties");
-    Assertions.assertThat(withoutPrefix.namespaceProperties(ns))
-        .isEqualTo("v1/namespaces/n%2Fs/properties");
+    assertThat(withoutPrefix.namespaceProperties(ns)).isEqualTo("v1/namespaces/n%2Fs/properties");
   }
 
   @Test
   public void testNamespacePropertiesWithMultipartNamespace() {
     Namespace ns = Namespace.of("n", "s");
-    Assertions.assertThat(withPrefix.namespaceProperties(ns))
+    assertThat(withPrefix.namespaceProperties(ns))
         .isEqualTo("v1/ws/catalog/namespaces/n%1Fs/properties");
-    Assertions.assertThat(withoutPrefix.namespaceProperties(ns))
-        .isEqualTo("v1/namespaces/n%1Fs/properties");
+    assertThat(withoutPrefix.namespaceProperties(ns)).isEqualTo("v1/namespaces/n%1Fs/properties");
   }
 
   @Test
   public void testTables() {
     Namespace ns = Namespace.of("ns");
-    Assertions.assertThat(withPrefix.tables(ns)).isEqualTo("v1/ws/catalog/namespaces/ns/tables");
-    Assertions.assertThat(withoutPrefix.tables(ns)).isEqualTo("v1/namespaces/ns/tables");
+    assertThat(withPrefix.tables(ns)).isEqualTo("v1/ws/catalog/namespaces/ns/tables");
+    assertThat(withoutPrefix.tables(ns)).isEqualTo("v1/namespaces/ns/tables");
   }
 
   @Test
   public void testTablesWithSlash() {
     Namespace ns = Namespace.of("n/s");
-    Assertions.assertThat(withPrefix.tables(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Fs/tables");
-    Assertions.assertThat(withoutPrefix.tables(ns)).isEqualTo("v1/namespaces/n%2Fs/tables");
+    assertThat(withPrefix.tables(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Fs/tables");
+    assertThat(withoutPrefix.tables(ns)).isEqualTo("v1/namespaces/n%2Fs/tables");
   }
 
   @Test
   public void testTablesWithMultipartNamespace() {
     Namespace ns = Namespace.of("n", "s");
-    Assertions.assertThat(withPrefix.tables(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/tables");
-    Assertions.assertThat(withoutPrefix.tables(ns)).isEqualTo("v1/namespaces/n%1Fs/tables");
+    assertThat(withPrefix.tables(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/tables");
+    assertThat(withoutPrefix.tables(ns)).isEqualTo("v1/namespaces/n%1Fs/tables");
   }
 
   @Test
   public void testTable() {
     TableIdentifier ident = TableIdentifier.of("ns", "table");
-    Assertions.assertThat(withPrefix.table(ident))
-        .isEqualTo("v1/ws/catalog/namespaces/ns/tables/table");
-    Assertions.assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/ns/tables/table");
+    assertThat(withPrefix.table(ident)).isEqualTo("v1/ws/catalog/namespaces/ns/tables/table");
+    assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/ns/tables/table");
   }
 
   @Test
   public void testTableWithSlash() {
     TableIdentifier ident = TableIdentifier.of("n/s", "tab/le");
-    Assertions.assertThat(withPrefix.table(ident))
-        .isEqualTo("v1/ws/catalog/namespaces/n%2Fs/tables/tab%2Fle");
-    Assertions.assertThat(withoutPrefix.table(ident))
-        .isEqualTo("v1/namespaces/n%2Fs/tables/tab%2Fle");
+    assertThat(withPrefix.table(ident)).isEqualTo("v1/ws/catalog/namespaces/n%2Fs/tables/tab%2Fle");
+    assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/n%2Fs/tables/tab%2Fle");
   }
 
   @Test
   public void testTableWithMultipartNamespace() {
     TableIdentifier ident = TableIdentifier.of("n", "s", "table");
-    Assertions.assertThat(withPrefix.table(ident))
-        .isEqualTo("v1/ws/catalog/namespaces/n%1Fs/tables/table");
-    Assertions.assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/n%1Fs/tables/table");
+    assertThat(withPrefix.table(ident)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/tables/table");
+    assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/n%1Fs/tables/table");
   }
 
   @Test
   public void testRegister() {
     Namespace ns = Namespace.of("ns");
-    Assertions.assertThat(withPrefix.register(ns))
-        .isEqualTo("v1/ws/catalog/namespaces/ns/register");
-    Assertions.assertThat(withoutPrefix.register(ns)).isEqualTo("v1/namespaces/ns/register");
+    assertThat(withPrefix.register(ns)).isEqualTo("v1/ws/catalog/namespaces/ns/register");
+    assertThat(withoutPrefix.register(ns)).isEqualTo("v1/namespaces/ns/register");
   }
 
   @Test
   public void views() {
     Namespace ns = Namespace.of("ns");
-    Assertions.assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/ns/views");
-    Assertions.assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/ns/views");
+    assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/ns/views");
+    assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/ns/views");
   }
 
   @Test
   public void viewsWithSlash() {
     Namespace ns = Namespace.of("n/s");
-    Assertions.assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Fs/views");
-    Assertions.assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/n%2Fs/views");
+    assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Fs/views");
+    assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/n%2Fs/views");
   }
 
   @Test
   public void viewsWithMultipartNamespace() {
     Namespace ns = Namespace.of("n", "s");
-    Assertions.assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/views");
-    Assertions.assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/n%1Fs/views");
+    assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/views");
+    assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/n%1Fs/views");
   }
 
   @Test
   public void view() {
     TableIdentifier ident = TableIdentifier.of("ns", "view-name");
-    Assertions.assertThat(withPrefix.view(ident))
-        .isEqualTo("v1/ws/catalog/namespaces/ns/views/view-name");
-    Assertions.assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/ns/views/view-name");
+    assertThat(withPrefix.view(ident)).isEqualTo("v1/ws/catalog/namespaces/ns/views/view-name");
+    assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/ns/views/view-name");
   }
 
   @Test
   public void viewWithSlash() {
     TableIdentifier ident = TableIdentifier.of("n/s", "vi/ew-name");
-    Assertions.assertThat(withPrefix.view(ident))
+    assertThat(withPrefix.view(ident))
         .isEqualTo("v1/ws/catalog/namespaces/n%2Fs/views/vi%2Few-name");
-    Assertions.assertThat(withoutPrefix.view(ident))
-        .isEqualTo("v1/namespaces/n%2Fs/views/vi%2Few-name");
+    assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/n%2Fs/views/vi%2Few-name");
   }
 
   @Test
   public void viewWithMultipartNamespace() {
     TableIdentifier ident = TableIdentifier.of("n", "s", "view-name");
-    Assertions.assertThat(withPrefix.view(ident))
-        .isEqualTo("v1/ws/catalog/namespaces/n%1Fs/views/view-name");
-    Assertions.assertThat(withoutPrefix.view(ident))
-        .isEqualTo("v1/namespaces/n%1Fs/views/view-name");
+    assertThat(withPrefix.view(ident)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/views/view-name");
+    assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/n%1Fs/views/view-name");
   }
 }

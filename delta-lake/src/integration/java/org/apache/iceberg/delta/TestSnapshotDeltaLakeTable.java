@@ -23,6 +23,7 @@ import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.date_format;
 import static org.apache.spark.sql.functions.expr;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import io.delta.standalone.DeltaLog;
 import io.delta.standalone.Operation;
@@ -59,7 +60,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.delta.catalog.DeltaCatalog;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -327,7 +327,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             Paths.get(
                 URI.create(
                     vacuumTestTableLocation.concat("/_delta_log/00000000000000000000.json"))));
-    Assertions.assertThat(deleteResult).isTrue();
+    assertThat(deleteResult).isTrue();
     spark.sql("VACUUM " + vacuumTestIdentifier + " RETAIN 0 HOURS");
 
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_vacuum_table");
@@ -362,7 +362,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
             Paths.get(
                 URI.create(
                     logCleanTestTableLocation.concat("/_delta_log/00000000000000000000.json"))));
-    Assertions.assertThat(deleteResult).isTrue();
+    assertThat(deleteResult).isTrue();
 
     String newTableIdentifier = destName(icebergCatalogName, "iceberg_log_clean_table");
     SnapshotDeltaLakeTable.Result result =
@@ -388,11 +388,10 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     List<Row> icebergTableContents =
         spark.sql("SELECT * FROM " + icebergTableIdentifier).collectAsList();
 
-    Assertions.assertThat(deltaTableContents).hasSize(icebergTableContents.size());
-    Assertions.assertThat(snapshotReport.snapshotDataFilesCount())
+    assertThat(deltaTableContents).hasSize(icebergTableContents.size());
+    assertThat(snapshotReport.snapshotDataFilesCount())
         .isEqualTo(countDataFilesInDeltaLakeTable(deltaLog, firstConstructableVersion));
-    Assertions.assertThat(icebergTableContents)
-        .containsExactlyInAnyOrderElementsOf(deltaTableContents);
+    assertThat(icebergTableContents).containsExactlyInAnyOrderElementsOf(deltaTableContents);
   }
 
   private void checkTagContentAndOrder(
@@ -403,8 +402,7 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     Map<String, SnapshotRef> icebergSnapshotRefs = icebergTable.refs();
     List<Snapshot> icebergSnapshots = Lists.newArrayList(icebergTable.snapshots());
 
-    Assertions.assertThat(icebergSnapshots.size())
-        .isEqualTo(currentVersion - firstConstructableVersion + 1);
+    assertThat(icebergSnapshots.size()).isEqualTo(currentVersion - firstConstructableVersion + 1);
 
     for (int i = 0; i < icebergSnapshots.size(); i++) {
       long deltaVersion = firstConstructableVersion + i;
@@ -412,25 +410,25 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
 
       String expectedVersionTag = "delta-version-" + deltaVersion;
       icebergSnapshotRefs.get(expectedVersionTag);
-      Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag)).isNotNull();
-      Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag).isTag()).isTrue();
-      Assertions.assertThat(icebergSnapshotRefs.get(expectedVersionTag).snapshotId())
+      assertThat(icebergSnapshotRefs.get(expectedVersionTag)).isNotNull();
+      assertThat(icebergSnapshotRefs.get(expectedVersionTag).isTag()).isTrue();
+      assertThat(icebergSnapshotRefs.get(expectedVersionTag).snapshotId())
           .isEqualTo(currentIcebergSnapshot.snapshotId());
 
       Timestamp deltaVersionTimestamp = deltaLog.getCommitInfoAt(deltaVersion).getTimestamp();
-      Assertions.assertThat(deltaVersionTimestamp).isNotNull();
+      assertThat(deltaVersionTimestamp).isNotNull();
       String expectedTimestampTag = "delta-ts-" + deltaVersionTimestamp.getTime();
 
-      Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag)).isNotNull();
-      Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag).isTag()).isTrue();
-      Assertions.assertThat(icebergSnapshotRefs.get(expectedTimestampTag).snapshotId())
+      assertThat(icebergSnapshotRefs.get(expectedTimestampTag)).isNotNull();
+      assertThat(icebergSnapshotRefs.get(expectedTimestampTag).isTag()).isTrue();
+      assertThat(icebergSnapshotRefs.get(expectedTimestampTag).snapshotId())
           .isEqualTo(currentIcebergSnapshot.snapshotId());
     }
   }
 
   private void checkIcebergTableLocation(String icebergTableIdentifier, String expectedLocation) {
     Table icebergTable = getIcebergTable(icebergTableIdentifier);
-    Assertions.assertThat(icebergTable.location())
+    assertThat(icebergTable.location())
         .isEqualTo(LocationUtil.stripTrailingSlash(expectedLocation));
   }
 
@@ -445,10 +443,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
     expectedPropertiesBuilder.putAll(expectedAdditionalProperties);
     ImmutableMap<String, String> expectedProperties = expectedPropertiesBuilder.build();
 
-    Assertions.assertThat(icebergTable.properties().entrySet())
-        .containsAll(expectedProperties.entrySet());
-    Assertions.assertThat(icebergTable.properties())
-        .containsEntry(ORIGINAL_LOCATION_PROP, deltaTableLocation);
+    assertThat(icebergTable.properties().entrySet()).containsAll(expectedProperties.entrySet());
+    assertThat(icebergTable.properties()).containsEntry(ORIGINAL_LOCATION_PROP, deltaTableLocation);
   }
 
   private void checkDataFilePathsIntegrity(
@@ -466,8 +462,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         .addedDataFiles(icebergTable.io())
         .forEach(
             dataFile -> {
-              Assertions.assertThat(URI.create(dataFile.path().toString()).isAbsolute()).isTrue();
-              Assertions.assertThat(deltaTableDataFilePaths).contains(dataFile.path().toString());
+              assertThat(URI.create(dataFile.path().toString()).isAbsolute()).isTrue();
+              assertThat(deltaTableDataFilePaths).contains(dataFile.path().toString());
             });
   }
 

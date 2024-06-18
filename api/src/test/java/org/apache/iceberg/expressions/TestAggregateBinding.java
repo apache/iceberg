@@ -19,13 +19,13 @@
 package org.apache.iceberg.expressions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestAggregateBinding {
@@ -60,7 +60,7 @@ public class TestAggregateBinding {
   @Test
   public void testBoundAggregateFails() {
     Expression unbound = Expressions.count("x");
-    Assertions.assertThatThrownBy(() -> Binder.bind(struct, Binder.bind(struct, unbound)))
+    assertThatThrownBy(() -> Binder.bind(struct, Binder.bind(struct, unbound)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Found already bound aggregate");
   }
@@ -79,7 +79,7 @@ public class TestAggregateBinding {
   @Test
   public void testCaseSensitiveReference() {
     Expression expr = Expressions.max("X");
-    Assertions.assertThatThrownBy(() -> Binder.bind(struct, expr, true))
+    assertThatThrownBy(() -> Binder.bind(struct, expr, true))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'X' in struct");
   }
@@ -87,13 +87,13 @@ public class TestAggregateBinding {
   @Test
   public void testMissingField() {
     UnboundAggregate<?> unbound = Expressions.count("missing");
-    Assertions.assertThatThrownBy(() -> unbound.bind(struct, false))
+    assertThatThrownBy(() -> unbound.bind(struct, false))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'missing' in struct:");
   }
 
   private static <T, C> BoundAggregate<T, C> assertAndUnwrapAggregate(Expression expr) {
-    Assertions.assertThat(expr).isInstanceOf(BoundAggregate.class);
+    assertThat(expr).isInstanceOf(BoundAggregate.class);
     return (BoundAggregate<T, C>) expr;
   }
 }

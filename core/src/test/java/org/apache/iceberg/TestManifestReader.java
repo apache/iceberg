@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
@@ -31,7 +32,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -73,7 +73,7 @@ public class TestManifestReader extends TestBase {
   @TestTemplate
   public void testInvalidUsage() throws IOException {
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
-    Assertions.assertThatThrownBy(() -> ManifestFiles.read(manifest, FILE_IO))
+    assertThatThrownBy(() -> ManifestFiles.read(manifest, FILE_IO))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot read from ManifestFile with null (unassigned) snapshot ID");
   }

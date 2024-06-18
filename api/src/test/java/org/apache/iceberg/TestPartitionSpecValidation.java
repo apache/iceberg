@@ -19,11 +19,11 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestPartitionSpecValidation {
@@ -38,84 +38,70 @@ public class TestPartitionSpecValidation {
 
   @Test
   public void testMultipleTimestampPartitions() {
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).year("ts").year("ts").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("ts").year("ts").build())
         .hasMessageContaining("Cannot use partition name more than once")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).year("ts").month("ts").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("ts").month("ts").build())
         .hasMessageContaining("Cannot add redundant partition")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).year("ts").day("ts").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("ts").day("ts").build())
         .hasMessageContaining("Cannot add redundant partition")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).year("ts").hour("ts").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("ts").hour("ts").build())
         .hasMessageContaining("Cannot add redundant partition")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).month("ts").month("ts").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).month("ts").month("ts").build())
         .hasMessageContaining("Cannot use partition name more than once")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).month("ts").day("ts").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).month("ts").day("ts").build())
         .hasMessageContaining("Cannot add redundant partition")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).month("ts").hour("ts").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).month("ts").hour("ts").build())
         .hasMessageContaining("Cannot add redundant partition")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).day("ts").day("ts").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).day("ts").day("ts").build())
         .hasMessageContaining("Cannot use partition name more than once")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).day("ts").hour("ts").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).day("ts").hour("ts").build())
         .hasMessageContaining("Cannot add redundant partition")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).hour("ts").hour("ts").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).hour("ts").hour("ts").build())
         .hasMessageContaining("Cannot use partition name more than once")
         .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
   public void testMultipleDatePartitions() {
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).year("d").year("d").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("d").year("d").build())
         .hasMessageContaining("Cannot use partition name more than once")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).year("d").month("d").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("d").month("d").build())
         .hasMessageContaining("Cannot add redundant partition")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("d").day("d").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("d").day("d").build())
         .hasMessageContaining("Cannot add redundant partition")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).month("d").month("d").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).month("d").month("d").build())
         .hasMessageContaining("Cannot use partition name more than once")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).month("d").day("d").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).month("d").day("d").build())
         .hasMessageContaining("Cannot add redundant partition")
         .isInstanceOf(IllegalArgumentException.class);
 
-    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).day("d").day("d").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).day("d").day("d").build())
         .hasMessageContaining("Cannot use partition name more than once")
         .isInstanceOf(IllegalArgumentException.class);
   }
@@ -151,17 +137,16 @@ public class TestPartitionSpecValidation {
   @Test
   public void testMultipleIdentityPartitions() {
     PartitionSpec.builderFor(SCHEMA).year("d").identity("id").identity("d").identity("s").build();
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).identity("id").identity("id").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).identity("id").identity("id").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot use partition name more than once");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> PartitionSpec.builderFor(SCHEMA).identity("id").identity("id", "test-id").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot add redundant partition");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA)
                     .identity("id", "test-id")
@@ -220,34 +205,31 @@ public class TestPartitionSpecValidation {
 
   @Test
   public void testSettingPartitionTransformsWithCustomTargetNamesThatAlreadyExist() {
-    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("ts", "another_ts"))
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("ts", "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create partition from name that exists in schema: another_ts");
 
-    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).month("ts", "another_ts"))
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).month("ts", "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create partition from name that exists in schema: another_ts");
 
-    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).day("ts", "another_ts"))
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).day("ts", "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create partition from name that exists in schema: another_ts");
 
-    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).hour("ts", "another_ts"))
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).hour("ts", "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create partition from name that exists in schema: another_ts");
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).truncate("ts", 2, "another_ts"))
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).truncate("ts", 2, "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create partition from name that exists in schema: another_ts");
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).bucket("ts", 4, "another_ts"))
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).bucket("ts", 4, "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create partition from name that exists in schema: another_ts");
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).identity("ts", "another_ts"))
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).identity("ts", "another_ts"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot create identity partition sourced from different field in schema: another_ts");
@@ -255,34 +237,31 @@ public class TestPartitionSpecValidation {
 
   @Test
   public void testMissingSourceColumn() {
-    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("missing").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).year("missing").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find source column: missing");
 
-    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).month("missing").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).month("missing").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find source column: missing");
 
-    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).day("missing").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).day("missing").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find source column: missing");
 
-    Assertions.assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).hour("missing").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).hour("missing").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find source column: missing");
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).bucket("missing", 4).build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).bucket("missing", 4).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find source column: missing");
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).truncate("missing", 5).build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).truncate("missing", 5).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find source column: missing");
 
-    Assertions.assertThatThrownBy(
-            () -> PartitionSpec.builderFor(SCHEMA).identity("missing").build())
+    assertThatThrownBy(() -> PartitionSpec.builderFor(SCHEMA).identity("missing").build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find source column: missing");
   }

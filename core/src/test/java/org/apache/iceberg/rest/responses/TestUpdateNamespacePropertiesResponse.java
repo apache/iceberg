@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.RequestResponseTestBase;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestUpdateNamespacePropertiesResponse
@@ -143,25 +145,25 @@ public class TestUpdateNamespacePropertiesResponse
     // Invalid top-level types
     String jsonInvalidTypeOnRemovedField =
         "{\"removed\":{\"foo\":true},\"updated\":[\"owner\"],\"missing\":[\"bar\"]}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnRemovedField))
+    assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnRemovedField))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageContaining(
             "Cannot deserialize value of type `java.util.ArrayList<java.lang.String>`");
 
     String jsonInvalidTypeOnUpdatedField = "{\"updated\":\"owner\",\"missing\":[\"bar\"]}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnUpdatedField))
+    assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnUpdatedField))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageContaining("Cannot construct instance of `java.util.ArrayList`");
 
     // Valid top-level (array) types, but at least one entry in the list is not the expected type
     String jsonInvalidValueOfTypeIntNestedInRemovedList =
         "{\"removed\":[\"foo\", \"bar\", 123456], ,\"updated\":[\"owner\"],\"missing\":[\"bar\"]}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonInvalidValueOfTypeIntNestedInRemovedList))
+    assertThatThrownBy(() -> deserialize(jsonInvalidValueOfTypeIntNestedInRemovedList))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageContaining("Unexpected character (',' (code 44))");
 
     // Exception comes from Jackson
-    Assertions.assertThatThrownBy(() -> deserialize(null))
+    assertThatThrownBy(() -> deserialize(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("argument \"content\" is null");
   }
@@ -171,54 +173,54 @@ public class TestUpdateNamespacePropertiesResponse
     List<String> listContainingNull = Lists.newArrayList("a", null, null);
 
     // updated
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> UpdateNamespacePropertiesResponse.builder().addUpdated((String) null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid updated property: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 UpdateNamespacePropertiesResponse.builder().addUpdated((List<String>) null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid updated property list: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 UpdateNamespacePropertiesResponse.builder().addUpdated(listContainingNull).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid updated property: null");
 
     // removed
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> UpdateNamespacePropertiesResponse.builder().addRemoved((String) null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid removed property: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 UpdateNamespacePropertiesResponse.builder().addRemoved((List<String>) null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid removed property list: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 UpdateNamespacePropertiesResponse.builder().addRemoved(listContainingNull).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid removed property: null");
 
     // missing
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> UpdateNamespacePropertiesResponse.builder().addMissing((String) null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid missing property: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 UpdateNamespacePropertiesResponse.builder().addMissing((List<String>) null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid missing property list: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 UpdateNamespacePropertiesResponse.builder().addMissing(listContainingNull).build())
         .isInstanceOf(IllegalArgumentException.class)
@@ -242,13 +244,13 @@ public class TestUpdateNamespacePropertiesResponse
   @Override
   public void assertEquals(
       UpdateNamespacePropertiesResponse actual, UpdateNamespacePropertiesResponse expected) {
-    Assertions.assertThat(actual.updated())
+    assertThat(actual.updated())
         .as("Properties updated should be equal")
         .containsExactlyInAnyOrderElementsOf(expected.updated());
-    Assertions.assertThat(actual.removed())
+    assertThat(actual.removed())
         .as("Properties removed should be equal")
         .containsExactlyInAnyOrderElementsOf(expected.removed());
-    Assertions.assertThat(actual.missing())
+    assertThat(actual.missing())
         .as("Properties missing should be equal")
         .containsExactlyInAnyOrderElementsOf(expected.missing());
   }

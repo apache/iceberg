@@ -18,53 +18,54 @@
  */
 package org.apache.iceberg.metrics;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestCounterResultParser {
 
   @Test
   public void nullCounter() {
-    Assertions.assertThatThrownBy(() -> CounterResultParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> CounterResultParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse counter from null object");
 
-    Assertions.assertThatThrownBy(() -> CounterResultParser.toJson(null))
+    assertThatThrownBy(() -> CounterResultParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid counter: null");
   }
 
   @Test
   public void missingFields() {
-    Assertions.assertThatThrownBy(() -> CounterResultParser.fromJson("{}"))
+    assertThatThrownBy(() -> CounterResultParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: unit");
 
-    Assertions.assertThatThrownBy(() -> CounterResultParser.fromJson("{\"unit\":\"bytes\"}"))
+    assertThatThrownBy(() -> CounterResultParser.fromJson("{\"unit\":\"bytes\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: value");
   }
 
   @Test
   public void extraFields() {
-    Assertions.assertThat(
+    assertThat(
             CounterResultParser.fromJson("{\"unit\":\"bytes\",\"value\":23,\"extra\": \"value\"}"))
         .isEqualTo(CounterResult.of(Unit.BYTES, 23L));
   }
 
   @Test
   public void unsupportedUnit() {
-    Assertions.assertThatThrownBy(
-            () -> CounterResultParser.fromJson("{\"unit\":\"unknown\",\"value\":23}"))
+    assertThatThrownBy(() -> CounterResultParser.fromJson("{\"unit\":\"unknown\",\"value\":23}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid unit: unknown");
   }
 
   @Test
   public void invalidValue() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> CounterResultParser.fromJson("{\"unit\":\"count\",\"value\":\"illegal\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: value: \"illegal\"");
@@ -75,7 +76,7 @@ public class TestCounterResultParser {
     CounterResult counter = CounterResult.of(Unit.BYTES, Long.MAX_VALUE);
 
     String json = CounterResultParser.toJson(counter);
-    Assertions.assertThat(CounterResultParser.fromJson(json)).isEqualTo(counter);
-    Assertions.assertThat(json).isEqualTo("{\"unit\":\"bytes\",\"value\":9223372036854775807}");
+    assertThat(CounterResultParser.fromJson(json)).isEqualTo(counter);
+    assertThat(json).isEqualTo("{\"unit\":\"bytes\",\"value\":9223372036854775807}");
   }
 }

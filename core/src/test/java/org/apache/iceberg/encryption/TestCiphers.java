@@ -19,10 +19,10 @@
 package org.apache.iceberg.encryption;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestCiphers {
@@ -74,7 +74,7 @@ public class TestCiphers {
         final byte[] badAad = (aad == null) ? new byte[1] : aad;
         badAad[0]++;
 
-        Assertions.assertThatThrownBy(() -> decryptor.decrypt(ciphertext, badAad))
+        assertThatThrownBy(() -> decryptor.decrypt(ciphertext, badAad))
             .isInstanceOf(RuntimeException.class)
             .hasMessageContaining("GCM tag check failed");
       }
@@ -82,7 +82,7 @@ public class TestCiphers {
       if (testCorruption) {
         ciphertext[ciphertext.length / 2]++;
 
-        Assertions.assertThatThrownBy(() -> decryptor.decrypt(ciphertext, aad))
+        assertThatThrownBy(() -> decryptor.decrypt(ciphertext, aad))
             .isInstanceOf(RuntimeException.class)
             .hasMessageContaining("GCM tag check failed");
       }

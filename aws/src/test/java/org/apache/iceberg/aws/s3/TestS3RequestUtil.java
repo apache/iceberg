@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg.aws.s3;
 
-import org.assertj.core.api.Assertions;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.s3.model.S3Request;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
@@ -44,11 +45,11 @@ public class TestS3RequestUtil {
         this::setCustomAlgorithm,
         this::setCustomKey,
         this::setCustomMd5);
-    Assertions.assertThat(serverSideEncryption).isNull();
-    Assertions.assertThat(kmsKeyId).isNull();
-    Assertions.assertThat(customAlgorithm).isEqualTo(ServerSideEncryption.AES256.name());
-    Assertions.assertThat(customKey).isEqualTo("key");
-    Assertions.assertThat(customMd5).isEqualTo("md5");
+    assertThat(serverSideEncryption).isNull();
+    assertThat(kmsKeyId).isNull();
+    assertThat(customAlgorithm).isEqualTo(ServerSideEncryption.AES256.name());
+    assertThat(customKey).isEqualTo("key");
+    assertThat(customMd5).isEqualTo("md5");
   }
 
   @Test
@@ -62,11 +63,11 @@ public class TestS3RequestUtil {
         this::setCustomAlgorithm,
         this::setCustomKey,
         this::setCustomMd5);
-    Assertions.assertThat(serverSideEncryption).isEqualTo(ServerSideEncryption.AES256);
-    Assertions.assertThat(kmsKeyId).isNull();
-    Assertions.assertThat(customAlgorithm).isNull();
-    Assertions.assertThat(customKey).isNull();
-    Assertions.assertThat(customMd5).isNull();
+    assertThat(serverSideEncryption).isEqualTo(ServerSideEncryption.AES256);
+    assertThat(kmsKeyId).isNull();
+    assertThat(customAlgorithm).isNull();
+    assertThat(customKey).isNull();
+    assertThat(customMd5).isNull();
   }
 
   @Test
@@ -81,11 +82,11 @@ public class TestS3RequestUtil {
         this::setCustomAlgorithm,
         this::setCustomKey,
         this::setCustomMd5);
-    Assertions.assertThat(serverSideEncryption).isEqualTo(ServerSideEncryption.AWS_KMS);
-    Assertions.assertThat(kmsKeyId).isEqualTo("key");
-    Assertions.assertThat(customAlgorithm).isNull();
-    Assertions.assertThat(customKey).isNull();
-    Assertions.assertThat(customMd5).isNull();
+    assertThat(serverSideEncryption).isEqualTo(ServerSideEncryption.AWS_KMS);
+    assertThat(kmsKeyId).isEqualTo("key");
+    assertThat(customAlgorithm).isNull();
+    assertThat(customKey).isNull();
+    assertThat(customMd5).isNull();
   }
 
   @Test
@@ -100,11 +101,11 @@ public class TestS3RequestUtil {
         this::setCustomAlgorithm,
         this::setCustomKey,
         this::setCustomMd5);
-    Assertions.assertThat(serverSideEncryption).isEqualTo(ServerSideEncryption.AWS_KMS_DSSE);
-    Assertions.assertThat(kmsKeyId).isEqualTo("key");
-    Assertions.assertThat(customAlgorithm).isNull();
-    Assertions.assertThat(customKey).isNull();
-    Assertions.assertThat(customMd5).isNull();
+    assertThat(serverSideEncryption).isEqualTo(ServerSideEncryption.AWS_KMS_DSSE);
+    assertThat(kmsKeyId).isEqualTo("key");
+    assertThat(customAlgorithm).isNull();
+    assertThat(customKey).isNull();
+    assertThat(customMd5).isNull();
   }
 
   @Test
@@ -119,11 +120,11 @@ public class TestS3RequestUtil {
         this::setCustomAlgorithm,
         this::setCustomKey,
         this::setCustomMd5);
-    Assertions.assertThat(serverSideEncryption).isNull();
-    Assertions.assertThat(kmsKeyId).isNull();
-    Assertions.assertThat(customAlgorithm).isNull();
-    Assertions.assertThat(customKey).isNull();
-    Assertions.assertThat(customMd5).isNull();
+    assertThat(serverSideEncryption).isNull();
+    assertThat(kmsKeyId).isNull();
+    assertThat(customAlgorithm).isNull();
+    assertThat(customKey).isNull();
+    assertThat(customMd5).isNull();
   }
 
   public S3Request.Builder setCustomAlgorithm(String algorithm) {

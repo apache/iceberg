@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.data;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -30,7 +32,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -188,8 +189,7 @@ public abstract class TestReadProjection {
 
     Assert.assertNotNull("Should read a non-null record", projected);
     // this is expected because there are no values
-    Assertions.assertThatThrownBy(() -> projected.get(0))
-        .isInstanceOf(ArrayIndexOutOfBoundsException.class);
+    assertThatThrownBy(() -> projected.get(0)).isInstanceOf(ArrayIndexOutOfBoundsException.class);
   }
 
   @Test
