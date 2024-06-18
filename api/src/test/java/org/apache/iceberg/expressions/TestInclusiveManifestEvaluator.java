@@ -39,6 +39,7 @@ import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.ByteBuffer;
 import org.apache.iceberg.ManifestFile;
@@ -48,7 +49,6 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestInclusiveManifestEvaluator {
@@ -245,7 +245,7 @@ public class TestInclusiveManifestEvaluator {
 
   @Test
   public void testMissingColumn() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> ManifestEvaluator.forRowFilter(lessThan("missing", 5), SPEC, true).eval(FILE))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'missing'");
@@ -546,7 +546,7 @@ public class TestInclusiveManifestEvaluator {
 
   @Test
   public void testCaseSensitiveIntegerNotEqRewritten() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> ManifestEvaluator.forRowFilter(not(equal("ID", 5)), SPEC, true).eval(FILE))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'ID'");

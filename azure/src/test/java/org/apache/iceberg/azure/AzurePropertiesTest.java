@@ -20,6 +20,7 @@ package org.apache.iceberg.azure;
 
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_KEY;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_NAME;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -30,7 +31,6 @@ import com.azure.core.credential.TokenCredential;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class AzurePropertiesTest {
@@ -101,7 +101,7 @@ public class AzurePropertiesTest {
 
   @Test
   public void testSharedKey() {
-    Assertions.assertThatIllegalArgumentException()
+    assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
                 new AzureProperties(
@@ -111,7 +111,7 @@ public class AzurePropertiesTest {
             String.format(
                 "Azure authentication: shared-key requires both %s and %s",
                 ADLS_SHARED_KEY_ACCOUNT_NAME, ADLS_SHARED_KEY_ACCOUNT_KEY));
-    Assertions.assertThatIllegalArgumentException()
+    assertThatIllegalArgumentException()
         .isThrownBy(
             () -> new AzureProperties(ImmutableMap.of(ADLS_SHARED_KEY_ACCOUNT_NAME, "account")))
         .withMessage(
