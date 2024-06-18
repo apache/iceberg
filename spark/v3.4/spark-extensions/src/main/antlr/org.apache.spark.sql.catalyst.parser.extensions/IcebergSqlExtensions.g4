@@ -171,11 +171,11 @@ constant
     ;
 
 stringMap
-    : MAP '(' constant (',' constant)* ')'
+    : MAP '(' (constant (',' constant)*)? ')'
     ;
 
 stringArray
-    : ARRAY '(' constant (',' constant)* ')'
+    : ARRAY '(' (constant (',' constant)*)? ')'
     ;
 
 booleanValue
