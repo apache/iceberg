@@ -78,7 +78,11 @@ class EnumerationHistory {
     return count >= history.length;
   }
 
-  /** @return true if split discovery should pause because assigner has too many splits already. */
+  /**
+   * Checks whether split discovery should be paused.
+   *
+   * @return true if split discovery should pause because assigner has too many splits already.
+   */
   synchronized boolean shouldPauseSplitDiscovery(int pendingSplitCountFromAssigner) {
     if (count < history.length) {
       // only check throttling when full history is obtained.
