@@ -17,6 +17,7 @@
 #
 
 source dev/common.sh
+
 set -e
 
 clean
@@ -24,3 +25,5 @@ clean
 install_deps
 
 pull_versioned_docs
+
+git show "${REMOTE}/main:../.asf.yaml" > docs/.asf.yaml

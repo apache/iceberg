@@ -73,7 +73,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
     }
   }
 
-  @TempDir protected File temp;
+  @TempDir protected java.nio.file.Path temp;
 
   @Parameter(index = 0)
   protected String catalogName;
@@ -101,7 +101,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
     catalogConfig.forEach(
         (key, value) -> spark.conf().set("spark.sql.catalog." + catalogName + "." + key, value));
 
-    if (catalogConfig.get("type").equalsIgnoreCase("hadoop")) {
+    if ("hadoop".equalsIgnoreCase(catalogConfig.get("type"))) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
     }
 

@@ -225,7 +225,7 @@ object RewriteMergeIntoTable extends RewriteRowLevelIcebergCommand with Predicat
       targetOutput = readAttrs,
       performCardinalityCheck = performCardinalityCheck,
       emitNotMatchedTargetRows = true,
-      output = buildMergeRowsOutput(matchedOutputs, notMatchedOutputs, readAttrs),
+      output = buildMergeRowsOutput(matchedOutputs, notMatchedOutputs :+ readAttrs, readAttrs),
       joinPlan)
 
     // build a plan to replace read groups in the table

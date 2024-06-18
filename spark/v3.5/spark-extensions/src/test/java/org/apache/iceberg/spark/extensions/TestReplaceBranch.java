@@ -18,9 +18,13 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -29,17 +33,16 @@ import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestReplaceBranch extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestReplaceBranch extends ExtensionsTestBase {
 
   private static final String[] TIME_UNITS = {"DAYS", "HOURS", "MINUTES"};
 
-  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
@@ -50,16 +53,12 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
     };
   }
 
-  public TestReplaceBranch(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceBranchFailsForTag() throws NoSuchTableException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     String tagName = "tag1";
@@ -74,7 +73,7 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
     df.writeTo(tableName).append();
     long second = table.currentSnapshot().snapshotId();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d",
@@ -83,7 +82,7 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
         .hasMessage("Ref tag1 is a tag not a branch");
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceBranch() throws NoSuchTableException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     List<SimpleRecord> records =
@@ -112,14 +111,14 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
 
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
-    Assert.assertNotNull(ref);
-    Assert.assertEquals(second, ref.snapshotId());
-    Assert.assertEquals(expectedMinSnapshotsToKeep, ref.minSnapshotsToKeep().intValue());
-    Assert.assertEquals(expectedMaxSnapshotAgeMs, ref.maxSnapshotAgeMs().longValue());
-    Assert.assertEquals(expectedMaxRefAgeMs, ref.maxRefAgeMs().longValue());
+    assertThat(ref).isNotNull();
+    assertThat(ref.snapshotId()).isEqualTo(second);
+    assertThat(ref.minSnapshotsToKeep().intValue()).isEqualTo(expectedMinSnapshotsToKeep);
+    assertThat(ref.maxSnapshotAgeMs().longValue()).isEqualTo(expectedMaxSnapshotAgeMs);
+    assertThat(ref.maxRefAgeMs().longValue()).isEqualTo(expectedMaxRefAgeMs);
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceBranchDoesNotExist() throws NoSuchTableException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     List<SimpleRecord> records =
@@ -128,7 +127,7 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
     df.writeTo(tableName).append();
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d",
@@ -137,7 +136,7 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
         .hasMessage("Branch does not exist: someBranch");
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceBranchWithRetain() throws NoSuchTableException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     List<SimpleRecord> records =
@@ -149,9 +148,6 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
     long first = table.currentSnapshot().snapshotId();
     String branchName = "b1";
     table.manageSnapshots().createBranch(branchName, first).commit();
-    SnapshotRef b1 = table.refs().get(branchName);
-    Integer minSnapshotsToKeep = b1.minSnapshotsToKeep();
-    Long maxSnapshotAgeMs = b1.maxSnapshotAgeMs();
     df.writeTo(tableName).append();
     long second = table.currentSnapshot().snapshotId();
 
@@ -163,16 +159,16 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
 
       table.refresh();
       SnapshotRef ref = table.refs().get(branchName);
-      Assert.assertNotNull(ref);
-      Assert.assertEquals(second, ref.snapshotId());
-      Assert.assertEquals(minSnapshotsToKeep, ref.minSnapshotsToKeep());
-      Assert.assertEquals(maxSnapshotAgeMs, ref.maxSnapshotAgeMs());
-      Assert.assertEquals(
-          TimeUnit.valueOf(timeUnit).toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
+      assertThat(ref).isNotNull();
+      assertThat(ref.snapshotId()).isEqualTo(second);
+      assertThat(ref.minSnapshotsToKeep()).isNull();
+      assertThat(ref.maxSnapshotAgeMs()).isNull();
+      assertThat(ref.maxRefAgeMs().longValue())
+          .isEqualTo(TimeUnit.valueOf(timeUnit).toMillis(maxRefAge));
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceBranchWithSnapshotRetention() throws NoSuchTableException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     List<SimpleRecord> records =
@@ -196,16 +192,16 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
 
       table.refresh();
       SnapshotRef ref = table.refs().get(branchName);
-      Assert.assertNotNull(ref);
-      Assert.assertEquals(second, ref.snapshotId());
-      Assert.assertEquals(minSnapshotsToKeep, ref.minSnapshotsToKeep());
-      Assert.assertEquals(
-          TimeUnit.valueOf(timeUnit).toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
-      Assert.assertEquals(maxRefAgeMs, ref.maxRefAgeMs());
+      assertThat(ref).isNotNull();
+      assertThat(ref.snapshotId()).isEqualTo(second);
+      assertThat(ref.minSnapshotsToKeep()).isEqualTo(minSnapshotsToKeep);
+      assertThat(ref.maxSnapshotAgeMs().longValue())
+          .isEqualTo(TimeUnit.valueOf(timeUnit).toMillis(maxSnapshotAge));
+      assertThat(ref.maxRefAgeMs()).isEqualTo(maxRefAgeMs);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceBranchWithRetainAndSnapshotRetention() throws NoSuchTableException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     List<SimpleRecord> records =
@@ -237,17 +233,17 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
 
       table.refresh();
       SnapshotRef ref = table.refs().get(branchName);
-      Assert.assertNotNull(ref);
-      Assert.assertEquals(second, ref.snapshotId());
-      Assert.assertEquals(minSnapshotsToKeep, ref.minSnapshotsToKeep());
-      Assert.assertEquals(
-          TimeUnit.valueOf(timeUnit).toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
-      Assert.assertEquals(
-          TimeUnit.valueOf(timeUnit).toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
+      assertThat(ref).isNotNull();
+      assertThat(ref.snapshotId()).isEqualTo(second);
+      assertThat(ref.minSnapshotsToKeep()).isEqualTo(minSnapshotsToKeep);
+      assertThat(ref.maxSnapshotAgeMs().longValue())
+          .isEqualTo(TimeUnit.valueOf(timeUnit).toMillis(maxSnapshotAge));
+      assertThat(ref.maxRefAgeMs().longValue())
+          .isEqualTo(TimeUnit.valueOf(timeUnit).toMillis(maxRefAge));
     }
   }
 
-  @Test
+  @TestTemplate
   public void testCreateOrReplace() throws NoSuchTableException {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
     List<SimpleRecord> records =
@@ -268,7 +264,7 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
 
     table.refresh();
     SnapshotRef ref = table.refs().get(branchName);
-    Assert.assertNotNull(ref);
-    Assert.assertEquals(first, ref.snapshotId());
+    assertThat(ref).isNotNull();
+    assertThat(ref.snapshotId()).isEqualTo(first);
   }
 }

@@ -39,6 +39,7 @@ public class GenericManifestFile
     implements ManifestFile, StructLike, IndexedRecord, SchemaConstructable, Serializable {
   private static final Schema AVRO_SCHEMA =
       AvroSchemaUtil.convert(ManifestFile.schema(), "manifest_file");
+  private static final ManifestContent[] MANIFEST_CONTENT_VALUES = ManifestContent.values();
 
   private transient Schema avroSchema; // not final for Java serialization
   private int[] fromProjectionPos;
@@ -339,7 +340,7 @@ public class GenericManifestFile
         return;
       case 3:
         this.content =
-            value != null ? ManifestContent.values()[(Integer) value] : ManifestContent.DATA;
+            value != null ? MANIFEST_CONTENT_VALUES[(Integer) value] : ManifestContent.DATA;
         return;
       case 4:
         this.sequenceNumber = value != null ? (Long) value : 0;

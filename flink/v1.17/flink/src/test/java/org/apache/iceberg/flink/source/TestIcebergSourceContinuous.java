@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -370,6 +371,106 @@ public class TestIcebergSourceContinuous {
     }
   }
 
+  @Test
+  public void testReadingFromBranch() throws Exception {
+    String branch = "b1";
+    GenericAppenderHelper dataAppender =
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+
+    List<Record> batchBase =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    dataAppender.appendToTable(batchBase);
+
+    // create branch
+    tableResource
+        .table()
+        .manageSnapshots()
+        .createBranch(branch, tableResource.table().currentSnapshot().snapshotId())
+        .commit();
+
+    // snapshot1 to branch
+    List<Record> batch1 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    dataAppender.appendToTable(branch, batch1);
+
+    // snapshot2 to branch
+    List<Record> batch2 =
+        RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+    dataAppender.appendToTable(branch, batch2);
+
+    List<Record> branchExpectedRecords = Lists.newArrayList();
+    branchExpectedRecords.addAll(batchBase);
+    branchExpectedRecords.addAll(batch1);
+    branchExpectedRecords.addAll(batch2);
+    // reads from branch: it should contain the first snapshot (before the branch creation) followed
+    // by the next 2 snapshots added
+    ScanContext scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .monitorInterval(Duration.ofMillis(10L))
+            .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+            .useBranch(branch)
+            .build();
+
+    try (CloseableIterator<Row> iter =
+        createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
+      List<Row> resultMain = waitForResult(iter, 6);
+      TestHelpers.assertRecords(resultMain, branchExpectedRecords, tableResource.table().schema());
+
+      // snapshot3 to branch
+      List<Record> batch3 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      dataAppender.appendToTable(branch, batch3);
+
+      List<Row> result3 = waitForResult(iter, 2);
+      TestHelpers.assertRecords(result3, batch3, tableResource.table().schema());
+
+      // snapshot4 to branch
+      List<Record> batch4 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      dataAppender.appendToTable(branch, batch4);
+
+      List<Row> result4 = waitForResult(iter, 2);
+      TestHelpers.assertRecords(result4, batch4, tableResource.table().schema());
+    }
+
+    // read only from main branch. Should contain only the first snapshot
+    scanContext =
+        ScanContext.builder()
+            .streaming(true)
+            .monitorInterval(Duration.ofMillis(10L))
+            .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
+            .build();
+    try (CloseableIterator<Row> iter =
+        createStream(scanContext).executeAndCollect(getClass().getSimpleName())) {
+      List<Row> resultMain = waitForResult(iter, 2);
+      TestHelpers.assertRecords(resultMain, batchBase, tableResource.table().schema());
+
+      List<Record> batchMain2 =
+          RandomGenericData.generate(
+              tableResource.table().schema(), 2, randomSeed.incrementAndGet());
+      dataAppender.appendToTable(batchMain2);
+      resultMain = waitForResult(iter, 2);
+      TestHelpers.assertRecords(resultMain, batchMain2, tableResource.table().schema());
+    }
+  }
+
+  @Test
+  public void testValidation() {
+    assertThatThrownBy(
+            () ->
+                IcebergSource.forRowData()
+                    .tableLoader(tableResource.tableLoader())
+                    .assignerFactory(new SimpleSplitAssignerFactory())
+                    .streaming(true)
+                    .endTag("tag")
+                    .build())
+        .hasMessage("Cannot set end-tag option for streaming reader")
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
   private DataStream<Row> createStream(ScanContext scanContext) throws Exception {
     // start the source and collect output
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -384,6 +485,7 @@ public class TestIcebergSourceContinuous {
                     .startSnapshotTimestamp(scanContext.startSnapshotTimestamp())
                     .startSnapshotId(scanContext.startSnapshotId())
                     .monitorInterval(Duration.ofMillis(10L))
+                    .branch(scanContext.branch())
                     .build(),
                 WatermarkStrategy.noWatermarks(),
                 "icebergSource",

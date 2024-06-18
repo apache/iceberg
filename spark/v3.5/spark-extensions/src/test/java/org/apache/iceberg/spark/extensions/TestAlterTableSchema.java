@@ -18,139 +18,136 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import java.util.Map;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestAlterTableSchema extends SparkExtensionsTestBase {
-  public TestAlterTableSchema(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestAlterTableSchema extends ExtensionsTestBase {
 
-  @After
+  @AfterEach
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testSetIdentifierFields() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, "
             + "location struct<lon:bigint NOT NULL,lat:bigint NOT NULL> NOT NULL) USING iceberg",
         tableName);
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertTrue(
-        "Table should start without identifier", table.schema().identifierFieldIds().isEmpty());
+    assertThat(table.schema().identifierFieldIds())
+        .as("Table should start without identifier")
+        .isEmpty();
 
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
     table.refresh();
-    Assert.assertEquals(
-        "Should have new identifier field",
-        Sets.newHashSet(table.schema().findField("id").fieldId()),
-        table.schema().identifierFieldIds());
+    assertThat(table.schema().identifierFieldIds())
+        .as("Should have new identifier field")
+        .isEqualTo(Sets.newHashSet(table.schema().findField("id").fieldId()));
 
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id, location.lon", tableName);
     table.refresh();
-    Assert.assertEquals(
-        "Should have new identifier field",
-        Sets.newHashSet(
-            table.schema().findField("id").fieldId(),
-            table.schema().findField("location.lon").fieldId()),
-        table.schema().identifierFieldIds());
+    assertThat(table.schema().identifierFieldIds())
+        .as("Should have new identifier field")
+        .isEqualTo(
+            Sets.newHashSet(
+                table.schema().findField("id").fieldId(),
+                table.schema().findField("location.lon").fieldId()));
 
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS location.lon", tableName);
     table.refresh();
-    Assert.assertEquals(
-        "Should have new identifier field",
-        Sets.newHashSet(table.schema().findField("location.lon").fieldId()),
-        table.schema().identifierFieldIds());
+    assertThat(table.schema().identifierFieldIds())
+        .as("Should have new identifier field")
+        .isEqualTo(Sets.newHashSet(table.schema().findField("location.lon").fieldId()));
   }
 
-  @Test
+  @TestTemplate
   public void testSetInvalidIdentifierFields() {
     sql("CREATE TABLE %s (id bigint NOT NULL, id2 bigint) USING iceberg", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertTrue(
-        "Table should start without identifier", table.schema().identifierFieldIds().isEmpty());
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s SET IDENTIFIER FIELDS unknown", tableName))
+    assertThat(table.schema().identifierFieldIds())
+        .as("Table should start without identifier")
+        .isEmpty();
+    assertThatThrownBy(() -> sql("ALTER TABLE %s SET IDENTIFIER FIELDS unknown", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("not found in current schema or added columns");
 
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s SET IDENTIFIER FIELDS id2", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s SET IDENTIFIER FIELDS id2", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("not a required field");
   }
 
-  @Test
+  @TestTemplate
   public void testDropIdentifierFields() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, "
             + "location struct<lon:bigint NOT NULL,lat:bigint NOT NULL> NOT NULL) USING iceberg",
         tableName);
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertTrue(
-        "Table should start without identifier", table.schema().identifierFieldIds().isEmpty());
+    assertThat(table.schema().identifierFieldIds())
+        .as("Table should start without identifier")
+        .isEmpty();
 
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id, location.lon", tableName);
     table.refresh();
-    Assert.assertEquals(
-        "Should have new identifier fields",
-        Sets.newHashSet(
-            table.schema().findField("id").fieldId(),
-            table.schema().findField("location.lon").fieldId()),
-        table.schema().identifierFieldIds());
+    assertThat(table.schema().identifierFieldIds())
+        .as("Should have new identifier fields")
+        .isEqualTo(
+            Sets.newHashSet(
+                table.schema().findField("id").fieldId(),
+                table.schema().findField("location.lon").fieldId()));
 
     sql("ALTER TABLE %s DROP IDENTIFIER FIELDS id", tableName);
     table.refresh();
-    Assert.assertEquals(
-        "Should removed identifier field",
-        Sets.newHashSet(table.schema().findField("location.lon").fieldId()),
-        table.schema().identifierFieldIds());
+    assertThat(table.schema().identifierFieldIds())
+        .as("Should removed identifier field")
+        .isEqualTo(Sets.newHashSet(table.schema().findField("location.lon").fieldId()));
 
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id, location.lon", tableName);
     table.refresh();
-    Assert.assertEquals(
-        "Should have new identifier fields",
-        Sets.newHashSet(
-            table.schema().findField("id").fieldId(),
-            table.schema().findField("location.lon").fieldId()),
-        table.schema().identifierFieldIds());
+    assertThat(table.schema().identifierFieldIds())
+        .as("Should have new identifier fields")
+        .isEqualTo(
+            Sets.newHashSet(
+                table.schema().findField("id").fieldId(),
+                table.schema().findField("location.lon").fieldId()));
 
     sql("ALTER TABLE %s DROP IDENTIFIER FIELDS id, location.lon", tableName);
     table.refresh();
-    Assert.assertEquals(
-        "Should have no identifier field", Sets.newHashSet(), table.schema().identifierFieldIds());
+    assertThat(table.schema().identifierFieldIds())
+        .as("Should have no identifier field")
+        .isEqualTo(Sets.newHashSet());
   }
 
-  @Test
+  @TestTemplate
   public void testDropInvalidIdentifierFields() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string NOT NULL, "
             + "location struct<lon:bigint NOT NULL,lat:bigint NOT NULL> NOT NULL) USING iceberg",
         tableName);
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertTrue(
-        "Table should start without identifier", table.schema().identifierFieldIds().isEmpty());
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS unknown", tableName))
+    assertThat(table.schema().identifierFieldIds())
+        .as("Table should start without identifier")
+        .isEmpty();
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS unknown", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot complete drop identifier fields operation: field unknown not found");
 
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS data", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS data", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot complete drop identifier fields operation: data is not an identifier field");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS location.lon", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS location.lon", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot complete drop identifier fields operation: location.lon is not an identifier field");

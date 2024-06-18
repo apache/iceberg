@@ -18,32 +18,30 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestRequiredDistributionAndOrdering extends ExtensionsTestBase {
 
-  public TestRequiredDistributionAndOrdering(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void dropTestTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultLocalSortWithBucketTransforms() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
@@ -72,7 +70,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
         sql("SELECT count(*) FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionColumnsArePrependedForRangeDistribution() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
@@ -103,7 +101,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
         sql("SELECT count(*) FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testSortOrderIncludesPartitionColumns() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
@@ -134,7 +132,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
         sql("SELECT count(*) FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testHashDistributionOnBucketedColumn() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
@@ -165,7 +163,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
         sql("SELECT count(*) FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testDisabledDistributionAndOrdering() {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING, c3 STRING) "
@@ -186,7 +184,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
     Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c1");
 
     // should fail if ordering is disabled
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 inputDF
                     .writeTo(tableName)
@@ -200,7 +198,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
                 + "and by partition within each spec. Either cluster the incoming records or switch to fanout writers.");
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultSortOnDecimalBucketedColumn() {
     sql(
         "CREATE TABLE %s (c1 INT, c2 DECIMAL(20, 2)) "
@@ -219,7 +217,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
     assertEquals("Rows must match", expected, sql("SELECT * FROM %s ORDER BY c1", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultSortOnStringBucketedColumn() {
     sql(
         "CREATE TABLE %s (c1 INT, c2 STRING) "
@@ -234,7 +232,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
     assertEquals("Rows must match", expected, sql("SELECT * FROM %s ORDER BY c1", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultSortOnBinaryBucketedColumn() {
     sql(
         "CREATE TABLE %s (c1 INT, c2 Binary) "
@@ -251,7 +249,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
     assertEquals("Rows must match", expected, sql("SELECT * FROM %s ORDER BY c1", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultSortOnDecimalTruncatedColumn() {
     sql(
         "CREATE TABLE %s (c1 INT, c2 DECIMAL(20, 2)) "
@@ -267,7 +265,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
     assertEquals("Rows must match", expected, sql("SELECT * FROM %s ORDER BY c1", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultSortOnLongTruncatedColumn() {
     sql(
         "CREATE TABLE %s (c1 INT, c2 BIGINT) "
@@ -282,7 +280,7 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
     assertEquals("Rows must match", expected, sql("SELECT * FROM %s ORDER BY c1", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testRangeDistributionWithQuotedColumnNames() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (`c.1` INT, c2 STRING, c3 STRING) "

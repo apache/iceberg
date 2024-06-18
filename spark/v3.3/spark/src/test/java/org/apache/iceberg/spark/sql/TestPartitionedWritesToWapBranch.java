@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -25,7 +27,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.spark.SparkSQLProperties;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -72,8 +73,7 @@ public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase 
     Table table = validationCatalog.loadTable(tableIdent);
     table.manageSnapshots().createBranch("test2", table.refs().get(BRANCH).snapshotId()).commit();
     sql("REFRESH TABLE " + tableName);
-    Assertions.assertThatThrownBy(
-            () -> sql("INSERT INTO %s.branch_test2 VALUES (4, 'd')", tableName))
+    assertThatThrownBy(() -> sql("INSERT INTO %s.branch_test2 VALUES (4, 'd')", tableName))
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Cannot write to both branch and WAP branch, but got branch [test2] and WAP branch [%s]",
@@ -84,7 +84,7 @@ public class TestPartitionedWritesToWapBranch extends PartitionedWritesTestBase 
   public void testWapIdAndWapBranchCannotBothBeSetForWrite() {
     String wapId = UUID.randomUUID().toString();
     spark.conf().set(SparkSQLProperties.WAP_ID, wapId);
-    Assertions.assertThatThrownBy(() -> sql("INSERT INTO %s VALUES (4, 'd')", tableName))
+    assertThatThrownBy(() -> sql("INSERT INTO %s VALUES (4, 'd')", tableName))
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Cannot set both WAP ID and branch, but got ID [%s] and branch [%s]", wapId, BRANCH);

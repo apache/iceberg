@@ -19,11 +19,12 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
-import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -35,6 +36,9 @@ import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -47,19 +51,16 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.assertj.core.api.Assertions;
 import org.joda.time.DateTime;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runners.Parameterized.Parameters;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-public class TestAddFilesProcedure extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestAddFilesProcedure extends ExtensionsTestBase {
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, formatVersion = {3}")
   public static Object[][] parameters() {
@@ -85,34 +86,26 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     };
   }
 
-  private final int formatVersion;
+  @Parameter(index = 3)
+  private int formatVersion;
+
   private final String sourceTableName = "source_table";
   private File fileTableDir;
 
-  public TestAddFilesProcedure(
-      String catalogName, String implementation, Map<String, String> config, int formatVersion) {
-    super(catalogName, implementation, config);
-    this.formatVersion = formatVersion;
-  }
+  @TempDir private Path temp;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
-  @Before
+  @BeforeEach
   public void setupTempDirs() {
-    try {
-      fileTableDir = temp.newFolder();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
+    fileTableDir = temp.toFile();
   }
 
-  @After
+  @AfterEach
   public void dropTables() {
     sql("DROP TABLE IF EXISTS %s PURGE", sourceTableName);
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void addDataUnpartitioned() {
     createUnpartitionedFileTable("parquet");
 
@@ -131,7 +124,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void deleteAndAddBackUnpartitioned() {
     createUnpartitionedFileTable("parquet");
 
@@ -157,7 +150,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Ignore // TODO Classpath issues prevent us from actually writing to a Spark ORC table
+  @Disabled // TODO Classpath issues prevent us from actually writing to a Spark ORC table
   public void addDataUnpartitionedOrc() {
     createUnpartitionedFileTable("orc");
 
@@ -171,7 +164,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.add_files('%s', '`orc`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(2L, result);
+    assertThat(result).isEqualTo(2L);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -179,11 +172,11 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addAvroFile() throws Exception {
     // Spark Session Catalog cannot load metadata tables
     // with "The namespace in session catalog must have exactly one name part"
-    Assume.assumeFalse(catalogName.equals("spark_catalog"));
+    assumeThat(catalogName).isNotEqualTo("spark_catalog");
 
     // Create an Avro file
 
@@ -199,7 +192,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     GenericRecord record2 = new GenericData.Record(schema);
     record2.put("id", 2L);
     record2.put("data", "b");
-    File outputFile = temp.newFile("test.avro");
+    File outputFile = temp.resolve("test.avro").toFile();
 
     DatumWriter<GenericRecord> datumWriter = new GenericDatumWriter(schema);
     DataFileWriter<GenericRecord> dataFileWriter = new DataFileWriter(datumWriter);
@@ -234,7 +227,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   // TODO Adding spark-avro doesn't work in tests
-  @Ignore
+  @Disabled
   public void addDataUnpartitionedAvro() {
     createUnpartitionedFileTable("avro");
 
@@ -248,7 +241,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.add_files('%s', '`avro`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(2L, result);
+    assertThat(result).isEqualTo(2L);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -256,7 +249,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addDataUnpartitionedHive() {
     createUnpartitionedHiveTable();
 
@@ -273,7 +266,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addDataUnpartitionedExtraCol() {
     createUnpartitionedFileTable("parquet");
 
@@ -292,7 +285,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addDataUnpartitionedMissingCol() {
     createUnpartitionedFileTable("parquet");
 
@@ -311,7 +304,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addDataPartitionedMissingCol() {
     createPartitionedFileTable("parquet");
 
@@ -330,7 +323,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addDataPartitioned() {
     createPartitionedFileTable("parquet");
 
@@ -350,7 +343,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
-  @Ignore // TODO Classpath issues prevent us from actually writing to a Spark ORC table
+  @Disabled // TODO Classpath issues prevent us from actually writing to a Spark ORC table
   public void addDataPartitionedOrc() {
     createPartitionedFileTable("orc");
 
@@ -364,7 +357,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(8L, result);
+    assertThat(result).isEqualTo(8L);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -373,7 +366,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
   }
 
   // TODO Adding spark-avro doesn't work in tests
-  @Ignore
+  @Disabled
   public void addDataPartitionedAvro() {
     createPartitionedFileTable("avro");
 
@@ -387,7 +380,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.add_files('%s', '`avro`.`%s`')",
             catalogName, tableName, fileTableDir.getAbsolutePath());
 
-    Assert.assertEquals(8L, result);
+    assertThat(result).isEqualTo(8L);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -395,7 +388,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addDataPartitionedHive() {
     createPartitionedHiveTable();
 
@@ -413,7 +406,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addPartitionToPartitioned() {
     createPartitionedFileTable("parquet");
 
@@ -433,7 +426,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void deleteAndAddBackPartitioned() {
     createPartitionedFileTable("parquet");
 
@@ -460,7 +453,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addPartitionToPartitionedSnapshotIdInheritanceEnabledInTwoRuns() {
     createPartitionedFileTable("parquet");
 
@@ -489,10 +482,10 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     Pattern uuidPattern = Pattern.compile("[a-f0-9]{8}(?:-[a-f0-9]{4}){4}[a-f0-9]{8}");
 
     Matcher matcher = uuidPattern.matcher(manifestPath);
-    Assert.assertTrue("verify manifest path has uuid", matcher.find());
+    assertThat(matcher.find()).as("verify manifest path has uuid").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void addDataPartitionedByDateToPartitioned() {
     createDatePartitionedFileTable("parquet");
 
@@ -511,7 +504,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, date FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addDataPartitionedVerifyPartitionTypeInferredCorrectly() {
     createTableWithTwoPartitions("parquet");
 
@@ -530,7 +523,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql(sqlFormat, tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addFilteredPartitionsToPartitioned() {
     createCompositePartitionedTable("parquet");
 
@@ -550,7 +543,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addFilteredPartitionsToPartitioned2() {
     createCompositePartitionedTable("parquet");
 
@@ -572,7 +565,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addFilteredPartitionsToPartitionedWithNullValueFilteringOnId() {
     createCompositePartitionedTableWithNullValueInPartitionColumn("parquet");
 
@@ -592,7 +585,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addFilteredPartitionsToPartitionedWithNullValueFilteringOnDept() {
     createCompositePartitionedTableWithNullValueInPartitionColumn("parquet");
 
@@ -614,7 +607,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addWeirdCaseHiveTable() {
     createWeirdCaseTable();
 
@@ -639,22 +632,20 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
             .collect(Collectors.toList());
 
     // TODO when this assert breaks Spark fixed the pushdown issue
-    Assert.assertEquals(
-        "If this assert breaks it means that Spark has fixed the pushdown issue",
-        0,
-        sql(
+    assertThat(
+            sql(
                 "SELECT id, `naMe`, dept, subdept from %s WHERE `naMe` = 'John Doe' ORDER BY id",
-                sourceTableName)
-            .size());
+                sourceTableName))
+        .as("If this assert breaks it means that Spark has fixed the pushdown issue")
+        .hasSize(0);
 
     // Pushdown works for iceberg
-    Assert.assertEquals(
-        "We should be able to pushdown mixed case partition keys",
-        2,
-        sql(
+    assertThat(
+            sql(
                 "SELECT id, `naMe`, dept, subdept FROM %s WHERE `naMe` = 'John Doe' ORDER BY id",
-                tableName)
-            .size());
+                tableName))
+        .as("We should be able to pushdown mixed case partition keys")
+        .hasSize(2);
 
     assertEquals(
         "Iceberg table contains correct data",
@@ -662,7 +653,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, `naMe`, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void addPartitionToPartitionedHive() {
     createPartitionedHiveTable();
 
@@ -682,13 +673,13 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void invalidDataImport() {
     createPartitionedFileTable("parquet");
 
     createIcebergTable("id Integer, name String, dept String, subdept String");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
@@ -696,7 +687,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot use partition filter with an unpartitioned table");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
@@ -705,14 +696,14 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         .hasMessageStartingWith("Cannot add partitioned files to an unpartitioned table");
   }
 
-  @Test
+  @TestTemplate
   public void invalidDataImportPartitioned() {
     createUnpartitionedFileTable("parquet");
 
     createIcebergTable(
         "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('x', '1', 'y', '2'))",
@@ -721,7 +712,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         .hasMessageStartingWith("Cannot add data files to target table")
         .hasMessageContaining("is greater than the number of partitioned columns");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', '2'))",
@@ -732,7 +723,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
             "specified partition filter refers to columns that are not partitioned");
   }
 
-  @Test
+  @TestTemplate
   public void addTwice() {
     createPartitionedHiveTable();
 
@@ -767,7 +758,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s WHERE id = 2 ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void duplicateDataPartitioned() {
     createPartitionedHiveTable();
 
@@ -781,7 +772,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
             + "partition_filter => map('id', 1))",
         catalogName, tableName, sourceTableName);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files("
@@ -795,7 +786,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
                 + " exist within the target table");
   }
 
-  @Test
+  @TestTemplate
   public void duplicateDataPartitionedAllowed() {
     createPartitionedHiveTable();
 
@@ -832,7 +823,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT id, name, dept, subdept FROM %s", tableName, tableName));
   }
 
-  @Test
+  @TestTemplate
   public void duplicateDataUnpartitioned() {
     createUnpartitionedHiveTable();
 
@@ -840,7 +831,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '%s')",
@@ -851,7 +842,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
                 + " exist within the target table");
   }
 
-  @Test
+  @TestTemplate
   public void duplicateDataUnpartitionedAllowed() {
     createUnpartitionedHiveTable();
 
@@ -878,7 +869,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testEmptyImportDoesNotThrow() {
     createIcebergTable("id Integer, name String, dept String, subdept String");
 
@@ -907,7 +898,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedImportFromEmptyPartitionDoesNotThrow() {
     createPartitionedHiveTable();
 
@@ -935,7 +926,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testAddFilesWithParallelism() {
     createUnpartitionedHiveTable();
 

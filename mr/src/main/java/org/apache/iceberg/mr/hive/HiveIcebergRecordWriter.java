@@ -30,6 +30,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.InternalRecordWrapper;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.FileIO;
@@ -50,6 +51,7 @@ class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
   // The current key is reused at every write to avoid unnecessary object creation
   private final PartitionKey currentKey;
   private final FileIO io;
+  private final InternalRecordWrapper wrapper;
 
   // <TaskAttemptId, <TABLE_NAME, HiveIcebergRecordWriter>> map to store the active writers
   // Stored in concurrent map, since some executor engines can share containers
@@ -77,13 +79,14 @@ class HiveIcebergRecordWriter extends PartitionedFanoutWriter<Record>
     super(spec, format, appenderFactory, fileFactory, io, targetFileSize);
     this.io = io;
     this.currentKey = new PartitionKey(spec, schema);
+    this.wrapper = new InternalRecordWrapper(schema.asStruct());
     writers.putIfAbsent(taskAttemptID, Maps.newConcurrentMap());
     writers.get(taskAttemptID).put(tableName, this);
   }
 
   @Override
   protected PartitionKey partition(Record row) {
-    currentKey.partition(row);
+    currentKey.partition(wrapper.wrap(row));
     return currentKey;
   }
 

@@ -42,6 +42,7 @@ include 'dell'
 include 'snowflake'
 include 'delta-lake'
 include 'kafka-connect'
+include 'open-api'
 
 project(':bom').name = 'iceberg-bom'
 project(':api').name = 'iceberg-api'
@@ -67,8 +68,9 @@ project(':dell').name = 'iceberg-dell'
 project(':snowflake').name = 'iceberg-snowflake'
 project(':delta-lake').name = 'iceberg-delta-lake'
 project(':kafka-connect').name = 'iceberg-kafka-connect'
+project(':open-api').name = 'iceberg-open-api'
 
-if (null != System.getProperty("allVersions")) {
+if (null != System.getProperty("allModules")) {
   System.setProperty("flinkVersions", System.getProperty("knownFlinkVersions"))
   System.setProperty("sparkVersions", System.getProperty("knownSparkVersions"))
   System.setProperty("hiveVersions", System.getProperty("knownHiveVersions"))
@@ -110,15 +112,6 @@ if (!flinkVersions.isEmpty()) {
   project(':flink').name = 'iceberg-flink'
 }
 
-if (flinkVersions.contains("1.16")) {
-  include ":iceberg-flink:flink-1.16"
-  include ":iceberg-flink:flink-runtime-1.16"
-  project(":iceberg-flink:flink-1.16").projectDir = file('flink/v1.16/flink')
-  project(":iceberg-flink:flink-1.16").name = "iceberg-flink-1.16"
-  project(":iceberg-flink:flink-runtime-1.16").projectDir = file('flink/v1.16/flink-runtime')
-  project(":iceberg-flink:flink-runtime-1.16").name = "iceberg-flink-runtime-1.16"
-}
-
 if (flinkVersions.contains("1.17")) {
   include ":iceberg-flink:flink-1.17"
   include ":iceberg-flink:flink-runtime-1.17"
@@ -135,6 +128,15 @@ if (flinkVersions.contains("1.18")) {
   project(":iceberg-flink:flink-1.18").name = "iceberg-flink-1.18"
   project(":iceberg-flink:flink-runtime-1.18").projectDir = file('flink/v1.18/flink-runtime')
   project(":iceberg-flink:flink-runtime-1.18").name = "iceberg-flink-runtime-1.18"
+}
+
+if (flinkVersions.contains("1.19")) {
+  include ":iceberg-flink:flink-1.19"
+  include ":iceberg-flink:flink-runtime-1.19"
+  project(":iceberg-flink:flink-1.19").projectDir = file('flink/v1.19/flink')
+  project(":iceberg-flink:flink-1.19").name = "iceberg-flink-1.19"
+  project(":iceberg-flink:flink-runtime-1.19").projectDir = file('flink/v1.19/flink-runtime')
+  project(":iceberg-flink:flink-runtime-1.19").name = "iceberg-flink-runtime-1.19"
 }
 
 if (sparkVersions.contains("3.3")) {
@@ -195,3 +197,7 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
 include ":iceberg-kafka-connect:kafka-connect-events"
 project(":iceberg-kafka-connect:kafka-connect-events").projectDir = file('kafka-connect/kafka-connect-events')
 project(":iceberg-kafka-connect:kafka-connect-events").name = "iceberg-kafka-connect-events"
+
+include ":iceberg-kafka-connect:kafka-connect"
+project(":iceberg-kafka-connect:kafka-connect").projectDir = file('kafka-connect/kafka-connect')
+project(":iceberg-kafka-connect:kafka-connect").name = "iceberg-kafka-connect"

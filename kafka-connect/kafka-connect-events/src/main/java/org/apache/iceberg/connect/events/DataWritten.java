@@ -23,6 +23,7 @@ import java.util.UUID;
 import org.apache.avro.Schema;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
@@ -48,7 +49,7 @@ public class DataWritten implements Payload {
   static final int DATA_FILES = 10_302;
   static final int DATA_FILES_ELEMENT = 10_303;
   static final int DELETE_FILES = 10_304;
-  static final int DELETE_FILES_ELEMENT = 10_304;
+  static final int DELETE_FILES_ELEMENT = 10_305;
 
   // Used by Avro reflection to instantiate this class when reading events, note that this does not
   // set the partition type so the instance cannot be re-serialized
@@ -62,6 +63,8 @@ public class DataWritten implements Payload {
       TableReference tableReference,
       List<DataFile> dataFiles,
       List<DeleteFile> deleteFiles) {
+    Preconditions.checkNotNull(commitId, "Commit ID cannot be null");
+    Preconditions.checkNotNull(tableReference, "Table reference cannot be null");
     this.partitionType = partitionType;
     this.commitId = commitId;
     this.tableReference = tableReference;

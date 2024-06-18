@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.avro.generic.GenericRecord;
 import org.apache.iceberg.flink.AvroGenericRecordConverterBase;
 import org.apache.iceberg.flink.DataGenerator;
-import org.junit.Assert;
 
 public class TestRowDataToAvroGenericRecordConverter extends AvroGenericRecordConverterBase {
   @Override
@@ -30,6 +31,6 @@ public class TestRowDataToAvroGenericRecordConverter extends AvroGenericRecordCo
         RowDataToAvroGenericRecordConverter.fromAvroSchema(dataGenerator.avroSchema());
     GenericRecord expected = dataGenerator.generateAvroGenericRecord();
     GenericRecord actual = converter.apply(dataGenerator.generateFlinkRowData());
-    Assert.assertEquals(expected, actual);
+    assertThat(actual).isEqualTo(expected);
   }
 }

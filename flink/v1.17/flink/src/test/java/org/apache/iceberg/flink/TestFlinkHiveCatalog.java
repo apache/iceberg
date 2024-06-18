@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -28,23 +30,18 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
 
-public class TestFlinkHiveCatalog extends FlinkTestBase {
-
-  @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
+public class TestFlinkHiveCatalog extends TestBase {
 
   @Test
   public void testCreateCatalogWithWarehouseLocation() throws IOException {
     Map<String, String> props = Maps.newHashMap();
     props.put("type", "iceberg");
     props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
-    props.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
+    props.put(CatalogProperties.URI, CatalogTestBase.getURI(hiveConf));
 
-    File warehouseDir = tempFolder.newFolder();
+    File warehouseDir = Files.createTempDirectory(temporaryDirectory, "junit").toFile();
     props.put(CatalogProperties.WAREHOUSE_LOCATION, "file://" + warehouseDir.getAbsolutePath());
 
     checkSQLQuery(props, warehouseDir);
@@ -53,9 +50,9 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
   @Test
   public void testCreateCatalogWithHiveConfDir() throws IOException {
     // Dump the hive conf into a local file.
-    File hiveConfDir = tempFolder.newFolder();
+    File hiveConfDir = Files.createTempDirectory(temporaryDirectory, "junit").toFile();
     File hiveSiteXML = new File(hiveConfDir, "hive-site.xml");
-    File warehouseDir = tempFolder.newFolder();
+    File warehouseDir = Files.createTempDirectory(temporaryDirectory, "junit").toFile();
     try (FileOutputStream fos = new FileOutputStream(hiveSiteXML)) {
       Configuration newConf = new Configuration(hiveConf);
       // Set another new directory which is different with the hive metastore's warehouse path.
@@ -63,13 +60,13 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
           HiveConf.ConfVars.METASTOREWAREHOUSE.varname, "file://" + warehouseDir.getAbsolutePath());
       newConf.writeXml(fos);
     }
-    Assert.assertTrue("hive-site.xml should be created now.", Files.exists(hiveSiteXML.toPath()));
+    assertThat(hiveSiteXML.toPath()).exists();
 
     // Construct the catalog attributions.
     Map<String, String> props = Maps.newHashMap();
     props.put("type", "iceberg");
     props.put(FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hive");
-    props.put(CatalogProperties.URI, FlinkCatalogTestBase.getURI(hiveConf));
+    props.put(CatalogProperties.URI, CatalogTestBase.getURI(hiveConf));
     // Set the 'hive-conf-dir' instead of 'warehouse'
     props.put(FlinkCatalogFactory.HIVE_CONF_DIR, hiveConfDir.getAbsolutePath());
 
@@ -78,9 +75,7 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
 
   private void checkSQLQuery(Map<String, String> catalogProperties, File warehouseDir)
       throws IOException {
-    sql(
-        "CREATE CATALOG test_catalog WITH %s",
-        FlinkCatalogTestBase.toWithClause(catalogProperties));
+    sql("CREATE CATALOG test_catalog WITH %s", CatalogTestBase.toWithClause(catalogProperties));
     sql("USE CATALOG test_catalog");
     sql("CREATE DATABASE test_db");
     sql("USE test_db");
@@ -88,15 +83,16 @@ public class TestFlinkHiveCatalog extends FlinkTestBase {
     sql("INSERT INTO test_table SELECT 1, 'a'");
 
     Path databasePath = warehouseDir.toPath().resolve("test_db.db");
-    Assert.assertTrue("Database path should exist", Files.exists(databasePath));
+    assertThat(databasePath).exists();
 
     Path tablePath = databasePath.resolve("test_table");
-    Assert.assertTrue("Table path should exist", Files.exists(tablePath));
+    assertThat(tablePath).exists();
 
     Path dataPath = tablePath.resolve("data");
-    Assert.assertTrue("Table data path should exist", Files.exists(dataPath));
-    Assert.assertEquals(
-        "Should have a .crc file and a .parquet file", 2, Files.list(dataPath).count());
+    assertThat(dataPath).exists();
+    assertThat(Files.list(dataPath).count())
+        .as("Should have a .crc file and a .parquet file")
+        .isEqualTo(2);
 
     sql("DROP TABLE test_table");
     sql("DROP DATABASE test_db");

@@ -35,6 +35,9 @@ github:
 
   protected_branches:
     main:
+      required_pull_request_reviews:
+        required_approving_review_count: 1
+
       required_linear_history: true
   
   features:
@@ -60,3 +63,6 @@ notifications:
     issues:       issues@iceberg.apache.org
     pullrequests: issues@iceberg.apache.org
     jira_options: link label link label
+
+publish:
+    whoami:  asf-site

@@ -52,6 +52,13 @@ public class HttpClientProperties implements Serializable {
   public static final String CLIENT_TYPE_URLCONNECTION = "urlconnection";
 
   public static final String CLIENT_TYPE_DEFAULT = CLIENT_TYPE_APACHE;
+
+  /**
+   * Used to configure the proxy endpoint. Used by both {@link
+   * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder} and {@link
+   * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}
+   */
+  public static final String PROXY_ENDPOINT = "http-client.proxy-endpoint";
   /**
    * Used to configure the connection timeout in milliseconds for {@link
    * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder}. This flag only

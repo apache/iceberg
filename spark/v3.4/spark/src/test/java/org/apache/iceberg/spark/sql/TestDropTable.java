@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -29,11 +31,9 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestDropTable extends SparkCatalogTestBase {
@@ -86,8 +86,7 @@ public class TestDropTable extends SparkCatalogTestBase {
     }
   }
 
-  // TODO: enable once SPARK-43203 is fixed
-  @Ignore
+  @Test
   public void testPurgeTable() throws IOException {
     assertEquals(
         "Should have expected rows",
@@ -104,8 +103,7 @@ public class TestDropTable extends SparkCatalogTestBase {
     Assert.assertTrue("All files should be deleted", checkFilesExist(manifestAndFiles, false));
   }
 
-  // TODO: enable once SPARK-43203 is fixed
-  @Ignore
+  @Test
   public void testPurgeTableGCDisabled() throws IOException {
     sql("ALTER TABLE %s SET TBLPROPERTIES (gc.enabled = false)", tableName);
 
@@ -119,7 +117,7 @@ public class TestDropTable extends SparkCatalogTestBase {
         "There totally should have 2 files for manifests and files", 2, manifestAndFiles.size());
     Assert.assertTrue("All files should be existed", checkFilesExist(manifestAndFiles, true));
 
-    Assertions.assertThatThrownBy(() -> sql("DROP TABLE %s PURGE", tableName))
+    assertThatThrownBy(() -> sql("DROP TABLE %s PURGE", tableName))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining(
             "Cannot purge table: GC is disabled (deleting files may corrupt other tables");

@@ -19,9 +19,14 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -33,17 +38,13 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
-public class TestSplitPlanning extends TableTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSplitPlanning extends TestBase {
 
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
@@ -51,22 +52,19 @@ public class TestSplitPlanning extends TableTestBase {
       new Schema(
           optional(1, "id", Types.IntegerType.get()), optional(2, "data", Types.StringType.get()));
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
+
   private Table table = null;
 
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
-
-  public TestSplitPlanning(int formatVersion) {
-    super(formatVersion);
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
   @Override
-  @Before
+  @BeforeEach
   public void setupTable() throws IOException {
-    File tableDir = temp.newFolder();
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
     String tableLocation = tableDir.toURI().toString();
     table = TABLES.create(SCHEMA, tableLocation);
     table
@@ -77,19 +75,19 @@ public class TestSplitPlanning extends TableTestBase {
         .commit();
   }
 
-  @Test
+  @TestTemplate
   public void testBasicSplitPlanning() {
     List<DataFile> files128Mb = newFiles(4, 128 * 1024 * 1024);
     appendFiles(files128Mb);
     // we expect 4 bins since split size is 128MB and we have 4 files 128MB each
-    Assert.assertEquals(4, Iterables.size(table.newScan().planTasks()));
+    assertThat(table.newScan().planTasks()).hasSize(4);
     List<DataFile> files32Mb = newFiles(16, 32 * 1024 * 1024);
     appendFiles(files32Mb);
     // we expect 8 bins after we add 16 files 32MB each as they will form additional 4 bins
-    Assert.assertEquals(8, Iterables.size(table.newScan().planTasks()));
+    assertThat(table.newScan().planTasks()).hasSize(8);
   }
 
-  @Test
+  @TestTemplate
   public void testSplitPlanningWithSmallFiles() {
     List<DataFile> files60Mb = newFiles(50, 60 * 1024 * 1024);
     List<DataFile> files5Kb = newFiles(370, 5 * 1024);
@@ -101,10 +99,10 @@ public class TestSplitPlanning extends TableTestBase {
     // as "read.split.open-file-cost" is 4MB, each of the original 25 bins will get at most 2 files
     // so 50 of 370 files will be packed into the existing 25 bins and the remaining 320 files
     // will form additional 10 bins, resulting in 35 bins in total
-    Assert.assertEquals(35, Iterables.size(table.newScan().planTasks()));
+    assertThat(table.newScan().planTasks()).hasSize(35);
   }
 
-  @Test
+  @TestTemplate
   public void testSplitPlanningWithNoMinWeight() {
     table.updateProperties().set(TableProperties.SPLIT_OPEN_FILE_COST, "0").commit();
     List<DataFile> files60Mb = newFiles(2, 60 * 1024 * 1024);
@@ -112,30 +110,30 @@ public class TestSplitPlanning extends TableTestBase {
     Iterable<DataFile> files = Iterables.concat(files60Mb, files5Kb);
     appendFiles(files);
     // all small files will be packed into one bin as "read.split.open-file-cost" is set to 0
-    Assert.assertEquals(1, Iterables.size(table.newScan().planTasks()));
+    assertThat(table.newScan().planTasks()).hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testSplitPlanningWithOverridenSize() {
     List<DataFile> files128Mb = newFiles(4, 128 * 1024 * 1024);
     appendFiles(files128Mb);
     // we expect 2 bins since we are overriding split size in scan with 256MB
     TableScan scan =
         table.newScan().option(TableProperties.SPLIT_SIZE, String.valueOf(256L * 1024 * 1024));
-    Assert.assertEquals(2, Iterables.size(scan.planTasks()));
+    assertThat(scan.planTasks()).hasSize(2);
   }
 
-  @Test
+  @TestTemplate
   public void testSplitPlanningWithOverriddenSizeForMetadataJsonFile() {
     List<DataFile> files8Mb = newFiles(32, 8 * 1024 * 1024, FileFormat.METADATA);
     appendFiles(files8Mb);
     // we expect 16 bins since we are overriding split size in scan with 16MB
     TableScan scan =
         table.newScan().option(TableProperties.SPLIT_SIZE, String.valueOf(16L * 1024 * 1024));
-    Assert.assertEquals(16, Iterables.size(scan.planTasks()));
+    assertThat(scan.planTasks()).hasSize(16);
   }
 
-  @Test
+  @TestTemplate
   public void testSplitPlanningWithOverriddenSizeForLargeMetadataJsonFile() {
     List<DataFile> files128Mb = newFiles(4, 128 * 1024 * 1024, FileFormat.METADATA);
     appendFiles(files128Mb);
@@ -143,10 +141,10 @@ public class TestSplitPlanning extends TableTestBase {
     // splittable
     TableScan scan =
         table.newScan().option(TableProperties.SPLIT_SIZE, String.valueOf(8L * 1024 * 1024));
-    Assert.assertEquals(4, Iterables.size(scan.planTasks()));
+    assertThat(scan.planTasks()).hasSize(4);
   }
 
-  @Test
+  @TestTemplate
   public void testSplitPlanningWithOverridenLookback() {
     List<DataFile> files120Mb = newFiles(1, 120 * 1024 * 1024);
     List<DataFile> file128Mb = newFiles(1, 128 * 1024 * 1024);
@@ -155,15 +153,15 @@ public class TestSplitPlanning extends TableTestBase {
     // we expect 2 bins from non-overriden table properties
     TableScan scan = table.newScan().option(TableProperties.SPLIT_LOOKBACK, "1");
     CloseableIterable<CombinedScanTask> tasks = scan.planTasks();
-    Assert.assertEquals(2, Iterables.size(tasks));
+    assertThat(tasks).hasSize(2);
 
     // since lookback was overridden to 1, we expect the first bin to be the largest of the two.
     CombinedScanTask combinedScanTask = tasks.iterator().next();
     FileScanTask task = combinedScanTask.files().iterator().next();
-    Assert.assertEquals(128 * 1024 * 1024, task.length());
+    assertThat(task.length()).isEqualTo(128 * 1024 * 1024);
   }
 
-  @Test
+  @TestTemplate
   public void testSplitPlanningWithOverridenOpenCostSize() {
     List<DataFile> files16Mb = newFiles(16, 16 * 1024 * 1024);
     appendFiles(files16Mb);
@@ -173,18 +171,18 @@ public class TestSplitPlanning extends TableTestBase {
         table
             .newScan()
             .option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(32L * 1024 * 1024));
-    Assert.assertEquals(4, Iterables.size(scan.planTasks()));
+    assertThat(scan.planTasks()).hasSize(4);
   }
 
-  @Test
+  @TestTemplate
   public void testSplitPlanningWithNegativeValues() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 table.newScan().option(TableProperties.SPLIT_SIZE, String.valueOf(-10)).planTasks())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Split size must be > 0: -10");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 table
                     .newScan()
@@ -193,7 +191,7 @@ public class TestSplitPlanning extends TableTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Split planning lookback must be > 0: -10");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 table
                     .newScan()
@@ -203,7 +201,7 @@ public class TestSplitPlanning extends TableTestBase {
         .hasMessage("File open cost must be >= 0: -10");
   }
 
-  @Test
+  @TestTemplate
   public void testSplitPlanningWithOffsets() {
     List<DataFile> files16Mb = newFiles(16, 16 * 1024 * 1024, 2);
     appendFiles(files16Mb);
@@ -212,11 +210,10 @@ public class TestSplitPlanning extends TableTestBase {
     // 1 split per row group
     TableScan scan =
         table.newScan().option(TableProperties.SPLIT_SIZE, String.valueOf(10L * 1024 * 1024));
-    Assert.assertEquals(
-        "We should get one task per row group", 32, Iterables.size(scan.planTasks()));
+    assertThat(scan.planTasks()).hasSize(32);
   }
 
-  @Test
+  @TestTemplate
   public void testSplitPlanningWithOffsetsUnableToSplit() {
     List<DataFile> files16Mb = newFiles(16, 16 * 1024 * 1024, 2);
     appendFiles(files16Mb);
@@ -228,11 +225,10 @@ public class TestSplitPlanning extends TableTestBase {
             .newScan()
             .option(TableProperties.SPLIT_OPEN_FILE_COST, String.valueOf(0))
             .option(TableProperties.SPLIT_SIZE, String.valueOf(4L * 1024 * 1024));
-    Assert.assertEquals(
-        "We should still only get 2 tasks per file", 32, Iterables.size(scan.planTasks()));
+    assertThat(scan.planTasks()).hasSize(32);
   }
 
-  @Test
+  @TestTemplate
   public void testBasicSplitPlanningDeleteFiles() {
     table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
     List<DeleteFile> files128Mb = newDeleteFiles(4, 128 * 1024 * 1024);
@@ -240,14 +236,14 @@ public class TestSplitPlanning extends TableTestBase {
 
     PositionDeletesTable posDeletesTable = new PositionDeletesTable(table);
     // we expect 4 bins since split size is 128MB and we have 4 files 128MB each
-    Assert.assertEquals(4, Iterables.size(posDeletesTable.newBatchScan().planTasks()));
+    assertThat(posDeletesTable.newBatchScan().planTasks()).hasSize(4);
     List<DeleteFile> files32Mb = newDeleteFiles(16, 32 * 1024 * 1024);
     appendDeleteFiles(files32Mb);
     // we expect 8 bins after we add 16 files 32MB each as they will form additional 4 bins
-    Assert.assertEquals(8, Iterables.size(posDeletesTable.newBatchScan().planTasks()));
+    assertThat(posDeletesTable.newBatchScan().planTasks()).hasSize(8);
   }
 
-  @Test
+  @TestTemplate
   public void testBasicSplitPlanningDeleteFilesWithSplitOffsets() {
     table.updateProperties().set(TableProperties.FORMAT_VERSION, "2").commit();
     List<DeleteFile> files128Mb = newDeleteFiles(4, 128 * 1024 * 1024, 8);
@@ -266,19 +262,19 @@ public class TestSplitPlanning extends TableTestBase {
         long previousOffset = -1;
         for (ScanTask task : group.tasks()) {
           tasksPerGroup++;
-          Assert.assertTrue(task instanceof SplitPositionDeletesScanTask);
+          assertThat(task).isInstanceOf(SplitPositionDeletesScanTask.class);
           SplitPositionDeletesScanTask splitPosDelTask = (SplitPositionDeletesScanTask) task;
           if (previousOffset != -1) {
-            Assert.assertEquals(splitPosDelTask.start(), previousOffset);
+            assertThat(previousOffset).isEqualTo(splitPosDelTask.start());
           }
           previousOffset = splitPosDelTask.start() + splitPosDelTask.length();
         }
 
-        Assert.assertEquals("Should have 1 task as result of task merge", 1, tasksPerGroup);
+        assertThat(tasksPerGroup).isEqualTo(1);
         totalTaskGroups++;
       }
       // we expect 8 bins since split size is 64MB
-      Assert.assertEquals(8, totalTaskGroups);
+      assertThat(totalTaskGroups).isEqualTo(8);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

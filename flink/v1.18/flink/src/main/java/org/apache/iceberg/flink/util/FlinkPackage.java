@@ -18,16 +18,44 @@
  */
 package org.apache.iceberg.flink.util;
 
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
 public class FlinkPackage {
-  /** Choose {@link DataStream} class because it is one of the core Flink API. */
-  private static final String VERSION = DataStream.class.getPackage().getImplementationVersion();
+
+  private static final AtomicReference<String> VERSION = new AtomicReference<>();
+  public static final String FLINK_UNKNOWN_VERSION = "FLINK-UNKNOWN-VERSION";
 
   private FlinkPackage() {}
 
   /** Returns Flink version string like x.y.z */
   public static String version() {
-    return VERSION;
+    if (null == VERSION.get()) {
+      String detectedVersion = null;
+      try {
+        detectedVersion = versionFromJar();
+        // use unknown version in case exact implementation version can't be found from the jar
+        // (this can happen if the DataStream class appears multiple times in the same classpath
+        // such as with shading)
+        detectedVersion = detectedVersion != null ? detectedVersion : FLINK_UNKNOWN_VERSION;
+      } catch (Exception e) {
+        detectedVersion = FLINK_UNKNOWN_VERSION;
+      }
+      VERSION.set(detectedVersion);
+    }
+
+    return VERSION.get();
+  }
+
+  @VisibleForTesting
+  static String versionFromJar() {
+    // Choose {@link DataStream} class because it is one of the core Flink API
+    return DataStream.class.getPackage().getImplementationVersion();
+  }
+
+  @VisibleForTesting
+  static void setVersion(String version) {
+    VERSION.set(version);
   }
 }

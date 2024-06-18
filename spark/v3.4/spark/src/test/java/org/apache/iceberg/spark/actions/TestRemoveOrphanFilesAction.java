@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -78,7 +80,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -750,7 +751,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
 
-    Assertions.assertThatThrownBy(() -> SparkActions.get().deleteOrphanFiles(table).execute())
+    assertThatThrownBy(() -> SparkActions.get().deleteOrphanFiles(table).execute())
         .isInstanceOf(ValidationException.class)
         .hasMessage(
             "Cannot delete orphan files: GC is disabled (deleting files may corrupt other tables)");
@@ -938,8 +939,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(System.currentTimeMillis() + 1000)
         .execute();
 
-    Assertions.assertThat(statsLocation.exists()).as("stats file should exist").isTrue();
-    Assertions.assertThat(statsLocation.length())
+    assertThat(statsLocation.exists()).as("stats file should exist").isTrue();
+    assertThat(statsLocation.length())
         .as("stats file length")
         .isEqualTo(statisticsFile.fileSizeInBytes());
 
@@ -953,11 +954,11 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
     Iterable<String> orphanFileLocations = result.orphanFileLocations();
-    Assertions.assertThat(orphanFileLocations).as("Should be orphan files").hasSize(1);
-    Assertions.assertThat(Iterables.getOnlyElement(orphanFileLocations))
+    assertThat(orphanFileLocations).as("Should be orphan files").hasSize(1);
+    assertThat(Iterables.getOnlyElement(orphanFileLocations))
         .as("Deleted file")
         .isEqualTo(statsLocation.toURI().toString());
-    Assertions.assertThat(statsLocation.exists()).as("stats file should be deleted").isFalse();
+    assertThat(statsLocation.exists()).as("stats file should be deleted").isFalse();
   }
 
   @Test
@@ -985,7 +986,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   public void testPathsWithEqualSchemes() {
     List<String> validFiles = Lists.newArrayList("scheme1://bucket1/dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("scheme2://bucket1/dir1/dir2/file1");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 executeTest(
                     validFiles,
@@ -1014,7 +1015,7 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   public void testPathsWithEqualAuthorities() {
     List<String> validFiles = Lists.newArrayList("hdfs://servicename1/dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("hdfs://servicename2/dir1/dir2/file1");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 executeTest(
                     validFiles,

@@ -28,6 +28,8 @@ import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
@@ -67,7 +69,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -266,7 +267,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "WHEN MATCHED THEN "
                       + "  UPDATE SET salary = -1 ",
                   commitTarget());
-          Assertions.assertThat(plan.toString()).contains("REBALANCE_PARTITIONS_BY_COL");
+          assertThat(plan.toString()).contains("REBALANCE_PARTITIONS_BY_COL");
         });
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -524,6 +525,78 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void testMergeWithOnlyUpdateNullUnmatchedValues() {
+    createAndInitTable(
+        "id INT, value INT", "{ \"id\": 1, \"value\": 2 }\n" + "{ \"id\": 6, \"value\": null }");
+
+    createOrReplaceView("source", "id INT NOT NULL, value INT", "{ \"id\": 1, \"value\": 100 }\n");
+    sql(
+        "MERGE INTO %s t USING source s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET id=123, value=456",
+        commitTarget());
+
+    sql("SELECT * FROM %s", commitTarget());
+
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(6, null), // kept
+            row(123, 456)); // updated
+
+    assertEquals(
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
+  public void testMergeWithOnlyUpdateSingleFieldNullUnmatchedValues() {
+    createAndInitTable(
+        "id INT, value INT", "{ \"id\": 1, \"value\": 2 }\n" + "{ \"id\": 6, \"value\": null }");
+
+    createOrReplaceView("source", "id INT NOT NULL, value INT", "{ \"id\": 1, \"value\": 100 }\n");
+    sql(
+        "MERGE INTO %s t USING source s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET id=123",
+        commitTarget());
+
+    sql("SELECT * FROM %s", commitTarget());
+
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(6, null), // kept
+            row(123, 2)); // updated
+
+    assertEquals(
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
+  public void testMergeWithOnlyDeleteNullUnmatchedValues() {
+    createAndInitTable(
+        "id INT, value INT", "{ \"id\": 1, \"value\": 2 }\n" + "{ \"id\": 6, \"value\": null }");
+
+    createOrReplaceView("source", "id INT NOT NULL, value INT", "{ \"id\": 1, \"value\": 100 }\n");
+    sql(
+        "MERGE INTO %s t USING source s " + "ON t.id == s.id " + "WHEN MATCHED THEN " + "DELETE",
+        commitTarget());
+
+    sql("SELECT * FROM %s", commitTarget());
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(row(6, null)); // kept
+
+    assertEquals(
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @Test
   public void testMergeWithOnlyDeleteClause() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -714,7 +787,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     String errorMsg =
         "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s AS t USING source AS s "
@@ -749,7 +822,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     String errorMsg =
         "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s AS t USING source AS s "
@@ -790,7 +863,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         () -> {
           String errorMsg =
               "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s AS t USING source AS s "
@@ -829,7 +902,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         () -> {
           String errorMsg =
               "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s AS t USING source AS s "
@@ -867,7 +940,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     String errorMsg =
         "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s AS t USING source AS s "
@@ -901,7 +974,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     String errorMsg =
         "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s AS t USING source AS s "
@@ -937,7 +1010,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     String errorMsg =
         "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s AS t USING source AS s "
@@ -1008,7 +1081,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     String errorMsg =
         "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s AS t USING source AS s "
@@ -1414,7 +1487,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             });
 
     try {
-      Assertions.assertThatThrownBy(mergeFuture::get)
+      assertThatThrownBy(mergeFuture::get)
           .isInstanceOf(ExecutionException.class)
           .cause()
           .isInstanceOf(ValidationException.class)
@@ -2151,7 +2224,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2162,7 +2235,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("cannot resolve t.invalid_col in MERGE command");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2173,7 +2246,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("No such struct field `invalid_col`");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2194,7 +2267,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2207,7 +2280,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Nested fields are not supported inside INSERT clauses");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2220,7 +2293,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Duplicate column names inside INSERT clause");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2239,7 +2312,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"a\": [ { \"c1\": 2, \"c2\": 3 } ], \"m\": { \"k\": \"v\"} }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2250,7 +2323,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Updating nested fields is only supported for structs");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2269,7 +2342,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2280,7 +2353,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Updates are in conflict");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2291,7 +2364,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Updates are in conflict for these columns");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2317,7 +2390,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       withSQLConf(
           ImmutableMap.of("spark.sql.storeAssignmentPolicy", policy),
           () -> {
-            Assertions.assertThatThrownBy(
+            assertThatThrownBy(
                     () ->
                         sql(
                             "MERGE INTO %s t USING source s "
@@ -2328,7 +2401,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                 .isInstanceOf(AnalysisException.class)
                 .hasMessageContaining("Cannot write nullable values to non-null column");
 
-            Assertions.assertThatThrownBy(
+            assertThatThrownBy(
                     () ->
                         sql(
                             "MERGE INTO %s t USING source s "
@@ -2339,7 +2412,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                 .isInstanceOf(AnalysisException.class)
                 .hasMessageContaining("Cannot write nullable values to non-null column");
 
-            Assertions.assertThatThrownBy(
+            assertThatThrownBy(
                     () ->
                         sql(
                             "MERGE INTO %s t USING source s "
@@ -2350,7 +2423,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                 .isInstanceOf(AnalysisException.class)
                 .hasMessageContaining("missing fields");
 
-            Assertions.assertThatThrownBy(
+            assertThatThrownBy(
                     () ->
                         sql(
                             "MERGE INTO %s t USING source s "
@@ -2361,7 +2434,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                 .isInstanceOf(AnalysisException.class)
                 .hasMessageEndingWith("Cannot safely cast 'n1': string to int");
 
-            Assertions.assertThatThrownBy(
+            assertThatThrownBy(
                     () ->
                         sql(
                             "MERGE INTO %s t USING source s "
@@ -2382,7 +2455,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2394,7 +2467,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "Non-deterministic functions are not supported in SEARCH conditions of MERGE operations");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2406,7 +2479,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "Non-deterministic functions are not supported in UPDATE conditions of MERGE operations");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2418,7 +2491,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "Non-deterministic functions are not supported in DELETE conditions of MERGE operations");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2438,7 +2511,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2450,7 +2523,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "Agg functions are not supported in SEARCH conditions of MERGE operations");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2462,7 +2535,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "Agg functions are not supported in UPDATE conditions of MERGE operations");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2474,7 +2547,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "Agg functions are not supported in DELETE conditions of MERGE operations");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2494,7 +2567,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2506,7 +2579,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "Subqueries are not supported in conditions of MERGE operations. Found a subquery in the SEARCH condition");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2518,7 +2591,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "Subqueries are not supported in conditions of MERGE operations. Found a subquery in the UPDATE condition");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2530,7 +2603,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "Subqueries are not supported in conditions of MERGE operations. Found a subquery in the DELETE condition");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2548,7 +2621,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createAndInitTable("id INT, c2 INT", "{ \"id\": 1, \"c2\": 2 }");
     createOrReplaceView("source", "{ \"id\": 1, \"value\": 11 }");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2565,7 +2638,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     createOrReplaceView("target", "{ \"c1\": -100, \"c2\": -200 }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO target t USING source s "
@@ -2629,7 +2702,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     // Coalesce forces our source into a SinglePartition distribution
     spark.range(0, 5).coalesce(1).createOrReplaceTempView("source");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s ON t.id = s.id "
@@ -2716,7 +2789,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
         () ->
-            Assertions.assertThatThrownBy(
+            assertThatThrownBy(
                     () ->
                         sql(
                             "MERGE INTO %s t USING source s ON t.id = s.id "
@@ -2738,9 +2811,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
           SparkPlan sparkPlan = executeAndKeepPlan(() -> sql(query));
           String planAsString = sparkPlan.toString().replaceAll("#(\\d+L?)", "");
 
-          Assertions.assertThat(planAsString).as("Join should match").contains(join + "\n");
+          assertThat(planAsString).as("Join should match").contains(join + "\n");
 
-          Assertions.assertThat(planAsString)
+          assertThat(planAsString)
               .as("Pushed filters must match")
               .contains("[filters=" + icebergFilters + ",");
         });

@@ -18,13 +18,17 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.iceberg.DataOperations.DELETE;
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
+import static org.apache.iceberg.SnapshotSummary.ADD_POS_DELETE_FILES_PROP;
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_MODE;
 import static org.apache.iceberg.TableProperties.DELETE_MODE_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
@@ -41,7 +45,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.RowLevelOperationMode;
@@ -71,7 +74,6 @@ import org.apache.spark.sql.catalyst.plans.logical.DeleteFromIcebergTable;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteFromIcebergTable;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -238,7 +240,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Assume.assumeTrue("Test only applicable to custom branch", "test".equals(branch));
     createAndInitUnpartitionedTable();
 
-    Assertions.assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id IN (1)", commitTarget()))
+    assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id IN (1)", commitTarget()))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Cannot use branch (does not exist): test");
   }
@@ -335,6 +337,31 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   }
 
   @Test
+  public void deleteSingleRecordProducesDeleteOperation() throws NoSuchTableException {
+    createAndInitPartitionedTable();
+    append(tableName, new Employee(1, "eng"), new Employee(2, "eng"), new Employee(3, "eng"));
+
+    sql("DELETE FROM %s WHERE id = 2", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.snapshots()).hasSize(2);
+
+    Snapshot currentSnapshot = table.currentSnapshot();
+
+    if (mode(table) == COPY_ON_WRITE) {
+      // this is an OverwriteFiles and produces "overwrite"
+      validateCopyOnWrite(currentSnapshot, "1", "1", "1");
+    } else {
+      // this is a RowDelta that produces a "delete" instead of "overwrite"
+      validateMergeOnRead(currentSnapshot, "1", "1", null);
+      validateProperty(currentSnapshot, ADD_POS_DELETE_FILES_PROP, "1");
+    }
+
+    assertThat(sql("SELECT * FROM %s", tableName))
+        .containsExactlyInAnyOrder(row(1, "eng"), row(3, "eng"));
+  }
+
+  @Test
   public void testDeleteWithoutCondition() {
     createAndInitPartitionedTable();
 
@@ -397,8 +424,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertEquals("Should have 4 snapshots", 4, Iterables.size(table.snapshots()));
 
-    // should be an overwrite since cannot be executed using a metadata operation
+    // should be a "delete" instead of an "overwrite" as only data files have been removed (COW) /
+    // delete files have been added (MOR)
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(currentSnapshot.operation()).isEqualTo(DELETE);
     if (mode(table) == COPY_ON_WRITE) {
       validateCopyOnWrite(currentSnapshot, "1", "1", null);
     } else {
@@ -418,11 +447,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     sql("INSERT INTO TABLE %s VALUES (1, 'hr'), (2, 'hardware')", tableName);
     createBranchIfNeeded();
 
-    AssertHelpers.assertThrows(
-        "Should complain about non-deterministic expressions",
-        AnalysisException.class,
-        "nondeterministic expressions are only allowed",
-        () -> sql("DELETE FROM %s WHERE id = 1 AND rand() > 0.5", commitTarget()));
+    assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id = 1 AND rand() > 0.5", commitTarget()))
+        .as("Should complain about non-deterministic expressions")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("nondeterministic expressions are only allowed");
   }
 
   @Test
@@ -707,11 +735,10 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
   public void testDeleteOnNonIcebergTableNotSupported() {
     createOrReplaceView("testtable", "{ \"c1\": -100, \"c2\": -200 }");
 
-    AssertHelpers.assertThrows(
-        "Delete is supported only for Iceberg tables",
-        AnalysisException.class,
-        "DELETE is only supported with v2 tables.",
-        () -> sql("DELETE FROM %s WHERE c1 = -100", "testtable"));
+    assertThatThrownBy(() -> sql("DELETE FROM %s WHERE c1 = -100", "testtable"))
+        .as("Delete is supported only for Iceberg tables")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("DELETE is only supported with v2 tables.");
   }
 
   @Test
@@ -914,7 +941,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
             });
 
     try {
-      Assertions.assertThatThrownBy(deleteFuture::get)
+      assertThatThrownBy(deleteFuture::get)
           .isInstanceOf(ExecutionException.class)
           .cause()
           .isInstanceOf(SparkException.class)
@@ -1156,7 +1183,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
         () ->
-            Assertions.assertThatThrownBy(() -> sql("DELETE FROM %s t WHERE id=0", commitTarget()))
+            assertThatThrownBy(() -> sql("DELETE FROM %s t WHERE id=0", commitTarget()))
                 .isInstanceOf(ValidationException.class)
                 .hasMessage(
                     String.format(
@@ -1182,9 +1209,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, branch),
         () -> {
           sql("DELETE FROM %s t WHERE id=1", tableName);
-          Assertions.assertThat(spark.table(tableName).count()).isEqualTo(2L);
-          Assertions.assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(2L);
-          Assertions.assertThat(spark.table(tableName + ".branch_main").count())
+          assertThat(spark.table(tableName).count()).isEqualTo(2L);
+          assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(2L);
+          assertThat(spark.table(tableName + ".branch_main").count())
               .as("Should not modify main branch")
               .isEqualTo(3L);
         });
@@ -1192,9 +1219,9 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, branch),
         () -> {
           sql("DELETE FROM %s t", tableName);
-          Assertions.assertThat(spark.table(tableName).count()).isEqualTo(0L);
-          Assertions.assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(0L);
-          Assertions.assertThat(spark.table(tableName + ".branch_main").count())
+          assertThat(spark.table(tableName).count()).isEqualTo(0L);
+          assertThat(spark.table(tableName + ".branch_" + branch).count()).isEqualTo(0L);
+          assertThat(spark.table(tableName + ".branch_main").count())
               .as("Should not modify main branch")
               .isEqualTo(3L);
         });

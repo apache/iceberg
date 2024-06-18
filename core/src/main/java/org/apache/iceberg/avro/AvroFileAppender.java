@@ -80,7 +80,7 @@ class AvroFileAppender<D> implements FileAppender<D> {
   public long length() {
     if (stream != null) {
       try {
-        return stream.getPos();
+        return stream.storedLength();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to get stream length");
       }

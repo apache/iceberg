@@ -28,6 +28,8 @@ import static org.apache.iceberg.TableProperties.SPLIT_OPEN_FILE_COST;
 import static org.apache.iceberg.TableProperties.SPLIT_SIZE;
 import static org.apache.iceberg.TableProperties.WRITE_DISTRIBUTION_MODE;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
@@ -45,7 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DistributionMode;
-import org.apache.iceberg.PlanningMode;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
@@ -68,49 +70,25 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestTemplate;
 
 public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
-  public TestMerge(
-      String catalogName,
-      String implementation,
-      Map<String, String> config,
-      String fileFormat,
-      boolean vectorized,
-      String distributionMode,
-      boolean fanoutEnabled,
-      String branch,
-      PlanningMode planningMode) {
-    super(
-        catalogName,
-        implementation,
-        config,
-        fileFormat,
-        vectorized,
-        distributionMode,
-        fanoutEnabled,
-        branch,
-        planningMode);
-  }
-
-  @BeforeClass
+  @BeforeAll
   public static void setupSparkConf() {
     spark.conf().set("spark.sql.shuffle.partitions", "4");
   }
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS source");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithAllClauses() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -152,7 +130,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithOneNotMatchedBySourceClause() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -180,7 +158,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeNotMatchedBySourceClausesPartitionedTable() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -209,7 +187,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithVectorizedReads() {
     assumeThat(supportsVectorization()).isTrue();
 
@@ -251,7 +229,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testCoalesceMerge() {
     createAndInitTable("id INT, salary INT, dep STRING");
 
@@ -322,13 +300,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       validateProperty(currentSnapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "1");
     }
 
-    Assert.assertEquals(
-        "Row count must match",
-        400L,
-        scalarSql("SELECT COUNT(*) FROM %s WHERE salary = -1", commitTarget()));
+    assertThat(scalarSql("SELECT COUNT(*) FROM %s WHERE salary = -1", commitTarget()))
+        .as("Row count must match")
+        .isEqualTo(400L);
   }
 
-  @Test
+  @TestTemplate
   public void testSkewMerge() {
     createAndInitTable("id INT, salary INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -382,7 +359,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                       + "WHEN MATCHED THEN "
                       + "  UPDATE SET salary = -1 ",
                   commitTarget());
-          Assertions.assertThat(plan.toString()).contains("REBALANCE_PARTITIONS_BY_COL");
+          assertThat(plan.toString()).contains("REBALANCE_PARTITIONS_BY_COL");
         });
 
     Table table = validationCatalog.loadTable(tableIdent);
@@ -406,13 +383,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
       validateProperty(currentSnapshot, SnapshotSummary.ADDED_DELETE_FILES_PROP, "4");
     }
 
-    Assert.assertEquals(
-        "Row count must match",
-        400L,
-        scalarSql("SELECT COUNT(*) FROM %s WHERE salary = -1", commitTarget()));
+    assertThat(scalarSql("SELECT COUNT(*) FROM %s WHERE salary = -1", commitTarget()))
+        .as("Row count must match")
+        .isEqualTo(400L);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeConditionSplitIntoTargetPredicateAndJoinCondition() {
     createAndInitTable(
         "id INT, salary INT, dep STRING, sub_dep STRING",
@@ -461,7 +437,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithStaticPredicatePushDown() {
     createAndInitTable("id BIGINT, dep STRING");
 
@@ -478,7 +454,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     Snapshot snapshot = SnapshotUtil.latestSnapshot(table, branch);
     String dataFilesCount = snapshot.summary().get(SnapshotSummary.TOTAL_DATA_FILES_PROP);
-    Assert.assertEquals("Must have 2 files before MERGE", "2", dataFilesCount);
+    assertThat(dataFilesCount).as("Must have 2 files before MERGE").isEqualTo("2");
 
     createOrReplaceView(
         "source", "{ \"id\": 1, \"dep\": \"finance\" }\n" + "{ \"id\": 2, \"dep\": \"hardware\" }");
@@ -516,9 +492,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id, dep", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeIntoEmptyTargetInsertAllNonMatchingRows() {
-    Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
+    assumeThat(branch).as("Custom branch does not exist for empty table").isNotEqualTo("test");
     createAndInitTable("id INT, dep STRING");
 
     createOrReplaceView(
@@ -547,9 +523,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeIntoEmptyTargetInsertOnlyMatchingRows() {
-    Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
+    assumeThat(branch).as("Custom branch does not exist for empty table").isNotEqualTo("test");
     createAndInitTable("id INT, dep STRING");
 
     createOrReplaceView(
@@ -577,7 +553,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithOnlyUpdateClause() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -608,7 +584,79 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
+  public void testMergeWithOnlyUpdateNullUnmatchedValues() {
+    createAndInitTable(
+        "id INT, value INT", "{ \"id\": 1, \"value\": 2 }\n" + "{ \"id\": 6, \"value\": null }");
+
+    createOrReplaceView("source", "id INT NOT NULL, value INT", "{ \"id\": 1, \"value\": 100 }\n");
+    sql(
+        "MERGE INTO %s t USING source s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET id=123, value=456",
+        commitTarget());
+
+    sql("SELECT * FROM %s", commitTarget());
+
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(6, null), // kept
+            row(123, 456)); // updated
+
+    assertEquals(
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
+  public void testMergeWithOnlyUpdateSingleFieldNullUnmatchedValues() {
+    createAndInitTable(
+        "id INT, value INT", "{ \"id\": 1, \"value\": 2 }\n" + "{ \"id\": 6, \"value\": null }");
+
+    createOrReplaceView("source", "id INT NOT NULL, value INT", "{ \"id\": 1, \"value\": 100 }\n");
+    sql(
+        "MERGE INTO %s t USING source s "
+            + "ON t.id == s.id "
+            + "WHEN MATCHED THEN "
+            + "  UPDATE SET id=123",
+        commitTarget());
+
+    sql("SELECT * FROM %s", commitTarget());
+
+    ImmutableList<Object[]> expectedRows =
+        ImmutableList.of(
+            row(6, null), // kept
+            row(123, 2)); // updated
+
+    assertEquals(
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
+  public void testMergeWithOnlyDeleteNullUnmatchedValues() {
+    createAndInitTable(
+        "id INT, value INT", "{ \"id\": 1, \"value\": 2 }\n" + "{ \"id\": 6, \"value\": null }");
+
+    createOrReplaceView("source", "id INT NOT NULL, value INT", "{ \"id\": 1, \"value\": 100 }\n");
+    sql(
+        "MERGE INTO %s t USING source s " + "ON t.id == s.id " + "WHEN MATCHED THEN " + "DELETE",
+        commitTarget());
+
+    sql("SELECT * FROM %s", commitTarget());
+
+    ImmutableList<Object[]> expectedRows = ImmutableList.of(row(6, null)); // kept
+
+    assertEquals(
+        "Should have expected rows",
+        expectedRows,
+        sql("SELECT * FROM %s ORDER BY id", selectTarget()));
+  }
+
+  @TestTemplate
   public void testMergeWithOnlyUpdateClauseAndNullValues() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -641,7 +689,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithOnlyDeleteClause() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -671,7 +719,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithMatchedAndNotMatchedClauses() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -706,7 +754,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithAllCausesWithExplicitColumnSpecification() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -741,7 +789,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithSourceCTE() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -777,7 +825,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithSourceFromSetOps() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -817,7 +865,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithOneMatchingBranchButMultipleSourceRowsForTargetRow() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -832,7 +880,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     String errorMsg =
         "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s AS t USING source AS s "
@@ -852,7 +900,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSource() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -867,7 +915,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     String errorMsg =
         "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s AS t USING source AS s "
@@ -889,7 +937,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void
       testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceEnabledHashShuffleJoin() {
     createAndInitTable(
@@ -908,7 +956,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         () -> {
           String errorMsg =
               "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s AS t USING source AS s "
@@ -931,7 +979,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceNoEqualityCondition() {
     createAndInitTable("id INT, dep STRING", "{ \"id\": 1, \"dep\": \"emp-id-one\" }");
 
@@ -947,7 +995,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         () -> {
           String errorMsg =
               "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s AS t USING source AS s "
@@ -970,7 +1018,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceNoNotMatchedActions() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -985,7 +1033,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     String errorMsg =
         "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s AS t USING source AS s "
@@ -1004,7 +1052,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void
       testMergeWithMultipleUpdatesForTargetRowSmallTargetLargeSourceNoNotMatchedActionsNoEqualityCondition() {
     createAndInitTable("id INT, dep STRING", "{ \"id\": 1, \"dep\": \"emp-id-one\" }");
@@ -1018,7 +1066,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     String errorMsg =
         "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s AS t USING source AS s "
@@ -1038,7 +1086,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithMultipleUpdatesForTargetRow() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -1054,7 +1102,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     String errorMsg =
         "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s AS t USING source AS s "
@@ -1076,7 +1124,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithUnconditionalDelete() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -1109,7 +1157,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithSingleConditionalDelete() {
     createAndInitTable(
         "id INT, dep STRING",
@@ -1125,7 +1173,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
     String errorMsg =
         "MERGE statement matched a single row from the target table with multiple rows of the source table.";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s AS t USING source AS s "
@@ -1145,7 +1193,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id ASC NULLS LAST", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithIdentityTransform() {
     for (DistributionMode mode : DistributionMode.values()) {
       createAndInitTable("id INT, dep STRING");
@@ -1191,7 +1239,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithDaysTransform() {
     for (DistributionMode mode : DistributionMode.values()) {
       createAndInitTable("id INT, ts TIMESTAMP");
@@ -1239,7 +1287,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithBucketTransform() {
     for (DistributionMode mode : DistributionMode.values()) {
       createAndInitTable("id INT, dep STRING");
@@ -1285,7 +1333,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithTruncateTransform() {
     for (DistributionMode mode : DistributionMode.values()) {
       createAndInitTable("id INT, dep STRING");
@@ -1331,7 +1379,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMergeIntoPartitionedAndOrderedTable() {
     for (DistributionMode mode : DistributionMode.values()) {
       createAndInitTable("id INT, dep STRING");
@@ -1378,7 +1426,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testSelfMerge() {
     createAndInitTable(
         "id INT, v STRING", "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
@@ -1401,7 +1449,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testSelfMergeWithCaching() {
     createAndInitTable(
         "id INT, v STRING", "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
@@ -1426,7 +1474,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", commitTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithSourceAsSelfSubquery() {
     createAndInitTable(
         "id INT, v STRING", "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
@@ -1451,13 +1499,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public synchronized void testMergeWithSerializableIsolation() throws InterruptedException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
-    Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    assumeThat(catalogName).isNotEqualToIgnoringCase("testhadoop");
     // if caching is off, the table is eagerly refreshed during runtime filtering
     // this can cause a validation exception as concurrent changes would be visible
-    Assume.assumeTrue(cachingCatalogEnabled());
+    assumeThat(cachingCatalogEnabled()).isTrue();
 
     createAndInitTable("id INT, dep STRING");
     createOrReplaceView("source", Collections.singletonList(1), Encoders.INT());
@@ -1481,9 +1529,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> barrier.get() >= currentNumOperations * 2);
 
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -1508,9 +1558,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < Integer.MAX_VALUE; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> !shouldAppend.get() || barrier.get() >= currentNumOperations * 2);
 
                 if (!shouldAppend.get()) {
                   return;
@@ -1523,7 +1575,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                     appendFiles.toBranch(branch);
                   }
                   appendFiles.commit();
-                  sleep(10);
                 }
 
                 barrier.incrementAndGet();
@@ -1531,7 +1582,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             });
 
     try {
-      Assertions.assertThatThrownBy(mergeFuture::get)
+      assertThatThrownBy(mergeFuture::get)
           .isInstanceOf(ExecutionException.class)
           .cause()
           .isInstanceOf(ValidationException.class)
@@ -1542,17 +1593,17 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     }
 
     executorService.shutdown();
-    Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+    assertThat(executorService.awaitTermination(2, TimeUnit.MINUTES)).as("Timeout").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public synchronized void testMergeWithSnapshotIsolation()
       throws InterruptedException, ExecutionException {
     // cannot run tests with concurrency for Hadoop tables without atomic renames
-    Assume.assumeFalse(catalogName.equalsIgnoreCase("testhadoop"));
+    assumeThat(catalogName).isNotEqualToIgnoringCase("testhadoop");
     // if caching is off, the table is eagerly refreshed during runtime filtering
     // this can cause a validation exception as concurrent changes would be visible
-    Assume.assumeTrue(cachingCatalogEnabled());
+    assumeThat(cachingCatalogEnabled()).isTrue();
 
     createAndInitTable("id INT, dep STRING");
     createOrReplaceView("source", Collections.singletonList(1), Encoders.INT());
@@ -1576,9 +1627,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         executorService.submit(
             () -> {
               for (int numOperations = 0; numOperations < 20; numOperations++) {
-                while (barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> barrier.get() >= currentNumOperations * 2);
 
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -1603,9 +1656,11 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               record.set(1, "hr"); // dep
 
               for (int numOperations = 0; numOperations < 20; numOperations++) {
-                while (shouldAppend.get() && barrier.get() < numOperations * 2) {
-                  sleep(10);
-                }
+                int currentNumOperations = numOperations;
+                Awaitility.await()
+                    .pollInterval(10, TimeUnit.MILLISECONDS)
+                    .atMost(5, TimeUnit.SECONDS)
+                    .until(() -> !shouldAppend.get() || barrier.get() >= currentNumOperations * 2);
 
                 if (!shouldAppend.get()) {
                   return;
@@ -1619,7 +1674,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                   }
 
                   appendFiles.commit();
-                  sleep(10);
                 }
 
                 barrier.incrementAndGet();
@@ -1634,10 +1688,10 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     }
 
     executorService.shutdown();
-    Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+    assertThat(executorService.awaitTermination(2, TimeUnit.MINUTES)).as("Timeout").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithExtraColumnsInSource() {
     createAndInitTable(
         "id INT, v STRING", "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
@@ -1667,7 +1721,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithNullsInTargetAndSource() {
     createAndInitTable(
         "id INT, v STRING", "{ \"id\": null, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
@@ -1695,7 +1749,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithNullSafeEquals() {
     createAndInitTable(
         "id INT, v STRING", "{ \"id\": null, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
@@ -1722,7 +1776,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithNullCondition() {
     createAndInitTable(
         "id INT, v STRING", "{ \"id\": null, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
@@ -1750,7 +1804,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithNullActionConditions() {
     createAndInitTable(
         "id INT, v STRING", "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
@@ -1801,7 +1855,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "Output should match", expectedRows2, sql("SELECT * FROM %s ORDER BY v", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithMultipleMatchingActions() {
     createAndInitTable(
         "id INT, v STRING", "{ \"id\": 1, \"v\": \"v1\" }\n" + "{ \"id\": 2, \"v\": \"v2\" }");
@@ -1830,9 +1884,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY v", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithMultipleRowGroupsParquet() throws NoSuchTableException {
-    Assume.assumeTrue(fileFormat.equalsIgnoreCase("parquet"));
+    assumeThat(fileFormat).isEqualTo(FileFormat.PARQUET);
 
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -1856,7 +1910,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     df.coalesce(1).writeTo(tableName).append();
     createBranchIfNeeded();
 
-    Assert.assertEquals(200, spark.table(commitTarget()).count());
+    assertThat(spark.table(commitTarget()).count()).isEqualTo(200);
 
     // update a record from one of two row groups and copy over the second one
     sql(
@@ -1866,10 +1920,10 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             + "  UPDATE SET dep = 'x'",
         commitTarget());
 
-    Assert.assertEquals(200, spark.table(commitTarget()).count());
+    assertThat(spark.table(commitTarget()).count()).isEqualTo(200);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeInsertOnly() {
     createAndInitTable(
         "id STRING, v STRING",
@@ -1901,7 +1955,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeInsertOnlyWithCondition() {
     createAndInitTable("id INTEGER, v INTEGER", "{ \"id\": 1, \"v\": 1 }");
     createOrReplaceView(
@@ -1927,7 +1981,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         "Output should match", expectedRows, sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeAlignsUpdateAndInsertActions() {
     createAndInitTable("id INT, a INT, b STRING", "{ \"id\": 1, \"a\": 2, \"b\": \"str\" }");
     createOrReplaceView(
@@ -1950,7 +2004,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeMixedCaseAlignsUpdateAndInsertActions() {
     createAndInitTable("id INT, a INT, b STRING", "{ \"id\": 1, \"a\": 2, \"b\": \"str\" }");
     createOrReplaceView(
@@ -1982,7 +2036,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s WHERE b = 'new_str_2'ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeUpdatesNestedStructFields() {
     createAndInitTable(
         "id INT, s STRUCT<c1:INT,c2:STRUCT<a:ARRAY<INT>,m:MAP<STRING, STRING>>>",
@@ -2029,7 +2083,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithInferredCasts() {
     createAndInitTable("id INT, s STRING", "{ \"id\": 1, \"s\": \"value\" }");
     createOrReplaceView("source", "{ \"id\": 1, \"c1\": -2}");
@@ -2048,7 +2102,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeModifiesNullStruct() {
     createAndInitTable("id INT, s STRUCT<n1:INT,n2:INT>", "{ \"id\": 1, \"s\": null }");
     createOrReplaceView("source", "{ \"id\": 1, \"n1\": -10 }");
@@ -2066,7 +2120,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeRefreshesRelationCache() {
     createAndInitTable("id INT, name STRING", "{ \"id\": 1, \"name\": \"n1\" }");
     createOrReplaceView("source", "{ \"id\": 1, \"name\": \"n2\" }");
@@ -2092,7 +2146,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     spark.sql("UNCACHE TABLE tmp");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithMultipleNotMatchedActions() {
     createAndInitTable("id INT, dep STRING", "{ \"id\": 0, \"dep\": \"emp-id-0\" }");
 
@@ -2125,7 +2179,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithMultipleConditionalNotMatchedActions() {
     createAndInitTable("id INT, dep STRING", "{ \"id\": 0, \"dep\": \"emp-id-0\" }");
 
@@ -2157,7 +2211,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeResolvesColumnsByName() {
     createAndInitTable(
         "id INT, badge INT, dep STRING",
@@ -2192,7 +2246,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT id, badge, dep FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeShouldResolveWhenThereAreNoUnresolvedExpressionsOrColumns() {
     // ensures that MERGE INTO will resolve into the correct action even if no columns
     // or otherwise unresolved expressions exist in the query (testing SPARK-34962)
@@ -2227,7 +2281,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithTableWithNonNullableColumn() {
     createAndInitTable(
         "id INT NOT NULL, dep STRING",
@@ -2261,13 +2315,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithNonExistingColumns() {
     createAndInitTable(
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2279,7 +2333,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "A column or function parameter with name `t`.`invalid_col` cannot be resolved");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2290,7 +2344,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("No such struct field `invalid_col`");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2305,13 +2359,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             "A column or function parameter with name `invalid_col` cannot be resolved");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithInvalidColumnsInInsert() {
     createAndInitTable(
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>> NOT NULL",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2323,7 +2377,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                     commitTarget()))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("INSERT assignment keys cannot be nested fields");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2336,7 +2390,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Multiple assignments for 'id'");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2348,7 +2402,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining("No assignment for 'c'");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithMissingOptionalColumnsInInsert() {
     createAndInitTable("id INT, value LONG", "{ \"id\": 1, \"value\": 100}");
     createOrReplaceView("source", "{ \"c1\": 2, \"c2\": 200 }");
@@ -2368,13 +2422,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         sql("SELECT * FROM %s ORDER BY id", selectTarget()));
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithInvalidUpdates() {
     createAndInitTable(
         "id INT, a ARRAY<STRUCT<c1:INT,c2:INT>>, m MAP<STRING,STRING>",
         "{ \"id\": 1, \"a\": [ { \"c1\": 2, \"c2\": 3 } ], \"m\": { \"k\": \"v\"} }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2385,7 +2439,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Updating nested fields is only supported for StructType");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2397,13 +2451,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining("Updating nested fields is only supported for StructType");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithConflictingUpdates() {
     createAndInitTable(
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2413,7 +2467,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                     commitTarget()))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Multiple assignments for 'id");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2424,7 +2478,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Multiple assignments for 'c.n1'");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2436,7 +2490,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining("Conflicting assignments for 'c'");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithInvalidAssignmentsAnsi() {
     createAndInitTable(
         "id INT NOT NULL, s STRUCT<n1:INT NOT NULL,n2:STRUCT<dn1:INT,dn2:INT>> NOT NULL",
@@ -2449,7 +2503,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     withSQLConf(
         ImmutableMap.of(SQLConf.STORE_ASSIGNMENT_POLICY().key(), "ansi"),
         () -> {
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s t USING source s "
@@ -2459,7 +2513,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                           commitTarget()))
               .isInstanceOf(SparkException.class)
               .hasMessageContaining("Null value appeared in non-nullable field");
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s t USING source s "
@@ -2469,7 +2523,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                           commitTarget()))
               .isInstanceOf(SparkException.class)
               .hasMessageContaining("Null value appeared in non-nullable field");
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s t USING source s "
@@ -2479,7 +2533,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                           commitTarget()))
               .isInstanceOf(AnalysisException.class)
               .hasMessageContaining("Cannot find data for the output column `s`.`n2`");
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s t USING source s "
@@ -2490,7 +2544,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               .isInstanceOf(AnalysisException.class)
               .hasMessageEndingWith("Cannot safely cast `s`.`n1` \"STRING\" to \"INT\".");
 
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s t USING source s "
@@ -2503,7 +2557,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithInvalidAssignmentsStrict() {
     createAndInitTable(
         "id INT NOT NULL, s STRUCT<n1:INT NOT NULL,n2:STRUCT<dn1:INT,dn2:INT>> NOT NULL",
@@ -2516,7 +2570,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     withSQLConf(
         ImmutableMap.of(SQLConf.STORE_ASSIGNMENT_POLICY().key(), "strict"),
         () -> {
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s t USING source s "
@@ -2526,7 +2580,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                           commitTarget()))
               .isInstanceOf(AnalysisException.class)
               .hasMessageContaining("Cannot safely cast `id` \"VOID\" to \"INT\"");
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s t USING source s "
@@ -2537,7 +2591,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               .isInstanceOf(AnalysisException.class)
               .hasMessageContaining("Cannot safely cast `s`.`n1` \"VOID\" to \"INT\"");
 
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s t USING source s "
@@ -2547,7 +2601,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                           commitTarget()))
               .isInstanceOf(AnalysisException.class)
               .hasMessageContaining("Cannot find data for the output column `s`.`n2`");
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s t USING source s "
@@ -2558,7 +2612,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
               .isInstanceOf(AnalysisException.class)
               .hasMessageEndingWith("Cannot safely cast `s`.`n1` \"STRING\" to \"INT\".");
 
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () ->
                       sql(
                           "MERGE INTO %s t USING source s "
@@ -2571,13 +2625,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithNonDeterministicConditions() {
     createAndInitTable(
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2588,7 +2642,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "MERGE operation contains unsupported SEARCH condition. Non-deterministic expressions are not allowed");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2600,7 +2654,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "MERGE operation contains unsupported UPDATE condition. Non-deterministic expressions are not allowed");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2612,7 +2666,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "MERGE operation contains unsupported DELETE condition. Non-deterministic expressions are not allowed");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2625,13 +2679,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             "MERGE operation contains unsupported INSERT condition. Non-deterministic expressions are not allowed");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithAggregateExpressions() {
     createAndInitTable(
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2643,7 +2697,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "MERGE operation contains unsupported SEARCH condition. Aggregates are not allowed");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2655,7 +2709,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "MERGE operation contains unsupported UPDATE condition. Aggregates are not allowed");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2667,7 +2721,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "MERGE operation contains unsupported DELETE condition. Aggregates are not allowed");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2680,13 +2734,13 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             "MERGE operation contains unsupported INSERT condition. Aggregates are not allowed");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithSubqueriesInConditions() {
     createAndInitTable(
         "id INT, c STRUCT<n1:INT,n2:STRUCT<dn1:INT,dn2:INT>>",
         "{ \"id\": 1, \"c\": { \"n1\": 2, \"n2\": { \"dn1\": 3, \"dn2\": 4 } } }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2698,7 +2752,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "MERGE operation contains unsupported SEARCH condition. Subqueries are not allowed");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2710,7 +2764,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "MERGE operation contains unsupported UPDATE condition. Subqueries are not allowed");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2722,7 +2776,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining(
             "MERGE operation contains unsupported DELETE condition. Subqueries are not allowed");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2735,12 +2789,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             "MERGE operation contains unsupported INSERT condition. Subqueries are not allowed");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithTargetColumnsInInsertConditions() {
     createAndInitTable("id INT, c2 INT", "{ \"id\": 1, \"c2\": 2 }");
     createOrReplaceView("source", "{ \"id\": 1, \"value\": 11 }");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s "
@@ -2752,12 +2806,12 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessageContaining("A column or function parameter with name `c2` cannot be resolved");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeWithNonIcebergTargetTableNotSupported() {
     createOrReplaceView("target", "{ \"c1\": -100, \"c2\": -200 }");
     createOrReplaceView("source", "{ \"c1\": -100, \"c2\": -200 }");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO target t USING source s "
@@ -2772,7 +2826,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
    * Tests a merge where both the source and target are evaluated to be partitioned by
    * SingePartition at planning time but DynamicFileFilterExec will return an empty target.
    */
-  @Test
+  @TestTemplate
   public void testMergeSinglePartitionPartitioning() {
     // This table will only have a single file and a single partition
     createAndInitTable("id INT", "{\"id\": -1}");
@@ -2793,9 +2847,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Should correctly add the non-matching rows", expectedRows, result);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeEmptyTable() {
-    Assume.assumeFalse("Custom branch does not exist for empty table", "test".equals(branch));
+    assumeThat(branch).as("Custom branch does not exist for empty table").isNotEqualTo("test");
     // This table will only have a single file and a single partition
     createAndInitTable("id INT", null);
 
@@ -2814,14 +2868,14 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     assertEquals("Should correctly add the non-matching rows", expectedRows, result);
   }
 
-  @Test
+  @TestTemplate
   public void testMergeNonExistingBranch() {
-    Assume.assumeTrue("Test only applicable to custom branch", "test".equals(branch));
+    assumeThat(branch).as("Test only applicable to custom branch").isEqualTo("test");
     createAndInitTable("id INT", null);
 
     // Coalesce forces our source into a SinglePartition distribution
     spark.range(0, 5).coalesce(1).createOrReplaceTempView("source");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "MERGE INTO %s t USING source s ON t.id = s.id "
@@ -2832,9 +2886,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         .hasMessage("Cannot use branch (does not exist): test");
   }
 
-  @Test
+  @TestTemplate
   public void testMergeToWapBranch() {
-    Assume.assumeTrue("WAP branch only works for table identifier without branch", branch == null);
+    assumeThat(branch).as("WAP branch only works for table identifier without branch").isNull();
 
     createAndInitTable("id INT", "{\"id\": -1}");
     ImmutableList<Object[]> originalRows = ImmutableList.of(row(-1));
@@ -2893,9 +2947,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
         });
   }
 
-  @Test
+  @TestTemplate
   public void testMergeToWapBranchWithTableBranchIdentifier() {
-    Assume.assumeTrue("Test must have branch name part in table identifier", branch != null);
+    assumeThat(branch).as("Test must have branch name part in table identifier").isNotNull();
 
     createAndInitTable("id INT", "{\"id\": -1}");
     sql(
@@ -2908,7 +2962,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.WAP_BRANCH, "wap"),
         () ->
-            Assertions.assertThatThrownBy(
+            assertThatThrownBy(
                     () ->
                         sql(
                             "MERGE INTO %s t USING source s ON t.id = s.id "
@@ -2932,9 +2986,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
           SparkPlan sparkPlan = executeAndKeepPlan(() -> sql(query));
           String planAsString = sparkPlan.toString().replaceAll("#(\\d+L?)", "");
 
-          Assertions.assertThat(planAsString).as("Join should match").contains(join + "\n");
+          assertThat(planAsString).as("Join should match").contains(join + "\n");
 
-          Assertions.assertThat(planAsString)
+          assertThat(planAsString)
               .as("Pushed filters must match")
               .contains("[filters=" + icebergFilters + ",");
         });

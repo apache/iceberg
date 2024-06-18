@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -34,7 +36,6 @@ import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -327,8 +328,7 @@ public class TestSelect extends SparkCatalogTestBase {
 
   @Test
   public void testUnknownReferenceAsOf() {
-    Assertions.assertThatThrownBy(
-            () -> sql("SELECT * FROM %s VERSION AS OF 'test_unknown'", tableName))
+    assertThatThrownBy(() -> sql("SELECT * FROM %s VERSION AS OF 'test_unknown'", tableName))
         .hasMessageContaining("Cannot find matching snapshot ID or reference name for version")
         .isInstanceOf(ValidationException.class);
   }
@@ -395,7 +395,7 @@ public class TestSelect extends SparkCatalogTestBase {
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
 
     // using snapshot in table identifier and VERSION AS OF
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               sql(
                   "SELECT * FROM %s.%s VERSION AS OF %s",
@@ -405,7 +405,7 @@ public class TestSelect extends SparkCatalogTestBase {
         .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
 
     // using snapshot in table identifier and TIMESTAMP AS OF
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               sql(
                   "SELECT * FROM %s.%s VERSION AS OF %s",
@@ -415,7 +415,7 @@ public class TestSelect extends SparkCatalogTestBase {
         .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
 
     // using timestamp in table identifier and VERSION AS OF
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               sql(
                   "SELECT * FROM %s.%s TIMESTAMP AS OF %s",
@@ -425,7 +425,7 @@ public class TestSelect extends SparkCatalogTestBase {
         .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
 
     // using timestamp in table identifier and TIMESTAMP AS OF
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               sql(
                   "SELECT * FROM %s.%s TIMESTAMP AS OF %s",
@@ -444,8 +444,13 @@ public class TestSelect extends SparkCatalogTestBase {
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
 
     // using branch_b1 in the table identifier and VERSION AS OF
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("SELECT * FROM %s.branch_b1 VERSION AS OF %s", tableName, snapshotId))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
+
+    // using branch_b1 in the table identifier and TIMESTAMP AS OF
+    assertThatThrownBy(() -> sql("SELECT * FROM %s.branch_b1 TIMESTAMP AS OF now()", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
   }
@@ -461,7 +466,7 @@ public class TestSelect extends SparkCatalogTestBase {
     // create a second snapshot
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               spark
                   .read()

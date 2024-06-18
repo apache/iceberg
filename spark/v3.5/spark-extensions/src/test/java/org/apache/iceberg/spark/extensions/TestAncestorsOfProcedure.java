@@ -18,28 +18,26 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
-import java.util.Map;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestAncestorsOfProcedure extends ExtensionsTestBase {
 
-  public TestAncestorsOfProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testAncestorOfUsingEmptyArgs() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -60,7 +58,7 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
         output);
   }
 
-  @Test
+  @TestTemplate
   public void testAncestorOfUsingSnapshotId() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -84,7 +82,7 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
         sql("CALL %s.system.ancestors_of('%s', %dL)", catalogName, tableIdent, preSnapshotId));
   }
 
-  @Test
+  @TestTemplate
   public void testAncestorOfWithRollBack() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
@@ -128,7 +126,7 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
         sql("CALL %s.system.ancestors_of('%s', %dL)", catalogName, tableIdent, thirdSnapshotId));
   }
 
-  @Test
+  @TestTemplate
   public void testAncestorOfUsingNamedArgs() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -145,18 +143,17 @@ public class TestAncestorsOfProcedure extends SparkExtensionsTestBase {
             catalogName, firstSnapshotId, tableIdent));
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidAncestorOfCases() {
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of()", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of()", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Missing required parameters: [table]");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of('')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for parameter 'table'");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.ancestors_of('%s', 1.1)", catalogName, tableIdent))
+    assertThatThrownBy(() -> sql("CALL %s.system.ancestors_of('%s', 1.1)", catalogName, tableIdent))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith("Wrong arg type for snapshot_id: cannot cast");
   }

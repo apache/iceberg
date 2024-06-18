@@ -19,10 +19,14 @@
 package org.apache.iceberg.mr;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,6 +44,9 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -60,16 +67,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestIcebergInputFormats {
 
   public static final List<TestInputFormat.Factory<Record>> TESTED_INPUT_FORMATS =
@@ -90,7 +93,7 @@ public class TestIcebergInputFormats {
   private static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).identity("date").bucket("id", 1).build();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private Path temp;
 
   // before variables
   private Configuration conf;
@@ -98,23 +101,26 @@ public class TestIcebergInputFormats {
   private InputFormatConfig.ConfigBuilder builder;
 
   // parametrized variables
-  private final TestInputFormat.Factory<Record> testInputFormat;
-  private final FileFormat fileFormat;
+  @Parameter(index = 0)
+  private TestInputFormat.Factory<Record> testInputFormat;
 
-  @Before
+  @Parameter(index = 1)
+  private FileFormat fileFormat;
+
+  @BeforeEach
   public void before() throws IOException {
     conf = new Configuration();
     conf.set(CatalogUtil.ICEBERG_CATALOG_TYPE, Catalogs.LOCATION);
     HadoopTables tables = new HadoopTables(conf);
 
-    File location = temp.newFolder(testInputFormat.name(), fileFormat.name());
-    Assert.assertTrue(location.delete());
+    File location = temp.resolve(Paths.get(testInputFormat.name(), fileFormat.name())).toFile();
+    assertThat(location).doesNotExist();
 
     helper = new TestHelper(conf, tables, location.toString(), SCHEMA, SPEC, fileFormat, temp);
     builder = new InputFormatConfig.ConfigBuilder(conf).readFrom(location.toString());
   }
 
-  @Parameterized.Parameters(name = "testInputFormat = {0}, fileFormat = {1}")
+  @Parameters(name = "testInputFormat = {0}, fileFormat = {1}")
   public static Object[][] parameters() {
     Object[][] parameters = new Object[TESTED_INPUT_FORMATS.size() * TESTED_FILE_FORMATS.size()][2];
 
@@ -122,20 +128,14 @@ public class TestIcebergInputFormats {
 
     for (TestInputFormat.Factory<Record> inputFormat : TESTED_INPUT_FORMATS) {
       for (String fileFormat : TESTED_FILE_FORMATS) {
-        parameters[idx++] = new Object[] {inputFormat, fileFormat};
+        parameters[idx++] = new Object[] {inputFormat, FileFormat.fromString(fileFormat)};
       }
     }
 
     return parameters;
   }
 
-  public TestIcebergInputFormats(
-      TestInputFormat.Factory<Record> testInputFormat, String fileFormat) {
-    this.testInputFormat = testInputFormat;
-    this.fileFormat = FileFormat.fromString(fileFormat);
-  }
-
-  @Test
+  @TestTemplate
   public void testUnpartitionedTable() throws Exception {
     helper.createUnpartitionedTable();
     List<Record> expectedRecords = helper.generateRandomRecords(1, 0L);
@@ -144,7 +144,7 @@ public class TestIcebergInputFormats {
     testInputFormat.create(builder.conf()).validate(expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedTable() throws Exception {
     helper.createTable();
     List<Record> expectedRecords = helper.generateRandomRecords(1, 0L);
@@ -154,7 +154,7 @@ public class TestIcebergInputFormats {
     testInputFormat.create(builder.conf()).validate(expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterExp() throws Exception {
     helper.createTable();
 
@@ -171,7 +171,7 @@ public class TestIcebergInputFormats {
     testInputFormat.create(builder.conf()).validate(expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testResiduals() throws Exception {
     helper.createTable();
 
@@ -198,7 +198,7 @@ public class TestIcebergInputFormats {
     testInputFormat.create(builder.conf()).validate(writeRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testFailedResidualFiltering() throws Exception {
     helper.createTable();
 
@@ -213,20 +213,20 @@ public class TestIcebergInputFormats {
         .filter(
             Expressions.and(Expressions.equal("date", "2020-03-20"), Expressions.equal("id", 0)));
 
-    Assertions.assertThatThrownBy(() -> testInputFormat.create(builder.conf()))
+    assertThatThrownBy(() -> testInputFormat.create(builder.conf()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage(
             "Filter expression ref(name=\"id\") == 0 is not completely satisfied. Additional rows can be returned not satisfied by the filter expression");
 
     builder.usePigTuples();
 
-    Assertions.assertThatThrownBy(() -> testInputFormat.create(builder.conf()))
+    assertThatThrownBy(() -> testInputFormat.create(builder.conf()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage(
             "Filter expression ref(name=\"id\") == 0 is not completely satisfied. Additional rows can be returned not satisfied by the filter expression");
   }
 
-  @Test
+  @TestTemplate
   public void testProjection() throws Exception {
     helper.createTable();
     List<Record> inputRecords = helper.generateRandomRecords(1, 0L);
@@ -237,8 +237,8 @@ public class TestIcebergInputFormats {
 
     List<Record> outputRecords = testInputFormat.create(builder.conf()).getRecords();
 
-    Assert.assertEquals(inputRecords.size(), outputRecords.size());
-    Assert.assertEquals(projection.asStruct(), outputRecords.get(0).struct());
+    assertThat(outputRecords).hasSameSizeAs(inputRecords);
+    assertThat(outputRecords.get(0).struct()).isEqualTo(projection.asStruct());
   }
 
   private static final Schema LOG_SCHEMA =
@@ -251,7 +251,7 @@ public class TestIcebergInputFormats {
   private static final PartitionSpec IDENTITY_PARTITION_SPEC =
       PartitionSpec.builderFor(LOG_SCHEMA).identity("date").identity("level").build();
 
-  @Test
+  @TestTemplate
   public void testIdentityPartitionProjections() throws Exception {
     helper.createTable(LOG_SCHEMA, IDENTITY_PARTITION_SPEC);
     List<Record> inputRecords = helper.generateRandomRecords(10, 0L);
@@ -310,19 +310,19 @@ public class TestIcebergInputFormats {
     for (int pos = 0; pos < inputRecords.size(); pos++) {
       Record inputRecord = inputRecords.get(pos);
       Record actualRecord = actualRecords.get(pos);
-      Assert.assertEquals(
-          "Projected schema should match", projectedSchema.asStruct(), actualRecord.struct());
+      assertThat(actualRecord.struct())
+          .as("Projected schema should match")
+          .isEqualTo(projectedSchema.asStruct());
 
       for (String name : fieldNames) {
-        Assert.assertEquals(
-            "Projected field " + name + " should match",
-            inputRecord.getField(name),
-            actualRecord.getField(name));
+        assertThat(actualRecord.getField(name))
+            .as("Projected field " + name + " should match")
+            .isEqualTo(inputRecord.getField(name));
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotReads() throws Exception {
     helper.createUnpartitionedTable();
 
@@ -336,26 +336,26 @@ public class TestIcebergInputFormats {
     testInputFormat.create(builder.conf()).validate(expectedRecords);
   }
 
-  @Test
+  @TestTemplate
   public void testLocality() throws Exception {
     helper.createUnpartitionedTable();
     List<Record> expectedRecords = helper.generateRandomRecords(1, 0L);
     helper.appendToTable(null, expectedRecords);
 
     for (InputSplit split : testInputFormat.create(builder.conf()).getSplits()) {
-      Assert.assertArrayEquals(new String[] {"*"}, split.getLocations());
+      assertThat(split.getLocations()).containsExactly("*");
     }
 
     builder.preferLocality();
 
     for (InputSplit split : testInputFormat.create(builder.conf()).getSplits()) {
-      Assert.assertArrayEquals(new String[] {"localhost"}, split.getLocations());
+      assertThat(split.getLocations()).containsExactly("localhost");
     }
   }
 
-  @Test
+  @TestTemplate
   public void testCustomCatalog() throws IOException {
-    String warehouseLocation = temp.newFolder("hadoop_catalog").getAbsolutePath();
+    String warehouseLocation = temp.resolve("hadoop_catalog").toAbsolutePath().toString();
     conf.set("warehouse.location", warehouseLocation);
     conf.set(InputFormatConfig.CATALOG_NAME, Catalogs.ICEBERG_DEFAULT_CATALOG_NAME);
     conf.set(
@@ -402,7 +402,7 @@ public class TestIcebergInputFormats {
     }
 
     public void validate(List<T> expected) {
-      Assert.assertEquals(expected, records);
+      assertThat(records).isEqualTo(expected);
     }
 
     public interface Factory<T> {

@@ -33,15 +33,22 @@ ClickHouse is a column-oriented database that enables its users to generate powe
 
 ### [Cloudera](http://cloudera.com)
 
-Cloudera Data Platform integrates Apache Iceberg to the following components:
-* Apache Hive, Apache Impala, and Apache Spark to query Apache Iceberg tables
-* Cloudera Data Warehouse service providing access to Apache Iceberg tables through Apache Hive and Apache Impala
-* Cloudera Data Engineering service providing access to Apache Iceberg tables through Apache Spark
-* The CDP Shared Data Experience (SDX) provides compliance and self-service data access for Apache Iceberg tables
-* Hive metastore, which plays a lightweight role in providing the Iceberg Catalog
-* Data Visualization to visualize data stored in Apache Iceberg
+[Cloudera's data lakehouse](https://www.cloudera.com/products/open-data-lakehouse.html)
+enables customers to store and manage their data in open table
+formats like Apache Iceberg for running large scale multi-function analytics and AI.
+Organizations rely on Cloudera's Iceberg support because it is easy to use, easy
+to integrate into any data ecosystem and easy to run multiple engines - both Cloudera
+and non-Cloudera, regardless of where the data resides.
+It provides a common standard for all data with unified security, governance, metadata
+management, and fine-grained access control across the data.
 
-https://docs.cloudera.com/cdp-public-cloud/cloud/cdp-iceberg/topics/iceberg-in-cdp.html
+[Cloudera](https://www.cloudera.com/) provides an integrated end to end open data lakehouse with the ability
+to ingest batch and streaming data using NiFi, Flink and Kafka, then process
+the same copy of data using Spark and run analytics or AI with our
+[Data Visualization](https://www.cloudera.com/products/cloudera-data-platform/data-visualization.html),
+[Data warehouse](https://www.cloudera.com/products/data-warehouse.html) and
+[Machine Learning](https://www.cloudera.com/products/machine-learning.html) tools on private
+or any public cloud.
 
 ### [Dremio](https://www.dremio.com/)
 
@@ -58,14 +65,20 @@ IOMETE is a fully-managed ready to use, batteries included Data Platform. IOMETE
 
 PuppyGraph is a cloud-native graph analytics engine that enables users to query one or more relational data stores as a unified graph model. This eliminates the overhead of deploying and maintaining a siloed graph database system, with no ETL required. [PuppyGraph’s native Apache Iceberg integration](https://docs.puppygraph.com/user-manual/getting-started/iceberg) adds native graph capabilities to your existing data lake in an easy and performant way.
 
-### [Snowflake](http://snowflake.com/)
+<!-- markdown-link-check-disable-next-line -->
+### [Snowflake](https://snowflake.com/)
 
-[Snowflake](https://www.snowflake.com/data-cloud/) is a single, cross-cloud platform that enables every organization to mobilize their data with Snowflake’s Data Cloud. Snowflake supports Apache Iceberg by offering [native support for Iceberg Tables](https://www.snowflake.com/blog/iceberg-tables-powering-open-standards-with-snowflake-innovations/) for full DML as well as connectors to [External Tables](https://www.snowflake.com/blog/expanding-the-data-cloud-with-apache-iceberg/) for read-only access.
+<!-- markdown-link-check-disable-next-line -->
+[Snowflake](https://www.snowflake.com/) is a single, cross-cloud platform that enables every organization to mobilize their data with Snowflake’s Data Cloud. Snowflake supports Apache Iceberg by offering [Snowflake-managed Iceberg Tables](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-snowflake-as-the-iceberg-catalog) for full DML as well as [externally managed Iceberg Tables with catalog integrations](https://docs.snowflake.com/en/user-guide/tables-iceberg#use-a-catalog-integration) for read-only access.
 
-### [Starburst](http://starburst.io)
+### [Starburst](https://starburst.io)
 
 Starburst is a commercial offering for the [Trino query engine](https://trino.io). Trino is a distributed MPP SQL query engine that can query data in Iceberg at interactive speeds. Trino also enables you to join Iceberg tables with an [array of other systems](https://trino.io/docs/current/connector.html). Starburst offers both an [enterprise deployment](https://www.starburst.io/platform/starburst-enterprise/) and a [fully managed service](https://www.starburst.io/platform/starburst-galaxy/) to make managing and scaling Trino a flawless experience. Starburst also provides customer support and houses many of the original contributors to the open-source project that know Trino best. Learn more about [the Starburst Iceberg connector](https://docs.starburst.io/latest/connector/iceberg.html).
 
 ### [Tabular](https://tabular.io)
 
 [Tabular](https://tabular.io/product/) is a managed warehouse and automation platform. Tabular offers a central store for analytic data that can be used with any query engine or processing framework that supports Iceberg. Tabular warehouses add role-based access control and automatic optimization, clustering, and compaction to Iceberg tables.
+
+### [Upsolver](https://upsolver.com)
+
+[Upsolver](https://upsolver.com) is a streaming data ingestion and table management solution for Apache Iceberg. With Upsolver, users can easily ingest batch and streaming data from files, streams and databases (CDC) into [Iceberg tables](https://docs.upsolver.com/reference/sql-commands/iceberg-tables/upsolver-managed-tables). In addition, Upsolver connects to your existing REST and Hive catalogs, and [analyzes the health](https://docs.upsolver.com/how-to-guides/apache-iceberg/optimize-your-iceberg-tables) of your tables. Use Upsolver to continuously optimize tables by compacting small files, sorting and compressing, repartitioning, and cleaning up dangling files and expired manifests. Upsolver is available from the [Upsolver Cloud](https://www.upsolver.com/sqlake-signup-wp) or can be deployed in your AWS VPC.

@@ -18,21 +18,26 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.io.File;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestSequenceNumberForV2Table extends TableTestBase {
+public class TestSequenceNumberForV2Table extends TestBase {
 
-  public TestSequenceNumberForV2Table() {
-    super(2);
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(2);
   }
 
-  @Test
+  @TestTemplate
   public void testRewrite() {
     table.newFastAppend().appendFile(FILE_A).commit();
     Snapshot snap1 = table.currentSnapshot();
@@ -96,7 +101,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testCommitConflict() {
     AppendFiles appendA = table.newFastAppend();
     appendA.appendFile(FILE_A).apply();
@@ -105,7 +110,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
 
     table.ops().failCommits(1);
 
-    Assertions.assertThatThrownBy(() -> table.newFastAppend().appendFile(FILE_B).commit())
+    assertThatThrownBy(() -> table.newFastAppend().appendFile(FILE_B).commit())
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
 
@@ -144,7 +149,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
         "Last sequence number should be 3", 3, readMetadata().lastSequenceNumber());
   }
 
-  @Test
+  @TestTemplate
   public void testRollBack() {
     table.newFastAppend().appendFile(FILE_A).commit();
     Snapshot snap1 = table.currentSnapshot();
@@ -183,7 +188,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
         "Last sequence number should be 3", 3, readMetadata().lastSequenceNumber());
   }
 
-  @Test
+  @TestTemplate
   public void testSingleTransaction() {
     Transaction txn = table.newTransaction();
     txn.newAppend().appendFile(FILE_A).commit();
@@ -198,7 +203,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
         "Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
   }
 
-  @Test
+  @TestTemplate
   public void testConcurrentTransaction() {
     Transaction txn1 = table.newTransaction();
     Transaction txn2 = table.newTransaction();
@@ -264,7 +269,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
         "Last sequence number should be 4", 4, readMetadata().lastSequenceNumber());
   }
 
-  @Test
+  @TestTemplate
   public void testMultipleOperationsTransaction() {
     Transaction txn = table.newTransaction();
     txn.newFastAppend().appendFile(FILE_A).commit();
@@ -298,7 +303,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
         "Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
   }
 
-  @Test
+  @TestTemplate
   public void testExpirationInTransaction() {
     table.newFastAppend().appendFile(FILE_A).commit();
     Snapshot snap1 = table.currentSnapshot();
@@ -310,7 +315,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     V2Assert.assertEquals(
         "Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
     V2Assert.assertEquals(
-        "Should be 1 manifest list", 1, listManifestLists(table.location()).size());
+        "Should be 1 manifest list", 1, listManifestLists(new File(table.location())).size());
 
     table.newAppend().appendFile(FILE_B).commit();
     Snapshot snap2 = table.currentSnapshot();
@@ -322,7 +327,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     V2Assert.assertEquals(
         "Last sequence number should be 2", 2, readMetadata().lastSequenceNumber());
     V2Assert.assertEquals(
-        "Should be 2 manifest lists", 2, listManifestLists(table.location()).size());
+        "Should be 2 manifest lists", 2, listManifestLists(new File(table.location())).size());
 
     Transaction txn = table.newTransaction();
     txn.expireSnapshots().expireSnapshotId(commitId1).commit();
@@ -332,10 +337,10 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     V2Assert.assertEquals(
         "Should be 1 manifest list as 1 was deleted",
         1,
-        listManifestLists(table.location()).size());
+        listManifestLists(new File(table.location())).size());
   }
 
-  @Test
+  @TestTemplate
   public void testTransactionFailure() {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     Snapshot snap1 = table.currentSnapshot();
@@ -359,7 +364,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
     Transaction txn = table.newTransaction();
     txn.newAppend().appendFile(FILE_C).commit();
 
-    Assertions.assertThatThrownBy(txn::commitTransaction)
+    assertThatThrownBy(txn::commitTransaction)
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
 
@@ -367,7 +372,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
         "Last sequence number should be 1", 1, readMetadata().lastSequenceNumber());
   }
 
-  @Test
+  @TestTemplate
   public void testCherryPicking() {
     table.newAppend().appendFile(FILE_A).commit();
     Snapshot snap1 = table.currentSnapshot();
@@ -415,7 +420,7 @@ public class TestSequenceNumberForV2Table extends TableTestBase {
         "Last sequence number should be 4", 4, readMetadata().lastSequenceNumber());
   }
 
-  @Test
+  @TestTemplate
   public void testCherryPickFastForward() {
     table.newAppend().appendFile(FILE_A).commit();
     Snapshot snap1 = table.currentSnapshot();

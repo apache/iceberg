@@ -99,7 +99,7 @@ paths:
 
 
         Common catalog configuration settings are documented at
-        https://iceberg.apache.org/configuration/#catalog-properties
+        https://iceberg.apache.org/docs/latest/configuration/#catalog-properties
         "
       responses:
         200:
@@ -170,6 +170,7 @@ paths:
         sending a token exchange request (3). The request's "subject" token should be the expiring
         token. This request should use the subject token in the "Authorization" header.
       requestBody:
+        required: true
         content:
           application/x-www-form-urlencoded:
             schema:
@@ -201,6 +202,8 @@ paths:
         If `parent` is not provided, all top-level namespaces should be listed.
       operationId: listNamespaces
       parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
         - name: parent
           in: query
           description:
@@ -246,6 +249,7 @@ paths:
         The server might also add properties, such as `last_modified_time` etc.
       operationId: createNamespace
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -394,6 +398,7 @@ paths:
 
         Server implementations are not required to support namespace properties.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -448,6 +453,9 @@ paths:
       summary: List all table identifiers underneath a given namespace
       description: Return all table identifiers under this namespace
       operationId: listTables
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
       responses:
         200:
           $ref: '#/components/responses/ListTablesResponse'
@@ -491,7 +499,10 @@ paths:
         create operation include changes like AddSchemaUpdate and SetCurrentSchemaUpdate that set the initial
         table state.
       operationId: createTable
+      parameters:
+        - $ref: '#/components/parameters/data-access'
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -544,6 +555,7 @@ paths:
 
       operationId: registerTable
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -610,6 +622,7 @@ paths:
         for table requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
       parameters:
+        - $ref: '#/components/parameters/data-access'
         - in: query
           name: snapshots
           description:
@@ -672,6 +685,7 @@ paths:
         initialization, like AddSchemaUpdate and SetCurrentSchemaUpdate. The `assert-create` requirement is
         used to ensure that the table was not created concurrently.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1067,6 +1081,9 @@ paths:
       summary: List all view identifiers underneath a given namespace
       description: Return all view identifiers under this namespace
       operationId: listViews
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
       responses:
         200:
           $ref: '#/components/responses/ListTablesResponse'
@@ -1100,6 +1117,7 @@ paths:
         Create a view in the given namespace.
       operationId: createView
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1198,6 +1216,7 @@ paths:
       description:
         Commit updates to a view.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1367,8 +1386,8 @@ paths:
                 $ref: '#/components/examples/RenameViewSameNamespace'
         required: true
       responses:
-        200:
-          description: OK
+        204:
+          description: Success, no content
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -1452,6 +1471,51 @@ components:
       schema:
         type: string
       example: "sales"
+
+    data-access:
+      name: X-Iceberg-Access-Delegation
+      in: header
+      description: >
+        Optional signal to the server that the client supports delegated access
+        via a comma-separated list of access mechanisms.  The server may choose
+        to supply access via any or none of the requested mechanisms.
+        
+        
+        Specific properties and handling for `vended-credentials` is documented
+        in the `LoadTableResult` schema section of this spec document.
+        
+        
+        The protocol and specification for `remote-signing` is documented in 
+        the `s3-signer-open-api.yaml` OpenApi spec in the `aws` module.
+
+      required: false
+      schema:
+        type: string
+        enum:
+          - vended-credentials
+          - remote-signing
+      style: simple
+      explode: false
+      example: "vended-credentials,remote-signing"
+
+    page-token:
+      name: pageToken
+      in: query
+      required: false
+      allowEmptyValue: true
+      schema:
+        $ref: '#/components/schemas/PageToken'
+
+    page-size:
+      name: pageSize
+      in: query
+      description:
+        For servers that support pagination, this signals an upper bound of the number of results that a client will receive. 
+        For servers that do not support pagination, clients may receive results larger than the indicated `pageSize`.
+      required: false
+      schema:
+        type: integer
+        minimum: 1
 
   ##############################
   # Application Schema Objects #
@@ -1551,6 +1615,31 @@ components:
       items:
         type: string
       example: [ "accounting", "tax" ]
+
+    PageToken:
+      description:
+        An opaque token that allows clients to make use of pagination for list APIs
+        (e.g. ListTables). Clients may initiate the first paginated request by sending an empty
+        query parameter `pageToken` to the server.
+        
+        Servers that support pagination should identify the `pageToken` parameter and return a
+        `next-page-token` in the response if there are more results available.  After the initial
+        request, the value of `next-page-token` from each response must be used as the `pageToken`
+        parameter value for the next request. The server must return `null` value for the
+        `next-page-token` in the last response.
+        
+        Servers that support pagination must return all results in a single response with the value
+        of `next-page-token` set to `null` if the query parameter `pageToken` is not set in the
+        request.
+        
+        Servers that do not support pagination should ignore the `pageToken` parameter and return
+        all results in a single response. The `next-page-token` must be omitted from the response.
+    
+        Clients must interpret either `null` or missing response value of `next-page-token` as
+        the end of the listing results.
+
+      type: string
+      nullable: true
 
     TableIdentifier:
       type: object
@@ -1905,8 +1994,8 @@ components:
             operation:
               type: string
               enum: ["append", "replace", "overwrite", "delete"]
-            additionalProperties:
-              type: string
+          additionalProperties:
+            type: string
         schema-id:
           type: integer
 
@@ -2029,6 +2118,15 @@ components:
           $ref: '#/components/schemas/SnapshotLog'
         metadata-log:
           $ref: '#/components/schemas/MetadataLog'
+        # statistics
+        statistics-files:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatisticsFile'
+        partition-statistics-files:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartitionStatisticsFile'
 
     SQLViewRepresentation:
       type: object
@@ -2150,6 +2248,10 @@ components:
           remove-properties: '#/components/schemas/RemovePropertiesUpdate'
           add-view-version: '#/components/schemas/AddViewVersionUpdate'
           set-current-view-version: '#/components/schemas/SetCurrentViewVersionUpdate'
+          set-statistics: '#/components/schemas/SetStatisticsUpdate'
+          remove-statistics: '#/components/schemas/RemoveStatisticsUpdate'
+          set-partition-statistics: '#/components/schemas/SetPartitionStatisticsUpdate'
+          remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
       type: object
       required:
         - action
@@ -2394,6 +2496,64 @@ components:
           type: integer
           description: The view version id to set as current, or -1 to set last added view version id
 
+    SetStatisticsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+        - snapshot-id
+        - statistics
+      properties:
+        action:
+          type: string
+          enum: [ "set-statistics" ]
+        snapshot-id:
+          type: integer
+          format: int64
+        statistics:
+          $ref: '#/components/schemas/StatisticsFile'
+
+    RemoveStatisticsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+        - snapshot-id
+      properties:
+        action:
+          type: string
+          enum: [ "remove-statistics" ]
+        snapshot-id:
+          type: integer
+          format: int64
+
+    SetPartitionStatisticsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+        - partition-statistics
+      properties:
+        action:
+          type: string
+          enum: [ "set-partition-statistics" ]
+        partition-statistics:
+          $ref: '#/components/schemas/PartitionStatisticsFile'
+
+    RemovePartitionStatisticsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+        - snapshot-id
+      properties:
+        action:
+          type: string
+          enum: [ "remove-partition-statistics" ]
+        snapshot-id:
+          type: integer
+          format: int64
+
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -2411,6 +2571,8 @@ components:
         - $ref: '#/components/schemas/SetLocationUpdate'
         - $ref: '#/components/schemas/SetPropertiesUpdate'
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
+        - $ref: '#/components/schemas/SetStatisticsUpdate'
+        - $ref: '#/components/schemas/RemoveStatisticsUpdate'
 
     ViewUpdate:
       anyOf:
@@ -2424,6 +2586,7 @@ components:
         - $ref: '#/components/schemas/SetCurrentViewVersionUpdate'
 
     TableRequirement:
+      type: object
       discriminator:
         propertyName: type
         mapping:
@@ -2435,16 +2598,17 @@ components:
           assert-last-assigned-partition-id: '#/components/schemas/AssertLastAssignedPartitionId'
           assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
           assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
-      type: object
-      required:
-        - type
-      properties:
-        type:
-          type: "string"
+      oneOf:
+        - $ref: '#/components/schemas/AssertCreate'
+        - $ref: '#/components/schemas/AssertTableUUID'
+        - $ref: '#/components/schemas/AssertRefSnapshotId'
+        - $ref: '#/components/schemas/AssertLastAssignedFieldId'
+        - $ref: '#/components/schemas/AssertCurrentSchemaId'
+        - $ref: '#/components/schemas/AssertLastAssignedPartitionId'
+        - $ref: '#/components/schemas/AssertDefaultSpecId'
+        - $ref: '#/components/schemas/AssertDefaultSortOrderId'
 
     AssertCreate:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       type: object
       description: The table must not already exist; used for create transactions
       required:
@@ -2455,8 +2619,6 @@ components:
           enum: ["assert-create"]
 
     AssertTableUUID:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description: The table UUID must match the requirement's `uuid`
       required:
         - type
@@ -2469,8 +2631,6 @@ components:
           type: string
 
     AssertRefSnapshotId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; 
         if `snapshot-id` is `null` or missing, the ref must not already exist
@@ -2489,8 +2649,6 @@ components:
           format: int64
 
     AssertLastAssignedFieldId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's last assigned column id must match the requirement's `last-assigned-field-id`
       required:
@@ -2504,8 +2662,6 @@ components:
           type: integer
 
     AssertCurrentSchemaId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's current schema id must match the requirement's `current-schema-id`
       required:
@@ -2519,8 +2675,6 @@ components:
           type: integer
 
     AssertLastAssignedPartitionId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
       required:
@@ -2534,8 +2688,6 @@ components:
           type: integer
 
     AssertDefaultSpecId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's default spec id must match the requirement's `default-spec-id`
       required:
@@ -2549,8 +2701,6 @@ components:
           type: integer
 
     AssertDefaultSortOrderId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's default sort order id must match the requirement's `default-sort-order-id`
       required:
@@ -2564,30 +2714,25 @@ components:
           type: integer
 
     ViewRequirement:
+      type: object
       discriminator:
         propertyName: type
         mapping:
           assert-view-uuid: '#/components/schemas/AssertViewUUID'
-        type: object
-        required:
-          - type
-        properties:
-          type:
-            type: "string"
+      oneOf:
+        - $ref: '#/components/schemas/AssertViewUUID'
 
-        AssertViewUUID:
-          allOf:
-            - $ref: "#/components/schemas/ViewRequirement"
-          description: The view UUID must match the requirement's `uuid`
-          required:
-            - type
-            - uuid
-          properties:
-            type:
-              type: string
-              enum: [ "assert-view-uuid" ]
-            uuid:
-              type: string
+    AssertViewUUID:
+      description: The view UUID must match the requirement's `uuid`
+      required:
+        - type
+        - uuid
+      properties:
+        type:
+          type: string
+          enum: [ "assert-view-uuid" ]
+        uuid:
+          type: string
 
     LoadTableResult:
       description: |
@@ -3105,6 +3250,8 @@ components:
     ListTablesResponse:
       type: object
       properties:
+        next-page-token:
+          $ref: '#/components/schemas/PageToken'
         identifiers:
           type: array
           uniqueItems: true
@@ -3114,6 +3261,8 @@ components:
     ListNamespacesResponse:
       type: object
       properties:
+        next-page-token:
+          $ref: '#/components/schemas/PageToken'
         namespaces:
           type: array
           uniqueItems: true
@@ -3158,6 +3307,345 @@ components:
         metadata:
           $ref: '#/components/schemas/TableMetadata'
 
+    StatisticsFile:
+      type: object
+      required:
+        - snapshot-id
+        - statistics-path
+        - file-size-in-bytes
+        - file-footer-size-in-bytes
+        - blob-metadata
+      properties:
+        snapshot-id:
+          type: integer
+          format: int64
+        statistics-path:
+          type: string
+        file-size-in-bytes:
+          type: integer
+          format: int64
+        file-footer-size-in-bytes:
+          type: integer
+          format: int64
+        blob-metadata:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlobMetadata'
+
+    BlobMetadata:
+      type: object
+      required:
+        - type
+        - snapshot-id
+        - sequence-number
+        - fields
+      properties:
+        type:
+          type: string
+        snapshot-id:
+          type: integer
+          format: int64
+        sequence-number:
+          type: integer
+          format: int64
+        fields:
+          type: array
+          items:
+            type: integer
+        properties:
+          type: object
+
+    PartitionStatisticsFile:
+      type: object
+      required:
+        - snapshot-id
+        - statistics-path
+        - file-size-in-bytes
+      properties:
+        snapshot-id:
+          type: integer
+          format: int64
+        statistics-path:
+          type: string
+        file-size-in-bytes:
+          type: integer
+          format: int64
+
+    BooleanTypeValue:
+      type: boolean
+      example: true
+
+    IntegerTypeValue:
+      type: integer
+      example: 42
+
+    LongTypeValue:
+      type: integer
+      format: int64
+      example: 9223372036854775807
+
+    FloatTypeValue:
+      type: number
+      format: float
+      example: 3.14
+
+    DoubleTypeValue:
+      type: number
+      format: double
+      example: 123.456
+
+    DecimalTypeValue:
+      type: string
+      description:
+        "Decimal type values are serialized as strings. Decimals with a positive scale serialize as numeric plain 
+        text, while decimals with a negative scale use scientific notation and the exponent will be equal to the 
+        negated scale. For instance, a decimal with a positive scale is '123.4500', with zero scale is '2', 
+        and with a negative scale is '2E+20'"
+      example: "123.4500"
+
+    StringTypeValue:
+      type: string
+      example: "hello"
+
+    UUIDTypeValue:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      maxLength: 36
+      minLength: 36
+      description:
+        "UUID type values are serialized as a 36-character lowercase string in standard UUID format as specified 
+        by RFC-4122"
+      example: "eb26bdb1-a1d8-4aa6-990e-da940875492c"
+
+    DateTypeValue:
+      type: string
+      format: date
+      description:
+        "Date type values follow the 'YYYY-MM-DD' ISO-8601 standard date format"
+      example: "2007-12-03"
+
+    TimeTypeValue:
+      type: string
+      description:
+        "Time type values follow the 'HH:MM:SS.ssssss' ISO-8601 format with microsecond precision"
+      example: "22:31:08.123456"
+
+    TimestampTypeValue:
+      type: string
+      description:
+        "Timestamp type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss' ISO-8601 format with microsecond precision"
+      example: "2007-12-03T10:15:30.123456"
+
+    TimestampTzTypeValue:
+      type: string
+      description:
+        "TimestampTz type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00' ISO-8601 format with microsecond precision, 
+        and a timezone offset (+00:00 for UTC)"
+      example: "2007-12-03T10:15:30.123456+00:00"
+
+    TimestampNanoTypeValue:
+      type: string
+      description:
+        "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss' ISO-8601 format with nanosecond precision"
+      example: "2007-12-03T10:15:30.123456789"
+
+    TimestampTzNanoTypeValue:
+      type: string
+      description:
+        "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00' ISO-8601 format with nanosecond 
+        precision, and a timezone offset (+00:00 for UTC)"
+      example: "2007-12-03T10:15:30.123456789+00:00"
+
+    FixedTypeValue:
+      type: string
+      description:
+        "Fixed length type values are stored and serialized as an uppercase hexadecimal string 
+        preserving the fixed length"
+      example: "78797A"
+
+    BinaryTypeValue:
+      type: string
+      description:
+        "Binary type values are stored and serialized as an uppercase hexadecimal string"
+      example: "78797A"
+
+    CountMap:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntegerTypeValue'
+          description: "List of integer column ids for each corresponding value"
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/LongTypeValue'
+          description: "List of Long values, matched to 'keys' by index"
+      example:
+        {
+          "keys": [ 1, 2 ],
+          "values": [ 100,200 ]
+        }
+
+    ValueMap:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntegerTypeValue'
+          description: "List of integer column ids for each corresponding value"
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrimitiveTypeValue'
+          description: "List of primitive type values, matched to 'keys' by index"
+      example:
+        {
+            "keys": [ 1, 2 ],
+            "values": [ 100, "test" ]
+        }
+
+    PrimitiveTypeValue:
+      oneOf:
+        - $ref: '#/components/schemas/BooleanTypeValue'
+        - $ref: '#/components/schemas/IntegerTypeValue'
+        - $ref: '#/components/schemas/LongTypeValue'
+        - $ref: '#/components/schemas/FloatTypeValue'
+        - $ref: '#/components/schemas/DoubleTypeValue'
+        - $ref: '#/components/schemas/DecimalTypeValue'
+        - $ref: '#/components/schemas/StringTypeValue'
+        - $ref: '#/components/schemas/UUIDTypeValue'
+        - $ref: '#/components/schemas/DateTypeValue'
+        - $ref: '#/components/schemas/TimeTypeValue'
+        - $ref: '#/components/schemas/TimestampTypeValue'
+        - $ref: '#/components/schemas/TimestampTzTypeValue'
+        - $ref: '#/components/schemas/TimestampNanoTypeValue'
+        - $ref: '#/components/schemas/TimestampTzNanoTypeValue'
+        - $ref: '#/components/schemas/FixedTypeValue'
+        - $ref: '#/components/schemas/BinaryTypeValue'
+
+    FileFormat:
+      type: string
+      enum:
+        - avro
+        - orc
+        - parquet
+
+    ContentFile:
+      discriminator:
+        propertyName: content
+        mapping:
+          data: '#/components/schemas/DataFile'
+          position-deletes: '#/components/schemas/PositionDeleteFile'
+          equality-deletes: '#/components/schemas/EqualityDeleteFile'
+      type: object
+      required:
+        - spec-id
+        - content
+        - file-path
+        - file-format
+        - file-size-in-bytes
+        - record-count
+      properties:
+        content:
+          type: string
+        file-path:
+          type: string
+        file-format:
+          $ref: '#/components/schemas/FileFormat'
+        spec-id:
+          type: integer
+        partition:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrimitiveTypeValue'
+          description:
+            "A list of partition field values ordered based on the fields of the partition spec specified by the 
+            `spec-id`"
+          example: [1, "bar"]
+        file-size-in-bytes:
+          type: integer
+          format: int64
+          description: "Total file size in bytes"
+        record-count:
+          type: integer
+          format: int64
+          description: "Number of records in the file"
+        key-metadata:
+          allOf:
+            - $ref: '#/components/schemas/BinaryTypeValue'
+          description: "Encryption key metadata blob"
+        split-offsets:
+          type: array
+          items:
+            type: integer
+            format: int64
+          description: "List of splittable offsets"
+        sort-order-id:
+          type: integer
+
+    DataFile:
+      allOf:
+        - $ref: '#/components/schemas/ContentFile'
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          enum: [ "data" ]
+        column-sizes:
+          allOf:
+            - $ref: '#/components/schemas/CountMap'
+          description: "Map of column id to total count, including null and NaN"
+        value-counts:
+          allOf:
+            - $ref: '#/components/schemas/CountMap'
+          description: "Map of column id to null value count"
+        null-value-counts:
+          allOf:
+            - $ref: '#/components/schemas/CountMap'
+          description: "Map of column id to null value count"
+        nan-value-counts:
+          allOf:
+            - $ref: '#/components/schemas/CountMap'
+          description: "Map of column id to number of NaN values in the column"
+        lower-bounds:
+          allOf:
+            - $ref: '#/components/schemas/ValueMap'
+          description: "Map of column id to lower bound primitive type values"
+        upper-bounds:
+          allOf:
+            - $ref: '#/components/schemas/ValueMap'
+          description: "Map of column id to upper bound primitive type values"
+
+    PositionDeleteFile:
+      allOf:
+        - $ref: '#/components/schemas/ContentFile'
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          enum: [ "position-deletes" ]
+
+    EqualityDeleteFile:
+      allOf:
+        - $ref: '#/components/schemas/ContentFile'
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          enum: [ "equality-deletes" ]
+        equality-ids:
+          type: array
+          items:
+            type: integer
+          description: "List of equality field IDs"
 
   #############################
   # Reusable Response Objects #
@@ -3251,12 +3739,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
-            example: {
-              "error": {
-                "message": "The server does not support this operation",
-                "type": "UnsupportedOperationException",
-                "code": 406
-              } }
+          example: {
+            "error": {
+              "message": "The server does not support this operation",
+              "type": "UnsupportedOperationException",
+              "code": 406
+            } }
 
     CreateNamespaceResponse:
       description:

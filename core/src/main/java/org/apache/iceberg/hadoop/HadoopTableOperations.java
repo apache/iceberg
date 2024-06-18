@@ -61,6 +61,8 @@ import org.slf4j.LoggerFactory;
 public class HadoopTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTableOperations.class);
   private static final Pattern VERSION_PATTERN = Pattern.compile("v([^\\.]*)\\..*");
+  private static final TableMetadataParser.Codec[] TABLE_METADATA_PARSER_CODEC_VALUES =
+      TableMetadataParser.Codec.values();
 
   private final Configuration conf;
   private final Path location;
@@ -248,7 +250,7 @@ public class HadoopTableOperations implements TableOperations {
 
   @VisibleForTesting
   Path getMetadataFile(int metadataVersion) throws IOException {
-    for (TableMetadataParser.Codec codec : TableMetadataParser.Codec.values()) {
+    for (TableMetadataParser.Codec codec : TABLE_METADATA_PARSER_CODEC_VALUES) {
       Path metadataFile = metadataFilePath(metadataVersion, codec);
       FileSystem fs = getFileSystem(metadataFile, conf);
       if (fs.exists(metadataFile)) {

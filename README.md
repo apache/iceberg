@@ -17,7 +17,7 @@
   - under the License.
   -->
 
-![Iceberg](https://iceberg.apache.org/docs/latest/img/Iceberg-logo.png)
+![Iceberg](https://iceberg.apache.org/assets/images/Iceberg-logo.svg)
 
 [![](https://github.com/apache/iceberg/actions/workflows/java-ci.yml/badge.svg)](https://github.com/apache/iceberg/actions/workflows/java-ci.yml)
 [![Slack](https://img.shields.io/badge/chat-on%20Slack-brightgreen.svg)](https://apache-iceberg.slack.com/)
@@ -37,11 +37,8 @@ The core Java library is located in this repository and is the reference impleme
 
 [Documentation][iceberg-docs] is available for all libraries and integrations.
 
-Current work is tracked in the [roadmap][roadmap].
-
 [iceberg-docs]: https://iceberg.apache.org/docs/latest/
-[iceberg-spec]: https://iceberg.apache.org/spec
-[roadmap]: https://iceberg.apache.org/roadmap/
+[iceberg-spec]: https://iceberg.apache.org/spec/
 
 ## Collaboration
 
@@ -59,7 +56,7 @@ Iceberg is built using Gradle with Java 8, 11, or 17.
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
 * To fix code style for default versions: `./gradlew spotlessApply`
-* To fix code style for all versions of Spark/Hive/Flink:`./gradlew spotlessApply -DallVersions`
+* To fix code style for all versions of Spark/Hive/Flink:`./gradlew spotlessApply -DallModules`
 
 Iceberg table support is organized in library modules:
 

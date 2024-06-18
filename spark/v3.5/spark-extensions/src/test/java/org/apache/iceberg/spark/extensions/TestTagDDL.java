@@ -19,11 +19,13 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -34,17 +36,16 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestTagDDL extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestTagDDL extends ExtensionsTestBase {
   private static final String[] TIME_UNITS = {"DAYS", "HOURS", "MINUTES"};
 
-  @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
@@ -55,21 +56,17 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     };
   }
 
-  public TestTagDDL(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
-  public void before() {
+  @BeforeEach
+  public void createTable() {
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
   }
 
-  @After
+  @AfterEach
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTagWithRetain() throws NoSuchTableException {
     Table table = insertRows();
     long firstSnapshotId = table.currentSnapshot().snapshotId();
@@ -87,16 +84,16 @@ public class TestTagDDL extends SparkExtensionsTestBase {
           tableName, tagName, firstSnapshotId, maxRefAge, timeUnit);
       table.refresh();
       SnapshotRef ref = table.refs().get(tagName);
-      Assert.assertEquals(
-          "The tag needs to point to a specific snapshot id.", firstSnapshotId, ref.snapshotId());
-      Assert.assertEquals(
-          "The tag needs to have the correct max ref age.",
-          TimeUnit.valueOf(timeUnit.toUpperCase(Locale.ENGLISH)).toMillis(maxRefAge),
-          ref.maxRefAgeMs().longValue());
+      assertThat(ref.snapshotId())
+          .as("The tag needs to point to a specific snapshot id.")
+          .isEqualTo(firstSnapshotId);
+      assertThat(ref.maxRefAgeMs().longValue())
+          .as("The tag needs to have the correct max ref age.")
+          .isEqualTo(TimeUnit.valueOf(timeUnit.toUpperCase(Locale.ENGLISH)).toMillis(maxRefAge));
     }
 
     String tagName = "t1";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN",
@@ -104,12 +101,12 @@ public class TestTagDDL extends SparkExtensionsTestBase {
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("ALTER TABLE %s CREATE TAG %s RETAIN %s DAYS", tableName, tagName, "abc"))
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN %d SECONDS",
@@ -118,22 +115,22 @@ public class TestTagDDL extends SparkExtensionsTestBase {
         .hasMessageContaining("mismatched input 'SECONDS' expecting {'DAYS', 'HOURS', 'MINUTES'}");
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTagOnEmptyTable() {
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "abc"))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "abc"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Cannot complete create or replace tag operation on %s, main has no snapshot",
             tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTagUseDefaultConfig() throws NoSuchTableException {
     Table table = insertRows();
     long snapshotId = table.currentSnapshot().snapshotId();
     String tagName = "t1";
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("ALTER TABLE %s CREATE TAG %s AS OF VERSION %d", tableName, tagName, -1))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Cannot set " + tagName + " to unknown snapshot: -1");
@@ -141,16 +138,18 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s CREATE TAG %s", tableName, tagName);
     table.refresh();
     SnapshotRef ref = table.refs().get(tagName);
-    Assert.assertEquals(
-        "The tag needs to point to a specific snapshot id.", snapshotId, ref.snapshotId());
-    Assert.assertNull(
-        "The tag needs to have the default max ref age, which is null.", ref.maxRefAgeMs());
+    assertThat(ref.snapshotId())
+        .as("The tag needs to point to a specific snapshot id.")
+        .isEqualTo(snapshotId);
+    assertThat(ref.maxRefAgeMs())
+        .as("The tag needs to have the default max ref age, which is null.")
+        .isNull();
 
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, tagName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, tagName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("already exists");
 
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "123"))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "123"))
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input '123'");
 
@@ -163,13 +162,15 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s CREATE TAG %s AS OF VERSION %d", tableName, tagName, snapshotId);
     table.refresh();
     ref = table.refs().get(tagName);
-    Assert.assertEquals(
-        "The tag needs to point to a specific snapshot id.", snapshotId, ref.snapshotId());
-    Assert.assertNull(
-        "The tag needs to have the default max ref age, which is null.", ref.maxRefAgeMs());
+    assertThat(ref.snapshotId())
+        .as("The tag needs to point to a specific snapshot id.")
+        .isEqualTo(snapshotId);
+    assertThat(ref.maxRefAgeMs())
+        .as("The tag needs to have the default max ref age, which is null.")
+        .isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTagIfNotExists() throws NoSuchTableException {
     long maxSnapshotAge = 2L;
     Table table = insertRows();
@@ -179,17 +180,15 @@ public class TestTagDDL extends SparkExtensionsTestBase {
 
     table.refresh();
     SnapshotRef ref = table.refs().get(tagName);
-    Assert.assertEquals(
-        "The tag needs to point to a specific snapshot id.",
-        table.currentSnapshot().snapshotId(),
-        ref.snapshotId());
-    Assert.assertEquals(
-        "The tag needs to have the correct max ref age.",
-        TimeUnit.DAYS.toMillis(maxSnapshotAge),
-        ref.maxRefAgeMs().longValue());
+    assertThat(ref.snapshotId())
+        .as("The tag needs to point to a specific snapshot id.")
+        .isEqualTo(table.currentSnapshot().snapshotId());
+    assertThat(ref.maxRefAgeMs().longValue())
+        .as("The tag needs to have the correct max ref age.")
+        .isEqualTo(TimeUnit.DAYS.toMillis(maxSnapshotAge));
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceTagFailsForBranch() throws NoSuchTableException {
     String branchName = "branch1";
     Table table = insertRows();
@@ -198,13 +197,12 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     insertRows();
     long second = table.currentSnapshot().snapshotId();
 
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s REPLACE Tag %s", tableName, branchName, second))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s REPLACE Tag %s", tableName, branchName, second))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Ref branch1 is a branch not a tag");
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceTag() throws NoSuchTableException {
     Table table = insertRows();
     long first = table.currentSnapshot().snapshotId();
@@ -222,19 +220,19 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s REPLACE Tag %s AS OF VERSION %d", tableName, tagName, second);
     table.refresh();
     SnapshotRef ref = table.refs().get(tagName);
-    Assert.assertEquals(
-        "The tag needs to point to a specific snapshot id.", second, ref.snapshotId());
-    Assert.assertEquals(
-        "The tag needs to have the correct max ref age.",
-        expectedMaxRefAgeMs,
-        ref.maxRefAgeMs().longValue());
+    assertThat(ref.snapshotId())
+        .as("The tag needs to point to a specific snapshot id.")
+        .isEqualTo(second);
+    assertThat(ref.maxRefAgeMs().longValue())
+        .as("The tag needs to have the correct max ref age.")
+        .isEqualTo(expectedMaxRefAgeMs);
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceTagDoesNotExist() throws NoSuchTableException {
     Table table = insertRows();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s REPLACE Tag %s AS OF VERSION %d",
@@ -243,7 +241,7 @@ public class TestTagDDL extends SparkExtensionsTestBase {
         .hasMessageContaining("Tag does not exist");
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceTagWithRetain() throws NoSuchTableException {
     Table table = insertRows();
     long first = table.currentSnapshot().snapshotId();
@@ -260,16 +258,16 @@ public class TestTagDDL extends SparkExtensionsTestBase {
 
       table.refresh();
       SnapshotRef ref = table.refs().get(tagName);
-      Assert.assertEquals(
-          "The tag needs to point to a specific snapshot id.", second, ref.snapshotId());
-      Assert.assertEquals(
-          "The tag needs to have the correct max ref age.",
-          TimeUnit.valueOf(timeUnit).toMillis(maxRefAge),
-          ref.maxRefAgeMs().longValue());
+      assertThat(ref.snapshotId())
+          .as("The tag needs to point to a specific snapshot id.")
+          .isEqualTo(second);
+      assertThat(ref.maxRefAgeMs().longValue())
+          .as("The tag needs to have the correct max ref age.")
+          .isEqualTo(TimeUnit.valueOf(timeUnit).toMillis(maxRefAge));
     }
   }
 
-  @Test
+  @TestTemplate
   public void testCreateOrReplace() throws NoSuchTableException {
     Table table = insertRows();
     long first = table.currentSnapshot().snapshotId();
@@ -281,76 +279,72 @@ public class TestTagDDL extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s CREATE OR REPLACE TAG %s AS OF VERSION %d", tableName, tagName, first);
     table.refresh();
     SnapshotRef ref = table.refs().get(tagName);
-    Assert.assertEquals(
-        "The tag needs to point to a specific snapshot id.", first, ref.snapshotId());
+    assertThat(ref.snapshotId())
+        .as("The tag needs to point to a specific snapshot id.")
+        .isEqualTo(first);
   }
 
-  @Test
+  @TestTemplate
   public void testDropTag() throws NoSuchTableException {
     insertRows();
     Table table = validationCatalog.loadTable(tableIdent);
     String tagName = "t1";
     table.manageSnapshots().createTag(tagName, table.currentSnapshot().snapshotId()).commit();
     SnapshotRef ref = table.refs().get(tagName);
-    Assert.assertEquals(
-        "The tag needs to point to a specific snapshot id.",
-        table.currentSnapshot().snapshotId(),
-        ref.snapshotId());
+    assertThat(ref.snapshotId()).as("").isEqualTo(table.currentSnapshot().snapshotId());
 
     sql("ALTER TABLE %s DROP TAG %s", tableName, tagName);
     table.refresh();
     ref = table.refs().get(tagName);
-    Assert.assertNull("The tag needs to be dropped.", ref);
+    assertThat(ref).as("The tag needs to be dropped.").isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testDropTagNonConformingName() {
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, "123"))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, "123"))
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input '123'");
   }
 
-  @Test
+  @TestTemplate
   public void testDropTagDoesNotExist() {
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s DROP TAG %s", tableName, "nonExistingTag"))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, "nonExistingTag"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Tag does not exist: nonExistingTag");
   }
 
-  @Test
+  @TestTemplate
   public void testDropTagFailesForBranch() throws NoSuchTableException {
     String branchName = "b1";
     Table table = insertRows();
     table.manageSnapshots().createBranch(branchName, table.currentSnapshot().snapshotId()).commit();
 
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, branchName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, branchName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Ref b1 is a branch not a tag");
   }
 
-  @Test
+  @TestTemplate
   public void testDropTagIfExists() throws NoSuchTableException {
     String tagName = "nonExistingTag";
     Table table = insertRows();
-    Assert.assertNull("The tag does not exists.", table.refs().get(tagName));
+    assertThat(table.refs().get(tagName)).as("The tag does not exists.").isNull();
 
     sql("ALTER TABLE %s DROP TAG IF EXISTS %s", tableName, tagName);
     table.refresh();
-    Assert.assertNull("The tag still does not exist.", table.refs().get(tagName));
+    assertThat(table.refs().get(tagName)).as("The tag still does not exist.").isNull();
 
     table.manageSnapshots().createTag(tagName, table.currentSnapshot().snapshotId()).commit();
-    Assert.assertEquals(
-        "The tag has been created successfully.",
-        table.currentSnapshot().snapshotId(),
-        table.refs().get(tagName).snapshotId());
+    assertThat(table.refs().get(tagName).snapshotId())
+        .as("The tag has been created successfully.")
+        .isEqualTo(table.currentSnapshot().snapshotId());
 
     sql("ALTER TABLE %s DROP TAG IF EXISTS %s", tableName, tagName);
     table.refresh();
-    Assert.assertNull("The tag needs to be dropped.", table.refs().get(tagName));
+    assertThat(table.refs().get(tagName)).as("The tag needs to be dropped.").isNull();
   }
 
-  @Test
+  @TestTemplate
   public void createOrReplaceWithNonExistingTag() throws NoSuchTableException {
     Table table = insertRows();
     String tagName = "t1";

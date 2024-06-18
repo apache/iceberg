@@ -32,12 +32,7 @@ import org.apache.iceberg.util.StructLikeSet;
 
 public class TestFlinkAppenderFactory extends TestAppenderFactory<RowData> {
 
-  private final RowType rowType;
-
-  public TestFlinkAppenderFactory(String fileFormat, boolean partitioned) {
-    super(fileFormat, partitioned);
-    this.rowType = FlinkSchemaUtil.convert(SCHEMA);
-  }
+  private final RowType rowType = FlinkSchemaUtil.convert(SCHEMA);
 
   @Override
   protected FileAppenderFactory<RowData> createAppenderFactory(

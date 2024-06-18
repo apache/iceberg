@@ -42,6 +42,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expression;
@@ -390,7 +391,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     protected InternalRowWrapper initPartitionRowWrapper(Types.StructType partitionType) {
       StructType sparkPartitionType = (StructType) SparkSchemaUtil.convert(partitionType);
-      return new InternalRowWrapper(sparkPartitionType);
+      return new InternalRowWrapper(sparkPartitionType, partitionType);
     }
 
     protected Map<Integer, StructProjection> buildPartitionProjections(
@@ -431,11 +432,14 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       FileIO io = table.io();
       boolean inputOrdered = context.inputOrdered();
       long targetFileSize = context.targetDeleteFileSize();
+      DeleteGranularity deleteGranularity = context.deleteGranularity();
 
       if (inputOrdered) {
-        return new ClusteredPositionDeleteWriter<>(writers, files, io, targetFileSize);
+        return new ClusteredPositionDeleteWriter<>(
+            writers, files, io, targetFileSize, deleteGranularity);
       } else {
-        return new FanoutPositionOnlyDeleteWriter<>(writers, files, io, targetFileSize);
+        return new FanoutPositionOnlyDeleteWriter<>(
+            writers, files, io, targetFileSize, deleteGranularity);
       }
     }
   }
@@ -649,7 +653,8 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
       this.dataSpec = table.spec();
       this.dataPartitionKey = new PartitionKey(dataSpec, context.dataSchema());
-      this.internalRowDataWrapper = new InternalRowWrapper(context.dataSparkType());
+      this.internalRowDataWrapper =
+          new InternalRowWrapper(context.dataSparkType(), context.dataSchema().asStruct());
     }
 
     @Override
@@ -674,6 +679,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
     private final StructType metadataSparkType;
     private final FileFormat deleteFileFormat;
     private final long targetDeleteFileSize;
+    private final DeleteGranularity deleteGranularity;
     private final String queryId;
     private final boolean fanoutWriterEnabled;
     private final boolean inputOrdered;
@@ -690,6 +696,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       this.deleteSparkType = info.rowIdSchema().get();
       this.deleteFileFormat = writeConf.deleteFileFormat();
       this.targetDeleteFileSize = writeConf.targetDeleteFileSize();
+      this.deleteGranularity = writeConf.deleteGranularity();
       this.metadataSparkType = info.metadataSchema().get();
       this.queryId = info.queryId();
       this.fanoutWriterEnabled = writeConf.fanoutWriterEnabled();
@@ -722,6 +729,10 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
 
     long targetDeleteFileSize() {
       return targetDeleteFileSize;
+    }
+
+    DeleteGranularity deleteGranularity() {
+      return deleteGranularity;
     }
 
     String queryId() {

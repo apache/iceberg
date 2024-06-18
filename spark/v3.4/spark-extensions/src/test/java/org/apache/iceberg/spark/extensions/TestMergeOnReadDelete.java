@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -28,16 +30,20 @@ import java.util.Map;
 import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.RowLevelOperationMode;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.TestSparkCatalog;
+import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
@@ -78,6 +84,70 @@ public class TestMergeOnReadDelete extends TestDelete {
   @Parameterized.AfterParam
   public static void clearTestSparkCatalogCache() {
     TestSparkCatalog.clearTables();
+  }
+
+  @Test
+  public void testDeleteWithExecutorCacheLocality() throws NoSuchTableException {
+    createAndInitPartitionedTable();
+
+    append(tableName, new Employee(1, "hr"), new Employee(2, "hr"));
+    append(tableName, new Employee(3, "hr"), new Employee(4, "hr"));
+    append(tableName, new Employee(1, "hardware"), new Employee(2, "hardware"));
+    append(tableName, new Employee(3, "hardware"), new Employee(4, "hardware"));
+
+    createBranchIfNeeded();
+
+    withSQLConf(
+        ImmutableMap.of(SparkSQLProperties.EXECUTOR_CACHE_LOCALITY_ENABLED, "true"),
+        () -> {
+          sql("DELETE FROM %s WHERE id = 1", commitTarget());
+          sql("DELETE FROM %s WHERE id = 3", commitTarget());
+
+          assertEquals(
+              "Should have expected rows",
+              ImmutableList.of(row(2, "hardware"), row(2, "hr"), row(4, "hardware"), row(4, "hr")),
+              sql("SELECT * FROM %s ORDER BY id ASC, dep ASC", selectTarget()));
+        });
+  }
+
+  @Test
+  public void testDeleteFileGranularity() throws NoSuchTableException {
+    checkDeleteFileGranularity(DeleteGranularity.FILE);
+  }
+
+  @Test
+  public void testDeletePartitionGranularity() throws NoSuchTableException {
+    checkDeleteFileGranularity(DeleteGranularity.PARTITION);
+  }
+
+  private void checkDeleteFileGranularity(DeleteGranularity deleteGranularity)
+      throws NoSuchTableException {
+    createAndInitPartitionedTable();
+
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')",
+        tableName, TableProperties.DELETE_GRANULARITY, deleteGranularity);
+
+    append(tableName, new Employee(1, "hr"), new Employee(2, "hr"));
+    append(tableName, new Employee(3, "hr"), new Employee(4, "hr"));
+    append(tableName, new Employee(1, "hardware"), new Employee(2, "hardware"));
+    append(tableName, new Employee(3, "hardware"), new Employee(4, "hardware"));
+
+    createBranchIfNeeded();
+
+    sql("DELETE FROM %s WHERE id = 1 OR id = 3", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.snapshots()).hasSize(5);
+
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
+    String expectedDeleteFilesCount = deleteGranularity == DeleteGranularity.FILE ? "4" : "2";
+    validateMergeOnRead(currentSnapshot, "2", expectedDeleteFilesCount, null);
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(2, "hardware"), row(2, "hr"), row(4, "hardware"), row(4, "hr")),
+        sql("SELECT * FROM %s ORDER BY id ASC, dep ASC", selectTarget()));
   }
 
   @Test
@@ -126,8 +196,7 @@ public class TestMergeOnReadDelete extends TestDelete {
     TestSparkCatalog.setTable(ident, sparkTable);
 
     // Although an exception is thrown here, write and commit have succeeded
-    Assertions.assertThatThrownBy(
-            () -> sql("DELETE FROM %s WHERE id = 2", "dummy_catalog.default.table"))
+    assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id = 2", "dummy_catalog.default.table"))
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageStartingWith("Datacenter on Fire");
 

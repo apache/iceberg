@@ -70,10 +70,12 @@ import org.apache.iceberg.spark.SparkExecutorCache.CacheValue;
 import org.apache.iceberg.spark.SparkExecutorCache.Conf;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.Pair;
+import org.apache.spark.SparkEnv;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.storage.memory.MemoryStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -391,6 +393,11 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
 
     sql("REFRESH TABLE %s", targetTableName);
 
+    // invalidate the memory store to destroy all currently live table broadcasts
+    SparkEnv sparkEnv = SparkEnv.get();
+    MemoryStore memoryStore = sparkEnv.blockManager().memoryStore();
+    memoryStore.clear();
+
     return ImmutableList.of(posDeleteFile, eqDeleteFile);
   }
 
@@ -403,13 +410,13 @@ public class TestSparkExecutorCache extends TestBaseWithCatalog {
       deletes.add(delete.copy(col, value));
     }
 
-    OutputFile out = Files.localOutput(new File(temp, "eq-deletes-" + UUID.randomUUID()));
+    OutputFile out = Files.localOutput(new File(temp.toFile(), "eq-deletes-" + UUID.randomUUID()));
     return FileHelpers.writeDeleteFile(table, out, null, deletes, deleteSchema);
   }
 
   private Pair<DeleteFile, CharSequenceSet> writePosDeletes(
       Table table, List<Pair<CharSequence, Long>> deletes) throws IOException {
-    OutputFile out = Files.localOutput(new File(temp, "pos-deletes-" + UUID.randomUUID()));
+    OutputFile out = Files.localOutput(new File(temp.toFile(), "pos-deletes-" + UUID.randomUUID()));
     return FileHelpers.writeDeleteFile(table, out, null, deletes);
   }
 

@@ -24,7 +24,6 @@ This subproject contains the [MkDocs projects](https://www.mkdocs.org/) that def
 * Python >=3.9
 * pip
 
-
 ## Usage
 
 The directory structure in this repository aims to mimic the sitemap hierarchy of the website. This helps contributors find the source files needed when updating or adding new documentation. It's helpful to have some basic understanding of the MkDocs framework defaults.
@@ -35,7 +34,7 @@ In MkDocs, the [`docs_dir`](https://www.mkdocs.org/user-guide/configuration/#doc
 
 ### Iceberg docs layout
 
-The static Iceberg website lives under the `/site` directory, while the versioned documentation lives under the `/docs` of the main Iceberg repository. The `/site/docs` directory is named that way to follow the [MkDocs convention](https://www.mkdocs.org/user-guide/configuration/#docs_dir). The `/docs` directory contains the current state of the versioned documentation with local revisions. Notice that the root `/site` and `/docs` just happened to share the same naming convention as MkDocs but does not correlate to the mkdocs
+The static Iceberg website lives under the `/site` directory, while the versioned documentation lives under the `/docs` of the main Iceberg repository. The `/site/docs` directory is named that way to follow the [MkDocs convention](https://www.mkdocs.org/user-guide/configuration/#docs_dir). The `/docs` directory contains the current state of the versioned documentation with local revisions. Notice that the root `/site` and `/docs` just happened to share the same naming convention as MkDocs but does not correlate to the mkdocs.
 
 The static Iceberg site pages are Markdown files that live at `/site/docs/*.md`. The versioned documentation are Markdown files that live at `/docs/docs/*.md` files. You may ask where the older versions of the docs and javadocs are, which is covered later in the build section.
 
@@ -58,9 +57,15 @@ The static Iceberg site pages are Markdown files that live at `/site/docs/*.md`.
     ├── mkdocs.yml
     └── requirements.txt
 ```
+
 ### Building the versioned docs
 
-The Iceberg versioned docs are committed in the [orphan `docs` branch](https://github.com/apache/iceberg/tree/docs) and mounted using [git worktree](https://git-scm.com/docs/git-worktree) at build time. The `docs` branch contains the versioned documenation source files at the root. These versions are mounted at the `/site/docs/docs/<version>` directory at build time. The `latest` version, is a soft link to the most recent [semver version](https://semver.org/) in the `docs` branch. There is also an [orphan `javadoc` branch](https://github.com/apache/iceberg/tree/javadoc) that contains prior staticly generated versions of the javadocs mounted at `/site/docs/javadoc/<version>` during build time.
+The Iceberg versioned docs are committed in two [orphan](https://git-scm.com/docs/gitglossary#Documentation/gitglossary.txt-aiddeforphanaorphan) branches and mounted using [git worktree](https://git-scm.com/docs/git-worktree) at build time: 
+
+ 1. [`docs`](https://github.com/apache/iceberg/tree/docs) - contains the state of the documentation source files (`/docs`) during release. These versions are mounted at the `/site/docs/docs/<version>` directory at build time. 
+ 1. [`javadoc`](https://github.com/apache/iceberg/tree/javadoc) - contains prior statically generated versions of the javadocs mounted at `/site/docs/javadoc/<version>` directory at  build time.
+
+The `latest` version, is a soft link to the most recent [semver version](https://semver.org/) in the `docs` branch. The `nightly` version, is a soft link to the current local state of the `/docs` markdown files.
 
 The docs are built, run, and released using [make](https://www.gnu.org/software/make/manual/make.html). The [Makefile](Makefile) and the [common shell script](dev/common.sh) support the following command:
 
@@ -69,7 +74,6 @@ The docs are built, run, and released using [make](https://www.gnu.org/software/
 > [clean](dev/clean.sh): Clean the local site.
 > [deploy](dev/deploy.sh): Clean, build, and deploy the Iceberg docs site.
 > help: Show help for each of the Makefile recipes.
-> [release](dev/release.sh): Release the current `/docs` as `ICEBERG_VERSION` (`make release ICEBERG_VERSION=<MAJOR.MINOR.PATCH>`).
 > [serve](dev/serve.sh): Clean, build, and run the site locally.
 
 To scaffold the versioned docs and build the project, run the `build` recipe. 
@@ -78,30 +82,34 @@ To scaffold the versioned docs and build the project, run the `build` recipe.
 make build
 ```
 
-This step will generate the following layout:
+This step will generate the staged source code which blends into the original source code above:
 
 ```
 ./site/
 └── docs
     ├── docs
+    │   ├── nightly (symlink to /docs/)
     │   ├── latest (symlink to /site/docs/1.4.0/)
     │   ├── 1.4.0 
     │   ├── 1.3.1
     │   └── ...
-    └── javadoc
-        ├── latest
-        ├── 1.4.0
-        ├── 1.3.1
-        └── ...
+    ├── javadoc
+    │   ├── nightly (currently points to latest)
+    │   ├── latest
+    │   ├── 1.4.0
+    │   ├── 1.3.1
+    │   └── ...
+    └─.asf.yaml
 ```
 
+<!-- markdown-link-check-disable-next-line -->
 To run this, run the `serve` recipe, which runs the `build` recipe and calls `mkdocs serve`. This will run locally at <http://localhost:8000>.
-```
+```sh
 make serve
 ```
 
 To clear all build files, run `clean`.
-```
+```sh
 make clean
 ```
 
@@ -109,7 +117,7 @@ make clean
 
 One of the great advantages to the MkDocs material plugin is the [offline feature](https://squidfunk.github.io/mkdocs-material/plugins/offline). You can view the Iceberg docs without the need of a server. To enable OFFLINE builds, add theOFFLINE environment variable to either `build` or `serve` recipes.
 
-```
+```sh
 make build OFFLINE=true
 ```
 
@@ -124,11 +132,11 @@ Deploying the docs is a two step process:
 > The `make release` directive is currently unavailable as we wanted to discuss the best way forward on how or if we should automate the release. It involves taking an existing snapshot of the versioned documentation, and potentially automerging the [`docs` branch](https://github.com/apache/iceberg/tree/docs) and the [`javadoc` branch](https://github.com/apache/iceberg/tree/javadoc) which are independent from the `main` branch. Once this is complete, we can create a pull request with an offline build of the documentation to verify everything renders correctly, and then have the release manager merge that PR to finalize the docs release. So the real process would be manually invoking a docs release action, then merging a pull request.
 
  1. Release a new version by copying the current `/docs` directory to a new version directory in the `docs` branch and a new javadoc build in the `javadoc` branch.
-    ```
+    ```sh
     make release ICEBERG_VERSION=${ICEBERG_VERSION}
     ```
  1. Build and push the generated site to `asf-site`.
-    ```
+    ```sh
     make deploy 
     ```
 
@@ -142,6 +150,9 @@ As mentioned in the MkDocs section, when you build MkDocs `mkdocs build`, MkDocs
 ./site/
 ├── docs
 │   ├── docs
+│   │   ├── nightly
+│   │   │   ├── docs
+│   │   │   └── mkdocs.yml
 │   │   ├── latest
 │   │   │   ├── docs
 │   │   │   └── mkdocs.yml
@@ -149,12 +160,13 @@ As mentioned in the MkDocs section, when you build MkDocs `mkdocs build`, MkDocs
 │   │       ├── docs
 │   │       └── mkdocs.yml
 │   └─ javadoc
+│      ├── nightly 
 │      ├── latest
 │      └── 1.4.0
 └── mkdocs.yml
 ```
 
-Since there are multiple MkDocs projects that build independently, links between them will initially cause a warning when building. This occurs when `mkdocs-monorepo-plugin` compiles, it must first build the versioned documentation sites before aggregating the top-level site with the generated. Due to the delayed aggregation of subdocs of `mkdocs-monorepo-plugin` there may be warnings that display for the versioned docs that compile without being able to reference documentation it expects outside of the immediate poject due to being off by one or more directories. In other words, if the relative linking required doesn't mirror the directory layout on disk, these errors will occur. The only place this occurs now is with the nav link to javadoc. For more information, refer to: <https://github.com/backstage/mkdocs-monorepo-plugin#usage>
+Since there are multiple MkDocs projects that build independently, links between them will initially cause a warning when building. This occurs when `mkdocs-monorepo-plugin` compiles, it must first build the versioned documentation sites before aggregating the top-level site with the generated. Due to the delayed aggregation of subdocs of `mkdocs-monorepo-plugin` there may be warnings that display for the versioned docs that compile without being able to reference documentation it expects outside the immediate project due to being off by one or more directories. In other words, if the relative linking required doesn't mirror the directory layout on disk, these errors will occur. The only place this occurs now is with the nav link to javadoc. For more information, refer to: <https://github.com/backstage/mkdocs-monorepo-plugin#usage>
 
 To ensure the links work, you may use linkchecker to traverse the links on the livesite when you're running locally. This may eventually be used as part of the build unless a more suitable static solution is found.
 

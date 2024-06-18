@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -95,14 +96,14 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
 
   @Test
   public void testWriteTimestampWithoutZoneError() {
-    AssertHelpers.assertThrows(
-        String.format(
-            "Write operation performed on a timestamp without timezone field while "
-                + "'%s' set to false should throw exception",
-            SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE),
-        IllegalArgumentException.class,
-        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR,
-        () -> sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values)));
+    assertThatThrownBy(() -> sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values)))
+        .as(
+            String.format(
+                "Write operation performed on a timestamp without timezone field while "
+                    + "'%s' set to false should throw exception",
+                SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
   }
 
   @Test

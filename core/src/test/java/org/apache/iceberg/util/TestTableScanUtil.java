@@ -19,6 +19,7 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -42,14 +43,13 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SplittableScanTask;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -136,7 +136,7 @@ public class TestTableScanUtil {
   @Test
   public void testTaskGroupPlanningCorruptedOffset() {
     DataFile dataFile =
-        DataFiles.builder(TableTestBase.SPEC)
+        DataFiles.builder(TestBase.SPEC)
             .withPath("/path/to/data-a.parquet")
             .withFileSizeInBytes(10)
             .withPartitionPath("data_bucket=0")
@@ -146,14 +146,14 @@ public class TestTableScanUtil {
             .build();
 
     ResidualEvaluator residualEvaluator =
-        ResidualEvaluator.of(TableTestBase.SPEC, Expressions.equal("id", 1), false);
+        ResidualEvaluator.of(TestBase.SPEC, Expressions.equal("id", 1), false);
 
     BaseFileScanTask baseFileScanTask =
         new BaseFileScanTask(
             dataFile,
             null,
-            SchemaParser.toJson(TableTestBase.SCHEMA),
-            PartitionSpecParser.toJson(TableTestBase.SPEC),
+            SchemaParser.toJson(TestBase.SCHEMA),
+            PartitionSpecParser.toJson(TestBase.SPEC),
             residualEvaluator);
 
     List<BaseFileScanTask> baseFileScanTasks = ImmutableList.of(baseFileScanTask);
@@ -163,13 +163,13 @@ public class TestTableScanUtil {
         TableScanUtil.planTaskGroups(CloseableIterable.withNoopClose(baseFileScanTasks), 1, 1, 0)) {
       for (FileScanTask fileScanTask : task.tasks()) {
         DataFile taskDataFile = fileScanTask.file();
-        Assertions.assertThat(taskDataFile.splitOffsets()).isNull();
+        assertThat(taskDataFile.splitOffsets()).isNull();
         taskCount++;
       }
     }
 
     // 10 tasks since the split offsets are ignored and there are 1 byte splits for a 10 byte file
-    Assertions.assertThat(taskCount).isEqualTo(10);
+    assertThat(taskCount).isEqualTo(10);
   }
 
   @Test
@@ -280,7 +280,7 @@ public class TestTableScanUtil {
         ImmutableList.of(
             taskWithPartition(SPEC1, PARTITION1, 128), taskWithPartition(SPEC2, PARTITION2, 128));
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> TableScanUtil.planTaskGroups(tasks2, 128, 10, 4, SPEC2.partitionType()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot find field");

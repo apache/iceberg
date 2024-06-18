@@ -34,7 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 
 /** Class for Avro-related utility methods. */
-class AvroUtil {
+public class AvroUtil {
   static final Map<Integer, String> FIELD_ID_TO_CLASS =
       ImmutableMap.of(
           DataComplete.ASSIGNMENTS_ELEMENT,

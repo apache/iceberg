@@ -1,22 +1,132 @@
-<footer class="md-footer">
-  
-    <div class="md-footer-meta md-typeset">
-      <div class="md-footer-meta__inner md-grid">
-        <div class="md-copyright">
-    
-      <div class="md-copyright__highlight">
-        Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are<br>either registered trademarks or trademarks of The Apache Software Foundation. Copyright © 2023<br>The Apache Software Foundation, Licensed under the <a href="https://www.apache.org/licenses/">Apache License, Version 2.0</a>.<br><br>
-  
+<footer id="footer" class="footer">
+  <div class="container-fluid footer-top">
+    <div class="d-flex justify-content-center pt-3 pb-3" >
+      
+
+      <div class="col-lg-2 col-md-2 footer-links">
+        <h4>Features</h4>
+        <ul>
+          <li>
+            <a href="/docs/latest/evolution/#schema-evolution"
+              >Schema Evolution</a
+            >
+          </li>
+          <li>
+            <a href="/docs/latest/partitioning/">Hidden Partitioning</a>
+          </li>
+          <li>
+            <a href="/docs/latest/evolution/#partition-evolution"
+              >Partition Evolution</a
+            >
+          </li>
+          <li>
+            <a href="/docs/latest/reliability/">Serializable Isolation</a>
+          </li>
+          <li>
+            <a href="/docs/latest/branching/">Branching and Tagging</a>
+          </li>
+          <li>
+            <a href="/docs/latest/reliability/#concurrent-write-operations"
+              >Optimistic Concurrency</a
+            >
+          </li>
+          <li>
+            <a href="/docs/latest/performance/#data-filtering"
+              >Advanced Filtering</a
+            >
+          </li>
+          <li><a href="/docs/latest/">Compute Engine Integrations</a></li>
+          <li>
+            <a href="/concepts/catalog/#decoupling-using-the-rest-catalog"
+              >REST Catalog</a
+            >
+          </li>
+          <li><a href="/docs/latest/api/">Multiple language APIs</a></li>
+        </ul>
       </div>
-    
-    
-      Made with
-      <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
-        Material for MkDocs
-      </a>
-    
-  </div>
+
+      <div class="col-lg-2 col-md-2 footer-links">
+        <h4>Get Started</h4>
+        <ul>
+          <li><a href="/spark-quickstart">Spark Quickstart</a></li>
+          <li><a href="/hive-quickstart">Hive Quickstart</a></li>
+          <li><a href="/spec/">Open Table Spec</a></li>
+          <li><a href="/docs/latest">Docs</a></li>
+          <li><a href="/blogs/">Blogs</a></li>
+          <li><a href="/talks/">Talks</a></li>
+        </ul>
+        <br />
+      </div>
+
+      <div class="col-lg-2 col-md-2 footer-links">
+        <h4>Community</h4>
+        <ul>
+          <li><a href="/community/#slack">Support</a></li>
+          <li><a href="/community/#mailing-lists">Mailing Lists</a></li>
+          <li>
+            <a href="/community/#iceberg-community-events">Iceberg Events</a>
+          </li>
+          <li><a href="/community/#issues">Issues</a></li>
+          <li><a href="/community/#contribute">Contribute</a></li>
+          <li><a href="/community/#community-guidelines">Guidelines</a></li>
+          <!-- li><a href="/logos-and-assets.html">Solr Logos and Assets</a></li -->
+        </ul>
+      </div>
+
+      <div class="col-lg-2 col-md-2 footer-links">
+        <h4>ASF</h4>
+        <ul>
+          <li>
+            <a href="https://www.apache.org/">Apache Software Foundation</a>
+          </li>
+          <li>
+            <a href="https://www.apache.org/foundation/thanks.html">Thanks</a>
+          </li>
+          <li>
+            <a href="https://www.apache.org/foundation/sponsorship.html"
+              >Sponsorship</a
+            >
+          </li>
+          <li><a href="https://www.apache.org/security/">Security</a></li>
+          <li><a href="https://www.apache.org/licenses/">License</a></li>
+        </ul>
+      </div>
+
+      <div class="col-lg-2 col-md-2 mt-3 footer-icons">
+       
+        <a href="https://iceberg.apache.org"
+          ><img
+            src="/assets/images/asf-estd-1999-logo.png"
+            alt="apache software foundation logo"
+        /></a>
+        <div class="d-flex justify-content-center">
+          <div class="social-links d-flex ">
+            {% if config.extra.social %} {% include "partials/social.html" %} {%
+            endif %}
+          </div>
+        </div>
         
       </div>
     </div>
-  </footer>
+
+    
+  </div>
+
+  <div class="container-fluid ">
+    <div class="d-flex justify-content-center ">
+      <div class="col-md-8">
+        <p class="copyright-text m-4">
+          Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the
+          Apache Iceberg project logo are either registered trademarks or
+          trademarks of The Apache Software Foundation. Copyright © 2024 The
+          Apache Software Foundation, Licensed under the
+          <span
+            ><a href="https://www.apache.org/licenses/"
+              >Apache License, Version 2.0</a
+            >.</span
+          >
+        </p>
+      </div>
+    </div>
+  </div>
+</footer>

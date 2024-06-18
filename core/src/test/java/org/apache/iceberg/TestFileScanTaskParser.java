@@ -41,7 +41,7 @@ public class TestFileScanTaskParser {
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   public void testParser(boolean caseSensitive) {
-    PartitionSpec spec = TableTestBase.SPEC;
+    PartitionSpec spec = TestBase.SPEC;
     FileScanTask fileScanTask = createScanTask(spec, caseSensitive);
     String jsonStr = FileScanTaskParser.toJson(fileScanTask);
     Assertions.assertThat(jsonStr).isEqualTo(expectedFileScanTaskJson());
@@ -58,9 +58,9 @@ public class TestFileScanTaskParser {
     }
 
     return new BaseFileScanTask(
-        TableTestBase.FILE_A,
-        new DeleteFile[] {TableTestBase.FILE_A_DELETES, TableTestBase.FILE_A2_DELETES},
-        SchemaParser.toJson(TableTestBase.SCHEMA),
+        TestBase.FILE_A,
+        new DeleteFile[] {TestBase.FILE_A_DELETES, TestBase.FILE_A2_DELETES},
+        SchemaParser.toJson(TestBase.SCHEMA),
         PartitionSpecParser.toJson(spec),
         residualEvaluator);
   }
@@ -99,10 +99,7 @@ public class TestFileScanTaskParser {
     Assertions.assertThat(actual.spec()).isEqualTo(expected.spec());
     Assertions.assertThat(
             ExpressionUtil.equivalent(
-                expected.residual(),
-                actual.residual(),
-                TableTestBase.SCHEMA.asStruct(),
-                caseSensitive))
+                expected.residual(), actual.residual(), TestBase.SCHEMA.asStruct(), caseSensitive))
         .as("Residual expression should match")
         .isTrue();
   }
