@@ -53,6 +53,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.View;
+import org.apache.iceberg.view.ViewProperties;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -200,6 +201,7 @@ public abstract class BaseTestIceberg {
         .withSchema(schema)
         .withDefaultNamespace(tableIdentifier.namespace())
         .withQuery("spark", "select * from ns.tbl")
+        .withProperty(ViewProperties.REPLACE_DROP_DIALECT_ALLOWED, "true")
         .create();
   }
 

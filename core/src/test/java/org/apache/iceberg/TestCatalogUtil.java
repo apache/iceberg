@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configurable;
@@ -33,7 +36,6 @@ import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestCatalogUtil {
@@ -46,9 +48,9 @@ public class TestCatalogUtil {
     String name = "custom";
     Catalog catalog =
         CatalogUtil.loadCatalog(TestCatalog.class.getName(), name, options, hadoopConf);
-    Assertions.assertThat(catalog).isInstanceOf(TestCatalog.class);
-    Assertions.assertThat(((TestCatalog) catalog).catalogName).isEqualTo(name);
-    Assertions.assertThat(((TestCatalog) catalog).catalogProperties).isEqualTo(options);
+    assertThat(catalog).isInstanceOf(TestCatalog.class);
+    assertThat(((TestCatalog) catalog).catalogName).isEqualTo(name);
+    assertThat(((TestCatalog) catalog).catalogProperties).isEqualTo(options);
   }
 
   @Test
@@ -60,10 +62,10 @@ public class TestCatalogUtil {
     String name = "custom";
     Catalog catalog =
         CatalogUtil.loadCatalog(TestCatalogConfigurable.class.getName(), name, options, hadoopConf);
-    Assertions.assertThat(catalog).isInstanceOf(TestCatalogConfigurable.class);
-    Assertions.assertThat(((TestCatalogConfigurable) catalog).catalogName).isEqualTo(name);
-    Assertions.assertThat(((TestCatalogConfigurable) catalog).catalogProperties).isEqualTo(options);
-    Assertions.assertThat(((TestCatalogConfigurable) catalog).configuration).isEqualTo(hadoopConf);
+    assertThat(catalog).isInstanceOf(TestCatalogConfigurable.class);
+    assertThat(((TestCatalogConfigurable) catalog).catalogName).isEqualTo(name);
+    assertThat(((TestCatalogConfigurable) catalog).catalogProperties).isEqualTo(options);
+    assertThat(((TestCatalogConfigurable) catalog).configuration).isEqualTo(hadoopConf);
   }
 
   @Test
@@ -72,7 +74,7 @@ public class TestCatalogUtil {
     options.put("key", "val");
     Configuration hadoopConf = new Configuration();
     String name = "custom";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 CatalogUtil.loadCatalog(
                     TestCatalogBadConstructor.class.getName(), name, options, hadoopConf))
@@ -89,7 +91,7 @@ public class TestCatalogUtil {
     Configuration hadoopConf = new Configuration();
     String name = "custom";
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 CatalogUtil.loadCatalog(
                     TestCatalogNoInterface.class.getName(), name, options, hadoopConf))
@@ -106,7 +108,7 @@ public class TestCatalogUtil {
     String name = "custom";
 
     String impl = TestCatalogErrorConstructor.class.getName();
-    Assertions.assertThatThrownBy(() -> CatalogUtil.loadCatalog(impl, name, options, hadoopConf))
+    assertThatThrownBy(() -> CatalogUtil.loadCatalog(impl, name, options, hadoopConf))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot initialize Catalog implementation")
         .hasMessageContaining("NoClassDefFoundError: Error while initializing class");
@@ -119,7 +121,7 @@ public class TestCatalogUtil {
     Configuration hadoopConf = new Configuration();
     String name = "custom";
     String impl = "CatalogDoesNotExist";
-    Assertions.assertThatThrownBy(() -> CatalogUtil.loadCatalog(impl, name, options, hadoopConf))
+    assertThatThrownBy(() -> CatalogUtil.loadCatalog(impl, name, options, hadoopConf))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot initialize Catalog implementation")
         .hasMessageContaining("java.lang.ClassNotFoundException: CatalogDoesNotExist");
@@ -130,8 +132,8 @@ public class TestCatalogUtil {
     Map<String, String> properties = Maps.newHashMap();
     properties.put("key", "val");
     FileIO fileIO = CatalogUtil.loadFileIO(TestFileIONoArg.class.getName(), properties, null);
-    Assertions.assertThat(fileIO).isInstanceOf(TestFileIONoArg.class);
-    Assertions.assertThat(((TestFileIONoArg) fileIO).map).isEqualTo(properties);
+    assertThat(fileIO).isInstanceOf(TestFileIONoArg.class);
+    assertThat(((TestFileIONoArg) fileIO).map).isEqualTo(properties);
   }
 
   @Test
@@ -140,8 +142,8 @@ public class TestCatalogUtil {
     configuration.set("key", "val");
     FileIO fileIO =
         CatalogUtil.loadFileIO(HadoopFileIO.class.getName(), Maps.newHashMap(), configuration);
-    Assertions.assertThat(fileIO).isInstanceOf(HadoopFileIO.class);
-    Assertions.assertThat(((HadoopFileIO) fileIO).conf().get("key")).isEqualTo("val");
+    assertThat(fileIO).isInstanceOf(HadoopFileIO.class);
+    assertThat(((HadoopFileIO) fileIO).conf().get("key")).isEqualTo("val");
   }
 
   @Test
@@ -151,21 +153,23 @@ public class TestCatalogUtil {
     FileIO fileIO =
         CatalogUtil.loadFileIO(
             TestFileIOConfigurable.class.getName(), Maps.newHashMap(), configuration);
-    Assertions.assertThat(fileIO).isInstanceOf(TestFileIOConfigurable.class);
-    Assertions.assertThat(((TestFileIOConfigurable) fileIO).configuration).isEqualTo(configuration);
+    assertThat(fileIO).isInstanceOf(TestFileIOConfigurable.class);
+    assertThat(((TestFileIOConfigurable) fileIO).configuration).isEqualTo(configuration);
   }
 
   @Test
   public void loadCustomFileIO_badArg() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> CatalogUtil.loadFileIO(TestFileIOBadArg.class.getName(), Maps.newHashMap(), null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageStartingWith("Cannot initialize FileIO, missing no-arg constructor");
+        .hasMessageStartingWith(
+            "Cannot initialize FileIO implementation "
+                + "org.apache.iceberg.TestCatalogUtil$TestFileIOBadArg: Cannot find constructor");
   }
 
   @Test
   public void loadCustomFileIO_badClass() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 CatalogUtil.loadFileIO(TestFileIONotImpl.class.getName(), Maps.newHashMap(), null))
         .isInstanceOf(IllegalArgumentException.class)
@@ -180,7 +184,7 @@ public class TestCatalogUtil {
     options.put(CatalogUtil.ICEBERG_CATALOG_TYPE, "hive");
     Configuration hadoopConf = new Configuration();
     String name = "custom";
-    Assertions.assertThatThrownBy(() -> CatalogUtil.buildIcebergCatalog(name, options, hadoopConf))
+    assertThatThrownBy(() -> CatalogUtil.buildIcebergCatalog(name, options, hadoopConf))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot create catalog custom, both type and catalog-impl are set: type=hive, catalog-impl=CustomCatalog");
@@ -194,12 +198,12 @@ public class TestCatalogUtil {
         CatalogProperties.METRICS_REPORTER_IMPL, TestMetricsReporterDefault.class.getName());
 
     MetricsReporter metricsReporter = CatalogUtil.loadMetricsReporter(properties);
-    Assertions.assertThat(metricsReporter).isInstanceOf(TestMetricsReporterDefault.class);
+    assertThat(metricsReporter).isInstanceOf(TestMetricsReporterDefault.class);
   }
 
   @Test
   public void loadCustomMetricsReporter_badArg() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 CatalogUtil.loadMetricsReporter(
                     ImmutableMap.of(
@@ -211,7 +215,7 @@ public class TestCatalogUtil {
 
   @Test
   public void loadCustomMetricsReporter_badClass() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 CatalogUtil.loadMetricsReporter(
                     ImmutableMap.of(
@@ -219,6 +223,32 @@ public class TestCatalogUtil {
                         TestFileIONotImpl.class.getName())))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("does not implement MetricsReporter");
+  }
+
+  @Test
+  public void fullTableNameWithDifferentValues() {
+    String uriTypeCatalogName = "thrift://host:port/db.table";
+    String namespace = "ns";
+    String nameSpaceWithTwoLevels = "ns.l2";
+    String tableName = "tbl";
+    TableIdentifier tableIdentifier = TableIdentifier.of(namespace, tableName);
+    assertThat(CatalogUtil.fullTableName(uriTypeCatalogName, tableIdentifier))
+        .isEqualTo(uriTypeCatalogName + "/" + namespace + "." + tableName);
+
+    tableIdentifier = TableIdentifier.of(nameSpaceWithTwoLevels, tableName);
+    assertThat(CatalogUtil.fullTableName(uriTypeCatalogName, tableIdentifier))
+        .isEqualTo(uriTypeCatalogName + "/" + nameSpaceWithTwoLevels + "." + tableName);
+
+    assertThat(CatalogUtil.fullTableName(uriTypeCatalogName + "/", tableIdentifier))
+        .isEqualTo(uriTypeCatalogName + "/" + nameSpaceWithTwoLevels + "." + tableName);
+
+    String nonUriCatalogName = "test.db.catalog";
+    assertThat(CatalogUtil.fullTableName(nonUriCatalogName, tableIdentifier))
+        .isEqualTo(nonUriCatalogName + "." + nameSpaceWithTwoLevels + "." + tableName);
+
+    String pathStyleCatalogName = "/test/db";
+    assertThat(CatalogUtil.fullTableName(pathStyleCatalogName, tableIdentifier))
+        .isEqualTo(pathStyleCatalogName + "/" + nameSpaceWithTwoLevels + "." + tableName);
   }
 
   public static class TestCatalog extends BaseMetastoreCatalog {

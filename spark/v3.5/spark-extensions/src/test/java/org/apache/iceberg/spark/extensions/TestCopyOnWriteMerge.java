@@ -19,6 +19,9 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.MERGE_ISOLATION_LEVEL;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Collections;
 import java.util.Map;
@@ -31,7 +34,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.PlanningMode;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -39,41 +41,15 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestCopyOnWriteMerge extends TestMerge {
-
-  public TestCopyOnWriteMerge(
-      String catalogName,
-      String implementation,
-      Map<String, String> config,
-      String fileFormat,
-      boolean vectorized,
-      String distributionMode,
-      boolean fanoutEnabled,
-      String branch,
-      PlanningMode planningMode) {
-    super(
-        catalogName,
-        implementation,
-        config,
-        fileFormat,
-        vectorized,
-        distributionMode,
-        fanoutEnabled,
-        branch,
-        planningMode);
-  }
 
   @Override
   protected Map<String, String> extraTableProperties() {
@@ -81,11 +57,11 @@ public class TestCopyOnWriteMerge extends TestMerge {
         TableProperties.MERGE_MODE, RowLevelOperationMode.COPY_ON_WRITE.modeName());
   }
 
-  @Test
+  @TestTemplate
   public synchronized void testMergeWithConcurrentTableRefresh() throws Exception {
     // this test can only be run with Hive tables as it requires a reliable lock
     // also, the table cache must be enabled so that the same table instance can be reused
-    Assume.assumeTrue(catalogName.equalsIgnoreCase("testhive"));
+    assumeThat(catalogName).isEqualToIgnoringCase("testhive");
 
     createAndInitTable("id INT, dep STRING");
     createOrReplaceView("source", Collections.singletonList(1), Encoders.INT());
@@ -154,7 +130,7 @@ public class TestCopyOnWriteMerge extends TestMerge {
             });
 
     try {
-      Assertions.assertThatThrownBy(mergeFuture::get)
+      assertThatThrownBy(mergeFuture::get)
           .isInstanceOf(ExecutionException.class)
           .cause()
           .isInstanceOf(IllegalStateException.class)
@@ -165,10 +141,10 @@ public class TestCopyOnWriteMerge extends TestMerge {
     }
 
     executorService.shutdown();
-    Assert.assertTrue("Timeout", executorService.awaitTermination(2, TimeUnit.MINUTES));
+    assertThat(executorService.awaitTermination(2, TimeUnit.MINUTES)).as("Timeout").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testRuntimeFilteringWithReportedPartitioning() {
     createAndInitTable("id INT, dep STRING");
     sql("ALTER TABLE %s ADD PARTITION FIELD dep", tableName);
@@ -199,7 +175,7 @@ public class TestCopyOnWriteMerge extends TestMerge {
                 commitTarget()));
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should have 3 snapshots", 3, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Should have 3 snapshots").hasSize(3);
 
     Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     validateCopyOnWrite(currentSnapshot, "1", "1", "1");

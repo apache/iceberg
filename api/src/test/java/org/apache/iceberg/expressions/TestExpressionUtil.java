@@ -33,7 +33,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestExpressionUtil {
@@ -115,7 +114,7 @@ public class TestExpressionUtil {
 
   @Test
   public void zeroAndNegativeNumberHandling() {
-    Assertions.assertThat(
+    assertThat(
             ExpressionUtil.toSanitizedString(
                 Expressions.in(
                     "test",
@@ -793,7 +792,7 @@ public class TestExpressionUtil {
             "2022-04-29T23:70:51-07:00",
             "2022-04-29T23:49:51.123456+100:00")) {
       String sanitizedFilter = ExpressionUtil.toSanitizedString(Expressions.equal("test", filter));
-      Assertions.assertThat(filterPattern.matcher(sanitizedFilter)).matches();
+      assertThat(filterPattern.matcher(sanitizedFilter)).matches();
     }
   }
 
@@ -1048,7 +1047,7 @@ public class TestExpressionUtil {
   }
 
   private void assertEquals(Expression expected, Expression actual) {
-    Assertions.assertThat(expected).isInstanceOf(UnboundPredicate.class);
+    assertThat(expected).isInstanceOf(UnboundPredicate.class);
     assertEquals((UnboundPredicate<?>) expected, (UnboundPredicate<?>) actual);
   }
 
@@ -1059,7 +1058,7 @@ public class TestExpressionUtil {
   }
 
   private void assertEquals(UnboundTerm<?> expected, UnboundTerm<?> actual) {
-    Assertions.assertThat(expected)
+    assertThat(expected)
         .as("Unknown expected term: " + expected)
         .isOfAnyClassIn(NamedReference.class, UnboundTransform.class);
 

@@ -166,6 +166,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 
     testImplementation libs.avro.avro
     testImplementation libs.parquet.hadoop
+    testImplementation libs.awaitility
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     runtimeOnly libs.antlr.runtime
@@ -238,6 +239,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
     integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}"
     integrationImplementation libs.junit.vintage.engine
+    integrationImplementation libs.junit.jupiter
     integrationImplementation libs.slf4j.simple
     integrationImplementation libs.assertj.core
     integrationImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
@@ -287,6 +289,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
   }
 
   task integrationTest(type: Test) {
+    useJUnitPlatform()
     description = "Test Spark3 Runtime Jar against Spark ${sparkMajorVersion}"
     group = "verification"
     jvmArgs += project.property('extraJvmArgs')

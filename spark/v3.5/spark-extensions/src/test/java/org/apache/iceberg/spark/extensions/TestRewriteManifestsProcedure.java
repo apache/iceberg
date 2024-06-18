@@ -19,11 +19,13 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.List;
-import java.util.Map;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -31,31 +33,26 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestRewriteManifestsProcedure extends ExtensionsTestBase {
 
-  public TestRewriteManifestsProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteManifestsInEmptyTable() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     List<Object[]> output = sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
     assertEquals("Procedure output must match", ImmutableList.of(row(0, 0)), output);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteLargeManifests() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
@@ -64,8 +61,9 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertEquals(
-        "Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 1 manifest")
+        .hasSize(1);
 
     sql("ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')", tableName);
 
@@ -74,11 +72,12 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     table.refresh();
 
-    Assert.assertEquals(
-        "Must have 4 manifests", 4, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 4 manifests")
+        .hasSize(4);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteManifestsNoOp() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
@@ -87,8 +86,9 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertEquals(
-        "Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 1 manifest")
+        .hasSize(1);
 
     List<Object[]> output = sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
     // should not rewrite any manifests for no-op (output of rewrite is same as before and after)
@@ -96,11 +96,12 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     table.refresh();
 
-    Assert.assertEquals(
-        "Must have 1 manifests", 1, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 1 manifest")
+        .hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteLargeManifestsOnDatePartitionedTableWithJava8APIEnabled() {
     withSQLConf(
         ImmutableMap.of("spark.sql.datetime.java8API.enabled", "true"),
@@ -126,8 +127,9 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
           Table table = validationCatalog.loadTable(tableIdent);
 
-          Assert.assertEquals(
-              "Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
+          assertThat(table.currentSnapshot().allManifests(table.io()))
+              .as("Must have 1 manifest")
+              .hasSize(1);
 
           sql(
               "ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')",
@@ -139,12 +141,13 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
           table.refresh();
 
-          Assert.assertEquals(
-              "Must have 4 manifests", 4, table.currentSnapshot().allManifests(table.io()).size());
+          assertThat(table.currentSnapshot().allManifests(table.io()))
+              .as("Must have 4 manifests")
+              .hasSize(4);
         });
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteLargeManifestsOnTimestampPartitionedTableWithJava8APIEnabled() {
     withSQLConf(
         ImmutableMap.of("spark.sql.datetime.java8API.enabled", "true"),
@@ -174,8 +177,9 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
           Table table = validationCatalog.loadTable(tableIdent);
 
-          Assert.assertEquals(
-              "Must have 1 manifest", 1, table.currentSnapshot().allManifests(table.io()).size());
+          assertThat(table.currentSnapshot().allManifests(table.io()))
+              .as("Must have 1 manifest")
+              .hasSize(1);
 
           sql(
               "ALTER TABLE %s SET TBLPROPERTIES ('commit.manifest.target-size-bytes' '1')",
@@ -187,12 +191,13 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
           table.refresh();
 
-          Assert.assertEquals(
-              "Must have 4 manifests", 4, table.currentSnapshot().allManifests(table.io()).size());
+          assertThat(table.currentSnapshot().allManifests(table.io()))
+              .as("Must have 4 manifests")
+              .hasSize(4);
         });
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteSmallManifestsWithSnapshotIdInheritance() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
@@ -209,8 +214,9 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertEquals(
-        "Must have 4 manifest", 4, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 4 manifests")
+        .hasSize(4);
 
     List<Object[]> output =
         sql("CALL %s.system.rewrite_manifests(table => '%s')", catalogName, tableIdent);
@@ -218,11 +224,12 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     table.refresh();
 
-    Assert.assertEquals(
-        "Must have 1 manifests", 1, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 1 manifest")
+        .hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteSmallManifestsWithoutCaching() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
@@ -233,8 +240,9 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertEquals(
-        "Must have 2 manifest", 2, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 2 manifest")
+        .hasSize(2);
 
     List<Object[]> output =
         sql(
@@ -244,11 +252,12 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     table.refresh();
 
-    Assert.assertEquals(
-        "Must have 1 manifests", 1, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 1 manifest")
+        .hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteManifestsCaseInsensitiveArgs() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
@@ -259,8 +268,9 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assert.assertEquals(
-        "Must have 2 manifest", 2, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 2 manifests")
+        .hasSize(2);
 
     List<Object[]> output =
         sql(
@@ -270,42 +280,41 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
     table.refresh();
 
-    Assert.assertEquals(
-        "Must have 1 manifests", 1, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Must have 1 manifest")
+        .hasSize(1);
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidRewriteManifestsCases() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_manifests('n', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Named and positional arguments cannot be mixed");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.custom.rewrite_manifests('n', 't')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_manifests('n', 't')", catalogName))
         .isInstanceOf(NoSuchProcedureException.class)
         .hasMessage("Procedure custom.rewrite_manifests not found");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests()", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests()", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Missing required parameters: [table]");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.rewrite_manifests('n', 2.2)", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests('n', 2.2)", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith("Wrong arg type for use_caching");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_manifests(table => 't', tAbLe => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Could not build name to arg map: Duplicate procedure argument: table");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests('')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
   }
 
-  @Test
+  @TestTemplate
   public void testReplacePartitionField() {
     sql(
         "CREATE TABLE %s (id int, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts)",
@@ -339,7 +348,7 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s WHERE ts < current_timestamp() order by 1 asc", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testWriteManifestWithSpecId() {
     sql(
         "CREATE TABLE %s (id int, dt string, hr string) USING iceberg PARTITIONED BY (dt)",

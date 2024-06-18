@@ -18,40 +18,41 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestSnapshotSummary extends TableTestBase {
-  public TestSnapshotSummary(int formatVersion) {
-    super(formatVersion);
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSnapshotSummary extends TestBase {
+
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
-  }
-
-  @Test
+  @TestTemplate
   public void testFileSizeSummary() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(0);
 
     // fast append
     table.newFastAppend().appendFile(FILE_A).commit();
     Map<String, String> summary = table.currentSnapshot().summary();
-    Assert.assertEquals("10", summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
-    Assert.assertNull(summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
-    Assert.assertEquals("10", summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
+    assertThat(summary)
+        .containsEntry(SnapshotSummary.ADDED_FILE_SIZE_PROP, "10")
+        .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "10")
+        .doesNotContainKey(SnapshotSummary.REMOVED_FILE_SIZE_PROP);
 
     // merge append
     table.newAppend().appendFile(FILE_B).commit();
     summary = table.currentSnapshot().summary();
-    Assert.assertEquals("10", summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
-    Assert.assertNull(summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
-    Assert.assertEquals("20", summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
+    assertThat(summary)
+        .containsEntry(SnapshotSummary.ADDED_FILE_SIZE_PROP, "10")
+        .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "20")
+        .doesNotContainKey(SnapshotSummary.REMOVED_FILE_SIZE_PROP);
 
     table
         .newOverwrite()
@@ -62,18 +63,20 @@ public class TestSnapshotSummary extends TableTestBase {
         .addFile(FILE_D)
         .commit();
     summary = table.currentSnapshot().summary();
-    Assert.assertEquals("30", summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
-    Assert.assertEquals("20", summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
-    Assert.assertEquals("30", summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
+    assertThat(summary)
+        .containsEntry(SnapshotSummary.ADDED_FILE_SIZE_PROP, "30")
+        .containsEntry(SnapshotSummary.REMOVED_FILE_SIZE_PROP, "20")
+        .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "30");
 
     table.newDelete().deleteFile(FILE_C).deleteFile(FILE_D).commit();
     summary = table.currentSnapshot().summary();
-    Assert.assertNull(summary.get(SnapshotSummary.ADDED_FILE_SIZE_PROP));
-    Assert.assertEquals("20", summary.get(SnapshotSummary.REMOVED_FILE_SIZE_PROP));
-    Assert.assertEquals("10", summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
+    assertThat(summary)
+        .containsEntry(SnapshotSummary.REMOVED_FILE_SIZE_PROP, "20")
+        .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "10")
+        .doesNotContainKey(SnapshotSummary.ADDED_FILE_SIZE_PROP);
   }
 
-  @Test
+  @TestTemplate
   public void testFileSizeSummaryWithDeletes() {
     if (formatVersion == 1) {
       return;
@@ -83,7 +86,15 @@ public class TestSnapshotSummary extends TableTestBase {
 
     table.refresh();
     Map<String, String> summary = table.currentSnapshot().summary();
-    Assert.assertEquals("1", summary.get(SnapshotSummary.ADD_EQ_DELETE_FILES_PROP));
-    Assert.assertEquals("1", summary.get(SnapshotSummary.ADD_POS_DELETE_FILES_PROP));
+    assertThat(summary)
+        .containsEntry(SnapshotSummary.ADD_EQ_DELETE_FILES_PROP, "1")
+        .containsEntry(SnapshotSummary.ADD_POS_DELETE_FILES_PROP, "1");
+  }
+
+  @TestTemplate
+  public void testIcebergVersionInSummary() {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Map<String, String> summary = table.currentSnapshot().summary();
+    assertThat(summary).containsKey("iceberg-version");
   }
 }

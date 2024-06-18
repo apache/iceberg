@@ -92,7 +92,7 @@ public class ReaderUtil {
             TestFixtures.SCHEMA, TestFixtures.SCHEMA, null, true, Collections.emptyList()),
         combinedTask,
         new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
-        new PlaintextEncryptionManager());
+        PlaintextEncryptionManager.instance());
   }
 
   public static List<List<Record>> createRecordBatchList(

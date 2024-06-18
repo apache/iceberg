@@ -19,6 +19,8 @@
 package org.apache.iceberg.nessie;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -41,7 +43,6 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.View;
 import org.assertj.core.api.AbstractStringAssert;
-import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.AfterEach;
@@ -121,15 +122,14 @@ public class TestBranchVisibility extends BaseTestIceberg {
     String mainName = "main";
 
     // asking for table@branch gives expected regardless of catalog
-    Assertions.assertThat(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test")))
+    assertThat(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@test")))
         .isEqualTo(metadataLocation(testCatalog, tableIdentifier1));
 
     // Asking for table@branch gives expected regardless of catalog.
     // Earlier versions used "table1@" + tree.getReferenceByName("main").getHash() before, but since
     // Nessie 0.8.2 the branch name became mandatory and specifying a hash within a branch is not
     // possible.
-    Assertions.assertThat(
-            metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainName)))
+    assertThat(metadataLocation(catalog, TableIdentifier.of("test-ns", "table1@" + mainName)))
         .isEqualTo(metadataLocation(testCatalog, tableIdentifier1));
   }
 
@@ -160,7 +160,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
 
     String metadataOnTest2 =
         addRow(catalog, tableIdentifier1, "added-data-on-test", ImmutableMap.of("id0", 5L));
-    Assertions.assertThat(metadataOnTest2).isNotEqualTo(metadataOnTest);
+    assertThat(metadataOnTest2).isNotEqualTo(metadataOnTest);
     long snapshotIdOnTest2 = snapshotIdFromMetadata(catalog, metadataOnTest2);
     verifyRefState(catalog, tableIdentifier1, snapshotIdOnTest2, 0);
 
@@ -173,7 +173,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
             tableIdentifier1,
             "testSchemaSnapshot-in-1",
             ImmutableMap.of("id0", 42L, "id1", "world"));
-    Assertions.assertThat(metadataOn1).isNotEqualTo(metadataOnTest).isNotEqualTo(metadataOnTest2);
+    assertThat(metadataOn1).isNotEqualTo(metadataOnTest).isNotEqualTo(metadataOnTest2);
 
     NessieCatalog catalogBranch2 = initCatalog(branch2);
     updateSchema(catalogBranch2, tableIdentifier1, Types.IntegerType.get());
@@ -184,7 +184,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
             tableIdentifier1,
             "testSchemaSnapshot-in-2",
             ImmutableMap.of("id0", 43L, "id2", 666));
-    Assertions.assertThat(metadataOn2).isNotEqualTo(metadataOnTest).isNotEqualTo(metadataOnTest2);
+    assertThat(metadataOn2).isNotEqualTo(metadataOnTest).isNotEqualTo(metadataOnTest2);
   }
 
   @Test
@@ -202,15 +202,13 @@ public class TestBranchVisibility extends BaseTestIceberg {
     catalog = initCatalog(branch2);
     String metadataLocationOfCommit2 =
         addRow(catalog, tableIdentifier1, "some-more-data", ImmutableMap.of("id0", 42L));
-    Assertions.assertThat(metadataLocationOfCommit2)
-        .isNotNull()
-        .isNotEqualTo(metadataLocationOfCommit1);
+    assertThat(metadataLocationOfCommit2).isNotNull().isNotEqualTo(metadataLocationOfCommit1);
 
     catalog = initCatalog(branch1);
     // load tableIdentifier1 on branch1
     BaseTable table = (BaseTable) catalog.loadTable(tableIdentifier1);
     // branch1's tableIdentifier1's metadata location must not have changed
-    Assertions.assertThat(table.operations().current().metadataFileLocation())
+    assertThat(table.operations().current().metadataFileLocation())
         .isNotNull()
         .isNotEqualTo(metadataLocationOfCommit2);
   }
@@ -236,7 +234,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     // Add a row and verify that the
     String metadataOnTest =
         addRow(catalog, tableIdentifier1, "initial-data", Collections.singletonMap("id0", 1L));
-    Assertions.assertThat(metadataOnTest).isNotEqualTo(initialLocation);
+    assertThat(metadataOnTest).isNotEqualTo(initialLocation);
     long snapshotIdOnTest = snapshotIdFromMetadata(catalog, metadataOnTest);
     verifyRefState(catalog, tableIdentifier1, snapshotIdOnTest, 0);
 
@@ -260,15 +258,15 @@ public class TestBranchVisibility extends BaseTestIceberg {
             "branch-a-1",
             ImmutableMap.of("id0", 2L, "id1", "hello"));
     // addRow() must produce a new metadata
-    Assertions.assertThat(metadataOnA1).isNotEqualTo(metadataOnTest);
+    assertThat(metadataOnA1).isNotEqualTo(metadataOnTest);
     long snapshotIdOnA1 = snapshotIdFromMetadata(catalogBranchA, metadataOnA1);
-    Assertions.assertThat(snapshotIdOnA1).isNotEqualTo(snapshotIdOnTest);
+    assertThat(snapshotIdOnA1).isNotEqualTo(snapshotIdOnTest);
     verifyRefState(catalogBranchA, tableIdentifier1, snapshotIdOnA1, 1);
     verifyRefState(catalog, tableIdentifier1, snapshotIdOnTest, 0);
 
     NessieCatalog catalogBranchB = initCatalog(branchB);
     long snapshotIdOnB = snapshotIdFromNessie(catalogBranchB, tableIdentifier1);
-    Assertions.assertThat(snapshotIdOnB).isEqualTo(snapshotIdOnTest);
+    assertThat(snapshotIdOnB).isEqualTo(snapshotIdOnTest);
     // branchB hasn't been modified yet, so it must be "equal" to branch "test"
     verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB, 0);
     // updateSchema should use schema-id 1, because it's not tracked globally
@@ -282,7 +280,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
             catalogBranchB, tableIdentifier1, "branch-b-1", ImmutableMap.of("id0", 3L, "id2", 42L));
     long snapshotIdOnB1 = snapshotIdFromMetadata(catalogBranchB, metadataOnB1);
     // addRow() must produce a new metadata
-    Assertions.assertThat(metadataOnB1).isNotEqualTo(metadataOnA1).isNotEqualTo(metadataOnTest);
+    assertThat(metadataOnB1).isNotEqualTo(metadataOnA1).isNotEqualTo(metadataOnTest);
     verifyRefState(catalogBranchB, tableIdentifier1, snapshotIdOnB1, 1);
     verifyRefState(catalog, tableIdentifier1, snapshotIdOnTest, 0);
 
@@ -296,7 +294,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
             "branch-a-2",
             ImmutableMap.of("id0", 4L, "id1", "hello"));
     long snapshotIdOnA2 = snapshotIdFromMetadata(catalogBranchA, metadataOnA2);
-    Assertions.assertThat(metadataOnA2)
+    assertThat(metadataOnA2)
         .isNotEqualTo(metadataOnA1)
         .isNotEqualTo(metadataOnB1)
         .isNotEqualTo(metadataOnTest);
@@ -312,7 +310,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
             "branch-b-2",
             ImmutableMap.of("id0", 5L, "id2", 666L));
     long snapshotIdOnB2 = snapshotIdFromMetadata(catalogBranchA, metadataOnB2);
-    Assertions.assertThat(metadataOnB2)
+    assertThat(metadataOnB2)
         .isNotEqualTo(metadataOnA1)
         .isNotEqualTo(metadataOnA2)
         .isNotEqualTo(metadataOnB1)
@@ -327,7 +325,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
       NessieCatalog catalog, TableIdentifier identifier, long snapshotId, int schemaId)
       throws Exception {
     IcebergTable icebergTable = loadIcebergTable(catalog, identifier);
-    Assertions.assertThat(icebergTable)
+    assertThat(icebergTable)
         .extracting(IcebergTable::getSnapshotId, IcebergTable::getSchemaId)
         .containsExactly(snapshotId, schemaId);
   }
@@ -378,7 +376,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
   }
 
   private void verifySchema(NessieCatalog catalog, TableIdentifier identifier, Type... types) {
-    Assertions.assertThat(catalog.loadTable(identifier))
+    assertThat(catalog.loadTable(identifier))
         .extracting(t -> t.schema().columns().stream().map(NestedField::type))
         .asInstanceOf(InstanceOfAssertFactories.stream(Type.class))
         .containsExactly(types);
@@ -416,7 +414,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     String table2 = metadataLocation(catalog, tableIdentifier2);
 
     AbstractStringAssert<?> assertion =
-        Assertions.assertThat(table1)
+        assertThat(table1)
             .describedAs(
                 "Table %s on ref %s should%s be equal to table %s on ref %s",
                 tableIdentifier1.name(),
@@ -431,7 +429,7 @@ public class TestBranchVisibility extends BaseTestIceberg {
     }
 
     assertion =
-        Assertions.assertThat(table2)
+        assertThat(table2)
             .describedAs(
                 "Table %s on ref %s should%s be equal to table %s on ref %s",
                 tableIdentifier2.name(),
@@ -457,41 +455,41 @@ public class TestBranchVisibility extends BaseTestIceberg {
     String hashBeforeNamespaceCreation = api.getReference().refName(testBranch).get().getHash();
     Namespace namespaceA = Namespace.of("a");
     Namespace namespaceAB = Namespace.of("a", "b");
-    Assertions.assertThat(nessieCatalog.listNamespaces(namespaceAB)).isEmpty();
+    assertThat(nessieCatalog.listNamespaces(namespaceAB)).isEmpty();
 
     createMissingNamespaces(
         nessieCatalog, Namespace.of(Arrays.copyOf(namespaceAB.levels(), namespaceAB.length() - 1)));
     nessieCatalog.createNamespace(namespaceAB);
-    Assertions.assertThat(nessieCatalog.listNamespaces(namespaceAB)).isEmpty();
-    Assertions.assertThat(nessieCatalog.listNamespaces(namespaceA)).containsExactly(namespaceAB);
-    Assertions.assertThat(nessieCatalog.listTables(namespaceAB)).isEmpty();
+    assertThat(nessieCatalog.listNamespaces(namespaceAB)).isEmpty();
+    assertThat(nessieCatalog.listNamespaces(namespaceA)).containsExactly(namespaceAB);
+    assertThat(nessieCatalog.listTables(namespaceAB)).isEmpty();
 
     NessieCatalog catalogAtHash1 = initCatalog(testBranch, hashBeforeNamespaceCreation);
-    Assertions.assertThat(catalogAtHash1.listNamespaces(namespaceAB)).isEmpty();
-    Assertions.assertThat(catalogAtHash1.listTables(namespaceAB)).isEmpty();
+    assertThat(catalogAtHash1.listNamespaces(namespaceAB)).isEmpty();
+    assertThat(catalogAtHash1.listTables(namespaceAB)).isEmpty();
 
     TableIdentifier identifier = TableIdentifier.of(namespaceAB, "table");
     String hashBeforeTableCreation = nessieCatalog.currentHash();
     nessieCatalog.createTable(identifier, schema);
-    Assertions.assertThat(nessieCatalog.listTables(namespaceAB)).hasSize(1);
+    assertThat(nessieCatalog.listTables(namespaceAB)).hasSize(1);
 
     NessieCatalog catalogAtHash2 = initCatalog(testBranch, hashBeforeTableCreation);
-    Assertions.assertThat(catalogAtHash2.listNamespaces(namespaceAB)).isEmpty();
-    Assertions.assertThat(catalogAtHash2.listNamespaces(namespaceA)).containsExactly(namespaceAB);
-    Assertions.assertThat(catalogAtHash2.listTables(namespaceAB)).isEmpty();
+    assertThat(catalogAtHash2.listNamespaces(namespaceAB)).isEmpty();
+    assertThat(catalogAtHash2.listNamespaces(namespaceA)).containsExactly(namespaceAB);
+    assertThat(catalogAtHash2.listTables(namespaceAB)).isEmpty();
 
     // updates should not be possible
-    Assertions.assertThatThrownBy(() -> catalogAtHash2.createTable(identifier, schema))
+    assertThatThrownBy(() -> catalogAtHash2.createTable(identifier, schema))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "You can only mutate tables/views when using a branch without a hash or timestamp.");
-    Assertions.assertThat(catalogAtHash2.listTables(namespaceAB)).isEmpty();
+    assertThat(catalogAtHash2.listTables(namespaceAB)).isEmpty();
 
     // updates should be still possible here
     nessieCatalog = initCatalog(testBranch);
     TableIdentifier identifier2 = TableIdentifier.of(namespaceAB, "table2");
     nessieCatalog.createTable(identifier2, schema);
-    Assertions.assertThat(nessieCatalog.listTables(namespaceAB)).hasSize(2);
+    assertThat(nessieCatalog.listTables(namespaceAB)).hasSize(2);
   }
 
   @Test
@@ -515,14 +513,14 @@ public class TestBranchVisibility extends BaseTestIceberg {
 
     createMissingNamespaces(nessieCatalog, identifier);
     Table table1 = nessieCatalog.createTable(identifier, schema1);
-    Assertions.assertThat(table1.schema().asStruct()).isEqualTo(schema1.asStruct());
+    assertThat(table1.schema().asStruct()).isEqualTo(schema1.asStruct());
 
     nessieCatalog = initCatalog(branch2);
     createMissingNamespaces(nessieCatalog, identifier);
     Table table2 = nessieCatalog.createTable(identifier, schema2);
-    Assertions.assertThat(table2.schema().asStruct()).isEqualTo(schema2.asStruct());
+    assertThat(table2.schema().asStruct()).isEqualTo(schema2.asStruct());
 
-    Assertions.assertThat(table1.location()).isNotEqualTo(table2.location());
+    assertThat(table1.location()).isNotEqualTo(table2.location());
   }
 
   @Test
@@ -551,15 +549,13 @@ public class TestBranchVisibility extends BaseTestIceberg {
             .current()
             .metadataFileLocation();
 
-    Assertions.assertThat(metadataLocationOfCommit2)
-        .isNotNull()
-        .isNotEqualTo(metadataLocationOfCommit1);
+    assertThat(metadataLocationOfCommit2).isNotNull().isNotEqualTo(metadataLocationOfCommit1);
 
     catalog = initCatalog(branch1);
     // load viewIdentifier on branch1
     BaseView view = (BaseView) catalog.loadView(viewIdentifier);
     // branch1's viewIdentifier's metadata location must not have changed
-    Assertions.assertThat(view.operations().current().metadataFileLocation())
+    assertThat(view.operations().current().metadataFileLocation())
         .isNotNull()
         .isNotEqualTo(metadataLocationOfCommit2);
 
@@ -587,13 +583,13 @@ public class TestBranchVisibility extends BaseTestIceberg {
 
     createMissingNamespaces(nessieCatalog, identifier);
     View view1 = createView(nessieCatalog, identifier, schema1);
-    Assertions.assertThat(view1.schema().asStruct()).isEqualTo(schema1.asStruct());
+    assertThat(view1.schema().asStruct()).isEqualTo(schema1.asStruct());
 
     nessieCatalog = initCatalog(branch2);
     createMissingNamespaces(nessieCatalog, identifier);
     View view2 = createView(nessieCatalog, identifier, schema2);
-    Assertions.assertThat(view2.schema().asStruct()).isEqualTo(schema2.asStruct());
+    assertThat(view2.schema().asStruct()).isEqualTo(schema2.asStruct());
 
-    Assertions.assertThat(view1.location()).isNotEqualTo(view2.location());
+    assertThat(view1.location()).isNotEqualTo(view2.location());
   }
 }

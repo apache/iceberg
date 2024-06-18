@@ -27,7 +27,6 @@ import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.TruncateUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
-import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.ByteType;
@@ -108,7 +107,7 @@ public class TruncateFunction implements UnboundFunction {
     return "truncate";
   }
 
-  public abstract static class TruncateBase<T> implements ScalarFunction<T> {
+  public abstract static class TruncateBase<T> extends BaseScalarFunction<T> {
     @Override
     public String name() {
       return "truncate";

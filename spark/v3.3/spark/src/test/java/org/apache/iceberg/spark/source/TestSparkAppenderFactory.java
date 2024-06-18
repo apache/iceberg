@@ -32,12 +32,7 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class TestSparkAppenderFactory extends TestAppenderFactory<InternalRow> {
 
-  private final StructType sparkType;
-
-  public TestSparkAppenderFactory(String fileFormat, boolean partitioned) {
-    super(fileFormat, partitioned);
-    this.sparkType = SparkSchemaUtil.convert(SCHEMA);
-  }
+  private final StructType sparkType = SparkSchemaUtil.convert(SCHEMA);
 
   @Override
   protected FileAppenderFactory<InternalRow> createAppenderFactory(
@@ -61,7 +56,7 @@ public class TestSparkAppenderFactory extends TestAppenderFactory<InternalRow> {
   protected StructLikeSet expectedRowSet(Iterable<InternalRow> rows) {
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     for (InternalRow row : rows) {
-      InternalRowWrapper wrapper = new InternalRowWrapper(sparkType);
+      InternalRowWrapper wrapper = new InternalRowWrapper(sparkType, table.schema().asStruct());
       set.add(wrapper.wrap(row));
     }
     return set;

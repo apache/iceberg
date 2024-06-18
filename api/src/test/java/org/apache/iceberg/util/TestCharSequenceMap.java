@@ -30,6 +30,12 @@ import org.junit.jupiter.api.Test;
 public class TestCharSequenceMap {
 
   @Test
+  public void nullString() {
+    assertThat(CharSequenceMap.create()).doesNotContainKey((String) null);
+    assertThat(CharSequenceMap.create()).doesNotContainValue((String) null);
+  }
+
+  @Test
   public void testEmptyMap() {
     CharSequenceMap<String> map = CharSequenceMap.create();
     assertThat(map).isEmpty();

@@ -18,62 +18,67 @@
  */
 package org.apache.iceberg.inmemory;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.UUID;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.NotFoundException;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestInMemoryFileIO {
-  String location = "s3://foo/bar.txt";
 
   @Test
   public void testBasicEndToEnd() throws IOException {
     InMemoryFileIO fileIO = new InMemoryFileIO();
-    Assertions.assertThat(fileIO.fileExists(location)).isFalse();
+    String location = randomLocation();
+    assertThat(fileIO.fileExists(location)).isFalse();
 
     OutputStream outputStream = fileIO.newOutputFile(location).create();
     byte[] data = "hello world".getBytes();
     outputStream.write(data);
     outputStream.close();
-    Assertions.assertThat(fileIO.fileExists(location)).isTrue();
+    assertThat(fileIO.fileExists(location)).isTrue();
 
     InputStream inputStream = fileIO.newInputFile(location).newStream();
     byte[] buf = new byte[data.length];
     inputStream.read(buf);
     inputStream.close();
-    Assertions.assertThat(new String(buf)).isEqualTo("hello world");
+    assertThat(new String(buf)).isEqualTo("hello world");
 
     fileIO.deleteFile(location);
-    Assertions.assertThat(fileIO.fileExists(location)).isFalse();
+    assertThat(fileIO.fileExists(location)).isFalse();
   }
 
   @Test
   public void testNewInputFileNotFound() {
     InMemoryFileIO fileIO = new InMemoryFileIO();
-    Assertions.assertThatExceptionOfType(NotFoundException.class)
+    assertThatExceptionOfType(NotFoundException.class)
         .isThrownBy(() -> fileIO.newInputFile("s3://nonexistent/file"));
   }
 
   @Test
   public void testDeleteFileNotFound() {
     InMemoryFileIO fileIO = new InMemoryFileIO();
-    Assertions.assertThatExceptionOfType(NotFoundException.class)
+    assertThatExceptionOfType(NotFoundException.class)
         .isThrownBy(() -> fileIO.deleteFile("s3://nonexistent/file"));
   }
 
   @Test
   public void testCreateNoOverwrite() {
+    String location = randomLocation();
     InMemoryFileIO fileIO = new InMemoryFileIO();
     fileIO.addFile(location, "hello world".getBytes());
-    Assertions.assertThatExceptionOfType(AlreadyExistsException.class)
+    assertThatExceptionOfType(AlreadyExistsException.class)
         .isThrownBy(() -> fileIO.newOutputFile(location).create());
   }
 
   @Test
   public void testOverwriteBeforeAndAfterClose() throws IOException {
+    String location = randomLocation();
     byte[] oldData = "old data".getBytes();
     byte[] newData = "new data".getBytes();
 
@@ -83,11 +88,11 @@ public class TestInMemoryFileIO {
 
     // Even though we've called create() and started writing data, this file won't yet exist
     // in the parentFileIO before we've closed it.
-    Assertions.assertThat(fileIO.fileExists(location)).isFalse();
+    assertThat(fileIO.fileExists(location)).isFalse();
 
     // File appears after closing it.
     outputStream.close();
-    Assertions.assertThat(fileIO.fileExists(location)).isTrue();
+    assertThat(fileIO.fileExists(location)).isTrue();
 
     // Start a new OutputFile and write new data but don't close() it yet.
     outputStream = fileIO.newOutputFile(location).createOrOverwrite();
@@ -98,7 +103,7 @@ public class TestInMemoryFileIO {
     byte[] buf = new byte[oldData.length];
     inputStream.read(buf);
     inputStream.close();
-    Assertions.assertThat(new String(buf)).isEqualTo("old data");
+    assertThat(new String(buf)).isEqualTo("old data");
 
     // Finally, close the new output stream; data should be overwritten with new data now.
     outputStream.close();
@@ -106,6 +111,22 @@ public class TestInMemoryFileIO {
     buf = new byte[newData.length];
     inputStream.read(buf);
     inputStream.close();
-    Assertions.assertThat(new String(buf)).isEqualTo("new data");
+    assertThat(new String(buf)).isEqualTo("new data");
+  }
+
+  @Test
+  public void testFilesAreSharedAcrossMultipleInstances() {
+    String location = randomLocation();
+    InMemoryFileIO fileIO = new InMemoryFileIO();
+    fileIO.addFile(location, "hello world".getBytes());
+
+    InMemoryFileIO fileIO2 = new InMemoryFileIO();
+    assertThat(fileIO2.fileExists(location))
+        .isTrue()
+        .as("Files should be shared across all InMemoryFileIO instances");
+  }
+
+  private String randomLocation() {
+    return "s3://foo/" + UUID.randomUUID();
   }
 }

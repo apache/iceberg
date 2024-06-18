@@ -49,8 +49,9 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.parquet.dict-size-bytes                        | 2097152 (2 MB)              | Parquet dictionary page size                                                                                                                                                                      |
 | write.parquet.compression-codec                      | zstd                        | Parquet compression codec: zstd, brotli, lz4, gzip, snappy, uncompressed                                                                                                                          |
 | write.parquet.compression-level                      | null                        | Parquet compression level                                                                                                                                                                         |
-| write.parquet.bloom-filter-enabled.column.col1       | (not set)                   | Hint to parquet to write a bloom filter for the column: col1                                                                                                                                      |
+| write.parquet.bloom-filter-enabled.column.col1       | (not set)                   | Hint to parquet to write a bloom filter for the column: 'col1'                                                                                                                                    |
 | write.parquet.bloom-filter-max-bytes                 | 1048576 (1 MB)              | The maximum number of bytes for a bloom filter bitset                                                                                                                                             |
+| write.parquet.bloom-filter-fpp.column.col1           | 0.01                        | The false positive probability for a bloom filter applied to 'col1' (must > 0.0 and < 1.0)                                                                                                        |
 | write.avro.compression-codec                         | gzip                        | Avro compression codec: gzip(deflate with 9 level), zstd, snappy, uncompressed                                                                                                                    |
 | write.avro.compression-level                         | null                        | Avro compression level                                                                                                                                                                            |
 | write.orc.stripe-size-bytes                          | 67108864 (64 MB)            | Define the default ORC stripe size, in bytes                                                                                                                                                      |
@@ -61,7 +62,7 @@ Iceberg tables support table properties to configure table behavior, like the de
 | write.orc.bloom.filter.fpp                           | 0.05                        | False positive probability for Bloom filter (must > 0.0 and < 1.0)                                                                                                                                |
 | write.location-provider.impl                         | null                        | Optional custom implementation for LocationProvider                                                                                                                                               |
 | write.metadata.compression-codec                     | none                        | Metadata compression codec; none or gzip                                                                                                                                                          |
-| write.metadata.metrics.max-inferred-column-defaults  | 100                         | Defines the maximum number of columns for which metrics are collected                                                                                                                             |
+| write.metadata.metrics.max-inferred-column-defaults  | 100                         | Defines the maximum number of top level columns for which metrics are collected. Number of stored metrics can be higher than this limit for a table with nested fields                            |
 | write.metadata.metrics.default                       | truncate(16)                | Default metrics mode for all columns in the table; none, counts, truncate(length), or full                                                                                                        |
 | write.metadata.metrics.column.col1                   | (not set)                   | Metrics mode for column 'col1' to allow per-column tuning; none, counts, truncate(length), or full                                                                                                |
 | write.target-file-size-bytes                         | 536870912 (512 MB)          | Controls the size of files generated to target about this many bytes                                                                                                                              |
@@ -108,9 +109,9 @@ Iceberg tables support table properties to configure table behavior, like the de
 Reserved table properties are only used to control behaviors when creating or updating a table.
 The value of these properties are not persisted as a part of the table metadata.
 
-| Property       | Default  | Description                                                   |
-| -------------- | -------- | ------------------------------------------------------------- |
-| format-version | 2        | Table's format version (can be 1 or 2) as defined in the [Spec](../../../spec/#format-versioning). Defaults to 2 since version 1.4.0. |
+| Property       | Default  | Description                                                                                                                          |
+| -------------- | -------- |--------------------------------------------------------------------------------------------------------------------------------------|
+| format-version | 2        | Table's format version (can be 1 or 2) as defined in the [Spec](../../spec.md#format-versioning). Defaults to 2 since version 1.4.0. |
 
 ### Compatibility flags
 
@@ -131,7 +132,7 @@ Iceberg catalogs support using catalog properties to configure catalog behaviors
 | clients                           | 2                  | client pool size                                       |
 | cache-enabled                     | true               | Whether to cache catalog entries |
 | cache.expiration-interval-ms      | 30000              | How long catalog entries are locally cached, in milliseconds; 0 disables caching, negative values disable expiration |
-| metrics-reporter-impl | org.apache.iceberg.metrics.LoggingMetricsReporter | Custom `MetricsReporter` implementation to use in a catalog. See the [Metrics reporting](metrics-reporting) section for additional details |
+| metrics-reporter-impl | org.apache.iceberg.metrics.LoggingMetricsReporter | Custom `MetricsReporter` implementation to use in a catalog. See the [Metrics reporting](metrics-reporting.md) section for additional details |
 
 `HadoopCatalog` and `HiveCatalog` can access the properties in their constructors.
 Any other custom catalog can access the properties by implementing `Catalog.initialize(catalogName, catalogProperties)`.

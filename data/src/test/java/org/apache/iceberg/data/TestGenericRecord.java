@@ -19,10 +19,10 @@
 package org.apache.iceberg.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -54,7 +54,7 @@ public class TestGenericRecord {
     GenericRecord record = GenericRecord.create(schema);
     record.set(0, 10L);
 
-    Assertions.assertThatThrownBy(() -> record.get(0, CharSequence.class))
+    assertThatThrownBy(() -> record.get(0, CharSequence.class))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Not an instance of java.lang.CharSequence: 10");
   }

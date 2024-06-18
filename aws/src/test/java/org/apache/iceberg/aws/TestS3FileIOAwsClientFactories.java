@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.aws;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Map;
 import org.apache.iceberg.aws.s3.S3FileIOAwsClientFactory;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestS3FileIOAwsClientFactories {
@@ -34,8 +35,8 @@ public class TestS3FileIOAwsClientFactories {
         S3FileIOProperties.CLIENT_FACTORY,
         "org.apache.iceberg.aws.s3.DefaultS3FileIOAwsClientFactory");
     Object factoryImpl = S3FileIOAwsClientFactories.initialize(properties);
-    Assertions.assertThat(factoryImpl)
-        .withFailMessage(
+    assertThat(factoryImpl)
+        .as(
             "should instantiate an object of type S3FileIOAwsClientFactory when s3.client-factory-impl is set")
         .isInstanceOf(S3FileIOAwsClientFactory.class);
   }
@@ -45,8 +46,8 @@ public class TestS3FileIOAwsClientFactories {
     // don't set anything
     Map<String, String> properties = Maps.newHashMap();
     Object factoryImpl = S3FileIOAwsClientFactories.initialize(properties);
-    Assertions.assertThat(factoryImpl)
-        .withFailMessage(
+    assertThat(factoryImpl)
+        .as(
             "should instantiate an object of type AwsClientFactory when s3.client-factory-impl is not set")
         .isInstanceOf(AwsClientFactory.class);
   }

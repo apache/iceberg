@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestDateTimeUtil {
@@ -30,13 +29,12 @@ public class TestDateTimeUtil {
   @Test
   public void formatTimestampMillis() {
     String timestamp = "1970-01-01T00:00:00.001+00:00";
-    Assertions.assertThat(DateTimeUtil.formatTimestampMillis(1L)).isEqualTo(timestamp);
-    Assertions.assertThat(ZonedDateTime.parse(timestamp).toInstant().toEpochMilli()).isEqualTo(1L);
+    assertThat(DateTimeUtil.formatTimestampMillis(1L)).isEqualTo(timestamp);
+    assertThat(ZonedDateTime.parse(timestamp).toInstant().toEpochMilli()).isEqualTo(1L);
 
     timestamp = "1970-01-01T00:16:40+00:00";
-    Assertions.assertThat(DateTimeUtil.formatTimestampMillis(1000000L)).isEqualTo(timestamp);
-    Assertions.assertThat(ZonedDateTime.parse(timestamp).toInstant().toEpochMilli())
-        .isEqualTo(1000000L);
+    assertThat(DateTimeUtil.formatTimestampMillis(1000000L)).isEqualTo(timestamp);
+    assertThat(ZonedDateTime.parse(timestamp).toInstant().toEpochMilli()).isEqualTo(1000000L);
   }
 
   @Test

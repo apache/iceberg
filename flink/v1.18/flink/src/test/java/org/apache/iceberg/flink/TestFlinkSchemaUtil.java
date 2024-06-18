@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.api.ValidationException;
@@ -31,14 +34,11 @@ import org.apache.flink.table.types.logical.TimestampType;
 import org.apache.flink.table.types.logical.VarBinaryType;
 import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestFlinkSchemaUtil {
 
@@ -313,12 +313,13 @@ public class TestFlinkSchemaUtil {
   }
 
   private void checkSchema(TableSchema flinkSchema, Schema icebergSchema) {
-    Assert.assertEquals(icebergSchema.asStruct(), FlinkSchemaUtil.convert(flinkSchema).asStruct());
+    assertThat(FlinkSchemaUtil.convert(flinkSchema).asStruct()).isEqualTo(icebergSchema.asStruct());
     // The conversion is not a 1:1 mapping, so we just check iceberg types.
-    Assert.assertEquals(
-        icebergSchema.asStruct(),
-        FlinkSchemaUtil.convert(FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergSchema)))
-            .asStruct());
+    assertThat(
+            FlinkSchemaUtil.convert(
+                    FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergSchema)))
+                .asStruct())
+        .isEqualTo(icebergSchema.asStruct());
   }
 
   @Test
@@ -354,10 +355,9 @@ public class TestFlinkSchemaUtil {
       LogicalType flinkExpectedType,
       LogicalType flinkType,
       Type icebergExpectedType) {
-    Assert.assertEquals(flinkExpectedType, FlinkSchemaUtil.convert(icebergType));
-    Assert.assertEquals(
-        Types.StructType.of(Types.NestedField.optional(0, "f0", icebergExpectedType)),
-        FlinkSchemaUtil.convert(FlinkSchemaUtil.toSchema(RowType.of(flinkType))).asStruct());
+    assertThat(FlinkSchemaUtil.convert(icebergType)).isEqualTo(flinkExpectedType);
+    assertThat(FlinkSchemaUtil.convert(FlinkSchemaUtil.toSchema(RowType.of(flinkType))).asStruct())
+        .isEqualTo(Types.StructType.of(Types.NestedField.optional(0, "f0", icebergExpectedType)));
   }
 
   @Test
@@ -376,8 +376,8 @@ public class TestFlinkSchemaUtil {
             .primaryKey("int")
             .build();
     Schema convertedSchema = FlinkSchemaUtil.convert(baseSchema, flinkSchema);
-    Assert.assertEquals(baseSchema.asStruct(), convertedSchema.asStruct());
-    Assert.assertEquals(ImmutableSet.of(101), convertedSchema.identifierFieldIds());
+    assertThat(convertedSchema.asStruct()).isEqualTo(baseSchema.asStruct());
+    assertThat(convertedSchema.identifierFieldIds()).containsExactly(101);
   }
 
   @Test
@@ -390,10 +390,10 @@ public class TestFlinkSchemaUtil {
             Sets.newHashSet(1, 2));
 
     TableSchema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema);
-    Assert.assertTrue(tableSchema.getPrimaryKey().isPresent());
-    Assert.assertEquals(
-        ImmutableSet.of("int", "string"),
-        ImmutableSet.copyOf(tableSchema.getPrimaryKey().get().getColumns()));
+    assertThat(tableSchema.getPrimaryKey())
+        .isPresent()
+        .get()
+        .satisfies(k -> assertThat(k.getColumns()).containsExactly("int", "string"));
   }
 
   @Test
@@ -408,7 +408,7 @@ public class TestFlinkSchemaUtil {
                         Types.NestedField.required(2, "inner", Types.IntegerType.get())))),
             Sets.newHashSet(2));
 
-    Assertions.assertThatThrownBy(() -> FlinkSchemaUtil.toSchema(icebergSchema))
+    assertThatThrownBy(() -> FlinkSchemaUtil.toSchema(icebergSchema))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Could not create a PRIMARY KEY")
         .hasMessageContaining("Column 'struct.inner' does not exist.");

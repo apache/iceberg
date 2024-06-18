@@ -17,7 +17,9 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, Dict, List, Literal, Optional, Union
+from uuid import UUID
 
 from pydantic import BaseModel, Extra, Field
 
@@ -72,6 +74,13 @@ class Namespace(BaseModel):
         ...,
         description='Reference to one or more levels of a namespace',
         example=['accounting', 'tax'],
+    )
+
+
+class PageToken(BaseModel):
+    __root__: Optional[str] = Field(
+        None,
+        description='An opaque token that allows clients to make use of pagination for list APIs (e.g. ListTables). Clients may initiate the first paginated request by sending an empty query parameter `pageToken` to the server.\nServers that support pagination should identify the `pageToken` parameter and return a `next-page-token` in the response if there are more results available.  After the initial request, the value of `next-page-token` from each response must be used as the `pageToken` parameter value for the next request. The server must return `null` value for the `next-page-token` in the last response.\nServers that support pagination must return all results in a single response with the value of `next-page-token` set to `null` if the query parameter `pageToken` is not set in the request.\nServers that do not support pagination should ignore the `pageToken` parameter and return all results in a single response. The `next-page-token` must be omitted from the response.\nClients must interpret either `null` or missing response value of `next-page-token` as the end of the listing results.',
     )
 
 
@@ -162,7 +171,6 @@ class SortOrder(BaseModel):
 
 class Summary(BaseModel):
     operation: Literal['append', 'replace', 'overwrite', 'delete']
-    additionalProperties: Optional[str] = None
 
 
 class Snapshot(BaseModel):
@@ -352,11 +360,7 @@ class RemovePartitionStatisticsUpdate(BaseUpdate):
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
-class TableRequirement(BaseModel):
-    type: str
-
-
-class AssertCreate(TableRequirement):
+class AssertCreate(BaseModel):
     """
     The table must not already exist; used for create transactions
     """
@@ -364,7 +368,7 @@ class AssertCreate(TableRequirement):
     type: Literal['assert-create']
 
 
-class AssertTableUUID(TableRequirement):
+class AssertTableUUID(BaseModel):
     """
     The table UUID must match the requirement's `uuid`
     """
@@ -373,7 +377,7 @@ class AssertTableUUID(TableRequirement):
     uuid: str
 
 
-class AssertRefSnapshotId(TableRequirement):
+class AssertRefSnapshotId(BaseModel):
     """
     The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
     """
@@ -383,7 +387,7 @@ class AssertRefSnapshotId(TableRequirement):
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
-class AssertLastAssignedFieldId(TableRequirement):
+class AssertLastAssignedFieldId(BaseModel):
     """
     The table's last assigned column id must match the requirement's `last-assigned-field-id`
     """
@@ -392,7 +396,7 @@ class AssertLastAssignedFieldId(TableRequirement):
     last_assigned_field_id: int = Field(..., alias='last-assigned-field-id')
 
 
-class AssertCurrentSchemaId(TableRequirement):
+class AssertCurrentSchemaId(BaseModel):
     """
     The table's current schema id must match the requirement's `current-schema-id`
     """
@@ -401,7 +405,7 @@ class AssertCurrentSchemaId(TableRequirement):
     current_schema_id: int = Field(..., alias='current-schema-id')
 
 
-class AssertLastAssignedPartitionId(TableRequirement):
+class AssertLastAssignedPartitionId(BaseModel):
     """
     The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
     """
@@ -410,7 +414,7 @@ class AssertLastAssignedPartitionId(TableRequirement):
     last_assigned_partition_id: int = Field(..., alias='last-assigned-partition-id')
 
 
-class AssertDefaultSpecId(TableRequirement):
+class AssertDefaultSpecId(BaseModel):
     """
     The table's default spec id must match the requirement's `default-spec-id`
     """
@@ -419,7 +423,7 @@ class AssertDefaultSpecId(TableRequirement):
     default_spec_id: int = Field(..., alias='default-spec-id')
 
 
-class AssertDefaultSortOrderId(TableRequirement):
+class AssertDefaultSortOrderId(BaseModel):
     """
     The table's default sort order id must match the requirement's `default-sort-order-id`
     """
@@ -428,11 +432,7 @@ class AssertDefaultSortOrderId(TableRequirement):
     default_sort_order_id: int = Field(..., alias='default-sort-order-id')
 
 
-class ViewRequirement(BaseModel):
-    type: str
-
-
-class AssertViewUUID(ViewRequirement):
+class AssertViewUUID(BaseModel):
     """
     The view UUID must match the requirement's `uuid`
     """
@@ -595,10 +595,12 @@ class GetNamespaceResponse(BaseModel):
 
 
 class ListTablesResponse(BaseModel):
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
     identifiers: Optional[List[TableIdentifier]] = Field(None, unique_items=True)
 
 
 class ListNamespacesResponse(BaseModel):
+    next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
     namespaces: Optional[List[Namespace]] = Field(None, unique_items=True)
 
 
@@ -629,6 +631,183 @@ class PartitionStatisticsFile(BaseModel):
     file_size_in_bytes: int = Field(..., alias='file-size-in-bytes')
 
 
+class BooleanTypeValue(BaseModel):
+    __root__: bool = Field(..., example=True)
+
+
+class IntegerTypeValue(BaseModel):
+    __root__: int = Field(..., example=42)
+
+
+class LongTypeValue(BaseModel):
+    __root__: int = Field(..., example=9223372036854775807)
+
+
+class FloatTypeValue(BaseModel):
+    __root__: float = Field(..., example=3.14)
+
+
+class DoubleTypeValue(BaseModel):
+    __root__: float = Field(..., example=123.456)
+
+
+class DecimalTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description="Decimal type values are serialized as strings. Decimals with a positive scale serialize as numeric plain text, while decimals with a negative scale use scientific notation and the exponent will be equal to the negated scale. For instance, a decimal with a positive scale is '123.4500', with zero scale is '2', and with a negative scale is '2E+20'",
+        example='123.4500',
+    )
+
+
+class StringTypeValue(BaseModel):
+    __root__: str = Field(..., example='hello')
+
+
+class UUIDTypeValue(BaseModel):
+    __root__: UUID = Field(
+        ...,
+        description='UUID type values are serialized as a 36-character lowercase string in standard UUID format as specified by RFC-4122',
+        example='eb26bdb1-a1d8-4aa6-990e-da940875492c',
+        max_length=36,
+        min_length=36,
+        regex='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    )
+
+
+class DateTypeValue(BaseModel):
+    __root__: date = Field(
+        ...,
+        description="Date type values follow the 'YYYY-MM-DD' ISO-8601 standard date format",
+        example='2007-12-03',
+    )
+
+
+class TimeTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description="Time type values follow the 'HH:MM:SS.ssssss' ISO-8601 format with microsecond precision",
+        example='22:31:08.123456',
+    )
+
+
+class TimestampTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description="Timestamp type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss' ISO-8601 format with microsecond precision",
+        example='2007-12-03T10:15:30.123456',
+    )
+
+
+class TimestampTzTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description="TimestampTz type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00' ISO-8601 format with microsecond precision, and a timezone offset (+00:00 for UTC)",
+        example='2007-12-03T10:15:30.123456+00:00',
+    )
+
+
+class TimestampNanoTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description="Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss' ISO-8601 format with nanosecond precision",
+        example='2007-12-03T10:15:30.123456789',
+    )
+
+
+class TimestampTzNanoTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description="Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00' ISO-8601 format with nanosecond precision, and a timezone offset (+00:00 for UTC)",
+        example='2007-12-03T10:15:30.123456789+00:00',
+    )
+
+
+class FixedTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description='Fixed length type values are stored and serialized as an uppercase hexadecimal string preserving the fixed length',
+        example='78797A',
+    )
+
+
+class BinaryTypeValue(BaseModel):
+    __root__: str = Field(
+        ...,
+        description='Binary type values are stored and serialized as an uppercase hexadecimal string',
+        example='78797A',
+    )
+
+
+class CountMap(BaseModel):
+    keys: Optional[List[IntegerTypeValue]] = Field(
+        None, description='List of integer column ids for each corresponding value'
+    )
+    values: Optional[List[LongTypeValue]] = Field(
+        None, description="List of Long values, matched to 'keys' by index"
+    )
+
+
+class PrimitiveTypeValue(BaseModel):
+    __root__: Union[
+        BooleanTypeValue,
+        IntegerTypeValue,
+        LongTypeValue,
+        FloatTypeValue,
+        DoubleTypeValue,
+        DecimalTypeValue,
+        StringTypeValue,
+        UUIDTypeValue,
+        DateTypeValue,
+        TimeTypeValue,
+        TimestampTypeValue,
+        TimestampTzTypeValue,
+        TimestampNanoTypeValue,
+        TimestampTzNanoTypeValue,
+        FixedTypeValue,
+        BinaryTypeValue,
+    ]
+
+
+class FileFormat(BaseModel):
+    __root__: Literal['avro', 'orc', 'parquet']
+
+
+class ContentFile(BaseModel):
+    content: str
+    file_path: str = Field(..., alias='file-path')
+    file_format: FileFormat = Field(..., alias='file-format')
+    spec_id: int = Field(..., alias='spec-id')
+    partition: Optional[List[PrimitiveTypeValue]] = Field(
+        None,
+        description='A list of partition field values ordered based on the fields of the partition spec specified by the `spec-id`',
+        example=[1, 'bar'],
+    )
+    file_size_in_bytes: int = Field(
+        ..., alias='file-size-in-bytes', description='Total file size in bytes'
+    )
+    record_count: int = Field(
+        ..., alias='record-count', description='Number of records in the file'
+    )
+    key_metadata: Optional[BinaryTypeValue] = Field(
+        None, alias='key-metadata', description='Encryption key metadata blob'
+    )
+    split_offsets: Optional[List[int]] = Field(
+        None, alias='split-offsets', description='List of splittable offsets'
+    )
+    sort_order_id: Optional[int] = Field(None, alias='sort-order-id')
+
+
+class PositionDeleteFile(ContentFile):
+    content: Literal['position-deletes']
+
+
+class EqualityDeleteFile(ContentFile):
+    content: Literal['equality-deletes']
+    equality_ids: Optional[List[int]] = Field(
+        None, alias='equality-ids', description='List of equality field IDs'
+    )
+
+
 class CreateNamespaceRequest(BaseModel):
     namespace: Namespace
     properties: Optional[Dict[str, str]] = Field(
@@ -656,6 +835,23 @@ class SetPartitionStatisticsUpdate(BaseUpdate):
     )
 
 
+class TableRequirement(BaseModel):
+    __root__: Union[
+        AssertCreate,
+        AssertTableUUID,
+        AssertRefSnapshotId,
+        AssertLastAssignedFieldId,
+        AssertCurrentSchemaId,
+        AssertLastAssignedPartitionId,
+        AssertDefaultSpecId,
+        AssertDefaultSortOrderId,
+    ] = Field(..., discriminator='type')
+
+
+class ViewRequirement(BaseModel):
+    __root__: AssertViewUUID = Field(..., discriminator='type')
+
+
 class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
@@ -666,6 +862,47 @@ class StatisticsFile(BaseModel):
     file_size_in_bytes: int = Field(..., alias='file-size-in-bytes')
     file_footer_size_in_bytes: int = Field(..., alias='file-footer-size-in-bytes')
     blob_metadata: List[BlobMetadata] = Field(..., alias='blob-metadata')
+
+
+class ValueMap(BaseModel):
+    keys: Optional[List[IntegerTypeValue]] = Field(
+        None, description='List of integer column ids for each corresponding value'
+    )
+    values: Optional[List[PrimitiveTypeValue]] = Field(
+        None, description="List of primitive type values, matched to 'keys' by index"
+    )
+
+
+class DataFile(ContentFile):
+    content: Literal['data']
+    column_sizes: Optional[CountMap] = Field(
+        None,
+        alias='column-sizes',
+        description='Map of column id to total count, including null and NaN',
+    )
+    value_counts: Optional[CountMap] = Field(
+        None, alias='value-counts', description='Map of column id to null value count'
+    )
+    null_value_counts: Optional[CountMap] = Field(
+        None,
+        alias='null-value-counts',
+        description='Map of column id to null value count',
+    )
+    nan_value_counts: Optional[CountMap] = Field(
+        None,
+        alias='nan-value-counts',
+        description='Map of column id to number of NaN values in the column',
+    )
+    lower_bounds: Optional[ValueMap] = Field(
+        None,
+        alias='lower-bounds',
+        description='Map of column id to lower bound primitive type values',
+    )
+    upper_bounds: Optional[ValueMap] = Field(
+        None,
+        alias='upper-bounds',
+        description='Map of column id to upper bound primitive type values',
+    )
 
 
 class Term(BaseModel):

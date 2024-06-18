@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.sql.SparkSession;
@@ -144,11 +145,10 @@ public class TestCallStatementParser {
 
   @Test
   public void testCallParseError() {
-    AssertHelpers.assertThrows(
-        "Should fail with a sensible parse error",
-        IcebergParseException.class,
-        "missing '(' at 'radish'",
-        () -> parser.parsePlan("CALL cat.system radish kebab"));
+    assertThatThrownBy(() -> parser.parsePlan("CALL cat.system radish kebab"))
+        .as("Should fail with a sensible parse error")
+        .isInstanceOf(IcebergParseException.class)
+        .hasMessageContaining("missing '(' at 'radish'");
   }
 
   @Test

@@ -88,6 +88,14 @@
         <property name="format" value="Preconditions\.checkArgument\([^;]+%d[^;]+\);"/>
         <property name="message" value="Preconditions.checkArgument does not support %d. use %s instead"/>
     </module>
+    <module name="RegexpMultiline">
+        <property name="format" value="^\s*import\s+static\s+(?!\Qorg.assertj.core.api.Assertions.\E).*\.assertThatThrownBy;"/>
+        <property name="message" value="assertThatThrownBy() should be statically imported from org.assertj.core.api.Assertions"/>
+    </module>
+    <module name="RegexpMultiline">
+        <property name="format" value="^\s*import\s+\Qorg.assertj.core.api.Assertions;\E" />
+        <property name="message" value="org.assertj.core.api.Assertions should only be used with static imports" />
+    </module>
     <module name="SuppressionFilter"> <!-- baseline-gradle: README.md -->
         <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
     </module>
@@ -145,7 +153,9 @@
                 org.apache.spark.sql.functions.*,
                 org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.*,
                 org.apache.spark.sql.connector.write.RowLevelOperation.Command.*,
-                org.junit.Assert.*"/>
+                org.junit.Assert.*,
+                org.assertj.core.api.Assertions.*,
+                org.assertj.core.api.Assumptions.*"/>
         </module>
         <module name="ClassTypeParameterName"> <!-- Java Style Guide: Type variable names -->
             <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)"/>

@@ -20,18 +20,23 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.SortDirection.DESC;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.transforms.UnknownTransform;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestSortOrderParser extends TableTestBase {
-  public TestSortOrderParser() {
-    super(1);
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSortOrderParser extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1);
   }
 
-  @Test
+  @TestTemplate
   public void testUnknownTransforms() {
     String jsonString =
         "{\n"
@@ -46,16 +51,18 @@ public class TestSortOrderParser extends TableTestBase {
 
     SortOrder order = SortOrderParser.fromJson(table.schema(), jsonString);
 
-    Assert.assertEquals(10, order.orderId());
-    Assert.assertEquals(1, order.fields().size());
-    Assertions.assertThat(order.fields().get(0).transform()).isInstanceOf(UnknownTransform.class);
-    Assert.assertEquals("custom_transform", order.fields().get(0).transform().toString());
-    Assert.assertEquals(2, order.fields().get(0).sourceId());
-    Assert.assertEquals(DESC, order.fields().get(0).direction());
-    Assert.assertEquals(NULLS_FIRST, order.fields().get(0).nullOrder());
+    assertThat(order.orderId()).isEqualTo(10);
+    assertThat(order.fields()).hasSize(1);
+    assertThat(order.fields().get(0).transform())
+        .isInstanceOf(UnknownTransform.class)
+        .asString()
+        .isEqualTo("custom_transform");
+    assertThat(order.fields().get(0).sourceId()).isEqualTo(2);
+    assertThat(order.fields().get(0).direction()).isEqualTo(DESC);
+    assertThat(order.fields().get(0).nullOrder()).isEqualTo(NULLS_FIRST);
   }
 
-  @Test
+  @TestTemplate
   public void invalidSortDirection() {
     String jsonString =
         "{\n"
@@ -68,7 +75,7 @@ public class TestSortOrderParser extends TableTestBase {
             + "  } ]\n"
             + "}";
 
-    Assertions.assertThatThrownBy(() -> SortOrderParser.fromJson(table.schema(), jsonString))
+    assertThatThrownBy(() -> SortOrderParser.fromJson(table.schema(), jsonString))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid sort direction: invalid");
   }

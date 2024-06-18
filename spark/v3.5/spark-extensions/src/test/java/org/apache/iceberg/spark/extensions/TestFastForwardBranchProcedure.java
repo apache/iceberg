@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
@@ -31,21 +30,17 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
-import org.junit.After;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
-  public TestFastForwardBranchProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
+public class TestFastForwardBranchProcedure extends ExtensionsTestBase {
 
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testFastForwardBranchUsingPositionalArgs() {
     sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -96,7 +91,7 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s order by id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testFastForwardBranchUsingNamedArgs() {
     sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -129,7 +124,7 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s order by id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testFastForwardWhenTargetIsNotAncestorFails() {
     sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -163,7 +158,7 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
         .hasMessage("Cannot fast-forward: main is not an ancestor of testBranch");
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidFastForwardBranchCases() {
     assertThatThrownBy(
             () ->
@@ -189,7 +184,7 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
         .hasMessage("Cannot handle an empty identifier for argument table");
   }
 
-  @Test
+  @TestTemplate
   public void testFastForwardNonExistingToRefFails() {
     sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
     assertThatThrownBy(
@@ -201,7 +196,7 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
         .hasMessage("Ref does not exist: non_existing_branch");
   }
 
-  @Test
+  @TestTemplate
   public void testFastForwardNonMain() {
     sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
@@ -231,7 +226,7 @@ public class TestFastForwardBranchProcedure extends SparkExtensionsTestBase {
         .containsExactly(row(branch1, branch1Snapshot.snapshotId(), branch2Snapshot.snapshotId()));
   }
 
-  @Test
+  @TestTemplate
   public void testFastForwardNonExistingFromMainCreatesBranch() {
     sql("CREATE TABLE %s (id int NOT NULL, data string) USING iceberg", tableName);
     String branch1 = "branch1";

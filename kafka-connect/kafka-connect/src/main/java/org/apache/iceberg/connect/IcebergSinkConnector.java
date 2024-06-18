@@ -18,11 +18,10 @@
  */
 package org.apache.iceberg.connect;
 
-import static java.util.stream.Collectors.toList;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.kafka.common.config.ConfigDef;
@@ -60,7 +59,7 @@ public class IcebergSinkConnector extends SinkConnector {
               map.put(IcebergSinkConfig.INTERNAL_TRANSACTIONAL_SUFFIX_PROP, txnSuffix + i);
               return map;
             })
-        .collect(toList());
+        .collect(Collectors.toList());
   }
 
   @Override

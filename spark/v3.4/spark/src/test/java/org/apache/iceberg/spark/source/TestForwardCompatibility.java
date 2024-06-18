@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.apache.iceberg.Files.localOutput;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -54,7 +55,6 @@ import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.execution.streaming.MemoryStream;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -120,7 +120,7 @@ public class TestForwardCompatibility {
 
     Dataset<Row> df = spark.createDataFrame(expected, SimpleRecord.class);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 df.select("id", "data")
                     .write()
@@ -158,7 +158,7 @@ public class TestForwardCompatibility {
     List<Integer> batch1 = Lists.newArrayList(1, 2);
     send(batch1, inputStream);
 
-    Assertions.assertThatThrownBy(query::processAllAvailable)
+    assertThatThrownBy(query::processAllAvailable)
         .isInstanceOf(StreamingQueryException.class)
         .hasMessageEndingWith("Cannot write using unsupported transforms: zero");
   }

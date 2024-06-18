@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.hadoop;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -28,6 +30,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
@@ -44,7 +48,6 @@ import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
@@ -81,22 +84,16 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Set<String> statsLocations = statsLocations(tableMetadata);
     Set<String> partitionStatsLocations = partitionStatsLocations(tableMetadata);
 
-    Assertions.assertThat(manifestListLocations).as("should have 2 manifest lists").hasSize(2);
-    Assertions.assertThat(metadataLocations).as("should have 5 metadata locations").hasSize(5);
-    Assertions.assertThat(statsLocations)
+    assertThat(manifestListLocations).as("should have 2 manifest lists").hasSize(2);
+    assertThat(metadataLocations).as("should have 5 metadata locations").hasSize(5);
+    assertThat(statsLocations)
         .as("should have 1 stats file")
         .containsExactly(statisticsFile.path());
-    Assertions.assertThat(partitionStatsLocations)
+    assertThat(partitionStatsLocations)
         .as("should have 1 partition stats file")
         .containsExactly(partitionStatisticsFile.path());
 
-    FileIO fileIO = Mockito.mock(FileIO.class);
-    Mockito.when(fileIO.newInputFile(Mockito.anyString()))
-        .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0)));
-    Mockito.when(fileIO.newInputFile(Mockito.anyString(), Mockito.anyLong()))
-        .thenAnswer(
-            invocation ->
-                table.io().newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
+    FileIO fileIO = createMockFileIO(table.io());
 
     CatalogUtil.dropTableData(fileIO, tableMetadata);
     ArgumentCaptor<String> argumentCaptor = ArgumentCaptor.forClass(String.class);
@@ -113,22 +110,20 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
         .deleteFile(argumentCaptor.capture());
 
     List<String> deletedPaths = argumentCaptor.getAllValues();
-    Assertions.assertThat(deletedPaths)
+    assertThat(deletedPaths)
         .as("should contain all created manifest lists")
         .containsAll(manifestListLocations);
-    Assertions.assertThat(deletedPaths)
+    assertThat(deletedPaths)
         .as("should contain all created manifests")
         .containsAll(manifestLocations);
-    Assertions.assertThat(deletedPaths)
-        .as("should contain all created data")
-        .containsAll(dataLocations);
-    Assertions.assertThat(deletedPaths)
+    assertThat(deletedPaths).as("should contain all created data").containsAll(dataLocations);
+    assertThat(deletedPaths)
         .as("should contain all created metadata locations")
         .containsAll(metadataLocations);
-    Assertions.assertThat(deletedPaths)
+    assertThat(deletedPaths)
         .as("should contain all created statistics")
         .containsAll(statsLocations);
-    Assertions.assertThat(deletedPaths)
+    assertThat(deletedPaths)
         .as("should contain all created partition stats files")
         .containsAll(partitionStatsLocations);
   }
@@ -141,14 +136,7 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     TableMetadata tableMetadata = readMetadataVersion(3);
     Set<Snapshot> snapshotSet = Sets.newHashSet(table.snapshots());
 
-    FileIO fileIO = Mockito.mock(FileIO.class);
-    Mockito.when(fileIO.newInputFile(Mockito.anyString()))
-        .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0)));
-    Mockito.when(fileIO.newInputFile(Mockito.anyString(), Mockito.anyLong()))
-        .thenAnswer(
-            invocation ->
-                table.io().newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
-    Mockito.doThrow(new RuntimeException()).when(fileIO).deleteFile(ArgumentMatchers.anyString());
+    FileIO fileIO = createMockFileIO(table.io());
 
     CatalogUtil.dropTableData(fileIO, tableMetadata);
     Mockito.verify(
@@ -173,12 +161,10 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
     Set<String> manifestListLocations = manifestListLocations(snapshotSet);
     Set<String> manifestLocations = manifestLocations(snapshotSet, table.io());
     Set<String> metadataLocations = metadataLocations(tableMetadata);
-    Assertions.assertThat(manifestListLocations).as("should have 2 manifest lists").hasSize(2);
-    Assertions.assertThat(metadataLocations).as("should have 4 metadata locations").hasSize(4);
+    assertThat(manifestListLocations).as("should have 2 manifest lists").hasSize(2);
+    assertThat(metadataLocations).as("should have 4 metadata locations").hasSize(4);
 
-    FileIO fileIO = Mockito.mock(FileIO.class);
-    Mockito.when(fileIO.newInputFile(Mockito.anyString()))
-        .thenAnswer(invocation -> table.io().newInputFile(invocation.getArgument(0)));
+    FileIO fileIO = createMockFileIO(table.io());
 
     CatalogUtil.dropTableData(fileIO, tableMetadata);
     ArgumentCaptor<String> argumentCaptor = ArgumentCaptor.forClass(String.class);
@@ -190,15 +176,34 @@ public class TestCatalogUtilDropTable extends HadoopTableTestBase {
         .deleteFile(argumentCaptor.capture());
 
     List<String> deletedPaths = argumentCaptor.getAllValues();
-    Assertions.assertThat(deletedPaths)
+    assertThat(deletedPaths)
         .as("should contain all created manifest lists")
         .containsAll(manifestListLocations);
-    Assertions.assertThat(deletedPaths)
+    assertThat(deletedPaths)
         .as("should contain all created manifests")
         .containsAll(manifestLocations);
-    Assertions.assertThat(deletedPaths)
+    assertThat(deletedPaths)
         .as("should contain all created metadata locations")
         .containsAll(metadataLocations);
+  }
+
+  private static FileIO createMockFileIO(FileIO wrapped) {
+    FileIO mockIO = Mockito.mock(FileIO.class);
+
+    Mockito.when(mockIO.newInputFile(Mockito.anyString()))
+        .thenAnswer(invocation -> wrapped.newInputFile((String) invocation.getArgument(0)));
+    Mockito.when(mockIO.newInputFile(Mockito.anyString(), Mockito.anyLong()))
+        .thenAnswer(
+            invocation ->
+                wrapped.newInputFile(invocation.getArgument(0), invocation.getArgument(1)));
+    Mockito.when(mockIO.newInputFile(Mockito.any(ManifestFile.class)))
+        .thenAnswer(invocation -> wrapped.newInputFile((ManifestFile) invocation.getArgument(0)));
+    Mockito.when(mockIO.newInputFile(Mockito.any(DataFile.class)))
+        .thenAnswer(invocation -> wrapped.newInputFile((DataFile) invocation.getArgument(0)));
+    Mockito.when(mockIO.newInputFile(Mockito.any(DeleteFile.class)))
+        .thenAnswer(invocation -> wrapped.newInputFile((DeleteFile) invocation.getArgument(0)));
+
+    return mockIO;
   }
 
   private static Set<String> manifestListLocations(Set<Snapshot> snapshotSet) {

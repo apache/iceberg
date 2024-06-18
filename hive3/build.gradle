@@ -94,7 +94,7 @@ project(':iceberg-hive3') {
     testImplementation libs.avro.avro
     testImplementation libs.calcite.core
     testImplementation libs.kryo.shaded
-    testImplementation libs.jackson.annotations
+    testImplementation platform(libs.jackson.bom)
     testImplementation(libs.hive3.service) {
       exclude group: 'org.apache.hive', module: 'hive-exec'
       exclude group: 'org.apache.orc'

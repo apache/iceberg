@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -74,11 +75,14 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
     df.writeTo(tableName).append();
     long second = table.currentSnapshot().snapshotId();
 
-    AssertHelpers.assertThrows(
-        "Cannot perform replace branch on tags",
-        IllegalArgumentException.class,
-        "Ref tag1 is a tag not a branch",
-        () -> sql("ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d", tableName, tagName, second));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d",
+                    tableName, tagName, second))
+        .as("Cannot perform replace branch on tags")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Ref tag1 is a tag not a branch");
   }
 
   @Test
@@ -126,14 +130,14 @@ public class TestReplaceBranch extends SparkExtensionsTestBase {
     df.writeTo(tableName).append();
     Table table = validationCatalog.loadTable(tableIdent);
 
-    AssertHelpers.assertThrows(
-        "Cannot perform replace branch on branch which does not exist",
-        IllegalArgumentException.class,
-        "Branch does not exist",
-        () ->
-            sql(
-                "ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d",
-                tableName, "someBranch", table.currentSnapshot().snapshotId()));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d",
+                    tableName, "someBranch", table.currentSnapshot().snapshotId()))
+        .as("Cannot perform replace branch on branch which does not exist")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Branch does not exist");
   }
 
   @Test

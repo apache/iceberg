@@ -21,7 +21,6 @@ package org.apache.iceberg.spark.functions;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
-import org.apache.spark.sql.connector.catalog.functions.ScalarFunction;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.TimestampNTZType;
@@ -58,7 +57,7 @@ public class HoursFunction extends UnaryUnboundFunction {
     return "hours";
   }
 
-  public static class TimestampToHoursFunction implements ScalarFunction<Integer> {
+  public static class TimestampToHoursFunction extends BaseScalarFunction<Integer> {
     // magic method used in codegen
     public static int invoke(long micros) {
       return DateTimeUtil.microsToHours(micros);
@@ -91,7 +90,7 @@ public class HoursFunction extends UnaryUnboundFunction {
     }
   }
 
-  public static class TimestampNtzToHoursFunction implements ScalarFunction<Integer> {
+  public static class TimestampNtzToHoursFunction extends BaseScalarFunction<Integer> {
     // magic method used in codegen
     public static int invoke(long micros) {
       return DateTimeUtil.microsToHours(micros);

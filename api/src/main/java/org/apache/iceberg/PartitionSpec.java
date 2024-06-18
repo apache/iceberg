@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -60,6 +61,7 @@ public class PartitionSpec implements Serializable {
   private transient volatile ListMultimap<Integer, PartitionField> fieldsBySourceId = null;
   private transient volatile Class<?>[] lazyJavaClasses = null;
   private transient volatile StructType lazyPartitionType = null;
+  private transient volatile StructType lazyRawPartitionType = null;
   private transient volatile List<PartitionField> fieldList = null;
   private final int lastAssignedFieldId;
 
@@ -140,6 +142,30 @@ public class PartitionSpec implements Serializable {
     return lazyPartitionType;
   }
 
+  /**
+   * Returns a struct matching partition information as written into manifest files. See {@link
+   * #partitionType()} for a struct with field ID's potentially re-assigned to avoid conflict.
+   */
+  public StructType rawPartitionType() {
+    if (schema.idsToOriginal().isEmpty()) {
+      // not re-assigned.
+      return partitionType();
+    }
+    if (lazyRawPartitionType == null) {
+      synchronized (this) {
+        if (lazyRawPartitionType == null) {
+          this.lazyRawPartitionType =
+              StructType.of(
+                  partitionType().fields().stream()
+                      .map(f -> f.withFieldId(schema.idsToOriginal().get(f.fieldId())))
+                      .collect(Collectors.toList()));
+        }
+      }
+    }
+
+    return lazyRawPartitionType;
+  }
+
   public Class<?>[] javaClasses() {
     if (lazyJavaClasses == null) {
       synchronized (this) {
@@ -189,7 +215,7 @@ public class PartitionSpec implements Serializable {
       if (i > 0) {
         sb.append("/");
       }
-      sb.append(field.name()).append("=").append(escape(valueString));
+      sb.append(escape(field.name())).append("=").append(escape(valueString));
     }
     return sb.toString();
   }

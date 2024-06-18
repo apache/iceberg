@@ -18,22 +18,24 @@
  */
 package org.apache.iceberg.metrics;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestScanMetricsResultParser {
 
   @Test
   public void nullMetrics() {
-    Assertions.assertThatThrownBy(() -> ScanMetricsResultParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> ScanMetricsResultParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse scan metrics from null object");
 
-    Assertions.assertThatThrownBy(() -> ScanMetricsResultParser.toJson(null))
+    assertThatThrownBy(() -> ScanMetricsResultParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid scan metrics: null");
   }
@@ -41,27 +43,27 @@ public class TestScanMetricsResultParser {
   @SuppressWarnings("MethodLength")
   @Test
   public void missingFields() {
-    Assertions.assertThat(ScanMetricsResultParser.fromJson("{}"))
+    assertThat(ScanMetricsResultParser.fromJson("{}"))
         .isEqualTo(ImmutableScanMetricsResult.builder().build());
 
     ImmutableScanMetricsResult scanMetricsResult =
         ImmutableScanMetricsResult.builder()
             .totalPlanningDuration(TimerResult.of(TimeUnit.HOURS, Duration.ofHours(10), 3L))
             .build();
-    Assertions.assertThat(
+    assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10}}"))
         .isEqualTo(scanMetricsResult);
 
     scanMetricsResult = scanMetricsResult.withResultDataFiles(CounterResult.of(Unit.COUNT, 5L));
-    Assertions.assertThat(
+    assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5}}"))
         .isEqualTo(scanMetricsResult);
 
     scanMetricsResult = scanMetricsResult.withResultDeleteFiles(CounterResult.of(Unit.COUNT, 5L));
-    Assertions.assertThat(
+    assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
@@ -69,7 +71,7 @@ public class TestScanMetricsResultParser {
         .isEqualTo(scanMetricsResult);
 
     scanMetricsResult = scanMetricsResult.withTotalDataManifests(CounterResult.of(Unit.COUNT, 5L));
-    Assertions.assertThat(
+    assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
@@ -79,7 +81,7 @@ public class TestScanMetricsResultParser {
 
     scanMetricsResult =
         scanMetricsResult.withTotalDeleteManifests(CounterResult.of(Unit.COUNT, 0L));
-    Assertions.assertThat(
+    assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
@@ -90,7 +92,7 @@ public class TestScanMetricsResultParser {
 
     scanMetricsResult =
         scanMetricsResult.withScannedDataManifests(CounterResult.of(Unit.COUNT, 5L));
-    Assertions.assertThat(
+    assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
@@ -102,7 +104,7 @@ public class TestScanMetricsResultParser {
 
     scanMetricsResult =
         scanMetricsResult.withSkippedDataManifests(CounterResult.of(Unit.COUNT, 5L));
-    Assertions.assertThat(
+    assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
@@ -115,7 +117,7 @@ public class TestScanMetricsResultParser {
 
     scanMetricsResult =
         scanMetricsResult.withTotalFileSizeInBytes(CounterResult.of(Unit.BYTES, 1069L));
-    Assertions.assertThat(
+    assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
@@ -129,7 +131,7 @@ public class TestScanMetricsResultParser {
 
     scanMetricsResult =
         scanMetricsResult.withTotalDeleteFileSizeInBytes(CounterResult.of(Unit.BYTES, 1023L));
-    Assertions.assertThat(
+    assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
@@ -143,7 +145,7 @@ public class TestScanMetricsResultParser {
         .isEqualTo(scanMetricsResult);
 
     scanMetricsResult = scanMetricsResult.withSkippedDataFiles(CounterResult.of(Unit.COUNT, 23L));
-    Assertions.assertThat(
+    assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":3,\"time-unit\":\"hours\",\"total-duration\":10},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
@@ -179,7 +181,7 @@ public class TestScanMetricsResultParser {
     scanMetrics.equalityDeleteFiles().increment(4L);
 
     ScanMetricsResult scanMetricsResult = ScanMetricsResult.fromScanMetrics(scanMetrics);
-    Assertions.assertThat(
+    assertThat(
             ScanMetricsResultParser.fromJson(
                 "{\"total-planning-duration\":{\"count\":1,\"time-unit\":\"nanoseconds\",\"total-duration\":600000000000},"
                     + "\"result-data-files\":{\"unit\":\"count\",\"value\":5},"
@@ -203,7 +205,7 @@ public class TestScanMetricsResultParser {
 
   @Test
   public void invalidTimer() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ScanMetricsResultParser.fromJson(
                     "{\"total-planning-duration\":{\"unit\":\"count\",\"value\":5}}"))
@@ -213,7 +215,7 @@ public class TestScanMetricsResultParser {
 
   @Test
   public void invalidCounter() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ScanMetricsResultParser.fromJson(
                     "{\"total-planning-duration\":{\"count\":1,\"time-unit\":\"nanoseconds\",\"total-duration\":600000000000},"
@@ -314,8 +316,8 @@ public class TestScanMetricsResultParser {
             + "}";
 
     String json = ScanMetricsResultParser.toJson(scanMetricsResult, true);
-    Assertions.assertThat(ScanMetricsResultParser.fromJson(json)).isEqualTo(scanMetricsResult);
-    Assertions.assertThat(json).isEqualTo(expectedJson);
+    assertThat(ScanMetricsResultParser.fromJson(json)).isEqualTo(scanMetricsResult);
+    assertThat(json).isEqualTo(expectedJson);
   }
 
   @Test
@@ -324,9 +326,8 @@ public class TestScanMetricsResultParser {
     String expectedJson = "{ }";
 
     String json = ScanMetricsResultParser.toJson(scanMetricsResult, true);
-    System.out.println(json);
-    Assertions.assertThat(json).isEqualTo(expectedJson);
-    Assertions.assertThat(ScanMetricsResultParser.fromJson(json))
+    assertThat(json).isEqualTo(expectedJson);
+    assertThat(ScanMetricsResultParser.fromJson(json))
         .isEqualTo(ImmutableScanMetricsResult.builder().build());
   }
 }

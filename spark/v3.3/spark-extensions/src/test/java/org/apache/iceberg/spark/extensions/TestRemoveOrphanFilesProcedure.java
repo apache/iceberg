@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,7 +36,6 @@ import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.Files;
@@ -65,7 +66,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -227,11 +227,11 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
 
     sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'false')", tableName, GC_ENABLED);
 
-    AssertHelpers.assertThrows(
-        "Should reject call",
-        ValidationException.class,
-        "Cannot delete orphan files: GC is disabled",
-        () -> sql("CALL %s.system.remove_orphan_files('%s')", catalogName, tableIdent));
+    assertThatThrownBy(
+            () -> sql("CALL %s.system.remove_orphan_files('%s')", catalogName, tableIdent))
+        .as("Should reject call")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot delete orphan files: GC is disabled");
 
     // reset the property to enable the table purging in removeTable.
     sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'true')", tableName, GC_ENABLED);
@@ -258,35 +258,31 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testInvalidRemoveOrphanFilesCases() {
-    AssertHelpers.assertThrows(
-        "Should not allow mixed args",
-        AnalysisException.class,
-        "Named and positional arguments cannot be mixed",
-        () -> sql("CALL %s.system.remove_orphan_files('n', table => 't')", catalogName));
+    assertThatThrownBy(
+            () -> sql("CALL %s.system.remove_orphan_files('n', table => 't')", catalogName))
+        .as("Should not allow mixed args")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Named and positional arguments cannot be mixed");
 
-    AssertHelpers.assertThrows(
-        "Should not resolve procedures in arbitrary namespaces",
-        NoSuchProcedureException.class,
-        "not found",
-        () -> sql("CALL %s.custom.remove_orphan_files('n', 't')", catalogName));
+    assertThatThrownBy(() -> sql("CALL %s.custom.remove_orphan_files('n', 't')", catalogName))
+        .as("Should not resolve procedures in arbitrary namespaces")
+        .isInstanceOf(NoSuchProcedureException.class)
+        .hasMessageContaining("not found");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls without all required args",
-        AnalysisException.class,
-        "Missing required parameters",
-        () -> sql("CALL %s.system.remove_orphan_files()", catalogName));
+    assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files()", catalogName))
+        .as("Should reject calls without all required args")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Missing required parameters");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with invalid arg types",
-        AnalysisException.class,
-        "Wrong arg type",
-        () -> sql("CALL %s.system.remove_orphan_files('n', 2.2)", catalogName));
+    assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files('n', 2.2)", catalogName))
+        .as("Should reject calls with invalid arg types")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Wrong arg type");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with empty table identifier",
-        IllegalArgumentException.class,
-        "Cannot handle an empty identifier",
-        () -> sql("CALL %s.system.remove_orphan_files('')", catalogName));
+    assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files('')", catalogName))
+        .as("Should reject calls with empty table identifier")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot handle an empty identifier");
   }
 
   @Test
@@ -351,63 +347,63 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
   public void testConcurrentRemoveOrphanFilesWithInvalidInput() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    AssertHelpers.assertThrows(
-        "Should throw an error when max_concurrent_deletes = 0",
-        IllegalArgumentException.class,
-        "max_concurrent_deletes should have value > 0",
-        () ->
-            sql(
-                "CALL %s.system.remove_orphan_files(table => '%s', max_concurrent_deletes => %s)",
-                catalogName, tableIdent, 0));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.remove_orphan_files(table => '%s', max_concurrent_deletes => %s)",
+                    catalogName, tableIdent, 0))
+        .as("Should throw an error when max_concurrent_deletes = 0")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("max_concurrent_deletes should have value > 0");
 
-    AssertHelpers.assertThrows(
-        "Should throw an error when max_concurrent_deletes < 0 ",
-        IllegalArgumentException.class,
-        "max_concurrent_deletes should have value > 0",
-        () ->
-            sql(
-                "CALL %s.system.remove_orphan_files(table => '%s', max_concurrent_deletes => %s)",
-                catalogName, tableIdent, -1));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.remove_orphan_files(table => '%s', max_concurrent_deletes => %s)",
+                    catalogName, tableIdent, -1))
+        .as("Should throw an error when max_concurrent_deletes < 0 ")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("max_concurrent_deletes should have value > 0");
 
     String tempViewName = "file_list_test";
     spark.emptyDataFrame().createOrReplaceTempView(tempViewName);
 
-    AssertHelpers.assertThrows(
-        "Should throw an error if file_list_view is missing required columns",
-        IllegalArgumentException.class,
-        "does not exist. Available:",
-        () ->
-            sql(
-                "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
-                catalogName, tableIdent, tempViewName));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
+                    catalogName, tableIdent, tempViewName))
+        .as("Should throw an error if file_list_view is missing required columns")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not exist. Available:");
 
     spark
         .createDataset(Lists.newArrayList(), Encoders.tuple(Encoders.INT(), Encoders.TIMESTAMP()))
         .toDF("file_path", "last_modified")
         .createOrReplaceTempView(tempViewName);
 
-    AssertHelpers.assertThrows(
-        "Should throw an error if file_path has wrong type",
-        IllegalArgumentException.class,
-        "Invalid file_path column",
-        () ->
-            sql(
-                "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
-                catalogName, tableIdent, tempViewName));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
+                    catalogName, tableIdent, tempViewName))
+        .as("Should throw an error if file_path has wrong type")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid file_path column");
 
     spark
         .createDataset(Lists.newArrayList(), Encoders.tuple(Encoders.STRING(), Encoders.STRING()))
         .toDF("file_path", "last_modified")
         .createOrReplaceTempView(tempViewName);
 
-    AssertHelpers.assertThrows(
-        "Should throw an error if last_modified has wrong type",
-        IllegalArgumentException.class,
-        "Invalid last_modified column",
-        () ->
-            sql(
-                "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
-                catalogName, tableIdent, tempViewName));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
+                    catalogName, tableIdent, tempViewName))
+        .as("Should throw an error if last_modified has wrong type")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid last_modified column");
   }
 
   @Test
@@ -518,10 +514,10 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
                 + "table => '%s',"
                 + "older_than => TIMESTAMP '%s')",
             catalogName, tableIdent, currentTimestamp);
-    Assertions.assertThat(output).as("Should be no orphan files").isEmpty();
+    assertThat(output).as("Should be no orphan files").isEmpty();
 
-    Assertions.assertThat(statsLocation.exists()).as("stats file should exist").isTrue();
-    Assertions.assertThat(statsLocation.length())
+    assertThat(statsLocation.exists()).as("stats file should exist").isTrue();
+    assertThat(statsLocation.length())
         .as("stats file length")
         .isEqualTo(statisticsFile.fileSizeInBytes());
 
@@ -535,11 +531,11 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
                 + "table => '%s',"
                 + "older_than => TIMESTAMP '%s')",
             catalogName, tableIdent, currentTimestamp);
-    Assertions.assertThat(output).as("Should be orphan files").hasSize(1);
-    Assertions.assertThat(Iterables.getOnlyElement(output))
+    assertThat(output).as("Should be orphan files").hasSize(1);
+    assertThat(Iterables.getOnlyElement(output))
         .as("Deleted files")
         .containsExactly(statsLocation.toURI().toString());
-    Assertions.assertThat(statsLocation.exists()).as("stats file should be deleted").isFalse();
+    assertThat(statsLocation.exists()).as("stats file should be deleted").isFalse();
   }
 
   @Test
@@ -568,11 +564,9 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
                 + "table => '%s',"
                 + "older_than => TIMESTAMP '%s')",
             catalogName, tableIdent, currentTimestamp);
-    Assertions.assertThat(output).as("Should be no orphan files").isEmpty();
+    assertThat(output).as("Should be no orphan files").isEmpty();
 
-    Assertions.assertThat(new File(partitionStatsLocation))
-        .as("partition stats file should exist")
-        .exists();
+    assertThat(new File(partitionStatsLocation)).as("partition stats file should exist").exists();
 
     removePartitionStatsTxn(table, partitionStatisticsFile);
 
@@ -582,11 +576,11 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
                 + "table => '%s',"
                 + "older_than => TIMESTAMP '%s')",
             catalogName, tableIdent, currentTimestamp);
-    Assertions.assertThat(output).as("Should be orphan files").hasSize(1);
-    Assertions.assertThat(Iterables.getOnlyElement(output))
+    assertThat(output).as("Should be orphan files").hasSize(1);
+    assertThat(Iterables.getOnlyElement(output))
         .as("Deleted files")
         .containsExactly("file:" + partitionStatsLocation);
-    Assertions.assertThat(new File(partitionStatsLocation))
+    assertThat(new File(partitionStatsLocation))
         .as("partition stats file should be deleted")
         .doesNotExist();
   }
@@ -679,18 +673,101 @@ public class TestRemoveOrphanFilesProcedure extends SparkExtensionsTestBase {
     Assert.assertEquals(0, orphanFiles.size());
 
     // Test with no equal schemes
-    AssertHelpers.assertThrows(
-        "Should complain about removing orphan files",
-        ValidationException.class,
-        "Conflicting authorities/schemes: [(file1, file)]",
-        () ->
-            sql(
-                "CALL %s.system.remove_orphan_files("
-                    + "table => '%s',"
-                    + "file_list_view => '%s')",
-                catalogName, tableIdent, fileListViewName));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.remove_orphan_files("
+                        + "table => '%s',"
+                        + "file_list_view => '%s')",
+                    catalogName, tableIdent, fileListViewName))
+        .as("Should complain about removing orphan files")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Conflicting authorities/schemes: [(file1, file)]");
 
     // Drop table in afterEach has purge and fails due to invalid scheme "file1" used in this test
+    // Dropping the table here
+    sql("DROP TABLE %s", tableName);
+  }
+
+  @Test
+  public void testRemoveOrphanFilesProcedureWithEqualAuthorities()
+      throws NoSuchTableException, ParseException, IOException {
+    if (catalogName.equals("testhadoop")) {
+      sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    } else {
+      sql(
+          "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg LOCATION '%s'",
+          tableName, temp.newFolder().toURI().toString());
+    }
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    Path originalPath = new Path(table.location());
+
+    URI uri = originalPath.toUri();
+    String originalAuthority = uri.getAuthority() == null ? "" : uri.getAuthority();
+    Path newParentPath = new Path(uri.getScheme(), "localhost", uri.getPath());
+
+    DataFile dataFile1 =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(new Path(newParentPath, "path/to/data-a.parquet").toString())
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    DataFile dataFile2 =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(new Path(newParentPath, "path/to/data-b.parquet").toString())
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+
+    table.newFastAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
+
+    Timestamp lastModifiedTimestamp = new Timestamp(10000);
+
+    List<FilePathLastModifiedRecord> allFiles =
+        Lists.newArrayList(
+            new FilePathLastModifiedRecord(
+                new Path(originalPath, "path/to/data-a.parquet").toString(), lastModifiedTimestamp),
+            new FilePathLastModifiedRecord(
+                new Path(originalPath, "path/to/data-b.parquet").toString(), lastModifiedTimestamp),
+            new FilePathLastModifiedRecord(
+                ReachableFileUtil.versionHintLocation(table), lastModifiedTimestamp));
+
+    for (String file : ReachableFileUtil.metadataFileLocations(table, true)) {
+      allFiles.add(new FilePathLastModifiedRecord(file, lastModifiedTimestamp));
+    }
+
+    for (ManifestFile manifest : TestHelpers.dataManifests(table)) {
+      allFiles.add(new FilePathLastModifiedRecord(manifest.path(), lastModifiedTimestamp));
+    }
+
+    Dataset<Row> compareToFileList =
+        spark
+            .createDataFrame(allFiles, FilePathLastModifiedRecord.class)
+            .withColumnRenamed("filePath", "file_path")
+            .withColumnRenamed("lastModified", "last_modified");
+    String fileListViewName = "files_view";
+    compareToFileList.createOrReplaceTempView(fileListViewName);
+    List<Object[]> orphanFiles =
+        sql(
+            "CALL %s.system.remove_orphan_files("
+                + "table => '%s',"
+                + "equal_authorities => map('localhost', '%s'),"
+                + "file_list_view => '%s')",
+            catalogName, tableIdent, originalAuthority, fileListViewName);
+    Assert.assertEquals(0, orphanFiles.size());
+
+    // Test with no equal authorities
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.remove_orphan_files("
+                        + "table => '%s',"
+                        + "file_list_view => '%s')",
+                    catalogName, tableIdent, fileListViewName))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageEndingWith("Conflicting authorities/schemes: [(localhost, null)].");
+
+    // Drop table in afterEach has purge and fails due to invalid authority "localhost"
     // Dropping the table here
     sql("DROP TABLE %s", tableName);
   }

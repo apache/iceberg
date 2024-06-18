@@ -19,6 +19,9 @@
 package org.apache.iceberg.orc;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.offset;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -41,7 +44,6 @@ import org.apache.orc.TypeDescription;
 import org.apache.orc.impl.OrcIndex;
 import org.apache.orc.impl.RecordReaderImpl;
 import org.apache.orc.impl.WriterImpl;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -56,7 +58,7 @@ public class TestBloomFilter {
 
   @Test
   public void testWriteOption() throws Exception {
-    Assertions.assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     OutputFile outFile = Files.localOutput(testFile);
     try (FileAppender<Record> writer =
@@ -81,9 +83,9 @@ public class TestBloomFilter {
       double bloomFilterFpp = (double) bloomFilterFppField.get(orcWriter);
 
       // Validate whether the bloom filters are set in ORC SDK or not
-      Assertions.assertThat(bloomFilterColumns[1]).isTrue();
-      Assertions.assertThat(bloomFilterColumns[2]).isTrue();
-      Assertions.assertThat(bloomFilterFpp).isCloseTo(0.04, Assertions.offset(1e-15));
+      assertThat(bloomFilterColumns[1]).isTrue();
+      assertThat(bloomFilterColumns[2]).isTrue();
+      assertThat(bloomFilterFpp).isCloseTo(0.04, offset(1e-15));
 
       Record recordTemplate = GenericRecord.create(DATA_SCHEMA);
       Record record1 = recordTemplate.copy("id", 1L, "name", "foo", "price", 1.0);
@@ -123,15 +125,15 @@ public class TestBloomFilter {
                   footer.getColumns(1));
 
       // Validate whether the bloom filters are written ORC files or not
-      Assertions.assertThat(bloomFilterString).contains("Bloom filters for column");
+      assertThat(bloomFilterString).contains("Bloom filters for column");
     }
   }
 
   @Test
   public void testInvalidFppOption() throws Exception {
-    Assertions.assertThat(testFile.delete()).as("Delete should succeed").isTrue();
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ORC.write(Files.localOutput(testFile))
                     .createWriterFunc(GenericOrcWriter::buildWriter)

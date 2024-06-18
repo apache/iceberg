@@ -215,7 +215,7 @@ public class SparkCatalog extends BaseCatalog
       SparkTable sparkTable = (SparkTable) table;
 
       Preconditions.checkArgument(
-          sparkTable.snapshotId() == null,
+          sparkTable.snapshotId() == null && sparkTable.branch() == null,
           "Cannot do time-travel based on both table identifier and AS OF");
 
       // convert the timestamp to milliseconds as Spark passes microseconds
@@ -726,6 +726,8 @@ public class SparkCatalog extends BaseCatalog
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
+    super.initialize(name, options);
+
     this.cacheEnabled =
         PropertyUtil.propertyAsBoolean(
             options, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);

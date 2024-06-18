@@ -29,11 +29,11 @@ import static org.apache.iceberg.MetadataTableType.PARTITIONS;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
@@ -641,11 +641,10 @@ public class TestMetadataTablesWithPartitionEvolution extends SparkCatalogTestBa
     sql("REFRESH TABLE %s", tableName);
 
     for (MetadataTableType tableType : Arrays.asList(FILES, ALL_DATA_FILES, ENTRIES, ALL_ENTRIES)) {
-      AssertHelpers.assertThrows(
-          "Should complain about the partition type",
-          ValidationException.class,
-          "Cannot build table partition type, unknown transforms",
-          () -> loadMetadataTable(tableType));
+      assertThatThrownBy(() -> loadMetadataTable(tableType))
+          .as("Should complain about the partition type")
+          .isInstanceOf(ValidationException.class)
+          .hasMessageContaining("Cannot build table partition type, unknown transforms");
     }
   }
 

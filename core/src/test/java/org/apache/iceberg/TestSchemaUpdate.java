@@ -20,6 +20,8 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Set;
@@ -30,9 +32,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestSchemaUpdate {
   private static final Schema SCHEMA =
@@ -84,7 +84,7 @@ public class TestSchemaUpdate {
   @Test
   public void testNoChanges() {
     Schema identical = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).apply();
-    Assert.assertEquals("Should not include any changes", SCHEMA.asStruct(), identical.asStruct());
+    assertThat(identical.asStruct()).isEqualTo(SCHEMA.asStruct());
   }
 
   @Test
@@ -114,10 +114,7 @@ public class TestSchemaUpdate {
 
       Schema del = new SchemaUpdate(SCHEMA, 19).deleteColumn(name).apply();
 
-      Assert.assertEquals(
-          "Should match projection with '" + name + "' removed",
-          TypeUtil.project(SCHEMA, selected).asStruct(),
-          del.asStruct());
+      assertThat(del.asStruct()).isEqualTo(TypeUtil.project(SCHEMA, selected).asStruct());
     }
   }
 
@@ -148,10 +145,7 @@ public class TestSchemaUpdate {
 
       Schema del = new SchemaUpdate(SCHEMA, 19).caseSensitive(false).deleteColumn(name).apply();
 
-      Assert.assertEquals(
-          "Should match projection with '" + name + "' removed",
-          TypeUtil.project(SCHEMA, selected).asStruct(),
-          del.asStruct());
+      assertThat(del.asStruct()).isEqualTo(TypeUtil.project(SCHEMA, selected).asStruct());
     }
   }
 
@@ -206,7 +200,7 @@ public class TestSchemaUpdate {
             .updateColumn("locations.long", Types.DoubleType.get())
             .apply();
 
-    Assert.assertEquals("Should convert types", expected, updated.asStruct());
+    assertThat(updated.asStruct()).isEqualTo(expected);
   }
 
   @Test
@@ -261,7 +255,7 @@ public class TestSchemaUpdate {
             .updateColumn("Locations.Long", Types.DoubleType.get())
             .apply();
 
-    Assert.assertEquals("Should convert types", expected, updated.asStruct());
+    assertThat(updated.asStruct()).isEqualTo(expected);
   }
 
   @Test
@@ -299,13 +293,12 @@ public class TestSchemaUpdate {
         if (fromType.equals(toType) || allowedUpdates.contains(Pair.of(fromType, toType))) {
           Schema expected = new Schema(required(1, "col", toType));
           Schema result = new SchemaUpdate(fromSchema, 1).updateColumn("col", toType).apply();
-          Assert.assertEquals("Should allow update", expected.asStruct(), result.asStruct());
+          assertThat(result.asStruct()).isEqualTo(expected.asStruct());
           continue;
         }
 
         String typeChange = fromType + " -> " + toType.toString();
-        Assertions.assertThatThrownBy(
-                () -> new SchemaUpdate(fromSchema, 1).updateColumn("col", toType))
+        assertThatThrownBy(() -> new SchemaUpdate(fromSchema, 1).updateColumn("col", toType))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("Cannot change column type: col: " + typeChange);
       }
@@ -366,7 +359,7 @@ public class TestSchemaUpdate {
             .renameColumn("points.y", "y.y") // has a '.' in the field name
             .apply();
 
-    Assert.assertEquals("Should rename all fields", expected, renamed.asStruct());
+    assertThat(renamed.asStruct()).isEqualTo(expected);
   }
 
   @Test
@@ -424,7 +417,7 @@ public class TestSchemaUpdate {
             .renameColumn("Points.y", "y.y") // has a '.' in the field name
             .apply();
 
-    Assert.assertEquals("Should rename all fields", expected, renamed.asStruct());
+    assertThat(renamed.asStruct()).isEqualTo(expected);
   }
 
   @Test
@@ -483,7 +476,7 @@ public class TestSchemaUpdate {
             .addColumn("points", "t.t", Types.LongType.get()) // name with '.'
             .apply();
 
-    Assert.assertEquals("Should match with added fields", expected.asStruct(), added.asStruct());
+    assertThat(added.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -506,8 +499,7 @@ public class TestSchemaUpdate {
 
     Schema result = new SchemaUpdate(schema, 1).addColumn("location", struct).apply();
 
-    Assert.assertEquals(
-        "Should add struct and reassign column IDs", expected.asStruct(), result.asStruct());
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -546,8 +538,7 @@ public class TestSchemaUpdate {
 
     Schema result = new SchemaUpdate(schema, 1).addColumn("locations", map).apply();
 
-    Assert.assertEquals(
-        "Should add map and reassign column IDs", expected.asStruct(), result.asStruct());
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -574,8 +565,7 @@ public class TestSchemaUpdate {
 
     Schema result = new SchemaUpdate(schema, 1).addColumn("locations", list).apply();
 
-    Assert.assertEquals(
-        "Should add map and reassign column IDs", expected.asStruct(), result.asStruct());
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -586,7 +576,7 @@ public class TestSchemaUpdate {
             required(1, "id", Types.IntegerType.get()),
             required(2, "data", Types.StringType.get()));
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> new SchemaUpdate(schema, 1).addRequiredColumn("data", Types.StringType.get()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Incompatible change: cannot add required column: data");
@@ -597,14 +587,14 @@ public class TestSchemaUpdate {
             .addRequiredColumn("data", Types.StringType.get())
             .apply();
 
-    Assert.assertEquals("Should add required column", expected.asStruct(), result.asStruct());
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
   public void testAddRequiredColumnCaseInsensitive() {
     Schema schema = new Schema(required(1, "id", Types.IntegerType.get()));
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(schema, 1)
                     .caseSensitive(false)
@@ -622,8 +612,7 @@ public class TestSchemaUpdate {
 
     Schema result = new SchemaUpdate(schema, 1).makeColumnOptional("id").apply();
 
-    Assert.assertEquals(
-        "Should update column to be optional", expected.asStruct(), result.asStruct());
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -631,7 +620,7 @@ public class TestSchemaUpdate {
     Schema schema = new Schema(optional(1, "id", Types.IntegerType.get()));
     Schema expected = new Schema(required(1, "id", Types.IntegerType.get()));
 
-    Assertions.assertThatThrownBy(() -> new SchemaUpdate(schema, 1).requireColumn("id"))
+    assertThatThrownBy(() -> new SchemaUpdate(schema, 1).requireColumn("id"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot change column nullability: id: optional -> required");
 
@@ -641,8 +630,7 @@ public class TestSchemaUpdate {
     Schema result =
         new SchemaUpdate(schema, 1).allowIncompatibleChanges().requireColumn("id").apply();
 
-    Assert.assertEquals(
-        "Should update column to be required", expected.asStruct(), result.asStruct());
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -657,8 +645,7 @@ public class TestSchemaUpdate {
             .requireColumn("ID")
             .apply();
 
-    Assert.assertEquals(
-        "Should update column to be required", expected.asStruct(), result.asStruct());
+    assertThat(result.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -729,13 +716,13 @@ public class TestSchemaUpdate {
                 "locations", "description", Types.StringType.get(), "Location description")
             .apply();
 
-    Assert.assertEquals("Should match with added fields", expected.asStruct(), updated.asStruct());
+    assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
   public void testAmbiguousAdd() {
     // preferences.booleans could be top-level or a field of preferences
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
               update.addColumn("preferences.booleans", Types.BooleanType.get());
@@ -746,7 +733,7 @@ public class TestSchemaUpdate {
 
   @Test
   public void testAddAlreadyExists() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
               update.addColumn("preferences", "feature1", Types.BooleanType.get());
@@ -754,7 +741,7 @@ public class TestSchemaUpdate {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot add column, name already exists: preferences.feature1");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
               update.addColumn("preferences", Types.BooleanType.get());
@@ -774,7 +761,7 @@ public class TestSchemaUpdate {
             .addColumn("id", optional(2, "id", Types.IntegerType.get()).type())
             .apply();
 
-    Assert.assertEquals("Should match with added fields", expected.asStruct(), updated.asStruct());
+    assertThat(updated.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -827,13 +814,12 @@ public class TestSchemaUpdate {
             .addColumn("preferences", "feature1", Types.BooleanType.get())
             .apply();
 
-    Assert.assertEquals(
-        "Should match with added fields", expectedNested.asStruct(), updatedNested.asStruct());
+    assertThat(updatedNested.asStruct()).isEqualTo(expectedNested.asStruct());
   }
 
   @Test
   public void testDeleteMissingColumn() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
               update.deleteColumn("col");
@@ -844,7 +830,7 @@ public class TestSchemaUpdate {
 
   @Test
   public void testAddDeleteConflict() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
               update.addColumn("col", Types.IntegerType.get()).deleteColumn("col");
@@ -852,7 +838,7 @@ public class TestSchemaUpdate {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot delete missing column: col");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
               update
@@ -865,7 +851,7 @@ public class TestSchemaUpdate {
 
   @Test
   public void testRenameMissingColumn() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
               update.renameColumn("col", "fail");
@@ -876,7 +862,7 @@ public class TestSchemaUpdate {
 
   @Test
   public void testRenameDeleteConflict() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
               update.renameColumn("id", "col").deleteColumn("id");
@@ -884,7 +870,7 @@ public class TestSchemaUpdate {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot delete a column that has updates: id");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
               update.renameColumn("id", "col").deleteColumn("col");
@@ -895,7 +881,7 @@ public class TestSchemaUpdate {
 
   @Test
   public void testDeleteRenameConflict() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
               update.deleteColumn("id").renameColumn("id", "identifier");
@@ -906,7 +892,7 @@ public class TestSchemaUpdate {
 
   @Test
   public void testUpdateMissingColumn() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
               update.updateColumn("col", Types.DateType.get());
@@ -917,7 +903,7 @@ public class TestSchemaUpdate {
 
   @Test
   public void testUpdateDeleteConflict() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
               update.updateColumn("id", Types.LongType.get()).deleteColumn("id");
@@ -928,7 +914,7 @@ public class TestSchemaUpdate {
 
   @Test
   public void testDeleteUpdateConflict() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               UpdateSchema update = new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID);
               update.deleteColumn("id").updateColumn("id", Types.LongType.get());
@@ -939,7 +925,7 @@ public class TestSchemaUpdate {
 
   @Test
   public void testDeleteMapKey() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
                     .deleteColumn("locations.key")
@@ -950,7 +936,7 @@ public class TestSchemaUpdate {
 
   @Test
   public void testAddFieldToMapKey() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
                     .addColumn("locations.key", "address_line_2", Types.StringType.get())
@@ -961,7 +947,7 @@ public class TestSchemaUpdate {
 
   @Test
   public void testAlterMapKey() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
                     .updateColumn("locations.key.zip", Types.LongType.get())
@@ -978,7 +964,7 @@ public class TestSchemaUpdate {
                 1,
                 "m",
                 Types.MapType.ofOptional(2, 3, Types.IntegerType.get(), Types.DoubleType.get())));
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> new SchemaUpdate(schema, 3).updateColumn("m.key", Types.LongType.get()).apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot update map keys: map<int, double>");
@@ -987,7 +973,7 @@ public class TestSchemaUpdate {
   @Test
   public void testUpdateAddedColumnDoc() {
     Schema schema = new Schema(required(1, "i", Types.IntegerType.get()));
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(schema, 3)
                     .addColumn("value", Types.LongType.get())
@@ -1000,7 +986,7 @@ public class TestSchemaUpdate {
   @Test
   public void testUpdateDeletedColumnDoc() {
     Schema schema = new Schema(required(1, "i", Types.IntegerType.get()));
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(schema, 3)
                     .deleteColumn("i")
@@ -1035,7 +1021,7 @@ public class TestSchemaUpdate {
             .moveBefore("d", "a")
             .apply();
 
-    Assert.assertEquals("Schema should match", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1049,7 +1035,7 @@ public class TestSchemaUpdate {
 
     Schema actual = new SchemaUpdate(schema, 2).moveFirst("data").apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1063,7 +1049,7 @@ public class TestSchemaUpdate {
 
     Schema actual = new SchemaUpdate(schema, 2).moveBefore("data", "id").apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1077,7 +1063,7 @@ public class TestSchemaUpdate {
 
     Schema actual = new SchemaUpdate(schema, 2).moveAfter("id", "data").apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1095,7 +1081,7 @@ public class TestSchemaUpdate {
 
     Schema actual = new SchemaUpdate(schema, 3).moveAfter("ts", "id").apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1113,7 +1099,7 @@ public class TestSchemaUpdate {
 
     Schema actual = new SchemaUpdate(schema, 3).moveBefore("ts", "data").apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1139,7 +1125,7 @@ public class TestSchemaUpdate {
 
     Schema actual = new SchemaUpdate(schema, 4).moveFirst("struct.data").apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1165,7 +1151,7 @@ public class TestSchemaUpdate {
 
     Schema actual = new SchemaUpdate(schema, 4).moveBefore("struct.data", "struct.count").apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1191,7 +1177,7 @@ public class TestSchemaUpdate {
 
     Schema actual = new SchemaUpdate(schema, 4).moveAfter("struct.count", "struct.data").apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1219,7 +1205,7 @@ public class TestSchemaUpdate {
 
     Schema actual = new SchemaUpdate(schema, 5).moveAfter("struct.ts", "struct.count").apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1247,7 +1233,7 @@ public class TestSchemaUpdate {
 
     Schema actual = new SchemaUpdate(schema, 5).moveBefore("struct.ts", "struct.data").apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1279,7 +1265,7 @@ public class TestSchemaUpdate {
 
     Schema actual = new SchemaUpdate(schema, 6).moveBefore("list.ts", "list.data").apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1315,7 +1301,7 @@ public class TestSchemaUpdate {
 
     Schema actual = new SchemaUpdate(schema, 7).moveBefore("map.ts", "map.data").apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1335,7 +1321,7 @@ public class TestSchemaUpdate {
             .moveAfter("ts", "id")
             .apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1358,7 +1344,7 @@ public class TestSchemaUpdate {
             .moveAfter("count", "ts")
             .apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1389,7 +1375,7 @@ public class TestSchemaUpdate {
             .moveBefore("struct.ts", "struct.count")
             .apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1423,7 +1409,7 @@ public class TestSchemaUpdate {
             .moveBefore("struct.size", "struct.ts")
             .apply();
 
-    Assert.assertEquals("Should move data first", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -1432,11 +1418,11 @@ public class TestSchemaUpdate {
         new Schema(
             required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-    Assertions.assertThatThrownBy(() -> new SchemaUpdate(schema, 2).moveBefore("id", "id").apply())
+    assertThatThrownBy(() -> new SchemaUpdate(schema, 2).moveBefore("id", "id").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move id before itself");
 
-    Assertions.assertThatThrownBy(() -> new SchemaUpdate(schema, 2).moveAfter("id", "id").apply())
+    assertThatThrownBy(() -> new SchemaUpdate(schema, 2).moveAfter("id", "id").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move id after itself");
   }
@@ -1447,17 +1433,15 @@ public class TestSchemaUpdate {
         new Schema(
             required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-    Assertions.assertThatThrownBy(() -> new SchemaUpdate(schema, 2).moveFirst("items").apply())
+    assertThatThrownBy(() -> new SchemaUpdate(schema, 2).moveFirst("items").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move missing column: items");
 
-    Assertions.assertThatThrownBy(
-            () -> new SchemaUpdate(schema, 2).moveBefore("items", "id").apply())
+    assertThatThrownBy(() -> new SchemaUpdate(schema, 2).moveBefore("items", "id").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move missing column: items");
 
-    Assertions.assertThatThrownBy(
-            () -> new SchemaUpdate(schema, 2).moveAfter("items", "data").apply())
+    assertThatThrownBy(() -> new SchemaUpdate(schema, 2).moveAfter("items", "data").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move missing column: items");
   }
@@ -1468,7 +1452,7 @@ public class TestSchemaUpdate {
         new Schema(
             required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(schema, 2)
                     .moveFirst("ts")
@@ -1477,7 +1461,7 @@ public class TestSchemaUpdate {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move missing column: ts");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(schema, 2)
                     .moveBefore("ts", "id")
@@ -1486,7 +1470,7 @@ public class TestSchemaUpdate {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move missing column: ts");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(schema, 2)
                     .moveAfter("ts", "data")
@@ -1502,13 +1486,11 @@ public class TestSchemaUpdate {
         new Schema(
             required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-    Assertions.assertThatThrownBy(
-            () -> new SchemaUpdate(schema, 2).moveBefore("id", "items").apply())
+    assertThatThrownBy(() -> new SchemaUpdate(schema, 2).moveBefore("id", "items").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move id before missing column: items");
 
-    Assertions.assertThatThrownBy(
-            () -> new SchemaUpdate(schema, 2).moveAfter("data", "items").apply())
+    assertThatThrownBy(() -> new SchemaUpdate(schema, 2).moveAfter("data", "items").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move data after missing column: items");
   }
@@ -1524,8 +1506,7 @@ public class TestSchemaUpdate {
                 "map",
                 Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.StringType.get())));
 
-    Assertions.assertThatThrownBy(
-            () -> new SchemaUpdate(schema, 5).moveBefore("map.key", "map.value").apply())
+    assertThatThrownBy(() -> new SchemaUpdate(schema, 5).moveBefore("map.key", "map.value").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move fields in non-struct type: map<string, string>");
   }
@@ -1541,8 +1522,7 @@ public class TestSchemaUpdate {
                 "map",
                 Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.StructType.of())));
 
-    Assertions.assertThatThrownBy(
-            () -> new SchemaUpdate(schema, 5).moveBefore("map.value", "map.key").apply())
+    assertThatThrownBy(() -> new SchemaUpdate(schema, 5).moveBefore("map.value", "map.key").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move fields in non-struct type: map<string, struct<>>");
   }
@@ -1555,8 +1535,7 @@ public class TestSchemaUpdate {
             required(2, "data", Types.StringType.get()),
             optional(3, "list", Types.ListType.ofRequired(4, Types.StringType.get())));
 
-    Assertions.assertThatThrownBy(
-            () -> new SchemaUpdate(schema, 4).moveBefore("list.element", "list").apply())
+    assertThatThrownBy(() -> new SchemaUpdate(schema, 4).moveBefore("list.element", "list").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move fields in non-struct type: list<string>");
   }
@@ -1574,8 +1553,7 @@ public class TestSchemaUpdate {
                     required(4, "x", Types.IntegerType.get()),
                     required(5, "y", Types.IntegerType.get()))));
 
-    Assertions.assertThatThrownBy(
-            () -> new SchemaUpdate(schema, 5).moveBefore("a", "struct.x").apply())
+    assertThatThrownBy(() -> new SchemaUpdate(schema, 5).moveBefore("a", "struct.x").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move field a to a different struct");
   }
@@ -1597,8 +1575,7 @@ public class TestSchemaUpdate {
                     required(5, "x", Types.IntegerType.get()),
                     required(6, "y", Types.IntegerType.get()))));
 
-    Assertions.assertThatThrownBy(
-            () -> new SchemaUpdate(schema, 6).moveBefore("s2.x", "s1.a").apply())
+    assertThatThrownBy(() -> new SchemaUpdate(schema, 6).moveBefore("s2.x", "s1.a").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot move field s2.x to a different struct");
   }
@@ -1608,10 +1585,9 @@ public class TestSchemaUpdate {
     Schema newSchema =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).setIdentifierFields("id").apply();
 
-    Assert.assertEquals(
-        "add an existing field as identifier field should succeed",
-        Sets.newHashSet(newSchema.findField("id").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("add an existing field as identifier field should succeed")
+        .containsExactly(newSchema.findField("id").fieldId());
   }
 
   @Test
@@ -1623,11 +1599,10 @@ public class TestSchemaUpdate {
             .setIdentifierFields("id", "new_field")
             .apply();
 
-    Assert.assertEquals(
-        "add column then set as identifier should succeed",
-        Sets.newHashSet(
-            newSchema.findField("id").fieldId(), newSchema.findField("new_field").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("add column then set as identifier should succeed")
+        .containsExactly(
+            newSchema.findField("id").fieldId(), newSchema.findField("new_field").fieldId());
 
     newSchema =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
@@ -1636,11 +1611,10 @@ public class TestSchemaUpdate {
             .addRequiredColumn("new_field", Types.StringType.get())
             .apply();
 
-    Assert.assertEquals(
-        "set identifier then add column should succeed",
-        Sets.newHashSet(
-            newSchema.findField("id").fieldId(), newSchema.findField("new_field").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("set identifier then add column should succeed")
+        .containsExactly(
+            newSchema.findField("id").fieldId(), newSchema.findField("new_field").fieldId());
   }
 
   @Test
@@ -1660,10 +1634,9 @@ public class TestSchemaUpdate {
             .setIdentifierFields("required_struct.field")
             .apply();
 
-    Assert.assertEquals(
-        "set existing nested field as identifier should succeed",
-        Sets.newHashSet(newSchema.findField("required_struct.field").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("set existing nested field as identifier should succeed")
+        .containsExactly(newSchema.findField("required_struct.field").fieldId());
 
     newSchema =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
@@ -1676,10 +1649,9 @@ public class TestSchemaUpdate {
             .setIdentifierFields("new.field")
             .apply();
 
-    Assert.assertEquals(
-        "set newly added nested field as identifier should succeed",
-        Sets.newHashSet(newSchema.findField("new.field").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("set newly added nested field as identifier should succeed")
+        .containsExactly(newSchema.findField("new.field").fieldId());
 
     newSchema =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
@@ -1696,10 +1668,9 @@ public class TestSchemaUpdate {
             .setIdentifierFields("new.field.nested")
             .apply();
 
-    Assert.assertEquals(
-        "set newly added multi-layer nested field as identifier should succeed",
-        Sets.newHashSet(newSchema.findField("new.field.nested").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("set newly added multi-layer nested field as identifier should succeed")
+        .containsExactly(newSchema.findField("new.field.nested").fieldId());
   }
 
   @Test
@@ -1711,11 +1682,10 @@ public class TestSchemaUpdate {
             .setIdentifierFields("id", "dot.field")
             .apply();
 
-    Assert.assertEquals(
-        "add a field with dot as identifier should succeed",
-        Sets.newHashSet(
-            newSchema.findField("id").fieldId(), newSchema.findField("dot.field").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("add a field with dot as identifier should succeed")
+        .containsExactly(
+            newSchema.findField("id").fieldId(), newSchema.findField("dot.field").fieldId());
   }
 
   @Test
@@ -1733,22 +1703,18 @@ public class TestSchemaUpdate {
             .setIdentifierFields("new_field", "new_field2")
             .apply();
 
-    Assert.assertEquals(
-        "remove an identifier field should succeed",
-        Sets.newHashSet(
+    assertThat(newSchema.identifierFieldIds())
+        .as("remove an identifier field should succeed")
+        .containsExactly(
             newSchema.findField("new_field").fieldId(),
-            newSchema.findField("new_field2").fieldId()),
-        newSchema.identifierFieldIds());
+            newSchema.findField("new_field2").fieldId());
 
     newSchema =
         new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID)
             .setIdentifierFields(Sets.newHashSet())
             .apply();
 
-    Assert.assertEquals(
-        "remove all identifier fields should succeed",
-        Sets.newHashSet(),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds()).isEmpty();
   }
 
   @SuppressWarnings("MethodLength")
@@ -1760,29 +1726,25 @@ public class TestSchemaUpdate {
             required(2, "float", Types.FloatType.get()),
             required(3, "double", Types.DoubleType.get()));
 
-    Assertions.assertThatThrownBy(
-            () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(999)))
+    assertThatThrownBy(() -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(999)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot add fieldId 999 as an identifier field: field does not exist");
 
-    Assertions.assertThatThrownBy(
-            () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(1)))
+    assertThatThrownBy(() -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(1)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot add field id as an identifier field: not a required field");
 
-    Assertions.assertThatThrownBy(
-            () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(2)))
+    assertThatThrownBy(() -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(2)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot add field float as an identifier field: must not be float or double field");
 
-    Assertions.assertThatThrownBy(
-            () -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(3)))
+    assertThatThrownBy(() -> new Schema(testSchema.asStruct().fields(), ImmutableSet.of(3)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot add field double as an identifier field: must not be float or double field");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
                     .setIdentifierFields("unknown")
@@ -1791,7 +1753,7 @@ public class TestSchemaUpdate {
         .hasMessage(
             "Cannot add field unknown as an identifier field: not found in current schema or added columns");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
                     .setIdentifierFields("locations")
@@ -1800,13 +1762,13 @@ public class TestSchemaUpdate {
         .hasMessage(
             "Cannot add field locations as an identifier field: not a primitive type field");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).setIdentifierFields("data").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot add field data as an identifier field: not a required field");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
                     .setIdentifierFields("locations.key.zip")
@@ -1816,7 +1778,7 @@ public class TestSchemaUpdate {
             "Cannot add field zip as an identifier field: must not be nested in "
                 + SCHEMA.findField("locations"));
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID)
                     .setIdentifierFields("points.element.x")
@@ -1865,7 +1827,7 @@ public class TestSchemaUpdate {
 
     int lastColId = SCHEMA_LAST_COLUMN_ID + 15;
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(newSchema, lastColId)
                     .setIdentifierFields("required_list.element.x")
@@ -1875,19 +1837,19 @@ public class TestSchemaUpdate {
             "Cannot add field x as an identifier field: must not be nested in "
                 + newSchema.findField("required_list"));
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> new SchemaUpdate(newSchema, lastColId).setIdentifierFields("col_double").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot add field col_double as an identifier field: must not be float or double field");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> new SchemaUpdate(newSchema, lastColId).setIdentifierFields("col_float").apply())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot add field col_float as an identifier field: must not be float or double field");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(newSchema, lastColId)
                     .setIdentifierFields("new_map.value.val_col")
@@ -1897,7 +1859,7 @@ public class TestSchemaUpdate {
             "Cannot add field val_col as an identifier field: must not be nested in "
                 + newSchema.findField("new_map"));
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(newSchema, lastColId)
                     .setIdentifierFields("new.fields.element.nested")
@@ -1907,7 +1869,7 @@ public class TestSchemaUpdate {
             "Cannot add field nested as an identifier field: must not be nested in "
                 + newSchema.findField("new.fields"));
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(newSchema, lastColId)
                     .setIdentifierFields("preferences.feature1")
@@ -1923,23 +1885,23 @@ public class TestSchemaUpdate {
     Schema schemaWithIdentifierFields =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).setIdentifierFields("id").apply();
 
-    Assert.assertEquals(
-        "delete column and then reset identifier field should succeed",
-        Sets.newHashSet(),
-        new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
-            .deleteColumn("id")
-            .setIdentifierFields(Sets.newHashSet())
-            .apply()
-            .identifierFieldIds());
+    assertThat(
+            new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
+                .deleteColumn("id")
+                .setIdentifierFields(Sets.newHashSet())
+                .apply()
+                .identifierFieldIds())
+        .as("delete column and then reset identifier field should succeed")
+        .isEmpty();
 
-    Assert.assertEquals(
-        "delete reset identifier field and then delete column should succeed",
-        Sets.newHashSet(),
-        new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
-            .setIdentifierFields(Sets.newHashSet())
-            .deleteColumn("id")
-            .apply()
-            .identifierFieldIds());
+    assertThat(
+            new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
+                .setIdentifierFields(Sets.newHashSet())
+                .deleteColumn("id")
+                .apply()
+                .identifierFieldIds())
+        .as("delete reset identifier field and then delete column should succeed")
+        .isEmpty();
   }
 
   @Test
@@ -1947,7 +1909,7 @@ public class TestSchemaUpdate {
     Schema schemaWithIdentifierFields =
         new SchemaUpdate(SCHEMA, SCHEMA_LAST_COLUMN_ID).setIdentifierFields("id").apply();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
                     .deleteColumn("id")
@@ -1970,7 +1932,7 @@ public class TestSchemaUpdate {
             .setIdentifierFields("out.nested")
             .apply();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 new SchemaUpdate(newSchema, SCHEMA_LAST_COLUMN_ID + 2).deleteColumn("out").apply())
         .isInstanceOf(IllegalArgumentException.class)
@@ -1989,10 +1951,9 @@ public class TestSchemaUpdate {
             .renameColumn("id", "id2")
             .apply();
 
-    Assert.assertEquals(
-        "rename should not affect identifier fields",
-        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("rename should not affect identifier fields")
+        .containsExactly(SCHEMA.findField("id").fieldId());
   }
 
   @Test
@@ -2005,28 +1966,25 @@ public class TestSchemaUpdate {
             .moveAfter("id", "locations")
             .apply();
 
-    Assert.assertEquals(
-        "move after should not affect identifier fields",
-        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("move after should not affect identifier fields")
+        .containsExactly(SCHEMA.findField("id").fieldId());
 
     newSchema =
         new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
             .moveBefore("id", "locations")
             .apply();
 
-    Assert.assertEquals(
-        "move before should not affect identifier fields",
-        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("move before should not affect identifier fields")
+        .containsExactly(SCHEMA.findField("id").fieldId());
 
     newSchema =
         new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID).moveFirst("id").apply();
 
-    Assert.assertEquals(
-        "move first should not affect identifier fields",
-        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("move first should not affect identifier fields")
+        .containsExactly(SCHEMA.findField("id").fieldId());
   }
 
   @Test
@@ -2040,10 +1998,9 @@ public class TestSchemaUpdate {
             .moveAfter("iD", "locations")
             .apply();
 
-    Assert.assertEquals(
-        "move after should not affect identifier fields",
-        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("move after should not affect identifier fields")
+        .containsExactly(SCHEMA.findField("id").fieldId());
 
     newSchema =
         new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
@@ -2051,10 +2008,9 @@ public class TestSchemaUpdate {
             .moveBefore("ID", "locations")
             .apply();
 
-    Assert.assertEquals(
-        "move before should not affect identifier fields",
-        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("move before should not affect identifier fields")
+        .containsExactly(SCHEMA.findField("id").fieldId());
 
     newSchema =
         new SchemaUpdate(schemaWithIdentifierFields, SCHEMA_LAST_COLUMN_ID)
@@ -2062,10 +2018,9 @@ public class TestSchemaUpdate {
             .moveFirst("ID")
             .apply();
 
-    Assert.assertEquals(
-        "move first should not affect identifier fields",
-        Sets.newHashSet(SCHEMA.findField("id").fieldId()),
-        newSchema.identifierFieldIds());
+    assertThat(newSchema.identifierFieldIds())
+        .as("move first should not affect identifier fields")
+        .containsExactly(SCHEMA.findField("id").fieldId());
   }
 
   @Test
@@ -2088,8 +2043,7 @@ public class TestSchemaUpdate {
             .addRequiredColumn("id", Types.IntegerType.get())
             .moveAfter("id", "data")
             .apply();
-    Assert.assertEquals(
-        "Should move deleted column correctly", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -2112,8 +2066,7 @@ public class TestSchemaUpdate {
             .addRequiredColumn("id", Types.IntegerType.get())
             .moveBefore("id", "data_1")
             .apply();
-    Assert.assertEquals(
-        "Should move deleted column correctly", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -2136,8 +2089,7 @@ public class TestSchemaUpdate {
             .addRequiredColumn("id", Types.IntegerType.get())
             .moveFirst("id")
             .apply();
-    Assert.assertEquals(
-        "Should move deleted column correctly", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -2171,8 +2123,7 @@ public class TestSchemaUpdate {
             .moveAfter("struct.data", "struct.count")
             .apply();
 
-    Assert.assertEquals(
-        "Should move deleted nested column correctly", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -2206,8 +2157,7 @@ public class TestSchemaUpdate {
             .moveBefore("struct.data", "struct.data_1")
             .apply();
 
-    Assert.assertEquals(
-        "Should move deleted nested column correctly", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 
   @Test
@@ -2241,7 +2191,6 @@ public class TestSchemaUpdate {
             .moveFirst("struct.data")
             .apply();
 
-    Assert.assertEquals(
-        "Should move deleted nested column correctly", expected.asStruct(), actual.asStruct());
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 }

@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.DateTimeException;
@@ -32,7 +33,6 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.data.TimeConversions;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestStringLiteralConversions {
@@ -226,11 +226,11 @@ public class TestStringLiteralConversions {
   @Test
   public void testTimestampWithZoneWithoutZoneInLiteral() {
     // Zone must be present in literals when converting to timestamp with zone
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> Literal.of("2017-08-18T14:21:01.919123").to(Types.TimestampType.withZone()))
         .isInstanceOf(DateTimeException.class)
         .hasMessageContaining("could not be parsed");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 Literal.of("2017-08-18T14:21:01.919123456").to(Types.TimestampNanoType.withZone()))
         .isInstanceOf(DateTimeException.class)
@@ -240,13 +240,13 @@ public class TestStringLiteralConversions {
   @Test
   public void testTimestampWithoutZoneWithZoneInLiteral() {
     // Zone must not be present in literals when converting to timestamp without zone
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 Literal.of("2017-08-18T14:21:01.919123+07:00")
                     .to(Types.TimestampType.withoutZone()))
         .isInstanceOf(DateTimeException.class)
         .hasMessageContaining("could not be parsed");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 Literal.of("2017-08-18T14:21:01.919123456+07:00")
                     .to(Types.TimestampNanoType.withoutZone()))

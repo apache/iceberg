@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg.aws.util;
 
-import org.assertj.core.api.Assertions;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import software.amazon.awssdk.core.metrics.CoreMetric;
@@ -31,7 +32,7 @@ public class TestRetryDetector {
   @Test
   public void testNoMetrics() {
     RetryDetector detector = new RetryDetector();
-    Assertions.assertThat(detector.retried()).as("Should default to false").isFalse();
+    assertThat(detector.retried()).as("Should default to false").isFalse();
   }
 
   @Test
@@ -40,7 +41,7 @@ public class TestRetryDetector {
 
     RetryDetector detector = new RetryDetector();
     detector.publish(metrics.collect());
-    Assertions.assertThat(detector.retried())
+    assertThat(detector.retried())
         .as("Should not detect retries if RETRY_COUNT metric is not reported")
         .isFalse();
   }
@@ -52,9 +53,7 @@ public class TestRetryDetector {
 
     RetryDetector detector = new RetryDetector();
     detector.publish(metrics.collect());
-    Assertions.assertThat(detector.retried())
-        .as("Should not detect retries if RETRY_COUNT is zero")
-        .isFalse();
+    assertThat(detector.retried()).as("Should not detect retries if RETRY_COUNT is zero").isFalse();
   }
 
   @Test
@@ -64,9 +63,7 @@ public class TestRetryDetector {
 
     RetryDetector detector = new RetryDetector();
     detector.publish(metrics.collect());
-    Assertions.assertThat(detector.retried())
-        .as("Should detect retries if RETRY_COUNT is non-zero")
-        .isTrue();
+    assertThat(detector.retried()).as("Should detect retries if RETRY_COUNT is non-zero").isTrue();
   }
 
   @Test
@@ -77,7 +74,7 @@ public class TestRetryDetector {
 
     RetryDetector detector = new RetryDetector();
     detector.publish(metrics.collect());
-    Assertions.assertThat(detector.retried())
+    assertThat(detector.retried())
         .as("Should detect retries if even one RETRY_COUNT is non-zero")
         .isTrue();
   }
@@ -91,7 +88,7 @@ public class TestRetryDetector {
 
     RetryDetector detector = new RetryDetector();
     detector.publish(metrics.collect());
-    Assertions.assertThat(detector.retried())
+    assertThat(detector.retried())
         .as("Should not detect retries if nested RETRY_COUNT is zero")
         .isFalse();
   }
@@ -105,7 +102,7 @@ public class TestRetryDetector {
 
     RetryDetector detector = new RetryDetector();
     detector.publish(metrics.collect());
-    Assertions.assertThat(detector.retried())
+    assertThat(detector.retried())
         .as("Should detect retries if nested RETRY_COUNT is non-zero")
         .isTrue();
   }
@@ -124,7 +121,7 @@ public class TestRetryDetector {
 
     RetryDetector detector = new RetryDetector();
     detector.publish(metrics.collect());
-    Assertions.assertThat(detector.retried())
+    assertThat(detector.retried())
         .as("Should detect retries if even one nested RETRY_COUNT is non-zero")
         .isTrue();
   }
@@ -138,11 +135,9 @@ public class TestRetryDetector {
 
     RetryDetector detector = new RetryDetector();
     detector.publish(metrics1.collect());
-    Assertions.assertThat(detector.retried())
-        .as("Should not detect retries if RETRY_COUNT is zero")
-        .isFalse();
+    assertThat(detector.retried()).as("Should not detect retries if RETRY_COUNT is zero").isFalse();
     detector.publish(metrics2.collect());
-    Assertions.assertThat(detector.retried())
+    assertThat(detector.retried())
         .as("Should continue detecting retries in additional metrics")
         .isTrue();
   }
@@ -158,13 +153,9 @@ public class TestRetryDetector {
 
     RetryDetector detector = new RetryDetector();
     detector.publish(metrics1Spy);
-    Assertions.assertThat(detector.retried())
-        .as("Should detect retries if RETRY_COUNT is zero")
-        .isTrue();
+    assertThat(detector.retried()).as("Should detect retries if RETRY_COUNT is zero").isTrue();
     detector.publish(metrics2Spy);
-    Assertions.assertThat(detector.retried())
-        .as("Should remain true once a retry is detected")
-        .isTrue();
+    assertThat(detector.retried()).as("Should remain true once a retry is detected").isTrue();
 
     Mockito.verify(metrics1Spy).metricValues(Mockito.eq(CoreMetric.RETRY_COUNT));
     Mockito.verifyNoMoreInteractions(metrics1Spy, metrics2Spy);

@@ -111,6 +111,11 @@ public class S3RequestUtil {
         kmsKeySetter.apply(s3FileIOProperties.sseKey());
         break;
 
+      case S3FileIOProperties.DSSE_TYPE_KMS:
+        encryptionSetter.apply(ServerSideEncryption.AWS_KMS_DSSE);
+        kmsKeySetter.apply(s3FileIOProperties.sseKey());
+        break;
+
       case S3FileIOProperties.SSE_TYPE_S3:
         encryptionSetter.apply(ServerSideEncryption.AES256);
         break;

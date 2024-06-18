@@ -21,59 +21,56 @@ package org.apache.iceberg.spark.extensions;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.DataOperations;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Row;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runners.Parameterized.Parameters;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestChangelogTable extends SparkExtensionsTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestChangelogTable extends ExtensionsTestBase {
 
-  @Parameters(name = "formatVersion = {0}, catalogName = {1}, implementation = {2}, config = {3}")
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, formatVersion = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
-        1,
         SparkCatalogConfig.SPARK.catalogName(),
         SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties()
+        SparkCatalogConfig.SPARK.properties(),
+        1
       },
       {
-        2,
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
-        SparkCatalogConfig.HIVE.properties()
+        SparkCatalogConfig.HIVE.properties(),
+        2
       }
     };
   }
 
-  private final int formatVersion;
+  @Parameter(index = 3)
+  private int formatVersion;
 
-  public TestChangelogTable(
-      int formatVersion, String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-    this.formatVersion = formatVersion;
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testDataFilters() {
     createTableWithDefaultRows();
 
@@ -97,7 +94,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s.changes WHERE id = 3 ORDER BY _change_ordinal, id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testOverwrites() {
     createTableWithDefaultRows();
 
@@ -119,7 +116,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
         changelogRecords(snap2, snap3));
   }
 
-  @Test
+  @TestTemplate
   public void testQueryWithTimeRange() {
     createTable();
 
@@ -189,7 +186,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
         changelogRecords(rightAfterSnap2, snap3.timestampMillis() - 1));
   }
 
-  @Test
+  @TestTemplate
   public void testTimeRangeValidation() {
     createTableWithDefaultRows();
 
@@ -201,13 +198,12 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
     table.refresh();
     Snapshot snap3 = table.currentSnapshot();
     long rightAfterSnap3 = waitUntilAfter(snap3.timestampMillis());
-    Assertions.assertThatThrownBy(
-            () -> changelogRecords(snap3.timestampMillis(), snap2.timestampMillis()))
+    assertThatThrownBy(() -> changelogRecords(snap3.timestampMillis(), snap2.timestampMillis()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot set start-timestamp to be greater than end-timestamp for changelogs");
   }
 
-  @Test
+  @TestTemplate
   public void testMetadataDeletes() {
     createTableWithDefaultRows();
 
@@ -220,7 +216,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
     table.refresh();
 
     Snapshot snap3 = table.currentSnapshot();
-    Assert.assertEquals("Operation must match", DataOperations.DELETE, snap3.operation());
+    assertThat(snap3.operation()).as("Operation must match").isEqualTo(DataOperations.DELETE);
 
     assertEquals(
         "Rows should match",
@@ -228,7 +224,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
         changelogRecords(snap2, snap3));
   }
 
-  @Test
+  @TestTemplate
   public void testExistingEntriesInNewDataManifestsAreIgnored() {
     sql(
         "CREATE TABLE %s (id INT, data STRING) "
@@ -252,7 +248,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
     table.refresh();
 
     Snapshot snap2 = table.currentSnapshot();
-    Assert.assertEquals("Manifest number must match", 1, snap2.dataManifests(table.io()).size());
+    assertThat(snap2.dataManifests(table.io())).as("Manifest number must match").hasSize(1);
 
     assertEquals(
         "Rows should match",
@@ -260,14 +256,14 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
         changelogRecords(snap1, snap2));
   }
 
-  @Test
+  @TestTemplate
   public void testManifestRewritesAreIgnored() {
     createTableWithDefaultRows();
 
     sql("CALL %s.system.rewrite_manifests('%s')", catalogName, tableIdent);
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Num snapshots must match", 3, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).as("Num snapshots must match").hasSize(3);
 
     assertEquals(
         "Should have expected rows",
@@ -275,7 +271,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
         sql("SELECT id, _change_type FROM %s.changes ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testMetadataColumns() {
     createTableWithDefaultRows();
     List<Object[]> rows =
@@ -284,7 +280,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
             tableName);
 
     String file1 = rows.get(0)[1].toString();
-    Assert.assertTrue(file1.startsWith("file:/"));
+    assertThat(file1).startsWith("file:/");
     String file2 = rows.get(1)[1].toString();
 
     assertEquals(
@@ -292,6 +288,69 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
         ImmutableList.of(
             row(1, file1, 0L, false, 0, row("a")), row(2, file2, 0L, false, 0, row("b"))),
         rows);
+  }
+
+  @TestTemplate
+  public void testQueryWithRollback() {
+    createTable();
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+    long rightAfterSnap1 = waitUntilAfter(snap1.timestampMillis());
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+    long rightAfterSnap2 = waitUntilAfter(snap2.timestampMillis());
+
+    sql(
+        "CALL %s.system.rollback_to_snapshot('%s', %d)",
+        catalogName, tableIdent, snap1.snapshotId());
+    table.refresh();
+    assertThat(table.currentSnapshot()).isEqualTo(snap1);
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'a')", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+    long rightAfterSnap3 = waitUntilAfter(snap3.timestampMillis());
+
+    assertEquals(
+        "Should have expected changed rows up to snapshot 3",
+        ImmutableList.of(
+            row(1, "a", "INSERT", 0, snap1.snapshotId()),
+            row(1, "a", "DELETE", 1, snap3.snapshotId()),
+            row(-2, "a", "INSERT", 1, snap3.snapshotId())),
+        changelogRecords(null, rightAfterSnap3));
+
+    assertEquals(
+        "Should have expected changed rows up to snapshot 2",
+        ImmutableList.of(row(1, "a", "INSERT", 0, snap1.snapshotId())),
+        changelogRecords(null, rightAfterSnap2));
+
+    assertEquals(
+        "Should have expected changed rows from snapshot 3 only since snapshot 2 is on a different branch.",
+        ImmutableList.of(
+            row(1, "a", "DELETE", 0, snap3.snapshotId()),
+            row(-2, "a", "INSERT", 0, snap3.snapshotId())),
+        changelogRecords(rightAfterSnap1, snap3.timestampMillis()));
+
+    assertEquals(
+        "Should have expected changed rows from snapshot 3",
+        ImmutableList.of(
+            row(1, "a", "DELETE", 0, snap3.snapshotId()),
+            row(-2, "a", "INSERT", 0, snap3.snapshotId())),
+        changelogRecords(rightAfterSnap2, null));
+
+    sql(
+        "CALL %s.system.set_current_snapshot('%s', %d)",
+        catalogName, tableIdent, snap2.snapshotId());
+    table.refresh();
+    assertThat(table.currentSnapshot()).isEqualTo(snap2);
+    assertEquals(
+        "Should have expected changed rows from snapshot 2 only since snapshot 3 is on a different branch.",
+        ImmutableList.of(row(2, "b", "INSERT", 0, snap2.snapshotId())),
+        changelogRecords(rightAfterSnap1, null));
   }
 
   private void createTableWithDefaultRows() {

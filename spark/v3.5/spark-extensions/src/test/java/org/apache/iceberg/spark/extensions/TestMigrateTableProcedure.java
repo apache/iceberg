@@ -18,51 +18,46 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Map;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
-
-  public TestMigrateTableProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
-
-  @After
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestMigrateTableProcedure extends ExtensionsTestBase {
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
     sql("DROP TABLE IF EXISTS %s_BACKUP_", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testMigrate() throws IOException {
-    Assume.assumeTrue(catalogName.equals("spark_catalog"));
-    String location = temp.newFolder().toString();
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
     Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, tableName);
 
-    Assert.assertEquals("Should have added one file", 1L, result);
+    assertThat(result).as("Should have added one file").isEqualTo(1L);
 
     Table createdTable = validationCatalog.loadTable(tableIdent);
 
     String tableLocation = createdTable.location().replace("file:", "");
-    Assert.assertEquals("Table should have original location", location, tableLocation);
+    assertThat(tableLocation).as("Table should have original location").isEqualTo(location);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
@@ -74,10 +69,10 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName + "_BACKUP_");
   }
 
-  @Test
+  @TestTemplate
   public void testMigrateWithOptions() throws IOException {
-    Assume.assumeTrue(catalogName.equals("spark_catalog"));
-    String location = temp.newFolder().toString();
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
@@ -86,15 +81,15 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     Object result =
         scalarSql("CALL %s.system.migrate('%s', map('foo', 'bar'))", catalogName, tableName);
 
-    Assert.assertEquals("Should have added one file", 1L, result);
+    assertThat(result).as("Should have added one file").isEqualTo(1L);
 
     Table createdTable = validationCatalog.loadTable(tableIdent);
 
     Map<String, String> props = createdTable.properties();
-    Assert.assertEquals("Should have extra property set", "bar", props.get("foo"));
+    assertThat(props).containsEntry("foo", "bar");
 
     String tableLocation = createdTable.location().replace("file:", "");
-    Assert.assertEquals("Table should have original location", location, tableLocation);
+    assertThat(tableLocation).as("Table should have original location").isEqualTo(location);
 
     sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
 
@@ -106,10 +101,10 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     sql("DROP TABLE IF EXISTS %s", tableName + "_BACKUP_");
   }
 
-  @Test
+  @TestTemplate
   public void testMigrateWithDropBackup() throws IOException {
-    Assume.assumeTrue(catalogName.equals("spark_catalog"));
-    String location = temp.newFolder().toString();
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
@@ -118,14 +113,14 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
     Object result =
         scalarSql(
             "CALL %s.system.migrate(table => '%s', drop_backup => true)", catalogName, tableName);
-    Assert.assertEquals("Should have added one file", 1L, result);
-    Assert.assertFalse(spark.catalog().tableExists(tableName + "_BACKUP_"));
+    assertThat(result).as("Should have added one file").isEqualTo(1L);
+    assertThat(spark.catalog().tableExists(tableName + "_BACKUP_")).isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testMigrateWithBackupTableName() throws IOException {
-    Assume.assumeTrue(catalogName.equals("spark_catalog"));
-    String location = temp.newFolder().toString();
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
@@ -137,21 +132,21 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.migrate(table => '%s', backup_table_name => '%s')",
             catalogName, tableName, backupTableName);
 
-    Assertions.assertThat(result).isEqualTo(1L);
+    assertThat(result).isEqualTo(1L);
     String dbName = tableName.split("\\.")[0];
-    Assertions.assertThat(spark.catalog().tableExists(dbName + "." + backupTableName)).isTrue();
+    assertThat(spark.catalog().tableExists(dbName + "." + backupTableName)).isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testMigrateWithInvalidMetricsConfig() throws IOException {
-    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
 
-    String location = temp.newFolder().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               String props = "map('write.metadata.metrics.column.x', 'X')";
               sql("CALL %s.system.migrate('%s', %s)", catalogName, tableName, props);
@@ -160,11 +155,11 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         .hasMessageStartingWith("Invalid metrics config");
   }
 
-  @Test
+  @TestTemplate
   public void testMigrateWithConflictingProps() throws IOException {
-    Assume.assumeTrue(catalogName.equals("spark_catalog"));
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
 
-    String location = temp.newFolder().toString();
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
@@ -172,7 +167,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
 
     Object result =
         scalarSql("CALL %s.system.migrate('%s', map('migrated', 'false'))", catalogName, tableName);
-    Assert.assertEquals("Should have added one file", 1L, result);
+    assertThat(result).as("Should have added one file").isEqualTo(1L);
 
     assertEquals(
         "Should have expected rows",
@@ -180,29 +175,28 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s", tableName));
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assert.assertEquals("Should override user value", "true", table.properties().get("migrated"));
+    assertThat(table.properties()).containsEntry("migrated", "true");
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidMigrateCases() {
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.migrate()", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.migrate()", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Missing required parameters: [table]");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.migrate(map('foo','bar'))", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.migrate(map('foo','bar'))", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith("Wrong arg type for table");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.migrate('')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.migrate('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
   }
 
-  @Test
+  @TestTemplate
   public void testMigratePartitionWithSpecialCharacter() throws IOException {
-    Assume.assumeTrue(catalogName.equals("spark_catalog"));
-    String location = temp.newFolder().toString();
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string, dt date) USING parquet "
             + "PARTITIONED BY (data, dt) LOCATION '%s'",
@@ -216,25 +210,25 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testMigrateEmptyPartitionedTable() throws Exception {
-    Assume.assumeTrue(catalogName.equals("spark_catalog"));
-    String location = temp.newFolder().toString();
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet PARTITIONED BY (id) LOCATION '%s'",
         tableName, location);
     Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, tableName);
-    Assert.assertEquals(0L, result);
+    assertThat(result).isEqualTo(0L);
   }
 
-  @Test
+  @TestTemplate
   public void testMigrateEmptyTable() throws Exception {
-    Assume.assumeTrue(catalogName.equals("spark_catalog"));
-    String location = temp.newFolder().toString();
+    assumeThat(catalogName).isEqualToIgnoringCase("spark_catalog");
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
     Object result = scalarSql("CALL %s.system.migrate('%s')", catalogName, tableName);
-    Assert.assertEquals(0L, result);
+    assertThat(result).isEqualTo(0L);
   }
 }
