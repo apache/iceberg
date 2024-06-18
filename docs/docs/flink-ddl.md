@@ -146,7 +146,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
 ) WITH ('format-version'='2');
 ```
 
-Table create commands support the commonly used [Flink create clauses](https://nightlies.apache.org/flink/flink-docs-master/docs/dev/table/sql/create/) including:
+Table create commands support the commonly used [Flink create clauses](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/table/sql/create/) including:
 
 * `PARTITION BY (column1, column2, ...)` to configure partitioning, Flink does not yet support hidden partitioning.
 * `COMMENT 'table document'` to set a table description.
@@ -195,7 +195,7 @@ CREATE TABLE `hive_catalog`.`default`.`sample` (
 CREATE TABLE  `hive_catalog`.`default`.`sample_like` LIKE `hive_catalog`.`default`.`sample`;
 ```
 
-For more details, refer to the [Flink `CREATE TABLE` documentation](https://nightlies.apache.org/flink/flink-docs-release-1.16/docs/dev/table/sql/create/).
+For more details, refer to the [Flink `CREATE TABLE` documentation](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/table/sql/create/).
 
 
 ### `ALTER TABLE`
