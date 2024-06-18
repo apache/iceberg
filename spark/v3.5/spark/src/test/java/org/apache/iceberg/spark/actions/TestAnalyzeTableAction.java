@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -150,11 +151,8 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
-    ValidationException validationException =
-        assertThrows(
-            ValidationException.class, () -> actions.analyzeTable(table).columns("id1").execute());
-    String message = validationException.getMessage();
-    assertTrue(message.contains("Cannot analyze a table that has no snapshots"));
+    AnalyzeTable.Result result = actions.analyzeTable(table).columns("id").execute();
+    assertFalse(result.analyzed());
   }
 
   @AfterEach
