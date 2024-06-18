@@ -484,7 +484,7 @@ public class ExpressionUtil {
     }
   }
 
-  private static <T> List<String> abbreviateValues(List<String> sanitizedValues) {
+  private static List<String> abbreviateValues(List<String> sanitizedValues) {
     if (sanitizedValues.size() >= LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD) {
       Set<String> distinctValues = ImmutableSet.copyOf(sanitizedValues);
       if (distinctValues.size()

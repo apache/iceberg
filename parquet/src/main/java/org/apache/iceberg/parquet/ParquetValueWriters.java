@@ -147,16 +147,8 @@ public class ParquetValueWriters {
       super(desc);
     }
 
-    public void writeBoolean(int repetitionLevel, boolean value) {
-      column.writeBoolean(repetitionLevel, value);
-    }
-
     public void writeInteger(int repetitionLevel, int value) {
       column.writeInteger(repetitionLevel, value);
-    }
-
-    public void writeLong(int repetitionLevel, long value) {
-      column.writeLong(repetitionLevel, value);
     }
 
     public void writeFloat(int repetitionLevel, float value) {
