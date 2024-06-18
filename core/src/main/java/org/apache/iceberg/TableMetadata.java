@@ -73,7 +73,6 @@ public class TableMetadata implements Serializable {
 
   public static TableMetadata newTableMetadata(
       Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
-    SortOrder sortOrder = SortOrder.unsorted();
     return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties);
   }
 
