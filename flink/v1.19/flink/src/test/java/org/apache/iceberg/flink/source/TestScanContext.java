@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg.flink.source;
 
-import org.assertj.core.api.Assertions;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.junit.jupiter.api.Test;
 
 class TestScanContext {
@@ -104,7 +105,7 @@ class TestScanContext {
   }
 
   private void assertException(ScanContext context, String message) {
-    Assertions.assertThatThrownBy(() -> context.validate())
+    assertThatThrownBy(() -> context.validate())
         .hasMessage(message)
         .isInstanceOf(IllegalArgumentException.class);
   }

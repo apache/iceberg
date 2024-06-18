@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +44,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.StructLikeSet;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 
 public class TestFlinkIcebergSinkV2Base {
@@ -231,7 +232,7 @@ public class TestFlinkIcebergSinkV2Base {
             ImmutableList.of(record(1, "ddd"), record(2, "ddd")));
 
     if (partitioned && writeDistributionMode.equals(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)) {
-      Assertions.assertThatThrownBy(
+      assertThatThrownBy(
               () ->
                   testChangeLogs(
                       ImmutableList.of("id"),
@@ -278,7 +279,7 @@ public class TestFlinkIcebergSinkV2Base {
           expectedRecords,
           branch);
     } else {
-      Assertions.assertThatThrownBy(
+      assertThatThrownBy(
               () ->
                   testChangeLogs(
                       ImmutableList.of("id"),

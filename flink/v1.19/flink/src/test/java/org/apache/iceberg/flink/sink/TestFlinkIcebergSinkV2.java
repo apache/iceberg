@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
@@ -43,7 +44,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -210,7 +210,7 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
             .writeParallelism(parallelism)
             .upsert(true);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 builder
                     .equalityFieldColumns(ImmutableList.of("id", "data"))
@@ -220,7 +220,7 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         .hasMessage(
             "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(

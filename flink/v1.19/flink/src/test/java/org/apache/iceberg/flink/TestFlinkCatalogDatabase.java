@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.nio.file.Path;
@@ -31,7 +32,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -105,7 +105,7 @@ public class TestFlinkCatalogDatabase extends CatalogTestBase {
     assertThat(validationCatalog.tableExists(TableIdentifier.of(icebergNamespace, "tl")))
         .as("Table should exist")
         .isTrue();
-    Assertions.assertThatThrownBy(() -> dropDatabase(flinkDatabase, true))
+    assertThatThrownBy(() -> dropDatabase(flinkDatabase, true))
         .cause()
         .isInstanceOf(DatabaseNotEmptyException.class)
         .hasMessage(
@@ -243,8 +243,7 @@ public class TestFlinkCatalogDatabase extends CatalogTestBase {
     assertThat(validationNamespaceCatalog.namespaceExists(icebergNamespace))
         .as("Namespace should not already exist")
         .isFalse();
-    Assertions.assertThatThrownBy(
-            () -> sql("CREATE DATABASE %s WITH ('prop'='value')", flinkDatabase))
+    assertThatThrownBy(() -> sql("CREATE DATABASE %s WITH ('prop'='value')", flinkDatabase))
         .cause()
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage(
