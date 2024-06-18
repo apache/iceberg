@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.sink.TestBucketPartitionerUtil.TableSchemaType;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -47,7 +49,7 @@ public class TestBucketPartitionKeySelector {
                   TestBucketPartitionerUtil.computeBucketId(
                       numBuckets, rowData.getString(1).toString());
               Integer key = keySelector.getKey(rowData);
-              Assertions.assertThat(key).isEqualTo(expectedBucketId);
+              assertThat(key).isEqualTo(expectedBucketId);
             });
   }
 
@@ -55,7 +57,7 @@ public class TestBucketPartitionKeySelector {
   public void testKeySelectorMultipleBucketsFail() {
     PartitionSpec partitionSpec = TableSchemaType.TWO_BUCKETS.getPartitionSpec(1);
 
-    Assertions.assertThatExceptionOfType(RuntimeException.class)
+    assertThatExceptionOfType(RuntimeException.class)
         .isThrownBy(
             () ->
                 new BucketPartitionKeySelector(

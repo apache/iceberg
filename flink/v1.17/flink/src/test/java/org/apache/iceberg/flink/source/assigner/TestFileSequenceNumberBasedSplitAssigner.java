@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.flink.source.assigner;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.flink.source.split.SplitComparators;
 import org.apache.iceberg.util.SerializationUtil;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -38,7 +39,7 @@ public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestB
   @Test
   public void testMultipleFilesInAnIcebergSplit() {
     SplitAssigner assigner = splitAssigner();
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> assigner.onDiscoveredSplits(createSplits(4, 2, "2")),
             "Multiple files in a split is not allowed")
         .isInstanceOf(IllegalArgumentException.class)

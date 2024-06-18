@@ -20,12 +20,12 @@ package org.apache.iceberg.flink.sink.shuffle;
 
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.ROW_WRAPPER;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.datasketches.sampling.ReservoirItemsSketch;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.SortKey;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestSketchDataStatistics {
@@ -51,7 +51,7 @@ public class TestSketchDataStatistics {
     dataStatistics.add(Fixtures.SORT_KEY);
 
     ReservoirItemsSketch<SortKey> actual = (ReservoirItemsSketch<SortKey>) dataStatistics.result();
-    Assertions.assertThat(actual.getSamples())
+    assertThat(actual.getSamples())
         .isEqualTo(
             new SortKey[] {
               CHAR_KEYS.get("a"), CHAR_KEYS.get("b"), CHAR_KEYS.get("c"), CHAR_KEYS.get("b")

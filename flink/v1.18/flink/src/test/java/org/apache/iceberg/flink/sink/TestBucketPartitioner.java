@@ -21,10 +21,11 @@ package org.apache.iceberg.flink.sink;
 import static org.apache.iceberg.flink.sink.BucketPartitioner.BUCKET_GREATER_THAN_UPPER_BOUND_MESSAGE;
 import static org.apache.iceberg.flink.sink.BucketPartitioner.BUCKET_LESS_THAN_LOWER_BOUND_MESSAGE;
 import static org.apache.iceberg.flink.sink.BucketPartitioner.BUCKET_NULL_MESSAGE;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.flink.sink.TestBucketPartitionerUtil.TableSchemaType;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -46,7 +47,7 @@ public class TestBucketPartitioner {
     int bucketId = 0;
     for (int expectedIndex = 0; expectedIndex < numPartitions; expectedIndex++) {
       int actualPartitionIndex = bucketPartitioner.partition(bucketId, numPartitions);
-      Assertions.assertThat(actualPartitionIndex).isEqualTo(expectedIndex);
+      assertThat(actualPartitionIndex).isEqualTo(expectedIndex);
       bucketId++;
       if (bucketId == numBuckets) {
         bucketId = 0;
@@ -66,7 +67,7 @@ public class TestBucketPartitioner {
 
     for (int bucketId = 0; bucketId < numBuckets; bucketId++) {
       int actualPartitionIndex = bucketPartitioner.partition(bucketId, numPartitions);
-      Assertions.assertThat(actualPartitionIndex).isEqualTo(bucketId % numPartitions);
+      assertThat(actualPartitionIndex).isEqualTo(bucketId % numPartitions);
     }
   }
 
@@ -75,7 +76,7 @@ public class TestBucketPartitioner {
     PartitionSpec partitionSpec = TableSchemaType.ONE_BUCKET.getPartitionSpec(DEFAULT_NUM_BUCKETS);
     BucketPartitioner bucketPartitioner = new BucketPartitioner(partitionSpec);
 
-    Assertions.assertThatExceptionOfType(RuntimeException.class)
+    assertThatExceptionOfType(RuntimeException.class)
         .isThrownBy(() -> bucketPartitioner.partition(null, DEFAULT_NUM_BUCKETS))
         .withMessage(BUCKET_NULL_MESSAGE);
   }
@@ -84,7 +85,7 @@ public class TestBucketPartitioner {
   public void testPartitionerMultipleBucketsFail() {
     PartitionSpec partitionSpec = TableSchemaType.TWO_BUCKETS.getPartitionSpec(DEFAULT_NUM_BUCKETS);
 
-    Assertions.assertThatExceptionOfType(RuntimeException.class)
+    assertThatExceptionOfType(RuntimeException.class)
         .isThrownBy(() -> new BucketPartitioner(partitionSpec))
         .withMessage(BucketPartitionerUtil.BAD_NUMBER_OF_BUCKETS_ERROR_MESSAGE, 2);
   }
@@ -95,12 +96,12 @@ public class TestBucketPartitioner {
     BucketPartitioner bucketPartitioner = new BucketPartitioner(partitionSpec);
 
     int negativeBucketId = -1;
-    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+    assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> bucketPartitioner.partition(negativeBucketId, 1))
         .withMessage(BUCKET_LESS_THAN_LOWER_BOUND_MESSAGE, negativeBucketId);
 
     int tooBigBucketId = DEFAULT_NUM_BUCKETS;
-    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+    assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> bucketPartitioner.partition(tooBigBucketId, 1))
         .withMessage(BUCKET_GREATER_THAN_UPPER_BOUND_MESSAGE, tooBigBucketId, DEFAULT_NUM_BUCKETS);
   }

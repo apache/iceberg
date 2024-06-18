@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
@@ -28,7 +30,6 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
@@ -63,7 +64,7 @@ public class HadoopCatalogExtension
 
   @Override
   public void beforeEach(ExtensionContext context) throws Exception {
-    Assertions.assertThat(temporaryFolder).exists().isDirectory();
+    assertThat(temporaryFolder).exists().isDirectory();
     this.warehouse = "file:" + temporaryFolder + "/" + UUID.randomUUID();
     this.catalogLoader =
         CatalogLoader.hadoop(

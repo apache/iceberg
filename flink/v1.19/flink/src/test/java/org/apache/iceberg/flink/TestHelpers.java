@@ -68,7 +68,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.assertj.core.api.Assertions;
 
 public class TestHelpers {
   private TestHelpers() {}
@@ -159,7 +158,7 @@ public class TestHelpers {
   }
 
   public static void assertRowsWithOrder(List<Row> results, List<Row> expected) {
-    Assertions.assertThat(results).containsExactlyElementsOf(expected);
+    assertThat(results).containsExactlyElementsOf(expected);
   }
 
   public static void assertRowData(Schema schema, StructLike expected, RowData actual) {

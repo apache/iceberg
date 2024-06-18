@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -34,7 +36,6 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -50,7 +51,7 @@ public class TestCatalogTableLoader extends TestBase {
   @BeforeAll
   public static void createWarehouse() throws IOException {
     warehouse = File.createTempFile("warehouse", null);
-    Assertions.assertThat(warehouse.delete()).isTrue();
+    assertThat(warehouse.delete()).isTrue();
     hiveConf.set("my_key", "my_value");
   }
 
@@ -59,9 +60,7 @@ public class TestCatalogTableLoader extends TestBase {
     if (warehouse != null && warehouse.exists()) {
       Path warehousePath = new Path(warehouse.getAbsolutePath());
       FileSystem fs = warehousePath.getFileSystem(hiveConf);
-      Assertions.assertThat(fs.delete(warehousePath, true))
-          .as("Failed to delete " + warehousePath)
-          .isTrue();
+      assertThat(fs.delete(warehousePath, true)).as("Failed to delete " + warehousePath).isTrue();
     }
   }
 
@@ -94,11 +93,9 @@ public class TestCatalogTableLoader extends TestBase {
 
   private static void validateHadoopConf(Table table) {
     FileIO io = table.io();
-    Assertions.assertThat(io)
-        .as("FileIO should be a HadoopFileIO")
-        .isInstanceOf(HadoopFileIO.class);
+    assertThat(io).as("FileIO should be a HadoopFileIO").isInstanceOf(HadoopFileIO.class);
     HadoopFileIO hadoopIO = (HadoopFileIO) io;
-    Assertions.assertThat(hadoopIO.conf().get("my_key")).isEqualTo("my_value");
+    assertThat(hadoopIO.conf().get("my_key")).isEqualTo("my_value");
   }
 
   @SuppressWarnings("unchecked")

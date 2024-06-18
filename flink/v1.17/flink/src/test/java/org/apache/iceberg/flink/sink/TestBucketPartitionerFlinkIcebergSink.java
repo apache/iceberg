@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 import static org.apache.iceberg.flink.MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG;
 import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.apache.iceberg.flink.TestFixtures.TABLE_IDENTIFIER;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,7 +53,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -145,21 +145,21 @@ public class TestBucketPartitionerFlinkIcebergSink {
     appendRowsToTable(rows);
     TableTestStats stats = extractPartitionResults(tableSchemaType);
 
-    Assertions.assertThat(stats.totalRowCount).isEqualTo(rows.size());
+    assertThat(stats.totalRowCount).isEqualTo(rows.size());
     // All 4 buckets should've been written to
-    Assertions.assertThat(stats.writersPerBucket.size()).isEqualTo(numBuckets);
-    Assertions.assertThat(stats.numFilesPerBucket.size()).isEqualTo(numBuckets);
+    assertThat(stats.writersPerBucket.size()).isEqualTo(numBuckets);
+    assertThat(stats.numFilesPerBucket.size()).isEqualTo(numBuckets);
     // Writer expectation (2 writers per bucket):
     // - Bucket0 -> Writers [0, 4]
     // - Bucket1 -> Writers [1, 5]
     // - Bucket2 -> Writers [2, 6]
     // - Bucket3 -> Writers [3, 7]
     for (int i = 0, j = numBuckets; i < numBuckets; i++, j++) {
-      Assertions.assertThat(stats.writersPerBucket.get(i)).hasSameElementsAs(Arrays.asList(i, j));
+      assertThat(stats.writersPerBucket.get(i)).hasSameElementsAs(Arrays.asList(i, j));
       // 2 files per bucket (one file is created by each writer)
-      Assertions.assertThat(stats.numFilesPerBucket.get(i)).isEqualTo(2);
+      assertThat(stats.numFilesPerBucket.get(i)).isEqualTo(2);
       // 2 rows per file (total of 16 rows across 8 files)
-      Assertions.assertThat(stats.rowsPerWriter.get(i)).isEqualTo(2);
+      assertThat(stats.rowsPerWriter.get(i)).isEqualTo(2);
     }
   }
 

@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.flink.source.enumerator;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -33,7 +36,6 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitStatus;
 import org.apache.iceberg.flink.source.split.SplitRequestEvent;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -97,7 +99,7 @@ public class TestContinuousIcebergEnumerator {
     enumeratorContext.triggerAllActions();
 
     Assert.assertTrue(enumerator.snapshotState(1).pendingSplits().isEmpty());
-    Assertions.assertThat(enumeratorContext.getSplitAssignments().get(2).getAssignedSplits())
+    assertThat(enumeratorContext.getSplitAssignments().get(2).getAssignedSplits())
         .contains(splits.get(0));
   }
 
@@ -144,7 +146,7 @@ public class TestContinuousIcebergEnumerator {
     enumerator.handleSourceEvent(2, new SplitRequestEvent());
 
     Assert.assertTrue(enumerator.snapshotState(2).pendingSplits().isEmpty());
-    Assertions.assertThat(enumeratorContext.getSplitAssignments().get(2).getAssignedSplits())
+    assertThat(enumeratorContext.getSplitAssignments().get(2).getAssignedSplits())
         .contains(splits.get(0));
   }
 
@@ -289,7 +291,7 @@ public class TestContinuousIcebergEnumerator {
     enumeratorContext.triggerAllActions();
     Assert.assertTrue(
         enumeratorContext.getExecutorService().getAllScheduledTasks().get(0).isDone());
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> enumeratorContext.getExecutorService().getAllScheduledTasks().get(0).get())
         .hasCauseInstanceOf(RuntimeException.class)
         .hasMessageContaining("Failed to discover new split");

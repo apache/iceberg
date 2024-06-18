@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.source.enumerator;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.FileFormat;
@@ -29,7 +31,6 @@ import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.ScanContext;
 import org.apache.iceberg.flink.source.StreamingStartingStrategy;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -135,7 +136,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .build();
 
     // empty table
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ContinuousSplitPlannerImpl.startSnapshot(
                     tableResource.table(), scanContextInvalidSnapshotId))
@@ -166,7 +167,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .build();
 
     // empty table
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ContinuousSplitPlannerImpl.startSnapshot(
                     tableResource.table(), scanContextInvalidSnapshotTimestamp))

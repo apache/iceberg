@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.flink.data;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericMapData;
@@ -35,7 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructProjection;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestRowDataProjection {
@@ -48,7 +51,7 @@ public class TestRowDataProjection {
 
     RowDataProjection projection = RowDataProjection.create(schema, schema.select("id"));
 
-    Assertions.assertThatThrownBy(() -> projection.wrap(null))
+    assertThatThrownBy(() -> projection.wrap(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid row data: null");
   }
@@ -161,7 +164,7 @@ public class TestRowDataProjection {
 
     // Project id only.
     Schema idOnly = new Schema(Types.NestedField.required(0, "id", Types.LongType.get()));
-    Assertions.assertThat(idOnly.columns().size()).isGreaterThan(0);
+    assertThat(idOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, idOnly);
     testEqualsAndHashCode(schema, idOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(
@@ -174,7 +177,7 @@ public class TestRowDataProjection {
                 3,
                 "location",
                 Types.StructType.of(Types.NestedField.required(1, "lat", Types.FloatType.get()))));
-    Assertions.assertThat(latOnly.columns().size()).isGreaterThan(0);
+    assertThat(latOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, latOnly);
     testEqualsAndHashCode(schema, latOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(
@@ -187,7 +190,7 @@ public class TestRowDataProjection {
                 3,
                 "location",
                 Types.StructType.of(Types.NestedField.required(2, "long", Types.FloatType.get()))));
-    Assertions.assertThat(longOnly.columns().size()).isGreaterThan(0);
+    assertThat(longOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, longOnly);
     testEqualsAndHashCode(schema, longOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(
@@ -195,7 +198,7 @@ public class TestRowDataProjection {
 
     // Project location.
     Schema locationOnly = schema.select("location");
-    Assertions.assertThat(locationOnly.columns().size()).isGreaterThan(0);
+    assertThat(locationOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, locationOnly);
     testEqualsAndHashCode(schema, locationOnly, rowData, copyRowData, otherRowData);
     testEqualsAndHashCode(
@@ -250,12 +253,12 @@ public class TestRowDataProjection {
 
     // Project id only.
     Schema idOnly = schema.select("row_id");
-    Assertions.assertThat(idOnly.columns().size()).isGreaterThan(0);
+    assertThat(idOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, idOnly);
 
     // Project map only.
     Schema mapOnly = schema.select("map_of_primitives");
-    Assertions.assertThat(mapOnly.columns().size()).isGreaterThan(0);
+    assertThat(mapOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, mapOnly);
 
     // Project all.
@@ -308,12 +311,12 @@ public class TestRowDataProjection {
 
     // Project id only.
     Schema idOnly = schema.select("row_id");
-    Assertions.assertThat(idOnly.columns().size()).isGreaterThan(0);
+    assertThat(idOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, idOnly);
 
     // Project map only.
     Schema mapOnly = schema.select("map");
-    Assertions.assertThat(mapOnly.columns().size()).isGreaterThan(0);
+    assertThat(mapOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, mapOnly);
 
     // Project all.
@@ -333,7 +336,7 @@ public class TestRowDataProjection {
                     Types.StructType.of(
                         Types.NestedField.required(203, "value", Types.LongType.get()),
                         Types.NestedField.required(204, "valueData", Types.StringType.get())))));
-    Assertions.assertThatThrownBy(() -> generateAndValidate(schema, partialMapKey))
+    assertThatThrownBy(() -> generateAndValidate(schema, partialMapKey))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot project a partial map key or value struct.");
 
@@ -351,7 +354,7 @@ public class TestRowDataProjection {
                         Types.NestedField.required(202, "keyData", Types.StringType.get())),
                     Types.StructType.of(
                         Types.NestedField.required(203, "value", Types.LongType.get())))));
-    Assertions.assertThatThrownBy(() -> generateAndValidate(schema, partialMapValue))
+    assertThatThrownBy(() -> generateAndValidate(schema, partialMapValue))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot project a partial map key or value struct.");
 
@@ -412,12 +415,12 @@ public class TestRowDataProjection {
 
     // Project id only.
     Schema idOnly = schema.select("row_id");
-    Assertions.assertThat(idOnly.columns().size()).isGreaterThan(0);
+    assertThat(idOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, idOnly);
 
     // Project list only.
     Schema arrayOnly = schema.select("array_of_int");
-    Assertions.assertThat(arrayOnly.columns().size()).isGreaterThan(0);
+    assertThat(arrayOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, arrayOnly);
 
     // Project all.
@@ -474,12 +477,12 @@ public class TestRowDataProjection {
 
     // Project id only.
     Schema idOnly = schema.select("row_id");
-    Assertions.assertThat(idOnly.columns().size()).isGreaterThan(0);
+    assertThat(idOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, idOnly);
 
     // Project list only.
     Schema arrayOnly = schema.select("array_of_struct");
-    Assertions.assertThat(arrayOnly.columns().size()).isGreaterThan(0);
+    assertThat(arrayOnly.columns().size()).isGreaterThan(0);
     generateAndValidate(schema, arrayOnly);
 
     // Project all.
@@ -496,7 +499,7 @@ public class TestRowDataProjection {
                     Types.StructType.of(
                         Types.NestedField.required(202, "name", Types.StringType.get())))));
 
-    Assertions.assertThatThrownBy(() -> generateAndValidate(schema, partialList))
+    assertThatThrownBy(() -> generateAndValidate(schema, partialList))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot project a partial list element struct.");
 
@@ -534,7 +537,7 @@ public class TestRowDataProjection {
     List<Record> recordList = RandomGenericData.generate(schema, numRecords, 102L);
     List<RowData> rowDataList =
         Lists.newArrayList(RandomRowData.generate(schema, numRecords, 102L).iterator());
-    Assertions.assertThat(rowDataList).hasSize(recordList.size());
+    assertThat(rowDataList).hasSize(recordList.size());
 
     StructProjection structProjection = StructProjection.create(schema, projectSchema);
     RowDataProjection rowDataProjection = RowDataProjection.create(schema, projectSchema);
@@ -544,10 +547,10 @@ public class TestRowDataProjection {
       RowData projected = rowDataProjection.wrap(rowDataList.get(i));
       TestHelpers.assertRowData(projectSchema, expected, projected);
 
-      Assertions.assertThat(projected).isEqualTo(projected);
-      Assertions.assertThat(projected).hasSameHashCodeAs(projected);
+      assertThat(projected).isEqualTo(projected);
+      assertThat(projected).hasSameHashCodeAs(projected);
       // make sure toString doesn't throw NPE for null values
-      Assertions.assertThatNoException().isThrownBy(projected::toString);
+      assertThatNoException().isThrownBy(projected::toString);
     }
   }
 
@@ -575,18 +578,15 @@ public class TestRowDataProjection {
     RowDataProjection copyProjection = RowDataProjection.create(schema, projectionSchema);
     RowDataProjection otherProjection = RowDataProjection.create(schema, projectionSchema);
 
-    Assertions.assertThat(projection.wrap(rowData)).isEqualTo(copyProjection.wrap(copyRowData));
-    Assertions.assertThat(projection.wrap(rowData))
-        .hasSameHashCodeAs(copyProjection.wrap(copyRowData));
+    assertThat(projection.wrap(rowData)).isEqualTo(copyProjection.wrap(copyRowData));
+    assertThat(projection.wrap(rowData)).hasSameHashCodeAs(copyProjection.wrap(copyRowData));
 
     if (isOtherRowDataSameAsRowData) {
-      Assertions.assertThat(projection.wrap(rowData)).isEqualTo(otherProjection.wrap(otherRowData));
-      Assertions.assertThat(projection.wrap(rowData))
-          .hasSameHashCodeAs(otherProjection.wrap(otherRowData));
+      assertThat(projection.wrap(rowData)).isEqualTo(otherProjection.wrap(otherRowData));
+      assertThat(projection.wrap(rowData)).hasSameHashCodeAs(otherProjection.wrap(otherRowData));
     } else {
-      Assertions.assertThat(projection.wrap(rowData))
-          .isNotEqualTo(otherProjection.wrap(otherRowData));
-      Assertions.assertThat(projection.wrap(rowData))
+      assertThat(projection.wrap(rowData)).isNotEqualTo(otherProjection.wrap(otherRowData));
+      assertThat(projection.wrap(rowData))
           .doesNotHaveSameHashCodeAs(otherProjection.wrap(otherRowData));
     }
   }

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.source.enumerator;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
@@ -36,7 +38,6 @@ import org.apache.iceberg.flink.source.StreamingStartingStrategy;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -338,7 +339,7 @@ public class TestContinuousSplitPlannerImpl {
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
 
-    Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
+    assertThatThrownBy(() -> splitPlanner.planSplits(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Start snapshot id not found in history: 1");
   }
@@ -364,7 +365,7 @@ public class TestContinuousSplitPlannerImpl {
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
 
-    Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
+    assertThatThrownBy(() -> splitPlanner.planSplits(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Start snapshot id not found in history: " + invalidSnapshotId);
   }
@@ -426,7 +427,7 @@ public class TestContinuousSplitPlannerImpl {
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
 
-    Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
+    assertThatThrownBy(() -> splitPlanner.planSplits(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot find a snapshot after: 1");
   }
@@ -447,7 +448,7 @@ public class TestContinuousSplitPlannerImpl {
         new ContinuousSplitPlannerImpl(
             tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
 
-    Assertions.assertThatThrownBy(() -> splitPlanner.planSplits(null))
+    assertThatThrownBy(() -> splitPlanner.planSplits(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot find a snapshot after:");
   }
