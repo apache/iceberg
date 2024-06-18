@@ -190,10 +190,6 @@ public class Projections {
     PartitionSpec spec() {
       return spec;
     }
-
-    boolean isCaseSensitive() {
-      return caseSensitive;
-    }
   }
 
   private static class InclusiveProjection extends BaseProjectionEvaluator {

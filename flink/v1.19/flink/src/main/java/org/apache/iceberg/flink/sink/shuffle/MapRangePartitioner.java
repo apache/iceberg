@@ -161,6 +161,8 @@ class MapRangePartitioner implements Partitioner<RowData> {
   }
 
   /**
+   * Returns assignment summary for every subtask.
+   *
    * @return assignment summary for every subtask. Key is subtaskId. Value pair is (weight assigned
    *     to the subtask, number of keys assigned to the subtask)
    */
@@ -326,7 +328,11 @@ class MapRangePartitioner implements Partitioner<RowData> {
       }
     }
 
-    /** @return subtask id */
+    /**
+     * Select a subtask for the key.
+     *
+     * @return subtask id
+     */
     int select() {
       if (assignedSubtasks.length == 1) {
         // only choice. no need to run random number generator.
