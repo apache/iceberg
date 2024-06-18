@@ -211,10 +211,13 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
         if (fileContent(ref)) {
           Literal<Integer> intLit = lit.to(Types.IntegerType.get());
           Integer fileContentId = intLit.value();
-          if (fileContentId == FileContent.DATA.id()) {
-            return manifestContentId == ManifestContent.DATA.id();
+          if (FileContent.DATA.id() == fileContentId) {
+            return ManifestContent.DATA.id() == manifestContentId;
+          } else if ((FileContent.EQUALITY_DELETES.id() == fileContentId)
+              || (FileContent.POSITION_DELETES.id() == fileContentId)) {
+            return ManifestContent.DELETES.id() == manifestContentId;
           } else {
-            return manifestContentId == ManifestContent.DELETES.id();
+            return ROWS_MIGHT_MATCH;
           }
         }
         return ROWS_MIGHT_MATCH;
@@ -222,6 +225,18 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
+        if (fileContent(ref)) {
+          Literal<Integer> intLit = lit.to(Types.IntegerType.get());
+          Integer fileContentId = intLit.value();
+          if (FileContent.DATA.id() == fileContentId) {
+            return ManifestContent.DATA.id() != manifestContentId;
+          } else if (FileContent.EQUALITY_DELETES.id() == fileContentId
+              || FileContent.POSITION_DELETES.id() == fileContentId) {
+            return ManifestContent.DELETES.id() != manifestContentId;
+          } else {
+            return ROWS_MIGHT_MATCH;
+          }
+        }
         return ROWS_MIGHT_MATCH;
       }
 

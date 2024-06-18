@@ -245,6 +245,24 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   @TestTemplate
+  public void testEntriesTableDateFileContentNotEq() {
+    preparePartitionedTable();
+
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression notData = Expressions.notEqual("data_file.content", 0);
+    TableScan entriesTableScan = entriesTable.newScan().filter(notData);
+    Set<String> expected =
+        table.currentSnapshot().deleteManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    assertThat(actualManifestPaths(entriesTableScan))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expected);
+  }
+
+  @TestTemplate
   public void testEntriesTableDataFileContentIn() {
     preparePartitionedTable();
 
