@@ -109,7 +109,6 @@ import org.apache.iceberg.util.StructLikeMap;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -1556,7 +1555,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public void testBinpackRewriteWithInvalidOutputSpecId() {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 actions()
                     .rewriteDataFiles(table)

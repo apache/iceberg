@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -36,7 +38,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkTestBase;
 import org.apache.spark.sql.SparkSession;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -571,15 +572,9 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     Object actualMax = actual.get(0)[1];
     Object actualMin = actual.get(0)[2];
 
-    Assertions.assertThat(actualCount)
-        .as("Expected and actual count should equal")
-        .isEqualTo(expectedCount);
-    Assertions.assertThat(actualMax)
-        .as("Expected and actual max should equal")
-        .isEqualTo(expectedMax);
-    Assertions.assertThat(actualMin)
-        .as("Expected and actual min should equal")
-        .isEqualTo(expectedMin);
+    assertThat(actualCount).as("Expected and actual count should equal").isEqualTo(expectedCount);
+    assertThat(actualMax).as("Expected and actual max should equal").isEqualTo(expectedMax);
+    assertThat(actualMin).as("Expected and actual min should equal").isEqualTo(expectedMin);
   }
 
   private void assertExplainContains(List<Object[]> explain, String... expectedFragments) {
@@ -587,7 +582,7 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
     Arrays.stream(expectedFragments)
         .forEach(
             fragment ->
-                Assertions.assertThat(explainString)
+                assertThat(explainString)
                     .as("Expected to find plan fragment in explain plan")
                     .contains(fragment));
   }

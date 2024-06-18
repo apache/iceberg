@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -36,7 +37,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -114,27 +114,24 @@ public class TestCreateTable extends CatalogTestBase {
 
   @TestTemplate
   public void testCreateTablePartitionedByUUID() {
-    Assertions.assertThat(validationCatalog.tableExists(tableIdent)).isFalse();
+    assertThat(validationCatalog.tableExists(tableIdent)).isFalse();
     Schema schema = new Schema(1, Types.NestedField.optional(1, "uuid", Types.UUIDType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("uuid", 16).build();
     validationCatalog.createTable(tableIdent, schema, spec);
 
     Table table = validationCatalog.loadTable(tableIdent);
-    Assertions.assertThat(table).isNotNull();
+    assertThat(table).isNotNull();
 
     StructType expectedSchema =
         StructType.of(Types.NestedField.optional(1, "uuid", Types.UUIDType.get()));
-    Assertions.assertThat(table.schema().asStruct()).isEqualTo(expectedSchema);
-    Assertions.assertThat(table.spec().fields()).hasSize(1);
+    assertThat(table.schema().asStruct()).isEqualTo(expectedSchema);
+    assertThat(table.spec().fields()).hasSize(1);
 
     String uuid = UUID.randomUUID().toString();
 
     sql("INSERT INTO %s VALUES('%s')", tableName, uuid);
 
-    Assertions.assertThat(sql("SELECT uuid FROM %s", tableName))
-        .hasSize(1)
-        .element(0)
-        .isEqualTo(row(uuid));
+    assertThat(sql("SELECT uuid FROM %s", tableName)).hasSize(1).element(0).isEqualTo(row(uuid));
   }
 
   @TestTemplate
@@ -177,7 +174,7 @@ public class TestCreateTable extends CatalogTestBase {
         .as("Should not have default format parquet")
         .isEqualTo("parquet");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CREATE TABLE %s.default.fail (id BIGINT NOT NULL, data STRING) USING crocodile",
@@ -414,7 +411,7 @@ public class TestCreateTable extends CatalogTestBase {
         .as("should create table using format v2")
         .isEqualTo(2);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='1')", tableName))
         .cause()
         .isInstanceOf(IllegalArgumentException.class)

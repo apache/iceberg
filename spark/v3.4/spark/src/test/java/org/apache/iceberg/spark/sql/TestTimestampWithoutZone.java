@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -38,7 +40,6 @@ import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.assertj.core.api.Assertions;
 import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Assert;
@@ -100,7 +101,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.USE_TIMESTAMP_WITHOUT_TIME_ZONE_IN_NEW_TABLES, "true"),
         () -> {
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () -> {
                     spark
                         .sessionState()
@@ -119,7 +120,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
     withSQLConf(
         ImmutableMap.of(SparkSQLProperties.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true"),
         () -> {
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () -> {
                     sql("SELECT count(*) FROM %s", tableName);
                   })
@@ -131,7 +132,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
 
   @Test
   public void testReadWithDeprecatedTimezonePropertyReadOption() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               spark
                   .read()
@@ -153,7 +154,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
             "spark.sql.legacy.createHiveTableByDefault",
             "false"),
         () -> {
-          Assertions.assertThatThrownBy(
+          assertThatThrownBy(
                   () -> {
                     sql(
                         "CREATE OR REPLACE TABLE %s USING ICEBERG AS SELECT * FROM %s",
@@ -167,7 +168,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
 
   @Test
   public void testWriteWithDeprecatedTimezonePropertyReadOption() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               withSQLConf(
                   ImmutableMap.of("spark.sql.legacy.createHiveTableByDefault", "false"),

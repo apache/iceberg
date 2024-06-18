@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -27,7 +29,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.spark.sql.execution.SparkPlan;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Test;
 
@@ -555,16 +556,14 @@ public class TestFilterPushDown extends SparkTestBaseWithCatalog {
     String planAsString = sparkPlan.toString().replaceAll("#(\\d+L?)", "");
 
     if (sparkFilter != null) {
-      Assertions.assertThat(planAsString)
+      assertThat(planAsString)
           .as("Post scan filter should match")
           .contains("Filter (" + sparkFilter + ")");
     } else {
-      Assertions.assertThat(planAsString)
-          .as("Should be no post scan filter")
-          .doesNotContain("Filter (");
+      assertThat(planAsString).as("Should be no post scan filter").doesNotContain("Filter (");
     }
 
-    Assertions.assertThat(planAsString)
+    assertThat(planAsString)
         .as("Pushed filters must match")
         .contains("[filters=" + icebergFilters + ",");
   }

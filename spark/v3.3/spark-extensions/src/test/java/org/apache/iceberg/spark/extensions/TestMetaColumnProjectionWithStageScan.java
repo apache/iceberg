@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,7 +36,6 @@ import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
@@ -103,7 +104,7 @@ public class TestMetaColumnProjectionWithStageScan extends SparkExtensionsTestBa
               .option(SparkReadOptions.SCAN_TASK_SET_ID, fileSetID)
               .load(tableLocation);
 
-      Assertions.assertThat(scanDF2.columns().length).isEqualTo(2);
+      assertThat(scanDF2.columns().length).isEqualTo(2);
     }
 
     try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {

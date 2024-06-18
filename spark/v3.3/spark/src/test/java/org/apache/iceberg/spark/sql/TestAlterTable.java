@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -27,7 +29,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.AnalysisException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -55,7 +56,7 @@ public class TestAlterTable extends SparkCatalogTestBase {
 
   @Test
   public void testAddColumnNotNull() {
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s ADD COLUMN c3 INT NOT NULL", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s ADD COLUMN c3 INT NOT NULL", tableName))
         .as("Should reject adding NOT NULL column")
         .isInstanceOf(SparkException.class)
         .hasMessageContaining("Incompatible change: cannot add required column");
@@ -155,7 +156,7 @@ public class TestAlterTable extends SparkCatalogTestBase {
         validationCatalog.loadTable(tableIdent).schema().asStruct());
 
     // should not allow changing map key column
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s ADD COLUMN data2.key.y int", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s ADD COLUMN data2.key.y int", tableName))
         .as("Should reject changing key of the map column")
         .isInstanceOf(SparkException.class)
         .hasMessageContaining("Unsupported table change: Cannot add fields to map keys:");
@@ -251,8 +252,7 @@ public class TestAlterTable extends SparkCatalogTestBase {
         expectedSchema,
         validationCatalog.loadTable(tableIdent).schema().asStruct());
 
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s ALTER COLUMN data SET NOT NULL", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s ALTER COLUMN data SET NOT NULL", tableName))
         .as("Should reject adding NOT NULL constraint to an optional column")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Cannot change nullable column to non-nullable: data");
@@ -321,7 +321,7 @@ public class TestAlterTable extends SparkCatalogTestBase {
         "Should not have the removed table property",
         validationCatalog.loadTable(tableIdent).properties().get("prop"));
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('sort-order'='value')", tableName))
         .as("Cannot specify the 'sort-order' because it's a reserved table property")
         .isInstanceOf(UnsupportedOperationException.class)

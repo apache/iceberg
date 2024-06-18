@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.SnapshotSummary.ADDED_FILE_SIZE_PROP;
 import static org.apache.iceberg.SnapshotSummary.REMOVED_FILE_SIZE_PROP;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
@@ -29,7 +30,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.data.TestHelpers;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Encoders;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -206,7 +206,7 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
   @Test
   public void testRewriteWithUntranslatedOrUnconvertedFilter() throws Exception {
     createTable();
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_position_delete_files(table => '%s', where => 'lower(data) = \"fo\"')",
@@ -214,7 +214,7 @@ public class TestRewritePositionDeleteFilesProcedure extends SparkExtensionsTest
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot translate Spark expression");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_position_delete_files(table => '%s', where => 'data like \"%%fo\"')",

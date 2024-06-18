@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
@@ -38,7 +40,6 @@ import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -105,7 +106,7 @@ public class TestWriteAborts extends SparkExtensionsTestBase {
             new SimpleRecord(4, "b"));
     Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               try {
                 // incoming records are not ordered by partitions so the job must fail

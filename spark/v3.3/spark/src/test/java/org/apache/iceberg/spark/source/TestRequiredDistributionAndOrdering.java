@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Table;
@@ -29,7 +31,6 @@ import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Test;
 
@@ -163,7 +164,7 @@ public class TestRequiredDistributionAndOrdering extends SparkCatalogTestBase {
     Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c1");
 
     // should fail if ordering is disabled
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               try {
                 inputDF
@@ -233,7 +234,7 @@ public class TestRequiredDistributionAndOrdering extends SparkCatalogTestBase {
     Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c1");
 
     // should fail by default as extensions are disabled
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               try {
                 inputDF.writeTo(tableName).append();

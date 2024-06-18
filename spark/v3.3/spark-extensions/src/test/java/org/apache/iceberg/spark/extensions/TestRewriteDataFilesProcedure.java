@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.List;
@@ -40,7 +41,6 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -454,7 +454,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
     insertData(2);
 
     // Test for invalid strategy
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', options => map('min-input-files','2'), "
@@ -465,7 +465,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         .hasMessageContaining("unsupported strategy: temp. Only binpack or sort is supported");
 
     // Test for sort_order with binpack strategy
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'binpack', "
@@ -476,7 +476,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         .hasMessageContaining("Must use only one rewriter type (bin-pack, sort, zorder)");
 
     // Test for sort strategy without any (default/user defined) sort_order
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort')",
@@ -486,7 +486,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         .hasMessageContaining("Cannot sort data without a valid sort order");
 
     // Test for sort_order with invalid null order
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
@@ -497,7 +497,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         .hasMessageContaining("Unable to parse sortOrder:");
 
     // Test for sort_order with invalid sort direction
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
@@ -508,7 +508,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         .hasMessageContaining("Unable to parse sortOrder:");
 
     // Test for sort_order with invalid column name
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
@@ -521,7 +521,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
                 + " struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>");
 
     // Test with invalid filter column col1
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', " + "where => 'col1 = 3')",
@@ -531,7 +531,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         .hasMessageContaining("Cannot parse predicates in where option: col1 = 3");
 
     // Test for z_order with invalid column name
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
@@ -544,7 +544,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
                 + "struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>");
 
     // Test for z_order with sort_order
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
@@ -558,30 +558,29 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testInvalidCasesForRewriteDataFiles() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_data_files('n', table => 't')", catalogName))
         .as("Should not allow mixed args")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Named and positional arguments cannot be mixed");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
         .as("Should not resolve procedures in arbitrary namespaces")
         .isInstanceOf(NoSuchProcedureException.class)
         .hasMessageContaining("not found");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
         .as("Should reject calls without all required args")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Missing required parameters");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_data_files(table => 't', table => 't')", catalogName))
         .as("Should reject duplicate arg names name")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Duplicate procedure argument: table");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files('')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files('')", catalogName))
         .as("Should reject calls with empty table identifier")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot handle an empty identifier");
@@ -738,7 +737,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
   @Test
   public void testRewriteWithUntranslatedOrUnconvertedFilter() {
     createTable();
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', where => 'lower(c2) = \"fo\"')",
@@ -746,7 +745,7 @@ public class TestRewriteDataFilesProcedure extends SparkExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot translate Spark expression");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', where => 'c2 like \"%%fo\"')",

@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
@@ -50,7 +51,6 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.assertj.core.api.Assertions;
 import org.joda.time.DateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -679,7 +679,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
 
     createIcebergTable("id Integer, name String, dept String, subdept String");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
@@ -687,7 +687,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot use partition filter with an unpartitioned table");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
@@ -703,7 +703,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     createIcebergTable(
         "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('x', '1', 'y', '2'))",
@@ -712,7 +712,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         .hasMessageStartingWith("Cannot add data files to target table")
         .hasMessageContaining("is greater than the number of partitioned columns");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', '2'))",
@@ -772,7 +772,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
             + "partition_filter => map('id', 1))",
         catalogName, tableName, sourceTableName);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files("
@@ -831,7 +831,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
 
     sql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '%s')",

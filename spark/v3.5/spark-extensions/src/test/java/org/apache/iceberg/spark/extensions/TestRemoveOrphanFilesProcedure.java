@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.extensions;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,7 +65,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -215,7 +215,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
 
     sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'false')", tableName, GC_ENABLED);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.remove_orphan_files('%s')", catalogName, tableIdent))
         .isInstanceOf(ValidationException.class)
         .hasMessage(
@@ -246,26 +246,24 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testInvalidRemoveOrphanFilesCases() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.remove_orphan_files('n', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Named and positional arguments cannot be mixed");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.custom.remove_orphan_files('n', 't')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.custom.remove_orphan_files('n', 't')", catalogName))
         .isInstanceOf(NoSuchProcedureException.class)
         .hasMessage("Procedure custom.remove_orphan_files not found");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files()", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Missing required parameters: [table]");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.remove_orphan_files('n', 2.2)", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files('n', 2.2)", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith("Wrong arg type for older_than");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files('')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
   }
@@ -332,7 +330,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
   public void testConcurrentRemoveOrphanFilesWithInvalidInput() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.remove_orphan_files(table => '%s', max_concurrent_deletes => %s)",
@@ -340,7 +338,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("max_concurrent_deletes should have value > 0, value: 0");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.remove_orphan_files(table => '%s', max_concurrent_deletes => %s)",
@@ -351,7 +349,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     String tempViewName = "file_list_test";
     spark.emptyDataFrame().createOrReplaceTempView(tempViewName);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
@@ -364,7 +362,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
         .toDF("file_path", "last_modified")
         .createOrReplaceTempView(tempViewName);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
@@ -377,7 +375,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
         .toDF("file_path", "last_modified")
         .createOrReplaceTempView(tempViewName);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
@@ -652,7 +650,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     assertThat(orphanFiles).isEmpty();
 
     // Test with no equal schemes
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.remove_orphan_files("
@@ -735,7 +733,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     assertThat(orphanFiles).isEmpty();
 
     // Test with no equal authorities
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.remove_orphan_files("

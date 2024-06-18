@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -48,7 +49,6 @@ import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Ignore;
@@ -255,7 +255,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   @Test
   @Override
   public void testNestedStruct() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 VectorizedSparkParquetReaders.buildReader(
                     TypeUtil.assignIncreasingFreshIds(
@@ -390,8 +390,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     try (FileAppender<GenericData.Record> writer = parquetV2Writer(schema, dataFile)) {
       writer.addAll(data);
     }
-    Assertions.assertThatThrownBy(
-            () -> assertRecordsMatch(schema, 30000, data, dataFile, true, BATCH_SIZE))
+    assertThatThrownBy(() -> assertRecordsMatch(schema, 30000, data, dataFile, true, BATCH_SIZE))
         .as("Vectorized reads not supported")
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessageContaining("Cannot support vectorized reads for column");

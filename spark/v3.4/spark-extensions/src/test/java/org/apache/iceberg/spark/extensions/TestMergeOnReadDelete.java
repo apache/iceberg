@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -43,7 +44,6 @@ import org.apache.iceberg.spark.source.TestSparkCatalog;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
@@ -196,8 +196,7 @@ public class TestMergeOnReadDelete extends TestDelete {
     TestSparkCatalog.setTable(ident, sparkTable);
 
     // Although an exception is thrown here, write and commit have succeeded
-    Assertions.assertThatThrownBy(
-            () -> sql("DELETE FROM %s WHERE id = 2", "dummy_catalog.default.table"))
+    assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id = 2", "dummy_catalog.default.table"))
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageStartingWith("Datacenter on Fire");
 

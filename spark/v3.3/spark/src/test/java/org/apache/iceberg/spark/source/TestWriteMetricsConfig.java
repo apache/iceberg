@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -48,7 +49,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -231,8 +231,7 @@ public class TestWriteMetricsConfig {
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts");
     properties.put("write.metadata.metrics.column.ids", "full");
 
-    Assertions.assertThatThrownBy(
-            () -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation))
+    assertThatThrownBy(() -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation))
         .as("Creating a table with invalid metrics should fail")
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith(

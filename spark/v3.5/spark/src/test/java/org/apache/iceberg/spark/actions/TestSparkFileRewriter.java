@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.FileScanTask;
@@ -37,7 +40,6 @@ import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StringType;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -109,9 +111,9 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
+    assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assertions.assertThat(group).as("Must rewrite 2 files").hasSize(2);
+    assertThat(group).as("Must rewrite 2 files").hasSize(2);
   }
 
   private void checkDataFilesDeleteThreshold(SizeBasedDataRewriter rewriter) {
@@ -128,9 +130,9 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
+    assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assertions.assertThat(group).as("Must rewrite 1 file").hasSize(1);
+    assertThat(group).as("Must rewrite 1 file").hasSize(1);
   }
 
   private void checkDataFileGroupWithEnoughFiles(SizeBasedDataRewriter rewriter) {
@@ -151,9 +153,9 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
+    assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assertions.assertThat(group).as("Must rewrite 4 files").hasSize(4);
+    assertThat(group).as("Must rewrite 4 files").hasSize(4);
   }
 
   private void checkDataFileGroupWithEnoughData(SizeBasedDataRewriter rewriter) {
@@ -171,9 +173,9 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
+    assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assertions.assertThat(group).as("Must rewrite 3 files").hasSize(3);
+    assertThat(group).as("Must rewrite 3 files").hasSize(3);
   }
 
   private void checkDataFileGroupWithTooMuchData(SizeBasedDataRewriter rewriter) {
@@ -189,25 +191,24 @@ public class TestSparkFileRewriter extends TestBase {
     rewriter.init(options);
 
     Iterable<List<FileScanTask>> groups = rewriter.planFileGroups(tasks);
-    Assertions.assertThat(groups).as("Must have 1 group").hasSize(1);
+    assertThat(groups).as("Must have 1 group").hasSize(1);
     List<FileScanTask> group = Iterables.getOnlyElement(groups);
-    Assertions.assertThat(group).as("Must rewrite big file").hasSize(1);
+    assertThat(group).as("Must rewrite big file").hasSize(1);
   }
 
   @Test
   public void testInvalidConstructorUsagesSortData() {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
 
-    Assertions.assertThatThrownBy(() -> new SparkSortDataRewriter(spark, table))
+    assertThatThrownBy(() -> new SparkSortDataRewriter(spark, table))
         .hasMessageContaining("Cannot sort data without a valid sort order")
         .hasMessageContaining("is unsorted and no sort order is provided");
 
-    Assertions.assertThatThrownBy(() -> new SparkSortDataRewriter(spark, table, null))
+    assertThatThrownBy(() -> new SparkSortDataRewriter(spark, table, null))
         .hasMessageContaining("Cannot sort data without a valid sort order")
         .hasMessageContaining("the provided sort order is null or empty");
 
-    Assertions.assertThatThrownBy(
-            () -> new SparkSortDataRewriter(spark, table, SortOrder.unsorted()))
+    assertThatThrownBy(() -> new SparkSortDataRewriter(spark, table, SortOrder.unsorted()))
         .hasMessageContaining("Cannot sort data without a valid sort order")
         .hasMessageContaining("the provided sort order is null or empty");
   }
@@ -216,20 +217,17 @@ public class TestSparkFileRewriter extends TestBase {
   public void testInvalidConstructorUsagesZOrderData() {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA, SPEC);
 
-    Assertions.assertThatThrownBy(() -> new SparkZOrderDataRewriter(spark, table, null))
+    assertThatThrownBy(() -> new SparkZOrderDataRewriter(spark, table, null))
         .hasMessageContaining("Cannot ZOrder when no columns are specified");
 
-    Assertions.assertThatThrownBy(
-            () -> new SparkZOrderDataRewriter(spark, table, ImmutableList.of()))
+    assertThatThrownBy(() -> new SparkZOrderDataRewriter(spark, table, ImmutableList.of()))
         .hasMessageContaining("Cannot ZOrder when no columns are specified");
 
-    Assertions.assertThatThrownBy(
-            () -> new SparkZOrderDataRewriter(spark, table, ImmutableList.of("dep")))
+    assertThatThrownBy(() -> new SparkZOrderDataRewriter(spark, table, ImmutableList.of("dep")))
         .hasMessageContaining("Cannot ZOrder")
         .hasMessageContaining("all columns provided were identity partition columns");
 
-    Assertions.assertThatThrownBy(
-            () -> new SparkZOrderDataRewriter(spark, table, ImmutableList.of("DeP")))
+    assertThatThrownBy(() -> new SparkZOrderDataRewriter(spark, table, ImmutableList.of("DeP")))
         .hasMessageContaining("Cannot ZOrder")
         .hasMessageContaining("all columns provided were identity partition columns");
   }
@@ -239,7 +237,7 @@ public class TestSparkFileRewriter extends TestBase {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
     SparkBinPackDataRewriter rewriter = new SparkBinPackDataRewriter(spark, table);
 
-    Assertions.assertThat(rewriter.validOptions())
+    assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
         .isEqualTo(
             ImmutableSet.of(
@@ -257,7 +255,7 @@ public class TestSparkFileRewriter extends TestBase {
     Table table = catalog.createTable(TABLE_IDENT, SCHEMA);
     SparkSortDataRewriter rewriter = new SparkSortDataRewriter(spark, table, SORT_ORDER);
 
-    Assertions.assertThat(rewriter.validOptions())
+    assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
         .isEqualTo(
             ImmutableSet.of(
@@ -278,7 +276,7 @@ public class TestSparkFileRewriter extends TestBase {
     ImmutableList<String> zOrderCols = ImmutableList.of("id");
     SparkZOrderDataRewriter rewriter = new SparkZOrderDataRewriter(spark, table, zOrderCols);
 
-    Assertions.assertThat(rewriter.validOptions())
+    assertThat(rewriter.validOptions())
         .as("Rewriter must report all supported options")
         .isEqualTo(
             ImmutableSet.of(
@@ -304,7 +302,7 @@ public class TestSparkFileRewriter extends TestBase {
 
     Map<String, String> invalidDeleteThresholdOptions =
         ImmutableMap.of(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "-1");
-    Assertions.assertThatThrownBy(() -> rewriter.init(invalidDeleteThresholdOptions))
+    assertThatThrownBy(() -> rewriter.init(invalidDeleteThresholdOptions))
         .hasMessageContaining("'delete-file-threshold' is set to -1 but must be >= 0");
   }
 
@@ -317,12 +315,12 @@ public class TestSparkFileRewriter extends TestBase {
 
     Map<String, String> invalidDeleteThresholdOptions =
         ImmutableMap.of(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "-1");
-    Assertions.assertThatThrownBy(() -> rewriter.init(invalidDeleteThresholdOptions))
+    assertThatThrownBy(() -> rewriter.init(invalidDeleteThresholdOptions))
         .hasMessageContaining("'delete-file-threshold' is set to -1 but must be >= 0");
 
     Map<String, String> invalidCompressionFactorOptions =
         ImmutableMap.of(SparkShufflingDataRewriter.COMPRESSION_FACTOR, "0");
-    Assertions.assertThatThrownBy(() -> rewriter.init(invalidCompressionFactorOptions))
+    assertThatThrownBy(() -> rewriter.init(invalidCompressionFactorOptions))
         .hasMessageContaining("'compression-factor' is set to 0.0 but must be > 0");
   }
 
@@ -336,23 +334,23 @@ public class TestSparkFileRewriter extends TestBase {
 
     Map<String, String> invalidDeleteThresholdOptions =
         ImmutableMap.of(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "-1");
-    Assertions.assertThatThrownBy(() -> rewriter.init(invalidDeleteThresholdOptions))
+    assertThatThrownBy(() -> rewriter.init(invalidDeleteThresholdOptions))
         .hasMessageContaining("'delete-file-threshold' is set to -1 but must be >= 0");
 
     Map<String, String> invalidCompressionFactorOptions =
         ImmutableMap.of(SparkShufflingDataRewriter.COMPRESSION_FACTOR, "0");
-    Assertions.assertThatThrownBy(() -> rewriter.init(invalidCompressionFactorOptions))
+    assertThatThrownBy(() -> rewriter.init(invalidCompressionFactorOptions))
         .hasMessageContaining("'compression-factor' is set to 0.0 but must be > 0");
 
     Map<String, String> invalidMaxOutputOptions =
         ImmutableMap.of(SparkZOrderDataRewriter.MAX_OUTPUT_SIZE, "0");
-    Assertions.assertThatThrownBy(() -> rewriter.init(invalidMaxOutputOptions))
+    assertThatThrownBy(() -> rewriter.init(invalidMaxOutputOptions))
         .hasMessageContaining("Cannot have the interleaved ZOrder value use less than 1 byte")
         .hasMessageContaining("'max-output-size' was set to 0");
 
     Map<String, String> invalidVarLengthContributionOptions =
         ImmutableMap.of(SparkZOrderDataRewriter.VAR_LENGTH_CONTRIBUTION, "0");
-    Assertions.assertThatThrownBy(() -> rewriter.init(invalidVarLengthContributionOptions))
+    assertThatThrownBy(() -> rewriter.init(invalidVarLengthContributionOptions))
         .hasMessageContaining("Cannot use less than 1 byte for variable length types with ZOrder")
         .hasMessageContaining("'var-length-contribution' was set to 0");
   }
@@ -360,19 +358,19 @@ public class TestSparkFileRewriter extends TestBase {
   private void validateSizeBasedRewriterOptions(SizeBasedFileRewriter<?, ?> rewriter) {
     Map<String, String> invalidTargetSizeOptions =
         ImmutableMap.of(SizeBasedFileRewriter.TARGET_FILE_SIZE_BYTES, "0");
-    Assertions.assertThatThrownBy(() -> rewriter.init(invalidTargetSizeOptions))
+    assertThatThrownBy(() -> rewriter.init(invalidTargetSizeOptions))
         .hasMessageContaining("'target-file-size-bytes' is set to 0 but must be > 0");
 
     Map<String, String> invalidMinSizeOptions =
         ImmutableMap.of(SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "-1");
-    Assertions.assertThatThrownBy(() -> rewriter.init(invalidMinSizeOptions))
+    assertThatThrownBy(() -> rewriter.init(invalidMinSizeOptions))
         .hasMessageContaining("'min-file-size-bytes' is set to -1 but must be >= 0");
 
     Map<String, String> invalidTargetMinSizeOptions =
         ImmutableMap.of(
             SizeBasedFileRewriter.TARGET_FILE_SIZE_BYTES, "3",
             SizeBasedFileRewriter.MIN_FILE_SIZE_BYTES, "5");
-    Assertions.assertThatThrownBy(() -> rewriter.init(invalidTargetMinSizeOptions))
+    assertThatThrownBy(() -> rewriter.init(invalidTargetMinSizeOptions))
         .hasMessageContaining("'target-file-size-bytes' (3) must be > 'min-file-size-bytes' (5)")
         .hasMessageContaining("all new files will be smaller than the min threshold");
 
@@ -380,18 +378,18 @@ public class TestSparkFileRewriter extends TestBase {
         ImmutableMap.of(
             SizeBasedFileRewriter.TARGET_FILE_SIZE_BYTES, "5",
             SizeBasedFileRewriter.MAX_FILE_SIZE_BYTES, "3");
-    Assertions.assertThatThrownBy(() -> rewriter.init(invalidTargetMaxSizeOptions))
+    assertThatThrownBy(() -> rewriter.init(invalidTargetMaxSizeOptions))
         .hasMessageContaining("'target-file-size-bytes' (5) must be < 'max-file-size-bytes' (3)")
         .hasMessageContaining("all new files will be larger than the max threshold");
 
     Map<String, String> invalidMinInputFilesOptions =
         ImmutableMap.of(SizeBasedFileRewriter.MIN_INPUT_FILES, "0");
-    Assertions.assertThatThrownBy(() -> rewriter.init(invalidMinInputFilesOptions))
+    assertThatThrownBy(() -> rewriter.init(invalidMinInputFilesOptions))
         .hasMessageContaining("'min-input-files' is set to 0 but must be > 0");
 
     Map<String, String> invalidMaxFileGroupSizeOptions =
         ImmutableMap.of(SizeBasedFileRewriter.MAX_FILE_GROUP_SIZE_BYTES, "0");
-    Assertions.assertThatThrownBy(() -> rewriter.init(invalidMaxFileGroupSizeOptions))
+    assertThatThrownBy(() -> rewriter.init(invalidMaxFileGroupSizeOptions))
         .hasMessageContaining("'max-file-group-size-bytes' is set to 0 but must be > 0");
   }
 }

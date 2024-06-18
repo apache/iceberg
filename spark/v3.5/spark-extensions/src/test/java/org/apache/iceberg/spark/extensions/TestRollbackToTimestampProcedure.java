@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.time.LocalDateTime;
@@ -29,7 +30,6 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -250,7 +250,7 @@ public class TestRollbackToTimestampProcedure extends ExtensionsTestBase {
   public void testInvalidRollbackToTimestampCases() {
     String timestamp = "TIMESTAMP '2007-12-03T10:15:30'";
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rollback_to_timestamp(namespace => 'n1', 't', %s)",
@@ -258,17 +258,16 @@ public class TestRollbackToTimestampProcedure extends ExtensionsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Named and positional arguments cannot be mixed");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.custom.rollback_to_timestamp('n', 't', %s)", catalogName, timestamp))
         .isInstanceOf(NoSuchProcedureException.class)
         .hasMessage("Procedure custom.rollback_to_timestamp not found");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.rollback_to_timestamp('t')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_timestamp('t')", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Missing required parameters: [timestamp]");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rollback_to_timestamp(timestamp => %s)",
@@ -276,12 +275,11 @@ public class TestRollbackToTimestampProcedure extends ExtensionsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Missing required parameters: [table]");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.rollback_to_timestamp(table => 't')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_timestamp(table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Missing required parameters: [timestamp]");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rollback_to_timestamp('n', 't', %s, 1L)",
@@ -289,8 +287,7 @@ public class TestRollbackToTimestampProcedure extends ExtensionsTestBase {
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Too many arguments for procedure");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.rollback_to_timestamp('t', 2.2)", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_timestamp('t', 2.2)", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Wrong arg type for timestamp: cannot cast DecimalType(2,1) to TimestampType");
   }

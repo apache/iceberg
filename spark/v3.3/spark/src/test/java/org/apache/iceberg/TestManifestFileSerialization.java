@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -43,7 +44,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkConf;
 import org.apache.spark.serializer.KryoSerializer;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -119,7 +119,7 @@ public class TestManifestFileSerialization {
     try (Input in = new Input(new FileInputStream(data))) {
       for (int i = 0; i < 3; i += 1) {
         Object obj = kryo.readClassAndObject(in);
-        Assertions.assertThat(obj).as("Should be a ManifestFile").isInstanceOf(ManifestFile.class);
+        assertThat(obj).as("Should be a ManifestFile").isInstanceOf(ManifestFile.class);
         checkManifestFile(manifest, (ManifestFile) obj);
       }
     }
@@ -141,7 +141,7 @@ public class TestManifestFileSerialization {
         new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       for (int i = 0; i < 3; i += 1) {
         Object obj = in.readObject();
-        Assertions.assertThat(obj).as("Should be a ManifestFile").isInstanceOf(ManifestFile.class);
+        assertThat(obj).as("Should be a ManifestFile").isInstanceOf(ManifestFile.class);
         checkManifestFile(manifest, (ManifestFile) obj);
       }
     }

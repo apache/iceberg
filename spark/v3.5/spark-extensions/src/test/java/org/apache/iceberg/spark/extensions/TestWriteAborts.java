@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
@@ -41,7 +43,6 @@ import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.SparkException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -101,7 +102,7 @@ public class TestWriteAborts extends ExtensionsTestBase {
             new SimpleRecord(4, "b"));
     Dataset<Row> inputDF = spark.createDataFrame(records, SimpleRecord.class);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 // incoming records are not ordered by partitions so the job must fail
                 inputDF

@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -46,7 +47,6 @@ import org.apache.spark.SparkConf;
 import org.apache.spark.serializer.KryoSerializer;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -86,7 +86,7 @@ public class TestScanTaskSerialization extends SparkTestBase {
 
     try (Input in = new Input(new FileInputStream(data))) {
       Object obj = kryo.readClassAndObject(in);
-      Assertions.assertThat(obj)
+      assertThat(obj)
           .as("Should be a BaseCombinedScanTask")
           .isInstanceOf(BaseCombinedScanTask.class);
       TaskCheckHelper.assertEquals(scanTask, (BaseCombinedScanTask) obj);
@@ -105,7 +105,7 @@ public class TestScanTaskSerialization extends SparkTestBase {
     try (ObjectInputStream in =
         new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       Object obj = in.readObject();
-      Assertions.assertThat(obj)
+      assertThat(obj)
           .as("Should be a BaseCombinedScanTask")
           .isInstanceOf(BaseCombinedScanTask.class);
       TaskCheckHelper.assertEquals(scanTask, (BaseCombinedScanTask) obj);
@@ -129,9 +129,7 @@ public class TestScanTaskSerialization extends SparkTestBase {
 
     try (Input in = new Input(Files.newInputStream(data.toPath()))) {
       Object obj = kryo.readClassAndObject(in);
-      Assertions.assertThat(obj)
-          .as("should be a BaseScanTaskGroup")
-          .isInstanceOf(BaseScanTaskGroup.class);
+      assertThat(obj).as("should be a BaseScanTaskGroup").isInstanceOf(BaseScanTaskGroup.class);
       TaskCheckHelper.assertEquals(taskGroup, (BaseScanTaskGroup<FileScanTask>) obj);
     }
   }
@@ -151,9 +149,7 @@ public class TestScanTaskSerialization extends SparkTestBase {
     try (ObjectInputStream in =
         new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       Object obj = in.readObject();
-      Assertions.assertThat(obj)
-          .as("should be a BaseScanTaskGroup")
-          .isInstanceOf(BaseScanTaskGroup.class);
+      assertThat(obj).as("should be a BaseScanTaskGroup").isInstanceOf(BaseScanTaskGroup.class);
       TaskCheckHelper.assertEquals(taskGroup, (BaseScanTaskGroup<FileScanTask>) obj);
     }
   }

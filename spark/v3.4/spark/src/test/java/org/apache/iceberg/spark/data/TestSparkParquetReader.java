@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data;
 
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -56,7 +57,6 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
@@ -158,7 +158,7 @@ public class TestSparkParquetReader extends AvroDataTest {
     InputFile parquetInputFile = Files.localInput(outputFilePath);
     List<InternalRow> readRows = rowsFromFile(parquetInputFile, schema);
     Assert.assertEquals(rows.size(), readRows.size());
-    Assertions.assertThat(readRows).isEqualTo(rows);
+    assertThat(readRows).isEqualTo(rows);
 
     // Now we try to import that file as an Iceberg table to make sure Iceberg can read
     // Int96 end to end.

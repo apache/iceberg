@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 public class TestUnpartitionedWritesToBranch extends UnpartitionedWritesTestBase {
@@ -53,7 +54,7 @@ public class TestUnpartitionedWritesToBranch extends UnpartitionedWritesTestBase
 
   @Test
   public void testInsertIntoNonExistingBranchFails() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("INSERT INTO %s.branch_not_exist VALUES (4, 'd'), (5, 'e')", tableName))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Cannot use branch (does not exist): not_exist");

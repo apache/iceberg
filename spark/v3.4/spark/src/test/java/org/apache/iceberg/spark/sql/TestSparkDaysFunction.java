@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.sql.Date;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -86,11 +87,11 @@ public class TestSparkDaysFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testWrongNumberOfArguments() {
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.days()"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.days()"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith("Function 'days' cannot process input: (): Wrong number of inputs");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> scalarSql("SELECT system.days(date('1969-12-31'), date('1969-12-31'))"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
@@ -99,12 +100,12 @@ public class TestSparkDaysFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testInvalidInputTypes() {
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.days(1)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.days(1)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'days' cannot process input: (int): Expected value to be date or timestamp");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.days(1L)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.days(1L)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'days' cannot process input: (bigint): Expected value to be date or timestamp");

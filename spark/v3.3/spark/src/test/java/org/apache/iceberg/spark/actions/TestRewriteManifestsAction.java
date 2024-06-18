@@ -25,6 +25,7 @@ import static org.apache.iceberg.ValidationHelpers.snapshotIds;
 import static org.apache.iceberg.ValidationHelpers.validateDataManifest;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -58,7 +59,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.TableIdentifier;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -231,7 +231,7 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     Table spyTable = spy(table);
     when(spyTable.rewriteManifests()).thenReturn(spyNewRewriteManifests);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> actions.rewriteManifests(spyTable).rewriteIf(manifest -> true).execute())
         .as("Should throw a Commit State Unknown Exception")
         .cause()

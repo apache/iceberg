@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsSafe;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -63,7 +64,6 @@ import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -408,8 +408,7 @@ public class TestDataFrameWrites extends AvroDataTest {
 
     Iterable<Record> records2 = RandomData.generate(schema, 100, 0L);
 
-    Assertions.assertThatThrownBy(
-            () -> writeDataWithFailOnPartition(records2, schema, location.toString()))
+    assertThatThrownBy(() -> writeDataWithFailOnPartition(records2, schema, location.toString()))
         .isInstanceOf(SparkException.class);
 
     table.refresh();

@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -31,7 +32,6 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -276,36 +276,34 @@ public class TestRewriteManifestsProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testInvalidRewriteManifestsCases() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_manifests('n', table => 't')", catalogName))
         .as("Should not allow mixed args")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Named and positional arguments cannot be mixed");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.custom.rewrite_manifests('n', 't')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_manifests('n', 't')", catalogName))
         .as("Should not resolve procedures in arbitrary namespaces")
         .isInstanceOf(NoSuchProcedureException.class)
         .hasMessageContaining("not found");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests()", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests()", catalogName))
         .as("Should reject calls without all required args")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Missing required parameters");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.rewrite_manifests('n', 2.2)", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests('n', 2.2)", catalogName))
         .as("Should reject calls with invalid arg types")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Wrong arg type");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_manifests(table => 't', tAbLe => 't')", catalogName))
         .as("Should reject duplicate arg names name")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Duplicate procedure argument: table");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests('')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.rewrite_manifests('')", catalogName))
         .as("Should reject calls with empty table identifier")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot handle an empty identifier");

@@ -25,6 +25,7 @@ import static org.apache.spark.sql.functions.current_date;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doAnswer;
@@ -107,7 +108,6 @@ import org.apache.iceberg.util.StructLikeMap;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -677,7 +677,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .when(spyRewrite)
         .rewriteFiles(any(), argThat(failGroup));
 
-    Assertions.assertThatThrownBy(spyRewrite::execute)
+    assertThatThrownBy(spyRewrite::execute)
         .isInstanceOf(RuntimeException.class)
         .hasMessage("Rewrite Failed");
 
@@ -711,7 +711,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     doReturn(util).when(spyRewrite).commitManager(table.currentSnapshot().snapshotId());
 
-    Assertions.assertThatThrownBy(spyRewrite::execute)
+    assertThatThrownBy(spyRewrite::execute)
         .isInstanceOf(RuntimeException.class)
         .hasMessage("Commit Failure");
 
@@ -746,7 +746,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .when(spyRewrite)
         .rewriteFiles(any(), argThat(failGroup));
 
-    Assertions.assertThatThrownBy(spyRewrite::execute)
+    assertThatThrownBy(spyRewrite::execute)
         .isInstanceOf(RuntimeException.class)
         .hasMessage("Rewrite Failed");
 
@@ -894,7 +894,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   public void testInvalidOptions() {
     Table table = createTable(20);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 basicRewrite(table)
                     .option(RewriteDataFiles.PARTIAL_PROGRESS_ENABLED, "true")
@@ -905,7 +905,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             "Cannot set partial-progress.max-commits to -5, "
                 + "the value must be positive when partial-progress.enabled is true");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 basicRewrite(table)
                     .option(RewriteDataFiles.MAX_CONCURRENT_FILE_GROUP_REWRITES, "-5")
@@ -914,17 +914,17 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
         .hasMessage(
             "Cannot set max-concurrent-file-group-rewrites to -5, the value must be positive.");
 
-    Assertions.assertThatThrownBy(() -> basicRewrite(table).option("foobarity", "-5").execute())
+    assertThatThrownBy(() -> basicRewrite(table).option("foobarity", "-5").execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot use options [foobarity], they are not supported by the action or the rewriter BIN-PACK");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> basicRewrite(table).option(RewriteDataFiles.REWRITE_JOB_ORDER, "foo").execute())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid rewrite job order name: foo");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 basicRewrite(table)
                     .sort(SortOrder.builderFor(table.schema()).asc("c2").build())
@@ -1167,7 +1167,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     doReturn(util).when(spyAction).commitManager(table.currentSnapshot().snapshotId());
 
-    Assertions.assertThatThrownBy(spyAction::execute)
+    assertThatThrownBy(spyAction::execute)
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageStartingWith(
             "Unknown State\n" + "Cannot determine whether the commit was successful or not");
@@ -1286,15 +1286,15 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     SortOrder sortOrder = SortOrder.builderFor(table.schema()).asc("c2").build();
 
-    Assertions.assertThatThrownBy(() -> actions().rewriteDataFiles(table).binPack().sort())
+    assertThatThrownBy(() -> actions().rewriteDataFiles(table).binPack().sort())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
 
-    Assertions.assertThatThrownBy(() -> actions().rewriteDataFiles(table).sort(sortOrder).binPack())
+    assertThatThrownBy(() -> actions().rewriteDataFiles(table).sort(sortOrder).binPack())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
 
-    Assertions.assertThatThrownBy(() -> actions().rewriteDataFiles(table).sort(sortOrder).binPack())
+    assertThatThrownBy(() -> actions().rewriteDataFiles(table).sort(sortOrder).binPack())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
   }
@@ -1476,7 +1476,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
   public void testBinpackRewriteWithInvalidOutputSpecId() {
     Table table = createTable(10);
     shouldHaveFiles(table, 10);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 actions()
                     .rewriteDataFiles(table)

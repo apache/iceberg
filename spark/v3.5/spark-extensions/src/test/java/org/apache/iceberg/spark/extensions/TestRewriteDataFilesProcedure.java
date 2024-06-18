@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
@@ -46,7 +47,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
@@ -598,7 +598,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     insertData(2);
 
     // Test for invalid strategy
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', options => map('min-input-files','2'), "
@@ -608,7 +608,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .hasMessage("unsupported strategy: temp. Only binpack or sort is supported");
 
     // Test for sort_order with binpack strategy
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'binpack', "
@@ -618,7 +618,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .hasMessage("Must use only one rewriter type (bin-pack, sort, zorder)");
 
     // Test for sort strategy without any (default/user defined) sort_order
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort')",
@@ -627,7 +627,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .hasMessageStartingWith("Cannot sort data without a valid sort order");
 
     // Test for sort_order with invalid null order
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
@@ -637,7 +637,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .hasMessage("Unable to parse sortOrder: c1 ASC none");
 
     // Test for sort_order with invalid sort direction
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
@@ -647,7 +647,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .hasMessage("Unable to parse sortOrder: c1 none NULLS FIRST");
 
     // Test for sort_order with invalid column name
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
@@ -657,7 +657,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .hasMessageStartingWith("Cannot find field 'col1' in struct:");
 
     // Test with invalid filter column col1
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', " + "where => 'col1 = 3')",
@@ -666,7 +666,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .hasMessage("Cannot parse predicates in where option: col1 = 3");
 
     // Test for z_order with invalid column name
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
@@ -678,7 +678,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                 + "struct<1: c1: optional int, 2: c2: optional string, 3: c3: optional string>");
 
     // Test for z_order with sort_order
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', strategy => 'sort', "
@@ -691,26 +691,25 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
   @TestTemplate
   public void testInvalidCasesForRewriteDataFiles() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_data_files('n', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Named and positional arguments cannot be mixed");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
         .isInstanceOf(NoSuchProcedureException.class)
         .hasMessage("Procedure custom.rewrite_data_files not found");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Missing required parameters: [table]");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_data_files(table => 't', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageEndingWith("Duplicate procedure argument: table");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files('')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for parameter 'table'");
   }
@@ -866,7 +865,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   @TestTemplate
   public void testRewriteWithUntranslatedOrUnconvertedFilter() {
     createTable();
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', where => 'substr(encode(c2, \"utf-8\"), 2) = \"fo\"')",
@@ -874,7 +873,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot translate Spark expression");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.rewrite_data_files(table => '%s', where => 'substr(c2, 2) = \"fo\"')",

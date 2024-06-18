@@ -37,6 +37,7 @@ import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStr
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToHourOrdinal;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToMonthOrdinal;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToYearOrdinal;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
@@ -49,7 +50,6 @@ import org.apache.spark.sql.catalyst.expressions.ApplyFunctionExpression;
 import org.apache.spark.sql.catalyst.expressions.Expression;
 import org.apache.spark.sql.catalyst.expressions.objects.StaticInvoke;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -107,7 +107,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
     checkPushedFilters(optimizedPlan, equal(year("ts"), targetYears));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
-    Assertions.assertThat(actual.size()).isEqualTo(5);
+    assertThat(actual.size()).isEqualTo(5);
   }
 
   @Test
@@ -135,7 +135,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
     checkPushedFilters(optimizedPlan, greaterThan(month("ts"), targetMonths));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
-    Assertions.assertThat(actual.size()).isEqualTo(5);
+    assertThat(actual.size()).isEqualTo(5);
   }
 
   @Test
@@ -165,7 +165,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
     checkPushedFilters(optimizedPlan, lessThan(day("ts"), targetDays));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
-    Assertions.assertThat(actual.size()).isEqualTo(5);
+    assertThat(actual.size()).isEqualTo(5);
   }
 
   @Test
@@ -193,7 +193,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
     checkPushedFilters(optimizedPlan, greaterThanOrEqual(hour("ts"), targetHours));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
-    Assertions.assertThat(actual.size()).isEqualTo(8);
+    assertThat(actual.size()).isEqualTo(8);
   }
 
   @Test
@@ -221,7 +221,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
     checkPushedFilters(optimizedPlan, lessThanOrEqual(bucket("id", 5), target));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
-    Assertions.assertThat(actual.size()).isEqualTo(5);
+    assertThat(actual.size()).isEqualTo(5);
   }
 
   @Test
@@ -249,7 +249,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
     checkPushedFilters(optimizedPlan, notEqual(bucket("data", 5), target));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
-    Assertions.assertThat(actual.size()).isEqualTo(8);
+    assertThat(actual.size()).isEqualTo(8);
   }
 
   @Test
@@ -278,7 +278,7 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
     checkPushedFilters(optimizedPlan, equal(truncate("data", 4), target));
 
     List<Object[]> actual = rowsToJava(df.collectAsList());
-    Assertions.assertThat(actual.size()).isEqualTo(5);
+    assertThat(actual.size()).isEqualTo(5);
   }
 
   private void checkExpressions(
@@ -286,18 +286,18 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
     List<Expression> staticInvokes =
         PlanUtils.collectSparkExpressions(
             optimizedPlan, expression -> expression instanceof StaticInvoke);
-    Assertions.assertThat(staticInvokes).isEmpty();
+    assertThat(staticInvokes).isEmpty();
 
     List<Expression> applyExpressions =
         PlanUtils.collectSparkExpressions(
             optimizedPlan, expression -> expression instanceof ApplyFunctionExpression);
 
     if (partitioned) {
-      Assertions.assertThat(applyExpressions).isEmpty();
+      assertThat(applyExpressions).isEmpty();
     } else {
-      Assertions.assertThat(applyExpressions.size()).isEqualTo(1);
+      assertThat(applyExpressions.size()).isEqualTo(1);
       ApplyFunctionExpression expression = (ApplyFunctionExpression) applyExpressions.get(0);
-      Assertions.assertThat(expression.name()).isEqualTo(expectedFunctionName);
+      assertThat(expression.name()).isEqualTo(expectedFunctionName);
     }
   }
 
@@ -305,9 +305,9 @@ public class TestSystemFunctionPushDownDQL extends SparkExtensionsTestBase {
       LogicalPlan optimizedPlan, org.apache.iceberg.expressions.Expression expected) {
     List<org.apache.iceberg.expressions.Expression> pushedFilters =
         PlanUtils.collectPushDownFilters(optimizedPlan);
-    Assertions.assertThat(pushedFilters.size()).isEqualTo(1);
+    assertThat(pushedFilters.size()).isEqualTo(1);
     org.apache.iceberg.expressions.Expression actual = pushedFilters.get(0);
-    Assertions.assertThat(ExpressionUtil.equivalent(expected, actual, STRUCT, true))
+    assertThat(ExpressionUtil.equivalent(expected, actual, STRUCT, true))
         .as("Pushed filter should match")
         .isTrue();
   }

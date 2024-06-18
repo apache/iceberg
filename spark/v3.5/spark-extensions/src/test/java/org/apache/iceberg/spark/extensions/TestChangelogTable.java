@@ -22,6 +22,7 @@ import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.apache.iceberg.DataOperations;
@@ -36,7 +37,6 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Row;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -198,8 +198,7 @@ public class TestChangelogTable extends ExtensionsTestBase {
     table.refresh();
     Snapshot snap3 = table.currentSnapshot();
     long rightAfterSnap3 = waitUntilAfter(snap3.timestampMillis());
-    Assertions.assertThatThrownBy(
-            () -> changelogRecords(snap3.timestampMillis(), snap2.timestampMillis()))
+    assertThatThrownBy(() -> changelogRecords(snap3.timestampMillis(), snap2.timestampMillis()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot set start-timestamp to be greater than end-timestamp for changelogs");
   }

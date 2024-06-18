@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -77,12 +78,11 @@ public class TestAlterTableSchema extends SparkExtensionsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertTrue(
         "Table should start without identifier", table.schema().identifierFieldIds().isEmpty());
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s SET IDENTIFIER FIELDS unknown", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s SET IDENTIFIER FIELDS unknown", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("not found in current schema or added columns");
 
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s SET IDENTIFIER FIELDS id2", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s SET IDENTIFIER FIELDS id2", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageEndingWith("not a required field");
   }
@@ -137,20 +137,17 @@ public class TestAlterTableSchema extends SparkExtensionsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertTrue(
         "Table should start without identifier", table.schema().identifierFieldIds().isEmpty());
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS unknown", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS unknown", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot complete drop identifier fields operation: field unknown not found");
 
     sql("ALTER TABLE %s SET IDENTIFIER FIELDS id", tableName);
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS data", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS data", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot complete drop identifier fields operation: data is not an identifier field");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS location.lon", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP IDENTIFIER FIELDS location.lon", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Cannot complete drop identifier fields operation: location.lon is not an identifier field");

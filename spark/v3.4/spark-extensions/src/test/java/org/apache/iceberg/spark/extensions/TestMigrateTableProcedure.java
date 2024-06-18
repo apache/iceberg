@@ -18,13 +18,15 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -137,9 +139,9 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
             "CALL %s.system.migrate(table => '%s', backup_table_name => '%s')",
             catalogName, tableName, backupTableName);
 
-    Assertions.assertThat(result).isEqualTo(1L);
+    assertThat(result).isEqualTo(1L);
     String dbName = tableName.split("\\.")[0];
-    Assertions.assertThat(spark.catalog().tableExists(dbName + "." + backupTableName)).isTrue();
+    assertThat(spark.catalog().tableExists(dbName + "." + backupTableName)).isTrue();
   }
 
   @Test
@@ -151,7 +153,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               String props = "map('write.metadata.metrics.column.x', 'X')";
               sql("CALL %s.system.migrate('%s', %s)", catalogName, tableName, props);
@@ -185,16 +187,15 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testInvalidMigrateCases() {
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.migrate()", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.migrate()", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Missing required parameters: [table]");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.migrate(map('foo','bar'))", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.migrate(map('foo','bar'))", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith("Wrong arg type for table");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.migrate('')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.migrate('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
   }

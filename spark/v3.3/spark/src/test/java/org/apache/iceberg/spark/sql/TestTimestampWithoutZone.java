@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
@@ -36,7 +38,6 @@ import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.assertj.core.api.Assertions;
 import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Assert;
@@ -95,8 +96,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
 
   @Test
   public void testWriteTimestampWithoutZoneError() {
-    Assertions.assertThatThrownBy(
-            () -> sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values)))
+    assertThatThrownBy(() -> sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values)))
         .as(
             String.format(
                 "Write operation performed on a timestamp without timezone field while "

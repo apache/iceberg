@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.math.RoundingMode;
@@ -54,7 +56,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -245,7 +246,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<Long> snapshotIds = SnapshotUtil.currentAncestorIds(table);
 
     // start-snapshot-id and snapshot-id are both configured.
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -259,7 +260,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             "Cannot set start-snapshot-id and end-snapshot-id for incremental scans when either snapshot-id or as-of-timestamp is set");
 
     // end-snapshot-id and as-of-timestamp are both configured.
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -275,7 +276,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             "Cannot set start-snapshot-id and end-snapshot-id for incremental scans when either snapshot-id or as-of-timestamp is set");
 
     // only end-snapshot-id is configured.
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -450,7 +451,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
     Assert.assertEquals(2, snapshots.size());
     Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
-    Assertions.assertThat(snapshots.get(1).summary())
+    assertThat(snapshots.get(1).summary())
         .containsEntry("writer-thread", "test-extra-commit-message-writer-thread")
         .containsEntry("extra-key", "someValue")
         .containsEntry("another-key", "anotherValue");
@@ -493,7 +494,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
     Assert.assertEquals(2, snapshots.size());
     Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
-    Assertions.assertThat(snapshots.get(1).summary())
+    assertThat(snapshots.get(1).summary())
         .containsEntry("writer-thread", "test-extra-commit-message-delete-thread")
         .containsEntry("extra-key", "someValue")
         .containsEntry("another-key", "anotherValue");

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +31,6 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -116,7 +117,7 @@ public class TestDropTable extends SparkCatalogTestBase {
         "There totally should have 2 files for manifests and files", 2, manifestAndFiles.size());
     Assert.assertTrue("All files should be existed", checkFilesExist(manifestAndFiles, true));
 
-    Assertions.assertThatThrownBy(() -> sql("DROP TABLE %s PURGE", tableName))
+    assertThatThrownBy(() -> sql("DROP TABLE %s PURGE", tableName))
         .as("Purge table is not allowed when GC is disabled")
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining(

@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +33,6 @@ import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -73,7 +73,7 @@ public class TestReplaceBranch extends ExtensionsTestBase {
     df.writeTo(tableName).append();
     long second = table.currentSnapshot().snapshotId();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d",
@@ -127,7 +127,7 @@ public class TestReplaceBranch extends ExtensionsTestBase {
     df.writeTo(tableName).append();
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d",

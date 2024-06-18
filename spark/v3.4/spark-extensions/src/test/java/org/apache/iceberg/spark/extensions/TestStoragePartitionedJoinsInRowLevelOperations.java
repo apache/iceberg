@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.RowLevelOperationMode.COPY_ON_WRITE;
 import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
@@ -31,7 +32,6 @@ import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -138,7 +138,7 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
                       + "dep = 'hr'",
                   tableName, tableName(OTHER_TABLE_NAME));
           String planAsString = plan.toString();
-          Assertions.assertThat(planAsString).doesNotContain("Exchange");
+          assertThat(planAsString).doesNotContain("Exchange");
         });
 
     ImmutableList<Object[]> expectedRows =
@@ -201,7 +201,7 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
                       + "dep = 'hr'",
                   tableName, tableName(OTHER_TABLE_NAME));
           String planAsString = plan.toString();
-          Assertions.assertThat(planAsString).doesNotContain("Exchange");
+          assertThat(planAsString).doesNotContain("Exchange");
         });
 
     ImmutableList<Object[]> expectedRows =
@@ -285,9 +285,9 @@ public class TestStoragePartitionedJoinsInRowLevelOperations extends SparkExtens
           if (mode == COPY_ON_WRITE) {
             int actualNumShuffles = StringUtils.countMatches(planAsString, "Exchange");
             Assert.assertEquals("Should be 1 shuffle with SPJ", 1, actualNumShuffles);
-            Assertions.assertThat(planAsString).contains("Exchange hashpartitioning(_file");
+            assertThat(planAsString).contains("Exchange hashpartitioning(_file");
           } else {
-            Assertions.assertThat(planAsString).doesNotContain("Exchange");
+            assertThat(planAsString).doesNotContain("Exchange");
           }
         });
 

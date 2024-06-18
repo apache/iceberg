@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -195,16 +196,16 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         sourceName, location);
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.snapshot('foo')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.snapshot('foo')", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Missing required parameters: [table]");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.snapshot('n', 't', map('foo', 'bar'))", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith("Wrong arg type for location");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.snapshot('%s', 'fable', 'loc', map(2, 1, 1))",
@@ -213,11 +214,11 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
         .hasMessageContaining(
             "The `map` requires 2n (n > 0) parameters but the actual number is 3");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.snapshot('', 'dest')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.snapshot('', 'dest')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument source_table");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.snapshot('src', '')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.snapshot('src', '')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
   }

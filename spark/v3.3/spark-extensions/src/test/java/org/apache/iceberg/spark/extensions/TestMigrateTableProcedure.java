@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.spark.sql.AnalysisException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -131,7 +132,7 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
         tableName, location);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               String props = "map('write.metadata.metrics.column.x', 'X')";
               sql("CALL %s.system.migrate('%s', %s)", catalogName, tableName, props);
@@ -166,18 +167,17 @@ public class TestMigrateTableProcedure extends SparkExtensionsTestBase {
 
   @Test
   public void testInvalidMigrateCases() {
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.migrate()", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.migrate()", catalogName))
         .as("Should reject calls without all required args")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Missing required parameters");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.migrate(map('foo','bar'))", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.migrate(map('foo','bar'))", catalogName))
         .as("Should reject calls with invalid arg types")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("Wrong arg type");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.migrate('')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.migrate('')", catalogName))
         .as("Should reject calls with empty table identifier")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot handle an empty identifier");

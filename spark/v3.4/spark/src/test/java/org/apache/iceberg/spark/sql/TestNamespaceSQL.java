@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.File;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +31,6 @@ import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -103,7 +104,7 @@ public class TestNamespaceSQL extends SparkCatalogTestBase {
     Assert.assertTrue(
         "Table should exist", validationCatalog.tableExists(TableIdentifier.of(NS, "table")));
 
-    Assertions.assertThatThrownBy(() -> sql("DROP NAMESPACE %s", fullNamespace))
+    assertThatThrownBy(() -> sql("DROP NAMESPACE %s", fullNamespace))
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessageStartingWith("Namespace db is not empty.");
 
