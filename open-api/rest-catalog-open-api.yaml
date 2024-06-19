@@ -28,6 +28,12 @@ info:
   description:
     Defines the specification for the first version of the REST Catalog API.
     Implementations should ideally support both Iceberg table specs v1 and v2, with priority given to v2.
+
+    This API uses capability tags to describe optional functionality.
+    In order to support a particular capability, a server is required to implement all endpoints grouped under a particular tag.
+    If a server only partially implements a given capability, then not implemented endpoints grouped under that tag must throw
+    `501 Not Implemented`.
+    Servers can indicate supported capabilities via the /v1/config endpoint.
 servers:
   - url: "{scheme}://{host}/{basePath}"
     description: Server URL when the port can be inferred from the scheme
@@ -61,12 +67,21 @@ security:
   - OAuth2: [catalog]
   - BearerAuth: []
 
+# Capability tags describe optional functionality and are used to group endpoints together.
+# In order to support a particular capability, a server is required to implement all endpoints grouped under a particular tag.
+# If a server only partially implements a given capability, then not implemented endpoints grouped under that tag must throw `501 Not Implemented`.
+tags:
+  - name: tables
+    description: Required as part of table support
+  - name: views
+    description: Required as part of view support
+  - name: multi-table-commit
+    description: Required as part of multi-table commit support
+
 paths:
   /v1/config:
 
     get:
-      tags:
-        - Configuration API
       summary: List all catalog configuration settings
       operationId: getConfig
       parameters:
@@ -86,6 +101,7 @@ paths:
 
         - overrides - properties that should be used to override client configuration; applied after defaults and client configuration
 
+        - capabilities - list of capabilities that are supported by the server
 
         Catalog configuration is constructed by setting the defaults, then client-
         provided configuration, and finally overrides. The final property set is then
@@ -100,6 +116,14 @@ paths:
 
         Common catalog configuration settings are documented at
         https://iceberg.apache.org/docs/latest/configuration/#catalog-properties
+
+
+        Capabilities are used by the server to signal supported functionality and can be:
+        - tables
+        - views
+        - multi-table-commit
+
+         A client can assume that the server supports `tables` / `views` / `multi-table-commit` (using version 1 of each capability) in case the `capabilities` property doesn't exist.
         "
       responses:
         200:
@@ -114,7 +138,10 @@ paths:
                 },
                 "defaults": {
                   "clients": "4"
-                }
+                },
+                "capabilities": [{"capability": "views", "versions": [1, 2]},
+                                 {"capability": "tables", "versions": [1, 3, 5]},
+                                 {"capability": "multi-table-commit", "versions":[1]}]
               }
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
@@ -132,8 +159,6 @@ paths:
   /v1/oauth/tokens:
 
     post:
-      tags:
-        - OAuth2 API
       summary: Get a token using an OAuth2 flow (DEPRECATED for REMOVAL)
       deprecated: true
       operationId: getToken
@@ -204,7 +229,8 @@ paths:
 
     get:
       tags:
-        - Catalog API
+        - tables
+        - views
       summary: List namespaces, optionally providing a parent namespace to list underneath
       description:
         List all namespaces at a certain level, optionally starting from a given parent namespace.
@@ -255,7 +281,8 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - tables
+        - views
       summary: Create a namespace
       description:
         Create a namespace, with an optional set of properties.
@@ -289,6 +316,8 @@ paths:
                   $ref: '#/components/examples/NamespaceAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -301,7 +330,8 @@ paths:
 
     get:
       tags:
-        - Catalog API
+        - tables
+        - views
       summary: Load the metadata properties for a namespace
       operationId: loadNamespaceMetadata
       description: Return all stored metadata properties for a given namespace
@@ -332,7 +362,8 @@ paths:
 
     head:
       tags:
-        - Catalog API
+        - tables
+        - views
       summary: Check if a namespace exists
       operationId: namespaceExists
       description:
@@ -364,7 +395,8 @@ paths:
 
     delete:
       tags:
-        - Catalog API
+        - tables
+        - views
       summary: Drop a namespace from the catalog. Namespace must be empty.
       operationId: dropNamespace
       responses:
@@ -387,6 +419,8 @@ paths:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -399,7 +433,8 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - tables
+        - views
       summary: Set or remove properties on a namespace
       operationId: updateProperties
       description:
@@ -450,6 +485,8 @@ paths:
                   $ref: '#/components/examples/UnprocessableEntityDuplicateKey'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -462,7 +499,7 @@ paths:
 
     get:
       tags:
-        - Catalog API
+        - tables
       summary: List all table identifiers underneath a given namespace
       description: Return all table identifiers under this namespace
       operationId: listTables
@@ -496,7 +533,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - tables
       summary: Create a table in the given namespace
       description:
         Create a table or start a create transaction, like atomic CTAS.
@@ -549,6 +586,8 @@ paths:
                   $ref: '#/components/examples/TableAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -561,7 +600,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - tables
       summary: Register a table in the given namespace using given metadata file location
       description:
         Register a table using given metadata file location.
@@ -602,6 +641,8 @@ paths:
                   $ref: '#/components/examples/TableAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -615,7 +656,7 @@ paths:
 
     get:
       tags:
-        - Catalog API
+        - tables
       summary: Load a table from the catalog
       operationId: loadTable
       description:
@@ -676,7 +717,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - tables
       summary: Commit updates to a table
       operationId: updateTable
       description:
@@ -745,6 +786,8 @@ paths:
                   "code": 500
                 }
               }
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         502:
@@ -792,7 +835,7 @@ paths:
 
     delete:
       tags:
-        - Catalog API
+        - tables
       summary: Drop a table from the catalog
       operationId: dropTable
       description: Remove a table from the catalog
@@ -825,6 +868,8 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -832,7 +877,7 @@ paths:
 
     head:
       tags:
-        - Catalog API
+        - tables
       summary: Check if a table exists
       operationId: tableExists
       description:
@@ -869,7 +914,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - tables
       summary: Rename a table from its current name to a new name
       description:
         Rename a table from one identifier to another. It's valid to move a table
@@ -920,6 +965,8 @@ paths:
                 $ref: '#/components/examples/TableAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -933,7 +980,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - tables
       summary: Send a metrics report to this endpoint to be processed by the backend
       operationId: reportMetrics
       requestBody:
@@ -964,6 +1011,8 @@ paths:
                   $ref: '#/components/examples/NoSuchTableError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -975,7 +1024,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - multi-table-commit
       summary: Commit updates to multiple tables in an atomic operation
       operationId: commitTransaction
       requestBody:
@@ -1038,8 +1087,8 @@ paths:
                   "code": 500
                 }
               }
-        503:
-          $ref: '#/components/responses/ServiceUnavailableResponse'
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         502:
           description:
             A gateway or proxy received an invalid response from the upstream server; the commit state is unknown.
@@ -1054,6 +1103,8 @@ paths:
                   "code": 502
                 }
               }
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         504:
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
@@ -1090,7 +1141,7 @@ paths:
 
     get:
       tags:
-        - Catalog API
+        - views
       summary: List all view identifiers underneath a given namespace
       description: Return all view identifiers under this namespace
       operationId: listViews
@@ -1124,7 +1175,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - views
       summary: Create a view in the given namespace
       description:
         Create a view in the given namespace.
@@ -1164,6 +1215,8 @@ paths:
                   $ref: '#/components/examples/ViewAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1177,7 +1230,7 @@ paths:
 
     get:
       tags:
-        - Catalog API
+        - views
       summary: Load a view from the catalog
       operationId: loadView
       description:
@@ -1223,7 +1276,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - views
       summary: Replace a view
       operationId: replaceView
       description:
@@ -1276,8 +1329,8 @@ paths:
                   "code": 500
                 }
               }
-        503:
-          $ref: '#/components/responses/ServiceUnavailableResponse'
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         502:
           description:
             A gateway or proxy received an invalid response from the upstream server; the commit state is unknown.
@@ -1292,6 +1345,8 @@ paths:
                   "code": 502
                 }
               }
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
         504:
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
@@ -1323,7 +1378,7 @@ paths:
 
     delete:
       tags:
-        - Catalog API
+        - views
       summary: Drop a view from the catalog
       operationId: dropView
       description: Remove a view from the catalog
@@ -1348,6 +1403,8 @@ paths:
                   $ref: '#/components/examples/NoSuchViewError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1355,7 +1412,7 @@ paths:
 
     head:
       tags:
-        - Catalog API
+        - views
       summary: Check if a view exists
       operationId: viewExists
       description:
@@ -1382,7 +1439,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - views
       summary: Rename a view from its current name to a new name
       description:
         Rename a view from one identifier to another. It's valid to move a view
@@ -1433,6 +1490,8 @@ paths:
                 $ref: '#/components/examples/ViewAlreadyExistsError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        501:
+          $ref: '#/components/responses/EndpointNotImplementedResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
@@ -1561,6 +1620,32 @@ components:
           items:
             type: string
 
+    ServerCapability:
+      type: object
+      description: Describes a capability with versioning information supported by the server. A server is required to implement all endpoints grouped under a particular capability.
+        If a server only partially implements a given capability, then not implemented endpoints grouped under that tag must throw `501 Not Implemented`.
+      required:
+        - capability
+        - versions
+      properties:
+        capability:
+          type: string
+          description: |
+            A capability supported by the server. The currently available capabilities are:
+             - tables
+             - views
+             - multi-table-commit
+          example: "views"
+        versions:
+          type: array
+          uniqueItems: true
+          description: A list of versions supported by the server for the given capability. For example, `versions = [1, 3, 5]` indicates that only
+            these versions are supported for the given capability, but not versions `2, 4, 6`.
+          items:
+            type: integer
+          minItems: 1
+          example: [1, 3, 5]
+
     CatalogConfig:
       type: object
       description: Server-provided configuration for the catalog.
@@ -1580,6 +1665,12 @@ components:
             type: string
           description:
             Properties that should be used as default configuration; applied before client configuration.
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServerCapability'
+          description: Describes a capability with versioning information supported by the server
+          example: [{"capability": "views", "versions": [1, 2]}, {"capability": "tables", "versions": [1, 3, 5]}, {"capability": "multi-table-commit","versions":[1]}]
 
     CreateNamespaceRequest:
       type: object
@@ -3861,6 +3952,20 @@ components:
               "message": "Slow down",
               "type": "SlowDownException",
               "code": 503
+            }
+          }
+
+    EndpointNotImplementedResponse:
+      description: The service has not implemented this endpoint.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/IcebergErrorResponse'
+          example: {
+            "error": {
+              "message": "Not Implemented",
+              "type": "NotImplementedException",
+              "code": 501
             }
           }
 
