@@ -166,8 +166,8 @@ public class HadoopTableOperations implements TableOperations {
       versionCommitSuccess = commitNewVersion(fs, tempMetadataFile, finalMetadataFile, nextVersion);
       if (!versionCommitSuccess) {
         throw new CommitFailedException(
-            "Can not commit newMetaData. commitVersion=[%s],tempMetaData=[%s],finalMetaData=[%s].Are there other clients running in parallel with the current task?",
-            nextVersion, tempMetadataFile, finalMetadataFile);
+            "Can not commit newMetaData because version [%s] has already been committed. commitVersion=[%s],tempMetaData=[%s],finalMetaData=[%s].Are there other clients running in parallel with the current task?",
+            nextVersion, nextVersion, tempMetadataFile, finalMetadataFile);
       }
       this.shouldRefresh = true;
       LOG.info("Committed a new metadata file {}", finalMetadataFile);
@@ -390,6 +390,7 @@ public class HadoopTableOperations implements TableOperations {
    * @param fs the filesystem used for the rename
    * @param src the source file
    * @param dst the destination file
+   * @return If it returns true, then the commit was successful.
    */
   @VisibleForTesting
   boolean commitNewVersion(FileSystem fs, Path src, Path dst, Integer nextVersion)
@@ -405,7 +406,7 @@ public class HadoopTableOperations implements TableOperations {
       }
       if (!nextVersionIsLatest(nextVersion, fs)) {
         throw new CommitFailedException(
-            "Unable to commit version %d, as the latest version is currently %d.",
+            "Cannot commit version [%d] because it is smaller or much larger than the current latest version [%d].Are there other clients running in parallel with the current task?",
             nextVersion, findVersionWithOutVersionHint(fs));
       }
       return renameMetaDataFileAndCheck(fs, src, dst);
