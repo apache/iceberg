@@ -223,12 +223,15 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     TableMetadata metadataV2 = metadataV1.replaceSortOrder(dataSort);
     assertThatThrownBy(() -> spyOps2.commit(metadataV1, metadataV2))
         .isInstanceOf(CommitFailedException.class)
-        .hasMessageContaining("as the latest version is currently");
+        .hasMessageContaining("Are there other clients running in parallel with the current task?");
 
     HadoopTableOperations spyOps3 = spy(tableOperations);
     doReturn(false).when(spyOps3).nextVersionIsLatest(any(), any());
     assertCommitNotChangeVersion(
-        baseTable, spyOps3, CommitFailedException.class, "as the latest version is currently");
+        baseTable,
+        spyOps3,
+        CommitFailedException.class,
+        "Are there other clients running in parallel with the current task?");
 
     HadoopTableOperations spyOps4 = spy(tableOperations);
     doThrow(new RuntimeException("FileSystem crash!"))
@@ -265,7 +268,10 @@ public class TestHadoopCommits extends HadoopTableTestBase {
         .renameMetaDataFile(any(), any(), any());
     doReturn(false).when(spyOps).checkMetaDataFileRenameSuccess(any(), any(), any());
     assertCommitNotChangeVersion(
-        baseTable, spyOps, CommitFailedException.class, "Can not commit newMetaData.");
+        baseTable,
+        spyOps,
+        CommitFailedException.class,
+        "Are there other clients running in parallel with the current task?");
   }
 
   @Test
