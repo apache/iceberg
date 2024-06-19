@@ -28,6 +28,10 @@ info:
   description:
     Defines the specification for the first version of the REST Catalog API.
     Implementations should ideally support both Iceberg table specs v1 and v2, with priority given to v2.
+
+    This API uses capability tags to describe optional functionality.
+    In order to support a particular capability, a server is required to implement all endpoints grouped under a particular tag.
+    Servers can indicate supported capabilities via the /v1/config endpoint.
 servers:
   - url: "{scheme}://{host}/{basePath}"
     description: Server URL when the port can be inferred from the scheme
@@ -61,6 +65,16 @@ security:
   - OAuth2: [catalog]
   - BearerAuth: []
 
+# Capability tags describe optional functionality and are used to group endpoints together.
+# In order to support a particular capability, a server is required to implement all endpoints grouped under a particular tag.
+tags:
+  - name: views
+    description: Required as part of view support
+  - name: remote-signing
+    description: Required as part of remote signing support
+  - name: multi-table-commit
+    description: Required as part of multi-table commit support
+
 paths:
   /v1/config:
 
@@ -86,6 +100,7 @@ paths:
 
         - overrides - properties that should be used to override client configuration; applied after defaults and client configuration
 
+        - capabilities - list of capabilities that are supported by the server
 
         Catalog configuration is constructed by setting the defaults, then client-
         provided configuration, and finally overrides. The final property set is then
@@ -114,7 +129,8 @@ paths:
                 },
                 "defaults": {
                   "clients": "4"
-                }
+                },
+                "capabilities": ["views", "remote_signing"]
               }
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
@@ -963,6 +979,7 @@ paths:
     post:
       tags:
         - Catalog API
+        - multi-table-commit
       summary: Commit updates to multiple tables in an atomic operation
       operationId: commitTransaction
       requestBody:
@@ -1078,6 +1095,7 @@ paths:
     get:
       tags:
         - Catalog API
+        - views
       summary: List all view identifiers underneath a given namespace
       description: Return all view identifiers under this namespace
       operationId: listViews
@@ -1112,6 +1130,7 @@ paths:
     post:
       tags:
         - Catalog API
+        - views
       summary: Create a view in the given namespace
       description:
         Create a view in the given namespace.
@@ -1165,6 +1184,7 @@ paths:
     get:
       tags:
         - Catalog API
+        - views
       summary: Load a view from the catalog
       operationId: loadView
       description:
@@ -1211,6 +1231,7 @@ paths:
     post:
       tags:
         - Catalog API
+        - views
       summary: Replace a view
       operationId: replaceView
       description:
@@ -1311,6 +1332,7 @@ paths:
     delete:
       tags:
         - Catalog API
+        - views
       summary: Drop a view from the catalog
       operationId: dropView
       description: Remove a view from the catalog
@@ -1343,6 +1365,7 @@ paths:
     head:
       tags:
         - Catalog API
+        - views
       summary: Check if a view exists
       operationId: viewExists
       description:
@@ -1370,6 +1393,7 @@ paths:
     post:
       tags:
         - Catalog API
+        - views
       summary: Rename a view from its current name to a new name
       description:
         Rename a view from one identifier to another. It's valid to move a view
@@ -1567,6 +1591,18 @@ components:
             type: string
           description:
             Properties that should be used as default configuration; applied before client configuration.
+        capabilities:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - views
+              - vended-credentials
+              - remote-signing
+              - multi-table-commit
+          description: Capabilities supported by the server
+          example: [ "views", "remote-signing" ]
 
     CreateNamespaceRequest:
       type: object
