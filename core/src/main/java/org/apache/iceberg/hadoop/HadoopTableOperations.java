@@ -174,8 +174,8 @@ public class HadoopTableOperations implements TableOperations {
       // update the best-effort version pointer
       writeVersionHint(fs, nextVersion);
       deleteRemovedMetadataFiles(base, metadata);
-    } catch (CommitStateUnknownException | CommitFailedException e) {
-      this.shouldRefresh = e instanceof CommitStateUnknownException;
+    } catch (CommitStateUnknownException e) {
+      this.shouldRefresh = true;
       throw e;
     } catch (Throwable e) {
       this.shouldRefresh = versionCommitSuccess;
@@ -335,9 +335,6 @@ public class HadoopTableOperations implements TableOperations {
 
   @VisibleForTesting
   int findVersionByUsingVersionHint(FileSystem fs, Path versionHintFile) throws IOException {
-    if (!fs.exists(versionHintFile)) {
-      throw new IOException("VersionHintNotExists!");
-    }
     try (InputStreamReader fsr =
             new InputStreamReader(fs.open(versionHintFile), StandardCharsets.UTF_8);
         BufferedReader in = new BufferedReader(fsr)) {
@@ -348,11 +345,9 @@ public class HadoopTableOperations implements TableOperations {
   @VisibleForTesting
   int findVersionWithOutVersionHint(FileSystem fs) {
     try {
-      if (fs.exists(metadataRoot())) {
-        LOG.warn("Error reading version hint file {}", versionHintFile());
-      } else {
-        // Either the table has just been created, or there has been a corruption which we will
-        // not consider.
+      if (!fs.exists(metadataRoot())) {
+        // Either the table has just been created, or it has been corrupted, but either way, we have
+        // to start at version 0.
         LOG.warn("Metadata for table not found in directory [{}]", metadataRoot());
         return 0;
       }
@@ -378,8 +373,11 @@ public class HadoopTableOperations implements TableOperations {
     Path versionHintFile = versionHintFile();
     FileSystem fs = getFileSystem(versionHintFile, conf);
     try {
-      return findVersionByUsingVersionHint(fs, versionHintFile);
+      return fs.exists(versionHintFile)
+          ? findVersionByUsingVersionHint(fs, versionHintFile)
+          : findVersionWithOutVersionHint(fs);
     } catch (Exception e) {
+      // try one last time
       return findVersionWithOutVersionHint(fs);
     }
   }
