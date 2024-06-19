@@ -35,8 +35,13 @@ import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.TestBase;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.execution.ExplainMode;
+import org.apache.spark.sql.functions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
@@ -807,5 +812,79 @@ public class TestAggregatePushDown extends CatalogTestBase {
           6L
         });
     assertEquals("min/max/count push down", expected, actual);
+  }
+
+  @TestTemplate
+  public void testAggregatePushDownForIncrementalScan() {
+    sql("CREATE TABLE %s (id LONG, data INT) USING iceberg", tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, 1111), (1, 2222), (2, 3333), (2, 4444), (3, 5555), (3, 6666) ",
+        tableName);
+    long snapshotId1 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (4, 7777), (5, 8888)", tableName);
+    long snapshotId2 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (6, -7777), (7, 8888)", tableName);
+    long snapshotId3 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (8, 7777), (9, 9999)", tableName);
+
+    Dataset<Row> pushdownResult =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId2)
+            .option(SparkReadOptions.END_SNAPSHOT_ID, snapshotId3)
+            .load(tableName)
+            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
+
+    String explain1 =
+        pushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
+
+    assertThat(explain1).contains("LocalTableScan", "min(data)", "max(data)", "count(data)");
+
+    Dataset<Row> noPushdownResult =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId2)
+            .option(SparkReadOptions.END_SNAPSHOT_ID, snapshotId3)
+            .option(SparkReadOptions.AGGREGATE_PUSH_DOWN_ENABLED, "false")
+            .load(tableName)
+            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
+    String explain2 =
+        noPushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
+    assertThat(explain2).doesNotContain("LocalTableScan", "min(data)", "max(data)", "count(data)");
+
+    assertEquals(
+        "Aggregate pushdown and non-aggregate pushdown should have the same results",
+        rowsToJava(pushdownResult.collectAsList()),
+        rowsToJava(noPushdownResult.collectAsList()));
+
+    Dataset<Row> unboundedPushdownResult =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId1)
+            .load(tableName)
+            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
+    String explain3 =
+        unboundedPushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
+    assertThat(explain3).contains("LocalTableScan", "min(data)", "max(data)", "count(data)");
+
+    Dataset<Row> unboundedNoPushdownResult =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId1)
+            .option(SparkReadOptions.AGGREGATE_PUSH_DOWN_ENABLED, "false")
+            .load(tableName)
+            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
+    String explain4 =
+        unboundedNoPushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
+    assertThat(explain4).doesNotContain("LocalTableScan", "min(data)", "max(data)", "count(data)");
+
+    assertEquals(
+        "Aggregate pushdown and non-aggregate pushdown should have the same results ",
+        rowsToJava(unboundedNoPushdownResult.collectAsList()),
+        rowsToJava(unboundedPushdownResult.collectAsList()));
   }
 }
