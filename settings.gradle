@@ -184,14 +184,11 @@ if (hiveVersions.contains("2") || hiveVersions.contains("3")) {
   project(':hive-runtime').name = 'iceberg-hive-runtime'
 }
 
-if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
-  if (hiveVersions.contains("3")) {
-    include 'hive3'
-    include 'hive3-orc-bundle'
-
-    project(':hive3').name = 'iceberg-hive3'
-    project(':hive3-orc-bundle').name = 'iceberg-hive3-orc-bundle'
-  }
+if (hiveVersions.contains("3")) {
+  include 'hive3'
+  include 'hive3-orc-bundle'
+  project(':hive3').name = 'iceberg-hive3'
+  project(':hive3-orc-bundle').name = 'iceberg-hive3-orc-bundle'
 }
 
 include ":iceberg-kafka-connect:kafka-connect-events"
