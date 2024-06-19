@@ -210,14 +210,8 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
         if (fileContent(ref)) {
           Literal<Integer> intLit = lit.to(Types.IntegerType.get());
-          Integer fileContentId = intLit.value();
-          if (FileContent.DATA.id() == fileContentId) {
-            return ManifestContent.DATA.id() == manifestContentId;
-          } else if ((FileContent.EQUALITY_DELETES.id() == fileContentId)
-              || (FileContent.POSITION_DELETES.id() == fileContentId)) {
-            return ManifestContent.DELETES.id() == manifestContentId;
-          } else {
-            return ROWS_MIGHT_MATCH;
+          if (!contentMatch(intLit.value())) {
+            return ROWS_CANNOT_MATCH;
           }
         }
         return ROWS_MIGHT_MATCH;
@@ -227,14 +221,8 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
         if (fileContent(ref)) {
           Literal<Integer> intLit = lit.to(Types.IntegerType.get());
-          Integer fileContentId = intLit.value();
-          if (FileContent.DATA.id() == fileContentId) {
-            return ManifestContent.DATA.id() != manifestContentId;
-          } else if (FileContent.EQUALITY_DELETES.id() == fileContentId
-              || FileContent.POSITION_DELETES.id() == fileContentId) {
-            return ManifestContent.DELETES.id() != manifestContentId;
-          } else {
-            return ROWS_MIGHT_MATCH;
+          if (contentMatch(intLit.value())) {
+            return ROWS_CANNOT_MATCH;
           }
         }
         return ROWS_MIGHT_MATCH;
@@ -267,6 +255,17 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
       private <T> boolean fileContent(BoundReference<T> ref) {
         return ref.fieldId() == DataFile.CONTENT.fieldId();
+      }
+
+      private <T> boolean contentMatch(Integer fileContentId) {
+        if (FileContent.DATA.id() == fileContentId) {
+          return ManifestContent.DATA.id() == manifestContentId;
+        } else if (FileContent.EQUALITY_DELETES.id() == fileContentId
+            || FileContent.POSITION_DELETES.id() == fileContentId) {
+          return ManifestContent.DELETES.id() == manifestContentId;
+        } else {
+          return false;
+        }
       }
     }
   }
