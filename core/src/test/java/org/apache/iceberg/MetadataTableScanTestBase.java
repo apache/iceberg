@@ -56,8 +56,8 @@ public abstract class MetadataTableScanTestBase extends TestBase {
 
   protected Set<String> scanToPath(TableScan scan, Function<FileScanTask, String> func) {
     return StreamSupport.stream(scan.planFiles().spliterator(), false)
-            .map(func)
-            .collect(Collectors.toSet());
+        .map(func)
+        .collect(Collectors.toSet());
   }
 
   protected Set<String> expectedManifestListPaths(
@@ -68,7 +68,6 @@ public abstract class MetadataTableScanTestBase extends TestBase {
         .map(Snapshot::manifestListLocation)
         .collect(Collectors.toSet());
   }
-
 
   protected void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals)
       throws IOException {
