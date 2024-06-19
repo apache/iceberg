@@ -231,15 +231,26 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       @Override
       public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
         if (fileContent(ref)) {
-          if (!literalSet.contains(manifestContentId)) {
-            return ROWS_CANNOT_MATCH;
+          for (T lit : literalSet) {
+            if (contentMatch((Integer) lit)) {
+              return ROWS_MIGHT_MATCH;
+            }
           }
+          return ROWS_CANNOT_MATCH;
         }
         return ROWS_MIGHT_MATCH;
       }
 
       @Override
       public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+        if (fileContent(ref)) {
+          for (T lit : literalSet) {
+            if (contentMatch((Integer) lit)) {
+              return ROWS_CANNOT_MATCH;
+            }
+          }
+          return ROWS_MIGHT_MATCH;
+        }
         return ROWS_MIGHT_MATCH;
       }
 

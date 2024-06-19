@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expressions;
@@ -44,10 +45,19 @@ public abstract class MetadataTableScanTestBase extends TestBase {
   }
 
   protected Set<String> actualManifestListPaths(TableScan allManifestsTableScan) {
-    return StreamSupport.stream(allManifestsTableScan.planFiles().spliterator(), false)
-        .map(t -> (AllManifestsTable.ManifestListReadTask) t)
-        .map(t -> t.file().path().toString())
-        .collect(Collectors.toSet());
+    Function<FileScanTask, String> toManifestListPath = t -> t.file().path().toString();
+    return scanToPath(allManifestsTableScan, toManifestListPath);
+  }
+
+  protected Set<String> actualManifestPaths(TableScan entriesTableScan) {
+    Function<FileScanTask, String> toManifestPath = t -> t.file().path().toString();
+    return scanToPath(entriesTableScan, toManifestPath);
+  }
+
+  protected Set<String> scanToPath(TableScan scan, Function<FileScanTask, String> func) {
+    return StreamSupport.stream(scan.planFiles().spliterator(), false)
+            .map(func)
+            .collect(Collectors.toSet());
   }
 
   protected Set<String> expectedManifestListPaths(
@@ -59,11 +69,6 @@ public abstract class MetadataTableScanTestBase extends TestBase {
         .collect(Collectors.toSet());
   }
 
-  protected Set<String> actualManifestPaths(TableScan tableScan) {
-    return StreamSupport.stream(tableScan.planFiles().spliterator(), false)
-        .map(t -> t.file().path().toString())
-        .collect(Collectors.toSet());
-  }
 
   protected void validateTaskScanResiduals(TableScan scan, boolean ignoreResiduals)
       throws IOException {

@@ -41,6 +41,7 @@ import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
@@ -242,6 +243,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(actualManifestPaths(entriesTableScan))
         .as("Expected manifest filter by data file content does not match")
         .isEqualTo(expected);
+
+    assertThat(
+            actualManifestPaths(
+                entriesTable.newScan().filter(Expressions.equal("data_file.content", 3))))
+        .as("Expected manifest filter by data file content does not match")
+        .isEmpty();
   }
 
   @TestTemplate
@@ -260,24 +267,90 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(actualManifestPaths(entriesTableScan))
         .as("Expected manifest filter by data file content does not match")
         .isEqualTo(expected);
+
+    Set<String> allManifests =
+        table.currentSnapshot().allManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+    assertThat(
+            actualManifestPaths(
+                entriesTable.newScan().filter(Expressions.notEqual("data_file.content", 3))))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(allManifests);
   }
 
   @TestTemplate
   public void testEntriesTableDataFileContentIn() {
     preparePartitionedTable();
-
     Table entriesTable = new ManifestEntriesTable(table);
 
-    Expression dataOnly = Expressions.in("data_file.content", 1, 2);
-    TableScan entriesTableScan = entriesTable.newScan().filter(dataOnly);
-    Set<String> expected =
+    Expression in0 = Expressions.in("data_file.content", 0);
+    TableScan scan1 = entriesTable.newScan().filter(in0);
+    Set<String> expectedDataManifestPath =
+        table.currentSnapshot().dataManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+    assertThat(actualManifestPaths(scan1))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expectedDataManifestPath);
+
+    Expression in12 = Expressions.in("data_file.content", 1, 2);
+    TableScan scan2 = entriesTable.newScan().filter(in12);
+    Set<String> expectedDeleteManifestPath =
         table.currentSnapshot().deleteManifests(table.io()).stream()
             .map(ManifestFile::path)
             .collect(Collectors.toSet());
-
-    assertThat(actualManifestPaths(entriesTableScan))
+    assertThat(actualManifestPaths(scan2))
         .as("Expected manifest filter by data file content does not match")
-        .isEqualTo(expected);
+        .isEqualTo(expectedDeleteManifestPath);
+
+    Expression inAll = Expressions.in("data_file.content", 0, 1, 2);
+    Set<String> allManifests = Sets.union(expectedDataManifestPath, expectedDeleteManifestPath);
+    assertThat(actualManifestPaths(entriesTable.newScan().filter(inAll)))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(allManifests);
+
+    Expression inNeither = Expressions.in("data_file.content", 3, 4);
+    assertThat(actualManifestPaths(entriesTable.newScan().filter(inNeither)))
+        .as("Expected manifest filter by data file content does not match")
+        .isEmpty();
+  }
+
+  @TestTemplate
+  public void testEntriesTableDataFileContentNotIn() {
+    preparePartitionedTable();
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression notIn0 = Expressions.notIn("data_file.content", 0);
+    TableScan scan1 = entriesTable.newScan().filter(notIn0);
+    Set<String> expectedDeleteManifestPath =
+        table.currentSnapshot().deleteManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+    assertThat(actualManifestPaths(scan1))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expectedDeleteManifestPath);
+
+    Expression notIn12 = Expressions.notIn("data_file.content", 1, 2);
+    TableScan scan2 = entriesTable.newScan().filter(notIn12);
+    Set<String> expectedDataManifestPath =
+        table.currentSnapshot().dataManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+    assertThat(actualManifestPaths(scan2))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expectedDataManifestPath);
+
+    Expression notInNeither = Expressions.notIn("data_file.content", 3);
+    Set<String> allManifests = Sets.union(expectedDataManifestPath, expectedDeleteManifestPath);
+    assertThat(actualManifestPaths(entriesTable.newScan().filter(notInNeither)))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(allManifests);
+
+    Expression notInAll = Expressions.notIn("data_file.content", 0, 1, 2);
+    assertThat(actualManifestPaths(entriesTable.newScan().filter(notInAll)))
+        .as("Expected manifest filter by data file content does not match")
+        .isEmpty();
   }
 
   @TestTemplate
