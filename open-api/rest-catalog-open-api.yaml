@@ -68,19 +68,23 @@ security:
 # Capability tags describe optional functionality and are used to group endpoints together.
 # In order to support a particular capability, a server is required to implement all endpoints grouped under a particular tag.
 tags:
+  - name: tables
+    description: Required as part of table support
   - name: views
     description: Required as part of view support
   - name: remote-signing
     description: Required as part of remote signing support
   - name: multi-table-commit
     description: Required as part of multi-table commit support
+  - name: register-table
+    description: Required as part of register-table support
+  - name: table-metrics
+    description: Required as part of table metrics support
 
 paths:
   /v1/config:
 
     get:
-      tags:
-        - Configuration API
       summary: List all catalog configuration settings
       operationId: getConfig
       parameters:
@@ -115,6 +119,15 @@ paths:
 
         Common catalog configuration settings are documented at
         https://iceberg.apache.org/docs/latest/configuration/#catalog-properties
+
+
+        Capabilities are used by the server to signal supported functionality and can be:
+        - tables (default capability in case the `capabilities` property doesn't exist or is empty in the response)
+        - views
+        - remote-signing
+        - multi-table-commit
+        - register-table
+        - table-metrics
         "
       responses:
         200:
@@ -130,7 +143,7 @@ paths:
                 "defaults": {
                   "clients": "4"
                 },
-                "capabilities": ["views", "remote_signing"]
+                "capabilities": ["tables", "views", "remote-signing"]
               }
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
@@ -148,8 +161,6 @@ paths:
   /v1/oauth/tokens:
 
     post:
-      tags:
-        - OAuth2 API
       summary: Get a token using an OAuth2 flow
       operationId: getToken
       description:
@@ -207,7 +218,8 @@ paths:
 
     get:
       tags:
-        - Catalog API
+        - tables
+        - views
       summary: List namespaces, optionally providing a parent namespace to list underneath
       description:
         List all namespaces at a certain level, optionally starting from a given parent namespace.
@@ -258,7 +270,8 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - tables
+        - views
       summary: Create a namespace
       description:
         Create a namespace, with an optional set of properties.
@@ -304,7 +317,8 @@ paths:
 
     get:
       tags:
-        - Catalog API
+        - tables
+        - views
       summary: Load the metadata properties for a namespace
       operationId: loadNamespaceMetadata
       description: Return all stored metadata properties for a given namespace
@@ -335,7 +349,8 @@ paths:
 
     head:
       tags:
-        - Catalog API
+        - tables
+        - views
       summary: Check if a namespace exists
       operationId: namespaceExists
       description:
@@ -367,7 +382,8 @@ paths:
 
     delete:
       tags:
-        - Catalog API
+        - tables
+        - views
       summary: Drop a namespace from the catalog. Namespace must be empty.
       operationId: dropNamespace
       responses:
@@ -402,7 +418,8 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - tables
+        - views
       summary: Set or remove properties on a namespace
       operationId: updateProperties
       description:
@@ -465,7 +482,7 @@ paths:
 
     get:
       tags:
-        - Catalog API
+        - tables
       summary: List all table identifiers underneath a given namespace
       description: Return all table identifiers under this namespace
       operationId: listTables
@@ -499,7 +516,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - tables
       summary: Create a table in the given namespace
       description:
         Create a table or start a create transaction, like atomic CTAS.
@@ -564,7 +581,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - register-table
       summary: Register a table in the given namespace using given metadata file location
       description:
         Register a table using given metadata file location.
@@ -618,7 +635,7 @@ paths:
 
     get:
       tags:
-        - Catalog API
+        - tables
       summary: Load a table from the catalog
       operationId: loadTable
       description:
@@ -679,7 +696,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - tables
       summary: Commit updates to a table
       operationId: updateTable
       description:
@@ -795,7 +812,7 @@ paths:
 
     delete:
       tags:
-        - Catalog API
+        - tables
       summary: Drop a table from the catalog
       operationId: dropTable
       description: Remove a table from the catalog
@@ -835,7 +852,7 @@ paths:
 
     head:
       tags:
-        - Catalog API
+        - tables
       summary: Check if a table exists
       operationId: tableExists
       description:
@@ -872,7 +889,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - tables
       summary: Rename a table from its current name to a new name
       description:
         Rename a table from one identifier to another. It's valid to move a table
@@ -936,7 +953,7 @@ paths:
 
     post:
       tags:
-        - Catalog API
+        - table-metrics
       summary: Send a metrics report to this endpoint to be processed by the backend
       operationId: reportMetrics
       requestBody:
@@ -978,7 +995,6 @@ paths:
 
     post:
       tags:
-        - Catalog API
         - multi-table-commit
       summary: Commit updates to multiple tables in an atomic operation
       operationId: commitTransaction
@@ -1094,7 +1110,6 @@ paths:
 
     get:
       tags:
-        - Catalog API
         - views
       summary: List all view identifiers underneath a given namespace
       description: Return all view identifiers under this namespace
@@ -1129,7 +1144,6 @@ paths:
 
     post:
       tags:
-        - Catalog API
         - views
       summary: Create a view in the given namespace
       description:
@@ -1183,7 +1197,6 @@ paths:
 
     get:
       tags:
-        - Catalog API
         - views
       summary: Load a view from the catalog
       operationId: loadView
@@ -1230,7 +1243,6 @@ paths:
 
     post:
       tags:
-        - Catalog API
         - views
       summary: Replace a view
       operationId: replaceView
@@ -1331,7 +1343,6 @@ paths:
 
     delete:
       tags:
-        - Catalog API
         - views
       summary: Drop a view from the catalog
       operationId: dropView
@@ -1364,7 +1375,6 @@ paths:
 
     head:
       tags:
-        - Catalog API
         - views
       summary: Check if a view exists
       operationId: viewExists
@@ -1392,7 +1402,6 @@ paths:
 
     post:
       tags:
-        - Catalog API
         - views
       summary: Rename a view from its current name to a new name
       description:
@@ -1596,13 +1605,10 @@ components:
           uniqueItems: true
           items:
             type: string
-            enum:
-              - views
-              - vended-credentials
-              - remote-signing
-              - multi-table-commit
-          description: Capabilities supported by the server
-          example: [ "views", "remote-signing" ]
+          description:
+            Describes capabilities supported by the server. A server is required to implement all endpoints grouped under a particular capability.
+            For example, if a server reports the support of `views`, then all endpoints grouped under the `views` capability must be implemented by the server.
+          example: [ "tables", "views", "remote-signing", "vended-credentials", "multi-table-commit", "register-table", "table-metrics" ]
 
     CreateNamespaceRequest:
       type: object

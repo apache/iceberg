@@ -54,6 +54,20 @@ class CatalogConfig(BaseModel):
         ...,
         description='Properties that should be used as default configuration; applied before client configuration.',
     )
+    capabilities: Optional[List[str]] = Field(
+        None,
+        description='Describes capabilities supported by the server. A server is required to implement all endpoints grouped under a particular capability. For example, if a server reports the support of `views`, then all endpoints grouped under the `views` capability must be implemented by the server.',
+        example=[
+            'tables',
+            'views',
+            'remote-signing',
+            'vended-credentials',
+            'multi-table-commit',
+            'register-table',
+            'table-metrics',
+        ],
+        unique_items=True,
+    )
 
 
 class UpdateNamespacePropertiesRequest(BaseModel):

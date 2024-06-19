@@ -62,7 +62,7 @@ paths:
 
     post:
       tags:
-        - S3 Signer API
+        - remote-signing
       summary: Remotely signs S3 requests
       operationId: signS3Request
       requestBody:
