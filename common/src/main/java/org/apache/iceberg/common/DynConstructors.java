@@ -118,7 +118,7 @@ public class DynConstructors {
     private final Class<?> baseClass;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private Ctor<?> ctor = null;
-    private Map<String, Throwable> problems = Maps.newHashMap();
+    private final Map<String, Throwable> problems = Maps.newHashMap();
 
     public Builder(Class<?> baseClass) {
       this.baseClass = baseClass;
@@ -236,7 +236,7 @@ public class DynConstructors {
   }
 
   private static class MakeAccessible implements PrivilegedAction<Void> {
-    private Constructor<?> hidden;
+    private final Constructor<?> hidden;
 
     MakeAccessible(Constructor<?> hidden) {
       this.hidden = hidden;
