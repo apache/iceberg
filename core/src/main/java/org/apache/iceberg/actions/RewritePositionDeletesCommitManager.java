@@ -24,6 +24,7 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -102,8 +103,12 @@ public class RewritePositionDeletesCommitManager {
           e);
       throw e;
     } catch (Exception e) {
-      LOG.error("Cannot commit groups {}, attempting to clean up written files", rewriteGroups, e);
-      rewriteGroups.forEach(this::abort);
+      if (e instanceof CleanableFailure) {
+        LOG.error(
+            "Cannot commit groups {}, attempting to clean up written files", rewriteGroups, e);
+        rewriteGroups.forEach(this::abort);
+      }
+
       throw e;
     }
   }
