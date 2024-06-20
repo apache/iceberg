@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
+import scala.collection.JavaConverters;
 
 /**
  * A class for common Iceberg configs for Spark writes.
@@ -57,6 +58,7 @@ import org.apache.spark.sql.internal.SQLConf;
  */
 public class SparkWriteConf {
 
+  private static final String SESSION_CONF_PREFIX = "spark.iceberg.";
   private final Table table;
   private final String branch;
   private final RuntimeConfig sessionConf;
@@ -214,6 +216,18 @@ public class SparkWriteConf {
                 key.substring(SnapshotSummary.EXTRA_METADATA_PREFIX.length()), value);
           }
         });
+
+    JavaConverters.mapAsJavaMapConverter(sessionConf.getAll())
+        .asJava()
+        .forEach(
+            (key, value) -> {
+              if (key.startsWith(SESSION_CONF_PREFIX + SnapshotSummary.EXTRA_METADATA_PREFIX)) {
+                extraSnapshotMetadata.put(
+                    key.substring(
+                        (SESSION_CONF_PREFIX + SnapshotSummary.EXTRA_METADATA_PREFIX).length()),
+                    value);
+              }
+            });
 
     return extraSnapshotMetadata;
   }
