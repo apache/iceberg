@@ -144,20 +144,8 @@ class DynamoDbTableOperations extends BaseMetastoreTableOperations {
       switch (commitStatus) {
         case SUCCESS:
           break;
-        case FAILURE:
-          throw new CommitFailedException(
-              persistFailure, "Cannot commit %s due to unexpected exception", tableName());
         case UNKNOWN:
           throw new CommitStateUnknownException(persistFailure);
-      }
-    } finally {
-      try {
-        if (commitStatus == CommitStatus.FAILURE) {
-          // if anything went wrong, clean up the uncommitted metadata file
-          io().deleteFile(newMetadataLocation);
-        }
-      } catch (RuntimeException e) {
-        LOG.error("Failed to cleanup metadata file at {}", newMetadataLocation, e);
       }
     }
   }
