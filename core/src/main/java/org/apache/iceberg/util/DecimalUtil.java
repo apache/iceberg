@@ -31,7 +31,7 @@ public class DecimalUtil {
   public static byte[] toReusedFixLengthBytes(
       int precision, int scale, BigDecimal decimal, byte[] reuseBuf) {
     Preconditions.checkArgument(
-        decimal.scale() == scale,
+        decimal.scale() <= scale,
         "Cannot write value as decimal(%s,%s), wrong scale: %s",
         precision,
         scale,
