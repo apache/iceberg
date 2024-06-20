@@ -49,7 +49,7 @@ public interface ManifestFile {
           Types.LongType.get(),
           "Lowest sequence number in the manifest");
   Types.NestedField SNAPSHOT_ID =
-      optional(
+      required(
           503, "added_snapshot_id", Types.LongType.get(), "Snapshot ID that added the manifest");
   Types.NestedField ADDED_FILES_COUNT =
       optional(504, "added_files_count", Types.IntegerType.get(), "Added entry count");
