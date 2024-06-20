@@ -83,7 +83,7 @@ public class SimpleDataUtil {
           Types.NestedField.optional(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()));
 
-  public static final Schema SCHEMA_PRI =
+  public static final Schema SCHEMA_WITH_PRIMARY_KEY =
       new Schema(
           Lists.newArrayList(
               Types.NestedField.required(1, "id", Types.IntegerType.get()),
@@ -321,6 +321,7 @@ public class SimpleDataUtil {
         if (!table.schema().identifierFieldNames().isEmpty()) {
           Assert.assertFalse("Should not have the identical record", actualSet.contains(record));
         }
+
         actualSet.add(record);
       }
 

@@ -119,7 +119,7 @@ public class TestIcebergFilesCommitter extends TestBase {
     this.metadataDir = new File(tableDir, "metadata");
     assertThat(tableDir.delete()).isTrue();
 
-    Schema schema = hasPrimaryKey ? SimpleDataUtil.SCHEMA_PRI : SimpleDataUtil.SCHEMA;
+    Schema schema = hasPrimaryKey ? SimpleDataUtil.SCHEMA_WITH_PRIMARY_KEY : SimpleDataUtil.SCHEMA;
     // Construct the iceberg table.
     table = create(schema, PartitionSpec.unpartitioned());
 
@@ -918,6 +918,55 @@ public class TestIcebergFilesCommitter extends TestBase {
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint);
       assertFlinkManifests(0);
       assertThat(table.snapshots()).hasSize(2);
+    }
+  }
+
+  @TestTemplate
+  public void testCommitMultipleCheckpointsWithDuplicateData() throws Exception {
+    assumeThat(formatVersion)
+        .as("Only support equality-delete in format v2 or later.")
+        .isGreaterThan(1);
+
+    assumeThat(hasPrimaryKey).as("The test case only for primary table.").isEqualTo(true);
+
+    long timestamp = 0;
+    long checkpoint = 10;
+
+    JobID jobId = new JobID();
+    OperatorID operatorId;
+    FileAppenderFactory<RowData> appenderFactory = createDeletableAppenderFactory();
+
+    try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
+        createStreamSink(jobId)) {
+      harness.setup();
+      harness.open();
+      operatorId = harness.getOperator().getOperatorID();
+
+      assertMaxCommittedCheckpointId(jobId, operatorId, -1L);
+
+      RowData insert1 = SimpleDataUtil.createInsert(1, "aaa");
+      RowData insert2 = SimpleDataUtil.createInsert(2, "bbb");
+      for (int i = 1; i <= 3; i++) {
+        DataFile dataFile = writeDataFile("data-file-" + i, ImmutableList.of(insert1, insert2));
+        DeleteFile deleteFile =
+            writeEqDeleteFile(
+                appenderFactory, "delete-file-" + i, ImmutableList.of(insert1, insert2));
+        harness.processElement(
+            new FlinkWriteResult(
+                ++checkpoint,
+                WriteResult.builder().addDataFiles(dataFile).addDeleteFiles(deleteFile).build()),
+            ++timestamp);
+      }
+
+      // The 1th snapshotState.
+      harness.snapshot(checkpoint, ++timestamp);
+
+      // Notify the 1th snapshot to complete.
+      harness.notifyOfCompletedCheckpoint(checkpoint);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(insert1, insert2), branch);
+      assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint);
+      assertFlinkManifests(0);
+      assertThat(table.snapshots()).hasSize(3);
     }
   }
 

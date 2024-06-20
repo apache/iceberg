@@ -96,7 +96,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   // The completed files cache for current checkpoint. Once the snapshot barrier received, it will
   // be flushed to the 'dataFilesPerCheckpoint'.
-  private final Map<Long, List<WriteResult>> writeResultsOfCurrentCkpt = Maps.newHashMap();
+  private final Map<Long, List<WriteResult>> writeResultsSinceLastSnapshot = Maps.newHashMap();
   private final String branch;
 
   // It will have an unique identifier for one job.
@@ -212,7 +212,15 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     // Update the checkpoint state.
     long startNano = System.nanoTime();
-    dataFilesPerCheckpoint.put(checkpointId, writeToManifest(checkpointId));
+    if (writeResultsSinceLastSnapshot.isEmpty()) {
+      dataFilesPerCheckpoint.put(checkpointId, writeToManifest(checkpointId));
+    } else {
+      for (Map.Entry<Long, List<WriteResult>> writeResultsOfCkpt :
+          writeResultsSinceLastSnapshot.entrySet()) {
+        dataFilesPerCheckpoint.put(
+            writeResultsOfCkpt.getKey(), writeToManifest(writeResultsOfCkpt.getKey()));
+      }
+    }
     // Reset the snapshot state to the latest state.
     checkpointsState.clear();
     checkpointsState.add(dataFilesPerCheckpoint);
@@ -221,7 +229,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     jobIdState.add(flinkJobId);
 
     // Clear the local buffer for current checkpoint.
-    writeResultsOfCurrentCkpt.clear();
+    writeResultsSinceLastSnapshot.clear();
     committerMetrics.checkpointDuration(
         TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
   }
@@ -429,7 +437,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   public void processElement(StreamRecord<FlinkWriteResult> element) {
     FlinkWriteResult flinkWriteResult = element.getValue();
     List<WriteResult> writeResults =
-        writeResultsOfCurrentCkpt.computeIfAbsent(
+        writeResultsSinceLastSnapshot.computeIfAbsent(
             flinkWriteResult.checkpointId(), k -> Lists.newArrayList());
     writeResults.add(flinkWriteResult.writeResult());
   }
@@ -439,7 +447,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // Flush the buffered data files into 'dataFilesPerCheckpoint' firstly.
     long currentCheckpointId = Long.MAX_VALUE;
     dataFilesPerCheckpoint.put(currentCheckpointId, writeToManifest(currentCheckpointId));
-    writeResultsOfCurrentCkpt.clear();
+    writeResultsSinceLastSnapshot.clear();
 
     commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, operatorUniqueId, currentCheckpointId);
   }
@@ -449,10 +457,10 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
    * avro serialized bytes.
    */
   private byte[] writeToManifest(long checkpointId) throws IOException {
-    if (writeResultsOfCurrentCkpt.isEmpty()) {
+    if (writeResultsSinceLastSnapshot.isEmpty()) {
       return EMPTY_MANIFEST_DATA;
     }
-    List<WriteResult> writeResults = writeResultsOfCurrentCkpt.get(checkpointId);
+    List<WriteResult> writeResults = writeResultsSinceLastSnapshot.get(checkpointId);
     WriteResult result = WriteResult.builder().addAll(writeResults).build();
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
