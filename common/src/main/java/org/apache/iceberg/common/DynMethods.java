@@ -51,6 +51,8 @@ public class DynMethods {
           (method == null || method.isVarArgs()) ? -1 : method.getParameterTypes().length;
     }
 
+    /** @deprecated since 1.7.0, will be removed in 2.0.0 */
+    @Deprecated // will become private
     @SuppressWarnings("unchecked")
     public <R> R invokeChecked(Object target, Object... args) throws Exception {
       try {
@@ -313,6 +315,8 @@ public class DynMethods {
       return this;
     }
 
+    /** @deprecated since 1.7.0, will be removed in 2.0.0 */
+    @Deprecated
     public Builder ctorImpl(Class<?> targetClass, Class<?>... argClasses) {
       // don't do any work if an implementation has been found
       if (method != null) {
@@ -327,6 +331,8 @@ public class DynMethods {
       return this;
     }
 
+    /** @deprecated since 1.7.0, will be removed in 2.0.0 */
+    @Deprecated
     public Builder ctorImpl(String className, Class<?>... argClasses) {
       // don't do any work if an implementation has been found
       if (method != null) {
