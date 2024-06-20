@@ -33,7 +33,9 @@ public class Listeners {
   public static <E> void register(Listener<E> listener, Class<E> eventType) {
     Queue<Listener<?>> list =
         listeners.computeIfAbsent(eventType, k -> new ConcurrentLinkedQueue<>());
-    list.add(listener);
+    if (!list.contains(listener)) {
+      list.add(listener);
+    }
   }
 
   @SuppressWarnings("unchecked")
