@@ -46,6 +46,7 @@ import org.apache.avro.io.Encoder;
 import org.apache.avro.specific.SpecificData;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SchemaParser;
@@ -57,6 +58,7 @@ import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.FileAppender;
@@ -157,6 +159,18 @@ public class Avro {
     public WriteBuilder metricsConfig(MetricsConfig newMetricsConfig) {
       this.metricsConfig = newMetricsConfig;
       return this;
+    }
+
+    /**
+     * Overwrite only if needed on File systems where a new empty file gets pre-created like {@link
+     * HadoopOutputFile}
+     *
+     * @return {@link WriteBuilder}
+     */
+    public WriteBuilder overwriteIfNeeded() {
+      boolean needsOverwrite =
+          file instanceof HadoopOutputFile || file instanceof Files.LocalOutputFile;
+      return overwrite(needsOverwrite);
     }
 
     public WriteBuilder overwrite() {
