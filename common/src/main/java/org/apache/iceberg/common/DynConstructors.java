@@ -117,7 +117,7 @@ public class DynConstructors {
   public static class Builder {
     private final Class<?> baseClass;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
-    private Ctor ctor = null;
+    private Ctor<?> ctor = null;
     private Map<String, Throwable> problems = Maps.newHashMap();
 
     public Builder(Class<?> baseClass) {
@@ -164,7 +164,7 @@ public class DynConstructors {
       }
 
       try {
-        ctor = new Ctor<T>(targetClass.getConstructor(types), targetClass);
+        ctor = new Ctor<>(targetClass.getConstructor(types), targetClass);
       } catch (NoSuchMethodException e) {
         // not the right implementation
         problems.put(methodName(targetClass, types), e);
@@ -182,7 +182,6 @@ public class DynConstructors {
       return this;
     }
 
-    @SuppressWarnings("unchecked")
     public Builder hiddenImpl(String className, Class<?>... types) {
       // don't do any work if an implementation has been found
       if (ctor != null) {
@@ -190,7 +189,7 @@ public class DynConstructors {
       }
 
       try {
-        Class targetClass = Class.forName(className, true, loader);
+        Class<?> targetClass = Class.forName(className, true, loader);
         hiddenImpl(targetClass, types);
       } catch (NoClassDefFoundError | ClassNotFoundException e) {
         // cannot load this implementation
@@ -208,7 +207,7 @@ public class DynConstructors {
       try {
         Constructor<T> hidden = targetClass.getDeclaredConstructor(types);
         AccessController.doPrivileged(new MakeAccessible(hidden));
-        ctor = new Ctor<T>(hidden, targetClass);
+        ctor = new Ctor<>(hidden, targetClass);
       } catch (SecurityException e) {
         // unusable
         problems.put(methodName(targetClass, types), e);
@@ -222,7 +221,7 @@ public class DynConstructors {
     @SuppressWarnings("unchecked")
     public <C> Ctor<C> buildChecked() throws NoSuchMethodException {
       if (ctor != null) {
-        return ctor;
+        return (Ctor<C>) ctor;
       }
       throw buildCheckedException(baseClass, problems);
     }
@@ -230,7 +229,7 @@ public class DynConstructors {
     @SuppressWarnings("unchecked")
     public <C> Ctor<C> build() {
       if (ctor != null) {
-        return ctor;
+        return (Ctor<C>) ctor;
       }
       throw buildRuntimeException(baseClass, problems);
     }
