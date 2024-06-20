@@ -58,7 +58,6 @@ public class DynConstructors {
         throw e;
       } catch (InvocationTargetException e) {
         Throwables.propagateIfInstanceOf(e.getCause(), Exception.class);
-        Throwables.propagateIfInstanceOf(e.getCause(), RuntimeException.class);
         throw Throwables.propagate(e.getCause());
       }
     }
