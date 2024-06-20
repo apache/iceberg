@@ -74,6 +74,10 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
         new PartnerIdByNameAccessors(existingSchema, caseSensitive));
   }
 
+  private String fullName(String parentName, String name) {
+    return (parentName != null) ? parentName + "." + name : name;
+  }
+
   @Override
   public Boolean struct(
       Types.StructType struct, Integer partnerId, List<Boolean> missingPositions) {
@@ -90,6 +94,15 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
               Types.NestedField field = fields.get(pos);
               if (isMissing) {
                 addColumn(partnerId, field);
+                String parentName = partnerSchema.findColumnName(partnerId);
+                String fieldFullName = fullName(parentName, field.name());
+                if (pos > 0) {
+                  Types.NestedField beforeField = fields.get(pos - 1);
+                  String beforeFieldFullName = fullName(parentName, beforeField.name());
+                  api.moveAfter(fieldFullName, beforeFieldFullName);
+                } else {
+                  api.moveFirst(fieldFullName);
+                }
               } else {
                 Types.NestedField nestedField =
                     caseSensitive
