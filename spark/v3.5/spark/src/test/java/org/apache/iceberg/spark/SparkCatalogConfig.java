@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
@@ -50,6 +51,16 @@ public enum SparkCatalogConfig {
       ImmutableMap.of(
           CatalogProperties.CATALOG_IMPL,
           InMemoryCatalog.class.getName(),
+          "default-namespace",
+          "default",
+          "cache-enabled",
+          "false")),
+  SPARK_WITH_HIVE_VIEWS(
+      "spark_with_hive_views",
+      SparkCatalog.class.getName(),
+      ImmutableMap.of(
+          CatalogProperties.CATALOG_IMPL,
+          HiveCatalog.class.getName(),
           "default-namespace",
           "default",
           "cache-enabled",
