@@ -77,6 +77,7 @@ import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -707,13 +708,13 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
     RewriteDataFilesCommitManager util = spy(new RewriteDataFilesCommitManager(table));
 
     // Fail to commit
-    doThrow(new RuntimeException("Commit Failure")).when(util).commitFileGroups(any());
+    doThrow(new CommitFailedException("Commit Failure")).when(util).commitFileGroups(any());
 
     doReturn(util).when(spyRewrite).commitManager(table.currentSnapshot().snapshotId());
 
     assertThatThrownBy(spyRewrite::execute)
         .isInstanceOf(RuntimeException.class)
-        .hasMessage("Commit Failure");
+        .hasMessageContaining("Cannot commit rewrite");
 
     table.refresh();
 
@@ -722,6 +723,40 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     shouldHaveSnapshots(table, 1);
     shouldHaveNoOrphans(table);
+    shouldHaveACleanCache(table);
+  }
+
+  @Test
+  public void testCommitFailsWithUncleanableFailure() {
+    Table table = createTable(20);
+    int fileSize = averageFileSize(table);
+
+    List<Object[]> originalData = currentData();
+
+    RewriteDataFilesSparkAction realRewrite =
+        basicRewrite(table)
+            .option(
+                RewriteDataFiles.MAX_FILE_GROUP_SIZE_BYTES, Integer.toString(fileSize * 2 + 1000));
+
+    RewriteDataFilesSparkAction spyRewrite = spy(realRewrite);
+    RewriteDataFilesCommitManager util = spy(new RewriteDataFilesCommitManager(table));
+
+    // Fail to commit with an arbitrary failure and validate that orphans are not cleaned up
+    doThrow(new RuntimeException("Arbitrary Failure")).when(util).commitFileGroups(any());
+
+    doReturn(util).when(spyRewrite).commitManager(table.currentSnapshot().snapshotId());
+
+    assertThatThrownBy(spyRewrite::execute)
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Arbitrary Failure");
+
+    table.refresh();
+
+    List<Object[]> postRewriteData = currentData();
+    assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
+
+    shouldHaveSnapshots(table, 1);
+    shouldHaveOrphans(table);
     shouldHaveACleanCache(table);
   }
 
@@ -742,12 +777,12 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     // Fail groups 1, 3, and 7 during rewrite
     GroupInfoMatcher failGroup = new GroupInfoMatcher(1, 3, 7);
-    doThrow(new RuntimeException("Rewrite Failed"))
+    doThrow(new CommitFailedException("Rewrite Failed"))
         .when(spyRewrite)
         .rewriteFiles(any(), argThat(failGroup));
 
     assertThatThrownBy(spyRewrite::execute)
-        .isInstanceOf(RuntimeException.class)
+        .isInstanceOf(CommitFailedException.class)
         .hasMessage("Rewrite Failed");
 
     table.refresh();
@@ -866,7 +901,7 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
 
     // First and Third commits work, second does not
     doCallRealMethod()
-        .doThrow(new RuntimeException("Commit Failed"))
+        .doThrow(new CommitFailedException("Commit Failed"))
         .doCallRealMethod()
         .when(util)
         .commitFileGroups(any());
@@ -1597,6 +1632,17 @@ public class TestRewriteDataFilesAction extends SparkTestBase {
             .olderThan(System.currentTimeMillis())
             .execute()
             .orphanFileLocations());
+  }
+
+  protected void shouldHaveOrphans(Table table) {
+    assertThat(
+            actions()
+                .deleteOrphanFiles(table)
+                .olderThan(System.currentTimeMillis())
+                .execute()
+                .orphanFileLocations())
+        .as("Should have found orphan files")
+        .isNotEmpty();
   }
 
   protected void shouldHaveACleanCache(Table table) {

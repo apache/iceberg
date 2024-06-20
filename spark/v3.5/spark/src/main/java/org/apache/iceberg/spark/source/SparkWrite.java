@@ -40,7 +40,7 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.ClusteredDataWriter;
@@ -102,7 +102,7 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
   private final SparkWriteRequirements writeRequirements;
   private final Map<String, String> writeProperties;
 
-  private boolean cleanupOnAbort = true;
+  private boolean cleanupOnAbort = false;
 
   SparkWrite(
       SparkSession spark,
@@ -233,9 +233,9 @@ abstract class SparkWrite implements Write, RequiresDistributionAndOrdering {
       operation.commit(); // abort is automatically called if this fails
       long duration = System.currentTimeMillis() - start;
       LOG.info("Committed in {} ms", duration);
-    } catch (CommitStateUnknownException commitStateUnknownException) {
-      cleanupOnAbort = false;
-      throw commitStateUnknownException;
+    } catch (Exception e) {
+      cleanupOnAbort = e instanceof CleanableFailure;
+      throw e;
     }
   }
 
