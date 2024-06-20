@@ -73,39 +73,44 @@ subprojects {
       options.errorprone.errorproneArgs.addAll (
           // error-prone is slow, don't run on tests/generated-src/generated
           '-XepExcludedPaths:.*/(test|generated-src|generated)/.*',
-          // specific to Palantir
-          '-Xep:ConsistentLoggerName:OFF',  // Uses name `log` but we use name `LOG`
-          '-Xep:FinalClass:OFF',
-          '-Xep:PreferSafeLoggingPreconditions:OFF',
-          '-Xep:PreferSafeLoggableExceptions:OFF',
-          '-Xep:Slf4jLogsafeArgs:OFF',
-          '-Xep:RawTypes:OFF',
-          // enforce logging conventions
-          '-Xep:LoggerEnclosingClass:ERROR',
-          '-Xep:PreferStaticLoggers:ERROR',
-          '-Xep:Slf4jThrowable:ERROR',
-          // subclasses are not equal
-          '-Xep:EqualsGetClass:OFF',
-          // prefer method references over lambdas
-          '-Xep:LambdaMethodReference:ERROR',
-          // patterns that are allowed
-          '-Xep:MissingCasesInEnumSwitch:OFF',
-          //Added because it errors out compile, but we need to figure out if we want it
-          '-Xep:StrictUnusedVariable:OFF',
-          '-Xep:TypeParameterShadowing:OFF',
-          '-Xep:TypeParameterUnusedInFormals:OFF',
-          '-Xep:DangerousThreadPoolExecutorUsage:OFF',
-          // Enforce hashCode over hash
-          '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
-          '-Xep:PreferSafeLogger:OFF',
-          // Enforce safe string splitting
-          '-Xep:StringSplitter:ERROR',
-          // Enforce missing override
-          '-Xep:MissingOverride:ERROR',
-          '-Xep:IntLongMath:ERROR',
-          '-Xep:MissingSummary:ERROR',
           '-Xep:AnnotateFormatMethod:ERROR',
           '-Xep:CollectionUndefinedEquality:ERROR',
+          // specific to Palantir - Uses name `log` but we use name `LOG`
+          '-Xep:ConsistentLoggerName:OFF',
+          '-Xep:DangerousThreadPoolExecutorUsage:OFF',
+          // subclasses are not equal
+          '-Xep:EqualsGetClass:OFF',
+          // specific to Palantir
+          '-Xep:FinalClass:OFF',
+          '-Xep:IntLongMath:ERROR',
+          // prefer method references over lambdas
+          '-Xep:LambdaMethodReference:ERROR',
+          // enforce logging conventions
+          '-Xep:LoggerEnclosingClass:ERROR',
+          // patterns that are allowed
+          '-Xep:MissingCasesInEnumSwitch:OFF',
+          // Enforce missing override
+          '-Xep:MissingOverride:ERROR',
+          '-Xep:MissingSummary:ERROR',
+          // Enforce hashCode over hash
+          '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
+          // specific to Palantir
+          '-Xep:PreferSafeLoggableExceptions:OFF',
+          '-Xep:PreferSafeLogger:OFF',
+          // specific to Palantir
+          '-Xep:PreferSafeLoggingPreconditions:OFF',
+          '-Xep:PreferStaticLoggers:ERROR',
+          // specific to Palantir
+          '-Xep:RawTypes:OFF',
+          // specific to Palantir
+          '-Xep:Slf4jLogsafeArgs:OFF',
+          '-Xep:Slf4jThrowable:ERROR',
+          // Added because it errors out compile, but we need to figure out if we want it
+          '-Xep:StrictUnusedVariable:OFF',
+          // Enforce safe string splitting
+          '-Xep:StringSplitter:ERROR',
+          '-Xep:TypeParameterShadowing:OFF',
+          '-Xep:TypeParameterUnusedInFormals:OFF',
       )
     }
   }
