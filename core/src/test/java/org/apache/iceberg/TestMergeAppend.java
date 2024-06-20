@@ -54,6 +54,13 @@ public class TestMergeAppend extends TestBase {
   }
 
   @TestTemplate
+  public void appendNullFile() {
+    assertThatThrownBy(() -> table.newAppend().appendFile(null).commit())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid data file: null");
+  }
+
+  @TestTemplate
   public void testEmptyTableAppend() {
     assertThat(listManifestFiles()).isEmpty();
 

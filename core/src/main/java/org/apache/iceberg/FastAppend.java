@@ -30,6 +30,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.CharSequenceSet;
 
 /**
  * {@link AppendFiles Append} implementation that adds a new manifest file for the write.
@@ -43,6 +44,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final PartitionSpec spec;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
   private final List<DataFile> newFiles = Lists.newArrayList();
+  private final CharSequenceSet newFilePaths = CharSequenceSet.empty();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private List<ManifestFile> newManifests = null;
@@ -83,9 +85,13 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
 
   @Override
   public FastAppend appendFile(DataFile file) {
-    this.hasNewFiles = true;
-    newFiles.add(file);
-    summaryBuilder.addedFile(spec, file);
+    Preconditions.checkNotNull(file, "Invalid data file: null");
+    if (newFilePaths.add(file.path())) {
+      this.hasNewFiles = true;
+      newFiles.add(file);
+      summaryBuilder.addedFile(spec, file);
+    }
+
     return this;
   }
 

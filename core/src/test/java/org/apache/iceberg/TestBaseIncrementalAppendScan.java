@@ -67,13 +67,13 @@ public class TestBaseIncrementalAppendScan
     table.manageSnapshots().createTag(tagSnapshotAName, snapshotAId).commit();
 
     String tagSnapshotBName = "t2";
-    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_B).commit();
+    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
     long snapshotBId = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createTag(tagSnapshotBName, snapshotBId).commit();
-    table.newFastAppend().appendFile(FILE_C).appendFile(FILE_C).commit();
+    table.newFastAppend().appendFile(FILE_D).appendFile(FILE_A2).commit();
 
     /*
-              files:FILE_A         files:FILE_B FILE_B       files:FILE_C FILE_C
+              files:FILE_A         files:FILE_B FILE_C       files:FILE_D FILE_A2
      ---- snapshotAId(tag:t1) ---- snapshotMainB(tag:t2) ----  currentSnapshot
     */
     IncrementalAppendScan scan = newScan().fromSnapshotInclusive(tagSnapshotAName);
@@ -111,11 +111,11 @@ public class TestBaseIncrementalAppendScan
     table.manageSnapshots().createTag(tagSnapshotAName, snapshotAId).commit();
 
     String tagName2 = "t2";
-    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_B).commit();
+    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
     long snapshotMainBId = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createTag(tagName2, snapshotMainBId).commit();
 
-    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_B).commit();
+    table.newFastAppend().appendFile(FILE_D).appendFile(FILE_A2).commit();
 
     table.newFastAppend().appendFile(FILE_C).toBranch(branchName).commit();
     long snapshotBranchBId = table.snapshot(branchName).snapshotId();
@@ -125,7 +125,7 @@ public class TestBaseIncrementalAppendScan
 
     /*
 
-            files:FILE_A         files:FILE_B FILE_B       files:FILE_B FILE_B
+            files:FILE_A         files:FILE_B FILE_C       files:FILE_D FILE_A2
      ---- snapshotA(tag:t1) ---- snapshotMainB(tag:t2) ----  currentSnapshot
                         \
                          \
@@ -175,21 +175,21 @@ public class TestBaseIncrementalAppendScan
     table.newFastAppend().appendFile(FILE_A).commit();
     long snapshotAId = table.currentSnapshot().snapshotId();
 
-    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_B).commit();
+    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
     long snapshotMainBId = table.currentSnapshot().snapshotId();
 
     String branchName = "b1";
     table.manageSnapshots().createBranch(branchName, snapshotAId).commit();
-    table.newFastAppend().appendFile(FILE_C).toBranch(branchName).commit();
+    table.newFastAppend().appendFile(FILE_D).toBranch(branchName).commit();
     long snapshotBranchBId = table.snapshot(branchName).snapshotId();
 
     /*
 
-          files:FILE_A            files:FILE_B FILE_B
+          files:FILE_A            files:FILE_B FILE_C
           ---- snapshotA  ------ snapshotMainB
                         \
                          \
-                          \files:FILE_C
+                          \files:FILE_D
                           snapshotBranchB(branch:b1)
     */
     assertThatThrownBy(
@@ -267,13 +267,13 @@ public class TestBaseIncrementalAppendScan
     table.manageSnapshots().createTag(tagSnapshotAName, snapshotAId).commit();
 
     String tagSnapshotBName = "t2";
-    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_B).commit();
+    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
     long snapshotBId = table.currentSnapshot().snapshotId();
     table.manageSnapshots().createTag(tagSnapshotBName, snapshotBId).commit();
-    table.newFastAppend().appendFile(FILE_C).appendFile(FILE_C).commit();
+    table.newFastAppend().appendFile(FILE_D).appendFile(FILE_A2).commit();
 
     /*
-              files:FILE_A         files:FILE_B FILE_B       files:FILE_C FILE_C
+              files:FILE_A         files:FILE_B FILE_C       files:FILE_D FILE_A2
      ---- snapshotAId(tag:t1) ---- snapshotMainB(tag:t2) ----  currentSnapshot
     */
     IncrementalAppendScan scan = newScan().fromSnapshotExclusive(tagSnapshotAName);

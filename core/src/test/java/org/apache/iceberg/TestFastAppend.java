@@ -43,6 +43,13 @@ public class TestFastAppend extends TestBase {
   }
 
   @TestTemplate
+  public void appendNullFile() {
+    assertThatThrownBy(() -> table.newFastAppend().appendFile(null).commit())
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid data file: null");
+  }
+
+  @TestTemplate
   public void testEmptyTableAppend() {
     assertThat(listManifestFiles()).isEmpty();
 
