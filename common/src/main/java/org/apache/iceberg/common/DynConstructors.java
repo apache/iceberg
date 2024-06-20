@@ -170,6 +170,11 @@ public class DynConstructors {
       return this;
     }
 
+    /**
+     * @deprecated since 1.6.0, will be removed in 1.7.0; This varargs method conflicts with {@link
+     *     #hiddenImpl(Class, Class...)}. Use {@link #builder(Class)} instead.
+     */
+    @Deprecated
     public Builder hiddenImpl(Class<?>... types) {
       hiddenImpl(baseClass, types);
       return this;
