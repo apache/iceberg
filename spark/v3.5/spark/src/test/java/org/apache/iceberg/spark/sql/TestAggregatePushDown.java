@@ -827,7 +827,7 @@ public class TestAggregatePushDown extends CatalogTestBase {
     long snapshotId3 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     sql("INSERT INTO %s VALUES (8, 7777), (9, 9999)", tableName);
 
-    Dataset<Row> pushdownResult =
+    Dataset<Row> pushdownDs =
         spark
             .read()
             .format("iceberg")
@@ -835,56 +835,27 @@ public class TestAggregatePushDown extends CatalogTestBase {
             .option(SparkReadOptions.END_SNAPSHOT_ID, snapshotId3)
             .load(tableName)
             .agg(functions.min("data"), functions.max("data"), functions.count("data"));
-
-    String explain1 =
-        pushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
-
+    String explain1 = pushdownDs.queryExecution().explainString(ExplainMode.fromString("simple"));
     assertThat(explain1).contains("LocalTableScan", "min(data)", "max(data)", "count(data)");
 
-    Dataset<Row> noPushdownResult =
+    List<Object[]> expected1 = Lists.newArrayList();
+    expected1.add(new Object[] {-7777, 8888, 2L});
+    assertEquals("min/max/count push down", expected1, rowsToJava(pushdownDs.collectAsList()));
+
+    Dataset<Row> unboundedPushdownDs =
         spark
             .read()
             .format("iceberg")
-            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId2)
-            .option(SparkReadOptions.END_SNAPSHOT_ID, snapshotId3)
-            .option(SparkReadOptions.AGGREGATE_PUSH_DOWN_ENABLED, "false")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId1)
             .load(tableName)
             .agg(functions.min("data"), functions.max("data"), functions.count("data"));
     String explain2 =
-        noPushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
-    assertThat(explain2).doesNotContain("LocalTableScan", "min(data)", "max(data)", "count(data)");
+        unboundedPushdownDs.queryExecution().explainString(ExplainMode.fromString("simple"));
+    assertThat(explain2).contains("LocalTableScan", "min(data)", "max(data)", "count(data)");
 
+    List<Object[]> expected2 = Lists.newArrayList();
+    expected2.add(new Object[] {-7777, 9999, 6L});
     assertEquals(
-        "Aggregate pushdown and non-aggregate pushdown should have the same results",
-        rowsToJava(pushdownResult.collectAsList()),
-        rowsToJava(noPushdownResult.collectAsList()));
-
-    Dataset<Row> unboundedPushdownResult =
-        spark
-            .read()
-            .format("iceberg")
-            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId1)
-            .load(tableName)
-            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
-    String explain3 =
-        unboundedPushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
-    assertThat(explain3).contains("LocalTableScan", "min(data)", "max(data)", "count(data)");
-
-    Dataset<Row> unboundedNoPushdownResult =
-        spark
-            .read()
-            .format("iceberg")
-            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId1)
-            .option(SparkReadOptions.AGGREGATE_PUSH_DOWN_ENABLED, "false")
-            .load(tableName)
-            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
-    String explain4 =
-        unboundedNoPushdownResult.queryExecution().explainString(ExplainMode.fromString("simple"));
-    assertThat(explain4).doesNotContain("LocalTableScan", "min(data)", "max(data)", "count(data)");
-
-    assertEquals(
-        "Aggregate pushdown and non-aggregate pushdown should have the same results ",
-        rowsToJava(unboundedNoPushdownResult.collectAsList()),
-        rowsToJava(unboundedPushdownResult.collectAsList()));
+        "min/max/count push down", expected2, rowsToJava(unboundedPushdownDs.collectAsList()));
   }
 }
