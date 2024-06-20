@@ -766,7 +766,7 @@ public class TestIcebergFilesCommitter extends TestBase {
   public void testDeleteFiles() throws Exception {
     assumeThat(formatVersion)
         .as("Only support equality-delete in format v2 or later.")
-        .isGreaterThan(2);
+        .isGreaterThan(1);
 
     long timestamp = 0;
     long checkpoint = 10;
@@ -837,7 +837,7 @@ public class TestIcebergFilesCommitter extends TestBase {
   public void testCommitTwoCheckpointsInSingleTxn() throws Exception {
     assumeThat(formatVersion)
         .as("Only support equality-delete in format v2 or later.")
-        .isGreaterThan(2);
+        .isGreaterThan(1);
 
     long timestamp = 0;
     long checkpoint = 10;
