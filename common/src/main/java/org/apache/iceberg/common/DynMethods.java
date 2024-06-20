@@ -313,6 +313,8 @@ public class DynMethods {
       return this;
     }
 
+    /** @deprecated since 1.6.0, will be removed in 1.7.0 */
+    @Deprecated
     public Builder ctorImpl(Class<?> targetClass, Class<?>... argClasses) {
       // don't do any work if an implementation has been found
       if (method != null) {
@@ -327,6 +329,8 @@ public class DynMethods {
       return this;
     }
 
+    /** @deprecated since 1.6.0, will be removed in 1.7.0 */
+    @Deprecated
     public Builder ctorImpl(String className, Class<?>... argClasses) {
       // don't do any work if an implementation has been found
       if (method != null) {
