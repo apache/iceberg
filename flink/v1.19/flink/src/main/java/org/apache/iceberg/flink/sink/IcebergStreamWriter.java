@@ -33,6 +33,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<FlinkWriteResult>
     implements OneInputStreamOperator<T, FlinkWriteResult>, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
+  static final long END_INPUT_CHECKPOINT_ID = Long.MAX_VALUE;
 
   private final String fullTableName;
   private final TaskWriterFactory<T> taskWriterFactory;
