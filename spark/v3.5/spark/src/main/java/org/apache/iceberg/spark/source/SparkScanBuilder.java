@@ -19,7 +19,10 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.BaseTable;
@@ -31,6 +34,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SparkDistributedDataScan;
@@ -48,7 +52,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkAggregates;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -373,8 +379,38 @@ public class SparkScanBuilder
             .collect(Collectors.toList());
     Schema meta = new Schema(fields);
 
+    // Calculate used ids (for de-conflict)
+    Set<Integer> currentlyUsedIds =
+        Collections.unmodifiableSet(TypeUtil.indexById(meta.asStruct()).keySet());
+    Set<Integer> allUsedIds =
+        table.schemas().values().stream()
+            .map(currSchema -> TypeUtil.indexById(currSchema.asStruct()).keySet())
+            .reduce(currentlyUsedIds, Sets::union);
+
+    // Calculate ids to reassign
+    Types.StructType partitionType = Partitioning.partitionType(table);
+    Set<Integer> idsToReassign =
+        partitionType.fields().stream().map(Types.NestedField::fieldId).collect(Collectors.toSet());
+
+    // Reassign selected ids to de-conflict with used ids.
+    AtomicInteger nextId = new AtomicInteger();
+    Schema resultMeta =
+        new Schema(
+            fields,
+            ImmutableSet.of(),
+            oldId -> {
+              if (!idsToReassign.contains(oldId)) {
+                return oldId;
+              }
+              int candidate = nextId.incrementAndGet();
+              while (allUsedIds.contains(candidate)) {
+                candidate = nextId.incrementAndGet();
+              }
+              return candidate;
+            });
+
     // schema or rows returned by readers
-    return TypeUtil.join(schema, meta);
+    return TypeUtil.join(schema, resultMeta);
   }
 
   @Override
