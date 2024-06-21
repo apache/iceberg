@@ -119,7 +119,7 @@ DataSketches](https://datasketches.apache.org/) library. The sketch is obtained 
 constructing Alpha family sketch with default seed, and feeding it with individual
 distinct values converted to bytes using Iceberg's single-value serialization.
 
-The blob metadata for this blob may include following properties:
+The blob metadata for this blob must include the following properties:
 
 - `ndv`: estimate of number of distinct values, derived from the sketch.
 
