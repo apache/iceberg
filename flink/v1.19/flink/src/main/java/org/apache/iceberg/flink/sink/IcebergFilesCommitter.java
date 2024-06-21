@@ -213,7 +213,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     // Update the checkpoint state.
     long startNano = System.nanoTime();
     if (writeResultsSinceLastSnapshot.isEmpty()) {
-      dataFilesPerCheckpoint.put(checkpointId, writeToManifest(checkpointId));
+      dataFilesPerCheckpoint.put(checkpointId, EMPTY_MANIFEST_DATA);
     } else {
       for (Map.Entry<Long, List<WriteResult>> writeResultsOfCkpt :
           writeResultsSinceLastSnapshot.entrySet()) {
@@ -221,6 +221,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
             writeResultsOfCkpt.getKey(), writeToManifest(writeResultsOfCkpt.getKey()));
       }
     }
+
     // Reset the snapshot state to the latest state.
     checkpointsState.clear();
     checkpointsState.add(dataFilesPerCheckpoint);
@@ -457,9 +458,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
    * avro serialized bytes.
    */
   private byte[] writeToManifest(long checkpointId) throws IOException {
-    if (writeResultsSinceLastSnapshot.isEmpty()) {
-      return EMPTY_MANIFEST_DATA;
-    }
     List<WriteResult> writeResults = writeResultsSinceLastSnapshot.get(checkpointId);
     WriteResult result = WriteResult.builder().addAll(writeResults).build();
     DeltaManifests deltaManifests =
