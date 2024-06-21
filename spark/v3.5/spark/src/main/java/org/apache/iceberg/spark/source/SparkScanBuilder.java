@@ -52,7 +52,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
@@ -377,11 +376,18 @@ public class SparkScanBuilder
             .distinct()
             .map(name -> MetadataColumns.metadataColumn(table, name))
             .collect(Collectors.toList());
-    Schema meta = new Schema(fields);
+    // only calculate potential column id collision if meta column was requested
+    Schema meta = fields.isEmpty() ? new Schema(fields) : calculateUnionedSchema(fields);
 
-    // Calculate used ids (for de-conflict)
+    // schema or rows returned by readers
+    return TypeUtil.join(schema, meta);
+  }
+
+  private Schema calculateUnionedSchema(List<Types.NestedField> metaColumnFields) {
+    // Calculate used ids by union metadata columns with all base table schemas
     Set<Integer> currentlyUsedIds =
-        Collections.unmodifiableSet(TypeUtil.indexById(meta.asStruct()).keySet());
+        Collections.unmodifiableSet(
+            TypeUtil.indexById(Types.StructType.of(metaColumnFields)).keySet());
     Set<Integer> allUsedIds =
         table.schemas().values().stream()
             .map(currSchema -> TypeUtil.indexById(currSchema.asStruct()).keySet())
@@ -394,23 +400,19 @@ public class SparkScanBuilder
 
     // Reassign selected ids to de-conflict with used ids.
     AtomicInteger nextId = new AtomicInteger();
-    Schema resultMeta =
-        new Schema(
-            fields,
-            ImmutableSet.of(),
-            oldId -> {
-              if (!idsToReassign.contains(oldId)) {
-                return oldId;
-              }
-              int candidate = nextId.incrementAndGet();
-              while (allUsedIds.contains(candidate)) {
-                candidate = nextId.incrementAndGet();
-              }
-              return candidate;
-            });
-
-    // schema or rows returned by readers
-    return TypeUtil.join(schema, resultMeta);
+    return new Schema(
+        metaColumnFields,
+        table.schema().identifierFieldIds(),
+        oldId -> {
+          if (!idsToReassign.contains(oldId)) {
+            return oldId;
+          }
+          int candidate = nextId.incrementAndGet();
+          while (allUsedIds.contains(candidate)) {
+            candidate = nextId.incrementAndGet();
+          }
+          return candidate;
+        });
   }
 
   @Override
