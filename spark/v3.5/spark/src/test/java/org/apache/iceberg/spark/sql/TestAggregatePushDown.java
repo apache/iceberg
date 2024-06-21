@@ -35,8 +35,13 @@ import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.TestBase;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.execution.ExplainMode;
+import org.apache.spark.sql.functions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
@@ -807,5 +812,50 @@ public class TestAggregatePushDown extends CatalogTestBase {
           6L
         });
     assertEquals("min/max/count push down", expected, actual);
+  }
+
+  @TestTemplate
+  public void testAggregatePushDownForIncrementalScan() {
+    sql("CREATE TABLE %s (id LONG, data INT) USING iceberg", tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, 1111), (1, 2222), (2, 3333), (2, 4444), (3, 5555), (3, 6666) ",
+        tableName);
+    long snapshotId1 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (4, 7777), (5, 8888)", tableName);
+    long snapshotId2 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (6, -7777), (7, 8888)", tableName);
+    long snapshotId3 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (8, 7777), (9, 9999)", tableName);
+
+    Dataset<Row> pushdownDs =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId2)
+            .option(SparkReadOptions.END_SNAPSHOT_ID, snapshotId3)
+            .load(tableName)
+            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
+    String explain1 = pushdownDs.queryExecution().explainString(ExplainMode.fromString("simple"));
+    assertThat(explain1).contains("LocalTableScan", "min(data)", "max(data)", "count(data)");
+
+    List<Object[]> expected1 = Lists.newArrayList();
+    expected1.add(new Object[] {-7777, 8888, 2L});
+    assertEquals("min/max/count push down", expected1, rowsToJava(pushdownDs.collectAsList()));
+
+    Dataset<Row> unboundedPushdownDs =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId1)
+            .load(tableName)
+            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
+    String explain2 =
+        unboundedPushdownDs.queryExecution().explainString(ExplainMode.fromString("simple"));
+    assertThat(explain2).contains("LocalTableScan", "min(data)", "max(data)", "count(data)");
+
+    List<Object[]> expected2 = Lists.newArrayList();
+    expected2.add(new Object[] {-7777, 9999, 6L});
+    assertEquals(
+        "min/max/count push down", expected2, rowsToJava(unboundedPushdownDs.collectAsList()));
   }
 }
