@@ -67,7 +67,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
@@ -82,13 +81,6 @@ public class SimpleDataUtil {
       new Schema(
           Types.NestedField.optional(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()));
-
-  public static final Schema SCHEMA_WITH_PRIMARY_KEY =
-      new Schema(
-          Lists.newArrayList(
-              Types.NestedField.required(1, "id", Types.IntegerType.get()),
-              Types.NestedField.optional(2, "data", Types.StringType.get())),
-          Sets.newHashSet(1));
 
   public static final TableSchema FLINK_SCHEMA =
       TableSchema.builder().field("id", DataTypes.INT()).field("data", DataTypes.STRING()).build();
@@ -318,10 +310,6 @@ public class SimpleDataUtil {
       StructLikeSet actualSet = StructLikeSet.create(type);
 
       for (Record record : iterable) {
-        if (!table.schema().identifierFieldNames().isEmpty()) {
-          Assert.assertFalse("Should not have the identical record", actualSet.contains(record));
-        }
-
         actualSet.add(record);
       }
 

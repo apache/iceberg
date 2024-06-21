@@ -212,15 +212,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     // Update the checkpoint state.
     long startNano = System.nanoTime();
-    if (writeResultsSinceLastSnapshot.isEmpty()) {
-      dataFilesPerCheckpoint.put(checkpointId, EMPTY_MANIFEST_DATA);
-    } else {
-      for (Map.Entry<Long, List<WriteResult>> writeResultsOfCkpt :
-          writeResultsSinceLastSnapshot.entrySet()) {
-        dataFilesPerCheckpoint.put(
-            writeResultsOfCkpt.getKey(), writeToManifest(writeResultsOfCkpt.getKey()));
-      }
-    }
+    writeToManifestSinceLastSnapshot(checkpointId);
 
     // Reset the snapshot state to the latest state.
     checkpointsState.clear();
@@ -229,8 +221,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     jobIdState.clear();
     jobIdState.add(flinkJobId);
 
-    // Clear the local buffer for current checkpoint.
-    writeResultsSinceLastSnapshot.clear();
     committerMetrics.checkpointDuration(
         TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
   }
@@ -446,11 +436,24 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   @Override
   public void endInput() throws IOException {
     // Flush the buffered data files into 'dataFilesPerCheckpoint' firstly.
-    long currentCheckpointId = Long.MAX_VALUE;
-    dataFilesPerCheckpoint.put(currentCheckpointId, writeToManifest(currentCheckpointId));
-    writeResultsSinceLastSnapshot.clear();
-
+    long currentCheckpointId = IcebergStreamWriter.END_INPUT_CHECKPOINT_ID;
+    writeToManifestSinceLastSnapshot(currentCheckpointId);
     commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, operatorUniqueId, currentCheckpointId);
+  }
+
+  private void writeToManifestSinceLastSnapshot(long checkpointId) throws IOException {
+    if (writeResultsSinceLastSnapshot.isEmpty()) {
+      dataFilesPerCheckpoint.put(checkpointId, EMPTY_MANIFEST_DATA);
+    } else {
+      for (Map.Entry<Long, List<WriteResult>> writeResultsOfCkpt :
+          writeResultsSinceLastSnapshot.entrySet()) {
+        dataFilesPerCheckpoint.put(
+            writeResultsOfCkpt.getKey(), writeToManifest(writeResultsOfCkpt.getKey()));
+      }
+    }
+
+    // Clear the local buffer for current checkpoint.
+    writeResultsSinceLastSnapshot.clear();
   }
 
   /**

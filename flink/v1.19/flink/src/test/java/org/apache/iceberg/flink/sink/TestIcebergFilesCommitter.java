@@ -63,7 +63,6 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestBase;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
@@ -93,21 +92,15 @@ public class TestIcebergFilesCommitter extends TestBase {
   @Parameter(index = 2)
   private String branch;
 
-  @Parameter(index = 3)
-  private boolean hasPrimaryKey;
-
-  @Parameters(name = "formatVersion = {0}, fileFormat = {1}, branch = {2}, hasPrimaryKey = {3}")
+  @Parameters(name = "formatVersion = {0}, fileFormat = {1}, branch = {2}")
   protected static List<Object> parameters() {
     return Arrays.asList(
-        new Object[] {1, FileFormat.AVRO, "main", false},
-        new Object[] {2, FileFormat.AVRO, "test-branch", false},
-        new Object[] {1, FileFormat.PARQUET, "main", false},
-        new Object[] {2, FileFormat.PARQUET, "test-branch", false},
-        new Object[] {1, FileFormat.ORC, "main", false},
-        new Object[] {2, FileFormat.ORC, "test-branch", false},
-        new Object[] {2, FileFormat.AVRO, "main", true},
-        new Object[] {2, FileFormat.PARQUET, "test-branch", true},
-        new Object[] {2, FileFormat.ORC, "main", true});
+        new Object[] {1, FileFormat.AVRO, "main"},
+        new Object[] {2, FileFormat.AVRO, "test-branch"},
+        new Object[] {1, FileFormat.PARQUET, "main"},
+        new Object[] {2, FileFormat.PARQUET, "test-branch"},
+        new Object[] {1, FileFormat.ORC, "main"},
+        new Object[] {2, FileFormat.ORC, "test-branch"});
   }
 
   @Override
@@ -119,9 +112,8 @@ public class TestIcebergFilesCommitter extends TestBase {
     this.metadataDir = new File(tableDir, "metadata");
     assertThat(tableDir.delete()).isTrue();
 
-    Schema schema = hasPrimaryKey ? SimpleDataUtil.SCHEMA_WITH_PRIMARY_KEY : SimpleDataUtil.SCHEMA;
     // Construct the iceberg table.
-    table = create(schema, PartitionSpec.unpartitioned());
+    table = create(SimpleDataUtil.SCHEMA, PartitionSpec.unpartitioned());
 
     table
         .updateProperties()
@@ -506,7 +498,6 @@ public class TestIcebergFilesCommitter extends TestBase {
 
   @TestTemplate
   public void testStartAnotherJobToWriteSameTable() throws Exception {
-    assumeThat(hasPrimaryKey).as("The test case only for non-primary table.").isEqualTo(false);
 
     long checkpointId = 0;
     long timestamp = 0;
@@ -922,19 +913,36 @@ public class TestIcebergFilesCommitter extends TestBase {
   }
 
   @TestTemplate
-  public void testCommitMultipleCheckpointsWithDuplicateData() throws Exception {
+  public void testCommitMultipleCheckpointsForV2Table() throws Exception {
+    // The test case are designed to solve the following scenarios:
+
+    // V2 table with Upsert enabled.
+    // And the previous checkpoint is not executed normally, the next snapshot submits a single
+    // snapshot include multiple checkpoint. That is, prepareSnapshotPreBarrier is triggered twice,
+    // but snapshotState() is only triggered once.
+    // And the data with the same primary key is required in both checkpoints, and the data file and
+    // eq-delete file are generated.
+
     assumeThat(formatVersion)
         .as("Only support equality-delete in format v2 or later.")
         .isGreaterThan(1);
-
-    assumeThat(hasPrimaryKey).as("The test case only for primary table.").isEqualTo(true);
 
     long timestamp = 0;
     long checkpoint = 10;
 
     JobID jobId = new JobID();
     OperatorID operatorId;
-    FileAppenderFactory<RowData> appenderFactory = createDeletableAppenderFactory();
+
+    FileAppenderFactory<RowData> appenderFactory =
+        new FlinkAppenderFactory(
+            table,
+            table.schema(),
+            FlinkSchemaUtil.convert(table.schema()),
+            table.properties(),
+            table.spec(),
+            new int[] {table.schema().findField("id").fieldId()},
+            table.schema(),
+            null);
 
     try (OneInputStreamOperatorTestHarness<FlinkWriteResult, Void> harness =
         createStreamSink(jobId)) {
@@ -944,9 +952,11 @@ public class TestIcebergFilesCommitter extends TestBase {
 
       assertMaxCommittedCheckpointId(jobId, operatorId, -1L);
 
-      RowData insert1 = SimpleDataUtil.createInsert(1, "aaa");
-      RowData insert2 = SimpleDataUtil.createInsert(2, "bbb");
+      RowData insert1 = null;
+      RowData insert2 = null;
       for (int i = 1; i <= 3; i++) {
+        insert1 = SimpleDataUtil.createInsert(1, "aaa" + i);
+        insert2 = SimpleDataUtil.createInsert(2, "bbb" + i);
         DataFile dataFile = writeDataFile("data-file-" + i, ImmutableList.of(insert1, insert2));
         DeleteFile deleteFile =
             writeEqDeleteFile(
@@ -958,10 +968,7 @@ public class TestIcebergFilesCommitter extends TestBase {
             ++timestamp);
       }
 
-      // The 1th snapshotState.
       harness.snapshot(checkpoint, ++timestamp);
-
-      // Notify the 1th snapshot to complete.
       harness.notifyOfCompletedCheckpoint(checkpoint);
       SimpleDataUtil.assertTableRows(table, ImmutableList.of(insert1, insert2), branch);
       assertMaxCommittedCheckpointId(jobId, operatorId, checkpoint);
