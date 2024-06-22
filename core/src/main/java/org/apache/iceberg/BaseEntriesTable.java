@@ -231,10 +231,9 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       @Override
       public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
         if (fileContent(ref)) {
-          if (literalSet.stream().anyMatch(lit -> contentMatch((Integer) lit))) {
-            return ROWS_MIGHT_MATCH;
+          if (literalSet.stream().noneMatch(lit -> contentMatch((Integer) lit))) {
+            return ROWS_CANNOT_MATCH;
           }
-          return ROWS_CANNOT_MATCH;
         }
         return ROWS_MIGHT_MATCH;
       }
@@ -245,7 +244,6 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
           if (literalSet.stream().anyMatch(lit -> contentMatch((Integer) lit))) {
             return ROWS_CANNOT_MATCH;
           }
-          return ROWS_MIGHT_MATCH;
         }
         return ROWS_MIGHT_MATCH;
       }

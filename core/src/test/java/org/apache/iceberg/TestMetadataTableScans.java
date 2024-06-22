@@ -240,13 +240,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             .map(ManifestFile::path)
             .collect(Collectors.toSet());
 
-    assertThat(actualManifestPaths(entriesTableScan))
+    assertThat(scannedPaths(entriesTableScan))
         .as("Expected manifest filter by data file content does not match")
         .isEqualTo(expected);
 
     assertThat(
-            actualManifestPaths(
-                entriesTable.newScan().filter(Expressions.equal("data_file.content", 3))))
+            scannedPaths(entriesTable.newScan().filter(Expressions.equal("data_file.content", 3))))
         .as("Expected manifest filter by data file content does not match")
         .isEmpty();
   }
@@ -264,7 +263,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             .map(ManifestFile::path)
             .collect(Collectors.toSet());
 
-    assertThat(actualManifestPaths(entriesTableScan))
+    assertThat(scannedPaths(entriesTableScan))
         .as("Expected manifest filter by data file content does not match")
         .isEqualTo(expected);
 
@@ -273,7 +272,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             .map(ManifestFile::path)
             .collect(Collectors.toSet());
     assertThat(
-            actualManifestPaths(
+            scannedPaths(
                 entriesTable.newScan().filter(Expressions.notEqual("data_file.content", 3))))
         .as("Expected manifest filter by data file content does not match")
         .isEqualTo(allManifests);
@@ -290,7 +289,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         table.currentSnapshot().dataManifests(table.io()).stream()
             .map(ManifestFile::path)
             .collect(Collectors.toSet());
-    assertThat(actualManifestPaths(scan1))
+    assertThat(scannedPaths(scan1))
         .as("Expected manifest filter by data file content does not match")
         .isEqualTo(expectedDataManifestPath);
 
@@ -300,18 +299,18 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         table.currentSnapshot().deleteManifests(table.io()).stream()
             .map(ManifestFile::path)
             .collect(Collectors.toSet());
-    assertThat(actualManifestPaths(scan2))
+    assertThat(scannedPaths(scan2))
         .as("Expected manifest filter by data file content does not match")
         .isEqualTo(expectedDeleteManifestPath);
 
     Expression inAll = Expressions.in("data_file.content", 0, 1, 2);
     Set<String> allManifests = Sets.union(expectedDataManifestPath, expectedDeleteManifestPath);
-    assertThat(actualManifestPaths(entriesTable.newScan().filter(inAll)))
+    assertThat(scannedPaths(entriesTable.newScan().filter(inAll)))
         .as("Expected manifest filter by data file content does not match")
         .isEqualTo(allManifests);
 
     Expression inNeither = Expressions.in("data_file.content", 3, 4);
-    assertThat(actualManifestPaths(entriesTable.newScan().filter(inNeither)))
+    assertThat(scannedPaths(entriesTable.newScan().filter(inNeither)))
         .as("Expected manifest filter by data file content does not match")
         .isEmpty();
   }
@@ -327,7 +326,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         table.currentSnapshot().deleteManifests(table.io()).stream()
             .map(ManifestFile::path)
             .collect(Collectors.toSet());
-    assertThat(actualManifestPaths(scan1))
+    assertThat(scannedPaths(scan1))
         .as("Expected manifest filter by data file content does not match")
         .isEqualTo(expectedDeleteManifestPath);
 
@@ -337,18 +336,18 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         table.currentSnapshot().dataManifests(table.io()).stream()
             .map(ManifestFile::path)
             .collect(Collectors.toSet());
-    assertThat(actualManifestPaths(scan2))
+    assertThat(scannedPaths(scan2))
         .as("Expected manifest filter by data file content does not match")
         .isEqualTo(expectedDataManifestPath);
 
     Expression notInNeither = Expressions.notIn("data_file.content", 3);
     Set<String> allManifests = Sets.union(expectedDataManifestPath, expectedDeleteManifestPath);
-    assertThat(actualManifestPaths(entriesTable.newScan().filter(notInNeither)))
+    assertThat(scannedPaths(entriesTable.newScan().filter(notInNeither)))
         .as("Expected manifest filter by data file content does not match")
         .isEqualTo(allManifests);
 
     Expression notInAll = Expressions.notIn("data_file.content", 0, 1, 2);
-    assertThat(actualManifestPaths(entriesTable.newScan().filter(notInAll)))
+    assertThat(scannedPaths(entriesTable.newScan().filter(notInAll)))
         .as("Expected manifest filter by data file content does not match")
         .isEmpty();
   }
@@ -1207,7 +1206,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.greaterThan("reference_snapshot_id", 2));
 
-    assertThat(actualManifestListPaths(manifestsTableScan))
+    assertThat(scannedPaths(manifestsTableScan))
         .as("Expected snapshots do not match")
         .isEqualTo(expectedManifestListPaths(table.snapshots(), 3L, 4L));
   }
@@ -1221,7 +1220,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.greaterThanOrEqual("reference_snapshot_id", 3));
 
-    assertThat(actualManifestListPaths(manifestsTableScan))
+    assertThat(scannedPaths(manifestsTableScan))
         .as("Expected snapshots do not match")
         .isEqualTo(expectedManifestListPaths(table.snapshots(), 3L, 4L));
   }
@@ -1235,7 +1234,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.lessThan("reference_snapshot_id", 3));
 
-    assertThat(actualManifestListPaths(manifestsTableScan))
+    assertThat(scannedPaths(manifestsTableScan))
         .as("Expected snapshots do not match")
         .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 2L));
   }
@@ -1249,7 +1248,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.lessThanOrEqual("reference_snapshot_id", 2));
 
-    assertThat(actualManifestListPaths(manifestsTableScan))
+    assertThat(scannedPaths(manifestsTableScan))
         .as("Expected snapshots do not match")
         .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 2L));
   }
@@ -1263,7 +1262,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.equal("reference_snapshot_id", 2));
 
-    assertThat(actualManifestListPaths(manifestsTableScan))
+    assertThat(scannedPaths(manifestsTableScan))
         .as("Expected snapshots do not match")
         .isEqualTo(expectedManifestListPaths(table.snapshots(), 2L));
   }
@@ -1277,7 +1276,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.notEqual("reference_snapshot_id", 2));
 
-    assertThat(actualManifestListPaths(manifestsTableScan))
+    assertThat(scannedPaths(manifestsTableScan))
         .as("Expected snapshots do not match")
         .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 3L, 4L));
   }
@@ -1291,7 +1290,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.in("reference_snapshot_id", 1, 3));
-    assertThat(actualManifestListPaths(manifestsTableScan))
+    assertThat(scannedPaths(manifestsTableScan))
         .as("Expected snapshots do not match")
         .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 3L));
   }
@@ -1305,7 +1304,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.notIn("reference_snapshot_id", 1, 3));
 
-    assertThat(actualManifestListPaths(manifestsTableScan))
+    assertThat(scannedPaths(manifestsTableScan))
         .as("Expected snapshots do not match")
         .isEqualTo(expectedManifestListPaths(table.snapshots(), 2L, 4L));
   }
@@ -1324,7 +1323,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                 Expressions.and(
                     Expressions.equal("reference_snapshot_id", 2),
                     Expressions.greaterThan("length", 0)));
-    assertThat(actualManifestListPaths(manifestsTableScan))
+    assertThat(scannedPaths(manifestsTableScan))
         .as("Expected snapshots do not match")
         .isEqualTo(expectedManifestListPaths(table.snapshots(), 2L));
   }
@@ -1343,7 +1342,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                 Expressions.or(
                     Expressions.equal("reference_snapshot_id", 2),
                     Expressions.equal("reference_snapshot_id", 4)));
-    assertThat(actualManifestListPaths(manifestsTableScan))
+    assertThat(scannedPaths(manifestsTableScan))
         .as("Expected snapshots do not match")
         .isEqualTo(expectedManifestListPaths(table.snapshots(), 2L, 4L));
   }
@@ -1359,7 +1358,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             .newScan()
             .filter(Expressions.not(Expressions.equal("reference_snapshot_id", 2)));
 
-    assertThat(actualManifestListPaths(manifestsTableScan))
+    assertThat(scannedPaths(manifestsTableScan))
         .as("Expected snapshots do not match")
         .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 3L, 4L));
   }

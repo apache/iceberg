@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.apache.iceberg.expressions.Expressions;
@@ -44,19 +43,9 @@ public abstract class MetadataTableScanTestBase extends TestBase {
     return Arrays.asList(1, 2);
   }
 
-  protected Set<String> actualManifestListPaths(TableScan allManifestsTableScan) {
-    Function<FileScanTask, String> toManifestListPath = t -> t.file().path().toString();
-    return scanToPath(allManifestsTableScan, toManifestListPath);
-  }
-
-  protected Set<String> actualManifestPaths(TableScan entriesTableScan) {
-    Function<FileScanTask, String> toManifestPath = t -> t.file().path().toString();
-    return scanToPath(entriesTableScan, toManifestPath);
-  }
-
-  protected Set<String> scanToPath(TableScan scan, Function<FileScanTask, String> func) {
+  protected Set<String> scannedPaths(TableScan scan) {
     return StreamSupport.stream(scan.planFiles().spliterator(), false)
-        .map(func)
+        .map(t -> t.file().path().toString())
         .collect(Collectors.toSet());
   }
 
