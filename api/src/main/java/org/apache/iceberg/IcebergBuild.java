@@ -50,8 +50,8 @@ public class IcebergBuild {
     Properties buildProperties = new Properties();
     try (InputStream is = readResource(VERSION_PROPERTIES_FILE)) {
       buildProperties.load(is);
-    } catch (Exception ignored) {
-      LOG.warn("Failed to load version properties from {}", VERSION_PROPERTIES_FILE);
+    } catch (Exception e) {
+      LOG.warn("Failed to load version properties from {} : reason = {}", VERSION_PROPERTIES_FILE, e.toString());
     }
 
     IcebergBuild.shortId = buildProperties.getProperty("git.commit.id.abbrev", UNKNOWN_DEFAULT);
