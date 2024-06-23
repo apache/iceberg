@@ -427,7 +427,7 @@ public class SparkScanBuilder
         SparkReadOptions.END_TIMESTAMP);
 
     if (startSnapshotId != null) {
-      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId);
+      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId, branch);
     } else {
       return buildBatchScan(snapshotId, asOfTimestamp, branch, tag);
     }
@@ -471,7 +471,7 @@ public class SparkScanBuilder
         metricsReporter::scanReport);
   }
 
-  private Scan buildIncrementalAppendScan(long startSnapshotId, Long endSnapshotId) {
+  private Scan buildIncrementalAppendScan(long startSnapshotId, Long endSnapshotId, String branch) {
     Schema expectedSchema = schemaWithMetadataColumns();
 
     IncrementalAppendScan scan =
@@ -485,6 +485,10 @@ public class SparkScanBuilder
 
     if (endSnapshotId != null) {
       scan = scan.toSnapshot(endSnapshotId);
+    }
+
+    if (branch != null) {
+      scan = scan.useBranch(branch);
     }
 
     scan = configureSplitPlanning(scan);
