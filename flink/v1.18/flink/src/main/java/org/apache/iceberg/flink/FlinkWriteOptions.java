@@ -56,6 +56,9 @@ public class FlinkWriteOptions {
   public static final ConfigOption<Boolean> OVERWRITE_MODE =
       ConfigOptions.key("overwrite-enabled").booleanType().defaultValue(false);
 
+  public static final ConfigOption<Boolean> OVERWRITE_ALL_PARTITIONS =
+      ConfigOptions.key("overwrite-all-partitions").booleanType().defaultValue(false);
+
   // Overrides the table's write.distribution-mode
   public static final ConfigOption<String> DISTRIBUTION_MODE =
       ConfigOptions.key("distribution-mode").stringType().noDefaultValue();

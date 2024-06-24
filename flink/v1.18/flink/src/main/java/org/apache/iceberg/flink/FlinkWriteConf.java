@@ -63,6 +63,15 @@ public class FlinkWriteConf {
         .parse();
   }
 
+  public boolean overwriteAllPartitions() {
+    return confParser
+        .booleanConf()
+        .option(FlinkWriteOptions.OVERWRITE_ALL_PARTITIONS.key())
+        .flinkConfig(FlinkWriteOptions.OVERWRITE_ALL_PARTITIONS)
+        .defaultValue(FlinkWriteOptions.OVERWRITE_ALL_PARTITIONS.defaultValue())
+        .parse();
+  }
+
   public boolean upsertMode() {
     return confParser
         .booleanConf()
