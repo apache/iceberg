@@ -247,14 +247,21 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     BaseTable baseTable = (BaseTable) table;
     HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
     HadoopTableOperations spyOps = spy(tableOperations);
-    doThrow(new RuntimeException("FileSystem crash!"))
+    doThrow(new IOException("FileSystem crash!"))
         .when(spyOps)
         .renameMetaDataFile(any(), any(), any());
-    doThrow(new RuntimeException("Can not check new Metadata!"))
+    doThrow(new IOException("Can not check new Metadata!"))
         .when(spyOps)
         .checkMetaDataFileRenameSuccess(any(), any(), any());
     assertCommitNotChangeVersion(
         baseTable, spyOps, CommitStateUnknownException.class, "FileSystem crash!");
+
+    HadoopTableOperations spyOps2 = spy(tableOperations);
+    doThrow(new OutOfMemoryError("Java heap space"))
+        .when(spyOps2)
+        .renameMetaDataFile(any(), any(), any());
+    assertCommitNotChangeVersion(
+        baseTable, spyOps2, CommitStateUnknownException.class, "Java heap space");
   }
 
   @Test
@@ -263,7 +270,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     BaseTable baseTable = (BaseTable) table;
     HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
     HadoopTableOperations spyOps = spy(tableOperations);
-    doThrow(new RuntimeException("FileSystem crash!"))
+    doThrow(new IOException("FileSystem crash!"))
         .when(spyOps)
         .renameMetaDataFile(any(), any(), any());
     doReturn(false).when(spyOps).checkMetaDataFileRenameSuccess(any(), any(), any());
@@ -280,7 +287,7 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     BaseTable baseTable = (BaseTable) table;
     HadoopTableOperations tableOperations = (HadoopTableOperations) baseTable.operations();
     HadoopTableOperations spyOps = spy(tableOperations);
-    doThrow(new RuntimeException("FileSystem crash!"))
+    doThrow(new IOException("FileSystem crash!"))
         .when(spyOps)
         .renameMetaDataFile(any(), any(), any());
     doReturn(true).when(spyOps).checkMetaDataFileRenameSuccess(any(), any(), any());
