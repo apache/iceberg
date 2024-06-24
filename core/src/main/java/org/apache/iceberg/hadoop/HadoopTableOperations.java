@@ -453,8 +453,12 @@ public class HadoopTableOperations implements TableOperations {
   boolean renameMetaDataFileAndCheck(FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile) {
     try {
       return renameMetaDataFile(fs, tempMetaDataFile, finalMetaDataFile);
-    } catch (Throwable e) {
+    } catch (IOException e) {
+      // Server-side error, we need to try to recheck it again
       return renameCheck(fs, tempMetaDataFile, finalMetaDataFile, e);
+    } catch (Throwable e) {
+      // Maybe Client-side error,throw CommitStateUnknownException and stop everything.
+      throw new CommitStateUnknownException(e);
     }
   }
   /**
