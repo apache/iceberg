@@ -598,12 +598,7 @@ public class TestHelpers {
   public static class TestDataFile implements DataFile {
     private final String path;
     private final StructLike partition;
-    private final long recordCount;
-    private final Map<Integer, Long> valueCounts;
-    private final Map<Integer, Long> nullValueCounts;
-    private final Map<Integer, Long> nanValueCounts;
-    private final Map<Integer, ByteBuffer> lowerBounds;
-    private final Map<Integer, ByteBuffer> upperBounds;
+    private FileStatistics fileStatistics = new FileStatistics(0L, null, null, null, null, null);
 
     public TestDataFile(String path, StructLike partition, long recordCount) {
       this(path, partition, recordCount, null, null, null, null, null);
@@ -620,12 +615,12 @@ public class TestHelpers {
         Map<Integer, ByteBuffer> upperBounds) {
       this.path = path;
       this.partition = partition;
-      this.recordCount = recordCount;
-      this.valueCounts = valueCounts;
-      this.nullValueCounts = nullValueCounts;
-      this.nanValueCounts = nanValueCounts;
-      this.lowerBounds = lowerBounds;
-      this.upperBounds = upperBounds;
+      this.fileStatistics.setRecordCount(recordCount);
+      this.fileStatistics.setValueCounts(valueCounts);
+      this.fileStatistics.setNullValueCounts(nullValueCounts);
+      this.fileStatistics.setNanValueCounts(nanValueCounts);
+      this.fileStatistics.setLowerBounds(lowerBounds);
+      this.fileStatistics.setUpperBounds(upperBounds);
     }
 
     @Override
@@ -655,7 +650,7 @@ public class TestHelpers {
 
     @Override
     public long recordCount() {
-      return recordCount;
+      return fileStatistics.getRecordCount();
     }
 
     @Override
@@ -670,27 +665,27 @@ public class TestHelpers {
 
     @Override
     public Map<Integer, Long> valueCounts() {
-      return valueCounts;
+      return fileStatistics.getValueCounts();
     }
 
     @Override
     public Map<Integer, Long> nullValueCounts() {
-      return nullValueCounts;
+      return fileStatistics.getNullValueCounts();
     }
 
     @Override
     public Map<Integer, Long> nanValueCounts() {
-      return nanValueCounts;
+      return fileStatistics.getNanValueCounts();
     }
 
     @Override
     public Map<Integer, ByteBuffer> lowerBounds() {
-      return lowerBounds;
+      return fileStatistics.getLowerBounds();
     }
 
     @Override
     public Map<Integer, ByteBuffer> upperBounds() {
-      return upperBounds;
+      return fileStatistics.getUpperBounds();
     }
 
     @Override

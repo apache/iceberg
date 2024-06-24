@@ -46,19 +46,14 @@ public class FileMetadata {
     private PartitionData partitionData;
     private String filePath = null;
     private FileFormat format = null;
-    private long recordCount = -1L;
     private long fileSizeInBytes = -1L;
 
     // optional fields
     private Map<Integer, Long> columnSizes = null;
-    private Map<Integer, Long> valueCounts = null;
-    private Map<Integer, Long> nullValueCounts = null;
-    private Map<Integer, Long> nanValueCounts = null;
-    private Map<Integer, ByteBuffer> lowerBounds = null;
-    private Map<Integer, ByteBuffer> upperBounds = null;
     private ByteBuffer keyMetadata = null;
     private Integer sortOrderId = null;
     private List<Long> splitOffsets = null;
+    private FileStatistics fileStatistics = new FileStatistics(-1L, null, null, null, null, null);
 
     Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -73,14 +68,14 @@ public class FileMetadata {
       }
       this.filePath = null;
       this.format = null;
-      this.recordCount = -1L;
+      this.fileStatistics.setRecordCount(-1L);
       this.fileSizeInBytes = -1L;
       this.columnSizes = null;
-      this.valueCounts = null;
-      this.nullValueCounts = null;
-      this.nanValueCounts = null;
-      this.lowerBounds = null;
-      this.upperBounds = null;
+      this.fileStatistics.setValueCounts(null);
+      this.fileStatistics.setNullValueCounts(null);
+      this.fileStatistics.setNanValueCounts(null);
+      this.fileStatistics.setLowerBounds(null);
+      this.fileStatistics.setUpperBounds(null);
       this.sortOrderId = null;
     }
 
@@ -93,14 +88,14 @@ public class FileMetadata {
       this.content = toCopy.content();
       this.filePath = toCopy.path().toString();
       this.format = toCopy.format();
-      this.recordCount = toCopy.recordCount();
+      this.fileStatistics.setRecordCount(toCopy.recordCount());
       this.fileSizeInBytes = toCopy.fileSizeInBytes();
       this.columnSizes = toCopy.columnSizes();
-      this.valueCounts = toCopy.valueCounts();
-      this.nullValueCounts = toCopy.nullValueCounts();
-      this.nanValueCounts = toCopy.nanValueCounts();
-      this.lowerBounds = toCopy.lowerBounds();
-      this.upperBounds = toCopy.upperBounds();
+      this.fileStatistics.setValueCounts(toCopy.valueCounts());
+      this.fileStatistics.setNullValueCounts(toCopy.nullValueCounts());
+      this.fileStatistics.setNanValueCounts(toCopy.nanValueCounts());
+      this.fileStatistics.setLowerBounds(toCopy.lowerBounds());
+      this.fileStatistics.setUpperBounds(toCopy.upperBounds());
       this.keyMetadata =
           toCopy.keyMetadata() == null ? null : ByteBuffers.copy(toCopy.keyMetadata());
       this.sortOrderId = toCopy.sortOrderId();
@@ -164,7 +159,7 @@ public class FileMetadata {
     }
 
     public Builder withRecordCount(long newRecordCount) {
-      this.recordCount = newRecordCount;
+      this.fileStatistics.setRecordCount(newRecordCount);
       return this;
     }
 
@@ -185,13 +180,14 @@ public class FileMetadata {
 
     public Builder withMetrics(Metrics metrics) {
       // check for null to avoid NPE when unboxing
-      this.recordCount = metrics.recordCount() == null ? -1 : metrics.recordCount();
+      this.fileStatistics.setRecordCount(
+          metrics.recordCount() == null ? -1 : metrics.recordCount());
       this.columnSizes = metrics.columnSizes();
-      this.valueCounts = metrics.valueCounts();
-      this.nullValueCounts = metrics.nullValueCounts();
-      this.nanValueCounts = metrics.nanValueCounts();
-      this.lowerBounds = metrics.lowerBounds();
-      this.upperBounds = metrics.upperBounds();
+      this.fileStatistics.setValueCounts(metrics.valueCounts());
+      this.fileStatistics.setNullValueCounts(metrics.nullValueCounts());
+      this.fileStatistics.setNanValueCounts(metrics.nanValueCounts());
+      this.fileStatistics.setLowerBounds(metrics.lowerBounds());
+      this.fileStatistics.setUpperBounds(metrics.upperBounds());
       return this;
     }
 
@@ -228,7 +224,7 @@ public class FileMetadata {
       Preconditions.checkArgument(content != null, "Delete type is required");
       Preconditions.checkArgument(format != null, "File format is required");
       Preconditions.checkArgument(fileSizeInBytes >= 0, "File size is required");
-      Preconditions.checkArgument(recordCount >= 0, "Record count is required");
+      Preconditions.checkArgument(fileStatistics.getRecordCount() >= 0, "Record count is required");
 
       switch (content) {
         case POSITION_DELETES:
@@ -252,13 +248,13 @@ public class FileMetadata {
           isPartitioned ? DataFiles.copy(spec, partitionData) : null,
           fileSizeInBytes,
           new Metrics(
-              recordCount,
+              fileStatistics.getRecordCount(),
               columnSizes,
-              valueCounts,
-              nullValueCounts,
-              nanValueCounts,
-              lowerBounds,
-              upperBounds),
+              fileStatistics.getValueCounts(),
+              fileStatistics.getNullValueCounts(),
+              fileStatistics.getNanValueCounts(),
+              fileStatistics.getLowerBounds(),
+              fileStatistics.getUpperBounds()),
           equalityFieldIds,
           sortOrderId,
           splitOffsets,
