@@ -259,7 +259,7 @@ public abstract class SparkRowLevelOperationsTestBase extends SparkExtensionsTes
     spark.createDataset(data, encoder).createOrReplaceTempView(name);
   }
 
-  private Dataset<Row> toDS(String schema, String jsonData) {
+  protected Dataset<Row> toDS(String schema, String jsonData) {
     List<String> jsonRows =
         Arrays.stream(jsonData.split("\n"))
             .filter(str -> str.trim().length() > 0)
