@@ -498,7 +498,6 @@ public class TestIcebergFilesCommitter extends TestBase {
 
   @TestTemplate
   public void testStartAnotherJobToWriteSameTable() throws Exception {
-
     long checkpointId = 0;
     long timestamp = 0;
     List<RowData> rows = Lists.newArrayList();
@@ -722,13 +721,14 @@ public class TestIcebergFilesCommitter extends TestBase {
       List<RowData> tableRows = Lists.newArrayList(SimpleDataUtil.createRowData(1, "word-1"));
 
       DataFile dataFile = writeDataFile("data-1", tableRows);
-      harness.processElement(of(Long.MAX_VALUE, dataFile), 1);
+      harness.processElement(of(IcebergStreamWriter.END_INPUT_CHECKPOINT_ID, dataFile), 1);
       ((BoundedOneInput) harness.getOneInputOperator()).endInput();
 
       assertFlinkManifests(0);
       SimpleDataUtil.assertTableRows(table, tableRows, branch);
       assertSnapshotSize(1);
-      assertMaxCommittedCheckpointId(jobId, operatorId, Long.MAX_VALUE);
+      assertMaxCommittedCheckpointId(
+          jobId, operatorId, IcebergStreamWriter.END_INPUT_CHECKPOINT_ID);
       assertThat(SimpleDataUtil.latestSnapshot(table, branch).summary())
           .containsEntry("flink.test", TestIcebergFilesCommitter.class.getName());
     }
