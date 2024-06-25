@@ -91,6 +91,10 @@ public class RewriteFileGroup {
     return fileScanTasks.stream().mapToLong(FileScanTask::length).sum();
   }
 
+  public long numDeletes() {
+    return fileScanTasks.stream().mapToLong(FileScanTask::filesCount).sum();
+  }
+
   public int numFiles() {
     return fileScanTasks.size();
   }
@@ -105,6 +109,8 @@ public class RewriteFileGroup {
         return Comparator.comparing(RewriteFileGroup::numFiles);
       case FILES_DESC:
         return Comparator.comparing(RewriteFileGroup::numFiles, Comparator.reverseOrder());
+      case DELETES_DESC:
+        return Comparator.comparing(RewriteFileGroup::numDeletes, Comparator.reverseOrder());
       default:
         return (fileGroupOne, fileGroupTwo) -> 0;
     }

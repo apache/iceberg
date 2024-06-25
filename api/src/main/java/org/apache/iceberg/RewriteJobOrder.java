@@ -42,6 +42,7 @@ public enum RewriteJobOrder {
   BYTES_DESC("bytes-desc"),
   FILES_ASC("files-asc"),
   FILES_DESC("files-desc"),
+  DELETES_DESC("deletes-desc"),
   NONE("none");
 
   private final String orderName;
