@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -41,7 +43,6 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -399,7 +400,7 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     // split initialization
     dataIterator.seek(0, 0);
 
-    Assertions.assertThat(dataIterator.fileOffset())
+    assertThat(dataIterator.fileOffset())
         .as("File offset should be 1 because file 0 should be skipped")
         .isEqualTo(1);
   }
