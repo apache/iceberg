@@ -175,15 +175,33 @@ class TestTriggerManager extends OperatorTestBase {
 
       TableChange event = TableChange.builder().dataFileSize(1).commitNum(1).build();
 
-      // Wait for one trigger
+      // Wait for some time
       testHarness.processElement(event, EVENT_TIME);
       assertThat(testHarness.extractOutputValues()).isEmpty();
 
-      // Wait for a second trigger
+      // Wait for the timeout to expire
       long newTime = EVENT_TIME + Duration.ofSeconds(1).toMillis();
       testHarness.setProcessingTime(newTime);
       testHarness.processElement(event, newTime);
       assertThat(testHarness.extractOutputValues()).hasSize(1);
+
+      // Remove the lock
+      lock.unlock();
+
+      // Send a new event
+      testHarness.setProcessingTime(newTime + 1);
+      testHarness.processElement(event, newTime);
+
+      // No trigger yet
+      assertThat(testHarness.extractOutputValues()).hasSize(1);
+
+      // Send a new event
+      newTime += Duration.ofSeconds(1).toMillis();
+      testHarness.setProcessingTime(newTime);
+      testHarness.processElement(event, newTime);
+
+      // New trigger should arrive
+      assertThat(testHarness.extractOutputValues()).hasSize(2);
     }
   }
 

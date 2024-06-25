@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
@@ -43,7 +42,18 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** . */
+/**
+ * TriggerManager starts the Maintenance Tasks by emitting {@link Trigger} messages which are
+ * calculated based on the incoming {@link TableChange} messages. The TriggerManager keeps track of
+ * the changes since the last run of the Maintenance Tasks and triggers a new run based on the
+ * result of the {@link TriggerEvaluator}.
+ *
+ * <p>The TriggerManager prevents overlapping Maintenance Task runs using {@link
+ * org.apache.iceberg.flink.maintenance.operator.TriggerLockFactory.Lock}.
+ *
+ * <p>The TriggerManager should run as a global operator. {@link KeyedProcessFunction} is used, so
+ * the timer functions are available, but the key is not used.
+ */
 @Internal
 class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     implements CheckpointedFunction {
@@ -59,9 +69,12 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
   private transient Counter concurrentRunTriggeredCounter;
   private transient Counter nothingToTriggerCounter;
   private transient List<Counter> triggerCounters;
-  private transient ValueState<Long> nextEvaluationTime;
-  private transient ListState<TableChange> accumulatedChanges;
-  private transient ListState<Long> lastTriggerTimes;
+  private transient ValueState<Long> nextEvaluationTimeState;
+  private transient ListState<TableChange> accumulatedChangesState;
+  private transient ListState<Long> lastTriggerTimesState;
+  private transient Long nextEvaluationTime;
+  private transient List<TableChange> accumulatedChanges;
+  private transient List<Long> lastTriggerTimes;
   private transient TriggerLockFactory.Lock lock;
   private transient TriggerLockFactory.Lock recoveryLock;
   private transient boolean isCleanUp = false;
@@ -83,7 +96,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
         taskNames.size() == evaluators.size(), "Provide a name and evaluator for all of the tasks");
     Preconditions.checkArgument(minFireDelayMs > 0, "Minimum fire delay should be at least 1.");
     Preconditions.checkArgument(
-        lockCheckDelayMs > 0, "Minimum lock delay rate should be at least 1.");
+        lockCheckDelayMs > 0, "Minimum lock delay rate should be at least 1ms.");
 
     this.tableLoader = tableLoader;
     this.lockFactory = lockFactory;
@@ -123,15 +136,15 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
                         .counter(TableMaintenanceMetrics.TRIGGERED))
             .collect(Collectors.toList());
 
-    this.nextEvaluationTime =
+    this.nextEvaluationTimeState =
         getRuntimeContext()
             .getState(new ValueStateDescriptor<>("triggerManagerNextTriggerTime", Types.LONG));
-    this.accumulatedChanges =
+    this.accumulatedChangesState =
         getRuntimeContext()
             .getListState(
                 new ListStateDescriptor<>(
                     "triggerManagerAccumulatedChange", TypeInformation.of(TableChange.class)));
-    this.lastTriggerTimes =
+    this.lastTriggerTimesState =
         getRuntimeContext()
             .getListState(new ListStateDescriptor<>("triggerManagerLastTriggerTime", Types.LONG));
 
@@ -140,11 +153,16 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
 
   @Override
   public void snapshotState(FunctionSnapshotContext context) throws Exception {
-    // Do nothing
+    if (inited) {
+      // Only store state if initialized
+      nextEvaluationTimeState.update(nextEvaluationTime);
+      accumulatedChangesState.update(accumulatedChanges);
+      lastTriggerTimesState.update(lastTriggerTimes);
+    }
   }
 
   @Override
-  public void initializeState(FunctionInitializationContext context) {
+  public void initializeState(FunctionInitializationContext context) throws Exception {
     LOG.info("Initializing state restored: {}", context.isRestored());
     this.lock = lockFactory.createLock();
     this.recoveryLock = lockFactory.createRecoveryLock();
@@ -158,14 +176,10 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
       throws Exception {
     init(out, ctx.timerService());
 
+    accumulatedChanges.forEach(tableChange -> tableChange.merge(change));
+
     long current = ctx.timerService().currentProcessingTime();
-    Long nextTime = nextEvaluationTime.value();
-
-    // Add the new changes to the already accumulated ones
-    List<TableChange> accumulated = Lists.newArrayList(accumulatedChanges.get());
-    accumulated.forEach(tableChange -> tableChange.merge(change));
-    accumulatedChanges.update(accumulated);
-
+    Long nextTime = nextEvaluationTime;
     if (nextTime == null) {
       checkAndFire(current, ctx.timerService(), out);
     } else {
@@ -173,7 +187,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
           "Trigger manager rate limiter triggered current: {}, next: {}, accumulated changes: {}",
           current,
           nextTime,
-          accumulated);
+          accumulatedChanges);
       rateLimiterTriggeredCounter.inc();
     }
   }
@@ -181,12 +195,11 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
   @Override
   public void onTimer(long timestamp, OnTimerContext ctx, Collector<Trigger> out) throws Exception {
     init(out, ctx.timerService());
-    nextEvaluationTime.clear();
+    this.nextEvaluationTime = null;
     checkAndFire(ctx.timerService().currentProcessingTime(), ctx.timerService(), out);
   }
 
-  private void checkAndFire(long current, TimerService timerService, Collector<Trigger> out)
-      throws Exception {
+  private void checkAndFire(long current, TimerService timerService, Collector<Trigger> out) {
     if (isCleanUp) {
       if (recoveryLock.isHeld()) {
         LOG.debug("The cleanup lock is still held at {}", current);
@@ -198,14 +211,13 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
       }
     }
 
-    List<TableChange> changes = Lists.newArrayList(accumulatedChanges.get());
-    List<Long> times = Lists.newArrayList(lastTriggerTimes.get());
-    Integer taskToStart = nextTrigger(evaluators, changes, times, current, startsFrom);
+    Integer taskToStart =
+        nextTrigger(evaluators, accumulatedChanges, lastTriggerTimes, current, startsFrom);
     if (taskToStart == null) {
       // Nothing to execute
       if (startsFrom == 0) {
         nothingToTriggerCounter.inc();
-        LOG.debug("Nothing to execute at {} for collected: {}", current, changes);
+        LOG.debug("Nothing to execute at {} for collected: {}", current, accumulatedChanges);
       }
 
       startsFrom = 0;
@@ -213,14 +225,14 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     }
 
     if (lock.tryLock()) {
-      TableChange change = changes.get(taskToStart);
+      TableChange change = accumulatedChanges.get(taskToStart);
       SerializableTable table =
           (SerializableTable) SerializableTable.copyOf(tableLoader.loadTable());
       out.collect(Trigger.create(current, table, taskToStart));
       LOG.debug("Fired event with time: {}, collected: {} for {}", current, change, table.name());
       triggerCounters.get(taskToStart).inc();
-      changes.set(taskToStart, TableChange.empty());
-      accumulatedChanges.update(changes);
+      accumulatedChanges.set(taskToStart, TableChange.empty());
+      lastTriggerTimes.set(taskToStart, current);
       schedule(timerService, current + minFireDelayMs);
       startsFrom = taskToStart + 1;
     } else {
@@ -232,11 +244,11 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
       schedule(timerService, current + lockCheckDelayMs);
     }
 
-    timerService.registerProcessingTimeTimer(nextEvaluationTime.value());
+    timerService.registerProcessingTimeTimer(nextEvaluationTime);
   }
 
-  private void schedule(TimerService timerService, long time) throws IOException {
-    nextEvaluationTime.update(time);
+  private void schedule(TimerService timerService, long time) {
+    this.nextEvaluationTime = time;
     timerService.registerProcessingTimeTimer(time);
   }
 
@@ -265,17 +277,17 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     if (!inited) {
       long current = timerService.currentProcessingTime();
 
-      // Initialize with empty changes and current timestamp
-      if (!accumulatedChanges.get().iterator().hasNext()) {
-        List<TableChange> changes = Lists.newArrayListWithCapacity(evaluators.size());
-        List<Long> triggerTimes = Lists.newArrayListWithCapacity(evaluators.size());
-        for (int i = 0; i < evaluators.size(); ++i) {
-          changes.add(TableChange.empty());
-          triggerTimes.add(current);
-        }
+      // Initialize from state
+      this.nextEvaluationTime = nextEvaluationTimeState.value();
+      this.accumulatedChanges = Lists.newArrayList(accumulatedChangesState.get());
+      this.lastTriggerTimes = Lists.newArrayList(lastTriggerTimesState.get());
 
-        accumulatedChanges.update(changes);
-        lastTriggerTimes.update(triggerTimes);
+      // Initialize if the state was empty
+      if (accumulatedChanges.isEmpty()) {
+        for (int i = 0; i < evaluators.size(); ++i) {
+          accumulatedChanges.add(TableChange.empty());
+          lastTriggerTimes.add(current);
+        }
       }
 
       if (isCleanUp) {
