@@ -192,6 +192,14 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     }
   }
 
+  @Override
+  protected boolean cleanUncommittedAfterCommit() {
+    // appendManifests are not rewritten, never need cleanup
+    // rewrittenAppendManifests are rewritten in appendManifest, never need cleanup
+    // newManifests are cleaned up in writeNewManifests
+    return false;
+  }
+
   private List<ManifestFile> writeNewManifests() throws IOException {
     if (hasNewFiles && newManifests != null) {
       newManifests.forEach(file -> deleteFile(file.path()));
