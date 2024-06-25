@@ -68,6 +68,8 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   protected static final Namespace NS = Namespace.of("newdb");
@@ -2505,6 +2507,45 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
         .isEqualTo(TABLE_WRITE_ORDER.fields());
     assertUUIDsMatch(original, afterSecondReplace);
     assertFiles(afterSecondReplace, FILE_C);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void createTableTransaction(int formatVersion) {
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(NS);
+    }
+
+    catalog()
+        .newCreateTableTransaction(
+            TABLE,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of("format-version", String.valueOf(formatVersion)))
+        .commitTransaction();
+
+    BaseTable table = (BaseTable) catalog().loadTable(TABLE);
+    assertThat(table.operations().current().formatVersion()).isEqualTo(formatVersion);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {1, 2})
+  public void replaceTableTransaction(int formatVersion) {
+    if (requiresNamespaceCreate()) {
+      catalog().createNamespace(NS);
+    }
+
+    catalog()
+        .newReplaceTableTransaction(
+            TABLE,
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of("format-version", String.valueOf(formatVersion)),
+            true)
+        .commitTransaction();
+
+    BaseTable table = (BaseTable) catalog().loadTable(TABLE);
+    assertThat(table.operations().current().formatVersion()).isEqualTo(formatVersion);
   }
 
   @Test
