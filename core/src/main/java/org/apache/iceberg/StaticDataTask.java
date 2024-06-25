@@ -71,8 +71,10 @@ class StaticDataTask implements DataTask {
 
   @Override
   public CloseableIterable<StructLike> rows() {
-    StructProjection projection = StructProjection.create(tableSchema, projectedSchema);
-    Iterable<StructLike> projectedRows = Iterables.transform(Arrays.asList(rows), projection::wrap);
+    Iterable<StructLike> projectedRows =
+        Iterables.transform(
+            Arrays.asList(rows),
+            r -> StructProjection.create(tableSchema, projectedSchema).wrap(r));
     return CloseableIterable.withNoopClose(projectedRows);
   }
 
