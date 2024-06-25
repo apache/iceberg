@@ -79,7 +79,11 @@ public class RowDataUtil {
    * the arity check.
    */
   public static RowData clone(
-      RowData from, RowData reuse, RowType rowType, TypeSerializer[] fieldSerializers) {
+      RowData from,
+      RowData reuse,
+      RowType rowType,
+      TypeSerializer[] fieldSerializers,
+      RowData.FieldGetter[] fieldGetters) {
     GenericRowData ret;
     if (reuse instanceof GenericRowData) {
       ret = (GenericRowData) reuse;
@@ -89,8 +93,7 @@ public class RowDataUtil {
     ret.setRowKind(from.getRowKind());
     for (int i = 0; i < rowType.getFieldCount(); i++) {
       if (!from.isNullAt(i)) {
-        RowData.FieldGetter getter = RowData.createFieldGetter(rowType.getTypeAt(i), i);
-        ret.setField(i, fieldSerializers[i].copy(getter.getFieldOrNull(from)));
+        ret.setField(i, fieldSerializers[i].copy(fieldGetters[i].getFieldOrNull(from)));
       } else {
         ret.setField(i, null);
       }
