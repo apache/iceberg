@@ -436,16 +436,7 @@ public class HadoopTableOperations implements TableOperations {
     try {
       return checkMetaDataFileRenameSuccess(fs, tempMetaDataFile, finalMetaDataFile);
     } catch (Throwable e) {
-      LOG.error(
-          "No correctness check can be performed.src=[{}],dst=[{}].",
-          tempMetaDataFile,
-          finalMetaDataFile,
-          e);
-      String msg =
-          String.format(
-              "Exception thrown when renaming [%s] to [%s].Also no correctness check can be performed.",
-              tempMetaDataFile, finalMetaDataFile);
-      throw new CommitStateUnknownException(msg, rootError != null ? rootError : e);
+      throw new CommitStateUnknownException(rootError != null ? rootError : e);
     }
   }
 
