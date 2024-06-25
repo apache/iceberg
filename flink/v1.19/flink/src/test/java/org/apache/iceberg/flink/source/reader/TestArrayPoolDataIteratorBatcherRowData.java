@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.flink.configuration.Configuration;
@@ -29,13 +30,18 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.data.GenericAppenderFactory;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -354,5 +360,47 @@ public class TestArrayPoolDataIteratorBatcherRowData {
 
     // assert end of input
     Assert.assertFalse(recordBatchIterator.hasNext());
+  }
+
+  @Test
+  public void testInitializationWithHeadFilesSkipped() throws IOException {
+    GenericRecord record0 = GenericRecord.create(TestFixtures.SCHEMA);
+    record0.setField("data", "a");
+    record0.setField("id", 1L);
+    record0.setField("dt", "-");
+
+    GenericRecord record1 = GenericRecord.create(TestFixtures.SCHEMA);
+    record1.setField("data", "a");
+    record1.setField("id", 10L);
+    record1.setField("dt", "-");
+
+    ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(Expressions.greaterThan("id", 5));
+
+    FileScanTask fileTask0 =
+        ReaderUtil.createFileTask(
+            ImmutableList.of(record0),
+            TEMPORARY_FOLDER.newFile(),
+            fileFormat,
+            appenderFactory,
+            residuals);
+
+    FileScanTask fileTask1 =
+        ReaderUtil.createFileTask(
+            ImmutableList.of(record1),
+            TEMPORARY_FOLDER.newFile(),
+            fileFormat,
+            appenderFactory,
+            residuals);
+
+    CombinedScanTask combinedTask = new BaseCombinedScanTask(Arrays.asList(fileTask0, fileTask1));
+
+    DataIterator<RowData> dataIterator = ReaderUtil.createDataIterator(combinedTask);
+
+    // split initialization
+    dataIterator.seek(0, 0);
+
+    Assertions.assertThat(dataIterator.fileOffset())
+        .as("File offset should be 1 because file 0 should be skipped")
+        .isEqualTo(1);
   }
 }
