@@ -455,7 +455,7 @@ public class SparkScanBuilder
       scan = scan.useRef(tag);
     }
 
-    return scan = configureSplitPlanning(scan);
+    return configureSplitPlanning(scan);
   }
 
   private org.apache.iceberg.Scan buildIncrementalAppendScan(
