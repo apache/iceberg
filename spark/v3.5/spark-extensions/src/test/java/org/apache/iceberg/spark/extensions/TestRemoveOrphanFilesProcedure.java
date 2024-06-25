@@ -285,7 +285,6 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    String metadataLocation = table.location() + "/metadata";
     String dataLocation = table.location() + "/data";
 
     // produce orphan files in the data location using parquet
