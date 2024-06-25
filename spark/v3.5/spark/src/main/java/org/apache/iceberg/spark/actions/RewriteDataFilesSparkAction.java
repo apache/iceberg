@@ -467,8 +467,9 @@ public class RewriteDataFilesSparkAction
     StructLike partition = group.info().partition();
     if (partition.size() > 0) {
       return String.format(
-          "Rewriting %d files (%s, file group %d/%d, %s (%d/%d)) in %s",
+          "Rewriting %d files with %d delete files (%s, file group %d/%d, %s (%d/%d)) in %s",
           group.rewrittenFiles().size(),
+          group.numDeletes(),
           rewriter.description(),
           group.info().globalIndex(),
           ctx.totalGroupCount(),
@@ -478,8 +479,9 @@ public class RewriteDataFilesSparkAction
           table.name());
     } else {
       return String.format(
-          "Rewriting %d files (%s, file group %d/%d) in %s",
+          "Rewriting %d files with %d delete files (%s, file group %d/%d) in %s",
           group.rewrittenFiles().size(),
+          group.numDeletes(),
           rewriter.description(),
           group.info().globalIndex(),
           ctx.totalGroupCount(),
