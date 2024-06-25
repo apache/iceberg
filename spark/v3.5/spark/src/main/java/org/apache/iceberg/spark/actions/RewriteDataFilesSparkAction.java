@@ -362,37 +362,15 @@ public class RewriteDataFilesSparkAction
     // start rewrite tasks
     try {
       rewriteTaskBuilder.run(fileGroup -> commitService.offer(rewriteFiles(ctx, fileGroup)));
-    } catch (ValidationException | CommitFailedException e) {
+    } catch (ValidationException e) {
       // Some commit failed, lets abort future work
-      String errorMessage = String.format(
-          "Cannot commit rewrite because of a ValidationException or CommitFailedException. This usually means that "
-        + "this rewrite has conflicted with another concurrent Iceberg operation");
-      throw new RuntimeException(errorMessage);
+      LOG.error(
+          "Cannot commit rewrite because of a ValidationException. This usually means that "
+        + "this rewrite has conflicted with another concurrent Iceberg operation.");
+      rewriteService.shutdown();
     } finally {
       rewriteService.shutdown();
       commitService.close();
-    }
-
-    int failedCommits = maxCommits - commitService.succeededCommits();
-    if (failedCommits > 0 && failedCommits <= maxFailedCommits) {
-      LOG.warn(
-          "{} is true but {} rewrite commits failed. Check the logs to determine why the individual "
-              + "commits failed. If this is persistent it may help to increase {} which will split the rewrite operation "
-              + "into smaller commits.",
-          PARTIAL_PROGRESS_ENABLED,
-          failedCommits,
-          PARTIAL_PROGRESS_MAX_COMMITS);
-    } else if (failedCommits > maxFailedCommits) {
-      String errorMessage =
-          String.format(
-              "%s is true but %d rewrite commits failed. This is more than the maximum allowed failures of %d. "
-                  + "Check the logs to determine why the individual commits failed. If this is persistent it may help to "
-                  + "increase %s which will split the rewrite operation into smaller commits.",
-              PARTIAL_PROGRESS_ENABLED,
-              failedCommits,
-              maxFailedCommits,
-              PARTIAL_PROGRESS_MAX_COMMITS);
-      throw new RuntimeException(errorMessage);
     }
 
     return ImmutableRewriteDataFiles.Result.builder()
