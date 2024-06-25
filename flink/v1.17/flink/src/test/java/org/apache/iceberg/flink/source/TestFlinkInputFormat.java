@@ -200,7 +200,8 @@ public class TestFlinkInputFormat extends TestFlinkSource {
                     .endTag("tag")
                     .endSnapshotId(1L)
                     .build())
-        .hasMessage("END_SNAPSHOT_ID and END_TAG cannot both be set.")
+        .hasMessage(
+            "Cannot specify more than one of end-snapshot-id, end-tag, or end-snapshot-timestamp.")
         .isInstanceOf(IllegalArgumentException.class);
   }
 

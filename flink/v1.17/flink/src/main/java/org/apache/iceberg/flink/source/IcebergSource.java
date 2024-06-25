@@ -291,6 +291,14 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    public Builder<T> endSnapshotTimestamp(Long endSnapshotTimestamp) {
+      if (endSnapshotTimestamp != null) {
+        readOptions.put(
+            FlinkReadOptions.END_SNAPSHOT_TIMESTAMP.key(), Long.toString(endSnapshotTimestamp));
+      }
+      return this;
+    }
+
     public Builder<T> startSnapshotId(Long newStartSnapshotId) {
       if (newStartSnapshotId != null) {
         readOptions.put(
