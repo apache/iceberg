@@ -168,7 +168,7 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 
 Supported primitive types are defined in the table below. Primitive types added after v1 have an "added by" version that is the first spec version in which the type is allowed. For example, nanosecond-precision timestamps are part of the v3 spec; using v3 types in v1 or v2 tables can break forward compatibility.
 
-| Added by verison | Primitive type     | Description                                                              | Requirements                                     |
+| Added by version | Primitive type     | Description                                                              | Requirements                                     |
 |------------------|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|
 |                  | **`boolean`**      | True or false                                                            |                                                  |
 |                  | **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
