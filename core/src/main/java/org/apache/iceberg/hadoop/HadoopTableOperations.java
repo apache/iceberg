@@ -448,7 +448,9 @@ public class HadoopTableOperations implements TableOperations {
       // Server-side error, we need to try to recheck it again
       return renameCheck(fs, tempMetaDataFile, finalMetaDataFile, e);
     } catch (Throwable e) {
-      // Maybe Client-side error,throw CommitStateUnknownException and stop everything.
+      // Maybe Client-side error,Since the rename command may have already been issued and has not
+      // yet been executed.There is no point in performing a check operation at this point.throw
+      // CommitStateUnknownException and stop everything.
       throw new CommitStateUnknownException(e);
     }
   }
