@@ -342,25 +342,36 @@ public class RewriteDataFilesSparkAction
     commitService.start();
 
     Collection<FileGroupFailureResult> rewriteFailures = new ConcurrentLinkedQueue<>();
-    // start rewrite tasks
-    Tasks.foreach(groupStream)
-        .suppressFailureWhenFinished()
-        .executeWith(rewriteService)
-        .noRetry()
-        .onFailure(
-            (fileGroup, exception) -> {
-              LOG.error("Failure during rewrite group {}", fileGroup.info(), exception);
-              rewriteFailures.add(
+
+    Tasks.Builder<RewriteFileGroup> rewriteTaskBuilder =
+        Tasks.foreach(groupStream)
+            .executeWith(rewriteService)
+            .stopOnFailure()
+            .noRetry()
+            .onFailure(
+                (fileGroup, exception) -> {
+                  LOG.warn(
+                      "Failure during rewrite process for group {}", fileGroup.info(), exception);
+                  rewriteFailures.add(
                   ImmutableRewriteDataFiles.FileGroupFailureResult.builder()
                       .info(fileGroup.info())
                       .dataFilesCount(fileGroup.numFiles())
                       .build());
-            })
-        .run(fileGroup -> commitService.offer(rewriteFiles(ctx, fileGroup)));
-    rewriteService.shutdown();
+                });
 
-    // stop commit service
-    commitService.close();
+    // start rewrite tasks
+    try {
+      rewriteTaskBuilder.run(fileGroup -> commitService.offer(rewriteFiles(ctx, fileGroup)));
+    } catch (ValidationException | CommitFailedException e) {
+      // Some commit failed, lets abort future work
+      String errorMessage = String.format(
+          "Cannot commit rewrite because of a ValidationException or CommitFailedException. This usually means that "
+        + "this rewrite has conflicted with another concurrent Iceberg operation");
+      throw new RuntimeException(errorMessage);
+    } finally {
+      rewriteService.shutdown();
+      commitService.close();
+    }
 
     int failedCommits = maxCommits - commitService.succeededCommits();
     if (failedCommits > 0 && failedCommits <= maxFailedCommits) {

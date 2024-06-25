@@ -36,6 +36,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.ValidationException;
+
 
 /**
  * An async service which allows for committing multiple file groups as their rewrites complete. The
@@ -229,10 +232,17 @@ abstract class BaseCommitService<T> implements Closeable {
         commitOrClean(batch);
         committedRewrites.addAll(batch);
         succeededCommits++;
-      } catch (Exception e) {
+      }
+      catch (ValidationException e) {
+        LOG.error("Concurrent delete", e);
+        throw e;
+      }
+      catch (Exception e) {
         LOG.error("Failure during rewrite commit process, partial progress enabled. Ignoring", e);
       }
-      inProgressCommits.remove(inProgressCommitToken);
+      finally {
+        inProgressCommits.remove(inProgressCommitToken);
+      }
     }
   }
 
