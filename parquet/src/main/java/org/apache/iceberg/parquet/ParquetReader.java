@@ -19,6 +19,12 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.util.NoSuchElementException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -29,6 +35,9 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
+import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.ParquetFileReader;
@@ -101,10 +110,23 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private final boolean reuseContainers;
     private final long[] rowGroupsStartRowPos;
 
-    private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
     private T last = null;
+
+    private int totalRowGroups;
+    private static final ExecutorService prefetchService =
+        MoreExecutors.getExitingExecutorService(
+            (ThreadPoolExecutor)
+                Executors.newFixedThreadPool(
+                    4,
+                    new ThreadFactoryBuilder()
+                        .setDaemon(true)
+                        .setNameFormat("iceberg-parquet-row-group-prefetchNext-pool-%d")
+                        .build()));
+
+    private int prefetchedRowGroup = 0;
+    private Future<PageReadStore> prefetchRowGroupFuture;
 
     FileIterator(ReadConf<T> conf) {
       this.reader = conf.reader();
@@ -113,6 +135,9 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
       this.rowGroupsStartRowPos = conf.startRowPositions();
+      this.totalRowGroups = shouldSkip.length;
+      prefetchNextRowGroup();
+      advance();
     }
 
     @Override
@@ -122,6 +147,10 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @Override
     public T next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException("No more row groups to read");
+      }
+
       if (valuesRead >= nextRowGroupStart) {
         advance();
       }
@@ -137,23 +166,48 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     }
 
     private void advance() {
-      while (shouldSkip[nextRowGroup]) {
-        nextRowGroup += 1;
-        reader.skipNextRowGroup();
-      }
-
-      PageReadStore pages;
       try {
-        pages = reader.readNextRowGroup();
-      } catch (IOException e) {
-        throw new RuntimeIOException(e);
+        Preconditions.checkNotNull(prefetchRowGroupFuture, "future should not be null");
+        PageReadStore pages = prefetchRowGroupFuture.get();
+
+        if (prefetchedRowGroup >= totalRowGroups) {
+          return;
+        }
+        Preconditions.checkState(
+            pages != null,
+            "advance() should have been only when there was at least one row group to read");
+        long rowPosition = rowGroupsStartRowPos[prefetchedRowGroup];
+        nextRowGroupStart += pages.getRowCount();
+        prefetchedRowGroup += 1;
+
+        model.setPageSource(pages, rowPosition);
+        prefetchNextRowGroup(); // eagerly fetch the next row group
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException(e);
+      } catch (ExecutionException e) {
+        throw new RuntimeException(e);
       }
+    }
 
-      long rowPosition = rowGroupsStartRowPos[nextRowGroup];
-      nextRowGroupStart += pages.getRowCount();
-      nextRowGroup += 1;
-
-      model.setPageSource(pages, rowPosition);
+    private void prefetchNextRowGroup() {
+      prefetchRowGroupFuture =
+          prefetchService.submit(
+              () -> {
+                while (prefetchedRowGroup < totalRowGroups && shouldSkip[prefetchedRowGroup]) {
+                  prefetchedRowGroup += 1;
+                  reader.skipNextRowGroup();
+                }
+                try {
+                  if (prefetchedRowGroup < totalRowGroups) {
+                    PageReadStore pageReadStore = reader.readNextRowGroup();
+                    return pageReadStore;
+                  }
+                  return null;
+                } catch (IOException e) {
+                  throw new RuntimeIOException(e);
+                }
+              });
     }
 
     @Override
