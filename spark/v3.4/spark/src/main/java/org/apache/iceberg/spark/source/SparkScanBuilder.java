@@ -37,7 +37,6 @@ import org.apache.iceberg.SparkDistributedDataScan;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.AggregateEvaluator;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.BoundAggregate;
@@ -232,15 +231,8 @@ public class SparkScanBuilder
       return false;
     }
 
-    TableScan scan = table.newScan().includeColumnStats();
-    Snapshot snapshot = readSnapshot();
-    if (snapshot == null) {
-      LOG.info("Skipping aggregate pushdown: table snapshot is null");
-      return false;
-    }
-    scan = scan.useSnapshot(snapshot.snapshotId());
-    scan = configureSplitPlanning(scan);
-    scan = scan.filter(filterExpression());
+    org.apache.iceberg.Scan scan =
+        buildIcebergBatchScan(true /* include Column Stats */, schemaWithMetadataColumns());
 
     try (CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles()) {
       List<FileScanTask> tasks = ImmutableList.copyOf(fileScanTasks);
@@ -282,11 +274,6 @@ public class SparkScanBuilder
       return false;
     }
 
-    if (readConf.startSnapshotId() != null) {
-      LOG.info("Skipping aggregate pushdown: incremental scan is not supported");
-      return false;
-    }
-
     // If group by expression is the same as the partition, the statistics information can still
     // be used to calculate min/max/count, will enable aggregate push down in next phase.
     // TODO: enable aggregate push down for partition col group by expression
@@ -296,17 +283,6 @@ public class SparkScanBuilder
     }
 
     return true;
-  }
-
-  private Snapshot readSnapshot() {
-    Snapshot snapshot;
-    if (readConf.snapshotId() != null) {
-      snapshot = table.snapshot(readConf.snapshotId());
-    } else {
-      snapshot = SnapshotUtil.latestSnapshot(table, readConf.branch());
-    }
-
-    return snapshot;
   }
 
   private boolean metricsModeSupportsAggregatePushDown(List<BoundAggregate<?, ?>> aggregates) {
@@ -387,6 +363,18 @@ public class SparkScanBuilder
   }
 
   private Scan buildBatchScan() {
+    Schema expectedSchema = schemaWithMetadataColumns();
+    return new SparkBatchQueryScan(
+        spark,
+        table,
+        buildIcebergBatchScan(false /* not include Column Stats */, expectedSchema),
+        readConf,
+        expectedSchema,
+        filterExpressions,
+        metricsReporter::scanReport);
+  }
+
+  private org.apache.iceberg.Scan buildIcebergBatchScan(boolean withStats, Schema expectedSchema) {
     Long snapshotId = readConf.snapshotId();
     Long asOfTimestamp = readConf.asOfTimestamp();
     String branch = readConf.branch();
@@ -427,21 +415,29 @@ public class SparkScanBuilder
         SparkReadOptions.END_TIMESTAMP);
 
     if (startSnapshotId != null) {
-      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId);
+      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId, withStats, expectedSchema);
     } else {
-      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag);
+      return buildBatchScan(snapshotId, asOfTimestamp, branch, tag, withStats, expectedSchema);
     }
   }
 
-  private Scan buildBatchScan(Long snapshotId, Long asOfTimestamp, String branch, String tag) {
-    Schema expectedSchema = schemaWithMetadataColumns();
-
+  private org.apache.iceberg.Scan buildBatchScan(
+      Long snapshotId,
+      Long asOfTimestamp,
+      String branch,
+      String tag,
+      boolean withStats,
+      Schema expectedSchema) {
     BatchScan scan =
         newBatchScan()
             .caseSensitive(caseSensitive)
             .filter(filterExpression())
             .project(expectedSchema)
             .metricsReporter(metricsReporter);
+
+    if (withStats) {
+      scan = scan.includeColumnStats();
+    }
 
     if (snapshotId != null) {
       scan = scan.useSnapshot(snapshotId);
@@ -459,21 +455,11 @@ public class SparkScanBuilder
       scan = scan.useRef(tag);
     }
 
-    scan = configureSplitPlanning(scan);
-
-    return new SparkBatchQueryScan(
-        spark,
-        table,
-        scan,
-        readConf,
-        expectedSchema,
-        filterExpressions,
-        metricsReporter::scanReport);
+    return scan = configureSplitPlanning(scan);
   }
 
-  private Scan buildIncrementalAppendScan(long startSnapshotId, Long endSnapshotId) {
-    Schema expectedSchema = schemaWithMetadataColumns();
-
+  private org.apache.iceberg.Scan buildIncrementalAppendScan(
+      long startSnapshotId, Long endSnapshotId, boolean withStats, Schema expectedSchema) {
     IncrementalAppendScan scan =
         table
             .newIncrementalAppendScan()
@@ -483,20 +469,15 @@ public class SparkScanBuilder
             .project(expectedSchema)
             .metricsReporter(metricsReporter);
 
+    if (withStats) {
+      scan = scan.includeColumnStats();
+    }
+
     if (endSnapshotId != null) {
       scan = scan.toSnapshot(endSnapshotId);
     }
 
-    scan = configureSplitPlanning(scan);
-
-    return new SparkBatchQueryScan(
-        spark,
-        table,
-        scan,
-        readConf,
-        expectedSchema,
-        filterExpressions,
-        metricsReporter::scanReport);
+    return configureSplitPlanning(scan);
   }
 
   @SuppressWarnings("CyclomaticComplexity")
