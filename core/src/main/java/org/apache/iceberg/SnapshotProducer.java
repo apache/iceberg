@@ -430,7 +430,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             committedSnapshot.snapshotId(),
             getClass().getSimpleName());
 
-        cleanUncommitted(Sets.newHashSet(committedSnapshot.allManifests(ops.io())));
+        if (cleanupAfterCommit()) {
+          cleanUncommitted(Sets.newHashSet(committedSnapshot.allManifests(ops.io())));
+        }
         // also clean up unused manifest lists created by multiple attempts
         for (String manifestList : manifestLists) {
           if (!committedSnapshot.manifestListLocation().equals(manifestList)) {
@@ -558,6 +560,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected boolean canInheritSnapshotId() {
     return canInheritSnapshotId;
+  }
+
+  protected boolean cleanupAfterCommit() {
+    return true;
   }
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
