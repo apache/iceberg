@@ -26,7 +26,7 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'com.github.johnrengelman:shadow:8.1.1'
+    classpath 'io.github.goooler.shadow:shadow-gradle-plugin:8.1.7'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
     // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
     // in an old version of the errorprone, which doesn't work w/ Gradle 8, so bump errorpone as
@@ -257,7 +257,7 @@ subprojects {
 }
 
 project(':iceberg-bundled-guava') {
-  apply plugin: 'com.github.johnrengelman.shadow'
+  apply plugin: 'io.github.goooler.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 
