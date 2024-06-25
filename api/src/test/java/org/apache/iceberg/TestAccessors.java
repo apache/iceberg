@@ -30,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.VariantUtil;
 import org.junit.jupiter.api.Test;
 
 public class TestAccessors {
@@ -202,6 +203,11 @@ public class TestAccessors {
   @Test
   public void testBinary() {
     assertAccessorReturns(Types.BinaryType.get(), ByteBuffer.wrap(new byte[] {1, 2, 3}));
+  }
+
+  @Test
+  public void testVariant() {
+    assertAccessorReturns(Types.VariantType.get(), ByteBuffer.wrap(VariantUtil.encodeJSON("{\"name\": \"john\"}")));
   }
 
   @Test

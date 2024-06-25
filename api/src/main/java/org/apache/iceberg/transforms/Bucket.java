@@ -63,6 +63,7 @@ class Bucket<T> implements Transform<T, Integer>, Serializable {
         return (B) new BucketString(numBuckets);
       case FIXED:
       case BINARY:
+      case VARIANT:
         return (B) new BucketByteBuffer(numBuckets);
       case TIMESTAMP_NANO:
         return (B) new BucketTimestampNano(numBuckets);

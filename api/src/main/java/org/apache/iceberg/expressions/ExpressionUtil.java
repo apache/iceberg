@@ -559,7 +559,7 @@ public class ExpressionUtil {
     } else if (literal instanceof Literals.DoubleLiteral) {
       return sanitizeNumber(((Literals.DoubleLiteral) literal).value(), "float");
     } else {
-      // for uuid, decimal, fixed, and binary, match the string result
+      // for uuid, decimal, fixed, variant, and binary, match the string result
       return sanitizeSimpleString(literal.value().toString());
     }
   }

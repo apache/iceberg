@@ -687,4 +687,50 @@ class Literals {
       return "X'" + BaseEncoding.base16().encode(bytes) + "'";
     }
   }
+
+  static class VariantLiteral extends BaseLiteral<ByteBuffer> {
+    private static final Comparator<ByteBuffer> CMP =
+            Comparators.<ByteBuffer>nullsFirst().thenComparing(Comparators.unsignedBytes());
+
+    VariantLiteral(ByteBuffer value) {
+      super(value);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Literal<T> to(Type type) {
+      switch (type.typeId()) {
+        case FIXED:
+          Types.FixedType fixed = (Types.FixedType) type;
+          if (value().remaining() == fixed.length()) {
+            return (Literal<T>) new FixedLiteral(value());
+          }
+          return null;
+        case BINARY:
+          return (Literal<T>) this;
+        default:
+          return null;
+      }
+    }
+
+    @Override
+    public Comparator<ByteBuffer> comparator() {
+      return CMP;
+    }
+
+    Object writeReplace() throws ObjectStreamException {
+      return new SerializationProxies.BinaryLiteralProxy(value());
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.VARIANT;
+    }
+
+    @Override
+    public String toString() {
+      byte[] bytes = ByteBuffers.toByteArray(value());
+      return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+    }
+  }
 }

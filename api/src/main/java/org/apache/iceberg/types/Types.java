@@ -54,6 +54,7 @@ public class Types {
           .put(StringType.get().toString(), StringType.get())
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
+          .put(VariantType.get().toString(), VariantType.get())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
@@ -408,6 +409,24 @@ public class Types {
     @Override
     public String toString() {
       return "binary";
+    }
+  }
+
+  public static class VariantType extends PrimitiveType {
+    private static final VariantType INSTANCE = new VariantType();
+
+    public static VariantType get() {
+      return INSTANCE;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.VARIANT;
+    }
+
+    @Override
+    public String toString() {
+      return "variant";
     }
   }
 

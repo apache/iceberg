@@ -94,7 +94,7 @@ public class TestCreateTable extends CatalogTestBase {
         .as("Table should not already exist")
         .isFalse();
 
-    sql("CREATE TABLE %s (id BIGINT NOT NULL, data STRING) USING iceberg", tableName);
+    sql("CREATE TABLE %s (id BIGINT NOT NULL, data STRING, v VARIANT) USING iceberg", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
     assertThat(table).as("Should load the new table").isNotNull();
@@ -102,7 +102,9 @@ public class TestCreateTable extends CatalogTestBase {
     StructType expectedSchema =
         StructType.of(
             NestedField.required(1, "id", Types.LongType.get()),
-            NestedField.optional(2, "data", Types.StringType.get()));
+            NestedField.optional(2, "data", Types.StringType.get()),
+            NestedField.optional(3, "v", Types.VariantType.get()));
+
     assertThat(table.schema().asStruct())
         .as("Should have the expected schema")
         .isEqualTo(expectedSchema);

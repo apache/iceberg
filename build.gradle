@@ -1072,6 +1072,7 @@ project(':iceberg-bom') {
         "3.3": ["2.12", "2.13"],
         "3.4": ["2.12", "2.13"],
         "3.5": ["2.12", "2.13"],
+        "4.0": ["2.12", "2.13"],
       ]
       rootProject.allprojects.forEach {
         // Do not include ':iceberg-spark', the bom itself and the root project.

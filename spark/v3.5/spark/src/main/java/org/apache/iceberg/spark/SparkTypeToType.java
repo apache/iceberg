@@ -42,6 +42,7 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampNTZType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.types.VarcharType;
+//import org.apache.spark.sql.types.VariantType;
 
 class SparkTypeToType extends SparkTypeVisitor<Type> {
   private final StructType root;
@@ -155,6 +156,8 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
           ((DecimalType) atomic).precision(), ((DecimalType) atomic).scale());
     } else if (atomic instanceof BinaryType) {
       return Types.BinaryType.get();
+    //} else if (atomic instanceof VariantType) {
+    //  return Types.VariantType.get();
     }
 
     throw new UnsupportedOperationException("Not a supported type: " + atomic.catalogString());
