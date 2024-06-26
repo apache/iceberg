@@ -54,7 +54,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * TableOperations implementation for file systems that support atomic rename.
+ * TableOperations implementation for file systems that support atomic non-overwriting rename.
+ * <p>For object storage(not support atomic non-overwriting rename), user should choose a suitable
+ * lockManager implementation.
  *
  * <p>This maintains metadata in a "metadata" folder under the table location.
  */
