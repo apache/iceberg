@@ -418,7 +418,10 @@ public class HadoopTableOperations implements TableOperations {
       throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
     }
     // If we use an object store, we can skip the concurrency checking scenario because we have to
-    // use a well-implemented lock-manager with the object store.
+    // use a well-implemented lock-manager with the object store.Also, object stores are not
+    // suitable for operations such as listStatus.
+    // If we use a filesystem that supports atomic operations, then in theory we don't need a
+    // lockManager, but we need to do a check.
     if (!useObjectStore && !nextVersionIsLatest(nextVersion, fs)) {
       throw new CommitFailedException(
           "Cannot commit version [%d] because it is smaller or much larger than the current latest version [%d].Are there other clients running in parallel with the current task?",
