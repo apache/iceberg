@@ -912,17 +912,25 @@ public class TestIcebergFilesCommitter extends TestBase {
     }
   }
 
+  /**
+   * The testcase is to simulate upserting to an Iceberg V2 table, and facing the following
+   * scenario:
+   *
+   * <ul>
+   *   <li>A specific row is updated
+   *   <li>The prepareSnapshotPreBarrier triggered
+   *   <li>Checkpoint failed for reasons outside of the Iceberg connector
+   *   <li>The specific row is updated again in the second checkpoint as well
+   *   <li>Second snapshot is triggered, and finished
+   * </ul>
+   *
+   * <p>Previously the files from the 2 snapshots were committed in a single Iceberg commit, as a
+   * results duplicate rows were created in the table.
+   *
+   * @throws Exception Exception
+   */
   @TestTemplate
   public void testCommitMultipleCheckpointsForV2Table() throws Exception {
-    // The test case are designed to solve the following scenarios:
-
-    // V2 table with Upsert enabled.
-    // And the previous checkpoint is not executed normally, the next snapshot submits a single
-    // snapshot include multiple checkpoint. That is, prepareSnapshotPreBarrier is triggered twice,
-    // but snapshotState() is only triggered once.
-    // And the data with the same primary key is required in both checkpoints, and the data file and
-    // eq-delete file are generated.
-
     assumeThat(formatVersion)
         .as("Only support equality-delete in format v2 or later.")
         .isGreaterThan(1);
