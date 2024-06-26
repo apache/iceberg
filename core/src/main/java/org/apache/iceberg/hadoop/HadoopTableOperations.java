@@ -161,9 +161,12 @@ public class HadoopTableOperations implements TableOperations {
     Path finalMetadataFile = metadataFilePath(nextVersion, codec);
     FileSystem fs = getFileSystem(tempMetadataFile, conf);
     boolean versionCommitSuccess = false;
+    boolean useObjectStore =
+        metadata.propertyAsBoolean(
+            TableProperties.OBJECT_STORE_ENABLED, TableProperties.OBJECT_STORE_ENABLED_DEFAULT);
     try {
-      fs.delete(versionHintFile(), false /* recursive delete*/);
-      versionCommitSuccess = commitNewVersion(fs, tempMetadataFile, finalMetadataFile, nextVersion);
+      versionCommitSuccess =
+          commitNewVersion(fs, tempMetadataFile, finalMetadataFile, nextVersion, useObjectStore);
       if (!versionCommitSuccess) {
         throw new CommitFailedException(
             "Can not commit newMetaData because version [%s] has already been committed. commitVersion=[%s],tempMetaData=[%s],finalMetaData=[%s].Are there other clients running in parallel with the current task?",
@@ -391,7 +394,8 @@ public class HadoopTableOperations implements TableOperations {
    * @return If it returns true, then the commit was successful.
    */
   @VisibleForTesting
-  boolean commitNewVersion(FileSystem fs, Path src, Path dst, Integer nextVersion)
+  boolean commitNewVersion(
+      FileSystem fs, Path src, Path dst, Integer nextVersion, boolean useObjectStore)
       throws IOException {
     try {
       if (!lockManager.acquire(dst.toString(), src.toString())) {
@@ -399,10 +403,14 @@ public class HadoopTableOperations implements TableOperations {
             "Failed to acquire lock on file: %s with owner: %s", dst, src);
       }
 
+      io().deleteFile(versionHintFile().toString());
+
       if (fs.exists(dst)) {
         throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
       }
-      if (!nextVersionIsLatest(nextVersion, fs)) {
+      // If we use an object store, we can skip the concurrency checking scenario because we have to
+      // use a well-implemented lock-manager with the object store.
+      if (!useObjectStore && !nextVersionIsLatest(nextVersion, fs)) {
         throw new CommitFailedException(
             "Cannot commit version [%d] because it is smaller or much larger than the current latest version [%d].Are there other clients running in parallel with the current task?",
             nextVersion, findVersionWithOutVersionHint(fs));
