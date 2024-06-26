@@ -55,6 +55,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * TableOperations implementation for file systems that support atomic non-overwriting rename.
+ *
  * <p>For object storage(not support atomic non-overwriting rename), user should choose a suitable
  * lockManager implementation.
  *
@@ -413,7 +414,7 @@ public class HadoopTableOperations implements TableOperations {
    */
   @VisibleForTesting
   boolean commitNewVersion(
-      FileSystem fs, Path src, Path dst, Integer nextVersion, boolean useObjectStore)
+      FileSystem fs, Path src, Path dst, Integer nextVersion, Boolean useObjectStore)
       throws IOException {
     io().deleteFile(versionHintFile().toString());
     if (fs.exists(dst)) {
@@ -429,7 +430,7 @@ public class HadoopTableOperations implements TableOperations {
           "Cannot commit version [%d] because it is smaller or much larger than the current latest version [%d].Are there other clients running in parallel with the current task?",
           nextVersion, findVersionWithOutVersionHint(fs));
     }
-    return renameMetaDataFileAndCheck(fs, src, dst);
+    return renameMetaDataFileAndCheck(fs, src, dst, useObjectStore);
   }
 
   protected FileSystem getFileSystem(Path path, Configuration hadoopConf) {
@@ -438,8 +439,15 @@ public class HadoopTableOperations implements TableOperations {
 
   @VisibleForTesting
   boolean checkMetaDataFileRenameSuccess(
-      FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile) throws IOException {
-    return fs.exists(finalMetaDataFile) && !fs.exists(tempMetaDataFile);
+      FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile, Boolean useObjectStore)
+      throws IOException {
+    if (!useObjectStore) {
+      return fs.exists(finalMetaDataFile) && !fs.exists(tempMetaDataFile);
+    } else {
+      // Since we have used the locking service, we only need to determine whether the target file
+      // exists or not
+      return fs.exists(finalMetaDataFile);
+    }
   }
 
   @VisibleForTesting
@@ -449,21 +457,27 @@ public class HadoopTableOperations implements TableOperations {
   }
 
   private boolean renameCheck(
-      FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile, Throwable rootError) {
+      FileSystem fs,
+      Path tempMetaDataFile,
+      Path finalMetaDataFile,
+      Throwable rootError,
+      Boolean useObjectStore) {
     try {
-      return checkMetaDataFileRenameSuccess(fs, tempMetaDataFile, finalMetaDataFile);
+      return checkMetaDataFileRenameSuccess(
+          fs, tempMetaDataFile, finalMetaDataFile, useObjectStore);
     } catch (Throwable e) {
       throw new CommitStateUnknownException(rootError != null ? rootError : e);
     }
   }
 
   @VisibleForTesting
-  boolean renameMetaDataFileAndCheck(FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile) {
+  boolean renameMetaDataFileAndCheck(
+      FileSystem fs, Path tempMetaDataFile, Path finalMetaDataFile, Boolean useObjectStore) {
     try {
       return renameMetaDataFile(fs, tempMetaDataFile, finalMetaDataFile);
     } catch (IOException e) {
       // Server-side error, we need to try to recheck it again
-      return renameCheck(fs, tempMetaDataFile, finalMetaDataFile, e);
+      return renameCheck(fs, tempMetaDataFile, finalMetaDataFile, e, useObjectStore);
     } catch (Throwable e) {
       // Maybe Client-side error,Since the rename command may have already been issued and has not
       // yet been executed.There is no point in performing a check operation at this point.throw
