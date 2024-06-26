@@ -23,6 +23,7 @@ import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
@@ -34,6 +35,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
@@ -117,7 +119,7 @@ public class SparkTable
           .build();
 
   private final Table icebergTable;
-  private final Long snapshotId;
+  private Long snapshotId;
   private final boolean refreshEagerly;
   private final Set<TableCapability> capabilities;
   private String branch;
@@ -131,12 +133,12 @@ public class SparkTable
   public SparkTable(Table icebergTable, String branch, boolean refreshEagerly) {
     this(icebergTable, refreshEagerly);
     this.branch = branch;
-    ValidationException.check(
-        branch == null
-            || SnapshotRef.MAIN_BRANCH.equals(branch)
-            || icebergTable.snapshot(branch) != null,
-        "Cannot use branch (does not exist): %s",
-        branch);
+    if (SnapshotRef.MAIN_BRANCH.equals(branch)) {
+      return;
+    }
+    Snapshot snapshot = icebergTable.snapshot(branch);
+    ValidationException.check(snapshot != null, "Cannot use branch (does not exist): %s", branch);
+    this.snapshotId = snapshot.snapshotId();
   }
 
   public SparkTable(Table icebergTable, Long snapshotId, boolean refreshEagerly) {
@@ -284,7 +286,9 @@ public class SparkTable
   @Override
   public WriteBuilder newWriteBuilder(LogicalWriteInfo info) {
     Preconditions.checkArgument(
-        snapshotId == null, "Cannot write to table at a specific snapshot: %s", snapshotId);
+        branch != null || snapshotId == null,
+        "Cannot write to table at a specific snapshot: %s",
+        snapshotId);
 
     if (icebergTable instanceof PositionDeletesTable) {
       return new SparkPositionDeletesRewriteBuilder(sparkSession(), icebergTable, branch, info);
@@ -301,7 +305,9 @@ public class SparkTable
   @Override
   public boolean canDeleteWhere(Predicate[] predicates) {
     Preconditions.checkArgument(
-        snapshotId == null, "Cannot delete from table at a specific snapshot: %s", snapshotId);
+        branch != null || snapshotId == null,
+        "Cannot delete from table at a specific snapshot: %s",
+        snapshotId);
 
     Expression deleteExpr = Expressions.alwaysTrue();
 
@@ -405,15 +411,23 @@ public class SparkTable
       return false;
     }
 
-    // use only name in order to correctly invalidate Spark cache
+    // use name only unless branch/snapshotId is given in order to correctly invalidate Spark cache
+    // when branch or snapshotId is given, it's time travel
     SparkTable that = (SparkTable) other;
-    return icebergTable.name().equals(that.icebergTable.name());
+    return icebergTable.name().equals(that.icebergTable.name())
+        && normalizedBranch().equals(that.normalizedBranch())
+        && Objects.equals(snapshotId, that.snapshotId);
   }
 
   @Override
   public int hashCode() {
-    // use only name in order to correctly invalidate Spark cache
-    return icebergTable.name().hashCode();
+    // use name only unless branch/snapshotId is given in order to correctly invalidate Spark cache
+    // when branch or snapshotId is given, it's time travel
+    return Objects.hash(icebergTable.name(), normalizedBranch(), snapshotId);
+  }
+
+  private String normalizedBranch() {
+    return branch != null ? branch : SnapshotRef.MAIN_BRANCH;
   }
 
   private static CaseInsensitiveStringMap addSnapshotId(
