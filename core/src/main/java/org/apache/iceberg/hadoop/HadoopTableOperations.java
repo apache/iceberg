@@ -165,6 +165,11 @@ public class HadoopTableOperations implements TableOperations {
         metadata.propertyAsBoolean(
             TableProperties.OBJECT_STORE_ENABLED, TableProperties.OBJECT_STORE_ENABLED_DEFAULT);
     try {
+      if (!lockManager.acquire(finalMetadataFile.toString(), tempMetadataFile.toString())) {
+        throw new CommitFailedException(
+            "Failed to acquire lock on file: %s with owner: %s",
+            finalMetadataFile, tempMetadataFile);
+      }
       versionCommitSuccess =
           commitNewVersion(fs, tempMetadataFile, finalMetadataFile, nextVersion, useObjectStore);
       if (!versionCommitSuccess) {
@@ -185,6 +190,13 @@ public class HadoopTableOperations implements TableOperations {
       if (!versionCommitSuccess) {
         io().deleteFile(tempMetadataFile.toString());
         throw new CommitFailedException(e);
+      }
+    } finally {
+      if (!lockManager.release(finalMetadataFile.toString(), tempMetadataFile.toString())) {
+        LOG.warn(
+            "Failed to release lock on file: {} with owner: {}",
+            finalMetadataFile,
+            tempMetadataFile);
       }
     }
   }
@@ -313,6 +325,9 @@ public class HadoopTableOperations implements TableOperations {
     Path tempVersionHintFile = metadataPath(UUID.randomUUID() + "-version-hint.temp");
     try {
       writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
+      // For object storage, fs.rename overwrites pre-existing files. So there is no need to delete
+      // it. For non-object stores, since we have already deleted the versionHint, there is no
+      // problem here either.
       fs.rename(tempVersionHintFile, versionHintFile);
     } catch (IOException e) {
       // Cleaning up temporary files.
@@ -397,30 +412,21 @@ public class HadoopTableOperations implements TableOperations {
   boolean commitNewVersion(
       FileSystem fs, Path src, Path dst, Integer nextVersion, boolean useObjectStore)
       throws IOException {
-    try {
-      if (!lockManager.acquire(dst.toString(), src.toString())) {
-        throw new CommitFailedException(
-            "Failed to acquire lock on file: %s with owner: %s", dst, src);
-      }
-
+    if (!useObjectStore) {
+      // If we're not using object storage, we'll delete the versionHintFile first.
       io().deleteFile(versionHintFile().toString());
-
-      if (fs.exists(dst)) {
-        throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
-      }
-      // If we use an object store, we can skip the concurrency checking scenario because we have to
-      // use a well-implemented lock-manager with the object store.
-      if (!useObjectStore && !nextVersionIsLatest(nextVersion, fs)) {
-        throw new CommitFailedException(
-            "Cannot commit version [%d] because it is smaller or much larger than the current latest version [%d].Are there other clients running in parallel with the current task?",
-            nextVersion, findVersionWithOutVersionHint(fs));
-      }
-      return renameMetaDataFileAndCheck(fs, src, dst);
-    } finally {
-      if (!lockManager.release(dst.toString(), src.toString())) {
-        LOG.warn("Failed to release lock on file: {} with owner: {}", dst, src);
-      }
     }
+    if (fs.exists(dst)) {
+      throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
+    }
+    // If we use an object store, we can skip the concurrency checking scenario because we have to
+    // use a well-implemented lock-manager with the object store.
+    if (!useObjectStore && !nextVersionIsLatest(nextVersion, fs)) {
+      throw new CommitFailedException(
+          "Cannot commit version [%d] because it is smaller or much larger than the current latest version [%d].Are there other clients running in parallel with the current task?",
+          nextVersion, findVersionWithOutVersionHint(fs));
+    }
+    return renameMetaDataFileAndCheck(fs, src, dst);
   }
 
   protected FileSystem getFileSystem(Path path, Configuration hadoopConf) {
