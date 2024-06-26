@@ -314,7 +314,7 @@ public class HadoopTableOperations implements TableOperations {
     try {
       writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
       fs.rename(tempVersionHintFile, versionHintFile);
-    } catch (Exception e) {
+    } catch (IOException e) {
       // Cleaning up temporary files.
       if (fs.exists(tempVersionHintFile)) {
         io().deleteFile(tempVersionHintFile.toString());
