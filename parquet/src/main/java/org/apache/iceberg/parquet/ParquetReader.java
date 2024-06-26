@@ -99,7 +99,6 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private final ParquetValueReader<T> model;
     private final long totalValues;
     private final boolean reuseContainers;
-    private final long[] rowGroupsStartRowPos;
 
     private int nextRowGroup = 0;
     private long nextRowGroupStart = 0;
@@ -112,7 +111,6 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       this.model = conf.model();
       this.totalValues = conf.totalValues();
       this.reuseContainers = conf.reuseContainers();
-      this.rowGroupsStartRowPos = conf.startRowPositions();
     }
 
     @Override
@@ -149,11 +147,10 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
         throw new RuntimeIOException(e);
       }
 
-      long rowPosition = rowGroupsStartRowPos[nextRowGroup];
       nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
 
-      model.setPageSource(pages, rowPosition);
+      model.setPageSource(pages);
     }
 
     @Override
