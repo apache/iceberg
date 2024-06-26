@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
@@ -33,12 +34,16 @@ import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.wrappedio.DynamicWrappedIO;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -47,10 +52,36 @@ import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+/**
+ * Test IO through {@link HadoopFileIO}.
+ * <p>
+ * Tests which call {@link HadoopFileIO#deleteFiles(Iterable)}
+ * are parameterized on the hadoop bulk delete API option;
+ */
+@ExtendWith(ParameterizedTestExtension.class)
 public class HadoopFileIOTest {
+
   private final Random random = new Random(1);
+
+  /**
+   * Should the test try to use the bulk IO API.
+   */
+  @Parameter
+  private boolean useBulkIOApi;
+
+  @Parameters(name = "useBulkIOApi = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(false, true);
+  }
+
+  /**
+   * Is the bulk delete API available through reflection.
+   */
+  private boolean bulkDeleteAvailable;
 
   private FileSystem fs;
   private HadoopFileIO hadoopFileIO;
@@ -59,14 +90,48 @@ public class HadoopFileIOTest {
 
   @BeforeEach
   public void before() throws Exception {
+
+    // try load the bulk delete API.
+    // if it is not available and this test run is parameterized to use it
+    // the tests will be skipped.
+    DynamicWrappedIO wrappedIO = new DynamicWrappedIO(getClass().getClassLoader());
+    bulkDeleteAvailable = wrappedIO.bulkDeleteAvailable();
+    if (useBulkIOApi) {
+      // skip this parameterization if the bulk delete API is not available.
+      assumeHadoopBulkDeleteAvailable();
+    }
+    // create a local FS configured to use bulk delete based on the
+    // test run parameterization.
     Configuration conf = new Configuration();
+    conf.setBoolean(HadoopFileIO.BULK_DELETE_ENABLED, useBulkIOApi);
+
     fs = FileSystem.getLocal(conf);
 
     hadoopFileIO = new HadoopFileIO(conf);
   }
 
-  @Test
-  public void testListPrefix() {
+  /**
+   * Assume that the Hadoop bulk delete API is available.
+   * This is done by trying to dyamically load the {@code WrappedIO} class.
+   */
+  private void assumeHadoopBulkDeleteAvailable() {
+    Assumptions.assumeThat(bulkDeleteAvailable)
+        .describedAs("Bulk Delete methods available")
+        .isTrue();
+  }
+
+  /**
+   * Create many files and verify that listing
+   * all files under the parent path returns the expected count.
+   * <p>
+   * After creation, bulk deletion is invoked.
+   * <p>
+   * This can be used to compare the performance of single delete versus
+   * bulk delete API use. For the local filesystem with a page size of 1,
+   * the times should be similar.
+   */
+  @TestTemplate
+  public void testListPrefixAndDeleteFiles() {
     Path parent = new Path(tempDir.toURI());
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
@@ -84,8 +149,24 @@ public class HadoopFileIOTest {
             });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    assertThat(Streams.stream(hadoopFileIO.listPrefix(parent.toUri().toString())).count())
+    final String parentString = parent.toUri().toString();
+    final List<FileInfo> files = Streams.stream(
+        hadoopFileIO.listPrefix(parentString)).collect(Collectors.toList());
+    assertThat(files.size())
+        .describedAs("Files found under %s", parentString)
         .isEqualTo(totalFiles);
+
+    // having gone to the effort of creating a few thousand files, delete them
+    // this stresses the bulk delete memory/execution path and if profiled,
+    // can highlight performance mismatches across the implementations.
+    hadoopFileIO.deleteFiles(files.stream()
+        .map(FileInfo::location)
+        .collect(Collectors.toList()));
+    // now there are no files, but the parent directory still exists as it was not
+    // deleted.
+    assertThat(Streams.stream(hadoopFileIO.listPrefix(parentString)).count())
+        .describedAs("Files found under %s after bulk delete", parentString)
+        .isEqualTo(0);
   }
 
   @Test
@@ -98,6 +179,9 @@ public class HadoopFileIOTest {
     assertThat(hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).exists()).isTrue();
     fs.delete(randomFilePath, false);
     assertThat(hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).exists()).isFalse();
+    assertThatThrownBy(
+        () -> hadoopFileIO.newInputFile(randomFilePath.toUri().toString()).getLength())
+        .isInstanceOf(NotFoundException.class);
   }
 
   @Test
@@ -115,7 +199,8 @@ public class HadoopFileIOTest {
               createRandomFiles(scalePath, scale);
               hadoopFileIO.deletePrefix(scalePath.toUri().toString());
 
-              // Hadoop filesystem will throw if the path does not exist
+              // Hadoop filesystem will throw a wrapped FileNotFoundException if the
+              // path does not exist
               assertThatThrownBy(
                       () -> hadoopFileIO.listPrefix(scalePath.toUri().toString()).iterator())
                   .isInstanceOf(UncheckedIOException.class)
@@ -129,7 +214,7 @@ public class HadoopFileIOTest {
         .hasCauseInstanceOf(FileNotFoundException.class);
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteFiles() {
     Path parent = new Path(tempDir.toURI());
     List<Path> filesCreated = createRandomFiles(parent, 10);
@@ -141,13 +226,21 @@ public class HadoopFileIOTest {
 
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteFilesErrorHandling() {
+    Path parent = new Path(tempDir.toURI());
+    // two files whose schema doesn't resolve
     List<String> filesCreated =
         random.ints(2).mapToObj(x -> "fakefsnotreal://file-" + x).collect(Collectors.toList());
+    // one file in the local FS which doesn't actually exist but whose schema is valid
+    // this MUST NOT be recorded as a failure
+    filesCreated.add(new Path(parent, "file-not-exist").toUri().toString());
     assertThatThrownBy(() -> hadoopFileIO.deleteFiles(filesCreated))
+        .describedAs("Exception raised by deleteFiles()")
         .isInstanceOf(BulkDeletionFailureException.class)
-        .hasMessage("Failed to delete 2 files");
+        .hasMessage("Failed to delete 2 files")
+        .matches((e) -> ((BulkDeletionFailureException) e).numberFailedObjects() == 2,
+            "Wrong number of failures");
   }
 
   @Test
@@ -186,34 +279,14 @@ public class HadoopFileIOTest {
   }
 
   /**
-   * Bulk Delete API tests only work against Hadoop builds with
-   * {@code org.apache.hadoop.io.wrappedio.WrappedIO} available.
+   * Verify that when bulk delete is available and enabled in the configuration,
+   * it will be used.
    */
-  @org.junit.Test
-  public void testBulkDeleteAPI() throws Throwable {
-    assumeHadoopBulkDeleteAvailable();
-    final HadoopFileIO io = createHadoopIoUsingBulkDeleteAPI();
-    Assertions.assertThat(io.isBulkDeleteApiUsed())
+  @TestTemplate
+  public void testBulkDeleteAPIAvailablility() throws Throwable {
+    Assertions.assertThat(hadoopFileIO.isBulkDeleteApiUsed())
         .describedAs("Bulk Delete API used")
-        .isTrue();
-  }
-
-  /**
-   * Assume that the Hadoop bulk delete API is available.
-   * This is done by trying to dyamically load the {@code WrappedIO} class.
-   */
-  private void assumeHadoopBulkDeleteAvailable() {
-    DynamicWrappedIO wrappedIO = new DynamicWrappedIO(getClass().getClassLoader());
-    Assumptions.assumeThat(wrappedIO.bulkDeleteAvailable())
-        .describedAs("Bulk Delete methods available")
-        .isTrue();
-  }
-
-  private static HadoopFileIO createHadoopIoUsingBulkDeleteAPI() {
-    final Configuration conf = new Configuration();
-    conf.setBoolean(HadoopFileIO.BULK_DELETE_ENABLED, true);
-    HadoopFileIO io = new HadoopFileIO(conf);
-    return io;
+        .isEqualTo(useBulkIOApi && bulkDeleteAvailable);
   }
 
   private List<Path> createRandomFiles(Path parent, int count) {
