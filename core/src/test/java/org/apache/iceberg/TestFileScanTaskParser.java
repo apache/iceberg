@@ -35,23 +35,64 @@ public class TestFileScanTaskParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid file scan task: null");
 
-    assertThatThrownBy(() -> FileScanTaskParser.fromJson(null, true))
+    assertThatThrownBy(() -> FileScanTaskParser.fromJson((String) null, true))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid JSON string for file scan task: null");
+
+    assertThatThrownBy(() -> ScanTaskParser.toJson(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid scan task: null");
+
+    assertThatThrownBy(() -> ScanTaskParser.fromJson(null, true))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid JSON string for scan task: null");
   }
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
-  public void testParser(boolean caseSensitive) {
+  public void testFileScanTaskParser(boolean caseSensitive) {
     PartitionSpec spec = TestBase.SPEC;
-    FileScanTask fileScanTask = createScanTask(spec, caseSensitive);
+    FileScanTask fileScanTask = createFileScanTask(spec, caseSensitive);
     String jsonStr = FileScanTaskParser.toJson(fileScanTask);
-    assertThat(jsonStr).isEqualTo(expectedFileScanTaskJson());
+    assertThat(jsonStr).isEqualTo(fileScanTaskJsonWithoutTaskType());
     FileScanTask deserializedTask = FileScanTaskParser.fromJson(jsonStr, caseSensitive);
     assertFileScanTaskEquals(fileScanTask, deserializedTask, spec, caseSensitive);
   }
 
-  private FileScanTask createScanTask(PartitionSpec spec, boolean caseSensitive) {
+  /** Test backward compatibility where task-type field is absent from the JSON string */
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testFileScanTaskParserWithoutTaskTypeField(boolean caseSensitive) {
+    PartitionSpec spec = TestBase.SPEC;
+    FileScanTask fileScanTask = createFileScanTask(spec, caseSensitive);
+    FileScanTask deserializedTask =
+        FileScanTaskParser.fromJson(fileScanTaskJsonWithoutTaskType(), caseSensitive);
+    assertFileScanTaskEquals(fileScanTask, deserializedTask, spec, caseSensitive);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testScanTaskParser(boolean caseSensitive) {
+    PartitionSpec spec = TestBase.SPEC;
+    FileScanTask fileScanTask = createFileScanTask(spec, caseSensitive);
+    String jsonStr = ScanTaskParser.toJson(fileScanTask);
+    assertThat(jsonStr).isEqualTo(fileScanTaskJson());
+    FileScanTask deserializedTask = ScanTaskParser.fromJson(jsonStr, caseSensitive);
+    assertFileScanTaskEquals(fileScanTask, deserializedTask, spec, caseSensitive);
+  }
+
+  /** Test backward compatibility where task-type field is absent from the JSON string */
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testScanTaskParserWithoutTaskTypeField(boolean caseSensitive) {
+    PartitionSpec spec = TestBase.SPEC;
+    FileScanTask fileScanTask = createFileScanTask(spec, caseSensitive);
+    FileScanTask deserializedTask =
+        ScanTaskParser.fromJson(fileScanTaskJsonWithoutTaskType(), caseSensitive);
+    assertFileScanTaskEquals(fileScanTask, deserializedTask, spec, caseSensitive);
+  }
+
+  private FileScanTask createFileScanTask(PartitionSpec spec, boolean caseSensitive) {
     ResidualEvaluator residualEvaluator;
     if (spec.isUnpartitioned()) {
       residualEvaluator = ResidualEvaluator.unpartitioned(Expressions.alwaysTrue());
@@ -67,8 +108,28 @@ public class TestFileScanTaskParser {
         residualEvaluator);
   }
 
-  private String expectedFileScanTaskJson() {
+  private String fileScanTaskJsonWithoutTaskType() {
     return "{\"schema\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
+        + "{\"id\":3,\"name\":\"id\",\"required\":true,\"type\":\"int\"},"
+        + "{\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
+        + "\"spec\":{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
+        + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]},"
+        + "\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
+        + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},"
+        + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
+        + "\"start\":0,\"length\":10,"
+        + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
+        + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
+        + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1},"
+        + "{\"spec-id\":0,\"content\":\"EQUALITY_DELETES\",\"file-path\":\"/path/to/data-a2-deletes.parquet\","
+        + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,"
+        + "\"record-count\":1,\"equality-ids\":[1],\"sort-order-id\":0}],"
+        + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}";
+  }
+
+  private String fileScanTaskJson() {
+    return "{\"task-type\":\"file-scan-task\","
+        + "\"schema\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
         + "{\"id\":3,\"name\":\"id\",\"required\":true,\"type\":\"int\"},"
         + "{\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
         + "\"spec\":{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
@@ -95,7 +156,7 @@ public class TestFileScanTaskParser {
           expected.deletes().get(pos), actual.deletes().get(pos), spec);
     }
 
-    assertThat(expected.schema().sameSchema(actual.schema())).as("Schema should match").isTrue();
+    assertThat(actual.schema().asStruct()).isEqualTo(expected.schema().asStruct());
     assertThat(actual.spec()).isEqualTo(expected.spec());
     assertThat(
             ExpressionUtil.equivalent(

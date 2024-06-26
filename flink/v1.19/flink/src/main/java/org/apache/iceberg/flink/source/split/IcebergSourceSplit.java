@@ -32,7 +32,7 @@ import org.apache.flink.util.InstantiationUtil;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.FileScanTaskParser;
+import org.apache.iceberg.ScanTaskParser;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -154,7 +154,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
       out.writeInt(fileScanTasks.size());
 
       for (FileScanTask fileScanTask : fileScanTasks) {
-        String taskJson = FileScanTaskParser.toJson(fileScanTask);
+        String taskJson = ScanTaskParser.toJson(fileScanTask);
         writeTaskJson(out, taskJson, version);
       }
 
@@ -199,7 +199,7 @@ public class IcebergSourceSplit implements SourceSplit, Serializable {
     List<FileScanTask> tasks = Lists.newArrayListWithCapacity(taskCount);
     for (int i = 0; i < taskCount; ++i) {
       String taskJson = readTaskJson(in, version);
-      FileScanTask task = FileScanTaskParser.fromJson(taskJson, caseSensitive);
+      FileScanTask task = ScanTaskParser.fromJson(taskJson, caseSensitive);
       tasks.add(task);
     }
 
