@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class AzureProperties implements Serializable {
@@ -38,7 +39,7 @@ public class AzureProperties implements Serializable {
 
   private Map<String, String> adlsSasTokens = Collections.emptyMap();
   private Map<String, String> adlsConnectionStrings = Collections.emptyMap();
-  private StorageSharedKeyCredential namedKeyCreds;
+  private Map.Entry<String, String> namedKeyCreds;
   private Integer adlsReadBlockSize;
   private Long adlsWriteBlockSize;
 
@@ -57,8 +58,7 @@ public class AzureProperties implements Serializable {
           "Azure authentication: shared-key requires both %s and %s",
           ADLS_SHARED_KEY_ACCOUNT_NAME,
           ADLS_SHARED_KEY_ACCOUNT_KEY);
-      this.namedKeyCreds =
-          new StorageSharedKeyCredential(sharedKeyAccountName, sharedKeyAccountKey);
+      this.namedKeyCreds = Maps.immutableEntry(sharedKeyAccountName, sharedKeyAccountKey);
     }
 
     if (properties.containsKey(ADLS_READ_BLOCK_SIZE)) {
@@ -82,7 +82,8 @@ public class AzureProperties implements Serializable {
     if (sasToken != null && !sasToken.isEmpty()) {
       builder.sasToken(sasToken);
     } else if (namedKeyCreds != null) {
-      builder.credential(namedKeyCreds);
+      builder.credential(
+          new StorageSharedKeyCredential(namedKeyCreds.getKey(), namedKeyCreds.getValue()));
     } else {
       builder.credential(new DefaultAzureCredentialBuilder().build());
     }

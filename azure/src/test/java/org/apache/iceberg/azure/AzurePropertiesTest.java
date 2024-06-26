@@ -18,8 +18,13 @@
  */
 package org.apache.iceberg.azure;
 
+import static org.apache.iceberg.azure.AzureProperties.ADLS_CONNECTION_STRING_PREFIX;
+import static org.apache.iceberg.azure.AzureProperties.ADLS_READ_BLOCK_SIZE;
+import static org.apache.iceberg.azure.AzureProperties.ADLS_SAS_TOKEN_PREFIX;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_KEY;
 import static org.apache.iceberg.azure.AzureProperties.ADLS_SHARED_KEY_ACCOUNT_NAME;
+import static org.apache.iceberg.azure.AzureProperties.ADLS_WRITE_BLOCK_SIZE;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -30,10 +35,29 @@ import static org.mockito.Mockito.verify;
 import com.azure.core.credential.TokenCredential;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
 public class AzurePropertiesTest {
+
+  @Test
+  public void testSerializable() throws Exception {
+    AzureProperties props =
+        new AzureProperties(
+            ImmutableMap.<String, String>builder()
+                .put(ADLS_SAS_TOKEN_PREFIX + "foo", "bar")
+                .put(ADLS_CONNECTION_STRING_PREFIX + "foo", "bar")
+                .put(ADLS_READ_BLOCK_SIZE, "42")
+                .put(ADLS_WRITE_BLOCK_SIZE, "42")
+                .put(ADLS_SHARED_KEY_ACCOUNT_NAME, "me")
+                .put(ADLS_SHARED_KEY_ACCOUNT_KEY, "secret")
+                .build());
+
+    AzureProperties serdedProps = TestHelpers.roundTripSerialize(props);
+    assertThat(serdedProps.adlsReadBlockSize()).isEqualTo(props.adlsReadBlockSize());
+    assertThat(serdedProps.adlsWriteBlockSize()).isEqualTo(props.adlsWriteBlockSize());
+  }
 
   @Test
   public void testWithSasToken() {
