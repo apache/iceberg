@@ -329,9 +329,6 @@ public class HadoopTableOperations implements TableOperations {
     Path tempVersionHintFile = metadataPath(UUID.randomUUID() + "-version-hint.temp");
     try {
       writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
-      // For object storage, fs.rename overwrites pre-existing files. So there is no need to delete
-      // it. For non-object stores, since we have already deleted the versionHint, there is no
-      // problem here either.
       fs.rename(tempVersionHintFile, versionHintFile);
     } catch (IOException e) {
       // Cleaning up temporary files.
@@ -416,10 +413,7 @@ public class HadoopTableOperations implements TableOperations {
   boolean commitNewVersion(
       FileSystem fs, Path src, Path dst, Integer nextVersion, boolean useObjectStore)
       throws IOException {
-    if (!useObjectStore) {
-      // If we're not using object storage, we'll delete the versionHintFile first.
-      io().deleteFile(versionHintFile().toString());
-    }
+    io().deleteFile(versionHintFile().toString());
     if (fs.exists(dst)) {
       throw new CommitFailedException("Version %d already exists: %s", nextVersion, dst);
     }
