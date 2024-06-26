@@ -192,15 +192,15 @@ public class HadoopTableOperations implements TableOperations {
         throw new CommitFailedException(e);
       }
     } finally {
-      try{
+      try {
         if (!lockManager.release(finalMetadataFile.toString(), tempMetadataFile.toString())) {
           LOG.warn(
-                  "Failed to release lock on file: {} with owner: {}",
-                  finalMetadataFile,
-                  tempMetadataFile);
+              "Failed to release lock on file: {} with owner: {}",
+              finalMetadataFile,
+              tempMetadataFile);
         }
-      }catch (Throwable ignored){
-        //do nothing.
+      } catch (Throwable ignored) {
+        // do nothing.
       }
     }
   }
