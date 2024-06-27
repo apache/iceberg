@@ -1100,6 +1100,31 @@ class LoadTableResult(BaseModel):
      - `s3.session-token`: if present, this value should be used for as the session token
      - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
 
+    ## GCP Configurations
+
+    The following configuration respected by the GCSFileIO
+     - `gcs.project-id`: The GCP project of the service you are running
+     - `gcs.service.host`: Optional alternative endpoint for the GCS FileIO to access (format protocol://host:port). If not set, it will use the standard Google endpoint.
+     - `gcs.decryption-key`: Option for customer-supplied AES256 key for server-side decryption of the blob
+     - `gcs.encryption-key`: Option for customer-supplied AES256 key for server-side encryption of the blob
+     - `gcs.user-project`: Option for blob's billing user project. This option is used only if the blob's bucket has requester_pays flag enabled
+     - `gcs.channel.read.chunk-size-bytes`: Optional INT that sets the minimum size that will be read by a single RPC. Read data will be locally buffered until consumed
+     - `gcs.channel.write.chunk-size-byte`: Optional INT that sets the  minimum size that will be written by a single RPC. Written data will be buffered and only flushed upon reaching this size or closing the channel.
+     - `gcs.oauth2.token`: String representation of the access token used for temporary access.
+     - `gcs.oauth2.token-expires-at`: A LONG that represents the date in Epoch milliseconds of when the token expires.
+     - `gcs.no-auth`: Boolean to explicitly configure "no authentication" for testing purposes using a GCS emulator
+     - `gcs.delete.batch-size`: Optional INT that configures the batch size used when deleting multiple files from a given GCS bucket. Defaults to 50.
+
+    ## Azure Configurations
+
+    The following configuration respected by the GCSFileIO
+     - `adls.sas-token.<account-name>`: The minted ADLS limited access storage token
+     - `adls.connection-string.<account-name>`: HTTP blob endpoint
+     - `adls.read.block-size-bytes`: Optional INT that represents the block size for reading.
+     - `adls.write.block-size-bytes`: Optional LONG that represents block size for writing.
+     - `adls.auth.shared-key.account.name`: The account name associated with the request
+     - `adls.auth.shared-key.account.key`: The account access key used to authenticate the request
+
     """
 
     metadata_location: Optional[str] = Field(
