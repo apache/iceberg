@@ -273,6 +273,7 @@ class IcebergToGlueConverter {
       } else {
         existingColumnMap = Collections.emptyMap();
       }
+
       List<Column> columns = toColumns(metadata, existingColumnMap);
 
       tableInputBuilder.storageDescriptor(
