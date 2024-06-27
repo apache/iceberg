@@ -1117,7 +1117,7 @@ class LoadTableResult(BaseModel):
 
     ## Azure Configurations
 
-    The following configuration respected by the GCSFileIO
+    The following configuration respected by the ADLSFileIO
      - `adls.sas-token.<account-name>`: The minted ADLS limited access storage token
      - `adls.connection-string.<account-name>`: HTTP blob endpoint
      - `adls.read.block-size-bytes`: Optional INT that represents the block size for reading.
