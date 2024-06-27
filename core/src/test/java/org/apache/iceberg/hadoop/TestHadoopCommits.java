@@ -273,7 +273,6 @@ public class TestHadoopCommits extends HadoopTableTestBase {
     doThrow(new IOException("FileSystem crash!"))
         .when(spyOps)
         .renameMetaDataFile(any(), any(), any());
-    doReturn(false).when(spyOps).checkMetaDataFileRenameSuccess(any(), any(), any(), any());
     assertCommitNotChangeVersion(
         baseTable,
         spyOps,
