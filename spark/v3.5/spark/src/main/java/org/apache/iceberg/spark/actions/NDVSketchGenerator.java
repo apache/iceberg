@@ -24,10 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.datasketches.theta.CompactSketch;
-import org.apache.datasketches.theta.SetOperationBuilder;
 import org.apache.datasketches.theta.Sketch;
-import org.apache.datasketches.theta.UpdateSketch;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.puffin.Blob;
@@ -55,16 +52,18 @@ public class NDVSketchGenerator {
 
   static List<Blob> generateNDVSketchesAndBlobs(
       SparkSession spark, Table table, long snapshotId, Set<String> columnsToBeAnalyzed) {
-    Iterator<Tuple2<String, ThetaSketchJavaSerializable>> tuple2Iterator =
+    Iterator<Tuple2<String, ThetaSketchJavaSerializable>> columnToNdvSketchPair =
         computeNDVSketches(spark, table, snapshotId, columnsToBeAnalyzed);
     Map<String, ThetaSketchJavaSerializable> sketchMap = Maps.newHashMap();
-
-    tuple2Iterator.forEachRemaining(tuple -> sketchMap.put(tuple._1, tuple._2));
-    return generateBlobs(table, columnsToBeAnalyzed, sketchMap);
+    columnToNdvSketchPair.forEachRemaining(tuple -> sketchMap.put(tuple._1, tuple._2));
+    return generateBlobs(table, columnsToBeAnalyzed, sketchMap, snapshotId);
   }
 
   private static List<Blob> generateBlobs(
-      Table table, Set<String> columns, Map<String, ThetaSketchJavaSerializable> sketchMap) {
+      Table table,
+      Set<String> columns,
+      Map<String, ThetaSketchJavaSerializable> sketchMap,
+      long snapshotId) {
     return columns.stream()
         .map(
             columnName -> {
@@ -73,8 +72,8 @@ public class NDVSketchGenerator {
               return new Blob(
                   StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
                   ImmutableList.of(table.schema().findField(columnName).fieldId()),
-                  table.currentSnapshot().snapshotId(),
-                  table.currentSnapshot().sequenceNumber(),
+                  snapshotId,
+                  table.snapshot(snapshotId).sequenceNumber(),
                   ByteBuffer.wrap(sketch.toByteArray()),
                   null,
                   ImmutableMap.of(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, String.valueOf(ndv)));
@@ -95,8 +94,7 @@ public class NDVSketchGenerator {
     Schema schema = table.schema();
     List<Types.NestedField> nestedFields =
         columns.stream().map(schema::findField).collect(Collectors.toList());
-
-    final JavaPairRDD<String, ByteBuffer> colNameAndSketchPair =
+    final JavaPairRDD<String, ByteBuffer> colNameAndSketchPairRDD =
         data.javaRDD()
             .flatMap(
                 row -> {
@@ -111,39 +109,12 @@ public class NDVSketchGenerator {
                   return columnsList.iterator();
                 })
             .mapToPair(t -> t);
-
     JavaPairRDD<String, ThetaSketchJavaSerializable> sketches =
-        colNameAndSketchPair.aggregateByKey(
+        colNameAndSketchPairRDD.aggregateByKey(
             new ThetaSketchJavaSerializable(),
-            NDVSketchGenerator::update,
-            NDVSketchGenerator::combine);
+            ThetaSketchJavaSerializable::updateSketch,
+            ThetaSketchJavaSerializable::combineSketch);
 
     return sketches.toLocalIterator();
-  }
-
-  private static ThetaSketchJavaSerializable update(
-      ThetaSketchJavaSerializable sketch, ByteBuffer val) {
-    sketch.update(val);
-    return sketch;
-  }
-
-  private static ThetaSketchJavaSerializable combine(
-      final ThetaSketchJavaSerializable sketch1, final ThetaSketchJavaSerializable sketch2) {
-    ThetaSketchJavaSerializable emptySketchWrapped =
-        new ThetaSketchJavaSerializable(UpdateSketch.builder().build().compact());
-    if (sketch1.getSketch() == null && sketch2.getSketch() == null) {
-      return emptySketchWrapped;
-    }
-    if (sketch1.getSketch() == null) {
-      return sketch2;
-    }
-    if (sketch2.getSketch() == null) {
-      return sketch1;
-    }
-
-    final CompactSketch compactSketch1 = sketch1.getCompactSketch();
-    final CompactSketch compactSketch2 = sketch2.getCompactSketch();
-    return new ThetaSketchJavaSerializable(
-        new SetOperationBuilder().buildUnion().union(compactSketch1, compactSketch2));
   }
 }
