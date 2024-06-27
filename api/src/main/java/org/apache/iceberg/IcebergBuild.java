@@ -46,12 +46,13 @@ public class IcebergBuild {
   private static String fullVersion;
 
   /** Loads the version.properties file for this module. */
+  @SuppressWarnings("CatchBlockLogException")
   public static void loadBuildInfo() {
     Properties buildProperties = new Properties();
     try (InputStream is = readResource(VERSION_PROPERTIES_FILE)) {
       buildProperties.load(is);
     } catch (Exception e) {
-      LOG.warn("Failed to load version properties from {} : reason = {}", VERSION_PROPERTIES_FILE, e.toString());
+      LOG.warn("Failed to load version properties from {} due to {}", VERSION_PROPERTIES_FILE, e);
     }
 
     IcebergBuild.shortId = buildProperties.getProperty("git.commit.id.abbrev", UNKNOWN_DEFAULT);
