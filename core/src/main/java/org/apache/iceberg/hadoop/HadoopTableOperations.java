@@ -168,11 +168,7 @@ public class HadoopTableOperations implements TableOperations {
         metadata.propertyAsBoolean(
             TableProperties.OBJECT_STORE_ENABLED, TableProperties.OBJECT_STORE_ENABLED_DEFAULT);
     try {
-      if (!lockManager.acquire(finalMetadataFile.toString(), tempMetadataFile.toString())) {
-        throw new CommitFailedException(
-            "Failed to acquire lock on file: %s with owner: %s",
-            finalMetadataFile, tempMetadataFile);
-      }
+      tryLock(tempMetadataFile, finalMetadataFile);
       versionCommitSuccess =
           commitNewVersion(fs, tempMetadataFile, finalMetadataFile, nextVersion, useObjectStore);
       if (!versionCommitSuccess) {
@@ -195,16 +191,24 @@ public class HadoopTableOperations implements TableOperations {
         throw new CommitFailedException(e);
       }
     } finally {
-      try {
-        if (!lockManager.release(finalMetadataFile.toString(), tempMetadataFile.toString())) {
-          LOG.warn(
-              "Failed to release lock on file: {} with owner: {}",
-              finalMetadataFile,
-              tempMetadataFile);
-        }
-      } catch (Throwable ignored) {
-        // do nothing.
+      unlock(tempMetadataFile, finalMetadataFile);
+    }
+  }
+
+  private void tryLock(Path src, Path dst) {
+    if (!lockManager.acquire(dst.toString(), src.toString())) {
+      throw new CommitFailedException(
+          "Failed to acquire lock on file: %s with owner: %s", dst, src);
+    }
+  }
+
+  private void unlock(Path src, Path dst) {
+    try {
+      if (!lockManager.release(dst.toString(), src.toString())) {
+        LOG.warn("Failed to release lock on file: {} with owner: {}", dst, src);
       }
+    } catch (Throwable ignored) {
+      // do nothing.
     }
   }
 
