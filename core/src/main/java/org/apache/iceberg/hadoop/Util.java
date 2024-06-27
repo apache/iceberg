@@ -27,6 +27,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.Trash;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.FileScanTask;
@@ -56,6 +57,14 @@ public class Util {
       return path.getFileSystem(conf);
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to get file system for path: %s", path);
+    }
+  }
+
+  public static Trash getFsTrash(Configuration conf) {
+    try {
+      return new Trash(conf);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to get file system trash");
     }
   }
 
