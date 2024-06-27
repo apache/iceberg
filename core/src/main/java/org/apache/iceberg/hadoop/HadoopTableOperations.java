@@ -414,6 +414,7 @@ public class HadoopTableOperations implements TableOperations {
    * @param fs the filesystem used for the rename
    * @param src the source file
    * @param dst the destination file
+   * @param useObjectStore flag by use object storage
    * @return If it returns true, then the commit was successful.
    */
   @VisibleForTesting
