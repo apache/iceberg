@@ -299,7 +299,7 @@ public class ParquetBloomRowGroupFilter {
               hashValue = bloom.hash(((Number) value).intValue());
               return bloom.findHash(hashValue);
             default:
-              return true;
+              return true;  /* rows might match */
           }
         case INT64:
           switch (type.typeId()) {
@@ -313,7 +313,7 @@ public class ParquetBloomRowGroupFilter {
               hashValue = bloom.hash(((Number) value).longValue());
               return bloom.findHash(hashValue);
             default:
-              return true;
+              return true;  /* rows might match */
           }
         case FLOAT:
           hashValue = bloom.hash(((Number) value).floatValue());
@@ -346,10 +346,10 @@ public class ParquetBloomRowGroupFilter {
               hashValue = bloom.hash(Binary.fromConstantByteArray(UUIDUtil.convert((UUID) value)));
               return bloom.findHash(hashValue);
             default:
-              return true;
+              return true;  /* rows might match */
           }
         default:
-          return true;
+          return true;  /* rows might match */
       }
     }
 
