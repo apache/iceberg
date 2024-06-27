@@ -30,6 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
@@ -367,7 +368,13 @@ public class RewriteDataFilesSparkAction
       LOG.error(
           "Cannot commit rewrite because of a ValidationException. This usually means that "
         + "this rewrite has conflicted with another concurrent Iceberg operation.");
-      rewriteService.shutdown();
+      List<Runnable> tasks = rewriteService.shutdownNow();
+      tasks.forEach(
+          task -> {
+            if (task instanceof Future) {
+              ((Future<?>) task).cancel(true);
+            }
+          });
     } finally {
       rewriteService.shutdown();
       commitService.close();
