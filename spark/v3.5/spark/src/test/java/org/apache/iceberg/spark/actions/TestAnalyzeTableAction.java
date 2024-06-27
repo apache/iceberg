@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -32,7 +31,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.AnalyzeTable;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.source.SimpleRecord;
@@ -64,6 +62,8 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
     AnalyzeTable.Result results = actions.analyzeTable(table).columns("id", "data").execute();
+    actions.analyzeTable(table).columns("id", "data").execute();
+
     assertNotNull(results);
 
     List<StatisticsFile> statisticsFiles = table.statisticsFiles();
@@ -122,37 +122,15 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testAnalyzeTableShouldThrowErrorForInvalidStatsType()
-      throws NoSuchTableException, ParseException {
-    assumeTrue(catalogName.equals("spark_catalog"));
-    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
-    // Append data to create snapshot
-    sql("INSERT into %s values(1, 'abcd')", tableName);
-    Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    SparkActions actions = SparkActions.get();
-    String statsName = "abcd";
-
-    IllegalArgumentException illegalArgumentException =
-        assertThrows(
-            IllegalArgumentException.class,
-            () ->
-                actions
-                    .analyzeTable(table)
-                    .blobTypes(Sets.newHashSet(statsName))
-                    .columns("id", "data")
-                    .execute());
-
-    assertTrue(illegalArgumentException.getMessage().equalsIgnoreCase("type not supported"));
-  }
-
-  @TestTemplate
   public void testAnalyzeTableWithNoSnapshots() throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
-    AnalyzeTable.Result result = actions.analyzeTable(table).columns("id").execute();
-    assertFalse(result.analyzed());
+    RuntimeException exception =
+        assertThrows(
+            RuntimeException.class, () -> actions.analyzeTable(table).columns("id").execute());
+    assertTrue(exception.getMessage().contains("Snapshot id is null"));
   }
 
   @AfterEach

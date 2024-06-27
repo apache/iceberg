@@ -25,6 +25,7 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import org.apache.datasketches.memory.Memory;
 import org.apache.datasketches.theta.CompactSketch;
+import org.apache.datasketches.theta.SetOperationBuilder;
 import org.apache.datasketches.theta.Sketch;
 import org.apache.datasketches.theta.UpdateSketch;
 
@@ -90,5 +91,31 @@ class ThetaSketchJavaSerializable implements Serializable {
     final byte[] serializedSketchBytes = new byte[length];
     in.readFully(serializedSketchBytes);
     sketch = CompactSketch.wrap(Memory.wrap(serializedSketchBytes));
+  }
+
+  static ThetaSketchJavaSerializable updateSketch(
+      ThetaSketchJavaSerializable sketch, ByteBuffer val) {
+    sketch.update(val);
+    return sketch;
+  }
+
+  static ThetaSketchJavaSerializable combineSketch(
+      ThetaSketchJavaSerializable sketch1, ThetaSketchJavaSerializable sketch2) {
+    ThetaSketchJavaSerializable emptySketchWrapped =
+        new ThetaSketchJavaSerializable(UpdateSketch.builder().build().compact());
+    if (sketch1.getSketch() == null && sketch2.getSketch() == null) {
+      return emptySketchWrapped;
+    }
+    if (sketch1.getSketch() == null) {
+      return sketch2;
+    }
+    if (sketch2.getSketch() == null) {
+      return sketch1;
+    }
+
+    CompactSketch compactSketch1 = sketch1.getCompactSketch();
+    CompactSketch compactSketch2 = sketch2.getCompactSketch();
+    return new ThetaSketchJavaSerializable(
+        new SetOperationBuilder().buildUnion().union(compactSketch1, compactSketch2));
   }
 }

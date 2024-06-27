@@ -30,7 +30,4 @@ interface BaseAnalyzeTable extends AnalyzeTable {
 
   @Value.Immutable
   interface Result extends AnalyzeTable.Result {}
-
-  @Value.Immutable
-  interface AnalysisResult extends AnalyzeTable.AnalysisResult {}
 }

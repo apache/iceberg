@@ -18,8 +18,7 @@
  */
 package org.apache.iceberg.actions;
 
-import java.util.List;
-import java.util.Set;
+import org.apache.iceberg.StatisticsFile;
 
 /** An action that collects statistics of an Iceberg table and writes to Puffin files. */
 public interface AnalyzeTable extends Action<AnalyzeTable, AnalyzeTable.Result> {
@@ -32,15 +31,7 @@ public interface AnalyzeTable extends Action<AnalyzeTable, AnalyzeTable.Result> 
   AnalyzeTable columns(String... columnNames);
 
   /**
-   * A set of statistics to be collected. Allowed values: apache-datasketches-theta-v1
-   *
-   * @param blobTypes set of statistics to be collected
-   * @return this for method chaining
-   */
-  AnalyzeTable blobTypes(Set<String> blobTypes);
-
-  /**
-   * id of the snapshot for which stats need to be collected
+   * Id of the snapshot for which stats need to be collected
    *
    * @param snapshotId long id of the snapshot for which stats need to be collected
    * @return this for method chaining
@@ -50,18 +41,7 @@ public interface AnalyzeTable extends Action<AnalyzeTable, AnalyzeTable.Result> 
   /** The action result that contains summaries of the Analysis. */
   interface Result {
 
-    /** Returns if the table was analyzed* */
-    boolean analyzed();
-
-    /** Returns summary of analysis */
-    List<AnalysisResult> analysisResults();
-  }
-
-  interface AnalysisResult {
-    /** Returns the name of statistic */
-    String type();
-
-    /** Returns the errors from collecting the statistics */
-    List<String> errors();
+    /** Returns statistics file. */
+    StatisticsFile statisticFile();
   }
 }
