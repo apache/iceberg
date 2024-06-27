@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,7 +30,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -447,11 +447,10 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
     table.newAppend().appendFile(FILE_A).commit();
 
-    AssertHelpers.assertThrows(
-        "Should complain about expiring snapshots",
-        ValidationException.class,
-        "Cannot expire snapshots: GC is disabled",
-        () -> SparkActions.get().expireSnapshots(table));
+    assertThatThrownBy(() -> SparkActions.get().expireSnapshots(table))
+        .as("Should complain about expiring snapshots")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot expire snapshots: GC is disabled");
   }
 
   @Test
@@ -529,11 +528,12 @@ public class TestExpireSnapshotsAction extends SparkTestBase {
 
   @Test
   public void testRetainZeroSnapshots() {
-    AssertHelpers.assertThrows(
-        "Should fail retain 0 snapshots " + "because number of snapshots to retain cannot be zero",
-        IllegalArgumentException.class,
-        "Number of snapshots to retain must be at least 1, cannot be: 0",
-        () -> SparkActions.get().expireSnapshots(table).retainLast(0).execute());
+    assertThatThrownBy(() -> SparkActions.get().expireSnapshots(table).retainLast(0).execute())
+        .as(
+            "Should fail retain 0 snapshots "
+                + "because number of snapshots to retain cannot be zero")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Number of snapshots to retain must be at least 1, cannot be: 0");
   }
 
   @Test

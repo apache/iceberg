@@ -27,24 +27,32 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
  * statistics in bytes
  */
 @Internal
-class DataStatisticsEvent<D extends DataStatistics<D, S>, S> implements OperatorEvent {
+class StatisticsEvent implements OperatorEvent {
 
   private static final long serialVersionUID = 1L;
   private final long checkpointId;
   private final byte[] statisticsBytes;
 
-  private DataStatisticsEvent(long checkpointId, byte[] statisticsBytes) {
+  private StatisticsEvent(long checkpointId, byte[] statisticsBytes) {
     this.checkpointId = checkpointId;
     this.statisticsBytes = statisticsBytes;
   }
 
-  static <D extends DataStatistics<D, S>, S> DataStatisticsEvent<D, S> create(
+  static StatisticsEvent createTaskStatisticsEvent(
       long checkpointId,
-      DataStatistics<D, S> dataStatistics,
-      TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
-    return new DataStatisticsEvent<>(
+      DataStatistics statistics,
+      TypeSerializer<DataStatistics> statisticsSerializer) {
+    return new StatisticsEvent(
+        checkpointId, StatisticsUtil.serializeDataStatistics(statistics, statisticsSerializer));
+  }
+
+  static StatisticsEvent createAggregatedStatisticsEvent(
+      long checkpointId,
+      AggregatedStatistics statistics,
+      TypeSerializer<AggregatedStatistics> statisticsSerializer) {
+    return new StatisticsEvent(
         checkpointId,
-        DataStatisticsUtil.serializeDataStatistics(dataStatistics, statisticsSerializer));
+        StatisticsUtil.serializeAggregatedStatistics(statistics, statisticsSerializer));
   }
 
   long checkpointId() {

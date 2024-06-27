@@ -31,6 +31,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -185,12 +186,12 @@ public class S3SignerServlet extends HttpServlet {
 
     Map<String, List<String>> unsignedHeaders =
         request.headers().entrySet().stream()
-            .filter(e -> UNSIGNED_HEADERS.contains(e.getKey().toLowerCase()))
+            .filter(e -> UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     Map<String, List<String>> signedHeaders =
         request.headers().entrySet().stream()
-            .filter(e -> !UNSIGNED_HEADERS.contains(e.getKey().toLowerCase()))
+            .filter(e -> !UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     SdkHttpFullRequest sign =

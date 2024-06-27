@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.orc;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,7 +30,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestORCFileIOProxies {
@@ -39,14 +41,14 @@ public class TestORCFileIOProxies {
     InputFile localFile = Files.localInput(inputFile);
     FileIOFSUtil.InputFileSystem ifs = new FileIOFSUtil.InputFileSystem(localFile);
     InputStream is = ifs.open(new Path(localFile.location()));
-    Assertions.assertThat(is).isNotNull();
+    assertThat(is).isNotNull();
 
     // Cannot use the filesystem for any other operation
-    Assertions.assertThatThrownBy(() -> ifs.getFileStatus(new Path(localFile.location())))
+    assertThatThrownBy(() -> ifs.getFileStatus(new Path(localFile.location())))
         .isInstanceOf(UnsupportedOperationException.class);
 
     // Cannot use the filesystem for any other path
-    Assertions.assertThatThrownBy(() -> ifs.open(new Path("/tmp/dummy")))
+    assertThatThrownBy(() -> ifs.open(new Path("/tmp/dummy")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Input /tmp/dummy does not equal expected");
   }
@@ -64,19 +66,19 @@ public class TestORCFileIOProxies {
       os.write('C');
     }
     // No other operation is supported
-    Assertions.assertThatThrownBy(() -> ofs.open(new Path(outputFile.location())))
+    assertThatThrownBy(() -> ofs.open(new Path(outputFile.location())))
         .isInstanceOf(UnsupportedOperationException.class);
     // No other path is supported
-    Assertions.assertThatThrownBy(() -> ofs.create(new Path("/tmp/dummy")))
+    assertThatThrownBy(() -> ofs.create(new Path("/tmp/dummy")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Input /tmp/dummy does not equal expected");
 
     FileSystem ifs = new FileIOFSUtil.InputFileSystem(outputFile.toInputFile());
     try (InputStream is = ifs.open(new Path(outputFile.location()))) {
-      Assertions.assertThat(is.read()).isEqualTo('O');
-      Assertions.assertThat(is.read()).isEqualTo('R');
-      Assertions.assertThat(is.read()).isEqualTo('C');
-      Assertions.assertThat(is.read()).isEqualTo(-1);
+      assertThat(is.read()).isEqualTo('O');
+      assertThat(is.read()).isEqualTo('R');
+      assertThat(is.read()).isEqualTo('C');
+      assertThat(is.read()).isEqualTo(-1);
     }
   }
 }

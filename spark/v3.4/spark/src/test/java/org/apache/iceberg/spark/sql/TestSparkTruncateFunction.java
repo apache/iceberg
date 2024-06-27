@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.spark.sql.AnalysisException;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -297,17 +299,17 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testWrongNumberOfArguments() {
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate()"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate()"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (): Wrong number of inputs (expected width and value)");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(1)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(1)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int): Wrong number of inputs (expected width and value)");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(1, 1L, 1)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(1, 1L, 1)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, bigint, int): Wrong number of inputs (expected width and value)");
@@ -315,24 +317,24 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testInvalidTypesCannotBeUsedForWidth() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> scalarSql("SELECT system.truncate(CAST('12.34' as DECIMAL(9, 2)), 10)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (decimal(9,2), int): Expected truncation width to be tinyint, shortint or int");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate('5', 10)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate('5', 10)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (string, int): Expected truncation width to be tinyint, shortint or int");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> scalarSql("SELECT system.truncate(INTERVAL '100-00' YEAR TO MONTH, 10)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (interval year to month, int): Expected truncation width to be tinyint, shortint or int");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "SELECT system.truncate(CAST('11 23:4:0' AS INTERVAL DAY TO SECOND), 10)"))
@@ -343,40 +345,38 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testInvalidTypesForTruncationColumn() {
-    Assertions.assertThatThrownBy(
-            () -> scalarSql("SELECT system.truncate(10, cast(12.3456 as float))"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, cast(12.3456 as float))"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, float): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    Assertions.assertThatThrownBy(
-            () -> scalarSql("SELECT system.truncate(10, cast(12.3456 as double))"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, cast(12.3456 as double))"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, double): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, true)"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, true)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, boolean): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, map(1, 1))"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, map(1, 1))"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, map<int,int>): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    Assertions.assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, array(1L))"))
+    assertThatThrownBy(() -> scalarSql("SELECT system.truncate(10, array(1L))"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, array<bigint>): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> scalarSql("SELECT system.truncate(10, INTERVAL '100-00' YEAR TO MONTH)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
             "Function 'truncate' cannot process input: (int, interval year to month): Expected truncation col to be tinyint, shortint, int, bigint, decimal, string, or binary");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "SELECT system.truncate(10, CAST('11 23:4:0' AS INTERVAL DAY TO SECOND))"))
@@ -391,13 +391,13 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
     // applyfunctionexpression instead.
     String tinyIntWidthExplain =
         (String) scalarSql("EXPLAIN EXTENDED SELECT system.truncate(1Y, 6)");
-    Assertions.assertThat(tinyIntWidthExplain)
+    assertThat(tinyIntWidthExplain)
         .contains("cast(1 as int)")
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateInt");
 
     String smallIntWidth = (String) scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5S, 6L)");
-    Assertions.assertThat(smallIntWidth)
+    assertThat(smallIntWidth)
         .contains("cast(5 as int)")
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateBigInt");
@@ -409,50 +409,49 @@ public class TestSparkTruncateFunction extends SparkTestBaseWithCatalog {
     // Non-magic calls have `applyfunctionexpression` instead.
 
     // TinyInt
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6Y)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6Y)"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateTinyInt");
 
     // SmallInt
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6S)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6S)"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateSmallInt");
 
     // Int
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED select system.truncate(5, 6)"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateInt");
 
     // Long
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 6L)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 6L)"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateBigInt");
 
     // String
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 'abcdefg')"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 'abcdefg')"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateString");
 
     // Decimal
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 12.34)"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(5, 12.34)"))
         .asString()
         .isNotNull()
         .contains(
             "staticinvoke(class org.apache.iceberg.spark.functions.TruncateFunction$TruncateDecimal");
 
     // Binary
-    Assertions.assertThat(
-            scalarSql("EXPLAIN EXTENDED SELECT system.truncate(4, X'0102030405060708')"))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.truncate(4, X'0102030405060708')"))
         .asString()
         .isNotNull()
         .contains(

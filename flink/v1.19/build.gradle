@@ -66,6 +66,8 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
       exclude group: 'org.slf4j'
     }
 
+    implementation libs.datasketches
+
     testImplementation libs.flink119.connector.test.utils
     testImplementation libs.flink119.core
     testImplementation libs.flink119.runtime
@@ -125,7 +127,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 }
 
 project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
-  apply plugin: 'com.github.johnrengelman.shadow'
+  apply plugin: 'io.github.goooler.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 

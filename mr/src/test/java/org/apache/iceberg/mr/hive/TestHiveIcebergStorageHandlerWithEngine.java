@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -311,8 +312,8 @@ public class TestHiveIcebergStorageHandlerWithEngine {
       if (type == Types.UUIDType.get() && fileFormat == FileFormat.PARQUET) {
         continue;
       }
-      String tableName = type.typeId().toString().toLowerCase() + "_table_" + i;
-      String columnName = type.typeId().toString().toLowerCase() + "_column";
+      String tableName = type.typeId().toString().toLowerCase(Locale.ROOT) + "_table_" + i;
+      String columnName = type.typeId().toString().toLowerCase(Locale.ROOT) + "_column";
 
       Schema schema = new Schema(required(1, columnName, type));
       List<Record> records = TestHelper.generateRandomRecords(schema, 1, 0L);
@@ -349,8 +350,8 @@ public class TestHiveIcebergStorageHandlerWithEngine {
       if (type == Types.UUIDType.get() && fileFormat == FileFormat.PARQUET) {
         continue;
       }
-      String tableName = type.typeId().toString().toLowerCase() + "_table_" + i;
-      String columnName = type.typeId().toString().toLowerCase() + "_column";
+      String tableName = type.typeId().toString().toLowerCase(Locale.ROOT) + "_table_" + i;
+      String columnName = type.typeId().toString().toLowerCase(Locale.ROOT) + "_column";
 
       Schema schema = new Schema(required(1, columnName, type));
       List<Record> records = TestHelper.generateRandomRecords(schema, 4, 0L);
@@ -411,7 +412,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
       if (type.equals(Types.BinaryType.get()) || type.equals(Types.FixedType.ofLength(5))) {
         continue;
       }
-      String columnName = type.typeId().toString().toLowerCase() + "_column";
+      String columnName = type.typeId().toString().toLowerCase(Locale.ROOT) + "_column";
 
       Schema schema =
           new Schema(required(1, "id", Types.LongType.get()), required(2, columnName, type));
@@ -420,7 +421,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
       Table table =
           testTables.createTable(
               shell,
-              type.typeId().toString().toLowerCase() + "_table_" + i,
+              type.typeId().toString().toLowerCase(Locale.ROOT) + "_table_" + i,
               schema,
               PartitionSpec.unpartitioned(),
               fileFormat,

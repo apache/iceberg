@@ -70,6 +70,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.auth.AuthConfig;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
@@ -219,7 +220,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     String token = mergedProps.get(OAuth2Properties.TOKEN);
     this.catalogAuth =
         new AuthSession(
-            baseHeaders, null, null, credential, scope, oauth2ServerUri, optionalOAuthParams);
+            baseHeaders,
+            AuthConfig.builder()
+                .credential(credential)
+                .scope(scope)
+                .oauth2ServerUri(oauth2ServerUri)
+                .optionalOAuthParams(optionalOAuthParams)
+                .build());
     if (authResponse != null) {
       this.catalogAuth =
           AuthSession.fromTokenResponse(

@@ -34,6 +34,7 @@ import static org.apache.iceberg.spark.SparkSQLProperties.COMPRESSION_CODEC;
 import static org.apache.iceberg.spark.SparkSQLProperties.COMPRESSION_LEVEL;
 import static org.apache.iceberg.spark.SparkSQLProperties.COMPRESSION_STRATEGY;
 import static org.apache.parquet.format.converter.ParquetMetadataConverter.NO_FILTER;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
@@ -69,7 +70,6 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -170,7 +170,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFiles.get(0), table.io())) {
       DataFile file = reader.iterator().next();
       InputFile inputFile = table.io().newInputFile(file.path().toString());
-      Assertions.assertThat(getCompressionType(inputFile))
+      assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
 
@@ -184,7 +184,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
         ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
       DeleteFile file = reader.iterator().next();
       InputFile inputFile = table.io().newInputFile(file.path().toString());
-      Assertions.assertThat(getCompressionType(inputFile))
+      assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
 
@@ -198,7 +198,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
         ManifestFiles.readDeleteManifest(deleteManifestFiles.get(0), table.io(), specMap)) {
       DeleteFile file = reader.iterator().next();
       InputFile inputFile = table.io().newInputFile(file.path().toString());
-      Assertions.assertThat(getCompressionType(inputFile))
+      assertThat(getCompressionType(inputFile))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
   }

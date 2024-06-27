@@ -80,6 +80,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   // update data
   private final List<DataFile> newDataFiles = Lists.newArrayList();
+  private final CharSequenceSet newDataFilePaths = CharSequenceSet.empty();
+  private final CharSequenceSet newDeleteFilePaths = CharSequenceSet.empty();
   private Long newDataFilesDataSequenceNumber;
   private final Map<Integer, List<DeleteFileHolder>> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
@@ -220,10 +222,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /** Add a data file to the new snapshot. */
   protected void add(DataFile file) {
     Preconditions.checkNotNull(file, "Invalid data file: null");
-    setDataSpec(file);
-    addedFilesSummary.addedFile(dataSpec(), file);
-    hasNewDataFiles = true;
-    newDataFiles.add(file);
+    if (newDataFilePaths.add(file.path())) {
+      setDataSpec(file);
+      addedFilesSummary.addedFile(dataSpec(), file);
+      hasNewDataFiles = true;
+      newDataFiles.add(file);
+    }
   }
 
   /** Add a delete file to the new snapshot. */
@@ -243,9 +247,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     PartitionSpec fileSpec = ops.current().spec(specId);
     List<DeleteFileHolder> deleteFiles =
         newDeleteFilesBySpec.computeIfAbsent(specId, s -> Lists.newArrayList());
-    deleteFiles.add(fileHolder);
-    addedFilesSummary.addedFile(fileSpec, fileHolder.deleteFile());
-    hasNewDeleteFiles = true;
+
+    if (newDeleteFilePaths.add(fileHolder.deleteFile().path())) {
+      deleteFiles.add(fileHolder);
+      addedFilesSummary.addedFile(fileSpec, fileHolder.deleteFile());
+      hasNewDeleteFiles = true;
+    }
   }
 
   private void setDataSpec(DataFile file) {

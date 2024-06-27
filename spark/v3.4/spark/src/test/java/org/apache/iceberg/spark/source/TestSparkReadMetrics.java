@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static scala.collection.JavaConverters.seqAsJavaListConverter;
 
 import java.util.List;
@@ -28,7 +29,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.metric.SQLMetric;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Test;
 import scala.collection.JavaConverters;
@@ -57,30 +57,30 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
     Map<String, SQLMetric> metricsMap =
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
     // Common
-    Assertions.assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
+    assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
 
     // data manifests
-    Assertions.assertThat(metricsMap.get("totalDataManifest").value()).isEqualTo(2);
-    Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
-    Assertions.assertThat(metricsMap.get("skippedDataManifests").value()).isEqualTo(0);
+    assertThat(metricsMap.get("totalDataManifest").value()).isEqualTo(2);
+    assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
+    assertThat(metricsMap.get("skippedDataManifests").value()).isEqualTo(0);
 
     // data files
-    Assertions.assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("totalDataFileSize").value()).isNotEqualTo(0);
+    assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
+    assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
+    assertThat(metricsMap.get("totalDataFileSize").value()).isNotEqualTo(0);
 
     // delete manifests
-    Assertions.assertThat(metricsMap.get("totalDeleteManifests").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("scannedDeleteManifests").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("skippedDeleteManifests").value()).isEqualTo(0);
+    assertThat(metricsMap.get("totalDeleteManifests").value()).isEqualTo(0);
+    assertThat(metricsMap.get("scannedDeleteManifests").value()).isEqualTo(0);
+    assertThat(metricsMap.get("skippedDeleteManifests").value()).isEqualTo(0);
 
     // delete files
-    Assertions.assertThat(metricsMap.get("totalDeleteFileSize").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("resultDeleteFiles").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("equalityDeleteFiles").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("indexedDeleteFiles").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("positionalDeleteFiles").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("skippedDeleteFiles").value()).isEqualTo(0);
+    assertThat(metricsMap.get("totalDeleteFileSize").value()).isEqualTo(0);
+    assertThat(metricsMap.get("resultDeleteFiles").value()).isEqualTo(0);
+    assertThat(metricsMap.get("equalityDeleteFiles").value()).isEqualTo(0);
+    assertThat(metricsMap.get("indexedDeleteFiles").value()).isEqualTo(0);
+    assertThat(metricsMap.get("positionalDeleteFiles").value()).isEqualTo(0);
+    assertThat(metricsMap.get("skippedDeleteFiles").value()).isEqualTo(0);
   }
 
   @Test
@@ -101,30 +101,30 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
 
     // Common
-    Assertions.assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
+    assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
 
     // data manifests
-    Assertions.assertThat(metricsMap.get("totalDataManifest").value()).isEqualTo(2);
-    Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
-    Assertions.assertThat(metricsMap.get("skippedDataManifests").value()).isEqualTo(0);
+    assertThat(metricsMap.get("totalDataManifest").value()).isEqualTo(2);
+    assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(2);
+    assertThat(metricsMap.get("skippedDataManifests").value()).isEqualTo(0);
 
     // data files
-    Assertions.assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("totalDataFileSize").value()).isNotEqualTo(0);
+    assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
+    assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(1);
+    assertThat(metricsMap.get("totalDataFileSize").value()).isNotEqualTo(0);
 
     // delete manifests
-    Assertions.assertThat(metricsMap.get("totalDeleteManifests").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("scannedDeleteManifests").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("skippedDeleteManifests").value()).isEqualTo(0);
+    assertThat(metricsMap.get("totalDeleteManifests").value()).isEqualTo(0);
+    assertThat(metricsMap.get("scannedDeleteManifests").value()).isEqualTo(0);
+    assertThat(metricsMap.get("skippedDeleteManifests").value()).isEqualTo(0);
 
     // delete files
-    Assertions.assertThat(metricsMap.get("totalDeleteFileSize").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("resultDeleteFiles").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("equalityDeleteFiles").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("indexedDeleteFiles").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("positionalDeleteFiles").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("skippedDeleteFiles").value()).isEqualTo(0);
+    assertThat(metricsMap.get("totalDeleteFileSize").value()).isEqualTo(0);
+    assertThat(metricsMap.get("resultDeleteFiles").value()).isEqualTo(0);
+    assertThat(metricsMap.get("equalityDeleteFiles").value()).isEqualTo(0);
+    assertThat(metricsMap.get("indexedDeleteFiles").value()).isEqualTo(0);
+    assertThat(metricsMap.get("positionalDeleteFiles").value()).isEqualTo(0);
+    assertThat(metricsMap.get("skippedDeleteFiles").value()).isEqualTo(0);
   }
 
   @Test
@@ -152,29 +152,29 @@ public class TestSparkReadMetrics extends SparkTestBaseWithCatalog {
         JavaConverters.mapAsJavaMapConverter(sparkPlans.get(0).metrics()).asJava();
 
     // Common
-    Assertions.assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
+    assertThat(metricsMap.get("totalPlanningDuration").value()).isNotEqualTo(0);
 
     // data manifests
-    Assertions.assertThat(metricsMap.get("totalDataManifest").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("skippedDataManifests").value()).isEqualTo(0);
+    assertThat(metricsMap.get("totalDataManifest").value()).isEqualTo(1);
+    assertThat(metricsMap.get("scannedDataManifests").value()).isEqualTo(1);
+    assertThat(metricsMap.get("skippedDataManifests").value()).isEqualTo(0);
 
     // data files
-    Assertions.assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("totalDataFileSize").value()).isNotEqualTo(0);
+    assertThat(metricsMap.get("resultDataFiles").value()).isEqualTo(1);
+    assertThat(metricsMap.get("skippedDataFiles").value()).isEqualTo(0);
+    assertThat(metricsMap.get("totalDataFileSize").value()).isNotEqualTo(0);
 
     // delete manifests
-    Assertions.assertThat(metricsMap.get("totalDeleteManifests").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("scannedDeleteManifests").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("skippedDeleteManifests").value()).isEqualTo(0);
+    assertThat(metricsMap.get("totalDeleteManifests").value()).isEqualTo(1);
+    assertThat(metricsMap.get("scannedDeleteManifests").value()).isEqualTo(1);
+    assertThat(metricsMap.get("skippedDeleteManifests").value()).isEqualTo(0);
 
     // delete files
-    Assertions.assertThat(metricsMap.get("totalDeleteFileSize").value()).isNotEqualTo(0);
-    Assertions.assertThat(metricsMap.get("resultDeleteFiles").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("equalityDeleteFiles").value()).isEqualTo(0);
-    Assertions.assertThat(metricsMap.get("indexedDeleteFiles").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("positionalDeleteFiles").value()).isEqualTo(1);
-    Assertions.assertThat(metricsMap.get("skippedDeleteFiles").value()).isEqualTo(0);
+    assertThat(metricsMap.get("totalDeleteFileSize").value()).isNotEqualTo(0);
+    assertThat(metricsMap.get("resultDeleteFiles").value()).isEqualTo(1);
+    assertThat(metricsMap.get("equalityDeleteFiles").value()).isEqualTo(0);
+    assertThat(metricsMap.get("indexedDeleteFiles").value()).isEqualTo(1);
+    assertThat(metricsMap.get("positionalDeleteFiles").value()).isEqualTo(1);
+    assertThat(metricsMap.get("skippedDeleteFiles").value()).isEqualTo(0);
   }
 }

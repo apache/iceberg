@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.snowflake;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class NamespaceHelpersTest {
@@ -29,8 +31,8 @@ public class NamespaceHelpersTest {
     Namespace icebergNamespace = Namespace.empty();
     SnowflakeIdentifier snowflakeIdentifier =
         NamespaceHelpers.toSnowflakeIdentifier(icebergNamespace);
-    Assertions.assertThat(snowflakeIdentifier).isEqualTo(SnowflakeIdentifier.ofRoot());
-    Assertions.assertThat(NamespaceHelpers.toIcebergNamespace(snowflakeIdentifier))
+    assertThat(snowflakeIdentifier).isEqualTo(SnowflakeIdentifier.ofRoot());
+    assertThat(NamespaceHelpers.toIcebergNamespace(snowflakeIdentifier))
         .isEqualTo(icebergNamespace);
   }
 
@@ -39,8 +41,8 @@ public class NamespaceHelpersTest {
     Namespace icebergNamespace = Namespace.of("DB1");
     SnowflakeIdentifier snowflakeIdentifier =
         NamespaceHelpers.toSnowflakeIdentifier(icebergNamespace);
-    Assertions.assertThat(snowflakeIdentifier).isEqualTo(SnowflakeIdentifier.ofDatabase("DB1"));
-    Assertions.assertThat(NamespaceHelpers.toIcebergNamespace(snowflakeIdentifier))
+    assertThat(snowflakeIdentifier).isEqualTo(SnowflakeIdentifier.ofDatabase("DB1"));
+    assertThat(NamespaceHelpers.toIcebergNamespace(snowflakeIdentifier))
         .isEqualTo(icebergNamespace);
   }
 
@@ -49,9 +51,8 @@ public class NamespaceHelpersTest {
     Namespace icebergNamespace = Namespace.of("DB1", "SCHEMA1");
     SnowflakeIdentifier snowflakeIdentifier =
         NamespaceHelpers.toSnowflakeIdentifier(icebergNamespace);
-    Assertions.assertThat(snowflakeIdentifier)
-        .isEqualTo(SnowflakeIdentifier.ofSchema("DB1", "SCHEMA1"));
-    Assertions.assertThat(NamespaceHelpers.toIcebergNamespace(snowflakeIdentifier))
+    assertThat(snowflakeIdentifier).isEqualTo(SnowflakeIdentifier.ofSchema("DB1", "SCHEMA1"));
+    assertThat(NamespaceHelpers.toIcebergNamespace(snowflakeIdentifier))
         .isEqualTo(icebergNamespace);
   }
 
@@ -59,15 +60,15 @@ public class NamespaceHelpersTest {
   public void testRoundTripTable() {
     TableIdentifier icebergTable = TableIdentifier.of("DB1", "SCHEMA1", "TABLE1");
     SnowflakeIdentifier snowflakeIdentifier = NamespaceHelpers.toSnowflakeIdentifier(icebergTable);
-    Assertions.assertThat(snowflakeIdentifier)
+    assertThat(snowflakeIdentifier)
         .isEqualTo(SnowflakeIdentifier.ofTable("DB1", "SCHEMA1", "TABLE1"));
-    Assertions.assertThat(NamespaceHelpers.toIcebergTableIdentifier(snowflakeIdentifier))
+    assertThat(NamespaceHelpers.toIcebergTableIdentifier(snowflakeIdentifier))
         .isEqualTo(icebergTable);
   }
 
   @Test
   public void testToSnowflakeIdentifierMaxNamespaceLevel() {
-    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+    assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(
             () ->
                 NamespaceHelpers.toSnowflakeIdentifier(
@@ -77,7 +78,7 @@ public class NamespaceHelpersTest {
 
   @Test
   public void testToSnowflakeIdentifierTableBadNamespace() {
-    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+    assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(
             () ->
                 NamespaceHelpers.toSnowflakeIdentifier(
@@ -87,7 +88,7 @@ public class NamespaceHelpersTest {
 
   @Test
   public void testToIcebergNamespaceTableFails() {
-    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+    assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(
             () ->
                 NamespaceHelpers.toIcebergNamespace(
@@ -97,7 +98,7 @@ public class NamespaceHelpersTest {
 
   @Test
   public void testToIcebergTableIdentifier() {
-    Assertions.assertThat(
+    assertThat(
             NamespaceHelpers.toIcebergTableIdentifier(
                 SnowflakeIdentifier.ofTable("DB1", "SCHEMA1", "TABLE1")))
         .isEqualTo(TableIdentifier.of("DB1", "SCHEMA1", "TABLE1"));
@@ -105,7 +106,7 @@ public class NamespaceHelpersTest {
 
   @Test
   public void testToIcebergTableIdentifierWrongType() {
-    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+    assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(
             () ->
                 NamespaceHelpers.toIcebergTableIdentifier(

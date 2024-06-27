@@ -40,6 +40,7 @@ import static org.apache.iceberg.expressions.Expressions.year;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -54,7 +55,6 @@ import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericRecordBuilder;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -413,13 +413,13 @@ public class TestBloomRowGroupFilter {
 
   @Test
   public void testMissingColumn() {
-    TestHelpers.assertThrows(
-        "Should complain about missing column in expression",
-        ValidationException.class,
-        "Cannot find field 'missing'",
-        () ->
-            new ParquetBloomRowGroupFilter(SCHEMA, lessThan("missing", 5))
-                .shouldRead(parquetSchema, rowGroupMetadata, bloomStore));
+    assertThatThrownBy(
+            () ->
+                new ParquetBloomRowGroupFilter(SCHEMA, equal("missing", 5))
+                    .shouldRead(parquetSchema, rowGroupMetadata, bloomStore))
+        .as("Should complain about missing column in expression")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot find field 'missing'");
   }
 
   @Test
@@ -973,16 +973,16 @@ public class TestBloomRowGroupFilter {
 
   @Test
   public void testMissingBloomFilterForColumn() {
-    TestHelpers.assertThrows(
-        "Should complain about missing bloom filter",
-        IllegalStateException.class,
-        "Failed to read required bloom filter for id: 10",
-        () ->
-            new ParquetBloomRowGroupFilter(SCHEMA, equal("some_nulls", "some"))
-                .shouldRead(
-                    parquetSchema,
-                    rowGroupMetadata,
-                    new DummyBloomFilterReader(null, rowGroupMetadata)));
+    assertThatThrownBy(
+            () ->
+                new ParquetBloomRowGroupFilter(SCHEMA, equal("some_nulls", "some"))
+                    .shouldRead(
+                        parquetSchema,
+                        rowGroupMetadata,
+                        new DummyBloomFilterReader(null, rowGroupMetadata)))
+        .as("Should complain about missing bloom filter")
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Failed to read required bloom filter for id: 10");
   }
 
   private static class DummyBloomFilterReader extends BloomFilterReader {

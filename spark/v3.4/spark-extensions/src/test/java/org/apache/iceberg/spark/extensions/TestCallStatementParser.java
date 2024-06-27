@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -37,7 +39,6 @@ import org.apache.spark.sql.catalyst.plans.logical.NamedArgument;
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -144,7 +145,7 @@ public class TestCallStatementParser {
 
   @Test
   public void testCallParseError() {
-    Assertions.assertThatThrownBy(() -> parser.parsePlan("CALL cat.system radish kebab"))
+    assertThatThrownBy(() -> parser.parsePlan("CALL cat.system radish kebab"))
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("missing '(' at 'radish'");
   }

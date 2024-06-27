@@ -18,18 +18,19 @@
  */
 package org.apache.iceberg.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.LockManager;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestLockManagers {
 
   @Test
   public void testLoadDefaultLockManager() {
-    Assertions.assertThat(LockManagers.defaultLockManager())
+    assertThat(LockManagers.defaultLockManager())
         .isInstanceOf(LockManagers.InMemoryLockManager.class);
   }
 
@@ -37,7 +38,7 @@ public class TestLockManagers {
   public void testLoadCustomLockManager() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(CatalogProperties.LOCK_IMPL, CustomLockManager.class.getName());
-    Assertions.assertThat(LockManagers.from(properties)).isInstanceOf(CustomLockManager.class);
+    assertThat(LockManagers.from(properties)).isInstanceOf(CustomLockManager.class);
   }
 
   static class CustomLockManager implements LockManager {

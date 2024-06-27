@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.actions;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.RECORD;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -62,7 +63,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -427,7 +427,7 @@ public class TestRewriteDataFilesAction extends CatalogTestBase {
         TABLE_NAME_WITH_PK,
         ImmutableList.of(Pair.of(1L, 1L), Pair.of(2L, 2L), Pair.of(3L, 3L), Pair.of(3L, 3L)));
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 Actions.forTable(stale1)
                     .rewriteDataFiles()

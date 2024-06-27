@@ -43,7 +43,7 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.deletes.PositionDelete;
-import org.apache.iceberg.exceptions.CommitStateUnknownException;
+import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.BasePositionDeltaWriter;
@@ -102,7 +102,7 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
   private final Distribution requiredDistribution;
   private final SortOrder[] requiredOrdering;
 
-  private boolean cleanupOnAbort = true;
+  private boolean cleanupOnAbort = false;
 
   SparkPositionDeltaWrite(
       SparkSession spark,
@@ -284,9 +284,9 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
         operation.commit(); // abort is automatically called if this fails
         long duration = System.currentTimeMillis() - start;
         LOG.info("Committed in {} ms", duration);
-      } catch (CommitStateUnknownException commitStateUnknownException) {
-        cleanupOnAbort = false;
-        throw commitStateUnknownException;
+      } catch (Exception e) {
+        cleanupOnAbort = e instanceof CleanableFailure;
+        throw e;
       }
     }
   }

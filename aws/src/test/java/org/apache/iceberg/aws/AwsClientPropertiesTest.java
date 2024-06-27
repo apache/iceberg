@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg.aws;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -45,7 +46,7 @@ public class AwsClientPropertiesTest {
     awsClientProperties.applyClientRegionConfiguration(mockS3ClientBuilder);
     Mockito.verify(mockS3ClientBuilder).region(regionArgumentCaptor.capture());
     Region region = regionArgumentCaptor.getValue();
-    Assertions.assertThat(region.id())
+    assertThat(region.id())
         .as("region parameter should match what is set in CLIENT_REGION")
         .isEqualTo("us-east-1");
   }
@@ -56,7 +57,7 @@ public class AwsClientPropertiesTest {
     AwsCredentialsProvider credentialsProvider =
         awsClientProperties.credentialsProvider(null, null, null);
 
-    Assertions.assertThat(credentialsProvider)
+    assertThat(credentialsProvider)
         .as("Should use default credentials if nothing is set")
         .isInstanceOf(DefaultCredentialsProvider.class);
   }
@@ -69,7 +70,7 @@ public class AwsClientPropertiesTest {
     AwsCredentialsProvider credentialsProvider2 =
         awsClientProperties.credentialsProvider(null, null, null);
 
-    Assertions.assertThat(credentialsProvider)
+    assertThat(credentialsProvider)
         .as("Should create a new instance in each call")
         .isNotSameAs(credentialsProvider2);
   }
@@ -81,14 +82,14 @@ public class AwsClientPropertiesTest {
     AwsCredentialsProvider credentialsProvider =
         awsClientProperties.credentialsProvider("key", "secret", null);
 
-    Assertions.assertThat(credentialsProvider.resolveCredentials())
+    assertThat(credentialsProvider.resolveCredentials())
         .as("Should use basic credentials if access key ID and secret access key are set")
         .isInstanceOf(AwsBasicCredentials.class);
-    Assertions.assertThat(credentialsProvider.resolveCredentials().accessKeyId())
+    assertThat(credentialsProvider.resolveCredentials().accessKeyId())
         .as("The access key id should be the same as the one set by tag ACCESS_KEY_ID")
         .isEqualTo("key");
 
-    Assertions.assertThat(credentialsProvider.resolveCredentials().secretAccessKey())
+    assertThat(credentialsProvider.resolveCredentials().secretAccessKey())
         .as("The secret access key should be the same as the one set by tag SECRET_ACCESS_KEY")
         .isEqualTo("secret");
   }
@@ -100,13 +101,13 @@ public class AwsClientPropertiesTest {
     AwsCredentialsProvider credentialsProvider =
         awsClientProperties.credentialsProvider("key", "secret", "token");
 
-    Assertions.assertThat(credentialsProvider.resolveCredentials())
+    assertThat(credentialsProvider.resolveCredentials())
         .as("Should use session credentials if session token is set")
         .isInstanceOf(AwsSessionCredentials.class);
-    Assertions.assertThat(credentialsProvider.resolveCredentials().accessKeyId())
+    assertThat(credentialsProvider.resolveCredentials().accessKeyId())
         .as("The access key id should be the same as the one set by tag ACCESS_KEY_ID")
         .isEqualTo("key");
-    Assertions.assertThat(credentialsProvider.resolveCredentials().secretAccessKey())
+    assertThat(credentialsProvider.resolveCredentials().secretAccessKey())
         .as("The secret access key should be the same as the one set by tag SECRET_ACCESS_KEY")
         .isEqualTo("secret");
   }
