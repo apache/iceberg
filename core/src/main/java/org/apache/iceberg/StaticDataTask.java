@@ -127,7 +127,11 @@ class StaticDataTask implements DataTask {
     return metadataFile;
   }
 
-  /** @return the table rows before projection */
+  /**
+   * Returns the table rows before projection.
+   *
+   * @return the table rows before projection
+   */
   StructLike[] tableRows() {
     return rows;
   }

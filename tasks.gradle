@@ -32,11 +32,9 @@ task aggregateJavadoc(type: Javadoc) {
 
   doLast {
     // Fix bug with search
-    if (JavaVersion.current() >= JavaVersion.VERSION_11) {
-      // Append the fix to the file
-      def searchScript = new File("site/docs/javadoc/${getJavadocVersion()}" + '/search.js')
-      searchScript.append JAVADOC_FIX_SEARCH_STR
-    }
+    // Append the fix to the file
+    def searchScript = new File("site/docs/javadoc/${getJavadocVersion()}" + '/search.js')
+    searchScript.append JAVADOC_FIX_SEARCH_STR
   }
 }
 

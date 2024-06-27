@@ -59,6 +59,7 @@ public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructab
   private Y second;
 
   /** Constructor used by Avro */
+  @SuppressWarnings("UnusedMethod")
   private Pair(Schema schema) {
     this.schema = schema;
   }
