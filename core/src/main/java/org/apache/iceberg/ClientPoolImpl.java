@@ -40,7 +40,7 @@ public abstract class ClientPoolImpl<C, E extends Exception>
   private volatile int currentSize;
   private boolean closed;
 
-  private int connectionRetryWaitPeriodMs = 1000;
+  private static final int CONNECTION_RETRY_WAIT_PERIOD_MS = 1000;
 
   public ClientPoolImpl(int poolSize, Class<? extends E> reconnectExc, boolean retryByDefault) {
     this(poolSize, reconnectExc, retryByDefault, 1);
@@ -80,7 +80,7 @@ public abstract class ClientPoolImpl<C, E extends Exception>
           } catch (Exception e) {
             if (isConnectionException(e)) {
               retryAttempts++;
-              Thread.sleep(connectionRetryWaitPeriodMs);
+              Thread.sleep(CONNECTION_RETRY_WAIT_PERIOD_MS);
             } else {
               throw reconnectExc.cast(exc);
             }

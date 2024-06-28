@@ -217,8 +217,8 @@ public class TestBaseTaskWriter extends TestBase {
 
   private static class TestTaskWriter extends BaseTaskWriter<Record> {
 
-    private RollingFileWriter dataWriter;
-    private RollingEqDeleteWriter deleteWriter;
+    private final RollingFileWriter dataWriter;
+    private final RollingEqDeleteWriter deleteWriter;
 
     private TestTaskWriter(
         PartitionSpec spec,

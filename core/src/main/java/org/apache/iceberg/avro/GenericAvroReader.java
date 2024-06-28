@@ -43,7 +43,7 @@ public class GenericAvroReader<T>
   private final Types.StructType expectedType;
   private ClassLoader loader = Thread.currentThread().getContextClassLoader();
   private Map<String, String> renames = ImmutableMap.of();
-  private Map<Integer, ?> idToConstant = ImmutableMap.of();
+  private final Map<Integer, ?> idToConstant = ImmutableMap.of();
   private Schema fileSchema = null;
   private ValueReader<T> reader = null;
 

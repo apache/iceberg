@@ -27,8 +27,8 @@ public class RewriteDataFilesActionResult {
   private static final RewriteDataFilesActionResult EMPTY =
       new RewriteDataFilesActionResult(ImmutableList.of(), ImmutableList.of());
 
-  private List<DataFile> deletedDataFiles;
-  private List<DataFile> addedDataFiles;
+  private final List<DataFile> deletedDataFiles;
+  private final List<DataFile> addedDataFiles;
 
   public RewriteDataFilesActionResult(
       List<DataFile> deletedDataFiles, List<DataFile> addedDataFiles) {

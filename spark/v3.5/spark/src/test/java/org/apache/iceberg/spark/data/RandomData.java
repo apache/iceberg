@@ -67,7 +67,7 @@ public class RandomData {
   public static Iterable<InternalRow> generateSpark(Schema schema, int numRecords, long seed) {
     return () ->
         new Iterator<InternalRow>() {
-          private SparkRandomDataGenerator generator = new SparkRandomDataGenerator(seed);
+          private final SparkRandomDataGenerator generator = new SparkRandomDataGenerator(seed);
           private int count = 0;
 
           @Override
@@ -114,7 +114,7 @@ public class RandomData {
     return () ->
         new Iterator<Record>() {
           private int count = 0;
-          private RandomDataGenerator generator = newGenerator.get();
+          private final RandomDataGenerator generator = newGenerator.get();
 
           @Override
           public boolean hasNext() {

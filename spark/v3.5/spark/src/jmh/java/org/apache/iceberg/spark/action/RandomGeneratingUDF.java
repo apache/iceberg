@@ -29,7 +29,7 @@ import org.apache.spark.sql.types.DataTypes;
 
 class RandomGeneratingUDF implements Serializable {
   private final long uniqueValues;
-  private Random rand = new Random();
+  private final Random rand = new Random();
 
   RandomGeneratingUDF(long uniqueValues) {
     this.uniqueValues = uniqueValues;

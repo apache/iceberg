@@ -68,7 +68,7 @@ abstract class AvroCustomOrderSchemaVisitor<T, F> {
     }
   }
 
-  private Deque<String> recordLevels = Lists.newLinkedList();
+  private final Deque<String> recordLevels = Lists.newLinkedList();
 
   public T record(Schema record, List<String> names, Iterable<F> fields) {
     return null;

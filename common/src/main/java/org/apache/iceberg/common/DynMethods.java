@@ -508,7 +508,7 @@ public class DynMethods {
   }
 
   private static class MakeAccessible implements PrivilegedAction<Void> {
-    private Method hidden;
+    private final Method hidden;
 
     MakeAccessible(Method hidden) {
       this.hidden = hidden;

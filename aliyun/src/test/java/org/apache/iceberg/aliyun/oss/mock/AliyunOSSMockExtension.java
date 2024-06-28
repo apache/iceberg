@@ -101,7 +101,7 @@ public class AliyunOSSMockExtension implements AliyunOSSExtension {
   }
 
   public static class Builder {
-    private Map<String, Object> props = Maps.newHashMap();
+    private final Map<String, Object> props = Maps.newHashMap();
 
     public Builder silent() {
       props.put(AliyunOSSMockApp.PROP_SILENT, true);
