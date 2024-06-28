@@ -20,6 +20,7 @@ package org.apache.iceberg.arrow.vectorized;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -59,6 +60,7 @@ import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -261,6 +263,55 @@ public class ArrowReaderTest {
     TableScan scan = table.newScan().select("timestamp");
     readAndCheckQueryResult(
         scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, ImmutableList.of("timestamp"));
+  }
+
+  @Test
+  public void testThrowsUOEWhenNewColumnHasNoValue() throws Exception {
+    rowsWritten = Lists.newArrayList();
+    tables = new HadoopTables();
+
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "a", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "b", Types.StringType.get()),
+            Types.NestedField.required(3, "c", Types.DecimalType.of(12, 3)));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).build();
+    Table table1 = tables.create(schema, spec, tableLocation);
+
+    // Add one record to the table
+    GenericRecord rec = GenericRecord.create(schema);
+    rec.setField("a", 1);
+    rec.setField("b", "san diego");
+    rec.setField("c", new BigDecimal("1024.025"));
+    List<GenericRecord> genericRecords = Lists.newArrayList();
+    genericRecords.add(rec);
+
+    AppendFiles appendFiles = table1.newAppend();
+    appendFiles.appendFile(writeParquetFile(table1, genericRecords));
+    appendFiles.commit();
+
+    // Alter the table schema by adding a new, optional column.
+    // Do not add any data for this new column in the one existing row in the table
+    // and do not insert any new rows into the table.
+    Table table = tables.load(tableLocation);
+    table.updateSchema().addColumn("a1", Types.IntegerType.get()).commit();
+
+    // Select all columns, all rows from the table
+    TableScan scan = table.newScan().select("*");
+
+    assertThatThrownBy(
+            () -> {
+              // Read the data.
+              try (VectorizedTableScanIterable itr =
+                  new VectorizedTableScanIterable(scan, 1000, false)) {
+                for (ColumnarBatch batch : itr) {
+                  // no-op
+                }
+              }
+            })
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Unsupported vector: null");
   }
 
   /**
