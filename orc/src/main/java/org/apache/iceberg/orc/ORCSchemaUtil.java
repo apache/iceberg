@@ -232,7 +232,7 @@ public final class ORCSchemaUtil {
             .map(Optional::get)
             .collect(Collectors.toList());
 
-    if (fields.size() == 0) {
+    if (fields.isEmpty()) {
       throw new IllegalArgumentException("ORC schema does not contain Iceberg IDs");
     }
 
