@@ -20,9 +20,8 @@
 name: "Flink CI"
 on:
   push:
-    branches:
-    - 'main'
-    - '0.**'
+    branches-ignore:
+    - 'dependabot/**'
     tags:
     - 'apache-iceberg-**'
   pull_request:
