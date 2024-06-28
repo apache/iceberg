@@ -362,21 +362,19 @@ public abstract class BaseParquetReaders<T> {
         case FIXED_LEN_BYTE_ARRAY:
           return new FixedReader(desc);
         case BINARY:
-          if (expected != null
-              && expected.typeId() == org.apache.iceberg.types.Type.TypeID.STRING) {
+          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.STRING) {
             return new ParquetValueReaders.StringReader(desc);
           } else {
             return new ParquetValueReaders.BytesReader(desc);
           }
         case INT32:
-          if (expected != null && expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
+          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
             return new ParquetValueReaders.IntAsLongReader(desc);
           } else {
             return new ParquetValueReaders.UnboxedReader<>(desc);
           }
         case FLOAT:
-          if (expected != null
-              && expected.typeId() == org.apache.iceberg.types.Type.TypeID.DOUBLE) {
+          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.DOUBLE) {
             return new ParquetValueReaders.FloatAsDoubleReader(desc);
           } else {
             return new ParquetValueReaders.UnboxedReader<>(desc);
