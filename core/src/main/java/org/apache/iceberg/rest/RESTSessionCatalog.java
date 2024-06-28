@@ -183,6 +183,17 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     String credential = props.get(OAuth2Properties.CREDENTIAL);
     String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
     Map<String, String> optionalOAuthParams = OAuth2Util.buildOptionalParam(props);
+    if (!props.containsKey(OAuth2Properties.OAUTH2_SERVER_URI)) {
+      LOG.warn(
+          "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to {}{}. "
+              + "This automatic fallback will be removed in a future Iceberg release."
+              + "It is recommended to configure the OAuth2 endpoint using the '{}' property to be prepared. "
+              + "This warning will disappear if the OAuth2 endpoint is explicitly configured. "
+              + "See https://github.com/apache/iceberg/issues/10537",
+          props.get(CatalogProperties.URI),
+          ResourcePaths.tokens(),
+          OAuth2Properties.OAUTH2_SERVER_URI);
+    }
     String oauth2ServerUri =
         props.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
     try (RESTClient initClient = clientBuilder.apply(props)) {

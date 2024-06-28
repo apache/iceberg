@@ -134,9 +134,20 @@ paths:
     post:
       tags:
         - OAuth2 API
-      summary: Get a token using an OAuth2 flow
+      summary: Get a token using an OAuth2 flow (DEPRECATED for REMOVAL)
+      deprecated: true
       operationId: getToken
       description:
+        The `oauth/tokens` endpoint is **DEPRECATED for REMOVAL**. It is not recommended to _not_
+        implement this endpoint, unless you are fully aware of the potential security implications.
+        All clients are encouraged to explicitly set the configuration property `oauth2-server-uri`
+        to the correct OAuth endpoint.
+        See [Security improvements in the Iceberg REST specification](https://github.com/apache/iceberg/issues/10537)
+
+
+        Old description follows
+
+
         Exchange credentials for a token using the OAuth2 client credentials flow or token exchange.
 
 

@@ -373,6 +373,7 @@ project(':iceberg-core') {
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.guava.testlib
     testImplementation libs.awaitility
+    testRuntimeOnly libs.logback.classic
   }
 }
 
