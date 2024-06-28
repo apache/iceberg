@@ -36,6 +36,17 @@ configure(sparkProjects) {
       }
     }
   }
+
+  tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+
+    // See `gradle.properties` and `$HOME/.gradle/gradle.properties`
+    maxParallelForks = Math.max(
+            Math.min(
+                    Integer.getInteger("iceberg.maxSparkTestParallelism", 2),
+                    (Runtime.runtime.availableProcessors() / 2).intValue()).intValue(),
+            1)
+  }
 }
 
 project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
@@ -104,10 +115,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation libs.sqlite.jdbc
     testImplementation libs.awaitility
-  }
-
-  test {
-    useJUnitPlatform()
   }
 
   tasks.withType(Test) {
@@ -283,15 +290,15 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     archiveClassifier.set(null)
   }
 
-  task integrationTest(type: Test) {
+  tasks.register("integrationTest", Test).configure {
     description = "Test Spark3 Runtime Jar against Spark ${sparkMajorVersion}"
     group = "verification"
     jvmArgs += project.property('extraJvmArgs')
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
     inputs.file(shadowJar.archiveFile.get().asFile.path)
+    dependsOn shadowJar
   }
-  integrationTest.dependsOn shadowJar
   check.dependsOn integrationTest
 
   jar {
