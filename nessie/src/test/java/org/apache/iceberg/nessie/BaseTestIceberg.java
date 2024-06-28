@@ -172,7 +172,7 @@ public abstract class BaseTestIceberg {
       createMissingNamespaces(tableIdentifier);
       return catalog.createTable(tableIdentifier, schema(count));
     } catch (Throwable t) {
-      LOG.error("unable to do create " + tableIdentifier.toString(), t);
+      LOG.error("unable to do create {}", tableIdentifier, t);
       throw t;
     }
   }
