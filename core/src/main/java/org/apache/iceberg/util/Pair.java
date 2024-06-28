@@ -109,7 +109,7 @@ public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructab
 
   @Override
   public String toString() {
-    return "(" + String.valueOf(first) + ", " + String.valueOf(second) + ")";
+    return "(" + first + ", " + second + ")";
   }
 
   @Override
