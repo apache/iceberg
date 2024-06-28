@@ -176,7 +176,7 @@ public class TestSparkMetadataColumns extends TestBase {
   }
 
   @TestTemplate
-  public void testPartitionMetadataColumnsWithManyColumns() {
+  public void testPartitionMetadataColumnWithManyColumns() {
     List<Types.NestedField> fields =
         Lists.newArrayList(Types.NestedField.required(0, "id", Types.LongType.get()));
     List<Types.NestedField> additionalCols =

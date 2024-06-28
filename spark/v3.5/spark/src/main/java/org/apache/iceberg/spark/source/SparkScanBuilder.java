@@ -371,34 +371,38 @@ public class SparkScanBuilder
 
   private Schema schemaWithMetadataColumns() {
     // metadata columns
-    List<Types.NestedField> fields =
+    List<Types.NestedField> metadataFields =
         metaColumns.stream()
             .distinct()
             .map(name -> MetadataColumns.metadataColumn(table, name))
             .collect(Collectors.toList());
-    // only calculate potential column id collision if meta column was requested
-    Schema meta = fields.isEmpty() ? new Schema(fields) : calculateUnionedSchema(fields);
+    // only calculate potential column id collision if metadata column was requested
+    Schema metadataSchema =
+        metadataFields.isEmpty()
+            ? new Schema(metadataFields)
+            : deduplicateSchemaIds(metadataFields);
 
     // schema or rows returned by readers
-    return TypeUtil.join(schema, meta);
+    return TypeUtil.join(schema, metadataSchema);
   }
 
-  private Schema calculateUnionedSchema(List<Types.NestedField> metaColumnFields) {
+  private Schema deduplicateSchemaIds(List<Types.NestedField> metaColumnFields) {
+    // Calculate field ids to reassign from nested partition field
+    Types.StructType partitionType = Partitioning.partitionType(table);
+    Set<Integer> idsToReassign =
+        partitionType.fields().stream().map(Types.NestedField::fieldId).collect(Collectors.toSet());
+
     // Calculate used ids by union metadata columns with all base table schemas
-    Set<Integer> currentlyUsedIds =
-        Collections.unmodifiableSet(
-            TypeUtil.indexById(Types.StructType.of(metaColumnFields)).keySet());
+    Set<Integer> metadataColumnUsedIds =
+        TypeUtil.indexById(Types.StructType.of(metaColumnFields)).keySet();
+    metadataColumnUsedIds.removeAll(idsToReassign);
+    Set<Integer> currentlyUsedIds = Collections.unmodifiableSet(metadataColumnUsedIds);
     Set<Integer> allUsedIds =
         table.schemas().values().stream()
             .map(currSchema -> TypeUtil.indexById(currSchema.asStruct()).keySet())
             .reduce(currentlyUsedIds, Sets::union);
 
-    // Calculate ids to reassign
-    Types.StructType partitionType = Partitioning.partitionType(table);
-    Set<Integer> idsToReassign =
-        partitionType.fields().stream().map(Types.NestedField::fieldId).collect(Collectors.toSet());
-
-    // Reassign selected ids to de-conflict with used ids.
+    // Reassign selected ids to deduplicate with used ids.
     AtomicInteger nextId = new AtomicInteger();
     return new Schema(
         metaColumnFields,
