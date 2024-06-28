@@ -192,7 +192,7 @@ public class NessieIcebergClient implements AutoCloseable {
 
   private TableIdentifier toIdentifier(EntriesResponse.Entry entry) {
     List<String> elements = entry.getName().getElements();
-    return TableIdentifier.of(elements.toArray(new String[elements.size()]));
+    return TableIdentifier.of(elements.toArray(new String[0]));
   }
 
   public IcebergTable table(TableIdentifier tableIdentifier) {
