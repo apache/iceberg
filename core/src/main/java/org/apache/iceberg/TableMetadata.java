@@ -1434,7 +1434,7 @@ public class TableMetadata implements Serializable {
       // what is in the metadata file, which does not store changes. metadata location with changes
       // is inconsistent.
       Preconditions.checkArgument(
-          changes.size() == 0 || discardChanges || metadataLocation == null,
+          changes.isEmpty() || discardChanges || metadataLocation == null,
           "Cannot set metadata location with changes to table metadata: %s changes",
           changes.size());
 
