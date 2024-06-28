@@ -19,8 +19,8 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -34,7 +34,6 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.MetricsModes;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SparkDistributedDataScan;
@@ -387,16 +386,19 @@ public class SparkScanBuilder
   }
 
   private Schema deduplicateSchemaIds(List<Types.NestedField> metaColumnFields) {
+    Map<Integer, Types.NestedField> indexedMetadataColumnFields =
+        TypeUtil.indexById(Types.StructType.of(metaColumnFields));
+
     // Calculate field ids to reassign from nested partition field
-    Types.StructType partitionType = Partitioning.partitionType(table);
     Set<Integer> idsToReassign =
-        partitionType.fields().stream().map(Types.NestedField::fieldId).collect(Collectors.toSet());
+        indexedMetadataColumnFields.values().stream()
+            .map(Types.NestedField::fieldId)
+            .filter(id -> !MetadataColumns.isMetadataColumn(id))
+            .collect(Collectors.toSet());
 
     // Calculate used ids by union metadata columns with all base table schemas
-    Set<Integer> metadataColumnUsedIds =
-        TypeUtil.indexById(Types.StructType.of(metaColumnFields)).keySet();
-    metadataColumnUsedIds.removeAll(idsToReassign);
-    Set<Integer> currentlyUsedIds = Collections.unmodifiableSet(metadataColumnUsedIds);
+    Set<Integer> currentlyUsedIds = indexedMetadataColumnFields.keySet();
+    currentlyUsedIds.removeAll(idsToReassign);
     Set<Integer> allUsedIds =
         table.schemas().values().stream()
             .map(currSchema -> TypeUtil.indexById(currSchema.asStruct()).keySet())
