@@ -101,7 +101,7 @@ jobs:
       with:
         distribution: zulu
         java-version: ${{ matrix.jvm }}
-    - run: ./gradlew -DallModules build -x test -x javadoc -x integrationTest
+    - run: ./gradlew -DallModules=true -DallScalaVersions=true build -x test -x javadoc -x integrationTest
 
   build-javadoc:
     runs-on: ubuntu-22.04

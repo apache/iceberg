@@ -45,10 +45,6 @@ buildscript {
   }
 }
 
-String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
-String sparkVersionsString = System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")
-List<String> sparkVersions = sparkVersionsString != null && !sparkVersionsString.isEmpty() ? sparkVersionsString.split(",") : []
-
 try {
   // apply these plugins in a try-catch block so that we can handle cases without .git directory
   apply plugin: 'com.palantir.git-version'
@@ -575,6 +571,10 @@ project(':iceberg-delta-lake') {
     integrationRuntime.extendsFrom testRuntimeOnly
   }
 
+  List<String> sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",").toList().findAll { !it.empty }
+  List<String> scalaVersions = System.getProperty("scalaVersions").split(",").findAll { !it.empty }
+  String scalaVersion = scalaVersions[0]
+
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -1021,39 +1021,24 @@ apply from: 'tasks.gradle'
 
 project(':iceberg-bom') {
   apply plugin: 'java-platform'
+}
 
-  dependencies {
-    constraints {
-      // The Iceberg-Build builds for only one Scala version at a time, so the BOM would also
-      // only contain artifacts for that single Scala version. The following code ensures that
-      // the BOM references the artifacts for all Scala versions.
-      def sparkScalaPattern = ~"(.*)-([0-9][.][0-9]+)_([0-9][.][0-9]+)"
-      def sparkScalaVersions = [
-        "3.3": ["2.12", "2.13"],
-        "3.4": ["2.12", "2.13"],
-        "3.5": ["2.12", "2.13"],
-      ]
-      rootProject.allprojects.forEach {
-        // Do not include ':iceberg-spark', the bom itself and the root project.
-        if (it.name != 'iceberg-bom' && it != rootProject && it.childProjects.isEmpty()) {
-          if (it.name.startsWith("iceberg-spark-")) {
-            def sparkScalaMatcher = sparkScalaPattern.matcher(it.name)
-            if (!sparkScalaMatcher.find()) {
-              throw new GradleException("Expected a Spark/Scala version combination in Gradle project name ${it.name}")
-            }
-            def prjName = sparkScalaMatcher.group(1)
-            def sparkVer = sparkScalaMatcher.group(2)
-            for (def scalaVer in sparkScalaVersions[sparkVer]) {
-              add("api", "${it.group}:$prjName-${sparkVer}_$scalaVer:${it.version}")
-            }
-          } else {
-            add("api", project(it.path))
-          }
-        }
-      }
-    }
-  }
+def cleanSite = tasks.register("cleanSite", Delete) {
+  group = "Build"
+  description = "Cleans build directories in site/"
+  delete("site/.cache")
+  delete("site/docs/docs")
+  delete("site/docs/javadoc")
+  delete("site/site")
+  delete("site/venv")
+}
 
-  // Needed to get the "faked" Scala artifacts into the bom
-  javaPlatform { allowDependencies() }
+def cleanOpenapi = tasks.register("cleanOpenapi", Delete) {
+  group = "Build"
+  description = "Cleans build directories in open-api/"
+  delete("open-api/venv")
+}
+
+tasks.register("clean") {
+  dependsOn(cleanSite, cleanOpenapi)
 }

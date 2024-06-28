@@ -21,36 +21,19 @@ if (jdkVersion != '11' && jdkVersion != '17' && jdkVersion != '21') {
   throw new GradleException("The JMH benchmarks must be run with JDK 11 or JDK 17 or JDK 21")
 }
 
-def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")
-def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
-def scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+List<String> flinkVersions = System.getProperty("flinkVersions").split(",").toList().findAll { !it.empty }
+List<String> sparkVersions = System.getProperty("sparkVersions").split(",").toList().findAll { !it.empty }
+List<String> scalaVersions = System.getProperty("scalaVersions").split(",").findAll { !it.empty }
+String scalaVersion = scalaVersions[0]
 def jmhProjects = [project(":iceberg-core"), project(":iceberg-data")]
 
-if (flinkVersions.contains("1.16")) {
-  jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.16"))
+for (ver in flinkVersions) {
+  jmhProjects.add(project(":iceberg-flink:iceberg-flink-${ver}"))
 }
 
-if (flinkVersions.contains("1.17")) {
-  jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.17"))
-}
-
-if (flinkVersions.contains("1.18")) {
-  jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.18"))
-}
-
-if (sparkVersions.contains("3.3")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.3_${scalaVersion}"))
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-3.3_${scalaVersion}"))
-}
-
-if (sparkVersions.contains("3.4")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.4_${scalaVersion}"))
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-3.4_${scalaVersion}"))
-}
-
-if (sparkVersions.contains("3.5")) {
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-3.5_${scalaVersion}"))
-  jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-3.5_${scalaVersion}"))
+for (ver in sparkVersions) {
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-${ver}_${scalaVersion}"))
+  jmhProjects.add(project(":iceberg-spark:iceberg-spark-extensions-${ver}_${scalaVersion}"))
 }
 
 configure(jmhProjects) {
