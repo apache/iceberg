@@ -17,17 +17,16 @@
  * under the License.
  */
 
-def flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")).split(",")
+List<String> flinkVersions = System.getProperty("flinkVersions", System.getProperty("defaultFlinkVersions")).split(",").findAll { !it.empty }
+List<String> knownFlinkVersions = System.getProperty("knownFlinkVersions").split(",")
 
-
-if (flinkVersions.contains("1.17")) {
-  apply from: file("$projectDir/v1.17/build.gradle")
+for (ver in flinkVersions) {
+  apply from: file("$projectDir/v${ver}/build.gradle")
 }
 
-if (flinkVersions.contains("1.18")) {
-  apply from: file("$projectDir/v1.18/build.gradle")
-}
-
-if (flinkVersions.contains("1.19")) {
-  apply from: file("$projectDir/v1.19/build.gradle")
+tasks.named("clean", Delete) {
+  for (ver in knownFlinkVersions) {
+    delete("v${ver}/flink/build")
+    delete("v${ver}/flink-runtime/build")
+  }
 }

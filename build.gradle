@@ -1073,3 +1073,23 @@ project(':iceberg-bom') {
   // Needed to get the "faked" Scala artifacts into the bom
   javaPlatform { allowDependencies() }
 }
+
+def cleanSite = tasks.register("cleanSite", Delete) {
+  group = "Build"
+  description = "Cleans build directories in site/"
+  delete("site/.cache")
+  delete("site/docs/docs")
+  delete("site/docs/javadoc")
+  delete("site/site")
+  delete("site/venv")
+}
+
+def cleanOpenapi = tasks.register("cleanOpenapi", Delete) {
+  group = "Build"
+  description = "Cleans build directories in open-api/"
+  delete("open-api/venv")
+}
+
+tasks.register("clean") {
+  dependsOn(cleanSite, cleanOpenapi)
+}
