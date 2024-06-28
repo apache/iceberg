@@ -22,6 +22,8 @@ import static org.apache.iceberg.ManifestContent.DATA;
 import static org.apache.iceberg.ManifestContent.DELETES;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -91,7 +93,6 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.functions;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -1118,7 +1119,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     if (!spark.version().startsWith("2")) {
       // Spark 2 isn't able to actually push down nested struct projections so this will not break
-      Assertions.assertThatThrownBy(
+      assertThatThrownBy(
               () ->
                   spark
                       .read()
@@ -2176,9 +2177,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             .select("tmp_col")
             .filter(filterExpr)
             .collectAsList();
-    Assertions.assertThat(actual)
-        .as("Rows must match")
-        .containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(actual).as("Rows must match").containsExactlyInAnyOrderElementsOf(expected);
   }
 
   private GenericData.Record manifestRecord(

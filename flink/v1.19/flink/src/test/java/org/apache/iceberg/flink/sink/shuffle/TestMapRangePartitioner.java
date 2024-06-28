@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,7 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestMapRangePartitioner {
@@ -120,7 +121,7 @@ public class TestMapRangePartitioner {
             new MapRangePartitioner.KeyAssignment(ImmutableList.of(7), ImmutableList.of(10L), 0L));
     Map<SortKey, MapRangePartitioner.KeyAssignment> actualAssignment =
         partitioner.assignment(numPartitions);
-    Assertions.assertThat(actualAssignment).isEqualTo(expectedAssignment);
+    assertThat(actualAssignment).isEqualTo(expectedAssignment);
 
     // key: subtask id
     // value pair: first is the assigned weight, second is the number of assigned keys
@@ -143,7 +144,7 @@ public class TestMapRangePartitioner {
             7,
             Pair.of(100L, 7));
     Map<Integer, Pair<Long, Integer>> actualAssignmentInfo = partitioner.assignmentInfo();
-    Assertions.assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
+    assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
 
     Map<Integer, Pair<AtomicLong, Set<RowData>>> partitionResults =
         runPartitioner(partitioner, numPartitions);
@@ -191,7 +192,7 @@ public class TestMapRangePartitioner {
             new MapRangePartitioner.KeyAssignment(ImmutableList.of(7), ImmutableList.of(15L), 5L));
     Map<SortKey, MapRangePartitioner.KeyAssignment> actualAssignment =
         partitioner.assignment(numPartitions);
-    Assertions.assertThat(actualAssignment).isEqualTo(expectedAssignment);
+    assertThat(actualAssignment).isEqualTo(expectedAssignment);
 
     // key: subtask id
     // value pair: first is the assigned weight (excluding close file cost) for the subtask,
@@ -215,7 +216,7 @@ public class TestMapRangePartitioner {
             7,
             Pair.of(75L, 7));
     Map<Integer, Pair<Long, Integer>> actualAssignmentInfo = partitioner.assignmentInfo();
-    Assertions.assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
+    assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
 
     Map<Integer, Pair<AtomicLong, Set<RowData>>> partitionResults =
         runPartitioner(partitioner, numPartitions);
@@ -258,7 +259,7 @@ public class TestMapRangePartitioner {
             new MapRangePartitioner.KeyAssignment(ImmutableList.of(8), ImmutableList.of(10L), 0L));
     Map<SortKey, MapRangePartitioner.KeyAssignment> actualAssignment =
         partitioner.assignment(numPartitions);
-    Assertions.assertThat(actualAssignment).isEqualTo(expectedAssignment);
+    assertThat(actualAssignment).isEqualTo(expectedAssignment);
 
     // key: subtask id
     // value pair: first is the assigned weight, second is the number of assigned keys
@@ -283,7 +284,7 @@ public class TestMapRangePartitioner {
             8,
             Pair.of(88L, 7));
     Map<Integer, Pair<Long, Integer>> actualAssignmentInfo = partitioner.assignmentInfo();
-    Assertions.assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
+    assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
 
     Map<Integer, Pair<AtomicLong, Set<RowData>>> partitionResults =
         runPartitioner(partitioner, numPartitions);
@@ -331,7 +332,7 @@ public class TestMapRangePartitioner {
             new MapRangePartitioner.KeyAssignment(ImmutableList.of(8), ImmutableList.of(15L), 5L));
     Map<SortKey, MapRangePartitioner.KeyAssignment> actualAssignment =
         partitioner.assignment(numPartitions);
-    Assertions.assertThat(actualAssignment).isEqualTo(expectedAssignment);
+    assertThat(actualAssignment).isEqualTo(expectedAssignment);
 
     // key: subtask id
     // value pair: first is the assigned weight for the subtask, second is the number of keys
@@ -357,7 +358,7 @@ public class TestMapRangePartitioner {
             8,
             Pair.of(61L, 7));
     Map<Integer, Pair<Long, Integer>> actualAssignmentInfo = partitioner.assignmentInfo();
-    Assertions.assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
+    assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
 
     Map<Integer, Pair<AtomicLong, Set<RowData>>> partitionResults =
         runPartitioner(partitioner, numPartitions);
@@ -399,7 +400,7 @@ public class TestMapRangePartitioner {
       Map<Integer, Pair<AtomicLong, Set<RowData>>> partitionResults,
       double maxDriftPercentage) {
 
-    Assertions.assertThat(partitionResults.size()).isEqualTo(expectedAssignmentInfo.size());
+    assertThat(partitionResults.size()).isEqualTo(expectedAssignmentInfo.size());
 
     List<Integer> expectedAssignedKeyCounts =
         Lists.newArrayListWithExpectedSize(expectedAssignmentInfo.size());
@@ -427,7 +428,7 @@ public class TestMapRangePartitioner {
         });
 
     // number of assigned keys should match exactly
-    Assertions.assertThat(actualAssignedKeyCounts)
+    assertThat(actualAssignedKeyCounts)
         .as("the number of assigned keys should match for every subtask")
         .isEqualTo(expectedAssignedKeyCounts);
 
@@ -437,7 +438,7 @@ public class TestMapRangePartitioner {
       double expectedWeight = expectedNormalizedWeights.get(subtaskId);
       double min = expectedWeight * (1 - maxDriftPercentage / 100);
       double max = expectedWeight * (1 + maxDriftPercentage / 100);
-      Assertions.assertThat(actualNormalizedWeights.get(subtaskId))
+      assertThat(actualNormalizedWeights.get(subtaskId))
           .as(
               "Subtask %d weight should within %.1f percent of the expected range %s",
               subtaskId, maxDriftPercentage, expectedWeight)

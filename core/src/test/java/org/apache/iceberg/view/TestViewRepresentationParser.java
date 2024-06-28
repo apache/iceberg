@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.view;
 
-import org.assertj.core.api.Assertions;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.junit.jupiter.api.Test;
 
 public class TestViewRepresentationParser {
@@ -27,26 +29,25 @@ public class TestViewRepresentationParser {
   public void testParseUnknownViewRepresentation() {
     String json = "{\"type\":\"unknown-sql-representation\"}";
     ViewRepresentation unknownRepresentation = ViewRepresentationParser.fromJson(json);
-    Assertions.assertThat(
+    assertThat(
             ImmutableUnknownViewRepresentation.builder().type("unknown-sql-representation").build())
         .isEqualTo(unknownRepresentation);
 
-    Assertions.assertThatThrownBy(() -> ViewRepresentationParser.toJson(unknownRepresentation))
+    assertThatThrownBy(() -> ViewRepresentationParser.toJson(unknownRepresentation))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot serialize unsupported view representation: unknown-sql-representation");
   }
 
   @Test
   public void testNullViewRepresentation() {
-    Assertions.assertThatThrownBy(() -> ViewRepresentationParser.toJson(null))
+    assertThatThrownBy(() -> ViewRepresentationParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid view representation: null");
   }
 
   @Test
   public void testViewRepresentationMissingType() {
-    Assertions.assertThatThrownBy(
-            () -> ViewRepresentationParser.fromJson("{\"sql\":\"select * from foo\"}"))
+    assertThatThrownBy(() -> ViewRepresentationParser.fromJson("{\"sql\":\"select * from foo\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: type");
   }

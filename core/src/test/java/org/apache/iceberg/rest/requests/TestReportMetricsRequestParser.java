@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.rest.requests;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.metrics.CommitMetrics;
@@ -30,34 +33,33 @@ import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestReportMetricsRequestParser {
 
   @Test
   public void nullCheck() {
-    Assertions.assertThatThrownBy(() -> ReportMetricsRequestParser.toJson(null))
+    assertThatThrownBy(() -> ReportMetricsRequestParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid metrics request: null");
 
-    Assertions.assertThatThrownBy(() -> ReportMetricsRequestParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> ReportMetricsRequestParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse metrics request from null object");
   }
 
   @Test
   public void missingFields() {
-    Assertions.assertThatThrownBy(() -> ReportMetricsRequestParser.fromJson("{}"))
+    assertThatThrownBy(() -> ReportMetricsRequestParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: report-type");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> ReportMetricsRequestParser.fromJson("{\"report-type\":\"scan-report\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: table-name");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ReportMetricsRequestParser.fromJson(
                     "{\"report-type\":\"scan-report\", \"table-name\" : \"x\"}"))
@@ -67,11 +69,10 @@ public class TestReportMetricsRequestParser {
 
   @Test
   public void invalidReportType() {
-    Assertions.assertThat(
-            ReportMetricsRequestParser.fromJson("{\"report-type\":\"invalid\"}").reportType())
+    assertThat(ReportMetricsRequestParser.fromJson("{\"report-type\":\"invalid\"}").reportType())
         .isEqualTo(ReportMetricsRequest.unknown().reportType());
 
-    Assertions.assertThat(
+    assertThat(
             ReportMetricsRequestParser.fromJson(
                     ReportMetricsRequestParser.toJson(
                         ReportMetricsRequest.of(new MetricsReport() {})))
@@ -93,8 +94,7 @@ public class TestReportMetricsRequestParser {
             + "}";
 
     ReportMetricsRequest request = ReportMetricsRequestParser.fromJson(json);
-    Assertions.assertThat(request.reportType())
-        .isEqualTo(ReportMetricsRequest.unknown().reportType());
+    assertThat(request.reportType()).isEqualTo(ReportMetricsRequest.unknown().reportType());
   }
 
   @Test
@@ -126,9 +126,9 @@ public class TestReportMetricsRequestParser {
     ReportMetricsRequest metricsRequest = ReportMetricsRequest.of(scanReport);
 
     String json = ReportMetricsRequestParser.toJson(metricsRequest, true);
-    Assertions.assertThat(json).isEqualTo(expectedJson);
+    assertThat(json).isEqualTo(expectedJson);
 
-    Assertions.assertThat(ReportMetricsRequestParser.fromJson(json).report())
+    assertThat(ReportMetricsRequestParser.fromJson(json).report())
         .isEqualTo(metricsRequest.report());
   }
 
@@ -157,9 +157,9 @@ public class TestReportMetricsRequestParser {
     ReportMetricsRequest metricsRequest = ReportMetricsRequest.of(commitReport);
 
     String json = ReportMetricsRequestParser.toJson(metricsRequest, true);
-    Assertions.assertThat(json).isEqualTo(expectedJson);
+    assertThat(json).isEqualTo(expectedJson);
 
-    Assertions.assertThat(ReportMetricsRequestParser.fromJson(json).report())
+    assertThat(ReportMetricsRequestParser.fromJson(json).report())
         .isEqualTo(metricsRequest.report());
   }
 }

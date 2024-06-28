@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
@@ -25,7 +28,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.RequestResponseTestBase;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestListTablesResponse extends RequestResponseTestBase<ListTablesResponse> {
@@ -47,60 +49,60 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
   @Test
   public void testDeserializeInvalidResponsesThrows() {
     String identifiersHasWrongType = "{\"identifiers\":\"accounting%1Ftax\"}";
-    Assertions.assertThatThrownBy(() -> deserialize(identifiersHasWrongType))
+    assertThatThrownBy(() -> deserialize(identifiersHasWrongType))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageContaining(
             "Cannot deserialize value of type `java.util.ArrayList<org.apache.iceberg.catalog.TableIdentifier>`");
 
     String emptyJson = "{}";
-    Assertions.assertThatThrownBy(() -> deserialize(emptyJson))
+    assertThatThrownBy(() -> deserialize(emptyJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid identifier list: null");
 
     String jsonWithKeysSpelledIncorrectly =
         "{\"identifyrezzzz\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"}]}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonWithKeysSpelledIncorrectly))
+    assertThatThrownBy(() -> deserialize(jsonWithKeysSpelledIncorrectly))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid identifier list: null");
 
     String jsonWithInvalidIdentifiersInList =
         "{\"identifiers\":[{\"namespace\":\"accounting.tax\",\"name\":\"paid\"}]}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonWithInvalidIdentifiersInList))
+    assertThatThrownBy(() -> deserialize(jsonWithInvalidIdentifiersInList))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageContaining(
             "Cannot parse JSON array from non-array value: namespace: \"accounting.tax\"");
 
     String jsonWithInvalidIdentifiersInList2 =
         "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":\"paid\"},\"accounting.tax.paid\"]}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonWithInvalidIdentifiersInList2))
+    assertThatThrownBy(() -> deserialize(jsonWithInvalidIdentifiersInList2))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageContaining("Cannot parse missing or non-object table identifier");
 
     String jsonWithInvalidTypeForNamePartOfIdentifier =
         "{\"identifiers\":[{\"namespace\":[\"accounting\",\"tax\"],\"name\":true}]}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonWithInvalidTypeForNamePartOfIdentifier))
+    assertThatThrownBy(() -> deserialize(jsonWithInvalidTypeForNamePartOfIdentifier))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageContaining("Cannot parse to a string value");
 
     String nullJson = null;
-    Assertions.assertThatThrownBy(() -> deserialize(nullJson))
+    assertThatThrownBy(() -> deserialize(nullJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotCreateInvalidObjects() {
-    Assertions.assertThatThrownBy(() -> ListTablesResponse.builder().add(null))
+    assertThatThrownBy(() -> ListTablesResponse.builder().add(null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid table identifier: null");
 
-    Assertions.assertThatThrownBy(() -> ListTablesResponse.builder().addAll(null))
+    assertThatThrownBy(() -> ListTablesResponse.builder().addAll(null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid table identifier list: null");
 
     List<TableIdentifier> listWithNullElement =
         Lists.newArrayList(TableIdentifier.of(Namespace.of("foo"), "bar"), null);
-    Assertions.assertThatThrownBy(() -> ListTablesResponse.builder().addAll(listWithNullElement))
+    assertThatThrownBy(() -> ListTablesResponse.builder().addAll(listWithNullElement))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid table identifier: null");
   }
@@ -112,8 +114,8 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
     ListTablesResponse response =
         ListTablesResponse.builder().addAll(IDENTIFIERS).nextPageToken(null).build();
     assertRoundTripSerializesEquallyFrom(jsonWithNullPageToken, response);
-    Assertions.assertThat(response.nextPageToken()).isNull();
-    Assertions.assertThat(response.identifiers()).isEqualTo(IDENTIFIERS);
+    assertThat(response.nextPageToken()).isNull();
+    assertThat(response.identifiers()).isEqualTo(IDENTIFIERS);
   }
 
   @Test
@@ -124,8 +126,8 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
     ListTablesResponse response =
         ListTablesResponse.builder().addAll(IDENTIFIERS).nextPageToken(pageToken).build();
     assertRoundTripSerializesEquallyFrom(jsonWithPageToken, response);
-    Assertions.assertThat(response.nextPageToken()).isEqualTo("token");
-    Assertions.assertThat(response.identifiers()).isEqualTo(IDENTIFIERS);
+    assertThat(response.nextPageToken()).isEqualTo("token");
+    assertThat(response.identifiers()).isEqualTo(IDENTIFIERS);
   }
 
   @Override
@@ -140,7 +142,7 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
 
   @Override
   public void assertEquals(ListTablesResponse actual, ListTablesResponse expected) {
-    Assertions.assertThat(actual.identifiers())
+    assertThat(actual.identifiers())
         .as("Identifiers should be equal")
         .hasSameSizeAs(expected.identifiers())
         .containsExactlyInAnyOrderElementsOf(expected.identifiers());

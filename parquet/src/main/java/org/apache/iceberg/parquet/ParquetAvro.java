@@ -377,10 +377,6 @@ class ParquetAvro {
       this.second = second;
     }
 
-    public static <K, V> Pair<K, V> of(K first, V second) {
-      return new Pair<>(first, second);
-    }
-
     public K getFirst() {
       return first;
     }

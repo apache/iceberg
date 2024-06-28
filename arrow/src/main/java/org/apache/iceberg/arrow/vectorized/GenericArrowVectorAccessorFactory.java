@@ -561,12 +561,6 @@ public class GenericArrowVectorAccessorFactory<
     private final FixedSizeBinaryVector vector;
     private final StringFactory<Utf8StringT> stringFactory;
 
-    FixedSizeBinaryAccessor(FixedSizeBinaryVector vector) {
-      super(vector);
-      this.vector = vector;
-      this.stringFactory = null;
-    }
-
     FixedSizeBinaryAccessor(
         FixedSizeBinaryVector vector, StringFactory<Utf8StringT> stringFactory) {
       super(vector);

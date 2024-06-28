@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
@@ -33,7 +34,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -85,8 +85,7 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
 
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName))
         .as("Cannot create an existing branch")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Ref b1 already exists");
@@ -99,20 +98,20 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
 
     SnapshotRef mainRef = table.refs().get(SnapshotRef.MAIN_BRANCH);
-    Assertions.assertThat(mainRef).isNull();
+    assertThat(mainRef).isNull();
 
     SnapshotRef ref = table.refs().get(branchName);
-    Assertions.assertThat(ref).isNotNull();
-    Assertions.assertThat(ref.minSnapshotsToKeep()).isNull();
-    Assertions.assertThat(ref.maxSnapshotAgeMs()).isNull();
-    Assertions.assertThat(ref.maxRefAgeMs()).isNull();
+    assertThat(ref).isNotNull();
+    assertThat(ref.minSnapshotsToKeep()).isNull();
+    assertThat(ref.maxSnapshotAgeMs()).isNull();
+    assertThat(ref.maxRefAgeMs()).isNull();
 
     Snapshot snapshot = table.snapshot(ref.snapshotId());
-    Assertions.assertThat(snapshot.parentId()).isNull();
-    Assertions.assertThat(snapshot.addedDataFiles(table.io())).isEmpty();
-    Assertions.assertThat(snapshot.removedDataFiles(table.io())).isEmpty();
-    Assertions.assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
-    Assertions.assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
+    assertThat(snapshot.parentId()).isNull();
+    assertThat(snapshot.addedDataFiles(table.io())).isEmpty();
+    assertThat(snapshot.removedDataFiles(table.io())).isEmpty();
+    assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
+    assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
   }
 
   @Test
@@ -195,7 +194,7 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxSnapshotAge), ref.maxSnapshotAgeMs().longValue());
     Assert.assertNull(ref.maxRefAgeMs());
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION",
@@ -218,20 +217,19 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Assert.assertNull(ref.maxSnapshotAgeMs());
     Assert.assertEquals(TimeUnit.DAYS.toMillis(maxRefAge), ref.maxRefAgeMs().longValue());
 
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN", tableName, branchName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN", tableName, branchName))
         .as("Illegal statement")
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %s DAYS", tableName, branchName, "abc"))
         .as("Illegal statement")
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s CREATE BRANCH %s RETAIN %d SECONDS",
@@ -260,8 +258,7 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
 
   @Test
   public void testDropBranchDoesNotExist() {
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "nonExistingBranch"))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "nonExistingBranch"))
         .as("Cannot perform drop branch on branch which does not exist")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Branch does not exist: nonExistingBranch");
@@ -273,7 +270,7 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Table table = insertRows();
     table.manageSnapshots().createTag(tagName, table.currentSnapshot().snapshotId()).commit();
 
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, tagName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, tagName))
         .as("Cannot perform drop branch on tag")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Ref b1 is a tag not a branch");
@@ -281,7 +278,7 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
 
   @Test
   public void testDropBranchNonConformingName() {
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "123"))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "123"))
         .as("Non-conforming branch name")
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input '123'");
@@ -289,7 +286,7 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
 
   @Test
   public void testDropMainBranchFails() {
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH main", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH main", tableName))
         .as("Cannot drop the main branch")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot remove main branch");
@@ -331,20 +328,20 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
 
     SnapshotRef mainRef = table.refs().get(SnapshotRef.MAIN_BRANCH);
-    Assertions.assertThat(mainRef).isNull();
+    assertThat(mainRef).isNull();
 
     SnapshotRef ref = table.refs().get(branchName);
-    Assertions.assertThat(ref).isNotNull();
-    Assertions.assertThat(ref.minSnapshotsToKeep()).isNull();
-    Assertions.assertThat(ref.maxSnapshotAgeMs()).isNull();
-    Assertions.assertThat(ref.maxRefAgeMs()).isNull();
+    assertThat(ref).isNotNull();
+    assertThat(ref.minSnapshotsToKeep()).isNull();
+    assertThat(ref.maxSnapshotAgeMs()).isNull();
+    assertThat(ref.maxRefAgeMs()).isNull();
 
     Snapshot snapshot = table.snapshot(ref.snapshotId());
-    Assertions.assertThat(snapshot.parentId()).isNull();
-    Assertions.assertThat(snapshot.addedDataFiles(table.io())).isEmpty();
-    Assertions.assertThat(snapshot.removedDataFiles(table.io())).isEmpty();
-    Assertions.assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
-    Assertions.assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
+    assertThat(snapshot.parentId()).isNull();
+    assertThat(snapshot.addedDataFiles(table.io())).isEmpty();
+    assertThat(snapshot.removedDataFiles(table.io())).isEmpty();
+    assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
+    assertThat(snapshot.removedDeleteFiles(table.io())).isEmpty();
   }
 
   @Test
@@ -387,7 +384,7 @@ public class TestBranchDDL extends SparkExtensionsTestBase {
   public void replaceBranchDoesNotExist() throws NoSuchTableException {
     Table table = insertRows();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d",

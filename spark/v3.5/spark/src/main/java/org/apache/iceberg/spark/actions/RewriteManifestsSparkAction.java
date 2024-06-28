@@ -46,6 +46,7 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.ImmutableRewriteManifests;
 import org.apache.iceberg.actions.RewriteManifests;
+import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.OutputFile;
@@ -355,8 +356,11 @@ public class RewriteManifestsSparkAction
       // don't clean up added manifest files, because they may have been successfully committed.
       throw commitStateUnknownException;
     } catch (Exception e) {
-      // delete all new manifests because the rewrite failed
-      deleteFiles(Iterables.transform(addedManifests, ManifestFile::path));
+      if (e instanceof CleanableFailure) {
+        // delete all new manifests because the rewrite failed
+        deleteFiles(Iterables.transform(addedManifests, ManifestFile::path));
+      }
+
       throw e;
     }
   }

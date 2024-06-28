@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -47,7 +48,6 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.assertj.core.api.Assertions;
 import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Assert;
@@ -688,7 +688,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     createIcebergTable("id Integer, name String, dept String, subdept String");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
@@ -697,7 +697,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot use partition filter with an unpartitioned table");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
@@ -714,7 +714,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createIcebergTable(
         "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('x', '1', 'y', '2'))",
@@ -723,7 +723,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("is greater than the number of partitioned columns");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', '2'))",
@@ -783,7 +783,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
             + "partition_filter => map('id', 1))",
         catalogName, tableName, sourceTableName);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files("
@@ -843,7 +843,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 scalarSql(
                     "CALL %s.system.add_files('%s', '%s')",
