@@ -110,7 +110,7 @@ public class ScriptRunner {
     StringBuilder command = null;
     try {
       LineNumberReader lineReader = new LineNumberReader(reader);
-      String line = null;
+      String line;
       while ((line = lineReader.readLine()) != null) {
         if (command == null) {
           command = new StringBuilder();

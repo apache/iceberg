@@ -40,6 +40,7 @@ public class TestDecoderResolver {
     DecoderResolver.DECODER_CACHES.get().clear();
   }
 
+  @SuppressWarnings("UnusedAssignment") // the unused assignments are necessary for this test
   @Test
   public void testDecoderCachingReadSchemaSameAsFileSchema() throws Exception {
     Decoder dummyDecoder = DecoderFactory.get().binaryDecoder(new byte[] {}, null);
@@ -84,6 +85,7 @@ public class TestDecoderResolver {
     checkCachedSize(0);
   }
 
+  @SuppressWarnings("UnusedAssignment") // the unused assignments are necessary for this test
   @Test
   public void testDecoderCachingReadSchemaNotSameAsFileSchema() throws Exception {
     Decoder dummyDecoder = DecoderFactory.get().binaryDecoder(new byte[] {}, null);

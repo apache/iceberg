@@ -277,7 +277,7 @@ public class ParquetBloomRowGroupFilter {
 
     private <T> boolean shouldRead(
         PrimitiveType primitiveType, T value, BloomFilter bloom, Type type) {
-      long hashValue = 0;
+      long hashValue;
       switch (primitiveType.getPrimitiveTypeName()) {
         case INT32:
           switch (type.typeId()) {
