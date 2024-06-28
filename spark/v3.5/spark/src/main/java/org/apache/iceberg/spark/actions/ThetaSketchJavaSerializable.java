@@ -35,7 +35,7 @@ class ThetaSketchJavaSerializable implements Serializable {
 
   ThetaSketchJavaSerializable() {}
 
-  ThetaSketchJavaSerializable(final Sketch sketch) {
+  ThetaSketchJavaSerializable(Sketch sketch) {
     this.sketch = sketch;
   }
 
@@ -55,7 +55,7 @@ class ThetaSketchJavaSerializable implements Serializable {
     return (CompactSketch) sketch;
   }
 
-  void update(final ByteBuffer value) {
+  void update(ByteBuffer value) {
     if (sketch == null) {
       sketch = UpdateSketch.builder().build();
     }
@@ -73,22 +73,22 @@ class ThetaSketchJavaSerializable implements Serializable {
     return sketch.getEstimate();
   }
 
-  private void writeObject(final ObjectOutputStream out) throws IOException {
+  private void writeObject(ObjectOutputStream out) throws IOException {
     if (sketch == null) {
       out.writeInt(0);
       return;
     }
-    final byte[] serializedSketchBytes = sketch.compact().toByteArray();
+    byte[] serializedSketchBytes = sketch.compact().toByteArray();
     out.writeInt(serializedSketchBytes.length);
     out.write(serializedSketchBytes);
   }
 
-  private void readObject(final ObjectInputStream in) throws IOException, ClassNotFoundException {
-    final int length = in.readInt();
+  private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+    int length = in.readInt();
     if (length == 0) {
       return;
     }
-    final byte[] serializedSketchBytes = new byte[length];
+    byte[] serializedSketchBytes = new byte[length];
     in.readFully(serializedSketchBytes);
     sketch = CompactSketch.wrap(Memory.wrap(serializedSketchBytes));
   }

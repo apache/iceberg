@@ -25,10 +25,10 @@ public interface AnalyzeTable extends Action<AnalyzeTable, AnalyzeTable.Result> 
   /**
    * The set of columns to be analyzed
    *
-   * @param columnNames a set of column names to be analyzed
+   * @param columns a set of column names to be analyzed
    * @return this for method chaining
    */
-  AnalyzeTable columns(String... columnNames);
+  AnalyzeTable columns(String... columns);
 
   /**
    * Id of the snapshot for which stats need to be collected

@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.actions;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -33,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaPairRDD;
@@ -48,15 +48,12 @@ public class NDVSketchGenerator {
   private NDVSketchGenerator() {}
 
   public static final String APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY = "ndv";
-  private static final String SNAPSHOT_ID = "snapshot-id";
 
   static List<Blob> generateNDVSketchesAndBlobs(
       SparkSession spark, Table table, long snapshotId, Set<String> columnsToBeAnalyzed) {
-    Iterator<Tuple2<String, ThetaSketchJavaSerializable>> columnToNdvSketchPair =
+    Map<String, ThetaSketchJavaSerializable> columnToSketchMap =
         computeNDVSketches(spark, table, snapshotId, columnsToBeAnalyzed);
-    Map<String, ThetaSketchJavaSerializable> sketchMap = Maps.newHashMap();
-    columnToNdvSketchPair.forEachRemaining(tuple -> sketchMap.put(tuple._1, tuple._2));
-    return generateBlobs(table, columnsToBeAnalyzed, sketchMap, snapshotId);
+    return generateBlobs(table, columnsToBeAnalyzed, columnToSketchMap, snapshotId);
   }
 
   private static List<Blob> generateBlobs(
@@ -81,20 +78,21 @@ public class NDVSketchGenerator {
         .collect(Collectors.toList());
   }
 
-  static Iterator<Tuple2<String, ThetaSketchJavaSerializable>> computeNDVSketches(
+  private static Map<String, ThetaSketchJavaSerializable> computeNDVSketches(
       SparkSession spark, Table table, long snapshotId, Set<String> toBeAnalyzedColumns) {
+    Map<String, ThetaSketchJavaSerializable> sketchMap = Maps.newHashMap();
     String tableName = table.name();
     List<String> columns = ImmutableList.copyOf(toBeAnalyzedColumns);
     Dataset<Row> data =
         spark
             .read()
-            .option(SNAPSHOT_ID, snapshotId)
+            .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
             .table(tableName)
             .select(columns.stream().map(functions::col).toArray(Column[]::new));
     Schema schema = table.schema();
     List<Types.NestedField> nestedFields =
         columns.stream().map(schema::findField).collect(Collectors.toList());
-    final JavaPairRDD<String, ByteBuffer> colNameAndSketchPairRDD =
+    JavaPairRDD<String, ByteBuffer> colNameAndSketchPairRDD =
         data.javaRDD()
             .flatMap(
                 row -> {
@@ -115,6 +113,7 @@ public class NDVSketchGenerator {
             ThetaSketchJavaSerializable::updateSketch,
             ThetaSketchJavaSerializable::combineSketch);
 
-    return sketches.toLocalIterator();
+    sketches.toLocalIterator().forEachRemaining(tuple -> sketchMap.put(tuple._1, tuple._2));
+    return sketchMap;
   }
 }
