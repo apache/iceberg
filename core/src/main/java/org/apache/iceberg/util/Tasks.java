@@ -496,7 +496,7 @@ public class Tasks {
 
           } catch (ExecutionException e) {
             Throwable cause = e.getCause();
-            if (Error.class.isInstance(cause)) {
+            if (cause instanceof Error) {
               for (Throwable t : uncaught) {
                 cause.addSuppressed(t);
               }

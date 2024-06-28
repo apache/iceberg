@@ -383,7 +383,7 @@ public class TestBucketing {
    */
   private static UUID newUUID(byte[] bytes) {
     try {
-      return uuidBytesConstructor.newInstance((Object) bytes);
+      return uuidBytesConstructor.newInstance(bytes);
     } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
       throw new RuntimeException(e);
     }

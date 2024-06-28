@@ -220,16 +220,15 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
     final int numPartitions = 10;
     final int partitionToFail = new Random().nextInt(numPartitions);
     MapPartitionsFunction<Row, Row> failOnFirstPartitionFunc =
-        (MapPartitionsFunction<Row, Row>)
-            input -> {
-              int partitionId = TaskContext.getPartitionId();
+        input -> {
+          int partitionId = TaskContext.getPartitionId();
 
-              if (partitionId == partitionToFail) {
-                throw new SparkException(
-                    String.format("Intended exception in partition %d !", partitionId));
-              }
-              return input;
-            };
+          if (partitionId == partitionToFail) {
+            throw new SparkException(
+                String.format("Intended exception in partition %d !", partitionId));
+          }
+          return input;
+        };
 
     Dataset<Row> df =
         createDataset(records, schema)

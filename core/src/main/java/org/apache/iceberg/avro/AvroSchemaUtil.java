@@ -222,7 +222,7 @@ public class AvroSchemaUtil {
   static Schema createMap(int keyId, Schema keySchema, int valueId, Schema valueSchema) {
     String keyValueName = "k" + keyId + "_v" + valueId;
 
-    Schema.Field keyField = new Schema.Field("key", keySchema, null, (Object) null);
+    Schema.Field keyField = new Schema.Field("key", keySchema, null, null);
     keyField.addProp(FIELD_ID_PROP, keyId);
 
     Schema.Field valueField =
@@ -250,7 +250,7 @@ public class AvroSchemaUtil {
       Schema valueSchema) {
     String keyValueName = "k" + keyId + "_v" + valueId;
 
-    Schema.Field keyField = new Schema.Field("key", keySchema, null, (Object) null);
+    Schema.Field keyField = new Schema.Field("key", keySchema, null, null);
     if (!"key".equals(keyName)) {
       keyField.addAlias(keyName);
     }
