@@ -287,8 +287,8 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
         .startsWith("2");
 
     File location = temp.resolve("parquet").resolve("test").toFile();
-    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
-    String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
+    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location);
+    String targetPath = String.format("%s/nullable_poc/targetFolder/", location);
 
     tableProperties = ImmutableMap.of(TableProperties.WRITE_DATA_LOCATION, targetPath);
 
@@ -341,8 +341,8 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
         .startsWith("2");
 
     File location = temp.resolve("parquet").resolve("test").toFile();
-    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
-    String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
+    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location);
+    String targetPath = String.format("%s/nullable_poc/targetFolder/", location);
 
     tableProperties = ImmutableMap.of(TableProperties.WRITE_DATA_LOCATION, targetPath);
 

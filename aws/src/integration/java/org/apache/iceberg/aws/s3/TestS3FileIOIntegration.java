@@ -119,7 +119,7 @@ public class TestS3FileIOIntegration {
 
   @BeforeEach
   public void beforeEach() {
-    objectKey = String.format("%s/%s", prefix, UUID.randomUUID().toString());
+    objectKey = String.format("%s/%s", prefix, UUID.randomUUID());
     objectUri = String.format("s3://%s/%s", bucketName, objectKey);
     clientFactory.initialize(Maps.newHashMap());
   }
