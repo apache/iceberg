@@ -58,7 +58,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestHadoopCatalog extends HadoopTableTestBase {
-  private static ImmutableMap<String, String> meta = ImmutableMap.of();
+  private static final ImmutableMap<String, String> meta = ImmutableMap.of();
 
   @ParameterizedTest
   @ValueSource(ints = {1, 2})

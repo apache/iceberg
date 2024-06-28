@@ -86,7 +86,7 @@ public class TestHiveCommitLocks {
   private static HiveClientPool spyClientPool = null;
   private static CachedClientPool spyCachedClientPool = null;
   private static Configuration overriddenHiveConf;
-  private static AtomicReference<IMetaStoreClient> spyClientRef = new AtomicReference<>();
+  private static final AtomicReference<IMetaStoreClient> spyClientRef = new AtomicReference<>();
   private static IMetaStoreClient spyClient = null;
   HiveTableOperations ops = null;
   TableMetadata metadataV1 = null;
@@ -387,7 +387,7 @@ public class TestHiveCommitLocks {
 
   /** Wraps an ArgumentCaptor to provide data based on the request */
   private class ShowLocksResponseElementWrapper extends ShowLocksResponseElement {
-    private ArgumentCaptor<LockRequest> wrapped;
+    private final ArgumentCaptor<LockRequest> wrapped;
 
     private ShowLocksResponseElementWrapper(ArgumentCaptor<LockRequest> wrapped) {
       this.wrapped = wrapped;

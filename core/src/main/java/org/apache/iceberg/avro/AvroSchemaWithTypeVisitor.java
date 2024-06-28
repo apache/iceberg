@@ -115,7 +115,7 @@ public abstract class AvroSchemaWithTypeVisitor<T> {
     }
   }
 
-  private Deque<String> recordLevels = Lists.newLinkedList();
+  private final Deque<String> recordLevels = Lists.newLinkedList();
 
   public T record(Types.StructType iStruct, Schema record, List<String> names, List<T> fields) {
     return null;

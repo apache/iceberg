@@ -70,8 +70,8 @@ public class IcebergStorage extends LoadFunc
 
   public static final String PIG_ICEBERG_TABLES_IMPL = "pig.iceberg.tables.impl";
   private static Tables iceberg;
-  private static Map<String, Table> tables = Maps.newConcurrentMap();
-  private static Map<String, String> locations = Maps.newConcurrentMap();
+  private static final Map<String, Table> tables = Maps.newConcurrentMap();
+  private static final Map<String, String> locations = Maps.newConcurrentMap();
 
   private String signature;
 

@@ -78,7 +78,7 @@ public class Tasks {
     private boolean stopAbortsOnFailure = false;
 
     // retry settings
-    private List<Class<? extends Exception>> stopRetryExceptions =
+    private final List<Class<? extends Exception>> stopRetryExceptions =
         Lists.newArrayList(UnrecoverableException.class);
     private List<Class<? extends Exception>> onlyRetryExceptions = null;
     private Predicate<Exception> shouldRetryPredicate = null;

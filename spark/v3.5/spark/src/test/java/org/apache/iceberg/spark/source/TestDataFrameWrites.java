@@ -91,7 +91,7 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
 
   private Map<String, String> tableProperties;
 
-  private org.apache.spark.sql.types.StructType sparkSchema =
+  private final org.apache.spark.sql.types.StructType sparkSchema =
       new org.apache.spark.sql.types.StructType(
           new org.apache.spark.sql.types.StructField[] {
             new org.apache.spark.sql.types.StructField(
@@ -106,16 +106,16 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
                 org.apache.spark.sql.types.Metadata.empty())
           });
 
-  private Schema icebergSchema =
+  private final Schema icebergSchema =
       new Schema(
           Types.NestedField.optional(1, "optionalField", Types.StringType.get()),
           Types.NestedField.required(2, "requiredField", Types.StringType.get()));
 
-  private List<String> data0 =
+  private final List<String> data0 =
       Arrays.asList(
           "{\"optionalField\": \"a1\", \"requiredField\": \"bid_001\"}",
           "{\"optionalField\": \"a2\", \"requiredField\": \"bid_002\"}");
-  private List<String> data1 =
+  private final List<String> data1 =
       Arrays.asList(
           "{\"optionalField\": \"d1\", \"requiredField\": \"bid_101\"}",
           "{\"optionalField\": \"d2\", \"requiredField\": \"bid_102\"}",

@@ -33,10 +33,10 @@ public class ScriptRunner {
 
   private static final String DEFAULT_DELIMITER = ";";
 
-  private Connection connection;
+  private final Connection connection;
 
-  private boolean stopOnError;
-  private boolean autoCommit;
+  private final boolean stopOnError;
+  private final boolean autoCommit;
 
   private PrintWriter logWriter = new PrintWriter(System.out);
   private PrintWriter errorLogWriter = new PrintWriter(System.err);
