@@ -410,7 +410,7 @@ public class PartitionSpec implements Serializable {
         }
       }
       Preconditions.checkArgument(
-          name != null && !name.isEmpty(), "Cannot use empty or null partition name: %s", name);
+          !name.isEmpty(), "Cannot use empty or null partition name: %s", name);
       Preconditions.checkArgument(
           !partitionNames.contains(name), "Cannot use partition name more than once: %s", name);
       partitionNames.add(name);
