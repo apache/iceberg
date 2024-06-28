@@ -245,7 +245,7 @@ public class TestCompressionSettings extends CatalogTestBase {
         return footer.getBlocks().get(0).getColumns().get(0).getCodec().name();
       default:
         FileContext fc = FileContext.getFileContext(CONF);
-        GenericDatumReader<Object> reader = new GenericDatumReader<Object>();
+        GenericDatumReader<Object> reader = new GenericDatumReader<>();
         DataFileReader fileReader =
             (DataFileReader)
                 DataFileReader.openReader(
