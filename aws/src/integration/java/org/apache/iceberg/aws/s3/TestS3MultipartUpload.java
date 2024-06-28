@@ -64,7 +64,7 @@ public class TestS3MultipartUpload {
 
   @BeforeEach
   public void before() {
-    String objectKey = String.format("%s/%s", prefix, UUID.randomUUID().toString());
+    String objectKey = String.format("%s/%s", prefix, UUID.randomUUID());
     objectUri = String.format("s3://%s/%s", bucketName, objectKey);
   }
 
