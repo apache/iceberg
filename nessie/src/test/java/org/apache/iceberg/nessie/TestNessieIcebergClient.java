@@ -168,7 +168,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
         .hasMessageContaining("Namespace already exists: a");
 
     client.commitTable(
-        null, newTableMetadata(), "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
+        null, newTableMetadata(), "file:///tmp/iceberg", null, ContentKey.of("a", "tbl"));
 
     assertThatThrownBy(() -> client.createNamespace(Namespace.of("a", "tbl"), Map.of()))
         .isInstanceOf(AlreadyExistsException.class)
@@ -284,7 +284,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     client.createNamespace(Namespace.of("a"), Map.of());
 
     client.commitTable(
-        null, newTableMetadata(), "file:///tmp/iceberg", (String) null, ContentKey.of("a", "tbl"));
+        null, newTableMetadata(), "file:///tmp/iceberg", null, ContentKey.of("a", "tbl"));
 
     assertThatThrownBy(() -> client.dropNamespace(Namespace.of("a", "tbl")))
         .isInstanceOf(NoSuchNamespaceException.class)

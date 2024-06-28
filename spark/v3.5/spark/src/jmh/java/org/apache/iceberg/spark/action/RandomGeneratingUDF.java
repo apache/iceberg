@@ -43,8 +43,7 @@ class RandomGeneratingUDF implements Serializable {
 
   UserDefinedFunction randomString() {
     return udf(
-            () -> (String) RandomUtil.generatePrimitive(Types.StringType.get(), rand),
-            DataTypes.StringType)
+            () -> RandomUtil.generatePrimitive(Types.StringType.get(), rand), DataTypes.StringType)
         .asNondeterministic()
         .asNonNullable();
   }
