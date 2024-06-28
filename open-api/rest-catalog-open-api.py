@@ -462,6 +462,9 @@ class TokenType(BaseModel):
 
 class OAuthClientCredentialsRequest(BaseModel):
     """
+    The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec.
+
+
     OAuth2 client credentials request
 
     See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
@@ -481,6 +484,8 @@ class OAuthClientCredentialsRequest(BaseModel):
 
 class OAuthTokenExchangeRequest(BaseModel):
     """
+    The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec.
+
     OAuth2 token exchange request
 
     See https://datatracker.ietf.org/doc/html/rfc8693
@@ -500,7 +505,10 @@ class OAuthTokenExchangeRequest(BaseModel):
 
 
 class OAuthTokenRequest(BaseModel):
-    __root__: Union[OAuthClientCredentialsRequest, OAuthTokenExchangeRequest]
+    __root__: Union[OAuthClientCredentialsRequest, OAuthTokenExchangeRequest] = Field(
+        ...,
+        description='The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec.',
+    )
 
 
 class CounterResult(BaseModel):
@@ -532,6 +540,10 @@ class CommitReport(BaseModel):
 
 
 class OAuthError(BaseModel):
+    """
+    The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec.
+    """
+
     error: Literal[
         'invalid_request',
         'invalid_client',
@@ -545,6 +557,10 @@ class OAuthError(BaseModel):
 
 
 class OAuthTokenResponse(BaseModel):
+    """
+    The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec.
+    """
+
     access_token: str = Field(
         ..., description='The access token, for client credentials or token exchange'
     )
