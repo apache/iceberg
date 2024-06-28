@@ -122,8 +122,7 @@ public class TestColumnStatsWatermarkExtractor {
         new ColumnStatsWatermarkExtractor(SCHEMA, columnName, TimeUnit.MICROSECONDS);
 
     Assert.assertEquals(
-        MIN_VALUES.get(0).get(columnName).longValue() / 1000L,
-        extractor.extractWatermark(split(0)));
+        MIN_VALUES.get(0).get(columnName) / 1000L, extractor.extractWatermark(split(0)));
   }
 
   @Test
