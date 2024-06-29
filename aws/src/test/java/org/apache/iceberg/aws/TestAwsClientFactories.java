@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -149,6 +150,13 @@ public class TestAwsClientFactories {
   }
 
   @Test
+  public void testWithCredentialsProviderFactory() {
+    AwsClientFactory defaultAwsClientFactory =
+        getAwsClientFactoryByCredentialsProvider(AwsCredentialsProviderFactory.class.getName());
+    assertThat(defaultAwsClientFactory).isNotNull();
+  }
+
+  @Test
   public void testWithNoCreateMethodCredentialsProvider() {
     String providerClassName = NoCreateMethod.class.getName();
     String containsMessage =
@@ -249,6 +257,14 @@ public class TestAwsClientFactories {
     @Override
     public AwsCredentials resolveCredentials() {
       return AwsBasicCredentials.create("test-accessKeyId", "test-secretAccessKey");
+    }
+  }
+
+  private static class AwsCredentialsProviderFactory {
+    public static AwsCredentialsProvider create() {
+      return StaticCredentialsProvider.create(
+              AwsBasicCredentials.create("test-accessKeyId", "test-secretAccessKey")
+      );
     }
   }
 
