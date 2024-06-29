@@ -82,10 +82,9 @@ public class MapRangePartitionerBenchmark {
           mapStatistics.put(sortKey, weight);
         });
 
-    MapDataStatistics dataStatistics = new MapDataStatistics(mapStatistics);
     this.partitioner =
         new MapRangePartitioner(
-            SCHEMA, SortOrder.builderFor(SCHEMA).asc("id").build(), dataStatistics, 2);
+            SCHEMA, SortOrder.builderFor(SCHEMA).asc("id").build(), mapStatistics, 2);
 
     List<Integer> keys = Lists.newArrayList(weights.keySet().iterator());
     long[] weightsCDF = new long[keys.size()];
