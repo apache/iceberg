@@ -22,7 +22,6 @@ import java.io.Serializable;
 import java.util.Map;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.common.DynMethods;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -164,12 +163,6 @@ public class AwsClientProperties implements Serializable {
               "Cannot load class %s, it does not exist in the classpath", credentialsProviderClass),
           e);
     }
-
-    Preconditions.checkArgument(
-        AwsCredentialsProvider.class.isAssignableFrom(providerClass),
-        String.format(
-            "Cannot initialize %s, it does not implement %s.",
-            credentialsProviderClass, AwsCredentialsProvider.class.getName()));
 
     try {
       return createCredentialsProvider(providerClass);
