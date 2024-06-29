@@ -578,7 +578,8 @@ public class OAuth2Util {
                 .token(response.token())
                 .tokenType(response.issuedTokenType())
                 .build();
-        this.headers = RESTUtil.merge(headers, authHeaders(config.token()));
+        Map<String, String> currentHeaders = this.headers;
+        this.headers = RESTUtil.merge(currentHeaders, authHeaders(config.token()));
 
         if (response.expiresInSeconds() != null) {
           return Pair.of(response.expiresInSeconds(), TimeUnit.SECONDS);
