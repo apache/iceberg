@@ -1049,7 +1049,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     return Caffeine.newBuilder()
         .expireAfterAccess(Duration.ofMillis(expirationIntervalMs))
         .removalListener(
-            (RemovalListener<String, AuthSession>) (id, auth, cause) -> auth.stopRefreshing())
+            (RemovalListener<String, AuthSession>)
+                (id, auth, cause) -> {
+                  if (auth != null) {
+                    auth.stopRefreshing();
+                  }
+                })
         .build();
   }
 
