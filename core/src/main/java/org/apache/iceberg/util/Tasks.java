@@ -211,7 +211,7 @@ public class Tasks {
       List<Throwable> exceptions = Lists.newArrayList();
 
       Iterator<I> iterator = items.iterator();
-      boolean threw = true;
+      boolean threw = false;
       try {
         while (iterator.hasNext()) {
           I item = iterator.next();
@@ -226,13 +226,11 @@ public class Tasks {
             }
 
             if (stopOnFailure) {
+              threw = true;
               break;
             }
           }
         }
-
-        threw = false;
-
       } finally {
         // threw handles exceptions that were *not* caught by the catch block,
         // and exceptions that were caught and possibly handled by onFailure
