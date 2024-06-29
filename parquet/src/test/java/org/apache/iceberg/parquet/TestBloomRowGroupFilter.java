@@ -57,9 +57,7 @@ import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -185,7 +183,6 @@ public class TestBloomRowGroupFilter {
   private MessageType parquetSchema = null;
   private BlockMetaData rowGroupMetadata = null;
   private BloomFilterReader bloomStore = null;
-  private ParquetFileReader reader;
 
   @TempDir private File temp;
 
@@ -269,7 +266,7 @@ public class TestBloomRowGroupFilter {
 
     InputFile inFile = Files.localInput(temp);
 
-    reader = ParquetFileReader.open(ParquetIO.file(inFile));
+    ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(inFile));
 
     assertThat(reader.getRowGroups()).as("Should create only one row group").hasSize(1);
     rowGroupMetadata = reader.getRowGroups().get(0);
@@ -1191,41 +1188,5 @@ public class TestBloomRowGroupFilter {
     assertThat(shouldRead)
         .as("Should read: filter contains non-reference evaluate as True")
         .isTrue();
-  }
-
-  @Test
-  public void testParquetFindsResidual() {
-    // `string` col has no dict, this should be eliminated by bloom filter
-    Expression bloom = equal("string", "BINARY测试_301");
-    // should be eliminated by dictionary filter
-    Expression dict = equal("no_stats", "a");
-    // should be eliminated by bloom filter
-    Expression metric = greaterThan("id", INT_MAX_VALUE);
-    Expression expr = or(bloom, or(dict, metric));
-
-    Expression expected = Binder.bind(SCHEMA.asStruct(), Expressions.or(bloom, dict), true);
-    ParquetMetricsRowGroupFilter metricFilter = new ParquetMetricsRowGroupFilter(SCHEMA, expr);
-    Expression metricResidual = metricFilter.residualFor(parquetSchema, rowGroupMetadata);
-    assertThat(expected.isEquivalentTo(metricResidual))
-        .as("Expected residual: %s, actual residual: %s", expected, metricResidual);
-
-    expected = Binder.bind(SCHEMA.asStruct(), bloom, true);
-    ParquetDictionaryRowGroupFilter dictFilter =
-        new ParquetDictionaryRowGroupFilter(SCHEMA, metricResidual);
-    Expression dictResidual =
-        dictFilter.residualFor(
-            parquetSchema, rowGroupMetadata, reader.getDictionaryReader(rowGroupMetadata));
-
-    assertThat(expected.isEquivalentTo(dictResidual))
-        .as("Expected residual: %s, actual residual: %s", expected, dictResidual);
-
-    expected = Expressions.alwaysFalse();
-    ParquetBloomRowGroupFilter bloomFilter = new ParquetBloomRowGroupFilter(SCHEMA, dictResidual);
-    Expression bloomResidual =
-        bloomFilter.residualFor(
-            parquetSchema, rowGroupMetadata, reader.getBloomFilterDataReader(rowGroupMetadata));
-
-    assertThat(expected.isEquivalentTo(bloomResidual))
-        .as("Expected residual: %s, actual residual: %s", expected, bloomResidual);
   }
 }

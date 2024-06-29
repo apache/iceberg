@@ -29,7 +29,6 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -101,15 +100,18 @@ class ReadConf<T> {
     // Fetch all row groups starting positions to compute the row offsets of the filtered row groups
     Map<Long, Long> offsetToStartPos = generateOffsetToStartPos(expectedSchema);
 
+    ParquetCombinedRowGroupFilter combinedFilter = null;
+    if (filter != null) {
+      combinedFilter = new ParquetCombinedRowGroupFilter(expectedSchema, filter, caseSensitive);
+    }
+
     long computedTotalValues = 0L;
     for (int i = 0; i < shouldSkip.length; i += 1) {
       BlockMetaData rowGroup = rowGroups.get(i);
       startRowPositions[i] =
           offsetToStartPos == null ? 0 : offsetToStartPos.get(rowGroup.getStartingPos());
       boolean shouldRead =
-          filter == null
-              || (findsResidual(filter, expectedSchema, typeWithIds, rowGroup, caseSensitive)
-                  != Expressions.alwaysFalse());
+          filter == null || combinedFilter.shouldRead(fileSchema, rowGroup, reader);
 
       this.shouldSkip[i] = !shouldRead;
       if (shouldRead) {
@@ -253,32 +255,5 @@ class ReadConf<T> {
       }
     }
     return listBuilder.build();
-  }
-
-  private Expression findsResidual(
-      Expression expr,
-      Schema expectedSchema,
-      MessageType typeWithIds,
-      BlockMetaData rowGroup,
-      boolean caseSensitive) {
-    ParquetMetricsRowGroupFilter metricFilter =
-        new ParquetMetricsRowGroupFilter(expectedSchema, expr, caseSensitive);
-    Expression metricResidual = metricFilter.residualFor(typeWithIds, rowGroup);
-    if (metricResidual == Expressions.alwaysFalse() || metricResidual == Expressions.alwaysTrue()) {
-      return metricResidual;
-    }
-
-    ParquetDictionaryRowGroupFilter dictFilter =
-        new ParquetDictionaryRowGroupFilter(expectedSchema, metricResidual, caseSensitive);
-    Expression dictResidual =
-        dictFilter.residualFor(typeWithIds, rowGroup, reader.getDictionaryReader(rowGroup));
-    if (dictResidual == Expressions.alwaysFalse() || dictResidual == Expressions.alwaysTrue()) {
-      return dictResidual;
-    }
-
-    ParquetBloomRowGroupFilter bloomFilter =
-        new ParquetBloomRowGroupFilter(expectedSchema, dictResidual, caseSensitive);
-    return bloomFilter.residualFor(
-        typeWithIds, rowGroup, reader.getBloomFilterDataReader(rowGroup));
   }
 }
