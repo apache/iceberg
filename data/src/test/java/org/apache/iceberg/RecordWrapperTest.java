@@ -20,10 +20,10 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
-import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
 public abstract class RecordWrapperTest {
@@ -103,11 +103,12 @@ public abstract class RecordWrapperTest {
   }
 
   private void generateAndValidate(Schema schema) {
-    generateAndValidate(schema, Assert::assertEquals);
+    generateAndValidate(
+        schema, (actual, message, expected) -> assertThat(actual).as(message).isEqualTo(expected));
   }
 
   public interface AssertMethod {
-    void assertEquals(String message, StructLikeWrapper expected, StructLikeWrapper actual);
+    void assertEquals(StructLikeWrapper actual, String message, StructLikeWrapper expected);
   }
 
   protected abstract void generateAndValidate(Schema schema, AssertMethod assertMethod);

@@ -69,8 +69,8 @@ public class TestInternalRowWrapper extends RecordWrapperTest {
       StructLike rowStructLike = rowWrapper.wrap(expected.next());
 
       assertMethod.assertEquals(
-          "Should have expected StructLike values",
           actualWrapper.set(recordStructLike),
+          "Should have expected StructLike values",
           expectedWrapper.set(rowStructLike));
     }
 

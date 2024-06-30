@@ -18,43 +18,39 @@
  */
 package org.apache.iceberg.flink.source;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TestMergingMetrics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.HadoopTableResource;
+import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.RowDataConverter;
+import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
 
-  @ClassRule public static final TemporaryFolder TEMP_FOLDER = new TemporaryFolder();
-
-  @Rule
-  public final HadoopTableResource tableResource =
-      new HadoopTableResource(TEMP_FOLDER, "test_db", "test_table", SCHEMA);
-
-  public TestFlinkMergingMetrics(FileFormat fileFormat) {
-    super(fileFormat);
-  }
+  @RegisterExtension
+  private static final HadoopCatalogExtension catalogExtension =
+      new HadoopCatalogExtension(TestFixtures.DATABASE, TestFixtures.TABLE);
 
   @Override
   protected FileAppender<RowData> writeAndGetAppender(List<Record> records) throws IOException {
+    Table table = catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
     RowType flinkSchema = FlinkSchemaUtil.convert(SCHEMA);
-
+    File tempFile = File.createTempFile("junit", null, tempDir);
     FileAppender<RowData> appender =
         new FlinkAppenderFactory(
-                tableResource.table(),
+                table,
                 SCHEMA,
                 flinkSchema,
                 ImmutableMap.of(),
@@ -62,7 +58,7 @@ public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
                 null,
                 null,
                 null)
-            .newAppender(org.apache.iceberg.Files.localOutput(temp.newFile()), fileFormat);
+            .newAppender(Files.localOutput(tempFile), fileFormat);
     try (FileAppender<RowData> fileAppender = appender) {
       records.stream().map(r -> RowDataConverter.convert(SCHEMA, r)).forEach(fileAppender::add);
     }

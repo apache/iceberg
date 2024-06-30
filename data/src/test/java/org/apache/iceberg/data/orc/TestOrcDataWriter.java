@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.data.orc;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.DataFile;
@@ -37,11 +40,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestOrcDataWriter {
   private static final Schema SCHEMA =
@@ -51,9 +52,9 @@ public class TestOrcDataWriter {
 
   private List<Record> records;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private File tempDir;
 
-  @Before
+  @BeforeEach
   public void createRecords() {
     GenericRecord record = GenericRecord.create(SCHEMA);
 
@@ -69,7 +70,8 @@ public class TestOrcDataWriter {
 
   @Test
   public void testDataWriter() throws IOException {
-    OutputFile file = Files.localOutput(temp.newFile());
+    File tempFile = File.createTempFile("junit", null, tempDir);
+    OutputFile file = Files.localOutput(tempFile);
 
     SortOrder sortOrder = SortOrder.builderFor(SCHEMA).withOrderId(10).asc("id").build();
 
@@ -92,13 +94,12 @@ public class TestOrcDataWriter {
 
     DataFile dataFile = dataWriter.toDataFile();
 
-    Assert.assertEquals("Format should be ORC", FileFormat.ORC, dataFile.format());
-    Assert.assertEquals("Should be data file", FileContent.DATA, dataFile.content());
-    Assert.assertEquals("Record count should match", records.size(), dataFile.recordCount());
-    Assert.assertEquals("Partition should be empty", 0, dataFile.partition().size());
-    Assert.assertEquals(
-        "Sort order should match", sortOrder.orderId(), (int) dataFile.sortOrderId());
-    Assert.assertNull("Key metadata should be null", dataFile.keyMetadata());
+    assertThat(dataFile.format()).as("Format should be ORC").isEqualTo(FileFormat.ORC);
+    assertThat(dataFile.content()).as("Should be data file").isEqualTo(FileContent.DATA);
+    assertThat(dataFile.recordCount()).as("Record count should match").isEqualTo(records.size());
+    assertThat(dataFile.partition().size()).as("Partition should be empty").isEqualTo(0);
+    assertThat(dataFile.sortOrderId()).as("Sort order should match").isEqualTo(sortOrder.orderId());
+    assertThat(dataFile.keyMetadata()).as("Key metadata should be null").isNull();
 
     List<Record> writtenRecords;
     try (CloseableIterable<Record> reader =
@@ -109,6 +110,6 @@ public class TestOrcDataWriter {
       writtenRecords = Lists.newArrayList(reader);
     }
 
-    Assert.assertEquals("Written records should match", records, writtenRecords);
+    assertThat(writtenRecords).as("Written records should match").isEqualTo(records);
   }
 }

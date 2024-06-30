@@ -20,8 +20,11 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.File;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -41,14 +44,11 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.NaNUtil;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestMergingMetrics<T> {
 
   // all supported fields, except for UUID which is on deprecation path: see
@@ -110,22 +110,17 @@ public abstract class TestMergingMetrics<T> {
           MAP_FIELD_2,
           STRUCT_FIELD);
 
-  protected final FileFormat fileFormat;
-
-  @Parameterized.Parameters(name = "fileFormat = {0}")
-  public static Object[] parameters() {
-    return new Object[] {FileFormat.PARQUET, FileFormat.ORC};
-  }
-
-  public TestMergingMetrics(FileFormat fileFormat) {
-    this.fileFormat = fileFormat;
-  }
-
   protected abstract FileAppender<T> writeAndGetAppender(List<Record> records) throws Exception;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @Parameters(name = "fileFormat = {0}")
+  public static Collection<FileFormat> parameters() {
+    return Arrays.asList(FileFormat.PARQUET, FileFormat.ORC);
+  }
 
-  @Test
+  @Parameter protected FileFormat fileFormat;
+  @TempDir protected File tempDir;
+
+  @TestTemplate
   public void verifySingleRecordMetric() throws Exception {
     Record record = GenericRecord.create(SCHEMA);
     record.setField(ID_FIELD.name(), 3);
@@ -166,7 +161,7 @@ public abstract class TestMergingMetrics<T> {
     assertBoundValueMatch(0D, lowerBounds, MAP_FIELD_2);
   }
 
-  @Test
+  @TestTemplate
   public void verifyRandomlyGeneratedRecordsMetric() throws Exception {
     // too big of the record count will more likely to make all upper/lower bounds +/-infinity,
     // which makes the tests easier to pass
@@ -192,16 +187,16 @@ public abstract class TestMergingMetrics<T> {
         .map(Types.NestedField::fieldId)
         .forEach(
             id ->
-                Assert.assertNull(
-                    "NaN count for field %s should be null", metrics.nanValueCounts().get(id)));
+                assertThat(metrics.nanValueCounts().get(id))
+                    .as("NaN count for field %s should be null")
+                    .isNull());
   }
 
   private void assertNaNCountMatch(
       Long expected, Map<Integer, Long> nanValueCount, Types.NestedField field) {
-    Assert.assertEquals(
-        String.format("NaN count for field %s does not match expected", field.name()),
-        expected,
-        nanValueCount.get(FIELDS_WITH_NAN_COUNT_TO_ID.get(field)));
+    assertThat(nanValueCount.get(FIELDS_WITH_NAN_COUNT_TO_ID.get(field)))
+        .as(String.format("NaN count for field %s does not match expected", field.name()))
+        .isEqualTo(expected);
   }
 
   private void assertBoundValueMatch(
@@ -214,10 +209,9 @@ public abstract class TestMergingMetrics<T> {
     int actualFieldId = FIELDS_WITH_NAN_COUNT_TO_ID.get(field);
     ByteBuffer byteBuffer = boundMap.get(actualFieldId);
     Type type = SCHEMA.findType(actualFieldId);
-    Assert.assertEquals(
-        String.format("Bound value for field %s must match", field.name()),
-        expected,
-        byteBuffer == null ? null : Conversions.fromByteBuffer(type, byteBuffer));
+    assertThat(byteBuffer == null ? null : Conversions.<T>fromByteBuffer(type, byteBuffer))
+        .as(String.format("Bound value for field %s must match", field.name()))
+        .isEqualTo(expected);
   }
 
   private void populateExpectedValues(

@@ -27,12 +27,15 @@ import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.f
 import static org.apache.iceberg.relocated.com.google.common.collect.Iterables.transform;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -43,6 +46,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -60,15 +66,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestLocalScan {
   private static final Schema SCHEMA =
       new Schema(
@@ -77,18 +80,13 @@ public class TestLocalScan {
   private static final Configuration CONF = new Configuration();
   private static final Tables TABLES = new HadoopTables(CONF);
 
-  @Rule public final TemporaryFolder temp = new TemporaryFolder();
-
-  @Parameterized.Parameters(name = "format = {0}")
-  public static Object[] parameters() {
-    return new Object[] {"parquet", "orc", "avro"};
+  @Parameters(name = "fileFormat = {0}")
+  public static Collection<FileFormat> parameters() {
+    return Arrays.asList(FileFormat.PARQUET, FileFormat.ORC, FileFormat.AVRO);
   }
 
-  private final FileFormat format;
-
-  public TestLocalScan(String format) {
-    this.format = FileFormat.fromString(format);
-  }
+  @Parameter private FileFormat format;
+  @TempDir private File tempDir;
 
   private String sharedTableLocation = null;
   private Table sharedTable = null;
@@ -195,10 +193,9 @@ public class TestLocalScan {
     sharedTable.newFastAppend().appendFile(file13).appendFile(file23).appendFile(file33).commit();
   }
 
-  @Before
+  @BeforeEach
   public void createTables() throws IOException {
-    File location = temp.newFolder("shared");
-    Assert.assertTrue(location.delete());
+    File location = new File(tempDir, "shared");
     this.sharedTableLocation = location.toString();
     this.sharedTable =
         TABLES.create(
@@ -225,12 +222,11 @@ public class TestLocalScan {
     sharedTable.newAppend().appendFile(file1).appendFile(file2).appendFile(file3).commit();
   }
 
-  @Test
+  @TestTemplate
   public void testRandomData() throws IOException {
     List<Record> expected = RandomGenericData.generate(SCHEMA, 1000, 435691832918L);
 
-    File location = temp.newFolder(format.name());
-    Assert.assertTrue(location.delete());
+    File location = new File(tempDir, format.name());
     Table table =
         TABLES.create(
             SCHEMA,
@@ -266,12 +262,11 @@ public class TestLocalScan {
     append.commit();
 
     Set<Record> records = Sets.newHashSet(IcebergGenerics.read(table).build());
-    Assert.assertEquals(
-        "Should produce correct number of records", expected.size(), records.size());
-    Assert.assertEquals("Random record set should match", Sets.newHashSet(expected), records);
+    assertThat(records).as("Should produce correct number of records").hasSize(expected.size());
+    assertThat(records).as("Random record set should match").isEqualTo(Sets.newHashSet(expected));
   }
 
-  @Test
+  @TestTemplate
   public void testFullScan() {
     Iterable<Record> results = IcebergGenerics.read(sharedTable).build();
 
@@ -281,36 +276,33 @@ public class TestLocalScan {
     expected.addAll(file3FirstSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    Assert.assertEquals(
-        "Should produce correct number of records", expected.size(), records.size());
-    Assert.assertEquals("Random record set should match", Sets.newHashSet(expected), records);
+    assertThat(records).as("Should produce correct number of records").hasSize(expected.size());
+    assertThat(records).as("Random record set should match").isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testFilter() {
     Iterable<Record> result = IcebergGenerics.read(sharedTable).where(lessThan("id", 3)).build();
 
-    Assert.assertEquals(
-        "Records should match file 1",
-        Sets.newHashSet(file1FirstSnapshotRecords),
-        Sets.newHashSet(result));
+    assertThat(Sets.newHashSet(result))
+        .as("Records should match file 1")
+        .isEqualTo(Sets.newHashSet(file1FirstSnapshotRecords));
 
     result = IcebergGenerics.read(sharedTable).where(lessThan("iD", 3)).caseInsensitive().build();
 
-    Assert.assertEquals(
-        "Records should match file 1",
-        Sets.newHashSet(file1FirstSnapshotRecords),
-        Sets.newHashSet(result));
+    assertThat(Sets.newHashSet(result))
+        .as("Records should match file 1")
+        .isEqualTo(Sets.newHashSet(file1FirstSnapshotRecords));
 
     result = IcebergGenerics.read(sharedTable).where(lessThanOrEqual("id", 1)).build();
 
-    Assert.assertEquals(
-        "Records should match file 1 without id 2",
-        Sets.newHashSet(filter(file1FirstSnapshotRecords, r -> (Long) r.getField("id") <= 1)),
-        Sets.newHashSet(result));
+    assertThat(Sets.newHashSet(result))
+        .as("Records should match file 1 without id 2")
+        .isEqualTo(
+            Sets.newHashSet(filter(file1FirstSnapshotRecords, r -> (Long) r.getField("id") <= 1)));
   }
 
-  @Test
+  @TestTemplate
   public void testProject() {
     verifyProjectIdColumn(IcebergGenerics.read(sharedTable).select("id").build());
     verifyProjectIdColumn(IcebergGenerics.read(sharedTable).select("iD").caseInsensitive().build());
@@ -326,15 +318,15 @@ public class TestLocalScan {
         Lists.transform(file3FirstSnapshotRecords, record -> (Long) record.getField("id")));
 
     results.forEach(
-        record -> Assert.assertEquals("Record should have one projected field", 1, record.size()));
+        record ->
+            assertThat(record.size()).as("Record should have one projected field").isEqualTo(1));
 
-    Assert.assertEquals(
-        "Should project only id columns",
-        expected,
-        Sets.newHashSet(transform(results, record -> (Long) record.getField("id"))));
+    assertThat(Sets.newHashSet(transform(results, record -> (Long) record.getField("id"))))
+        .as("Should project only id columns")
+        .isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testProjectWithSchema() {
     // Test with table schema
     Iterable<Record> results = IcebergGenerics.read(sharedTable).project(SCHEMA).build();
@@ -345,7 +337,7 @@ public class TestLocalScan {
     expected.addAll(file3FirstSnapshotRecords);
 
     results.forEach(record -> expected.remove(record));
-    Assert.assertTrue(expected.isEmpty());
+    assertThat(expected).isEmpty();
 
     // Test with projected schema
     Schema schema = new Schema(required(1, "id", Types.LongType.get()));
@@ -356,7 +348,7 @@ public class TestLocalScan {
     IcebergGenerics.read(sharedTable)
         .project(schema)
         .build()
-        .forEach(r -> Assert.assertNull(r.get(0)));
+        .forEach(r -> assertThat(r.get(0)).isNull());
 
     // Test with reading some metadata columns
     schema =
@@ -378,11 +370,11 @@ public class TestLocalScan {
         GenericRecord.create(schema)
             .copy(ImmutableMap.of("id", 2L, "data", "falafel", "_spec_id", 0, "_pos", 2L));
     expectedRecord.setField("_partition", null);
-    Assert.assertEquals(expectedRecord, iterator.next());
-    Assert.assertFalse(iterator.hasNext());
+    assertThat(iterator.next()).isEqualTo(expectedRecord);
+    assertThat(iterator.hasNext()).isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testProjectWithMissingFilterColumn() {
     Iterable<Record> results =
         IcebergGenerics.read(sharedTable)
@@ -401,15 +393,15 @@ public class TestLocalScan {
     }
 
     results.forEach(
-        record -> Assert.assertEquals("Record should have two projected fields", 2, record.size()));
+        record ->
+            assertThat(record.size()).as("Record should have two projected fields").isEqualTo(2));
 
-    Assert.assertEquals(
-        "Should project correct rows",
-        expected,
-        Sets.newHashSet(transform(results, record -> record.getField("data").toString())));
+    assertThat(Sets.newHashSet(transform(results, record -> record.getField("data").toString())))
+        .as("Should project correct rows")
+        .isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testUseSnapshot() throws IOException {
     overwriteExistingData();
     Iterable<Record> results =
@@ -423,14 +415,13 @@ public class TestLocalScan {
     expected.addAll(file3SecondSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    Assert.assertEquals(
-        "Should produce correct number of records", expected.size(), records.size());
-    Assert.assertEquals("Record set should match", Sets.newHashSet(expected), records);
-    Assert.assertNotNull(Iterables.get(records, 0).getField("id"));
-    Assert.assertNotNull(Iterables.get(records, 0).getField("data"));
+    assertThat(records).as("Should produce correct number of records").hasSize(expected.size());
+    assertThat(records).as("Record set should match").isEqualTo(Sets.newHashSet(expected));
+    assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
+    assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
 
-  @Test
+  @TestTemplate
   public void testAsOfTime() throws IOException {
     overwriteExistingData();
     Iterable<Record> results =
@@ -444,14 +435,13 @@ public class TestLocalScan {
     expected.addAll(file3ThirdSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    Assert.assertEquals(
-        "Should produce correct number of records", expected.size(), records.size());
-    Assert.assertEquals("Record set should match", Sets.newHashSet(expected), records);
-    Assert.assertNotNull(Iterables.get(records, 0).getField("id"));
-    Assert.assertNotNull(Iterables.get(records, 0).getField("data"));
+    assertThat(records).as("Should produce correct number of records").hasSize(expected.size());
+    assertThat(records).as("Record set should match").isEqualTo(Sets.newHashSet(expected));
+    assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
+    assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
 
-  @Test
+  @TestTemplate
   public void testAppendsBetween() throws IOException {
     appendData();
     Iterable<Record> results =
@@ -467,14 +457,13 @@ public class TestLocalScan {
     expected.addAll(file3ThirdSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    Assert.assertEquals(
-        "Should produce correct number of records", expected.size(), records.size());
-    Assert.assertEquals("Record set should match", Sets.newHashSet(expected), records);
-    Assert.assertNotNull(Iterables.get(records, 0).getField("id"));
-    Assert.assertNotNull(Iterables.get(records, 0).getField("data"));
+    assertThat(records).as("Should produce correct number of records").hasSize(expected.size());
+    assertThat(records).as("Record set should match").isEqualTo(Sets.newHashSet(expected));
+    assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
+    assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
 
-  @Test
+  @TestTemplate
   public void testAppendsAfter() throws IOException {
     appendData();
     Iterable<Record> results =
@@ -491,14 +480,13 @@ public class TestLocalScan {
     expected.addAll(file3ThirdSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    Assert.assertEquals(
-        "Should produce correct number of records", expected.size(), records.size());
-    Assert.assertEquals("Record set should match", Sets.newHashSet(expected), records);
-    Assert.assertNotNull(Iterables.get(records, 0).getField("id"));
-    Assert.assertNotNull(Iterables.get(records, 0).getField("data"));
+    assertThat(records).as("Should produce correct number of records").hasSize(expected.size());
+    assertThat(records).as("Record set should match").isEqualTo(Sets.newHashSet(expected));
+    assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
+    assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
   }
 
-  @Test
+  @TestTemplate
   public void testUnknownSnapshotId() {
     Long minSnapshotId =
         sharedTable.history().stream().map(h -> h.snapshotId()).min(Long::compareTo).get();
@@ -510,7 +498,7 @@ public class TestLocalScan {
         .hasMessage("Cannot find snapshot with ID " + (minSnapshotId - 1));
   }
 
-  @Test
+  @TestTemplate
   public void testAsOfTimeOlderThanFirstSnapshot() {
     IcebergGenerics.ScanBuilder scanBuilder = IcebergGenerics.read(sharedTable);
     long timestamp = sharedTable.history().get(0).timestampMillis() - 1;
@@ -521,30 +509,7 @@ public class TestLocalScan {
             "Cannot find a snapshot older than " + DateTimeUtil.formatTimestampMillis(timestamp));
   }
 
-  private DataFile writeFile(String location, String filename, List<Record> records)
-      throws IOException {
-    return writeFile(location, filename, SCHEMA, records);
-  }
-
-  private DataFile writeFile(String location, String filename, Schema schema, List<Record> records)
-      throws IOException {
-    Path path = new Path(location, filename);
-    FileFormat fileFormat = FileFormat.fromFileName(filename);
-    Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
-
-    FileAppender<Record> fileAppender =
-        new GenericAppenderFactory(schema).newAppender(fromPath(path, CONF), fileFormat);
-    try (FileAppender<Record> appender = fileAppender) {
-      appender.addAll(records);
-    }
-
-    return DataFiles.builder(PartitionSpec.unpartitioned())
-        .withInputFile(HadoopInputFile.fromPath(path, CONF))
-        .withMetrics(fileAppender.metrics())
-        .build();
-  }
-
-  @Test
+  @TestTemplate
   public void testFilterWithDateAndTimestamp() throws IOException {
     // TODO: Add multiple timestamp tests - there's an issue with ORC caching TZ in ThreadLocal, so
     // it's not possible
@@ -556,8 +521,7 @@ public class TestLocalScan {
             required(3, "date", Types.DateType.get()),
             required(4, "time", Types.TimeType.get()));
 
-    File tableLocation = temp.newFolder("complex_filter_table");
-    Assert.assertTrue(tableLocation.delete());
+    File tableLocation = new File(tempDir, "complex_filter_table");
 
     Table table =
         TABLES.create(
@@ -581,11 +545,34 @@ public class TestLocalScan {
               .where(equal("time", r.getField("time").toString()))
               .build();
 
-      Assert.assertTrue(filterResult.iterator().hasNext());
+      assertThat(filterResult.iterator().hasNext()).isTrue();
       Record readRecord = filterResult.iterator().next();
-      Assert.assertEquals(
-          r.getField("timestamp_with_zone"), readRecord.getField("timestamp_with_zone"));
+      assertThat(readRecord.getField("timestamp_with_zone"))
+          .isEqualTo(r.getField("timestamp_with_zone"));
     }
+  }
+
+  private DataFile writeFile(String location, String filename, List<Record> records)
+      throws IOException {
+    return writeFile(location, filename, SCHEMA, records);
+  }
+
+  private DataFile writeFile(String location, String filename, Schema schema, List<Record> records)
+      throws IOException {
+    Path path = new Path(location, filename);
+    FileFormat fileFormat = FileFormat.fromFileName(filename);
+    Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
+
+    FileAppender<Record> fileAppender =
+        new GenericAppenderFactory(schema).newAppender(fromPath(path, CONF), fileFormat);
+    try (FileAppender<Record> appender = fileAppender) {
+      appender.addAll(records);
+    }
+
+    return DataFiles.builder(PartitionSpec.unpartitioned())
+        .withInputFile(HadoopInputFile.fromPath(path, CONF))
+        .withMetrics(fileAppender.metrics())
+        .build();
   }
 
   private static ByteBuffer longToBuffer(long value) {
