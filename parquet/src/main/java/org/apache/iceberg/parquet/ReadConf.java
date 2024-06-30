@@ -111,7 +111,7 @@ class ReadConf<T> {
       startRowPositions[i] =
           offsetToStartPos == null ? 0 : offsetToStartPos.get(rowGroup.getStartingPos());
       boolean shouldRead =
-          filter == null || combinedFilter.shouldRead(fileSchema, rowGroup, reader);
+          filter == null || combinedFilter.shouldRead(typeWithIds, rowGroup, reader);
 
       this.shouldSkip[i] = !shouldRead;
       if (shouldRead) {
