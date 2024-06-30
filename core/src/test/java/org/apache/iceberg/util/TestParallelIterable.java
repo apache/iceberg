@@ -24,9 +24,9 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -59,7 +59,7 @@ public class TestParallelIterable {
     CloseableIterator<Integer> iterator = parallelIterable.iterator();
     Field queueField = iterator.getClass().getDeclaredField("queue");
     queueField.setAccessible(true);
-    ConcurrentLinkedQueue<?> queue = (ConcurrentLinkedQueue<?>) queueField.get(iterator);
+    LinkedBlockingQueue<?> queue = (LinkedBlockingQueue<?>) queueField.get(iterator);
 
     assertThat(iterator.hasNext()).isTrue();
     assertThat(iterator.next()).isNotNull();
