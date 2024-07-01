@@ -53,7 +53,7 @@ public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
   private static final String S3_FILE_IO_IMPL = "org.apache.iceberg.aws.s3.S3FileIO";
   private static final String GCS_FILE_IO_IMPL = "org.apache.iceberg.gcp.gcs.GCSFileIO";
   private static final String ADLS_FILE_IO_IMPL = "org.apache.iceberg.azure.adlsv2.ADLSFileIO";
-  private static final Map<String, String> SCHEME_TO_FILE_IO =
+  private static final Map<String, String> DEFAULT_SCHEME_TO_FILE_IO =
       ImmutableMap.of(
           "s3", S3_FILE_IO_IMPL,
           "s3a", S3_FILE_IO_IMPL,
@@ -61,12 +61,14 @@ public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
           "gs", GCS_FILE_IO_IMPL,
           "abfs", ADLS_FILE_IO_IMPL,
           "abfss", ADLS_FILE_IO_IMPL);
+  private static final String SCHEME_PROPERTY_PREFIX = "resolving-io.schemes.";
 
   private final Map<String, DelegateFileIO> ioInstances = Maps.newConcurrentMap();
   private final AtomicBoolean isClosed = new AtomicBoolean(false);
   private final transient StackTraceElement[] createStack;
   private SerializableMap<String, String> properties;
   private SerializableSupplier<Configuration> hadoopConf;
+  private final Map<String, String> schemeToFileIO = Maps.newHashMap();
 
   /**
    * No-arg constructor to load the FileIO dynamically.
@@ -120,13 +122,23 @@ public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
   @Override
   public void initialize(Map<String, String> newProperties) {
     close(); // close and discard any existing FileIO instances
+    this.schemeToFileIO.putAll(DEFAULT_SCHEME_TO_FILE_IO);
     this.properties = SerializableMap.copyOf(newProperties);
     isClosed.set(false);
+    // load custom IO scheme handlers (starting with resolving-io.schemes. prefix)
+    for (String key : this.properties.keySet()) {
+      if (key.startsWith(SCHEME_PROPERTY_PREFIX)) {
+        this.schemeToFileIO.put(
+            key.substring(SCHEME_PROPERTY_PREFIX.length()), this.properties.get(key));
+      }
+    }
   }
 
   @Override
   public void close() {
     if (isClosed.compareAndSet(false, true)) {
+      schemeToFileIO.clear();
+
       List<DelegateFileIO> instances = Lists.newArrayList();
 
       instances.addAll(ioInstances.values());
@@ -219,7 +231,7 @@ public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
 
   @VisibleForTesting
   String implFromLocation(String location) {
-    return SCHEME_TO_FILE_IO.getOrDefault(scheme(location), FALLBACK_IMPL);
+    return schemeToFileIO.getOrDefault(scheme(location), FALLBACK_IMPL);
   }
 
   public Class<?> ioClass(String location) {
