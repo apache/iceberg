@@ -18,12 +18,27 @@
  */
 package org.apache.iceberg.view;
 
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.types.TypeUtil;
 
 public class ViewUtil {
   private ViewUtil() {}
 
   public static String fullViewName(String catalog, TableIdentifier ident) {
     return catalog + "." + ident;
+  }
+
+  public static int highestFieldId(List<Schema> schemas) {
+    return schemas.stream().map(Schema::highestFieldId).max(Integer::compareTo).orElse(0);
+  }
+
+  public static Schema assignFreshIds(ViewMetadata base, Schema newSchema) {
+    return TypeUtil.assignFreshIds(
+        newSchema,
+        base.schema(),
+        new AtomicInteger(ViewUtil.highestFieldId(base.schemas()))::incrementAndGet);
   }
 }
