@@ -61,6 +61,22 @@ public class ReaderUtil {
       FileFormat fileFormat,
       FileAppenderFactory<Record> appenderFactory)
       throws IOException {
+
+    return createFileTask(
+        records,
+        file,
+        fileFormat,
+        appenderFactory,
+        ResidualEvaluator.unpartitioned(Expressions.alwaysTrue()));
+  }
+
+  public static FileScanTask createFileTask(
+      List<Record> records,
+      File file,
+      FileFormat fileFormat,
+      FileAppenderFactory<Record> appenderFactory,
+      ResidualEvaluator residuals)
+      throws IOException {
     FileAppender<Record> appender =
         appenderFactory.newAppender(Files.localOutput(file), fileFormat);
     try {
@@ -78,7 +94,6 @@ public class ReaderUtil {
             .withMetrics(appender.metrics())
             .build();
 
-    ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(Expressions.alwaysTrue());
     return new BaseFileScanTask(
         dataFile,
         null,
