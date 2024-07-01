@@ -217,6 +217,12 @@ class MetadataLog(BaseModel):
     __root__: List[MetadataLogItem]
 
 
+class PlanTask(BaseModel):
+    """
+    An opaque JSON object that contains information provided by the REST server to be utilized by clients for distributed table scan planning; should be supplied as input in `PlanTable` operation.
+    """
+
+
 class SQLViewRepresentation(BaseModel):
     type: str
     sql: str
@@ -439,6 +445,10 @@ class AssertViewUUID(BaseModel):
 
     type: Literal['assert-view-uuid']
     uuid: str
+
+
+class PreplanTableResult(BaseModel):
+    plan_tasks: List[PlanTask] = Field(..., alias='plan-tasks')
 
 
 class RegisterTableRequest(BaseModel):
@@ -777,8 +787,8 @@ class ContentFile(BaseModel):
     file_path: str = Field(..., alias='file-path')
     file_format: FileFormat = Field(..., alias='file-format')
     spec_id: int = Field(..., alias='spec-id')
-    partition: Optional[List[PrimitiveTypeValue]] = Field(
-        None,
+    partition: List[PrimitiveTypeValue] = Field(
+        ...,
         description='A list of partition field values ordered based on the fields of the partition spec specified by the `spec-id`',
         example=[1, 'bar'],
     )
@@ -1017,6 +1027,18 @@ class TableMetadata(BaseModel):
     )
 
 
+class FileScanTask(BaseModel):
+    data_file: DataFile = Field(..., alias='data-file')
+    delete_files: Optional[
+        Union[List[PositionDeleteFile], List[EqualityDeleteFile]]
+    ] = Field(None, alias='delete-files')
+    residual_filter: Optional[Expression] = Field(
+        None,
+        alias='residual-filter',
+        description='filters that are not fully applied by the server and should be pushed down to the file reader when reading the file. When not present, the residual should be calculated on the client or the original filter should be used.',
+    )
+
+
 class ViewMetadata(BaseModel):
     view_uuid: str = Field(..., alias='view-uuid')
     format_version: int = Field(..., alias='format-version', ge=1, le=1)
@@ -1111,6 +1133,10 @@ class LoadTableResult(BaseModel):
     config: Optional[Dict[str, str]] = None
 
 
+class PlanTableResult(BaseModel):
+    file_scan_tasks: List[FileScanTask] = Field(..., alias='file-scan-tasks')
+
+
 class CommitTableRequest(BaseModel):
     identifier: Optional[TableIdentifier] = Field(
         None,
@@ -1140,6 +1166,55 @@ class CreateTableRequest(BaseModel):
     write_order: Optional[SortOrder] = Field(None, alias='write-order')
     stage_create: Optional[bool] = Field(None, alias='stage-create')
     properties: Optional[Dict[str, str]] = None
+
+
+class PreplanTableRequest(BaseModel):
+    select: List[str] = Field(
+        ...,
+        description='A list of the selected column names. If referencing a column with a nested field, ensure full name is joined by `.` such as `a.b`',
+    )
+    filter: Expression
+    case_sensitive: Optional[bool] = Field(
+        True,
+        alias='case-sensitive',
+        description='Indicates whether column selection and filtering should be case sensitive',
+    )
+    snapshot_id: Optional[int] = Field(
+        None,
+        alias='snapshot-id',
+        description="Defaults to the table's current snapshot; This option is not allowed when `snapshot-range` is present in the request.",
+    )
+    snapshot_range: Optional[List[int]] = Field(
+        None,
+        alias='snapshot-range',
+        description='A JSON list containing exactly 2 snapshot IDs representing the start (exclusive) and end (inclusive) snapshots. This option is not allowed when `snapshot-id` is present in the request.',
+    )
+
+
+class PlanTableRequest(BaseModel):
+    select: List[str] = Field(..., description='A list of the selected column names')
+    filter: Optional[Expression] = None
+    case_sensitive: Optional[bool] = Field(
+        True,
+        alias='case-sensitive',
+        description='Indicates whether column selection and filtering should be case sensitive',
+    )
+    stats_fields: Optional[List[str]] = Field(
+        None,
+        alias='stats-fields',
+        description='A list of field names for which stats should be included',
+    )
+    plan_task: Optional[PlanTask] = Field(None, alias='plan-task')
+    snapshot_id: Optional[int] = Field(
+        None,
+        alias='snapshot-id',
+        description="defaults to the table's current snapshot. This option is not allowed when `snapshot-range` or 'plan-task` is present in the request.",
+    )
+    snapshot_range: Optional[List[int]] = Field(
+        None,
+        alias='snapshot-range',
+        description='A JSON list containing exactly 2 snapshot IDs representing the start (exclusive) and end (inclusive) snapshots. This option is not allowed when `snapshot-id` or `plan-task` is present in the request.',
+    )
 
 
 class CreateViewRequest(BaseModel):
