@@ -948,6 +948,49 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
+  @TestTemplate
+  public void addFilesTargetTableEvolvedPartitioning() {
+    createIcebergTable("p1 int, p2 int, data int not null", "PARTITIONED BY (p1)");
+
+    sql("ALTER TABLE %s ADD PARTITION FIELD p2", tableName);
+
+    String createParquet =
+            "CREATE TABLE %s (p1 int, p2 int, data int) USING %s "
+                    + "PARTITIONED BY (p1, p2) LOCATION '%s'";
+
+    sql(createParquet, sourceTableName, "parquet", fileTableDir.getAbsolutePath());
+    sql("INSERT INTO %s PARTITION (p1=1, p2=10) VALUES (100)", sourceTableName);
+    sql("INSERT INTO %s PARTITION (p1=2, p2=20) VALUES (200)", sourceTableName);
+    sql("INSERT INTO %s PARTITION (p1=3, p2=30) VALUES (300)", sourceTableName);
+    sql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
+
+    assertEquals(
+            "Iceberg table contains correct data",
+            sql("SELECT p1, p2, data FROM %s ORDER BY p1", sourceTableName),
+            sql("SELECT p1, p2, data FROM %s ORDER BY p1", tableName));
+  }
+
+  @TestTemplate
+  public void addFilesTargetTableAddedPartitionColumn() {
+    createIcebergTable("dept String, subdept String, id int, name String", "PARTITIONED BY (dept, subdept)");
+    String createParquet =
+        "CREATE TABLE %s (dept String, subdept String, id int, name String) USING %s"
+            + " PARTITIONED BY (dept, subdept) LOCATION '%s'";
+
+    sql(createParquet, sourceTableName, "parquet", fileTableDir.getAbsolutePath());
+    sql("INSERT INTO %s PARTITION (dept='hr', subdept='communications') VALUES (1, 'John Doe')", sourceTableName);
+    sql("INSERT INTO %s PARTITION (dept='hr', subdept='salary') VALUES (2, 'Jane Doe')", sourceTableName);
+    sql("INSERT INTO %s PARTITION (dept='hr', subdept='communications') VALUES (3, 'Matt Doe')", sourceTableName);
+    sql("INSERT INTO %s PARTITION (dept='facilities', subdept='all') VALUES (4, 'Will Doe')", sourceTableName);
+
+    sql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT id, name, dept, subdept FROM %s ORDER BY id", tableName));
+  }
+
   private static final List<Object[]> emptyQueryResult = Lists.newArrayList();
 
   private static final StructField[] struct = {
