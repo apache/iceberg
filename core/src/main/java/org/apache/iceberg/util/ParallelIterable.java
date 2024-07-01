@@ -67,6 +67,12 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
                             try (Closeable ignored =
                                 (iterable instanceof Closeable) ? (Closeable) iterable : () -> {}) {
                               for (T item : iterable) {
+                                // exit manually because `ConcurrentLinkedQueue` can't be
+                                // interrupted
+                                if (closed) {
+                                  return;
+                                }
+
                                 queue.add(item);
                               }
                             } catch (IOException e) {
