@@ -986,7 +986,7 @@ public class TableMetadata implements Serializable {
 
     // it is only safe to set the format version directly while creating tables
     // in all other cases, use upgradeFormatVersion
-    private Builder setInitialFormatVersion(int newFormatVersion) {
+    public Builder setInitialFormatVersion(int newFormatVersion) {
       Preconditions.checkArgument(
           newFormatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
           "Unsupported format version: v%s (supported: v%s)",

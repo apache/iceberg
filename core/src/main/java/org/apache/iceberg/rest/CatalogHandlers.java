@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
+import org.apache.iceberg.MetadataUpdate.UpgradeFormatVersion;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -375,7 +376,16 @@ public class CatalogHandlers {
     request.requirements().forEach(requirement -> requirement.validate(ops.current()));
 
     TableMetadata.Builder builder = TableMetadata.buildFromEmpty();
-    request.updates().forEach(update -> update.applyTo(builder));
+    request
+        .updates()
+        .forEach(
+            update -> {
+              if (update instanceof UpgradeFormatVersion) {
+                builder.setInitialFormatVersion(((UpgradeFormatVersion) update).formatVersion());
+              } else {
+                update.applyTo(builder);
+              }
+            });
 
     // create transactions do not retry. if the table exists, retrying is not a solution
     ops.commit(null, builder.build());
