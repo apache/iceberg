@@ -397,8 +397,8 @@ public class SparkScanBuilder
             .collect(Collectors.toSet());
 
     // Calculate used ids by union metadata columns with all base table schemas
-    Set<Integer> currentlyUsedIds = indexedMetadataColumnFields.keySet();
-    currentlyUsedIds.removeAll(idsToReassign);
+    Set<Integer> currentlyUsedIds =
+        Sets.difference(indexedMetadataColumnFields.keySet(), idsToReassign);
     Set<Integer> allUsedIds =
         table.schemas().values().stream()
             .map(currSchema -> TypeUtil.indexById(currSchema.asStruct()).keySet())
