@@ -25,6 +25,7 @@ import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
+import org.apache.iceberg.hadoop.HadoopDependency;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -113,7 +114,8 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   }
 
   private FileIO fileIO(Table table) {
-    if (table.io() instanceof HadoopConfigurable) {
+    if (HadoopDependency.isHadoopCommonOnClasspath(SerializableTable.class.getClassLoader())
+        && table.io() instanceof HadoopConfigurable) {
       ((HadoopConfigurable) table.io()).serializeConfWith(SerializableConfSupplier::new);
     }
 
