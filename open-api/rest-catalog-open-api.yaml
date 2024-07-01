@@ -2933,7 +2933,10 @@ components:
         See https://datatracker.ietf.org/doc/html/rfc8693#section-3
 
     OAuthClientCredentialsRequest:
-      description:
+      deprecated: true
+      description: The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec.
+
+
         OAuth2 client credentials request
 
 
@@ -2968,7 +2971,10 @@ components:
             a Basic Authorization header.
 
     OAuthTokenExchangeRequest:
-      description:
+      deprecated: true
+      description: The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec.
+        
+        
         OAuth2 token exchange request
 
 
@@ -2999,6 +3005,8 @@ components:
           $ref: '#/components/schemas/TokenType'
 
     OAuthTokenRequest:
+      deprecated: true
+      description: The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec.
       anyOf:
         - $ref: '#/components/schemas/OAuthClientCredentialsRequest'
         - $ref: '#/components/schemas/OAuthTokenExchangeRequest'
@@ -3153,6 +3161,8 @@ components:
             type: string
 
     OAuthError:
+      deprecated: true
+      description: The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec.
       type: object
       required:
         - error
@@ -3172,6 +3182,8 @@ components:
           type: string
 
     OAuthTokenResponse:
+      deprecated: true
+      description: The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec.
       type: object
       required:
         - access_token
