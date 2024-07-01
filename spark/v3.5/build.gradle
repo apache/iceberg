@@ -114,6 +114,10 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     // Vectorized reads need more memory
     maxHeapSize '2560m'
   }
+
+  tasks.named("clean", Delete) {
+    delete("spark-warehouse")
+  }
 }
 
 project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVersion}") {
@@ -180,6 +184,10 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
   generateGrammarSource {
     maxHeapSize = "64m"
     arguments += ['-visitor', '-package', 'org.apache.spark.sql.catalyst.parser.extensions']
+  }
+
+  tasks.named("clean", Delete) {
+    delete("spark-warehouse")
   }
 }
 
