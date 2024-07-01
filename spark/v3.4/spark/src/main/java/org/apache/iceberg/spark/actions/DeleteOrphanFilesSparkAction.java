@@ -50,6 +50,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -302,6 +303,19 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Dataset<String> listedFileDS() {
     List<String> subDirs = Lists.newArrayList();
     List<String> matchingFiles = Lists.newArrayList();
+
+    if (table.io() instanceof SupportsPrefixOperations) {
+      Iterator<org.apache.iceberg.io.FileInfo> iterator = ((SupportsPrefixOperations) table.io()).listPrefix(location).iterator();
+      while (iterator.hasNext()) {
+        org.apache.iceberg.io.FileInfo fileInfo = iterator.next();
+        if (fileInfo.createdAtMillis() < olderThanTimestamp) {
+          matchingFiles.add(fileInfo.location());
+        }
+      }
+
+      JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
+      return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
+    }
 
     Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
     PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs());
