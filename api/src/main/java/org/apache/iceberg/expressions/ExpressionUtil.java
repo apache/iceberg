@@ -43,6 +43,7 @@ public class ExpressionUtil {
       Transforms.bucket(Integer.MAX_VALUE).bind(Types.StringType.get());
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final long FIVE_MINUTES_IN_MICROS = TimeUnit.MINUTES.toMicros(5);
+  private static final long FIVE_MINUTES_IN_NANOS = TimeUnit.MINUTES.toNanos(5);
   private static final long THREE_DAYS_IN_HOURS = TimeUnit.DAYS.toHours(3);
   private static final long NINETY_DAYS_IN_HOURS = TimeUnit.DAYS.toHours(90);
   private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
@@ -52,6 +53,12 @@ public class ExpressionUtil {
   private static final Pattern TIMESTAMPTZ =
       Pattern.compile(
           "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{1,9})?)?([-+]\\d{2}:\\d{2}|Z)");
+  private static final Pattern TIMESTAMPNS =
+      Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{7,9})?)?");
+  private static final Pattern TIMESTAMPTZNS =
+      Pattern.compile(
+          "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(.\\d{7,9})?)?([-+]\\d{2}:\\d{2}|Z)");
+
   static final int LONG_IN_PREDICATE_ABBREVIATION_THRESHOLD = 10;
   private static final int LONG_IN_PREDICATE_ABBREVIATION_MIN_GAIN = 5;
 
@@ -515,6 +522,8 @@ public class ExpressionUtil {
         return "(time)";
       case TIMESTAMP:
         return sanitizeTimestamp((long) value, now);
+      case TIMESTAMP_NANO:
+        return sanitizeTimestamp((long) value / 1000, now);
       case STRING:
         return sanitizeString((CharSequence) value, now, today);
       case BOOLEAN:
@@ -536,6 +545,8 @@ public class ExpressionUtil {
       return sanitizeDate(((Literals.DateLiteral) literal).value(), today);
     } else if (literal instanceof Literals.TimestampLiteral) {
       return sanitizeTimestamp(((Literals.TimestampLiteral) literal).value(), now);
+    } else if (literal instanceof Literals.TimestampNanoLiteral) {
+      return sanitizeTimestamp(((Literals.TimestampNanoLiteral) literal).value() / 1000, now);
     } else if (literal instanceof Literals.TimeLiteral) {
       return "(time)";
     } else if (literal instanceof Literals.IntegerLiteral) {
@@ -594,6 +605,12 @@ public class ExpressionUtil {
       if (DATE.matcher(value).matches()) {
         Literal<Integer> date = Literal.of(value).to(Types.DateType.get());
         return sanitizeDate(date.value(), today);
+      } else if (TIMESTAMPNS.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampNanoType.withoutZone());
+        return sanitizeTimestamp(Math.floorDiv(ts.value(), 1000), now);
+      } else if (TIMESTAMPTZNS.matcher(value).matches()) {
+        Literal<Long> ts = Literal.of(value).to(Types.TimestampNanoType.withZone());
+        return sanitizeTimestamp(Math.floorDiv(ts.value(), 1000), now);
       } else if (TIMESTAMP.matcher(value).matches()) {
         Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
         return sanitizeTimestamp(ts.value(), now);

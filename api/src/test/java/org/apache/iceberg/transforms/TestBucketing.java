@@ -112,11 +112,58 @@ public class TestBucketing {
         .as("Spec example: hash(2017-11-16T22:31:08) = -2047944441")
         .isEqualTo(-2047944441);
 
+    timestampVal = Literal.of("2017-11-16T22:31:08.000001").to(Types.TimestampType.withoutZone());
+    assertThat(BucketUtil.hash(timestampVal.value()))
+        .as("Spec example: hash(2017-11-16T22:31:08.000001) = -1207196810")
+        .isEqualTo(-1207196810);
+
     Literal<Long> timestamptzVal =
         Literal.of("2017-11-16T14:31:08-08:00").to(Types.TimestampType.withZone());
     assertThat(BucketUtil.hash(timestamptzVal.value()))
         .as("Spec example: hash(2017-11-16T14:31:08-08:00) = -2047944441")
         .isEqualTo(-2047944441);
+
+    timestamptzVal =
+        Literal.of("2017-11-16T14:31:08.000001-08:00").to(Types.TimestampType.withZone());
+    assertThat(BucketUtil.hash(timestamptzVal.value()))
+        .as("Spec example: hash(2017-11-16T14:31:08.000001-08:00) = -1207196810")
+        .isEqualTo(-1207196810);
+
+    Literal<Long> timestampNsVal =
+        Literal.of("2017-11-16T22:31:08").to(Types.TimestampNanoType.withoutZone());
+    assertThat(BucketUtil.hash(timestampNsVal.value()))
+        .as("Spec example: hash(2017-11-16T22:31:08) = -737750069")
+        .isEqualTo(-737750069);
+
+    timestampNsVal =
+        Literal.of("2017-11-16T22:31:08.000001").to(Types.TimestampNanoType.withoutZone());
+    assertThat(BucketUtil.hash(timestampNsVal.value()))
+        .as("Spec example: hash(2017-11-16T22:31:08.000001) = -976603392")
+        .isEqualTo(-976603392);
+
+    timestampNsVal =
+        Literal.of("2017-11-16T22:31:08.000000001").to(Types.TimestampNanoType.withoutZone());
+    assertThat(BucketUtil.hash(timestampNsVal.value()))
+        .as("hash(2017-11-16T22:31:08.000000001) = -160215926")
+        .isEqualTo(-160215926);
+
+    Literal<Long> timestamptzNsVal =
+        Literal.of("2017-11-16T14:31:08-08:00").to(Types.TimestampNanoType.withZone());
+    assertThat(BucketUtil.hash(timestamptzNsVal.value()))
+        .as("Spec example: hash(2017-11-16T14:31:08-08:00) = -737750069")
+        .isEqualTo(-737750069);
+
+    timestamptzNsVal =
+        Literal.of("2017-11-16T14:31:08.000001-08:00").to(Types.TimestampNanoType.withZone());
+    assertThat(BucketUtil.hash(timestamptzNsVal.value()))
+        .as("Spec example: hash(2017-11-16T14:31:08.000001-08:00) = -976603392")
+        .isEqualTo(-976603392);
+
+    timestamptzNsVal =
+        Literal.of("2017-11-16T14:31:08.000000001-08:00").to(Types.TimestampNanoType.withZone());
+    assertThat(BucketUtil.hash(timestamptzNsVal.value()))
+        .as("Spec example: hash(2017-11-16T14:31:08.000000001-08:00) = -160215926")
+        .isEqualTo(-160215926);
 
     assertThat(BucketUtil.hash("iceberg"))
         .as("Spec example: hash(\"iceberg\") = 1210000089")
@@ -163,6 +210,57 @@ public class TestBucketing {
     assertThat(BucketUtil.hash(num))
         .as("Long hash should match hash of little-endian bytes")
         .isEqualTo(hashBytes(buffer.array()));
+  }
+
+  @Test
+  public void testTimestampNanoPromotion() {
+    // Values from spec Appendix B: 32-bit Hash Requirements
+    String timestamp1 = "2017-11-16T22:31:08";
+    long expectedHash1 = -2047944441;
+    String timestamp2 = "2017-11-16T22:31:08.000001";
+    long expectedHash2 = -1207196810;
+    String timestampTz1 = "2017-11-16T14:31:08-08:00";
+    String timestampTz2 = "2017-11-16T14:31:08.000001-08:00";
+    String timestampNs1 = "2017-11-16T22:31:08";
+    String timestampNs2 = "2017-11-16T22:31:08.000001001";
+    String timestampTzNs1 = "2017-11-16T14:31:08-08:00";
+    String timestampTzNs2 = "2017-11-16T14:31:08.000001001-08:00";
+
+    Types.TimestampType tsType = Types.TimestampType.withoutZone();
+    Types.TimestampType tsTzType = Types.TimestampType.withZone();
+    Types.TimestampNanoType tsNsType = Types.TimestampNanoType.withoutZone();
+    Types.TimestampNanoType tsTzNsType = Types.TimestampNanoType.withZone();
+
+    Bucket<Object> tsNsBucket = Bucket.get(tsNsType, 1);
+    Bucket<Object> tsBucket = Bucket.get(tsType, 1);
+    Bucket<Object> tsTzNsBucket = Bucket.get(tsTzNsType, 1);
+    Bucket<Object> tsTzBucket = Bucket.get(tsTzType, 1);
+
+    assertThat(tsBucket.hash(Literal.of(timestamp1).to(tsType).value()))
+        .as("Timestamp and TimestampNano bucket results should match")
+        .isEqualTo(expectedHash1);
+    assertThat(tsTzBucket.hash(Literal.of(timestampTz1).to(tsTzType).value()))
+        .as("Timestamp and TimestampNano bucket results should match")
+        .isEqualTo(expectedHash1);
+    assertThat(tsNsBucket.hash(Literal.of(timestampNs1).to(tsNsType).value()))
+        .as("Timestamp and TimestampNano bucket results should match")
+        .isEqualTo(expectedHash1);
+    assertThat(tsTzNsBucket.hash(Literal.of(timestampTzNs1).to(tsTzNsType).value()))
+        .as("Timestamp and TimestampNano bucket results should match")
+        .isEqualTo(expectedHash1);
+
+    assertThat(tsBucket.hash(Literal.of(timestamp2).to(tsType).value()))
+        .as("Timestamp and TimestampNano bucket results should match")
+        .isEqualTo(expectedHash2);
+    assertThat(tsTzBucket.hash(Literal.of(timestampTz2).to(tsTzType).value()))
+        .as("Timestamp and TimestampNano bucket results should match")
+        .isEqualTo(expectedHash2);
+    assertThat(tsNsBucket.hash(Literal.of(timestampNs2).to(tsNsType).value()))
+        .as("Timestamp and TimestampNano bucket results should match")
+        .isEqualTo(expectedHash2);
+    assertThat(tsTzNsBucket.hash(Literal.of(timestampTzNs2).to(tsTzNsType).value()))
+        .as("Timestamp and TimestampNano bucket results should match")
+        .isEqualTo(expectedHash2);
   }
 
   @Test

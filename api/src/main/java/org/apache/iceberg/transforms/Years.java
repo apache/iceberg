@@ -37,7 +37,9 @@ class Years<T> extends TimeTransform<T> {
       case DATE:
         return (Transform<T, Integer>) Dates.YEAR;
       case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.YEAR;
+        return (Transform<T, Integer>) Timestamps.YEAR_FROM_MICROS;
+      case TIMESTAMP_NANO:
+        return (Transform<T, Integer>) Timestamps.YEAR_FROM_NANOS;
       default:
         throw new IllegalArgumentException("Unsupported type: " + type);
     }
@@ -55,7 +57,16 @@ class Years<T> extends TimeTransform<T> {
     }
 
     if (other instanceof Timestamps) {
-      return Timestamps.YEAR.satisfiesOrderOf(other);
+      Timestamps.ResultTypeUnit otherResultTypeUnit = ((Timestamps) other).resultTypeUnit();
+      switch (otherResultTypeUnit) {
+        case MICROS:
+          return Timestamps.YEAR_FROM_MICROS.satisfiesOrderOf(other);
+        case NANOS:
+          return Timestamps.YEAR_FROM_NANOS.satisfiesOrderOf(other);
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported timestamp unit: " + otherResultTypeUnit);
+      }
     } else if (other instanceof Dates) {
       return Dates.YEAR.satisfiesOrderOf(other);
     } else if (other instanceof Years) {
