@@ -28,16 +28,26 @@ import org.apache.iceberg.flink.data.RowDataUtil;
 class RowDataRecordFactory implements RecordFactory<RowData> {
   private final RowType rowType;
   private final TypeSerializer[] fieldSerializers;
+  private final RowData.FieldGetter[] fieldGetters;
 
   RowDataRecordFactory(RowType rowType) {
     this.rowType = rowType;
     this.fieldSerializers = createFieldSerializers(rowType);
+    this.fieldGetters = createFieldGetters(rowType);
   }
 
   static TypeSerializer[] createFieldSerializers(RowType rowType) {
     return rowType.getChildren().stream()
         .map(InternalSerializers::create)
         .toArray(TypeSerializer[]::new);
+  }
+
+  static RowData.FieldGetter[] createFieldGetters(RowType rowType) {
+    RowData.FieldGetter[] fieldGetters = new RowData.FieldGetter[rowType.getFieldCount()];
+    for (int i = 0; i < rowType.getFieldCount(); ++i) {
+      fieldGetters[i] = RowData.createFieldGetter(rowType.getTypeAt(i), i);
+    }
+    return fieldGetters;
   }
 
   @Override
@@ -56,6 +66,7 @@ class RowDataRecordFactory implements RecordFactory<RowData> {
     // Clone method will allocate a new GenericRowData object
     // if the target object is NOT a GenericRowData.
     // So we should always set the clone return value back to the array.
-    batch[position] = RowDataUtil.clone(from, batch[position], rowType, fieldSerializers);
+    batch[position] =
+        RowDataUtil.clone(from, batch[position], rowType, fieldSerializers, fieldGetters);
   }
 }
