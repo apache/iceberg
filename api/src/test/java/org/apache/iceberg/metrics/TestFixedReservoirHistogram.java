@@ -113,7 +113,7 @@ public class TestFixedReservoirHistogram {
                           try {
                             barrier.await(30, SECONDS);
                             for (int i = 1; i <= 100; ++i) {
-                              histogram.update(threadIndex * samplesPerThread + i);
+                              histogram.update((long) threadIndex * samplesPerThread + i);
                             }
                             return threadIndex;
                           } catch (Exception e) {

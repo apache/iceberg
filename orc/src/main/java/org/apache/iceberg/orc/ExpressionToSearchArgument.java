@@ -332,7 +332,7 @@ class ExpressionToSearchArgument
         return Timestamp.from(
             Instant.ofEpochSecond(
                 Math.floorDiv(microsFromEpoch, 1_000_000),
-                Math.floorMod(microsFromEpoch, 1_000_000) * 1_000));
+                Math.floorMod(microsFromEpoch, 1_000_000) * 1_000L));
       case DECIMAL:
         return new HiveDecimalWritable(HiveDecimal.create((BigDecimal) icebergLiteral, false));
       default:
