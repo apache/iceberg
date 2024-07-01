@@ -202,7 +202,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     return this;
   }
 
-  CloseableIterable<ManifestEntry<F>> entries() {
+  public CloseableIterable<ManifestEntry<F>> entries() {
     return entries(false /* all entries */);
   }
 
