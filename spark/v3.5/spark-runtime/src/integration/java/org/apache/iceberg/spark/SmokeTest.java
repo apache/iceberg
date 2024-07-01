@@ -51,7 +51,7 @@ public class SmokeTest extends ExtensionsTestBase {
         .as("Should have inserted 3 rows")
         .isEqualTo(3L);
 
-    sql("DROP TABLE IF EXISTS source PURGE");
+    sql("DROP TABLE IF EXISTS source");
     sql(
         "CREATE TABLE source (id bigint, data string) USING parquet LOCATION '%s'",
         Files.createTempDirectory(temp, "junit"));
@@ -62,7 +62,7 @@ public class SmokeTest extends ExtensionsTestBase {
         .as("Table should now have 4 rows")
         .isEqualTo(4L);
 
-    sql("DROP TABLE IF EXISTS updates PURGE");
+    sql("DROP TABLE IF EXISTS updates");
     sql(
         "CREATE TABLE updates (id bigint, data string) USING parquet LOCATION '%s'",
         Files.createTempDirectory(temp, "junit"));

@@ -43,7 +43,7 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
   @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
-    sql("DROP TABLE IF EXISTS %s PURGE", sourceName);
+    sql("DROP TABLE IF EXISTS %s", sourceName);
   }
 
   @TestTemplate
