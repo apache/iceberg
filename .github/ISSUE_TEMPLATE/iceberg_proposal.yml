@@ -48,3 +48,9 @@ body:
         - label: Puffin
         - label: Encryption
         - label: Other
+  - type: checkboxes
+    attributes:
+      label: Subtasks
+      description: Split the approved proposal into smaller subtasks, each of which can be linked to PRs.
+      options:
+        - label: TODO
