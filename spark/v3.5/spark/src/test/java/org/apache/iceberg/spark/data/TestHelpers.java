@@ -49,9 +49,11 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -64,6 +66,7 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.Exp;
 import org.apache.spark.sql.catalyst.expressions.GenericRow;
 import org.apache.spark.sql.catalyst.expressions.SpecializedGetters;
 import org.apache.spark.sql.catalyst.util.ArrayData;
@@ -786,6 +789,16 @@ public class TestHelpers {
     return Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
   }
 
+  public static List<DataFile> dataFiles(Table table, String branch, Expression expr) {
+    TableScan scan = table.newScan().filter(expr);
+    if (branch != null) {
+      scan = scan.useRef(branch);
+    }
+
+    CloseableIterable<FileScanTask> tasks = scan.includeColumnStats().planFiles();
+    return Lists.newArrayList(CloseableIterable.transform(tasks, FileScanTask::file));
+  }
+
   public static Set<DeleteFile> deleteFiles(Table table) {
     Set<DeleteFile> deleteFiles = Sets.newHashSet();
 
@@ -817,7 +830,7 @@ public class TestHelpers {
     StructField[] fields = metadataTable.schema().fields();
     return metadataTable.select(
         Stream.of(fields)
-            .filter(f -> !f.name().equals("readable_metrics")) // derived field
+            .filter(f -> !MetadataTableUtils.DERIVED_FIELDS.contains(f.name())) // derived field
             .map(f -> new Column(f.name()))
             .toArray(Column[]::new));
   }

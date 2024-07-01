@@ -22,6 +22,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -35,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 
 /** Base class logic for files metadata tables */
@@ -54,7 +56,23 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       schema = TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
     }
 
-    return TypeUtil.join(schema, MetricsUtil.readableMetricsSchema(table().schema(), schema));
+    return withDerivedColumns(schema);
+  }
+
+  private Schema withDerivedColumns(Schema schema) {
+    AtomicInteger nextId = new AtomicInteger(schema.highestFieldId());
+    Schema dataSequenceNumber =
+        new Schema(
+            NestedField.optional(
+                nextId.incrementAndGet(),
+                MetadataTableUtils.DATA_SEQUENCE_NUMBER,
+                Types.LongType.get()));
+
+    Schema withDataSequenceNumber = TypeUtil.join(schema, dataSequenceNumber);
+
+    return TypeUtil.join(
+        withDataSequenceNumber,
+        MetricsUtil.readableMetricsSchema(table().schema(), withDataSequenceNumber));
   }
 
   private static CloseableIterable<FileScanTask> planFiles(
@@ -158,14 +176,26 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     @Override
     public CloseableIterable<StructLike> rows() {
       Types.NestedField readableMetricsField = projection.findField(MetricsUtil.READABLE_METRICS);
+      Types.NestedField dataSequenceNumberField =
+          projection.findField(MetadataTableUtils.DATA_SEQUENCE_NUMBER);
 
-      if (readableMetricsField == null) {
+      if (readableMetricsField == null && dataSequenceNumberField == null) {
         return CloseableIterable.transform(files(projection), file -> (StructLike) file);
-      } else {
-
+      } else if (dataSequenceNumberField == null) {
         Schema actualProjection = projectionForReadableMetrics(projection, readableMetricsField);
         return CloseableIterable.transform(
             files(actualProjection), f -> withReadableMetrics(f, readableMetricsField));
+      } else {
+        Schema minusReadableMetricsProjection =
+            readableMetricsField == null
+                ? projection
+                : projectionForReadableMetrics(projection, readableMetricsField);
+        Schema actualProjection =
+            TypeUtil.selectNot(
+                minusReadableMetricsProjection, Sets.newHashSet(dataSequenceNumberField.fieldId()));
+        return CloseableIterable.transform(
+            files(actualProjection),
+            f -> withDerivedColumns(f, dataSequenceNumberField, readableMetricsField));
       }
     }
 
@@ -198,6 +228,28 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
       return new MetricsUtil.StructWithReadableMetrics(
           (StructLike) file, structSize, readableMetrics, metricsPosition);
+    }
+
+    private StructLike withDerivedColumns(
+        ContentFile<?> file,
+        Types.NestedField dataSequenceNumberField,
+        Types.NestedField readableMetricsField) {
+      int structSize = projection.columns().size();
+      int dataSequenceNumberPosition = projection.columns().indexOf(dataSequenceNumberField);
+      Long dataSequenceNumber = file.dataSequenceNumber();
+      int metricsPosition =
+          readableMetricsField == null ? -1 : projection.columns().indexOf(readableMetricsField);
+      StructLike readableMetrics =
+          readableMetricsField == null
+              ? EmptyStructLike.get()
+              : readableMetrics(file, readableMetricsField);
+      return new MetadataTableUtils.StructWithDerivedColumns(
+          (StructLike) file,
+          structSize,
+          dataSequenceNumberPosition,
+          dataSequenceNumber,
+          metricsPosition,
+          readableMetrics);
     }
 
     private MetricsUtil.ReadableMetricsStruct readableMetrics(
