@@ -18,16 +18,19 @@
  */
 
 // add enabled Spark version modules to the build
-def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")).split(",")
+List<String> sparkVersions = System.getProperty("sparkVersions", System.getProperty("defaultSparkVersions")).split(",").findAll { !it.empty }
+List<String> knownSparkVersions = System.getProperty("knownSparkVersions").split(",")
 
-if (sparkVersions.contains("3.3")) {
-  apply from: file("$projectDir/v3.3/build.gradle")
+for (ver in sparkVersions) {
+  apply from: file("$projectDir/v${ver}/build.gradle")
 }
 
-if (sparkVersions.contains("3.4")) {
-  apply from: file("$projectDir/v3.4/build.gradle")
-}
-
-if (sparkVersions.contains("3.5")) {
-  apply from: file("$projectDir/v3.5/build.gradle")
+tasks.named("clean", Delete) {
+  for (ver in knownSparkVersions) {
+    delete("$projectDir/v${ver}/spark/build")
+    delete("$projectDir/v${ver}/spark/spark-warehouse")
+    delete("$projectDir/v${ver}/spark-extensions/build")
+    delete("$projectDir/v${ver}/spark-extensions/spark-warehouse")
+    delete("$projectDir/v${ver}/spark-runtime/build")
+  }
 }
