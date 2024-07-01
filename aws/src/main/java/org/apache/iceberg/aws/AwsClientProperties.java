@@ -165,12 +165,6 @@ public class AwsClientProperties implements Serializable {
           e);
     }
 
-    Preconditions.checkArgument(
-        AwsCredentialsProvider.class.isAssignableFrom(providerClass),
-        String.format(
-            "Cannot initialize %s, it does not implement %s.",
-            credentialsProviderClass, AwsCredentialsProvider.class.getName()));
-
     try {
       return createCredentialsProvider(providerClass);
     } catch (NoSuchMethodException e) {
