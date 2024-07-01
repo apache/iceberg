@@ -375,9 +375,9 @@ public class SparkScanBuilder
             .distinct()
             .map(name -> MetadataColumns.metadataColumn(table, name))
             .collect(Collectors.toList());
-    // only calculate potential column id collision if metadata column was requested
+    // only calculate potential column id collision if _partition was requested
     Schema metadataSchema =
-        metadataFields.isEmpty()
+        metadataFields.isEmpty() || !metaColumns.contains(MetadataColumns.PARTITION_COLUMN_NAME)
             ? new Schema(metadataFields)
             : deduplicateSchemaIds(metadataFields);
 
@@ -389,7 +389,7 @@ public class SparkScanBuilder
     Map<Integer, Types.NestedField> indexedMetadataColumnFields =
         TypeUtil.indexById(Types.StructType.of(metaColumnFields));
 
-    // Calculate field ids to reassign from nested partition field
+    // Calculate nested non-reserved metadata field ids to reassign
     Set<Integer> idsToReassign =
         indexedMetadataColumnFields.values().stream()
             .map(Types.NestedField::fieldId)
