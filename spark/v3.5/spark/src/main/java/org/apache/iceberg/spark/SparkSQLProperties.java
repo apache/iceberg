@@ -90,4 +90,7 @@ public class SparkSQLProperties {
   public static final String EXECUTOR_CACHE_LOCALITY_ENABLED =
       "spark.sql.iceberg.executor-cache.locality.enabled";
   public static final boolean EXECUTOR_CACHE_LOCALITY_ENABLED_DEFAULT = false;
+
+  public static final String SET_FIELD_NULLABLE = "spark.sql.iceberg.set-field-nullable";
+  public static final boolean SET_FIELD_NULLABLE_DEFAULT = false;
 }
