@@ -22,7 +22,7 @@ import java.io.IOException;
 
 public class TestableCloseableIterable implements CloseableIterable<Integer> {
   private Boolean closed = false;
-  private TestableCloseableIterator iterator = new TestableCloseableIterator();
+  private final TestableCloseableIterator iterator = new TestableCloseableIterator();
 
   @Override
   public CloseableIterator<Integer> iterator() {

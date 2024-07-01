@@ -116,7 +116,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   private Map<String, String> equalSchemes = flattenMap(EQUAL_SCHEMES_DEFAULT);
   private Map<String, String> equalAuthorities = Collections.emptyMap();
   private PrefixMismatchMode prefixMismatchMode = PrefixMismatchMode.ERROR;
-  private String location = null;
+  private String location;
   private long olderThanTimestamp = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(3);
   private Dataset<Row> compareToFileList;
   private Consumer<String> deleteFunc = null;

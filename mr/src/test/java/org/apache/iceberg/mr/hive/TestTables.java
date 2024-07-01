@@ -552,10 +552,9 @@ abstract class TestTables {
   private String getStringValueForInsert(Object value, Type type) {
     String template = "\'%s\'";
     if (type.equals(Types.TimestampType.withoutZone())) {
-      return String.format(template, Timestamp.valueOf((LocalDateTime) value).toString());
+      return String.format(template, Timestamp.valueOf((LocalDateTime) value));
     } else if (type.equals(Types.TimestampType.withZone())) {
-      return String.format(
-          template, Timestamp.from(((OffsetDateTime) value).toInstant()).toString());
+      return String.format(template, Timestamp.from(((OffsetDateTime) value).toInstant()));
     } else if (type.equals(Types.BooleanType.get())) {
       // in hive2 boolean type values must not be surrounded in apostrophes. Otherwise the value is
       // translated to true.

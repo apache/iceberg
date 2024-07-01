@@ -67,7 +67,7 @@ public class AwsClientProperties implements Serializable {
   public static final String CLIENT_REGION = "client.region";
 
   private String clientRegion;
-  private String clientCredentialsProvider;
+  private final String clientCredentialsProvider;
   private final Map<String, String> clientCredentialsProviderProperties;
 
   public AwsClientProperties() {

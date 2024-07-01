@@ -232,7 +232,7 @@ public final class ORCSchemaUtil {
             .map(Optional::get)
             .collect(Collectors.toList());
 
-    if (fields.size() == 0) {
+    if (fields.isEmpty()) {
       throw new IllegalArgumentException("ORC schema does not contain Iceberg IDs");
     }
 
@@ -326,9 +326,7 @@ public final class ORCSchemaUtil {
         } else {
           if (isRequired) {
             throw new IllegalArgumentException(
-                String.format(
-                    "Field %d of type %s is required and was not found.",
-                    fieldId, type.toString()));
+                String.format("Field %d of type %s is required and was not found.", fieldId, type));
           }
 
           orcType = convert(fieldId, type, false);

@@ -45,7 +45,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private final ParquetReadOptions options;
   private final Function<MessageType, VectorizedReader<?>> batchReaderFunc;
   private final Expression filter;
-  private boolean reuseContainers;
+  private final boolean reuseContainers;
   private final boolean caseSensitive;
   private final int batchSize;
   private final NameMapping nameMapping;

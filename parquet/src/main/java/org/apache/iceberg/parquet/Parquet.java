@@ -346,7 +346,7 @@ public class Parquet {
         for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
           String colPath = entry.getKey();
           String bloomEnabled = entry.getValue();
-          propsBuilder.withBloomFilterEnabled(colPath, Boolean.valueOf(bloomEnabled));
+          propsBuilder.withBloomFilterEnabled(colPath, Boolean.parseBoolean(bloomEnabled));
         }
 
         for (Map.Entry<String, String> entry : columnBloomFilterFpp.entrySet()) {
@@ -389,7 +389,7 @@ public class Parquet {
         for (Map.Entry<String, String> entry : columnBloomFilterEnabled.entrySet()) {
           String colPath = entry.getKey();
           String bloomEnabled = entry.getValue();
-          parquetWriteBuilder.withBloomFilterEnabled(colPath, Boolean.valueOf(bloomEnabled));
+          parquetWriteBuilder.withBloomFilterEnabled(colPath, Boolean.parseBoolean(bloomEnabled));
         }
 
         for (Map.Entry<String, String> entry : columnBloomFilterFpp.entrySet()) {

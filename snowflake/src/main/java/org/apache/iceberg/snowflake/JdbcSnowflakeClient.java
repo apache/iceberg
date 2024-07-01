@@ -191,13 +191,11 @@ class JdbcSnowflakeClient implements SnowflakeClient {
 
     final String finalQuery = "SHOW TABLES IN SCHEMA IDENTIFIER(?) LIMIT 1";
 
-    List<SnowflakeIdentifier> tables;
     try {
-      tables =
-          connectionPool.run(
-              conn ->
-                  queryHarness.query(
-                      conn, finalQuery, TABLE_RESULT_SET_HANDLER, schema.toIdentifierString()));
+      connectionPool.run(
+          conn ->
+              queryHarness.query(
+                  conn, finalQuery, TABLE_RESULT_SET_HANDLER, schema.toIdentifierString()));
     } catch (SQLException e) {
       if (SCHEMA_NOT_FOUND_ERROR_CODES.contains(e.getErrorCode())) {
         return false;

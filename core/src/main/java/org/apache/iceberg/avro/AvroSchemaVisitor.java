@@ -71,8 +71,8 @@ public abstract class AvroSchemaVisitor<T> {
     }
   }
 
-  private Deque<String> recordLevels = Lists.newLinkedList();
-  private Deque<String> fieldNames = Lists.newLinkedList();
+  private final Deque<String> recordLevels = Lists.newLinkedList();
+  private final Deque<String> fieldNames = Lists.newLinkedList();
 
   protected Deque<String> fieldNames() {
     return fieldNames;

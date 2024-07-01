@@ -160,7 +160,7 @@ public class MetricsModes {
   }
 
   private static class MetricsModeProxy implements Serializable {
-    private String modeAsString;
+    private final String modeAsString;
 
     MetricsModeProxy(String modeAsString) {
       this.modeAsString = modeAsString;

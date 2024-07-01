@@ -209,7 +209,7 @@ public class GenericOrcReaders {
         Types.StructType structType,
         Map<Integer, ?> idToConstant) {
       super(readers, structType, idToConstant);
-      this.template = structType != null ? GenericRecord.create(structType) : null;
+      this.template = GenericRecord.create(structType);
     }
 
     @Override

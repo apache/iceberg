@@ -41,7 +41,7 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 
 class Deserializer {
-  private FieldDeserializer fieldDeserializer;
+  private final FieldDeserializer fieldDeserializer;
 
   /**
    * Builder to create a Deserializer instance. Requires an Iceberg Schema and the Hive
@@ -279,8 +279,8 @@ class Deserializer {
    * the provided writerInspector.
    */
   private static class ObjectInspectorPair {
-    private ObjectInspector writerInspector;
-    private ObjectInspector sourceInspector;
+    private final ObjectInspector writerInspector;
+    private final ObjectInspector sourceInspector;
 
     ObjectInspectorPair(ObjectInspector writerInspector, ObjectInspector sourceInspector) {
       this.writerInspector = writerInspector;

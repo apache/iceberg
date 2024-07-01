@@ -365,7 +365,7 @@ public class PartitionSpec implements Serializable {
     private final Schema schema;
     private final List<PartitionField> fields = Lists.newArrayList();
     private final Set<String> partitionNames = Sets.newHashSet();
-    private Map<Map.Entry<Integer, String>, PartitionField> dedupFields = Maps.newHashMap();
+    private final Map<Map.Entry<Integer, String>, PartitionField> dedupFields = Maps.newHashMap();
     private int specId = 0;
     private final AtomicInteger lastAssignedFieldId =
         new AtomicInteger(unpartitionedLastAssignedId());
@@ -410,7 +410,7 @@ public class PartitionSpec implements Serializable {
         }
       }
       Preconditions.checkArgument(
-          name != null && !name.isEmpty(), "Cannot use empty or null partition name: %s", name);
+          !name.isEmpty(), "Cannot use empty or null partition name: %s", name);
       Preconditions.checkArgument(
           !partitionNames.contains(name), "Cannot use partition name more than once: %s", name);
       partitionNames.add(name);

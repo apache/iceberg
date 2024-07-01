@@ -107,7 +107,7 @@ public class TestBloomFilter {
 
     try (Reader reader =
         OrcFile.createReader(
-            new Path(outFile.location()), new OrcFile.ReaderOptions(new Configuration())); ) {
+            new Path(outFile.location()), new OrcFile.ReaderOptions(new Configuration()))) {
       boolean[] readCols = new boolean[] {false, true, true, false};
       RecordReaderImpl rows = (RecordReaderImpl) reader.rows();
       OrcIndex indices = rows.readRowIndex(0, null, readCols);

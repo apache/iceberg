@@ -39,6 +39,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.common.type.HiveDecimal;
 import org.apache.hadoop.hive.serde2.io.DateWritable;
@@ -279,11 +280,14 @@ public class HiveIcebergTestUtils {
    */
   public static void validateFiles(Table table, Configuration conf, JobID jobId, int dataFileNum)
       throws IOException {
-    List<Path> dataFiles =
-        Files.walk(Paths.get(table.location() + "/data"))
-            .filter(Files::isRegularFile)
-            .filter(path -> !path.getFileName().toString().startsWith("."))
-            .collect(Collectors.toList());
+    List<Path> dataFiles;
+    try (Stream<Path> files = Files.walk(Paths.get(table.location() + "/data"))) {
+      dataFiles =
+          files
+              .filter(Files::isRegularFile)
+              .filter(path -> !path.getFileName().toString().startsWith("."))
+              .collect(Collectors.toList());
+    }
 
     assertThat(dataFiles).hasSize(dataFileNum);
     assertThat(

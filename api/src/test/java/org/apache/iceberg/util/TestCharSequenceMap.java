@@ -31,8 +31,8 @@ public class TestCharSequenceMap {
 
   @Test
   public void nullString() {
-    assertThat(CharSequenceMap.create()).doesNotContainKey((String) null);
-    assertThat(CharSequenceMap.create()).doesNotContainValue((String) null);
+    assertThat(CharSequenceMap.create()).doesNotContainKey(null);
+    assertThat(CharSequenceMap.create()).doesNotContainValue(null);
   }
 
   @Test

@@ -355,7 +355,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
     }
 
     try {
-      return Integer.valueOf(metadataLocation.substring(versionStart, versionEnd));
+      return Integer.parseInt(metadataLocation.substring(versionStart, versionEnd));
     } catch (NumberFormatException e) {
       LOG.warn("Unable to parse version from metadata location: {}", metadataLocation, e);
       return -1;

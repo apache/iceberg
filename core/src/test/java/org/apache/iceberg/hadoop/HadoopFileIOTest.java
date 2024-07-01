@@ -86,7 +86,7 @@ public class HadoopFileIOTest {
   @Test
   public void testFileExists() throws IOException {
     Path parent = new Path(tempDir.toURI());
-    Path randomFilePath = new Path(parent, "random-file-" + UUID.randomUUID().toString());
+    Path randomFilePath = new Path(parent, "random-file-" + UUID.randomUUID());
     fs.createNewFile(randomFilePath);
 
     // check existence of the created file

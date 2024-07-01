@@ -94,7 +94,7 @@ public interface FileIO extends Serializable, Closeable {
    */
   default Map<String, String> properties() {
     throw new UnsupportedOperationException(
-        String.format("%s does not expose configuration properties", this.getClass().toString()));
+        String.format("%s does not expose configuration properties", this.getClass()));
   }
 
   /**

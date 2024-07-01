@@ -84,7 +84,7 @@ public class LoadTableResponse implements RESTResponse {
   public static class Builder {
     private String metadataLocation;
     private TableMetadata metadata;
-    private Map<String, String> config = Maps.newHashMap();
+    private final Map<String, String> config = Maps.newHashMap();
 
     private Builder() {}
 

@@ -781,7 +781,7 @@ public class TestHiveIcebergStorageHandlerLocalScan {
       expected.addAll(data.get(partition));
     }
 
-    List<Object[]> descRows = shell.executeStatement("SELECT * FROM " + identifier.toString());
+    List<Object[]> descRows = shell.executeStatement("SELECT * FROM " + identifier);
     List<Record> records = HiveIcebergTestUtils.valueForRow(icebergTable.schema(), descRows);
 
     HiveIcebergTestUtils.validateData(expected, records, 0);

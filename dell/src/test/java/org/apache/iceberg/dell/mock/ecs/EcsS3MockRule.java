@@ -110,7 +110,7 @@ public class EcsS3MockRule implements BeforeEachCallback, AfterEachCallback {
   private void cleanUp() {
     if (mock) {
       // clean up
-      TEST_RULE_FOR_MOCK_CLIENT.set(null);
+      TEST_RULE_FOR_MOCK_CLIENT.remove();
     } else {
       if (bucketCreated) {
         deleteBucket();

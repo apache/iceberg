@@ -139,8 +139,8 @@ public class LakeFormationAwsClientFactory extends AssumeRoleAwsClientFactory {
   }
 
   static class LakeFormationCredentialsProvider implements AwsCredentialsProvider {
-    private LakeFormationClient client;
-    private String tableArn;
+    private final LakeFormationClient client;
+    private final String tableArn;
 
     LakeFormationCredentialsProvider(LakeFormationClient lakeFormationClient, String tableArn) {
       this.client = lakeFormationClient;
