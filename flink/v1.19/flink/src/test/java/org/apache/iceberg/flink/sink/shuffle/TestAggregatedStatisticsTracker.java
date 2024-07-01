@@ -36,7 +36,7 @@ public class TestAggregatedStatisticsTracker {
 
     StatisticsEvent checkpoint1Subtask0StatisticsEvent =
         createStatisticsEvent(type, TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("a"));
-    AggregatedStatistics completedStatistics =
+    CompletedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint1Subtask0StatisticsEvent);
     assertThat(completedStatistics).isNull();
     assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);
@@ -86,7 +86,8 @@ public class TestAggregatedStatisticsTracker {
                   CHAR_KEYS.get("a"), 1L,
                   CHAR_KEYS.get("b"), 1L));
     } else {
-      assertThat(completedStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("a"));
+      assertThat(completedStatistics.keySamples())
+          .containsExactly(CHAR_KEYS.get("a"), CHAR_KEYS.get("b"));
     }
 
     // checkpoint 2 remains
@@ -115,7 +116,7 @@ public class TestAggregatedStatisticsTracker {
             CHAR_KEYS.get("a"),
             CHAR_KEYS.get("b"),
             CHAR_KEYS.get("b"));
-    AggregatedStatistics completedStatistics =
+    CompletedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint2Subtask0StatisticsEvent);
     assertThat(completedStatistics).isNull();
     assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(2L);
@@ -189,7 +190,14 @@ public class TestAggregatedStatisticsTracker {
                   CHAR_KEYS.get("a"), 2L,
                   CHAR_KEYS.get("b"), 4L));
     } else {
-      assertThat(completedStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("b"));
+      assertThat(completedStatistics.keySamples())
+          .containsExactly(
+              CHAR_KEYS.get("a"),
+              CHAR_KEYS.get("b"),
+              CHAR_KEYS.get("b"),
+              CHAR_KEYS.get("a"),
+              CHAR_KEYS.get("b"),
+              CHAR_KEYS.get("b"));
     }
   }
 
@@ -207,7 +215,7 @@ public class TestAggregatedStatisticsTracker {
             CHAR_KEYS.get("b"),
             CHAR_KEYS.get("b"));
 
-    AggregatedStatistics completedStatistics =
+    CompletedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint1Subtask0DataStatisticEvent);
     assertThat(completedStatistics).isNull();
     assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);
@@ -246,7 +254,14 @@ public class TestAggregatedStatisticsTracker {
                   CHAR_KEYS.get("a"), 3L,
                   CHAR_KEYS.get("b"), 3L));
     } else {
-      assertThat(completedStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("a"));
+      assertThat(completedStatistics.keySamples())
+          .containsExactly(
+              CHAR_KEYS.get("a"),
+              CHAR_KEYS.get("b"),
+              CHAR_KEYS.get("b"),
+              CHAR_KEYS.get("a"),
+              CHAR_KEYS.get("a"),
+              CHAR_KEYS.get("b"));
     }
 
     StatisticsEvent checkpoint2Subtask0DataStatisticEvent =
@@ -280,7 +295,8 @@ public class TestAggregatedStatisticsTracker {
                   CHAR_KEYS.get("a"), 1L,
                   CHAR_KEYS.get("b"), 1L));
     } else {
-      assertThat(completedStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("a"));
+      assertThat(completedStatistics.keySamples())
+          .containsExactly(CHAR_KEYS.get("a"), CHAR_KEYS.get("b"));
     }
   }
 
@@ -307,7 +323,7 @@ public class TestAggregatedStatisticsTracker {
             1L,
             CHAR_KEYS.get("a"),
             CHAR_KEYS.get("b"));
-    AggregatedStatistics completedStatistics =
+    CompletedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint1Subtask0StatisticsEvent);
     assertThat(completedStatistics).isNull();
     assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);
@@ -349,8 +365,14 @@ public class TestAggregatedStatisticsTracker {
     assertThat(tracker.aggregationsPerCheckpoint()).isEmpty();
     assertThat(completedStatistics).isNotNull();
     assertThat(completedStatistics.type()).isEqualTo(StatisticsType.Sketch);
-    assertThat(completedStatistics.rangeBounds())
-        .containsExactly(CHAR_KEYS.get("b"), CHAR_KEYS.get("d"));
+    assertThat(completedStatistics.keySamples())
+        .containsExactly(
+            CHAR_KEYS.get("a"),
+            CHAR_KEYS.get("b"),
+            CHAR_KEYS.get("c"),
+            CHAR_KEYS.get("d"),
+            CHAR_KEYS.get("e"),
+            CHAR_KEYS.get("f"));
   }
 
   @Test
@@ -376,7 +398,7 @@ public class TestAggregatedStatisticsTracker {
             1L,
             CHAR_KEYS.get("a"),
             CHAR_KEYS.get("b"));
-    AggregatedStatistics completedStatistics =
+    CompletedStatistics completedStatistics =
         tracker.updateAndCheckCompletion(0, checkpoint1Subtask0StatisticsEvent);
     assertThat(completedStatistics).isNull();
     assertThat(tracker.aggregationsPerCheckpoint().keySet()).containsExactlyInAnyOrder(1L);
@@ -419,8 +441,14 @@ public class TestAggregatedStatisticsTracker {
     assertThat(tracker.aggregationsPerCheckpoint()).isEmpty();
     assertThat(completedStatistics).isNotNull();
     assertThat(completedStatistics.type()).isEqualTo(StatisticsType.Sketch);
-    assertThat(completedStatistics.rangeBounds())
-        .containsExactly(CHAR_KEYS.get("b"), CHAR_KEYS.get("d"));
+    assertThat(completedStatistics.keySamples())
+        .containsExactly(
+            CHAR_KEYS.get("a"),
+            CHAR_KEYS.get("b"),
+            CHAR_KEYS.get("c"),
+            CHAR_KEYS.get("d"),
+            CHAR_KEYS.get("e"),
+            CHAR_KEYS.get("f"));
   }
 
   private AggregatedStatisticsTracker createTracker(StatisticsType type) {

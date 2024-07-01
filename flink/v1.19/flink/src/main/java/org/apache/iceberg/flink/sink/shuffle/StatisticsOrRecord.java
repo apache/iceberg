@@ -40,10 +40,10 @@ public class StatisticsOrRecord implements Serializable {
 
   private static final long serialVersionUID = 1L;
 
-  private AggregatedStatistics statistics;
+  private GlobalStatistics statistics;
   private RowData record;
 
-  private StatisticsOrRecord(AggregatedStatistics statistics, RowData record) {
+  private StatisticsOrRecord(GlobalStatistics statistics, RowData record) {
     Preconditions.checkArgument(
         record != null ^ statistics != null, "DataStatistics or record, not neither or both");
     this.statistics = statistics;
@@ -54,7 +54,7 @@ public class StatisticsOrRecord implements Serializable {
     return new StatisticsOrRecord(null, record);
   }
 
-  static StatisticsOrRecord fromStatistics(AggregatedStatistics statistics) {
+  static StatisticsOrRecord fromStatistics(GlobalStatistics statistics) {
     return new StatisticsOrRecord(statistics, null);
   }
 
@@ -69,7 +69,7 @@ public class StatisticsOrRecord implements Serializable {
   }
 
   static StatisticsOrRecord reuseStatistics(
-      StatisticsOrRecord reuse, TypeSerializer<AggregatedStatistics> statisticsSerializer) {
+      StatisticsOrRecord reuse, TypeSerializer<GlobalStatistics> statisticsSerializer) {
     if (reuse.hasStatistics()) {
       return reuse;
     } else {
@@ -86,11 +86,11 @@ public class StatisticsOrRecord implements Serializable {
     return record != null;
   }
 
-  AggregatedStatistics statistics() {
+  GlobalStatistics statistics() {
     return statistics;
   }
 
-  void statistics(AggregatedStatistics newStatistics) {
+  void statistics(GlobalStatistics newStatistics) {
     this.statistics = newStatistics;
   }
 

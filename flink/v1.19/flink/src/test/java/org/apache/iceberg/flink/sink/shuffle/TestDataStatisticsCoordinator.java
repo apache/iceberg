@@ -19,17 +19,24 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.NUM_SUBTASKS;
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.SORT_ORDER_COMPARTOR;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
 import org.apache.flink.util.ExceptionUtils;
+import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
@@ -45,7 +52,7 @@ public class TestDataStatisticsCoordinator {
   }
 
   private void tasksReady(DataStatisticsCoordinator coordinator) {
-    setAllTasksReady(Fixtures.NUM_SUBTASKS, coordinator, receivingTasks);
+    setAllTasksReady(NUM_SUBTASKS, coordinator, receivingTasks);
   }
 
   @ParameterizedTest
@@ -106,20 +113,95 @@ public class TestDataStatisticsCoordinator {
 
       waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
 
-      // Verify global data statistics is the aggregation of all subtasks data statistics
-      AggregatedStatistics aggregatedStatistics = dataStatisticsCoordinator.completedStatistics();
-      assertThat(aggregatedStatistics.checkpointId()).isEqualTo(1L);
-      assertThat(aggregatedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      Map<SortKey, Long> keyFrequency =
+          ImmutableMap.of(
+              CHAR_KEYS.get("a"), 2L,
+              CHAR_KEYS.get("b"), 3L,
+              CHAR_KEYS.get("c"), 5L);
+      MapAssignment mapAssignment =
+          MapAssignment.fromKeyFrequency(NUM_SUBTASKS, keyFrequency, 0.0d, SORT_ORDER_COMPARTOR);
+
+      CompletedStatistics completedStatistics = dataStatisticsCoordinator.completedStatistics();
+      assertThat(completedStatistics.checkpointId()).isEqualTo(1L);
+      assertThat(completedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
-        assertThat(aggregatedStatistics.keyFrequency())
-            .isEqualTo(
-                ImmutableMap.of(
-                    CHAR_KEYS.get("a"), 2L,
-                    CHAR_KEYS.get("b"), 3L,
-                    CHAR_KEYS.get("c"), 5L));
+        assertThat(completedStatistics.keyFrequency()).isEqualTo(keyFrequency);
       } else {
-        assertThat(aggregatedStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("b"));
+        assertThat(completedStatistics.keySamples())
+            .containsExactly(
+                CHAR_KEYS.get("a"),
+                CHAR_KEYS.get("a"),
+                CHAR_KEYS.get("b"),
+                CHAR_KEYS.get("b"),
+                CHAR_KEYS.get("b"),
+                CHAR_KEYS.get("c"),
+                CHAR_KEYS.get("c"),
+                CHAR_KEYS.get("c"),
+                CHAR_KEYS.get("c"),
+                CHAR_KEYS.get("c"));
       }
+
+      GlobalStatistics globalStatistics = dataStatisticsCoordinator.globalStatistics();
+      assertThat(globalStatistics.checkpointId()).isEqualTo(1L);
+      assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(mapAssignment);
+      } else {
+        assertThat(globalStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("b"));
+      }
+    }
+  }
+
+  @Test
+  public void testRequestGlobalStatisticsEventHandling() throws Exception {
+    try (DataStatisticsCoordinator dataStatisticsCoordinator =
+        createCoordinator(StatisticsType.Sketch)) {
+      dataStatisticsCoordinator.start();
+      tasksReady(dataStatisticsCoordinator);
+
+      // receive request before global statistics is ready
+      dataStatisticsCoordinator.handleEventFromOperator(0, 0, new RequestGlobalStatisticsEvent());
+      assertThat(receivingTasks.getSentEventsForSubtask(0)).isEmpty();
+      assertThat(receivingTasks.getSentEventsForSubtask(1)).isEmpty();
+
+      StatisticsEvent checkpoint1Subtask0DataStatisticEvent =
+          Fixtures.createStatisticsEvent(
+              StatisticsType.Sketch, Fixtures.TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("a"));
+      StatisticsEvent checkpoint1Subtask1DataStatisticEvent =
+          Fixtures.createStatisticsEvent(
+              StatisticsType.Sketch, Fixtures.TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("b"));
+      // Handle events from operators for checkpoint 1
+      dataStatisticsCoordinator.handleEventFromOperator(
+          0, 0, checkpoint1Subtask0DataStatisticEvent);
+      dataStatisticsCoordinator.handleEventFromOperator(
+          1, 0, checkpoint1Subtask1DataStatisticEvent);
+
+      waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+      Awaitility.await("wait for statistics event")
+          .pollInterval(Duration.ofMillis(10))
+          .atMost(Duration.ofSeconds(10))
+          .until(() -> receivingTasks.getSentEventsForSubtask(0).size() == 1);
+      assertThat(receivingTasks.getSentEventsForSubtask(0).get(0))
+          .isInstanceOf(StatisticsEvent.class);
+
+      Awaitility.await("wait for statistics event")
+          .pollInterval(Duration.ofMillis(10))
+          .atMost(Duration.ofSeconds(10))
+          .until(() -> receivingTasks.getSentEventsForSubtask(1).size() == 1);
+      assertThat(receivingTasks.getSentEventsForSubtask(1).get(0))
+          .isInstanceOf(StatisticsEvent.class);
+
+      dataStatisticsCoordinator.handleEventFromOperator(1, 0, new RequestGlobalStatisticsEvent());
+
+      // coordinator should send a response to subtask 1
+      Awaitility.await("wait for statistics event")
+          .pollInterval(Duration.ofMillis(10))
+          .atMost(Duration.ofSeconds(10))
+          .until(() -> receivingTasks.getSentEventsForSubtask(1).size() == 2);
+      assertThat(receivingTasks.getSentEventsForSubtask(1).get(0))
+          .isInstanceOf(StatisticsEvent.class);
+      assertThat(receivingTasks.getSentEventsForSubtask(1).get(1))
+          .isInstanceOf(StatisticsEvent.class);
     }
   }
 
@@ -154,10 +236,11 @@ public class TestDataStatisticsCoordinator {
   private static DataStatisticsCoordinator createCoordinator(StatisticsType type) {
     return new DataStatisticsCoordinator(
         OPERATOR_NAME,
-        new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, Fixtures.NUM_SUBTASKS),
+        new MockOperatorCoordinatorContext(TEST_OPERATOR_ID, NUM_SUBTASKS),
         Fixtures.SCHEMA,
         Fixtures.SORT_ORDER,
-        Fixtures.NUM_SUBTASKS,
-        type);
+        NUM_SUBTASKS,
+        type,
+        0.0d);
   }
 }
