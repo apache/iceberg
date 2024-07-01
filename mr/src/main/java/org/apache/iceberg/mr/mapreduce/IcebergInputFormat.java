@@ -125,11 +125,9 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
     String schemaStr = conf.get(InputFormatConfig.READ_SCHEMA);
     if (schemaStr != null) {
-      scan.project(SchemaParser.fromJson(schemaStr));
-    }
-    String[] selectedColumns = conf.getStrings(InputFormatConfig.SELECTED_COLUMNS);
-    if (selectedColumns != null) {
-      scan.select(selectedColumns);
+      scan = scan.project(SchemaParser.fromJson(schemaStr));
+    } else if (conf.getStrings(InputFormatConfig.SELECTED_COLUMNS) != null) {
+      scan = scan.select(conf.getStrings(InputFormatConfig.SELECTED_COLUMNS));
     }
 
     // TODO add a filter parser to get rid of Serialization
