@@ -24,14 +24,14 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types.StructType;
 
-public class WriterResult {
+public class IcebergWriterResult {
 
   private final TableIdentifier tableIdentifier;
   private final List<DataFile> dataFiles;
   private final List<DeleteFile> deleteFiles;
   private final StructType partitionStruct;
 
-  public WriterResult(
+  public IcebergWriterResult(
       TableIdentifier tableIdentifier,
       List<DataFile> dataFiles,
       List<DeleteFile> deleteFiles,

@@ -73,7 +73,7 @@ public class BaseWriterTest {
 
   protected WriteResult writeTest(
       List<Record> rows, IcebergSinkConfig config, Class<?> expectedWriterClass) {
-    try (TaskWriter<Record> writer = Utilities.createTableWriter(table, "name", config)) {
+    try (TaskWriter<Record> writer = RecordUtils.createTableWriter(table, "name", config)) {
       assertThat(writer.getClass()).isEqualTo(expectedWriterClass);
 
       rows.forEach(
