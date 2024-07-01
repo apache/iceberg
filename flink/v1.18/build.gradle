@@ -117,6 +117,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
     testImplementation libs.awaitility
     testImplementation libs.assertj.core
+    testImplementation libs.esotericsoftware.kryo
   }
 
   test {
