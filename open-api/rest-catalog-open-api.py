@@ -446,6 +446,14 @@ class RegisterTableRequest(BaseModel):
     metadata_location: str = Field(..., alias='metadata-location')
 
 
+class AppendDataFileResponse(BaseModel):
+    location: Optional[str] = Field(
+        None,
+        description='URL to monitor the status of the append data file operation. This facilitates tracking the progress and eventual commitment of the appended data.',
+        example='/v1/{prefix}/namespaces/{namespace}/tables/{table}/status/{id}',
+    )
+
+
 class TokenType(BaseModel):
     __root__: Literal[
         'urn:ietf:params:oauth:token-type:access_token',
@@ -913,6 +921,24 @@ class SetStatisticsUpdate(BaseUpdate):
     action: Literal['set-statistics']
     snapshot_id: int = Field(..., alias='snapshot-id')
     statistics: StatisticsFile
+
+
+class AppendDataFileRequest(BaseModel):
+    identifier: Optional[TableIdentifier] = Field(
+        None,
+        description='Table identifier to update; must be present for CommitTransactionRequest',
+    )
+    accept_delay_ms: Optional[int] = Field(
+        None,
+        alias='accept-delay-ms',
+        description='Acceptable delay in milliseconds for processing the append request.',
+        example=300000,
+    )
+    data_files: List[DataFile] = Field(
+        ...,
+        alias='data-files',
+        description='A list of serialized data files to append to the table metadata.',
+    )
 
 
 class UnaryExpression(BaseModel):
