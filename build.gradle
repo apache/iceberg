@@ -348,7 +348,7 @@ project(':iceberg-core') {
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
 
-    implementation(libs.avro.avro) {
+    api(libs.avro.avro) {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
