@@ -71,9 +71,64 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        jvm: [8, 11, 17]
-        spark: ['3.3', '3.4', '3.5']
-        scala: ['2.12', '2.13']
+        include:
+          - jvm: 8
+            spark: '3.3'
+            scala: '2.12'
+          - jvm: 8
+            spark: '3.3'
+            scala: '2.13'
+          - jvm: 11
+            spark: '3.3'
+            scala: '2.12'
+          - jvm: 11
+            spark: '3.3'
+            scala: '2.13'
+          - jvm: 17
+            spark: '3.3'
+            scala: '2.12'
+          - jvm: 17
+            spark: '3.3'
+            scala: '2.13'
+          - jvm: 8
+            spark: '3.4'
+            scala: '2.12'
+          - jvm: 8
+            spark: '3.4'
+            scala: '2.13'
+          - jvm: 11
+            spark: '3.4'
+            scala: '2.12'
+          - jvm: 11
+            spark: '3.4'
+            scala: '2.13'
+          - jvm: 17
+            spark: '3.4'
+            scala: '2.12'
+          - jvm: 17
+            spark: '3.4'
+            scala: '2.13'
+          - jvm: 8
+            spark: '3.5'
+            scala: '2.12'
+          - jvm: 8
+            spark: '3.5'
+            scala: '2.13'
+          - jvm: 11
+            spark: '3.5'
+            scala: '2.12'
+          - jvm: 11
+            spark: '3.5'
+            scala: '2.13'
+          - jvm: 17
+            spark: '3.5'
+            scala: '2.12'
+          - jvm: 17
+            spark: '3.5'
+            scala: '2.13'
+          - jvm: 17
+            spark: '4.0'
+            scala: '2.13'
     env:
       SPARK_LOCAL_IP: localhost
     steps:
