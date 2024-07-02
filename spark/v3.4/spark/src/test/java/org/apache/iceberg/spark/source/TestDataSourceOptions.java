@@ -396,7 +396,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<SimpleRecord> expected = Lists.newArrayList();
     expected.add(records1.get(1));
     expected.addAll(records2);
-    Assertions.assertThat(result).as("Records should match").isEqualTo(expected);
+    assertThat(result).as("Records should match").isEqualTo(expected);
 
     // test (1st snapshot, 5th snapshot] use b1 branch incremental scan.
     List<Long> branchSnapshotIds =
@@ -415,10 +415,8 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<SimpleRecord> expected1 = Lists.newArrayList();
     expected1.add(records1.get(1));
     expected1.add(records2.get(0));
-    Assertions.assertThat(result1).as("Records should match").isEqualTo(expected1);
-    Assertions.assertThat(resultDf.count())
-        .as("Unprocessed count should match record count")
-        .isEqualTo(2);
+    assertThat(result1).as("Records should match").isEqualTo(expected1);
+    assertThat(resultDf.count()).as("Unprocessed count should match record count").isEqualTo(2);
   }
 
   @Test
@@ -472,7 +470,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     */
 
     // test (1st snapshot, 3rd snapshot] use b1 branch incremental scan should fail.
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -486,7 +484,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
         .hasMessageContaining("End snapshot is not a valid snapshot on the current branch");
 
     // test (3rd snapshot, current snapshot] use b1 branch incremental scan should fail.
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -520,7 +518,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<Long> snapshotIds = SnapshotUtil.currentAncestorIds(table);
 
     // branch not exist should fail.
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -536,7 +534,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     // tag should fail.
     String tagName = "t1";
     table.manageSnapshots().createTag(tagName, snapshotIds.get(2)).commit();
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
