@@ -41,6 +41,25 @@ class ErrorModel(BaseModel):
     stack: Optional[List[str]] = None
 
 
+class ServerCapability(BaseModel):
+    """
+    Describes a capability with versioning information supported by the server. A server is required to implement all endpoints grouped under a particular capability. For example, if a server reports the support of `views`, then all endpoints grouped under the `views` capability must be implemented by the server.
+    """
+
+    capability: str = Field(
+        ...,
+        description='A capability supported by the server. The currently available capabilities are:\n - tables\n - views\n - remote-signing\n - multi-table-commit\n - register-table\n - table-metrics\n',
+        example='views',
+    )
+    versions: List[int] = Field(
+        ...,
+        description='A list of versions supported by the server for the given capability. For example, `versions = [1, 3, 5]` indicates that only these versions are supported for the given capability, but not versions `2, 4, 6`.',
+        example=[1, 3, 5],
+        min_items=1,
+        unique_items=True,
+    )
+
+
 class CatalogConfig(BaseModel):
     """
     Server-provided configuration for the catalog.
@@ -53,6 +72,15 @@ class CatalogConfig(BaseModel):
     defaults: Dict[str, str] = Field(
         ...,
         description='Properties that should be used as default configuration; applied before client configuration.',
+    )
+    capabilities: Optional[List[ServerCapability]] = Field(
+        None,
+        description='Describes a capability with versioning information supported by the server',
+        example=[
+            {'capability': 'views', 'versions': [1, 2]},
+            {'capability': 'register-table', 'versions': [1, 3, 5]},
+            {'capability': 'multi-table-commit', 'versions': [1]},
+        ],
     )
 
 
