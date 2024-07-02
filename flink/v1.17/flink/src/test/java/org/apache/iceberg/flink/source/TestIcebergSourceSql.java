@@ -40,7 +40,7 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /** Use the IcebergSource (FLIP-27) */
 public class TestIcebergSourceSql extends TestSqlBase {
@@ -78,7 +78,7 @@ public class TestIcebergSourceSql extends TestSqlBase {
     long baseTime = 1702382109000L;
 
     GenericAppenderHelper helper =
-        new GenericAppenderHelper(table, FileFormat.PARQUET, TEMPORARY_FOLDER);
+        new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
 
     Record file1Record1 =
         generateRecord(Instant.ofEpochMilli(baseTime), baseTime + (1000 * 60 * 60 * 24 * 30L));

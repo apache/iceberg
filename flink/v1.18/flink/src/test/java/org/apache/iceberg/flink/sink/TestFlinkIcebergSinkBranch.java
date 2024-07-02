@@ -18,60 +18,60 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.apache.iceberg.flink.TestFixtures.DATABASE;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.List;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
-import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.flink.HadoopCatalogResource;
+import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
+  @RegisterExtension
+  public static final HadoopCatalogExtension catalogResource =
+      new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
-  @ClassRule
-  public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
-      MiniClusterResource.createWithClassloaderCheckDisabled();
+  @Parameter(index = 0)
+  private String formatVersion;
 
-  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @Parameter(index = 1)
+  private String branch;
 
-  @Rule
-  public final HadoopCatalogResource catalogResource =
-      new HadoopCatalogResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE);
-
-  private final String branch;
   private TableLoader tableLoader;
 
-  @Parameterized.Parameters(name = "formatVersion = {0}, branch = {1}")
-  public static Object[] parameters() {
-    return new Object[] {"main", "testBranch"};
+  @Parameters(name = "formatVersion = {0}, branch = {1}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {"1", "main"},
+      {"1", "testBranch"},
+      {"2", "main"},
+      {"2", "testBranch"}
+    };
   }
 
-  public TestFlinkIcebergSinkBranch(String branch) {
-    this.branch = branch;
-  }
-
-  @Before
+  @BeforeEach
   public void before() throws IOException {
     table =
         catalogResource
@@ -84,7 +84,7 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
                     TableProperties.DEFAULT_FILE_FORMAT,
                     FileFormat.AVRO.name(),
                     TableProperties.FORMAT_VERSION,
-                    "1"));
+                    formatVersion));
 
     env =
         StreamExecutionEnvironment.getExecutionEnvironment(
@@ -94,7 +94,7 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
     tableLoader = catalogResource.tableLoader();
   }
 
-  @Test
+  @TestTemplate
   public void testWriteRowWithTableSchema() throws Exception {
     testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE);
     verifyOtherBranchUnmodified();
@@ -129,9 +129,9 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
     String otherBranch =
         branch.equals(SnapshotRef.MAIN_BRANCH) ? "test-branch" : SnapshotRef.MAIN_BRANCH;
     if (otherBranch.equals(SnapshotRef.MAIN_BRANCH)) {
-      Assert.assertNull(table.currentSnapshot());
+      assertThat(table.currentSnapshot()).isNull();
     }
 
-    Assert.assertTrue(table.snapshot(otherBranch) == null);
+    assertThat(table.snapshot(otherBranch)).isNull();
   }
 }

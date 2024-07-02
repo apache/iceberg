@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
@@ -106,6 +107,7 @@ public class ReaderUtil {
     return Lists.partition(records, batchCount);
   }
 
+  // Only for JUnit4 tests. Keep this method for test migration from JUnit4 to JUnit5
   public static CombinedScanTask createCombinedScanTask(
       List<List<Record>> recordBatchList,
       TemporaryFolder temporaryFolder,
@@ -117,6 +119,26 @@ public class ReaderUtil {
       FileScanTask fileTask =
           ReaderUtil.createFileTask(
               recordBatch, temporaryFolder.newFile(), fileFormat, appenderFactory);
+      fileTasks.add(fileTask);
+    }
+
+    return new BaseCombinedScanTask(fileTasks);
+  }
+
+  public static CombinedScanTask createCombinedScanTask(
+      List<List<Record>> recordBatchList,
+      Path temporaryFolder,
+      FileFormat fileFormat,
+      GenericAppenderFactory appenderFactory)
+      throws IOException {
+    List<FileScanTask> fileTasks = Lists.newArrayListWithCapacity(recordBatchList.size());
+    for (List<Record> recordBatch : recordBatchList) {
+      FileScanTask fileTask =
+          ReaderUtil.createFileTask(
+              recordBatch,
+              File.createTempFile("junit", null, temporaryFolder.toFile()),
+              fileFormat,
+              appenderFactory);
       fileTasks.add(fileTask);
     }
 

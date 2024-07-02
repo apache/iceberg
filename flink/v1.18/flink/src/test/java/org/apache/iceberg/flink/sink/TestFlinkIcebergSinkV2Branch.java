@@ -18,52 +18,43 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.apache.iceberg.flink.TestFixtures.DATABASE;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.flink.HadoopCatalogResource;
+import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
+  @RegisterExtension
+  private static final HadoopCatalogExtension catalogResource =
+      new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
-  @ClassRule
-  public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
-      MiniClusterResource.createWithClassloaderCheckDisabled();
+  @Parameter(index = 0)
+  private String branch;
 
-  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
-
-  @Rule
-  public final HadoopCatalogResource catalogResource =
-      new HadoopCatalogResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE);
-
-  private final String branch;
-
-  @Parameterized.Parameters(name = "branch = {0}")
-  public static Object[] parameters() {
-    return new Object[] {"main", "testBranch"};
+  @Parameters(name = "branch = {0}")
+  public static Object[][] parameters() {
+    return new Object[][] {new Object[] {"main"}, new Object[] {"testBranch"}};
   }
 
-  public TestFlinkIcebergSinkV2Branch(String branch) {
-    this.branch = branch;
-  }
-
-  @Before
+  @BeforeEach
   public void before() throws IOException {
     table =
         catalogResource
@@ -86,37 +77,37 @@ public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
     tableLoader = catalogResource.tableLoader();
   }
 
-  @Test
+  @TestTemplate
   public void testChangeLogOnIdKey() throws Exception {
     testChangeLogOnIdKey(branch);
     verifyOtherBranchUnmodified();
   }
 
-  @Test
+  @TestTemplate
   public void testChangeLogOnDataKey() throws Exception {
     testChangeLogOnDataKey(branch);
     verifyOtherBranchUnmodified();
   }
 
-  @Test
+  @TestTemplate
   public void testChangeLogOnIdDataKey() throws Exception {
     testChangeLogOnIdDataKey(branch);
     verifyOtherBranchUnmodified();
   }
 
-  @Test
+  @TestTemplate
   public void testUpsertOnIdKey() throws Exception {
     testUpsertOnIdKey(branch);
     verifyOtherBranchUnmodified();
   }
 
-  @Test
+  @TestTemplate
   public void testUpsertOnDataKey() throws Exception {
     testUpsertOnDataKey(branch);
     verifyOtherBranchUnmodified();
   }
 
-  @Test
+  @TestTemplate
   public void testUpsertOnIdDataKey() throws Exception {
     testUpsertOnIdDataKey(branch);
     verifyOtherBranchUnmodified();
@@ -126,9 +117,9 @@ public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
     String otherBranch =
         branch.equals(SnapshotRef.MAIN_BRANCH) ? "test-branch" : SnapshotRef.MAIN_BRANCH;
     if (otherBranch.equals(SnapshotRef.MAIN_BRANCH)) {
-      Assert.assertNull(table.currentSnapshot());
+      assertThat(table.currentSnapshot()).isNull();
     }
 
-    Assert.assertTrue(table.snapshot(otherBranch) == null);
+    assertThat(table.snapshot(otherBranch)).isNull();
   }
 }

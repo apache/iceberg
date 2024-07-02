@@ -18,13 +18,17 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.apache.iceberg.flink.TestFixtures.DATABASE;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
-import org.apache.flink.test.util.MiniClusterWithClientResource;
+import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
@@ -34,30 +38,28 @@ import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkConfigOptions;
-import org.apache.iceberg.flink.HadoopCatalogResource;
-import org.apache.iceberg.flink.MiniClusterResource;
+import org.apache.iceberg.flink.HadoopCatalogExtension;
+import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.io.TempDir;
 
 /** Test other more advanced usage of SQL. They don't need to run for every file format. */
 public abstract class TestSqlBase {
-  @ClassRule
-  public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
-      MiniClusterResource.createWithClassloaderCheckDisabled();
+  @RegisterExtension
+  public static MiniClusterExtension miniClusterResource =
+      MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
-  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @RegisterExtension
+  public static final HadoopCatalogExtension catalogResource =
+      new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
-  @Rule
-  public final HadoopCatalogResource catalogResource =
-      new HadoopCatalogResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE);
+  @TempDir protected Path temporaryFolder;
 
   private volatile TableEnvironment tEnv;
 
@@ -73,7 +75,7 @@ public abstract class TestSqlBase {
     return tEnv;
   }
 
-  @Before
+  @BeforeEach
   public abstract void before() throws IOException;
 
   @Test
@@ -90,7 +92,7 @@ public abstract class TestSqlBase {
     writeRecords.get(1).set(2, "2020-03-20");
 
     GenericAppenderHelper helper =
-        new GenericAppenderHelper(table, FileFormat.PARQUET, TEMPORARY_FOLDER);
+        new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
 
     List<Record> expectedRecords = Lists.newArrayList();
     expectedRecords.add(writeRecords.get(0));
@@ -120,7 +122,7 @@ public abstract class TestSqlBase {
     expectedRecords.forEach(expectedRecord -> expectedRecord.set(2, "2020-03-20"));
 
     GenericAppenderHelper helper =
-        new GenericAppenderHelper(table, FileFormat.PARQUET, TEMPORARY_FOLDER);
+        new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
     DataFile dataFile = helper.writeFile(TestHelpers.Row.of("2020-03-20", 0), expectedRecords);
     helper.appendToTable(dataFile);
 
@@ -140,9 +142,9 @@ public abstract class TestSqlBase {
 
     // When running with CI or local, `localityEnabled` will be false even if this configuration is
     // enabled
-    Assert.assertFalse(
-        "Expose split locality info should be false.",
-        SourceUtil.isLocalityEnabled(table, tableConf, true));
+    assertThat(SourceUtil.isLocalityEnabled(table, tableConf, true))
+        .as("Expose split locality info should be false.")
+        .isFalse();
 
     results = run(Maps.newHashMap(), "where dt='2020-03-20'", "*");
     org.apache.iceberg.flink.TestHelpers.assertRecords(
