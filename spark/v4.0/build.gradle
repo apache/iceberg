@@ -19,6 +19,7 @@
 
 String sparkMajorVersion = '4.0'
 String scalaVersion = '2.13'
+String antlrVersion = '4.13.1'
 
 def sparkProjects = [
     project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}"),
@@ -33,6 +34,7 @@ configure(sparkProjects) {
         force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:${libs.versions.jackson215.get()}"
         force "com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson215.get()}"
         force "com.fasterxml.jackson.core:jackson-core:${libs.versions.jackson215.get()}"
+        force "org.antlr:antlr4:${antlrVersion}"
       }
     }
   }
