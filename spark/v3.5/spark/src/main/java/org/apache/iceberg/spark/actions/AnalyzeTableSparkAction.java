@@ -86,19 +86,7 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
 
   private Result doExecute() {
     LOG.info("Starting analysis of {} for snapshot {}", table.name(), snapshotId);
-    List<Blob> blobs =
-        supportedBlobTypes.stream()
-            .flatMap(
-                type -> {
-                  switch (type) {
-                    case StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1:
-                      return generateNDVBlobs().stream();
-                    default:
-                      throw new UnsupportedOperationException(
-                          String.format("%s is not supported", type));
-                  }
-                })
-            .collect(Collectors.toList());
+    List<Blob> blobs = generateNDVBlobs();
     StatisticsFile statisticFile;
     try {
       statisticFile = writeAndCommitPuffin(blobs);

@@ -51,7 +51,7 @@ public class NDVSketchGenerator {
 
   static List<Blob> generateNDVSketchesAndBlobs(
       SparkSession spark, Table table, long snapshotId, Set<String> columnsToBeAnalyzed) {
-    Map<String, ThetaSketchJavaSerializable> columnToSketchMap =
+    Map<Integer, ThetaSketchJavaSerializable> columnToSketchMap =
         computeNDVSketches(spark, table, snapshotId, columnsToBeAnalyzed);
     return generateBlobs(table, columnsToBeAnalyzed, columnToSketchMap, snapshotId);
   }
@@ -59,16 +59,17 @@ public class NDVSketchGenerator {
   private static List<Blob> generateBlobs(
       Table table,
       Set<String> columns,
-      Map<String, ThetaSketchJavaSerializable> sketchMap,
+      Map<Integer, ThetaSketchJavaSerializable> sketchMap,
       long snapshotId) {
     return columns.stream()
         .map(
             columnName -> {
-              Sketch sketch = sketchMap.get(columnName).getSketch();
+              Types.NestedField field = table.schema().findField(columnName);
+              Sketch sketch = sketchMap.get(field.fieldId()).getSketch();
               long ndv = (long) sketch.getEstimate();
               return new Blob(
                   StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
-                  ImmutableList.of(table.schema().findField(columnName).fieldId()),
+                  ImmutableList.of(field.fieldId()),
                   snapshotId,
                   table.snapshot(snapshotId).sequenceNumber(),
                   ByteBuffer.wrap(sketch.toByteArray()),
@@ -78,9 +79,9 @@ public class NDVSketchGenerator {
         .collect(Collectors.toList());
   }
 
-  private static Map<String, ThetaSketchJavaSerializable> computeNDVSketches(
+  private static Map<Integer, ThetaSketchJavaSerializable> computeNDVSketches(
       SparkSession spark, Table table, long snapshotId, Set<String> toBeAnalyzedColumns) {
-    Map<String, ThetaSketchJavaSerializable> sketchMap = Maps.newHashMap();
+    Map<Integer, ThetaSketchJavaSerializable> sketchMap = Maps.newHashMap();
     String tableName = table.name();
     List<String> columns = ImmutableList.copyOf(toBeAnalyzedColumns);
     Dataset<Row> data =
@@ -92,22 +93,22 @@ public class NDVSketchGenerator {
     Schema schema = table.schema();
     List<Types.NestedField> nestedFields =
         columns.stream().map(schema::findField).collect(Collectors.toList());
-    JavaPairRDD<String, ByteBuffer> colNameAndSketchPairRDD =
+    JavaPairRDD<Integer, ByteBuffer> colNameAndSketchPairRDD =
         data.javaRDD()
             .flatMap(
                 row -> {
-                  List<Tuple2<String, ByteBuffer>> columnsList =
+                  List<Tuple2<Integer, ByteBuffer>> columnsList =
                       Lists.newArrayListWithExpectedSize(columns.size());
                   for (int i = 0; i < row.size(); i++) {
                     columnsList.add(
                         new Tuple2<>(
-                            columns.get(i),
+                            nestedFields.get(i).fieldId(),
                             Conversions.toByteBuffer(nestedFields.get(i).type(), row.get(i))));
                   }
                   return columnsList.iterator();
                 })
             .mapToPair(t -> t);
-    JavaPairRDD<String, ThetaSketchJavaSerializable> sketches =
+    JavaPairRDD<Integer, ThetaSketchJavaSerializable> sketches =
         colNameAndSketchPairRDD.aggregateByKey(
             new ThetaSketchJavaSerializable(),
             ThetaSketchJavaSerializable::updateSketch,

@@ -51,6 +51,7 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
     List<SimpleRecord> records =
         Lists.newArrayList(
             new SimpleRecord(1, "a"),
+            new SimpleRecord(1, "a"),
             new SimpleRecord(2, "b"),
             new SimpleRecord(3, "c"),
             new SimpleRecord(4, "d"));
@@ -62,8 +63,6 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
     AnalyzeTable.Result results = actions.analyzeTable(table).columns("id", "data").execute();
-    actions.analyzeTable(table).columns("id", "data").execute();
-
     assertNotNull(results);
 
     List<StatisticsFile> statisticsFiles = table.statisticsFiles();
@@ -102,8 +101,23 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
     assertNotNull(results);
 
     Assertions.assertEquals(1, table.statisticsFiles().size());
-    Assertions.assertEquals(2, table.statisticsFiles().get(0).blobMetadata().size());
-    assertNotEquals(0, table.statisticsFiles().get(0).fileSizeInBytes());
+    StatisticsFile statisticsFile = table.statisticsFiles().get(0);
+    Assertions.assertEquals(2, statisticsFile.blobMetadata().size());
+    assertNotEquals(0, statisticsFile.fileSizeInBytes());
+    assertNotEquals(
+        4,
+        statisticsFile
+            .blobMetadata()
+            .get(0)
+            .properties()
+            .get(NDVSketchGenerator.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY));
+    assertNotEquals(
+        4,
+        statisticsFile
+            .blobMetadata()
+            .get(1)
+            .properties()
+            .get(NDVSketchGenerator.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY));
   }
 
   @TestTemplate
