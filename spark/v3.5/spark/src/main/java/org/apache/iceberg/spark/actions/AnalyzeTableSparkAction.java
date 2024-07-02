@@ -65,7 +65,7 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
     Snapshot snapshot = table.currentSnapshot();
     if (snapshot == null) {
       LOG.error("Unable to analyze the table since the table has no snapshots");
-      throw new RuntimeException("Snapshot id is null");
+      throw new RuntimeException("Unable to analyze the table since the table has no snapshots");
     }
     this.snapshotId = snapshot.snapshotId();
     this.columns =

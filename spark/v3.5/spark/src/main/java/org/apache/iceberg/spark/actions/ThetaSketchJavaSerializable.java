@@ -101,10 +101,8 @@ class ThetaSketchJavaSerializable implements Serializable {
 
   static ThetaSketchJavaSerializable combineSketch(
       ThetaSketchJavaSerializable sketch1, ThetaSketchJavaSerializable sketch2) {
-    ThetaSketchJavaSerializable emptySketchWrapped =
-        new ThetaSketchJavaSerializable(UpdateSketch.builder().build().compact());
     if (sketch1.getSketch() == null && sketch2.getSketch() == null) {
-      return emptySketchWrapped;
+      return new ThetaSketchJavaSerializable(UpdateSketch.builder().build().compact());
     }
     if (sketch1.getSketch() == null) {
       return sketch2;
