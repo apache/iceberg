@@ -415,7 +415,8 @@ public class SparkScanBuilder
         SparkReadOptions.END_TIMESTAMP);
 
     if (startSnapshotId != null) {
-      return buildIncrementalAppendScan(startSnapshotId, endSnapshotId, branch, withStats, expectedSchema);
+      return buildIncrementalAppendScan(
+          startSnapshotId, endSnapshotId, branch, withStats, expectedSchema);
     } else {
       return buildBatchScan(snapshotId, asOfTimestamp, branch, tag, withStats, expectedSchema);
     }
@@ -459,7 +460,11 @@ public class SparkScanBuilder
   }
 
   private org.apache.iceberg.Scan buildIncrementalAppendScan(
-      long startSnapshotId, Long endSnapshotId, String branch, boolean withStats, Schema expectedSchema) {
+      long startSnapshotId,
+      Long endSnapshotId,
+      String branch,
+      boolean withStats,
+      Schema expectedSchema) {
     IncrementalAppendScan scan =
         table
             .newIncrementalAppendScan()
