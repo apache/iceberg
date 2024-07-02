@@ -29,9 +29,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -70,10 +67,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.rest.auth.AuthConfig;
+import org.apache.iceberg.rest.auth.AuthManager;
+import org.apache.iceberg.rest.auth.AuthManagers;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
-import org.apache.iceberg.rest.auth.OAuth2Util;
-import org.apache.iceberg.rest.auth.OAuth2Util.AuthSession;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -91,12 +88,10 @@ import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
-import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.EnvironmentUtil;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.ThreadPools;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
 import org.apache.iceberg.view.ImmutableViewVersion;
@@ -119,20 +114,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   // server supports view endpoints but doesn't send the "endpoints" field in the ConfigResponse
   static final String VIEW_ENDPOINTS_SUPPORTED = "view-endpoints-supported";
   public static final String REST_PAGE_SIZE = "rest-page-size";
-  private static final List<String> TOKEN_PREFERENCE_ORDER =
-      ImmutableList.of(
-          OAuth2Properties.ID_TOKEN_TYPE,
-          OAuth2Properties.ACCESS_TOKEN_TYPE,
-          OAuth2Properties.JWT_TOKEN_TYPE,
-          OAuth2Properties.SAML2_TOKEN_TYPE,
-          OAuth2Properties.SAML1_TOKEN_TYPE);
-
-  // Auth-related properties that are allowed to be passed to the table session
-  private static final Set<String> TABLE_SESSION_ALLOW_LIST =
-      ImmutableSet.<String>builder()
-          .add(OAuth2Properties.TOKEN)
-          .addAll(TOKEN_PREFERENCE_ORDER)
-          .build();
 
   private static final Set<Endpoint> DEFAULT_ENDPOINTS =
       ImmutableSet.<Endpoint>builder()
@@ -167,7 +148,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Cache<String, AuthSession> tableSessions = null;
   private FileIOTracker fileIOTracker = null;
   private AuthSession catalogAuth = null;
-  private boolean keepTokenRefreshed = true;
+  private AuthManager authManager;
   private RESTClient client = null;
   private ResourcePaths paths = null;
   private SnapshotMode snapshotMode = null;
@@ -178,9 +159,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
-
-  // a lazy thread pool for token refresh
-  private volatile ScheduledExecutorService refreshExecutor = null;
 
   enum SnapshotMode {
     ALL,
@@ -212,18 +190,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     // catalog service
     Map<String, String> props = EnvironmentUtil.resolveAll(unresolved);
 
-    long startTimeMillis =
-        System.currentTimeMillis(); // keep track of the init start time for token refresh
-    String initToken = props.get(OAuth2Properties.TOKEN);
-    boolean hasInitToken = initToken != null;
-
-    // fetch auth and config to complete initialization
-    ConfigResponse config;
-    OAuthTokenResponse authResponse;
     String credential = props.get(OAuth2Properties.CREDENTIAL);
     boolean hasCredential = credential != null && !credential.isEmpty();
-    String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
-    Map<String, String> optionalOAuthParams = OAuth2Util.buildOptionalParam(props);
+    String initToken = props.get(OAuth2Properties.TOKEN);
+    boolean hasInitToken = initToken != null;
     if (!props.containsKey(OAuth2Properties.OAUTH2_SERVER_URI)
         && (hasInitToken || hasCredential)
         && !PropertyUtil.propertyAsBoolean(props, "rest.sigv4-enabled", false)) {
@@ -237,22 +207,15 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           ResourcePaths.tokens(),
           OAuth2Properties.OAUTH2_SERVER_URI);
     }
-    String oauth2ServerUri =
-        props.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+
+    Map<String, String> configuredHeaders = configHeaders(props);
+    this.authManager = AuthManagers.loadAuthManager(name, props);
+
+    ConfigResponse config;
     try (RESTClient initClient = clientBuilder.apply(props)) {
-      Map<String, String> initHeaders =
-          RESTUtil.merge(configHeaders(props), OAuth2Util.authHeaders(initToken));
-      if (hasCredential) {
-        authResponse =
-            OAuth2Util.fetchToken(
-                initClient, initHeaders, credential, scope, oauth2ServerUri, optionalOAuthParams);
-        Map<String, String> authHeaders =
-            RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(authResponse.token()));
-        config = fetchConfig(initClient, authHeaders, props);
-      } else {
-        authResponse = null;
-        config = fetchConfig(initClient, initHeaders, props);
-      }
+      Map<String, String> authAndConfiguredHeaders =
+          authManager.mergeAuthHeadersForGetConfig(initClient, configuredHeaders);
+      config = fetchConfig(initClient, authAndConfiguredHeaders, props);
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close HTTP client", e);
     }
@@ -275,33 +238,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     this.sessions = newSessionCache(mergedProps);
     this.tableSessions = newSessionCache(mergedProps);
-    this.keepTokenRefreshed =
-        PropertyUtil.propertyAsBoolean(
-            mergedProps,
-            OAuth2Properties.TOKEN_REFRESH_ENABLED,
-            OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
     this.client = clientBuilder.apply(mergedProps);
     this.paths = ResourcePaths.forCatalogProperties(mergedProps);
-
-    String token = mergedProps.get(OAuth2Properties.TOKEN);
-    this.catalogAuth =
-        new AuthSession(
-            baseHeaders,
-            AuthConfig.builder()
-                .credential(credential)
-                .scope(scope)
-                .oauth2ServerUri(oauth2ServerUri)
-                .optionalOAuthParams(optionalOAuthParams)
-                .build());
-    if (authResponse != null) {
-      this.catalogAuth =
-          AuthSession.fromTokenResponse(
-              client, tokenRefreshExecutor(name), authResponse, startTimeMillis, catalogAuth);
-    } else if (token != null) {
-      this.catalogAuth =
-          AuthSession.fromAccessToken(
-              client, tokenRefreshExecutor(name), token, expiresAtMillis(mergedProps), catalogAuth);
-    }
+    this.catalogAuth = authManager.newSession(client, mergedProps, baseHeaders);
 
     this.pageSize = PropertyUtil.propertyAsNullableInt(mergedProps, REST_PAGE_SIZE);
     if (pageSize != null) {
@@ -316,6 +255,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     this.closeables.addCloseable(this.io);
     this.closeables.addCloseable(this.client);
     this.closeables.addCloseable(fileIOTracker);
+    this.closeables.addCloseable(this.authManager);
     this.closeables.setSuppressCloseFailure(true);
 
     this.snapshotMode =
@@ -337,7 +277,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             context.sessionId(),
             id -> {
               Pair<String, Supplier<AuthSession>> newSession =
-                  newSession(context.credentials(), context.properties(), catalogAuth);
+                  authManager.newSessionSupplier(
+                      context.credentials(), context.properties(), catalogAuth);
               if (null != newSession) {
                 return newSession.second().get();
               }
@@ -689,52 +630,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     return !response.updated().isEmpty();
   }
 
-  private ScheduledExecutorService tokenRefreshExecutor(String catalogName) {
-    if (!keepTokenRefreshed) {
-      return null;
-    }
-
-    if (refreshExecutor == null) {
-      synchronized (this) {
-        if (refreshExecutor == null) {
-          this.refreshExecutor = ThreadPools.newScheduledPool(catalogName + "-token-refresh", 1);
-        }
-      }
-    }
-
-    return refreshExecutor;
-  }
-
   @Override
   public void close() throws IOException {
-    shutdownRefreshExecutor();
-
     if (closeables != null) {
       closeables.close();
-    }
-  }
-
-  private void shutdownRefreshExecutor() {
-    if (refreshExecutor != null) {
-      ScheduledExecutorService service = refreshExecutor;
-      this.refreshExecutor = null;
-
-      List<Runnable> tasks = service.shutdownNow();
-      tasks.forEach(
-          task -> {
-            if (task instanceof Future) {
-              ((Future<?>) task).cancel(true);
-            }
-          });
-
-      try {
-        if (!service.awaitTermination(1, TimeUnit.MINUTES)) {
-          LOG.warn("Timed out waiting for refresh executor to terminate");
-        }
-      } catch (InterruptedException e) {
-        LOG.warn("Interrupted while waiting for refresh executor to terminate", e);
-        Thread.currentThread().interrupt();
-      }
     }
   }
 
@@ -1010,14 +909,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private AuthSession tableSession(Map<String, String> tableConf, AuthSession parent) {
-    Map<String, String> credentials = Maps.newHashMapWithExpectedSize(tableConf.size());
-    for (String prop : tableConf.keySet()) {
-      if (TABLE_SESSION_ALLOW_LIST.contains(prop)) {
-        credentials.put(prop, tableConf.get(prop));
-      }
-    }
-
-    Pair<String, Supplier<AuthSession>> newSession = newSession(credentials, tableConf, parent);
+    Pair<String, Supplier<AuthSession>> newSession =
+        authManager.newSessionSupplier(tableConf, tableConf, parent);
     if (null == newSession) {
       return parent;
     }
@@ -1050,66 +943,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             ErrorHandlers.defaultErrorHandler());
     configResponse.validate();
     return configResponse;
-  }
-
-  private Pair<String, Supplier<AuthSession>> newSession(
-      Map<String, String> credentials, Map<String, String> properties, AuthSession parent) {
-    if (credentials != null) {
-      // use the bearer token without exchanging
-      if (credentials.containsKey(OAuth2Properties.TOKEN)) {
-        return Pair.of(
-            credentials.get(OAuth2Properties.TOKEN),
-            () ->
-                AuthSession.fromAccessToken(
-                    client,
-                    tokenRefreshExecutor(name()),
-                    credentials.get(OAuth2Properties.TOKEN),
-                    expiresAtMillis(properties),
-                    parent));
-      }
-
-      if (credentials.containsKey(OAuth2Properties.CREDENTIAL)) {
-        // fetch a token using the client credentials flow
-        return Pair.of(
-            credentials.get(OAuth2Properties.CREDENTIAL),
-            () ->
-                AuthSession.fromCredential(
-                    client,
-                    tokenRefreshExecutor(name()),
-                    credentials.get(OAuth2Properties.CREDENTIAL),
-                    parent));
-      }
-
-      for (String tokenType : TOKEN_PREFERENCE_ORDER) {
-        if (credentials.containsKey(tokenType)) {
-          // exchange the token for an access token using the token exchange flow
-          return Pair.of(
-              credentials.get(tokenType),
-              () ->
-                  AuthSession.fromTokenExchange(
-                      client,
-                      tokenRefreshExecutor(name()),
-                      credentials.get(tokenType),
-                      tokenType,
-                      parent));
-        }
-      }
-    }
-
-    return null;
-  }
-
-  private Long expiresAtMillis(Map<String, String> properties) {
-    if (properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
-      long expiresInMillis =
-          PropertyUtil.propertyAsLong(
-              properties,
-              OAuth2Properties.TOKEN_EXPIRES_IN_MS,
-              OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
-      return System.currentTimeMillis() + expiresInMillis;
-    } else {
-      return null;
-    }
   }
 
   private void checkIdentifierIsValid(TableIdentifier tableIdentifier) {

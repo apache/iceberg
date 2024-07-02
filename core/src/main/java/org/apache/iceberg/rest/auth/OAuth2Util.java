@@ -451,7 +451,7 @@ public class OAuth2Util {
   }
 
   /** Class to handle authorization headers and token refresh. */
-  public static class AuthSession {
+  public static class AuthSession implements org.apache.iceberg.rest.auth.AuthSession {
     private static int tokenRefreshNumRetries = 5;
     private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
     private static final long MIN_REFRESH_WAIT_MILLIS = 10;
@@ -463,6 +463,7 @@ public class OAuth2Util {
       this.config = config;
     }
 
+    @Override
     public Map<String, String> headers() {
       return headers;
     }
@@ -483,6 +484,7 @@ public class OAuth2Util {
       return config.scope();
     }
 
+    @Override
     public synchronized void stopRefreshing() {
       this.config = ImmutableAuthConfig.copyOf(config).withKeepRefreshed(false);
     }
