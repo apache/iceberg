@@ -457,6 +457,7 @@ public class OAuth2Util {
     private static int tokenRefreshNumRetries = 5;
     private static final long MAX_REFRESH_WINDOW_MILLIS = 300_000; // 5 minutes
     private static final long MIN_REFRESH_WAIT_MILLIS = 10;
+    private final Object lock = new Object();
     private volatile Map<String, String> headers;
     private volatile AuthConfig config;
 
@@ -578,7 +579,9 @@ public class OAuth2Util {
                 .token(response.token())
                 .tokenType(response.issuedTokenType())
                 .build();
-        this.headers = RESTUtil.merge(headers, authHeaders(config.token()));
+        synchronized (lock) {
+          this.headers = RESTUtil.merge(headers, authHeaders(config.token()));
+        }
 
         if (response.expiresInSeconds() != null) {
           return Pair.of(response.expiresInSeconds(), TimeUnit.SECONDS);
