@@ -19,7 +19,9 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -381,22 +383,20 @@ public class SparkScanBuilder
   }
 
   private Schema calculateMetadataSchema(List<Types.NestedField> metaColumnFields) {
-    // only calculate potential column id collision if _partition was requested
-    boolean requireDeduplicateSchemaIds =
-        metaColumnFields.stream().anyMatch(f -> MetadataColumns.PARTITION_COLUMN_ID == f.fieldId());
+    Optional<Types.NestedField> partitionField =
+        metaColumnFields.stream()
+            .filter(f -> MetadataColumns.PARTITION_COLUMN_ID == f.fieldId())
+            .findFirst();
 
-    if (!requireDeduplicateSchemaIds) {
+    // only calculate potential column id collision if partition metadata column was requested
+    if (!partitionField.isPresent()) {
       return new Schema(metaColumnFields);
     }
 
-    // Calculate nested partition metadata field ids to reassign
     Set<Integer> idsToReassign =
-        metaColumnFields.stream()
-            .filter(f -> MetadataColumns.PARTITION_COLUMN_ID == f.fieldId())
-            .flatMap(
-                partitionField ->
-                    TypeUtil.indexById(partitionField.type().asStructType()).keySet().stream())
-            .collect(Collectors.toSet());
+        partitionField
+            .map(field -> TypeUtil.indexById(field.type().asStructType()).keySet())
+            .orElse(Collections.emptySet());
 
     // Calculate used ids by union metadata columns with all base table schemas
     Set<Integer> currentlyUsedIds =
