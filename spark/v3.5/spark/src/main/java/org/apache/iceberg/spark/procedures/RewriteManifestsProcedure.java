@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteManifests;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.actions.RewriteManifestsSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
@@ -47,7 +49,8 @@ class RewriteManifestsProcedure extends BaseProcedure {
       new ProcedureParameter[] {
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("use_caching", DataTypes.BooleanType),
-        ProcedureParameter.optional("spec_id", DataTypes.IntegerType)
+        ProcedureParameter.optional("spec_id", DataTypes.IntegerType),
+        ProcedureParameter.optional("where", DataTypes.StringType)
       };
 
   // counts are not nullable since the action result is never null
@@ -58,6 +61,8 @@ class RewriteManifestsProcedure extends BaseProcedure {
                 "rewritten_manifests_count", DataTypes.IntegerType, false, Metadata.empty()),
             new StructField("added_manifests_count", DataTypes.IntegerType, false, Metadata.empty())
           });
+
+  private boolean caseSensitive = true;
 
   public static ProcedureBuilder builder() {
     return new BaseProcedure.Builder<RewriteManifestsProcedure>() {
@@ -87,6 +92,7 @@ class RewriteManifestsProcedure extends BaseProcedure {
     Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
     Boolean useCaching = args.isNullAt(1) ? null : args.getBoolean(1);
     Integer specId = args.isNullAt(2) ? null : args.getInt(2);
+    String where = args.isNullAt(3) ? null : args.getString(3);
 
     return modifyIcebergTable(
         tableIdent,
@@ -100,6 +106,8 @@ class RewriteManifestsProcedure extends BaseProcedure {
           if (specId != null) {
             action.specId(specId);
           }
+
+          action = checkAndApplyFilter(action, where, tableIdent);
 
           RewriteManifests.Result result = action.execute();
 
@@ -117,5 +125,16 @@ class RewriteManifestsProcedure extends BaseProcedure {
   @Override
   public String description() {
     return "RewriteManifestsProcedure";
+  }
+
+  private RewriteManifestsSparkAction checkAndApplyFilter(
+      RewriteManifestsSparkAction action, String where, Identifier ident) {
+    if (where != null) {
+      Expression expression = filterExpression(ident, where);
+      ManifestEvaluator manifestEvaluator =
+          ManifestEvaluator.forRowFilter(expression, action.spec(), caseSensitive);
+      return action.rewriteIf(manifestEvaluator::eval);
+    }
+    return action;
   }
 }
