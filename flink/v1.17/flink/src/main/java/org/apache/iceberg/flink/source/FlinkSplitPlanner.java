@@ -185,8 +185,9 @@ public class FlinkSplitPlanner {
   @VisibleForTesting
   static ScanMode checkScanMode(ScanContext context) {
     if (context.startSnapshotId() != null
-        || context.startSnapshotTimestamp() != null
         || context.endSnapshotId() != null
+        || context.startSnapshotTimestamp() != null
+        || context.endSnapshotTimestamp() != null
         || context.startTag() != null
         || context.endTag() != null) {
       return ScanMode.INCREMENTAL_APPEND_SCAN;

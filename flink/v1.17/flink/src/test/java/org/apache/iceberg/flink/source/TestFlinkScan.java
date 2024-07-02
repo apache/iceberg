@@ -56,7 +56,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -581,7 +580,7 @@ public abstract class TestFlinkScan {
     long timestampMillis2 = table.currentSnapshot().timestampMillis();
     long timestampMillisAfter2 = org.apache.iceberg.TestHelpers.waitUntilAfter(timestampMillis2);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 runWithOptions(
                     ImmutableMap.<String, String>builder()
@@ -591,7 +590,7 @@ public abstract class TestFlinkScan {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("is not a parent ancestor of end snapshot");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 runWithOptions(
                     ImmutableMap.<String, String>builder()
