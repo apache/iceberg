@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
@@ -222,5 +223,43 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
     assertThatThrownBy(() -> sql("CALL %s.system.snapshot('src', '')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
+  }
+
+  @TestTemplate
+  public void testSnapshotWithParallelism() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", sourceName);
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.snapshot(source_table => '%s', table => '%s', parallelism => %d)",
+            catalogName, sourceName, tableName, 2);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L)), result);
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(2L, "b")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testSnapshotWithInvalidParallelism() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", sourceName);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.snapshot(source_table => '%s', table => '%s', parallelism => %d)",
+                    catalogName, sourceName, tableName, -1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Parallelism should be larger than 0");
   }
 }

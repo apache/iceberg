@@ -20,7 +20,6 @@ package org.apache.iceberg.mr;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +39,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.rules.TemporaryFolder;
 
 public class TestHelper {
@@ -152,7 +152,7 @@ public class TestHelper {
 
   public static class RecordsBuilder {
 
-    private final List<Record> records = new ArrayList<Record>();
+    private final List<Record> records = Lists.newArrayList();
     private final Schema schema;
 
     private RecordsBuilder(Schema schema) {

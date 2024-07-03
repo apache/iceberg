@@ -60,8 +60,8 @@ class ExpressionToSearchArgument
       ImmutableSet.of(
           TypeID.BINARY, TypeID.FIXED, TypeID.UUID, TypeID.STRUCT, TypeID.MAP, TypeID.LIST);
 
-  private SearchArgument.Builder builder;
-  private Map<Integer, String> idToColumnName;
+  private final SearchArgument.Builder builder;
+  private final Map<Integer, String> idToColumnName;
 
   private ExpressionToSearchArgument(
       SearchArgument.Builder builder, Map<Integer, String> idToColumnName) {

@@ -26,7 +26,7 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'com.github.johnrengelman:shadow:8.1.1'
+    classpath 'io.github.goooler.shadow:shadow-gradle-plugin:8.1.8'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
     // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
     // in an old version of the errorprone, which doesn't work w/ Gradle 8, so bump errorpone as
@@ -38,7 +38,7 @@ buildscript {
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
-    classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
+    classpath 'io.github.nastra.gradle.revapi:gradle-revapi:1.8.1'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.2'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.1.0'
     classpath 'org.openapitools:openapi-generator-gradle-plugin:6.6.0'
@@ -139,7 +139,7 @@ subprojects {
   apply plugin: 'java-library'
 
   if (project.name in REVAPI_PROJECTS) {
-    apply plugin: 'com.palantir.revapi'
+    apply plugin: 'io.github.nastra.revapi'
     revapi {
       oldGroup = project.group
       oldName = project.name
@@ -164,6 +164,10 @@ subprojects {
       if (rootTask.name == 'revapi') {
         rootTask.finalizedBy showDeprecationRulesOnRevApiFailure
       }
+    }
+    
+    tasks.named("revapiAnalyze").configure {
+      dependsOn(":iceberg-common:jar")
     }
   }
 
@@ -253,7 +257,7 @@ subprojects {
 }
 
 project(':iceberg-bundled-guava') {
-  apply plugin: 'com.github.johnrengelman.shadow'
+  apply plugin: 'io.github.goooler.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 

@@ -546,6 +546,7 @@ See [`migrate`](#migrate) to replace an existing table with an Iceberg table.
 | `table`       | ✔️  | string | Name of the new Iceberg table to create |
 | `location`    |    | string | Table location for the new table (delegated to the catalog by default) |
 | `properties`  | ️   | map<string, string> | Properties to add to the newly created table |
+| `parallelism` |    | int | Number of threads to use for file reading (defaults to 1) |
 
 #### Output
 
@@ -588,6 +589,7 @@ By default, the original table is retained with the name `table_BACKUP_`.
 | `properties`  | ️   | map<string, string> | Properties for the new Iceberg table |
 | `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 | `backup_table_name` |  | string | Name of the table that will be retained as backup (defaults to `table_BACKUP_`) |
+| `parallelism` |   | int | Number of threads to use for file reading (defaults to 1) |
 
 #### Output
 
@@ -629,7 +631,7 @@ will then treat these files as if they are part of the set of files  owned by Ic
 | `source_table`          | ✔️        | string              | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
 | `partition_filter`      | ️         | map<string, string> | A map of partitions in the source table to import from                                              |
 | `check_duplicate_files` | ️         | boolean             | Whether to prevent files existing in the table from being added (defaults to true)                  |
-| `parallelism`           |           | int                 | number of threads to use for file reading (defaults to 1)                                         |
+| `parallelism`           |           | int                 | Number of threads to use for file reading (defaults to 1)                                         |
 
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 

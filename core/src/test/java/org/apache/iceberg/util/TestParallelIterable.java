@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -70,6 +71,66 @@ public class TestParallelIterable {
     Awaitility.await("Queue is cleared")
         .atMost(5, TimeUnit.SECONDS)
         .untilAsserted(() -> assertThat(queue).isEmpty());
+  }
+
+  @Test
+  public void closeMoreDataParallelIteratorWithoutCompleteIteration()
+      throws IOException, IllegalAccessException, NoSuchFieldException {
+    ExecutorService executor = Executors.newFixedThreadPool(1);
+    Iterator<Integer> integerIterator =
+        new Iterator<Integer>() {
+          private int number = 1;
+
+          @Override
+          public boolean hasNext() {
+            if (number > 1000) {
+              return false;
+            }
+
+            number++;
+            return true;
+          }
+
+          @Override
+          public Integer next() {
+            try {
+              // sleep to control number generate rate
+              Thread.sleep(10);
+            } catch (InterruptedException e) {
+              // Sleep interrupted, we ignore it!
+            }
+            return number;
+          }
+        };
+    Iterable<CloseableIterable<Integer>> transform =
+        Iterables.transform(
+            Lists.newArrayList(1),
+            item ->
+                new CloseableIterable<Integer>() {
+                  @Override
+                  public void close() {}
+
+                  @Override
+                  public CloseableIterator<Integer> iterator() {
+                    return CloseableIterator.withClose(integerIterator);
+                  }
+                });
+
+    ParallelIterable<Integer> parallelIterable = new ParallelIterable<>(transform, executor);
+    CloseableIterator<Integer> iterator = parallelIterable.iterator();
+    Field queueField = iterator.getClass().getDeclaredField("queue");
+    queueField.setAccessible(true);
+    ConcurrentLinkedQueue<?> queue = (ConcurrentLinkedQueue<?>) queueField.get(iterator);
+
+    assertThat(iterator.hasNext()).isTrue();
+    assertThat(iterator.next()).isNotNull();
+    Awaitility.await("Queue is populated")
+        .atMost(5, TimeUnit.SECONDS)
+        .untilAsserted(() -> queueHasElements(iterator, queue));
+    iterator.close();
+    Awaitility.await("Queue is cleared")
+        .atMost(5, TimeUnit.SECONDS)
+        .untilAsserted(() -> assertThat(queue).as("Queue is not empty after cleaning").isEmpty());
   }
 
   private void queueHasElements(CloseableIterator<Integer> iterator, Queue queue) {
