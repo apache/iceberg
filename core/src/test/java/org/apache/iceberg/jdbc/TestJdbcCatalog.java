@@ -1130,7 +1130,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   private String createMetadataLocationViaJdbcCatalog(TableIdentifier identifier)
       throws SQLException {
     // temporary connection just to actually create a concrete metadata location
-    String jdbcUrl = null;
+    String jdbcUrl;
     try {
       java.nio.file.Path dbFile = Files.createTempFile("temp", "metadata");
       jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();

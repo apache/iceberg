@@ -48,7 +48,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
   public Schema schema() {
     StructType partitionType = Partitioning.partitionType(table());
     Schema schema = new Schema(DataFile.getType(partitionType).fields());
-    if (partitionType.fields().size() < 1) {
+    if (partitionType.fields().isEmpty()) {
       // avoid returning an empty struct, which is not always supported.
       // instead, drop the partition field
       schema = TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));

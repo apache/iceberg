@@ -54,8 +54,9 @@ public class HiveIcebergSerDe extends AbstractSerDe {
 
   private ObjectInspector inspector;
   private Schema tableSchema;
-  private Map<ObjectInspector, Deserializer> deserializers = Maps.newHashMapWithExpectedSize(1);
-  private Container<Record> row = new Container<>();
+  private final Map<ObjectInspector, Deserializer> deserializers =
+      Maps.newHashMapWithExpectedSize(1);
+  private final Container<Record> row = new Container<>();
 
   @Override
   public void initialize(@Nullable Configuration configuration, Properties serDeProperties)

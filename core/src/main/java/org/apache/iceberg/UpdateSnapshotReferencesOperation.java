@@ -31,7 +31,7 @@ class UpdateSnapshotReferencesOperation implements PendingUpdate<Map<String, Sna
 
   private final TableOperations ops;
   private final Map<String, SnapshotRef> updatedRefs;
-  private TableMetadata base;
+  private final TableMetadata base;
 
   UpdateSnapshotReferencesOperation(TableOperations ops) {
     this.ops = ops;

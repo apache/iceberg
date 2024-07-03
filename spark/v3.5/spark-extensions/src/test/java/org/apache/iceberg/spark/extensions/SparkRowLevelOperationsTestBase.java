@@ -255,7 +255,7 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
   private Dataset<Row> toDS(String schema, String jsonData) {
     List<String> jsonRows =
         Arrays.stream(jsonData.split("\n"))
-            .filter(str -> str.trim().length() > 0)
+            .filter(str -> !str.trim().isEmpty())
             .collect(Collectors.toList());
     Dataset<String> jsonDS = spark.createDataset(jsonRows, Encoders.STRING());
 

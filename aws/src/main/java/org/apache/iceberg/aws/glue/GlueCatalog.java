@@ -387,7 +387,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
           "Cannot rename %s to %s because namespace %s does not exist", from, to, to.namespace());
     }
     // keep metadata
-    Table fromTable = null;
+    Table fromTable;
     String fromTableDbName =
         IcebergToGlueConverter.getDatabaseName(from, awsProperties.glueCatalogSkipNameValidation());
     String fromTableName =

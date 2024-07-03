@@ -34,11 +34,11 @@ import org.apache.iceberg.io.PositionOutputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class AvroFileAppender<D> implements FileAppender<D> {
-  private PositionOutputStream stream;
+  private final PositionOutputStream stream;
   private DataFileWriter<D> writer;
-  private DatumWriter<?> datumWriter;
-  private org.apache.iceberg.Schema icebergSchema;
-  private MetricsConfig metricsConfig;
+  private final DatumWriter<?> datumWriter;
+  private final org.apache.iceberg.Schema icebergSchema;
+  private final MetricsConfig metricsConfig;
   private long numRecords = 0L;
   private boolean isClosed = false;
 

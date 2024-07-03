@@ -560,7 +560,7 @@ public class SparkParquetWriters {
 
     private InternalRowWriter(List<ParquetValueWriter<?>> writers, List<DataType> types) {
       super(writers);
-      this.types = types.toArray(new DataType[types.size()]);
+      this.types = types.toArray(new DataType[0]);
     }
 
     @Override

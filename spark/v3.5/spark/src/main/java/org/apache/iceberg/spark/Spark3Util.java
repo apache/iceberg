@@ -888,7 +888,7 @@ public class Spark3Util {
             JavaConverters.collectionAsScalaIterableConverter(ImmutableList.of(rootPath))
                 .asScala()
                 .toSeq(),
-            scala.collection.immutable.Map$.MODULE$.<String, String>empty(),
+            scala.collection.immutable.Map$.MODULE$.empty(),
             userSpecifiedSchema,
             fileStatusCache,
             Option.empty(),

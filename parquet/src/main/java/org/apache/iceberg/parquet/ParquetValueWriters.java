@@ -371,7 +371,7 @@ public class ParquetValueWriters {
         List<FieldMetrics<?>> fieldMetricsFromWriter =
             writer.metrics().collect(Collectors.toList());
 
-        if (fieldMetricsFromWriter.size() == 0) {
+        if (fieldMetricsFromWriter.isEmpty()) {
           // we are not tracking field metrics for this type ourselves
           return Stream.empty();
         } else if (fieldMetricsFromWriter.size() == 1) {

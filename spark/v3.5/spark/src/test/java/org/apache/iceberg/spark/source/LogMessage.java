@@ -22,7 +22,7 @@ import java.time.Instant;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LogMessage {
-  private static AtomicInteger idCounter = new AtomicInteger(0);
+  private static final AtomicInteger idCounter = new AtomicInteger(0);
 
   static LogMessage debug(String date, String message) {
     return new LogMessage(idCounter.getAndIncrement(), date, "DEBUG", message);

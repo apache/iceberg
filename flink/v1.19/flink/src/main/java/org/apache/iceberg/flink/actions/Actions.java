@@ -30,8 +30,8 @@ public class Actions {
           // disable classloader check as Avro may cache class/object in the serializers.
           .set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false);
 
-  private StreamExecutionEnvironment env;
-  private Table table;
+  private final StreamExecutionEnvironment env;
+  private final Table table;
 
   private Actions(StreamExecutionEnvironment env, Table table) {
     this.env = env;

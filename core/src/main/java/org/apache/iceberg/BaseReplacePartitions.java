@@ -111,7 +111,7 @@ public class BaseReplacePartitions extends MergingSnapshotProducer<ReplacePartit
 
   @Override
   public List<ManifestFile> apply(TableMetadata base, Snapshot snapshot) {
-    if (dataSpec().fields().size() <= 0) {
+    if (dataSpec().fields().isEmpty()) {
       // replace all data in an unpartitioned table
       deleteByRowFilter(Expressions.alwaysTrue());
     }

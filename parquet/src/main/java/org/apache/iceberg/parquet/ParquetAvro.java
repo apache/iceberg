@@ -301,7 +301,7 @@ class ParquetAvro {
     @Override
     public Schema primitive(Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
-      if (logicalType != null && logicalType instanceof LogicalTypes.Decimal) {
+      if (logicalType instanceof LogicalTypes.Decimal) {
         LogicalTypes.Decimal decimal = (LogicalTypes.Decimal) logicalType;
         if (decimal.getPrecision() <= 9) {
           return new ParquetDecimal(decimal.getPrecision(), decimal.getScale())

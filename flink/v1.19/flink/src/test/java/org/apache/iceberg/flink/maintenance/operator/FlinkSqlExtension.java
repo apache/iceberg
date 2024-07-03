@@ -26,6 +26,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
@@ -89,7 +90,9 @@ public class FlinkSqlExtension implements BeforeEachCallback, AfterEachCallback 
     tables.forEach(t -> exec("DROP TABLE IF EXISTS %s", t.getField(0)));
     exec("USE CATALOG default_catalog");
     exec("DROP CATALOG IF EXISTS %s", catalogName);
-    Files.walk(warehouse).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+    try (Stream<Path> files = Files.walk(warehouse)) {
+      files.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
+    }
   }
 
   /**

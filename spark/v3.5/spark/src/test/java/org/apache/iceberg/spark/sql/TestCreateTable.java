@@ -295,7 +295,7 @@ public class TestCreateTable extends CatalogTestBase {
     File tableLocation = Files.createTempDirectory(temp, "junit").toFile();
     assertThat(tableLocation.delete()).isTrue();
 
-    String location = "file:" + tableLocation.toString();
+    String location = "file:" + tableLocation;
 
     sql(
         "CREATE TABLE %s "

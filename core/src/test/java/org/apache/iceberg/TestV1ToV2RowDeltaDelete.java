@@ -70,7 +70,7 @@ public class TestV1ToV2RowDeltaDelete extends TestBase {
     verifyManifestSequenceNumber(dataManifest, 0, 0);
 
     // update table version to 2
-    TableOperations ops = ((BaseTable) table).operations();
+    TableOperations ops = table.operations();
     TableMetadata base = ops.current();
     ops.commit(base, base.upgradeToFormatVersion(2));
 
@@ -127,7 +127,7 @@ public class TestV1ToV2RowDeltaDelete extends TestBase {
     table.newAppend().appendFile(FILE_B).appendFile(FILE_C).appendFile(FILE_D).commit();
 
     // update table version to 2
-    TableOperations ops = ((BaseTable) table).operations();
+    TableOperations ops = table.operations();
     TableMetadata base = ops.current();
     ops.commit(base, base.upgradeToFormatVersion(2));
 
@@ -162,7 +162,7 @@ public class TestV1ToV2RowDeltaDelete extends TestBase {
     table.newAppend().appendFile(FILE_A).commit();
 
     // update table version to 2
-    TableOperations ops = ((BaseTable) table).operations();
+    TableOperations ops = table.operations();
     TableMetadata base = ops.current();
     ops.commit(base, base.upgradeToFormatVersion(2));
 

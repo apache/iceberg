@@ -38,7 +38,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestSparkCatalogOperations extends CatalogTestBase {
-  private static boolean useNullableQuerySchema = ThreadLocalRandom.current().nextBoolean();
+  private static final boolean useNullableQuerySchema = ThreadLocalRandom.current().nextBoolean();
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   protected static Object[][] parameters() {

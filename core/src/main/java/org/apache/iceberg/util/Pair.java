@@ -49,8 +49,8 @@ public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructab
                       null,
                       false,
                       Lists.newArrayList(
-                          new Schema.Field("x", xSchema, null, (Object) null),
-                          new Schema.Field("y", ySchema, null, (Object) null)));
+                          new Schema.Field("x", xSchema, null, null),
+                          new Schema.Field("y", ySchema, null, null)));
                 }
               });
 
@@ -109,7 +109,7 @@ public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructab
 
   @Override
   public String toString() {
-    return "(" + String.valueOf(first) + ", " + String.valueOf(second) + ")";
+    return "(" + first + ", " + second + ")";
   }
 
   @Override

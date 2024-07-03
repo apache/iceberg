@@ -146,7 +146,7 @@ public abstract class AvroWithPartnerByStructureVisitor<P, T> {
   }
 
   /** Just for checking state. */
-  private Deque<String> recordLevels = Lists.newLinkedList();
+  private final Deque<String> recordLevels = Lists.newLinkedList();
 
   // ---------------------------------- Partner type methods
   // ---------------------------------------------

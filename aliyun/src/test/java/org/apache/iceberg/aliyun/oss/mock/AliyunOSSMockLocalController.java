@@ -420,11 +420,11 @@ public class AliyunOSSMockLocalController {
      * A caller has caused a request that would cross the {@code maxLength} boundary.
      *
      * @param maxLength The max count of bytes to read.
-     * @param count The count of bytes read.
+     * @param bytesRead The count of bytes read.
      * @throws IOException Subclasses may throw.
      * @since 2.12.0
      */
-    protected void onMaxLength(final long maxLength, final long pCount) throws IOException {
+    protected void onMaxLength(final long maxLength, final long bytesRead) throws IOException {
       // for subclasses
     }
 

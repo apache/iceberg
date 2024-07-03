@@ -67,7 +67,7 @@ public class AvroWithPartnerVisitor<P, R> {
   }
 
   /** Used to fail on recursive types. */
-  private Deque<String> recordLevels = Lists.newLinkedList();
+  private final Deque<String> recordLevels = Lists.newLinkedList();
 
   public R record(P partner, Schema record, List<R> fieldResults) {
     return null;

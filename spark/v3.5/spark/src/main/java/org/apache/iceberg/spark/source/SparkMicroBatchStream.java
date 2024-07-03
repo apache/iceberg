@@ -395,7 +395,6 @@ public class SparkMicroBatchStream implements MicroBatchStream, SupportsAdmissio
         Snapshot nextValid = nextValidSnapshot(curSnapshot);
         if (nextValid == null) {
           // nextValide implies all the remaining snapshots should be skipped.
-          shouldContinueReading = false;
           break;
         }
         // we found the next available snapshot, continue from there.

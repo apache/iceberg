@@ -71,7 +71,7 @@ class ParquetWritingTestUtils {
       GenericData.Record... records)
       throws IOException {
 
-    long len = 0;
+    long len;
 
     FileAppender<GenericData.Record> writer =
         Parquet.write(localOutput(file))

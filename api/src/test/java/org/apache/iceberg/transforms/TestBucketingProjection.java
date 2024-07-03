@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
@@ -309,7 +310,7 @@ public class TestBucketingProjection {
 
   @Test
   public void testBucketByteBufferStrict() throws Exception {
-    ByteBuffer value = ByteBuffer.wrap("abcdefg".getBytes("UTF-8"));
+    ByteBuffer value = ByteBuffer.wrap("abcdefg".getBytes(StandardCharsets.UTF_8));
     Schema schema = new Schema(optional(1, "value", Types.BinaryType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
@@ -322,7 +323,7 @@ public class TestBucketingProjection {
     assertProjectionStrictValue(
         spec, greaterThanOrEqual("value", value), Expression.Operation.FALSE);
 
-    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
+    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes(StandardCharsets.UTF_8));
     assertProjectionStrict(
         spec, notIn("value", value, anotherValue), Expression.Operation.NOT_IN, "[4, 6]");
     assertProjectionStrictValue(spec, in("value", value, anotherValue), Expression.Operation.FALSE);
@@ -330,7 +331,7 @@ public class TestBucketingProjection {
 
   @Test
   public void testBucketByteBufferInclusive() throws Exception {
-    ByteBuffer value = ByteBuffer.wrap("abcdefg".getBytes("UTF-8"));
+    ByteBuffer value = ByteBuffer.wrap("abcdefg".getBytes(StandardCharsets.UTF_8));
     Schema schema = new Schema(optional(1, "value", Types.BinaryType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("value", 10).build();
 
@@ -344,7 +345,7 @@ public class TestBucketingProjection {
     assertProjectionInclusiveValue(
         spec, greaterThanOrEqual("value", value), Expression.Operation.TRUE);
 
-    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
+    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes(StandardCharsets.UTF_8));
     assertProjectionInclusive(
         spec, in("value", value, anotherValue), Expression.Operation.IN, "[4, 6]");
     assertProjectionInclusiveValue(

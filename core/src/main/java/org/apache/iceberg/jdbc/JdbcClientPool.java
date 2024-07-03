@@ -53,7 +53,7 @@ public class JdbcClientPool extends ClientPoolImpl<Connection, SQLException> {
   private final String dbUrl;
   private final Map<String, String> properties;
 
-  private Set<String> retryableStatusCodes;
+  private final Set<String> retryableStatusCodes;
 
   public JdbcClientPool(String dbUrl, Map<String, String> props) {
     this(

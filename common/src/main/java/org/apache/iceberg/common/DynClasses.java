@@ -34,7 +34,7 @@ public class DynClasses {
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
     private Class<?> foundClass = null;
     private boolean nullOk = false;
-    private Set<String> classNames = Sets.newLinkedHashSet();
+    private final Set<String> classNames = Sets.newLinkedHashSet();
 
     private Builder() {}
 

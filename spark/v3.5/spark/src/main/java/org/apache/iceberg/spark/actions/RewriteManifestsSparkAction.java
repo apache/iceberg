@@ -112,9 +112,9 @@ public class RewriteManifestsSparkAction
   private final long targetManifestSizeBytes;
   private final boolean shouldStageManifests;
 
-  private PartitionSpec spec = null;
+  private PartitionSpec spec;
   private Predicate<ManifestFile> predicate = manifest -> true;
-  private String outputLocation = null;
+  private String outputLocation;
 
   private List<String> partitionFieldClustering = null;
   private Function<DataFile, String> partitionClusteringFunction = null;

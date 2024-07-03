@@ -71,7 +71,7 @@ public class BaseTransaction implements Transaction {
   private final Set<String> deletedFiles =
       Sets.newHashSet(); // keep track of files deleted in the most recent commit
   private final Consumer<String> enqueueDelete = deletedFiles::add;
-  private TransactionType type;
+  private final TransactionType type;
   private TableMetadata base;
   private TableMetadata current;
   private boolean hasLastOpCommitted;

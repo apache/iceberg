@@ -390,7 +390,7 @@ public class TestBase {
 
   Snapshot apply(SnapshotUpdate<?> snapshotUpdate, String branch) {
     if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
-      return ((SnapshotProducer<?>) snapshotUpdate).apply();
+      return snapshotUpdate.apply();
     } else {
       return ((SnapshotProducer<?>) snapshotUpdate.toBranch(branch)).apply();
     }

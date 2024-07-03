@@ -170,7 +170,7 @@ public class TestPartitionPruning {
 
   @TempDir private java.nio.file.Path temp;
 
-  private PartitionSpec spec =
+  private final PartitionSpec spec =
       PartitionSpec.builderFor(LOG_SCHEMA)
           .identity("date")
           .identity("level")

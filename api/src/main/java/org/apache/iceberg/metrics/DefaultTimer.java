@@ -66,31 +66,22 @@ public class DefaultTimer implements Timer {
 
   @Override
   public <T> T time(Supplier<T> supplier) {
-    Timed timed = start();
-    try {
+    try (Timed ignore = start()) {
       return supplier.get();
-    } finally {
-      timed.stop();
     }
   }
 
   @Override
   public <T> T timeCallable(Callable<T> callable) throws Exception {
-    Timed timed = start();
-    try {
+    try (Timed ignore = start()) {
       return callable.call();
-    } finally {
-      timed.stop();
     }
   }
 
   @Override
   public void time(Runnable runnable) {
-    Timed timed = start();
-    try {
+    try (Timed ignore = start()) {
       runnable.run();
-    } finally {
-      timed.stop();
     }
   }
 

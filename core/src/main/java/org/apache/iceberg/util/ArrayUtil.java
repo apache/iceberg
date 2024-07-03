@@ -96,7 +96,7 @@ public class ArrayUtil {
     }
     final boolean[] result = new boolean[array.length];
     for (int i = 0; i < array.length; i++) {
-      result[i] = array[i].booleanValue();
+      result[i] = array[i];
     }
     return result;
   }
@@ -120,7 +120,7 @@ public class ArrayUtil {
     }
     final byte[] result = new byte[array.length];
     for (int i = 0; i < array.length; i++) {
-      result[i] = array[i].byteValue();
+      result[i] = array[i];
     }
     return result;
   }
@@ -144,7 +144,7 @@ public class ArrayUtil {
     }
     final short[] result = new short[array.length];
     for (int i = 0; i < array.length; i++) {
-      result[i] = array[i].shortValue();
+      result[i] = array[i];
     }
     return result;
   }
@@ -168,7 +168,7 @@ public class ArrayUtil {
     }
     final int[] result = new int[array.length];
     for (int i = 0; i < array.length; i++) {
-      result[i] = array[i].intValue();
+      result[i] = array[i];
     }
     return result;
   }
@@ -192,7 +192,7 @@ public class ArrayUtil {
     }
     final long[] result = new long[array.length];
     for (int i = 0; i < array.length; i++) {
-      result[i] = array[i].longValue();
+      result[i] = array[i];
     }
     return result;
   }
@@ -216,7 +216,7 @@ public class ArrayUtil {
     }
     final float[] result = new float[array.length];
     for (int i = 0; i < array.length; i++) {
-      result[i] = array[i].floatValue();
+      result[i] = array[i];
     }
     return result;
   }
@@ -240,7 +240,7 @@ public class ArrayUtil {
     }
     final double[] result = new double[array.length];
     for (int i = 0; i < array.length; i++) {
-      result[i] = array[i].doubleValue();
+      result[i] = array[i];
     }
     return result;
   }

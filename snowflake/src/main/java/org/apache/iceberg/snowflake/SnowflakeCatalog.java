@@ -176,7 +176,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
     SnowflakeIdentifier scope = NamespaceHelpers.toSnowflakeIdentifier(namespace);
-    List<SnowflakeIdentifier> results = null;
+    List<SnowflakeIdentifier> results;
     switch (scope.type()) {
       case ROOT:
         results = snowflakeClient.listDatabases();

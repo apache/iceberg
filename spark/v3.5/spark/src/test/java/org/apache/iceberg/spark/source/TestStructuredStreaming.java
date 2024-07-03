@@ -115,7 +115,7 @@ public class TestStructuredStreaming {
       query.stop();
 
       // remove the last commit to force Spark to reprocess batch #1
-      File lastCommitFile = new File(checkpoint.toString() + "/commits/1");
+      File lastCommitFile = new File(checkpoint + "/commits/1");
       assertThat(lastCommitFile.delete()).as("The commit file must be deleted").isTrue();
 
       // restart the query from the checkpoint
@@ -176,7 +176,7 @@ public class TestStructuredStreaming {
       query.stop();
 
       // remove the last commit to force Spark to reprocess batch #1
-      File lastCommitFile = new File(checkpoint.toString() + "/commits/1");
+      File lastCommitFile = new File(checkpoint + "/commits/1");
       assertThat(lastCommitFile.delete()).as("The commit file must be deleted").isTrue();
 
       // restart the query from the checkpoint
@@ -237,7 +237,7 @@ public class TestStructuredStreaming {
       query.stop();
 
       // remove the last commit to force Spark to reprocess batch #1
-      File lastCommitFile = new File(checkpoint.toString() + "/commits/1");
+      File lastCommitFile = new File(checkpoint + "/commits/1");
       assertThat(lastCommitFile.delete()).as("The commit file must be deleted").isTrue();
 
       // restart the query from the checkpoint

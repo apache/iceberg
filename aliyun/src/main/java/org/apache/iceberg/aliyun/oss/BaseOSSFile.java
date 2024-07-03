@@ -29,7 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 abstract class BaseOSSFile {
   private final OSS client;
   private final OSSURI uri;
-  private AliyunProperties aliyunProperties;
+  private final AliyunProperties aliyunProperties;
   private SimplifiedObjectMeta metadata;
   private final MetricsContext metrics;
 

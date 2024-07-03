@@ -149,7 +149,7 @@ public class TestMetricsRowGroupFilter {
   static {
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < 200; i += 1) {
-      sb.append(UUID.randomUUID().toString());
+      sb.append(UUID.randomUUID());
     }
     TOO_LONG_FOR_STATS_PARQUET = sb.toString();
   }
