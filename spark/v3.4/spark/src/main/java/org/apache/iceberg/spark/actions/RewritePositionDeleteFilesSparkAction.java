@@ -310,7 +310,7 @@ public class RewritePositionDeleteFilesSparkAction
     // stop commit service
     commitService.close();
     List<RewritePositionDeletesGroup> commitResults = commitService.results();
-    if (commitResults.size() == 0) {
+    if (commitResults.isEmpty()) {
       LOG.error(
           "{} is true but no rewrite commits succeeded. Check the logs to determine why the individual "
               + "commits failed. If this is persistent it may help to increase {} which will break the rewrite operation "
@@ -332,7 +332,7 @@ public class RewritePositionDeleteFilesSparkAction
       RewriteExecutionContext ctx,
       Map<StructLike, List<List<PositionDeletesScanTask>>> groupsByPartition) {
     return groupsByPartition.entrySet().stream()
-        .filter(e -> e.getValue().size() != 0)
+        .filter(e -> !e.getValue().isEmpty())
         .flatMap(
             e -> {
               StructLike partition = e.getKey();

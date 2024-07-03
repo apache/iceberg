@@ -95,7 +95,7 @@ public class SparkScanBuilder
   private final List<String> metaColumns = Lists.newArrayList();
   private final InMemoryMetricsReporter metricsReporter;
 
-  private Schema schema = null;
+  private Schema schema;
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
   private Predicate[] pushedPredicates = NO_PREDICATES;
