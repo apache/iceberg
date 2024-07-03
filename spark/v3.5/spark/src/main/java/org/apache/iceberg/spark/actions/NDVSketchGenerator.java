@@ -80,10 +80,10 @@ public class NDVSketchGenerator {
   }
 
   private static Map<Integer, ThetaSketchJavaSerializable> computeNDVSketches(
-      SparkSession spark, Table table, long snapshotId, Set<String> toBeAnalyzedColumns) {
+      SparkSession spark, Table table, long snapshotId, Set<String> columnsToBeAnalyzed) {
     Map<Integer, ThetaSketchJavaSerializable> sketchMap = Maps.newHashMap();
     String tableName = table.name();
-    List<String> columns = ImmutableList.copyOf(toBeAnalyzedColumns);
+    List<String> columns = ImmutableList.copyOf(columnsToBeAnalyzed);
     Dataset<Row> data =
         spark
             .read()

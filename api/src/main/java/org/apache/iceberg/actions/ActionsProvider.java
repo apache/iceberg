@@ -71,7 +71,7 @@ public interface ActionsProvider {
         this.getClass().getName() + " does not implement rewritePositionDeletes");
   }
 
-  /** Instantiates an action to analyze tables */
+  /** Instantiates an action to analyze tables. */
   default AnalyzeTable analyzeTable(Table table) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement analyzeTable");

@@ -37,7 +37,6 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
-import org.apache.iceberg.puffin.StandardBlobTypes;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -52,8 +51,6 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
     implements AnalyzeTable {
 
   private static final Logger LOG = LoggerFactory.getLogger(AnalyzeTableSparkAction.class);
-  private static final Set<String> supportedBlobTypes =
-      ImmutableSet.of(StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1);
 
   private final Table table;
   private Set<String> columns;
@@ -63,11 +60,9 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
     super(spark);
     this.table = table;
     Snapshot snapshot = table.currentSnapshot();
-    if (snapshot == null) {
-      LOG.error("Unable to analyze the table since the table has no snapshots");
-      throw new RuntimeException("Unable to analyze the table since the table has no snapshots");
+    if (snapshot != null) {
+      this.snapshotId = snapshot.snapshotId();
     }
-    this.snapshotId = snapshot.snapshotId();
     this.columns =
         table.schema().columns().stream().map(Types.NestedField::name).collect(Collectors.toSet());
   }
@@ -93,7 +88,7 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
-    return ImmutableAnalyzeTable.Result.builder().statisticFile(statisticFile).build();
+    return ImmutableAnalyzeTable.Result.builder().statisticsFile(statisticFile).build();
   }
 
   private StatisticsFile writeAndCommitPuffin(List<Blob> blobs) throws Exception {

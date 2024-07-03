@@ -23,7 +23,7 @@ import org.apache.iceberg.StatisticsFile;
 /** An action that collects statistics of an Iceberg table and writes to Puffin files. */
 public interface AnalyzeTable extends Action<AnalyzeTable, AnalyzeTable.Result> {
   /**
-   * The set of columns to be analyzed
+   * Choose the set of columns to be analyzed, by default all columns are analyzed.
    *
    * @param columns a set of column names to be analyzed
    * @return this for method chaining
@@ -31,17 +31,17 @@ public interface AnalyzeTable extends Action<AnalyzeTable, AnalyzeTable.Result> 
   AnalyzeTable columns(String... columns);
 
   /**
-   * Id of the snapshot for which stats need to be collected
+   * Choose the table snapshot to analyze, by default the current snapshot is analyzed.
    *
-   * @param snapshotId long id of the snapshot for which stats need to be collected
+   * @param snapshotId long ID of the snapshot for which stats need to be analyzed
    * @return this for method chaining
    */
   AnalyzeTable snapshot(long snapshotId);
 
-  /** The action result that contains summaries of the Analysis. */
+  /** The action result that contains summaries of the analysis. */
   interface Result {
 
     /** Returns statistics file. */
-    StatisticsFile statisticFile();
+    StatisticsFile statisticsFile();
   }
 }
