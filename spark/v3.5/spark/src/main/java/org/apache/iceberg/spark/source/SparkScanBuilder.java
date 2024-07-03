@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -394,9 +393,7 @@ public class SparkScanBuilder
     }
 
     Set<Integer> idsToReassign =
-        partitionField
-            .map(field -> TypeUtil.indexById(field.type().asStructType()).keySet())
-            .orElse(Collections.emptySet());
+        TypeUtil.indexById(partitionField.get().type().asStructType()).keySet();
 
     // Calculate used ids by union metadata columns with all base table schemas
     Set<Integer> currentlyUsedIds =
