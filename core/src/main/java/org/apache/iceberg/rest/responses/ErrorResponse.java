@@ -28,10 +28,10 @@ import org.apache.iceberg.rest.RESTResponse;
 /** Standard response body for all API errors */
 public class ErrorResponse implements RESTResponse {
 
-  private String message;
-  private String type;
-  private int code;
-  private List<String> stack;
+  private final String message;
+  private final String type;
+  private final int code;
+  private final List<String> stack;
 
   private ErrorResponse(String message, String type, int code, List<String> stack) {
     this.message = message;

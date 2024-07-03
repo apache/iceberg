@@ -153,7 +153,7 @@ public class HadoopTableOperations implements TableOperations {
             TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
     TableMetadataParser.Codec codec = TableMetadataParser.Codec.fromName(codecName);
     String fileExtension = TableMetadataParser.getFileExtension(codec);
-    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
+    Path tempMetadataFile = metadataPath(UUID.randomUUID() + fileExtension);
     TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
 
     int nextVersion = (current.first() != null ? current.first() : 0) + 1;
@@ -296,7 +296,7 @@ public class HadoopTableOperations implements TableOperations {
     FileSystem fs = getFileSystem(versionHintFile, conf);
 
     try {
-      Path tempVersionHintFile = metadataPath(UUID.randomUUID().toString() + "-version-hint.temp");
+      Path tempVersionHintFile = metadataPath(UUID.randomUUID() + "-version-hint.temp");
       writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
       fs.delete(versionHintFile, false /* recursive delete */);
       fs.rename(tempVersionHintFile, versionHintFile);

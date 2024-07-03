@@ -43,7 +43,7 @@ class MapDataStatistics implements DataStatistics {
 
   @Override
   public boolean isEmpty() {
-    return keyFrequency.size() == 0;
+    return keyFrequency.isEmpty();
   }
 
   @Override

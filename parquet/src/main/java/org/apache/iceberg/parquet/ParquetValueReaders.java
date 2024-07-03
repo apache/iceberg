@@ -343,7 +343,7 @@ public class ParquetValueReaders {
   }
 
   public static class BinaryAsDecimalReader extends PrimitiveReader<BigDecimal> {
-    private int scale;
+    private final int scale;
 
     public BinaryAsDecimalReader(ColumnDescriptor desc, int scale) {
       super(desc);

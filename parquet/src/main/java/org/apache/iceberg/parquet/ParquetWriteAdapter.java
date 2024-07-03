@@ -38,7 +38,7 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 @Deprecated
 public class ParquetWriteAdapter<D> implements FileAppender<D> {
   private ParquetWriter<D> writer;
-  private MetricsConfig metricsConfig;
+  private final MetricsConfig metricsConfig;
   private ParquetMetadata footer;
 
   public ParquetWriteAdapter(ParquetWriter<D> writer, MetricsConfig metricsConfig) {

@@ -59,41 +59,39 @@ public class TestNameMappingWithAvroSchema {
                 new Schema.Field(
                     "complexUnion",
                     Schema.createUnion(
-                        new Schema[] {
-                          Schema.create(Schema.Type.NULL),
-                          Schema.create(Schema.Type.STRING),
-                          Schema.createRecord(
-                              "innerRecord1",
-                              null,
-                              "namespace1",
-                              false,
-                              Lists.newArrayList(
-                                  new Schema.Field("lat", Schema.create(Schema.Type.DOUBLE)),
-                                  new Schema.Field("long", Schema.create(Schema.Type.DOUBLE)))),
-                          Schema.createRecord(
-                              "innerRecord2",
-                              null,
-                              "namespace2",
-                              false,
-                              Lists.newArrayList(
-                                  new Schema.Field("lat", Schema.create(Schema.Type.DOUBLE)),
-                                  new Schema.Field("long", Schema.create(Schema.Type.DOUBLE)))),
-                          Schema.createRecord(
-                              "innerRecord3",
-                              null,
-                              "namespace3",
-                              false,
-                              Lists.newArrayList(
-                                  new Schema.Field(
-                                      "innerUnion",
-                                      Schema.createUnion(
-                                          Lists.newArrayList(
-                                              Schema.create(Schema.Type.STRING),
-                                              Schema.create(Schema.Type.INT)))))),
-                          Schema.createEnum(
-                              "timezone", null, null, Lists.newArrayList("UTC", "PST", "EST")),
-                          Schema.createFixed("bitmap", null, null, 1)
-                        }))));
+                        Schema.create(Schema.Type.NULL),
+                        Schema.create(Schema.Type.STRING),
+                        Schema.createRecord(
+                            "innerRecord1",
+                            null,
+                            "namespace1",
+                            false,
+                            Lists.newArrayList(
+                                new Schema.Field("lat", Schema.create(Schema.Type.DOUBLE)),
+                                new Schema.Field("long", Schema.create(Schema.Type.DOUBLE)))),
+                        Schema.createRecord(
+                            "innerRecord2",
+                            null,
+                            "namespace2",
+                            false,
+                            Lists.newArrayList(
+                                new Schema.Field("lat", Schema.create(Schema.Type.DOUBLE)),
+                                new Schema.Field("long", Schema.create(Schema.Type.DOUBLE)))),
+                        Schema.createRecord(
+                            "innerRecord3",
+                            null,
+                            "namespace3",
+                            false,
+                            Lists.newArrayList(
+                                new Schema.Field(
+                                    "innerUnion",
+                                    Schema.createUnion(
+                                        Lists.newArrayList(
+                                            Schema.create(Schema.Type.STRING),
+                                            Schema.create(Schema.Type.INT)))))),
+                        Schema.createEnum(
+                            "timezone", null, null, Lists.newArrayList("UTC", "PST", "EST")),
+                        Schema.createFixed("bitmap", null, null, 1)))));
 
     NameMappingWithAvroSchema nameMappingWithAvroSchema = new NameMappingWithAvroSchema();
 
