@@ -50,6 +50,8 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.DefaultAuthSession;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -545,6 +547,26 @@ public class RESTCatalogAdapter implements RESTClient {
       Class<T> responseType,
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
+    return execute(
+        method,
+        path,
+        queryParams,
+        body,
+        responseType,
+        ImmutableMap.of(),
+        DefaultAuthSession.of(headers),
+        errorHandler);
+  }
+
+  public <T extends RESTResponse> T execute(
+      HTTPMethod method,
+      String path,
+      Map<String, String> queryParams,
+      Object body,
+      Class<T> responseType,
+      Map<String, String> headers,
+      AuthSession authSession,
+      Consumer<ErrorResponse> errorHandler) {
     ErrorResponse.Builder errorBuilder = ErrorResponse.builder();
     Pair<Route, Map<String, String>> routeAndVars = Route.from(method, path);
     if (routeAndVars != null) {
@@ -587,11 +609,38 @@ public class RESTCatalogAdapter implements RESTClient {
   @Override
   public <T extends RESTResponse> T delete(
       String path,
+      Class<T> responseType,
+      Map<String, String> headers,
+      AuthSession authSession,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(
+        HTTPMethod.DELETE,
+        path,
+        null,
+        null,
+        responseType,
+        headers,
+        authSession.copy(),
+        errorHandler);
+  }
+
+  @Override
+  public <T extends RESTResponse> T delete(
+      String path,
       Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
+      AuthSession authSession,
       Consumer<ErrorResponse> errorHandler) {
-    return execute(HTTPMethod.DELETE, path, queryParams, null, responseType, headers, errorHandler);
+    return execute(
+        HTTPMethod.DELETE,
+        path,
+        queryParams,
+        null,
+        responseType,
+        headers,
+        authSession,
+        errorHandler);
   }
 
   @Override
@@ -605,6 +654,18 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   @Override
+  public <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Map<String, String> headers,
+      AuthSession authSession,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(
+        HTTPMethod.POST, path, null, body, responseType, headers, authSession.copy(), errorHandler);
+  }
+
+  @Override
   public <T extends RESTResponse> T get(
       String path,
       Map<String, String> queryParams,
@@ -615,8 +676,36 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   @Override
+  public <T extends RESTResponse> T get(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      AuthSession authSession,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(
+        HTTPMethod.GET,
+        path,
+        queryParams,
+        null,
+        responseType,
+        headers,
+        authSession.copy(),
+        errorHandler);
+  }
+
+  @Override
   public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
     execute(HTTPMethod.HEAD, path, null, null, null, headers, errorHandler);
+  }
+
+  @Override
+  public void head(
+      String path,
+      Map<String, String> headers,
+      AuthSession authSession,
+      Consumer<ErrorResponse> errorHandler) {
+    execute(HTTPMethod.HEAD, path, null, null, null, headers, authSession.copy(), errorHandler);
   }
 
   @Override
@@ -627,6 +716,25 @@ public class RESTCatalogAdapter implements RESTClient {
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
     return execute(HTTPMethod.POST, path, null, formData, responseType, headers, errorHandler);
+  }
+
+  @Override
+  public <T extends RESTResponse> T postForm(
+      String path,
+      Map<String, String> formData,
+      Class<T> responseType,
+      Map<String, String> headers,
+      AuthSession authSession,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(
+        HTTPMethod.POST,
+        path,
+        null,
+        formData,
+        responseType,
+        headers,
+        authSession.copy(),
+        errorHandler);
   }
 
   @Override

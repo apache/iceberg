@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.rest.auth;
 
+import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,14 +29,51 @@ public class AuthManagers {
 
   private static final Logger LOG = LoggerFactory.getLogger(AuthManagers.class);
 
-  public static final String AUTH_MANAGER_IMPL = "auth-manager-impl";
+  /** Old property name for enabling SigV4 authentication. */
+  private static final String SIGV4_ENABLED = "rest.sigv4-enabled";
 
   private AuthManagers() {}
 
-  public static AuthManager loadAuthManager(String name, Map<String, String> properties) {
-    String impl = properties.get(AUTH_MANAGER_IMPL);
-    if (impl == null) {
-      return new OAuth2Manager(name, properties);
+  public static AuthManager loadAuthManager(Map<String, String> properties) {
+
+    String authType;
+    if (properties.containsKey(SIGV4_ENABLED)) {
+      LOG.warn(
+          "The property {} is deprecated and will be removed in a future release. "
+              + "Please use the property {}={} instead.",
+          SIGV4_ENABLED,
+          AuthProperties.AUTH_TYPE,
+          AuthProperties.AUTH_TYPE_SIGV4);
+    }
+
+    if (PropertyUtil.propertyAsBoolean(properties, SIGV4_ENABLED, false)) {
+      authType = AuthProperties.AUTH_TYPE_SIGV4;
+    } else {
+      boolean hasOAuth2 =
+          properties.containsKey(OAuth2Properties.CREDENTIAL)
+              || properties.containsKey(OAuth2Properties.TOKEN);
+      String defaultAuthType =
+          hasOAuth2 ? AuthProperties.AUTH_TYPE_OAUTH2 : AuthProperties.AUTH_TYPE_NONE;
+      authType =
+          PropertyUtil.propertyAsString(properties, AuthProperties.AUTH_TYPE, defaultAuthType);
+    }
+
+    String impl;
+    switch (authType.toLowerCase(Locale.ROOT)) {
+      case AuthProperties.AUTH_TYPE_NONE:
+        impl = AuthProperties.AUTHENTICATION_IMPL_NONE;
+        break;
+      case AuthProperties.AUTH_TYPE_BASIC:
+        impl = AuthProperties.AUTHENTICATION_IMPL_BASIC;
+        break;
+      case AuthProperties.AUTH_TYPE_SIGV4:
+        impl = AuthProperties.AUTHENTICATION_IMPL_SIGV4;
+        break;
+      case AuthProperties.AUTH_TYPE_OAUTH2:
+        impl = AuthProperties.AUTHENTICATION_IMPL_OAUTH2;
+        break;
+      default:
+        impl = authType;
     }
 
     LOG.info("Loading custom AuthManager implementation: {}", impl);
@@ -61,7 +100,6 @@ public class AuthManagers {
           e);
     }
 
-    authManager.initialize(name, properties);
     return authManager;
   }
 }

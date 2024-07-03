@@ -20,11 +20,11 @@ package org.apache.iceberg.rest.auth;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
+import java.util.function.Function;
+import org.apache.iceberg.catalog.SessionCatalog;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -32,15 +32,9 @@ import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.RESTUtil;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
-import org.apache.iceberg.util.ThreadPools;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-public class OAuth2Manager implements AuthManager {
-
-  private static final Logger LOG = LoggerFactory.getLogger(OAuth2Manager.class);
+public class OAuth2Manager extends RefreshingAuthManager {
 
   private static final List<String> TOKEN_PREFERENCE_ORDER =
       ImmutableList.of(
@@ -57,197 +51,158 @@ public class OAuth2Manager implements AuthManager {
           .addAll(TOKEN_PREFERENCE_ORDER)
           .build();
 
-  private String name;
+  private RESTClient client;
+  private Map<String, String> properties;
+  private AuthConfig config;
   private long startTimeMillis;
-  private Map<String, String> authHeaders;
-  private String credential;
-  private String scope;
-  private Map<String, String> optionalOAuthParams;
-  private String oauth2ServerUri;
-  private boolean keepTokenRefreshed = true;
   private OAuthTokenResponse authResponse;
 
-  // a lazy thread pool for token refresh
-  private volatile ScheduledExecutorService refreshExecutor = null;
+  @Override
+  public void initialize(String owner, RESTClient restClient, Map<String, String> props) {
+    super.initialize(owner, restClient, props);
+    this.client = restClient;
+    this.properties = props;
+    this.config = createConfig(props);
+    setExecutorNamePrefix(owner + "-token-refresh");
+    setKeepRefreshed(config.keepRefreshed());
+    // keep track of the start time for token refresh
+    this.startTimeMillis = System.currentTimeMillis();
+  }
 
-  private RESTClient client;
-
-  public OAuth2Manager() {}
-
-  public OAuth2Manager(String name, Map<String, String> properties) {
-    initialize(name, properties);
+  private static AuthConfig createConfig(Map<String, String> props) {
+    String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
+    Map<String, String> optionalOAuthParams = OAuth2Util.buildOptionalParam(props);
+    String oauth2ServerUri =
+        props.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
+    boolean keepRefreshed =
+        PropertyUtil.propertyAsBoolean(
+            props,
+            OAuth2Properties.TOKEN_REFRESH_ENABLED,
+            OAuth2Properties.TOKEN_REFRESH_ENABLED_DEFAULT);
+    return AuthConfig.builder()
+        .credential(props.get(OAuth2Properties.CREDENTIAL))
+        .token(props.get(OAuth2Properties.TOKEN))
+        .scope(scope)
+        .oauth2ServerUri(oauth2ServerUri)
+        .optionalOAuthParams(optionalOAuthParams)
+        .keepRefreshed(keepRefreshed)
+        .expiresAtMillis(expiresAtMillis(props))
+        .build();
   }
 
   @Override
-  public Map<String, String> mergeAuthHeadersForGetConfig(
-      RESTClient initialAuthClient, Map<String, String> configuredHeaders) {
-    Map<String, String> initHeaders = RESTUtil.merge(configuredHeaders, authHeaders);
-
-    if (credential != null && !credential.isEmpty()) {
+  public AuthSession catalogSession() {
+    OAuth2Util.AuthSession session = sessionFromConfig();
+    if (config.credential() != null && authResponse == null) {
       this.authResponse =
           OAuth2Util.fetchToken(
-              initialAuthClient,
-              initHeaders,
-              credential,
-              scope,
-              oauth2ServerUri,
-              optionalOAuthParams);
-      return RESTUtil.merge(initHeaders, OAuth2Util.authHeaders(authResponse.token()));
-    } else {
-      this.authResponse = null;
-      return initHeaders;
+              client,
+              session,
+              config.credential(),
+              config.scope(),
+              config.oauth2ServerUri(),
+              config.optionalOAuthParams());
     }
-  }
-
-  @Override
-  public AuthSession newSession(
-      RESTClient authClient, Map<String, String> mergedProps, Map<String, String> baseHeaders) {
-    this.client = authClient;
-    String token = mergedProps.get(OAuth2Properties.TOKEN);
-    OAuth2Util.AuthSession catalogAuth =
-        new OAuth2Util.AuthSession(
-            baseHeaders,
-            AuthConfig.builder()
-                .credential(credential)
-                .scope(scope)
-                .oauth2ServerUri(oauth2ServerUri)
-                .optionalOAuthParams(optionalOAuthParams)
-                .build());
     if (authResponse != null) {
-      catalogAuth =
-          OAuth2Util.AuthSession.fromTokenResponse(
-              authClient, tokenRefreshExecutor(name), authResponse, startTimeMillis, catalogAuth);
-    } else if (token != null) {
-      catalogAuth =
-          OAuth2Util.AuthSession.fromAccessToken(
-              authClient,
-              tokenRefreshExecutor(name),
-              token,
-              expiresAtMillis(mergedProps),
-              catalogAuth);
+      return OAuth2Util.AuthSession.fromTokenResponse(
+          client, refreshExecutor(), authResponse, startTimeMillis, session);
+    } else if (config.token() != null) {
+      return OAuth2Util.AuthSession.fromAccessToken(
+          client, refreshExecutor(), config.token(), config.expiresAtMillis(), session);
     }
-    return catalogAuth;
+    return session;
+  }
+
+  private OAuth2Util.AuthSession sessionFromConfig() {
+    Map<String, String> headers =
+        RESTUtil.merge(configHeaders(properties), OAuth2Util.authHeaders(config.token()));
+    return new OAuth2Util.AuthSession(headers, config);
   }
 
   @Override
-  public Pair<String, Supplier<AuthSession>> newSessionSupplier(
-      Map<String, String> allCredentials, Map<String, String> properties, AuthSession parent) {
-    OAuth2Util.AuthSession oauth2Parent = (OAuth2Util.AuthSession) parent;
-    if (allCredentials != null) {
-      Map<String, String> credentials =
-          Maps.filterKeys(allCredentials, TABLE_SESSION_ALLOW_LIST::contains);
+  protected Optional<CacheableAuthSession> cacheableContextSession(
+      SessionCatalog.SessionContext context, AuthSession parent) {
+    CacheableAuthSession session =
+        newSession(
+            context.credentials(),
+            context.properties(),
+            prop -> context.sessionId(),
+            (OAuth2Util.AuthSession) parent);
+    return Optional.ofNullable(session);
+  }
+
+  @Override
+  protected Optional<CacheableAuthSession> cacheableTableSession(
+      TableIdentifier table, Map<String, String> props, AuthSession parent) {
+    CacheableAuthSession session =
+        newSession(
+            Maps.filterKeys(props, TABLE_SESSION_ALLOW_LIST::contains),
+            props,
+            props::get,
+            (OAuth2Util.AuthSession) parent);
+    return Optional.ofNullable(session);
+  }
+
+  private CacheableAuthSession newSession(
+      Map<String, String> credentials,
+      Map<String, String> props,
+      Function<String, String> keyFunc,
+      OAuth2Util.AuthSession parent) {
+    if (credentials != null) {
       // use the bearer token without exchanging
       if (credentials.containsKey(OAuth2Properties.TOKEN)) {
-        return Pair.of(
-            credentials.get(OAuth2Properties.TOKEN),
+        String token = credentials.get(OAuth2Properties.TOKEN);
+        return ImmutableCacheableAuthSession.of(
+            keyFunc.apply(OAuth2Properties.TOKEN),
             () ->
                 OAuth2Util.AuthSession.fromAccessToken(
-                    client,
-                    tokenRefreshExecutor(name),
-                    credentials.get(OAuth2Properties.TOKEN),
-                    expiresAtMillis(properties),
-                    oauth2Parent));
+                    client, refreshExecutor(), token, expiresAtMillis(props), parent));
       }
 
       if (credentials.containsKey(OAuth2Properties.CREDENTIAL)) {
         // fetch a token using the client credentials flow
-        return Pair.of(
-            credentials.get(OAuth2Properties.CREDENTIAL),
+        String credential = credentials.get(OAuth2Properties.CREDENTIAL);
+        return ImmutableCacheableAuthSession.of(
+            keyFunc.apply(OAuth2Properties.CREDENTIAL),
             () ->
                 OAuth2Util.AuthSession.fromCredential(
-                    client,
-                    tokenRefreshExecutor(name),
-                    credentials.get(OAuth2Properties.CREDENTIAL),
-                    oauth2Parent));
+                    client, refreshExecutor(), credential, parent));
       }
 
       for (String tokenType : TOKEN_PREFERENCE_ORDER) {
         if (credentials.containsKey(tokenType)) {
           // exchange the token for an access token using the token exchange flow
-          return Pair.of(
-              credentials.get(tokenType),
+          String token = credentials.get(tokenType);
+          return ImmutableCacheableAuthSession.of(
+              keyFunc.apply(tokenType),
               () ->
                   OAuth2Util.AuthSession.fromTokenExchange(
-                      client,
-                      tokenRefreshExecutor(name),
-                      credentials.get(tokenType),
-                      tokenType,
-                      oauth2Parent));
+                      client, refreshExecutor(), token, tokenType, parent));
         }
       }
     }
-
     return null;
   }
 
-  @Override
-  public void close() {
-    shutdownRefreshExecutor();
-  }
-
-  @Override
-  public void initialize(String managerName, Map<String, String> properties) {
-    this.name = managerName;
-    this.startTimeMillis =
-        System.currentTimeMillis(); // keep track of the init start time for token refresh
-    this.authHeaders = OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN));
-    this.credential = properties.get(OAuth2Properties.CREDENTIAL);
-    this.scope = properties.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
-    this.optionalOAuthParams = OAuth2Util.buildOptionalParam(properties);
-    this.oauth2ServerUri =
-        properties.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
-  }
-
-  private ScheduledExecutorService tokenRefreshExecutor(String catalogName) {
-    if (!keepTokenRefreshed) {
-      return null;
+  private static Long expiresAtMillis(Map<String, String> props) {
+    Long expiresInMillis = null;
+    if (props.containsKey(OAuth2Properties.TOKEN)) {
+      expiresInMillis = OAuth2Util.expiresAtMillis(props.get(OAuth2Properties.TOKEN));
     }
-
-    if (refreshExecutor == null) {
-      synchronized (this) {
-        if (refreshExecutor == null) {
-          this.refreshExecutor = ThreadPools.newScheduledPool(catalogName + "-token-refresh", 1);
-        }
+    if (expiresInMillis == null) {
+      if (props.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
+        long millis =
+            PropertyUtil.propertyAsLong(
+                props,
+                OAuth2Properties.TOKEN_EXPIRES_IN_MS,
+                OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
+        expiresInMillis = System.currentTimeMillis() + millis;
       }
     }
-
-    return refreshExecutor;
+    return expiresInMillis;
   }
 
-  private Long expiresAtMillis(Map<String, String> properties) {
-    if (properties.containsKey(OAuth2Properties.TOKEN_EXPIRES_IN_MS)) {
-      long expiresInMillis =
-          PropertyUtil.propertyAsLong(
-              properties,
-              OAuth2Properties.TOKEN_EXPIRES_IN_MS,
-              OAuth2Properties.TOKEN_EXPIRES_IN_MS_DEFAULT);
-      return System.currentTimeMillis() + expiresInMillis;
-    } else {
-      return null;
-    }
-  }
-
-  private void shutdownRefreshExecutor() {
-    if (refreshExecutor != null) {
-      ScheduledExecutorService service = refreshExecutor;
-      this.refreshExecutor = null;
-
-      List<Runnable> tasks = service.shutdownNow();
-      tasks.forEach(
-          task -> {
-            if (task instanceof Future) {
-              ((Future<?>) task).cancel(true);
-            }
-          });
-
-      try {
-        if (!service.awaitTermination(1, TimeUnit.MINUTES)) {
-          LOG.warn("Timed out waiting for refresh executor to terminate");
-        }
-      } catch (InterruptedException e) {
-        LOG.warn("Interrupted while waiting for refresh executor to terminate", e);
-        Thread.currentThread().interrupt();
-      }
-    }
+  private static Map<String, String> configHeaders(Map<String, String> props) {
+    return RESTUtil.extractPrefixMap(props, "header.");
   }
 }

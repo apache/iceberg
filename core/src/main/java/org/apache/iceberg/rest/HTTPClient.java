@@ -25,10 +25,10 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequest;
 import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
@@ -43,23 +43,23 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.HttpStatus;
 import org.apache.hc.core5.http.Method;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.impl.EnglishReasonPhraseCatalog;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.apache.hc.core5.http.message.BasicHeader;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.iceberg.IcebergBuild;
-import org.apache.iceberg.common.DynConstructors;
-import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.DefaultAuthSession;
+import org.apache.iceberg.rest.auth.HttpRequestFacade;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -69,9 +69,6 @@ import org.slf4j.LoggerFactory;
 public class HTTPClient implements RESTClient {
 
   private static final Logger LOG = LoggerFactory.getLogger(HTTPClient.class);
-  private static final String SIGV4_ENABLED = "rest.sigv4-enabled";
-  private static final String SIGV4_REQUEST_INTERCEPTOR_IMPL =
-      "org.apache.iceberg.aws.RESTSigV4Signer";
   @VisibleForTesting static final String CLIENT_VERSION_HEADER = "X-Client-Version";
 
   @VisibleForTesting
@@ -90,6 +87,7 @@ public class HTTPClient implements RESTClient {
 
   private final String uri;
   private final CloseableHttpClient httpClient;
+  private final Map<String, String> baseHeaders;
   private final ObjectMapper mapper;
 
   private HTTPClient(
@@ -98,26 +96,15 @@ public class HTTPClient implements RESTClient {
       CredentialsProvider proxyCredsProvider,
       Map<String, String> baseHeaders,
       ObjectMapper objectMapper,
-      HttpRequestInterceptor requestInterceptor,
       Map<String, String> properties,
       HttpClientConnectionManager connectionManager) {
     this.uri = uri;
+    this.baseHeaders = baseHeaders;
     this.mapper = objectMapper;
 
     HttpClientBuilder clientBuilder = HttpClients.custom();
 
     clientBuilder.setConnectionManager(connectionManager);
-
-    if (baseHeaders != null) {
-      clientBuilder.setDefaultHeaders(
-          baseHeaders.entrySet().stream()
-              .map(e -> new BasicHeader(e.getKey(), e.getValue()))
-              .collect(Collectors.toList()));
-    }
-
-    if (requestInterceptor != null) {
-      clientBuilder.addRequestInterceptorLast(requestInterceptor);
-    }
 
     int maxRetries = PropertyUtil.propertyAsInt(properties, REST_MAX_RETRIES, 5);
     clientBuilder.setRetryStrategy(new ExponentialHttpRequestRetryStrategy(maxRetries));
@@ -288,19 +275,53 @@ public class HTTPClient implements RESTClient {
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
-    HttpUriRequestBase request = new HttpUriRequestBase(method.name(), buildUri(path, queryParams));
+    return execute(
+        method,
+        path,
+        queryParams,
+        requestBody,
+        responseType,
+        headers,
+        DefaultAuthSession.empty(),
+        errorHandler,
+        responseHeaders);
+  }
 
-    if (requestBody instanceof Map) {
-      // encode maps as form data, application/x-www-form-urlencoded
-      addRequestHeaders(request, headers, ContentType.APPLICATION_FORM_URLENCODED.getMimeType());
-      request.setEntity(toFormEncoding((Map<?, ?>) requestBody));
-    } else if (requestBody != null) {
-      // other request bodies are serialized as JSON, application/json
-      addRequestHeaders(request, headers, ContentType.APPLICATION_JSON.getMimeType());
-      request.setEntity(toJson(requestBody));
-    } else {
-      addRequestHeaders(request, headers, ContentType.APPLICATION_JSON.getMimeType());
-    }
+  /**
+   * Method to execute an HTTP request and process the corresponding response.
+   *
+   * @param method - HTTP method, such as GET, POST, HEAD, etc.
+   * @param queryParams - A map of query parameters
+   * @param path - URL to send the request to
+   * @param requestBody - Content to place in the request body
+   * @param responseType - Class of the Response type. Needs to have serializer registered with
+   *     ObjectMapper
+   * @param authSession - AuthSession to apply authentication to the request; may be null
+   * @param errorHandler - Error handler delegated for HTTP responses which handles server error
+   *     responses
+   * @param responseHeaders The consumer of the response headers
+   * @param <T> - Class type of the response for deserialization. Must be registered with the
+   *     ObjectMapper.
+   * @return The response entity, parsed and converted to its type T
+   */
+  private <T> T execute(
+      Method method,
+      String path,
+      Map<String, String> queryParams,
+      Object requestBody,
+      Class<T> responseType,
+      Map<String, String> headers,
+      AuthSession authSession,
+      Consumer<ErrorResponse> errorHandler,
+      Consumer<Map<String, String>> responseHeaders) {
+    URI requestUri = buildUri(path, queryParams);
+    HttpUriRequestBase request = new HttpUriRequestBase(method.name(), requestUri);
+
+    String entity = processRequestBody(requestBody, request);
+
+    headers.forEach(request::setHeader);
+    applyDefaultHeaders(request);
+    applyAuth(authSession, request, entity);
 
     try (CloseableHttpResponse response = httpClient.execute(request)) {
       Map<String, String> respHeaders = Maps.newHashMap();
@@ -343,9 +364,55 @@ public class HTTPClient implements RESTClient {
     }
   }
 
+  private String processRequestBody(Object requestBody, HttpUriRequestBase request) {
+    String entity = null;
+    if (requestBody instanceof Map) {
+      // encode maps as form data, application/x-www-form-urlencoded
+      addMimeType(request, ContentType.APPLICATION_FORM_URLENCODED.getMimeType());
+      entity = toFormEncoding((Map<?, ?>) requestBody);
+      request.setEntity(new StringEntity(entity, StandardCharsets.UTF_8));
+    } else if (requestBody != null) {
+      // other request bodies are serialized as JSON, application/json
+      addMimeType(request, ContentType.APPLICATION_JSON.getMimeType());
+      entity = toJson(requestBody);
+      request.setEntity(new StringEntity(entity, StandardCharsets.UTF_8));
+    } else {
+      addMimeType(request, ContentType.APPLICATION_JSON.getMimeType());
+    }
+    return entity;
+  }
+
+  private void applyDefaultHeaders(HttpUriRequestBase request) {
+    if (baseHeaders != null) {
+      // see org.apache.hc.client5.http.protocol.RequestDefaultHeaders
+      baseHeaders.forEach(
+          (name, value) -> {
+            if (!request.containsHeader(name)) {
+              request.addHeader(name, value);
+            }
+          });
+    }
+  }
+
+  private static void applyAuth(
+      AuthSession authSession, HttpUriRequestBase request, String entity) {
+    if (authSession != null) {
+      authSession.authenticate(new ApacheHttpRequestFacade(request, entity));
+    }
+  }
+
   @Override
   public void head(String path, Map<String, String> headers, Consumer<ErrorResponse> errorHandler) {
     execute(Method.HEAD, path, null, null, null, headers, errorHandler);
+  }
+
+  @Override
+  public void head(
+      String path,
+      Map<String, String> headers,
+      AuthSession authSession,
+      Consumer<ErrorResponse> errorHandler) {
+    execute(Method.HEAD, path, null, null, null, headers, authSession, errorHandler, h -> {});
   }
 
   @Override
@@ -356,6 +423,26 @@ public class HTTPClient implements RESTClient {
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler) {
     return execute(Method.GET, path, queryParams, null, responseType, headers, errorHandler);
+  }
+
+  @Override
+  public <T extends RESTResponse> T get(
+      String path,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      AuthSession authSession,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(
+        Method.GET,
+        path,
+        queryParams,
+        null,
+        responseType,
+        headers,
+        authSession,
+        errorHandler,
+        h -> {});
   }
 
   @Override
@@ -374,10 +461,31 @@ public class HTTPClient implements RESTClient {
       RESTRequest body,
       Class<T> responseType,
       Map<String, String> headers,
+      AuthSession authSession,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(
+        Method.POST, path, null, body, responseType, headers, authSession, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Class<T> responseType,
+      Map<String, String> headers,
+      AuthSession authSession,
       Consumer<ErrorResponse> errorHandler,
       Consumer<Map<String, String>> responseHeaders) {
     return execute(
-        Method.POST, path, null, body, responseType, headers, errorHandler, responseHeaders);
+        Method.POST,
+        path,
+        null,
+        body,
+        responseType,
+        headers,
+        authSession,
+        errorHandler,
+        responseHeaders);
   }
 
   @Override
@@ -392,11 +500,32 @@ public class HTTPClient implements RESTClient {
   @Override
   public <T extends RESTResponse> T delete(
       String path,
+      Class<T> responseType,
+      Map<String, String> headers,
+      AuthSession authSession,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(
+        Method.DELETE, path, null, null, responseType, headers, authSession, errorHandler, h -> {});
+  }
+
+  @Override
+  public <T extends RESTResponse> T delete(
+      String path,
       Map<String, String> queryParams,
       Class<T> responseType,
       Map<String, String> headers,
+      AuthSession authSession,
       Consumer<ErrorResponse> errorHandler) {
-    return execute(Method.DELETE, path, queryParams, null, responseType, headers, errorHandler);
+    return execute(
+        Method.DELETE,
+        path,
+        queryParams,
+        null,
+        responseType,
+        headers,
+        authSession,
+        errorHandler,
+        h -> {});
   }
 
   @Override
@@ -409,53 +538,36 @@ public class HTTPClient implements RESTClient {
     return execute(Method.POST, path, null, formData, responseType, headers, errorHandler);
   }
 
-  private void addRequestHeaders(
-      HttpUriRequest request, Map<String, String> requestHeaders, String bodyMimeType) {
+  @Override
+  public <T extends RESTResponse> T postForm(
+      String path,
+      Map<String, String> formData,
+      Class<T> responseType,
+      Map<String, String> headers,
+      AuthSession authSession,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(
+        Method.POST,
+        path,
+        null,
+        formData,
+        responseType,
+        headers,
+        authSession,
+        errorHandler,
+        h -> {});
+  }
+
+  private void addMimeType(HttpUriRequest request, String bodyMimeType) {
     request.setHeader(HttpHeaders.ACCEPT, ContentType.APPLICATION_JSON.getMimeType());
     // Many systems require that content type is set regardless and will fail, even on an empty
     // bodied request.
     request.setHeader(HttpHeaders.CONTENT_TYPE, bodyMimeType);
-    requestHeaders.forEach(request::setHeader);
   }
 
   @Override
   public void close() throws IOException {
     httpClient.close(CloseMode.GRACEFUL);
-  }
-
-  @VisibleForTesting
-  static HttpRequestInterceptor loadInterceptorDynamically(
-      String impl, Map<String, String> properties) {
-    HttpRequestInterceptor instance;
-
-    DynConstructors.Ctor<HttpRequestInterceptor> ctor;
-    try {
-      ctor =
-          DynConstructors.builder(HttpRequestInterceptor.class)
-              .loader(HTTPClient.class.getClassLoader())
-              .impl(impl)
-              .buildChecked();
-    } catch (NoSuchMethodException e) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Cannot initialize RequestInterceptor, missing no-arg constructor: %s", impl),
-          e);
-    }
-
-    try {
-      instance = ctor.newInstance();
-    } catch (ClassCastException e) {
-      throw new IllegalArgumentException(
-          String.format("Cannot initialize, %s does not implement RequestInterceptor", impl), e);
-    }
-
-    DynMethods.builder("initialize")
-        .hiddenImpl(impl, Map.class)
-        .orNoop()
-        .build(instance)
-        .invoke(properties);
-
-    return instance;
   }
 
   static HttpClientConnectionManager configureConnectionManager(Map<String, String> properties) {
@@ -553,12 +665,6 @@ public class HTTPClient implements RESTClient {
       withHeader(CLIENT_VERSION_HEADER, IcebergBuild.fullVersion());
       withHeader(CLIENT_GIT_COMMIT_SHORT_HEADER, IcebergBuild.gitCommitShortId());
 
-      HttpRequestInterceptor interceptor = null;
-
-      if (PropertyUtil.propertyAsBoolean(properties, SIGV4_ENABLED, false)) {
-        interceptor = loadInterceptorDynamically(SIGV4_REQUEST_INTERCEPTOR_IMPL, properties);
-      }
-
       if (this.proxyCredentialsProvider != null) {
         Preconditions.checkNotNull(
             proxy, "Invalid http client proxy for proxy credentials provider: null");
@@ -570,21 +676,96 @@ public class HTTPClient implements RESTClient {
           proxyCredentialsProvider,
           baseHeaders,
           mapper,
-          interceptor,
           properties,
           configureConnectionManager(properties));
     }
   }
 
-  private StringEntity toJson(Object requestBody) {
+  private String toJson(Object requestBody) {
     try {
-      return new StringEntity(mapper.writeValueAsString(requestBody), StandardCharsets.UTF_8);
+      return mapper.writeValueAsString(requestBody);
     } catch (JsonProcessingException e) {
       throw new RESTException(e, "Failed to write request body: %s", requestBody);
     }
   }
 
-  private StringEntity toFormEncoding(Map<?, ?> formData) {
-    return new StringEntity(RESTUtil.encodeFormData(formData), StandardCharsets.UTF_8);
+  private String toFormEncoding(Map<?, ?> formData) {
+    return RESTUtil.encodeFormData(formData);
+  }
+
+  private static class ApacheHttpRequestFacade implements HttpRequestFacade {
+
+    private final HttpUriRequestBase request;
+    private final Object body;
+
+    private ApacheHttpRequestFacade(HttpUriRequestBase request, Object body) {
+      this.request = request;
+      this.body = body;
+    }
+
+    @Override
+    public Object getBody() {
+      return body;
+    }
+
+    @Override
+    public Map<String, List<String>> getHeaders() {
+      Header[] requestHeaders = request.getHeaders();
+      Map<String, List<String>> headers = Maps.newHashMapWithExpectedSize(requestHeaders.length);
+      for (Header header : requestHeaders) {
+        headers.merge(
+            header.getName(),
+            Lists.newArrayList(header.getValue()),
+            (v1, v2) -> {
+              v1.addAll(v2);
+              return v1;
+            });
+      }
+      return headers;
+    }
+
+    @Override
+    public List<String> getHeaders(String name) {
+      Header[] requestHeaders = request.getHeaders(name);
+      List<String> headers = Lists.newArrayListWithExpectedSize(requestHeaders.length);
+      for (Header header : requestHeaders) {
+        headers.add(header.getValue());
+      }
+      return headers;
+    }
+
+    @Override
+    public boolean containsHeader(String name) {
+      return request.containsHeader(name);
+    }
+
+    @Override
+    public void addHeader(String name, String value) {
+      request.addHeader(name, value);
+    }
+
+    @Override
+    public void setHeader(String name, String value) {
+      request.setHeader(name, value);
+    }
+
+    @Override
+    public boolean removeHeaders(String name) {
+      return request.removeHeaders(name);
+    }
+
+    @Override
+    public String getMethod() {
+      return request.getMethod();
+    }
+
+    @Override
+    public URI getUri() {
+      try {
+        return request.getUri();
+      } catch (URISyntaxException e) {
+        throw new RuntimeException(e);
+      }
+    }
   }
 }

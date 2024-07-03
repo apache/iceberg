@@ -18,22 +18,15 @@
  */
 package org.apache.iceberg.aws;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Arrays;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.hc.core5.http.EntityDetails;
-import org.apache.hc.core5.http.Header;
+import org.apache.commons.io.IOUtils;
 import org.apache.hc.core5.http.HttpHeaders;
-import org.apache.hc.core5.http.HttpRequest;
-import org.apache.hc.core5.http.HttpRequestInterceptor;
-import org.apache.hc.core5.http.io.entity.StringEntity;
-import org.apache.hc.core5.http.protocol.HttpContext;
-import org.apache.iceberg.exceptions.RESTException;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.HttpRequestFacade;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.signer.Aws4Signer;
 import software.amazon.awssdk.auth.signer.internal.SignerConstant;
@@ -52,7 +45,7 @@ import software.amazon.awssdk.regions.Region;
  * href="https://docs.aws.amazon.com/general/latest/gr/signing-aws-api-requests.html">Signing AWS
  * API requests</a> for details about the protocol.
  */
-public class RESTSigV4Signer implements HttpRequestInterceptor {
+public class RESTSigV4Signer implements AuthSession {
   static final String EMPTY_BODY_SHA256 =
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   static final String RELOCATED_HEADER_PREFIX = "Original-";
@@ -72,15 +65,7 @@ public class RESTSigV4Signer implements HttpRequestInterceptor {
   }
 
   @Override
-  public void process(HttpRequest request, EntityDetails entity, HttpContext context) {
-    URI requestUri;
-
-    try {
-      requestUri = request.getUri();
-    } catch (URISyntaxException e) {
-      throw new RESTException(e, "Invalid uri for request: %s", request);
-    }
-
+  public void authenticate(HttpRequestFacade request) {
     Aws4SignerParams params =
         Aws4SignerParams.builder()
             .signingName(signingName)
@@ -98,57 +83,57 @@ public class RESTSigV4Signer implements HttpRequestInterceptor {
 
     sdkRequestBuilder
         .method(SdkHttpMethod.fromValue(request.getMethod()))
-        .protocol(request.getScheme())
-        .uri(requestUri)
+        .protocol(request.getUri().getScheme())
+        .uri(request.getUri())
         .headers(convertHeaders(request.getHeaders()));
 
-    if (entity == null) {
+    if (request.getBody() == null) {
       // This is a workaround for the signer implementation incorrectly producing
       // an invalid content checksum for empty body requests.
       sdkRequestBuilder.putHeader(SignerConstant.X_AMZ_CONTENT_SHA256, EMPTY_BODY_SHA256);
-    } else if (entity instanceof StringEntity) {
+    } else if (request.getBody() instanceof String) {
       sdkRequestBuilder.contentStreamProvider(
-          () -> {
-            try {
-              return ((StringEntity) entity).getContent();
-            } catch (IOException e) {
-              throw new UncheckedIOException(e);
-            }
-          });
+          () -> IOUtils.toInputStream((String) request.getBody(), StandardCharsets.UTF_8));
     } else {
-      throw new UnsupportedOperationException("Unsupported entity type: " + entity.getClass());
+      throw new UnsupportedOperationException(
+          "Unsupported entity type: " + request.getBody().getClass());
     }
 
     SdkHttpFullRequest signedSdkRequest = signer.sign(sdkRequestBuilder.build(), params);
     updateRequestHeaders(request, signedSdkRequest.headers());
   }
 
-  private Map<String, List<String>> convertHeaders(Header[] headers) {
-    return Arrays.stream(headers)
+  private Map<String, List<String>> convertHeaders(Map<String, List<String>> headers) {
+    return headers.entrySet().stream()
         .collect(
             Collectors.groupingBy(
                 // Relocate Authorization header as SigV4 takes precedence
-                header ->
-                    HttpHeaders.AUTHORIZATION.equals(header.getName())
-                        ? RELOCATED_HEADER_PREFIX + header.getName()
-                        : header.getName(),
-                Collectors.mapping(Header::getValue, Collectors.toList())));
+                entry ->
+                    HttpHeaders.AUTHORIZATION.equals(entry.getKey())
+                        ? RELOCATED_HEADER_PREFIX + entry.getKey()
+                        : entry.getKey(),
+                Collectors.reducing(
+                    Lists.newArrayList(),
+                    Map.Entry::getValue,
+                    (a, b) -> {
+                      a.addAll(b);
+                      return a;
+                    })));
   }
 
-  private void updateRequestHeaders(HttpRequest request, Map<String, List<String>> headers) {
+  private void updateRequestHeaders(HttpRequestFacade request, Map<String, List<String>> headers) {
     headers.forEach(
         (name, values) -> {
           if (request.containsHeader(name)) {
-            Header[] original = request.getHeaders(name);
+            List<String> original = request.getHeaders(name);
             request.removeHeaders(name);
-            Arrays.asList(original)
-                .forEach(
-                    header -> {
-                      // Relocate headers if there is a conflict with signed headers
-                      if (!values.contains(header.getValue())) {
-                        request.addHeader(RELOCATED_HEADER_PREFIX + name, header.getValue());
-                      }
-                    });
+            original.forEach(
+                header -> {
+                  // Relocate headers if there is a conflict with signed headers
+                  if (!values.contains(header)) {
+                    request.addHeader(RELOCATED_HEADER_PREFIX + name, header);
+                  }
+                });
           }
 
           values.forEach(value -> request.setHeader(name, value));

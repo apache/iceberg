@@ -18,11 +18,40 @@
  */
 package org.apache.iceberg.rest.auth;
 
-import java.util.Map;
+/**
+ * An authentication session that can be used to authenticate outgoing HTTP requests.
+ *
+ * <p>Authentication sessions are usually immutable, but may hold resources that need to be released
+ * when the session is no longer needed. Implementations should override {@link #close()} to release
+ * any resources.
+ */
+public interface AuthSession extends AutoCloseable {
 
-public interface AuthSession {
+  /** Applies authentication data to the outgoing HTTP request. */
+  void authenticate(HttpRequestFacade request);
 
-  Map<String, String> headers();
+  /**
+   * Closes the session and releases any resources. This method is called when the session is no
+   * longer needed. Note that since sessions may be cached, this method may not be called
+   * immediately after the session is no longer needed, but rather when the session is evicted from
+   * the cache, or the cache itself is closed.
+   */
+  @Override
+  default void close() {
+    // Do nothing
+  }
 
-  void stopRefreshing();
+  /**
+   * Returns a copy of this session. If the session is immutable, this method should return the
+   * session itself. If the session is mutable, this method should return a new session with the
+   * same state as this session.
+   *
+   * <p>This method is intended for unit tests and should not be used in production code. The reason
+   * for this method is that some implementations of {@link AuthSession} may be mutable; creating a
+   * "snapshot" of the session makes it possible for Mockito to reliably verify the state of the
+   * session at the time when a specific method call is performed on the REST client.
+   */
+  default AuthSession copy() {
+    return this;
+  }
 }
