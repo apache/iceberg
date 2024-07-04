@@ -92,7 +92,7 @@ public class TestIdentityPartitionData extends SparkTestBase {
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
-  private PartitionSpec spec =
+  private final PartitionSpec spec =
       PartitionSpec.builderFor(LOG_SCHEMA).identity("date").identity("level").build();
   private Table table = null;
   private Dataset<Row> logs = null;

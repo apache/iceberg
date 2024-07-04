@@ -32,7 +32,7 @@ public class FlinkPackage {
   /** Returns Flink version string like x.y.z */
   public static String version() {
     if (null == VERSION.get()) {
-      String detectedVersion = null;
+      String detectedVersion;
       try {
         detectedVersion = versionFromJar();
         // use unknown version in case exact implementation version can't be found from the jar

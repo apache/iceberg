@@ -64,7 +64,7 @@ public class RowDataToAvroGenericRecordConverter implements Function<RowData, Ge
   public static RowDataToAvroGenericRecordConverter fromAvroSchema(Schema avroSchema) {
     DataType dataType = AvroSchemaConverter.convertToDataType(avroSchema.toString());
     LogicalType logicalType = TypeConversions.fromDataToLogicalType(dataType);
-    RowType rowType = RowType.of(logicalType.getChildren().stream().toArray(LogicalType[]::new));
+    RowType rowType = RowType.of(logicalType.getChildren().toArray(new LogicalType[0]));
     return new RowDataToAvroGenericRecordConverter(rowType, avroSchema);
   }
 }

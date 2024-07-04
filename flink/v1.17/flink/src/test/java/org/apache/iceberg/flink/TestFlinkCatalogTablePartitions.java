@@ -39,7 +39,7 @@ import org.junit.jupiter.api.TestTemplate;
 
 public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
 
-  private String tableName = "test_table";
+  private final String tableName = "test_table";
 
   @Parameter(index = 2)
   private FileFormat format;

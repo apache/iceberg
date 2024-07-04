@@ -121,7 +121,7 @@ public class ContinuousSplitPlannerImpl implements ContinuousSplitPlanner {
       LOG.info("Current table snapshot is already enumerated: {}", currentSnapshot.snapshotId());
       return new ContinuousEnumerationResult(Collections.emptyList(), lastPosition, lastPosition);
     } else {
-      Long lastConsumedSnapshotId = lastPosition != null ? lastPosition.snapshotId() : null;
+      Long lastConsumedSnapshotId = lastPosition.snapshotId();
       Snapshot toSnapshotInclusive =
           toSnapshotInclusive(
               lastConsumedSnapshotId, currentSnapshot, scanContext.maxPlanningSnapshotCount());

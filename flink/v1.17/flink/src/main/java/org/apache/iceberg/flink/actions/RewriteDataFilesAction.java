@@ -31,7 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class RewriteDataFilesAction extends BaseRewriteDataFilesAction<RewriteDataFilesAction> {
 
-  private StreamExecutionEnvironment env;
+  private final StreamExecutionEnvironment env;
   private int maxParallelism;
 
   public RewriteDataFilesAction(StreamExecutionEnvironment env, Table table) {

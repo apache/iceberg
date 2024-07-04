@@ -29,7 +29,7 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
 public class IcebergEnumeratorState implements Serializable {
   @Nullable private final IcebergEnumeratorPosition lastEnumeratedPosition;
   private final Collection<IcebergSourceSplitState> pendingSplits;
-  private int[] enumerationSplitCountHistory;
+  private final int[] enumerationSplitCountHistory;
 
   public IcebergEnumeratorState(Collection<IcebergSourceSplitState> pendingSplits) {
     this(null, pendingSplits);

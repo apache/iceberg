@@ -174,10 +174,8 @@ public class IcebergEnumeratorStateSerializer
   private static void serializeEnumerationSplitCountHistory(
       DataOutputSerializer out, int[] enumerationSplitCountHistory) throws IOException {
     out.writeInt(enumerationSplitCountHistory.length);
-    if (enumerationSplitCountHistory.length > 0) {
-      for (int enumerationSplitCount : enumerationSplitCountHistory) {
-        out.writeInt(enumerationSplitCount);
-      }
+    for (int enumerationSplitCount : enumerationSplitCountHistory) {
+      out.writeInt(enumerationSplitCount);
     }
   }
 

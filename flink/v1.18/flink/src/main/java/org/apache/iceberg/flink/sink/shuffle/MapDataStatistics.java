@@ -39,7 +39,7 @@ class MapDataStatistics implements DataStatistics<MapDataStatistics, Map<SortKey
 
   @Override
   public boolean isEmpty() {
-    return statistics.size() == 0;
+    return statistics.isEmpty();
   }
 
   @Override
