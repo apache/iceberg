@@ -254,7 +254,6 @@ public class RESTCatalogAdapter implements RESTClient {
       case "client_credentials":
         return OAuthTokenResponse.builder()
             .withToken("client-credentials-token:sub=" + request.get("client_id"))
-            .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
             .withTokenType("Bearer")
             .build();
 
