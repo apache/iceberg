@@ -123,7 +123,7 @@ public class TestWatermarkBasedSplitAssigner extends SplitAssignerTestBase {
                         .mapToObj(
                             fileNum ->
                                 RandomGenericData.generate(
-                                    SCHEMA, 2, splitNum * filesPerSplit + fileNum))
+                                    SCHEMA, 2, (long) splitNum * filesPerSplit + fileNum))
                         .collect(Collectors.toList())))
         .collect(Collectors.toList());
   }
