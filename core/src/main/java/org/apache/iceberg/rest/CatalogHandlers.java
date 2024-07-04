@@ -27,6 +27,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -374,19 +375,15 @@ public class CatalogHandlers {
   private static TableMetadata create(TableOperations ops, UpdateTableRequest request) {
     // the only valid requirement is that the table will be created
     request.requirements().forEach(requirement -> requirement.validate(ops.current()));
+    Optional<Integer> formatVersion =
+        request.updates().stream()
+            .filter(update -> update instanceof UpgradeFormatVersion)
+            .map(update -> ((UpgradeFormatVersion) update).formatVersion())
+            .findFirst();
 
-    TableMetadata.Builder builder = TableMetadata.buildFromEmpty();
-    request
-        .updates()
-        .forEach(
-            update -> {
-              if (update instanceof UpgradeFormatVersion) {
-                builder.setInitialFormatVersion(((UpgradeFormatVersion) update).formatVersion());
-              } else {
-                update.applyTo(builder);
-              }
-            });
-
+    TableMetadata.Builder builder =
+        formatVersion.map(TableMetadata::buildFromEmpty).orElseGet(TableMetadata::buildFromEmpty);
+    request.updates().forEach(update -> update.applyTo(builder));
     // create transactions do not retry. if the table exists, retrying is not a solution
     ops.commit(null, builder.build());
 

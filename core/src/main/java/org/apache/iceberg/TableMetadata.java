@@ -853,7 +853,11 @@ public class TableMetadata implements Serializable {
   }
 
   public static Builder buildFromEmpty() {
-    return new Builder();
+    return new Builder(DEFAULT_TABLE_FORMAT_VERSION);
+  }
+
+  public static Builder buildFromEmpty(int formatVersion) {
+    return new Builder(formatVersion);
   }
 
   public static class Builder {
@@ -903,8 +907,12 @@ public class TableMetadata implements Serializable {
     private final Map<Integer, SortOrder> sortOrdersById;
 
     private Builder() {
+      this(DEFAULT_TABLE_FORMAT_VERSION);
+    }
+
+    public Builder(int formatVersion) {
       this.base = null;
-      this.formatVersion = DEFAULT_TABLE_FORMAT_VERSION;
+      this.formatVersion = formatVersion;
       this.lastSequenceNumber = INITIAL_SEQUENCE_NUMBER;
       this.uuid = UUID.randomUUID().toString();
       this.schemas = Lists.newArrayList();
@@ -986,7 +994,7 @@ public class TableMetadata implements Serializable {
 
     // it is only safe to set the format version directly while creating tables
     // in all other cases, use upgradeFormatVersion
-    public Builder setInitialFormatVersion(int newFormatVersion) {
+    private Builder setInitialFormatVersion(int newFormatVersion) {
       Preconditions.checkArgument(
           newFormatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
           "Unsupported format version: v%s (supported: v%s)",
