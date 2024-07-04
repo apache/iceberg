@@ -111,23 +111,13 @@ public class RowDataUtil {
   @Deprecated
   public static RowData clone(
       RowData from, RowData reuse, RowType rowType, TypeSerializer[] fieldSerializers) {
-    GenericRowData ret;
-    if (reuse instanceof GenericRowData) {
-      ret = (GenericRowData) reuse;
-    } else {
-      ret = new GenericRowData(from.getArity());
-    }
-
-    ret.setRowKind(from.getRowKind());
-    for (int i = 0; i < rowType.getFieldCount(); i++) {
+    RowData.FieldGetter[] fieldGetters = new RowData.FieldGetter[rowType.getFieldCount()];
+    for (int i = 0; i < rowType.getFieldCount(); ++i) {
       if (!from.isNullAt(i)) {
-        RowData.FieldGetter getter = RowData.createFieldGetter(rowType.getTypeAt(i), i);
-        ret.setField(i, fieldSerializers[i].copy(getter.getFieldOrNull(from)));
-      } else {
-        ret.setField(i, null);
+        fieldGetters[i] = RowData.createFieldGetter(rowType.getTypeAt(i), i);
       }
     }
 
-    return ret;
+    return clone(from, reuse, rowType, fieldSerializers, fieldGetters);
   }
 }
