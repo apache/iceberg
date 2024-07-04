@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DateTimeUtil;
 
 /** Expression utility methods. */
 public class ExpressionUtil {
@@ -607,10 +608,10 @@ public class ExpressionUtil {
         return sanitizeDate(date.value(), today);
       } else if (TIMESTAMPNS.matcher(value).matches()) {
         Literal<Long> ts = Literal.of(value).to(Types.TimestampNanoType.withoutZone());
-        return sanitizeTimestamp(Math.floorDiv(ts.value(), 1000), now);
+        return sanitizeTimestamp(DateTimeUtil.nanosToMicros(ts.value()), now);
       } else if (TIMESTAMPTZNS.matcher(value).matches()) {
         Literal<Long> ts = Literal.of(value).to(Types.TimestampNanoType.withZone());
-        return sanitizeTimestamp(Math.floorDiv(ts.value(), 1000), now);
+        return sanitizeTimestamp(DateTimeUtil.nanosToMicros(ts.value()), now);
       } else if (TIMESTAMP.matcher(value).matches()) {
         Literal<Long> ts = Literal.of(value).to(Types.TimestampType.withoutZone());
         return sanitizeTimestamp(ts.value(), now);

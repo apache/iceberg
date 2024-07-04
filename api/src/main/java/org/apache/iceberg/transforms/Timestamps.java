@@ -122,8 +122,7 @@ class Timestamps implements Transform<Long, Integer> {
     DAYS(ChronoUnit.DAYS),
     HOURS(ChronoUnit.HOURS),
     MICROS(ChronoUnit.MICROS),
-    NANOS(ChronoUnit.NANOS),
-    ;
+    NANOS(ChronoUnit.NANOS);
 
     private final ChronoUnit unit;
 
@@ -147,8 +146,8 @@ class Timestamps implements Transform<Long, Integer> {
     }
 
     @Override
-    public Integer apply(Long timestampUnits) {
-      if (timestampUnits == null) {
+    public Integer apply(Long timestamp) {
+      if (timestamp == null) {
         return null;
       }
 
@@ -156,19 +155,19 @@ class Timestamps implements Transform<Long, Integer> {
         case MICROS:
           switch (resultTypeUnit) {
             case YEARS:
-              return DateTimeUtil.microsToYears(timestampUnits);
+              return DateTimeUtil.microsToYears(timestamp);
             case MONTHS:
-              return DateTimeUtil.microsToMonths(timestampUnits);
+              return DateTimeUtil.microsToMonths(timestamp);
             case DAYS:
-              return DateTimeUtil.microsToDays(timestampUnits);
+              return DateTimeUtil.microsToDays(timestamp);
             case HOURS:
-              return DateTimeUtil.microsToHours(timestampUnits);
+              return DateTimeUtil.microsToHours(timestamp);
             default:
               throw new UnsupportedOperationException(
                   "Unsupported result type unit: " + resultTypeUnit);
           }
         case NANOS:
-          return Math.toIntExact(DateTimeUtil.convertNanos(timestampUnits, resultTypeUnit.unit));
+          return Math.toIntExact(DateTimeUtil.convertNanos(timestamp, resultTypeUnit.unit));
         default:
           throw new UnsupportedOperationException(
               "Unsupported source type unit: " + sourceTypeUnit);
@@ -185,8 +184,8 @@ class Timestamps implements Transform<Long, Integer> {
   }
 
   @Override
-  public Integer apply(Long timestampUnits) {
-    return apply.apply(timestampUnits);
+  public Integer apply(Long timestamp) {
+    return apply.apply(timestamp);
   }
 
   @Override

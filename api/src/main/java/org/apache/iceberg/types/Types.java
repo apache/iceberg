@@ -298,15 +298,14 @@ public class Types {
     }
 
     @Override
-    public boolean equals(Object o) {
-      if (this == o) {
+    public boolean equals(Object other) {
+      if (this == other) {
         return true;
-      } else if (!(o instanceof TimestampNanoType)) {
+      }
+      if (!(other instanceof TimestampNanoType)) {
         return false;
       }
-
-      TimestampNanoType that = (TimestampNanoType) o;
-      return adjustToUTC == that.adjustToUTC;
+      return adjustToUTC == ((TimestampNanoType) other).adjustToUTC;
     }
 
     @Override
