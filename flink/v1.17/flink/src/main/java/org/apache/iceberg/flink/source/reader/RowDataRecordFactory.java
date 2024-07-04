@@ -47,6 +47,7 @@ class RowDataRecordFactory implements RecordFactory<RowData> {
     for (int i = 0; i < rowType.getFieldCount(); ++i) {
       fieldGetters[i] = RowData.createFieldGetter(rowType.getTypeAt(i), i);
     }
+
     return fieldGetters;
   }
 

@@ -91,6 +91,7 @@ public class TestHelpers {
     for (int i = 0; i < rowType.getFieldCount(); ++i) {
       fieldGetters[i] = RowData.createFieldGetter(rowType.getTypeAt(i), i);
     }
+
     return RowDataUtil.clone(from, null, rowType, fieldSerializers, fieldGetters);
   }
 

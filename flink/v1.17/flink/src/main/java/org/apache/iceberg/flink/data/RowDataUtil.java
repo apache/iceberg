@@ -90,6 +90,7 @@ public class RowDataUtil {
     } else {
       ret = new GenericRowData(from.getArity());
     }
+
     ret.setRowKind(from.getRowKind());
     for (int i = 0; i < rowType.getFieldCount(); i++) {
       if (!from.isNullAt(i)) {
@@ -98,6 +99,35 @@ public class RowDataUtil {
         ret.setField(i, null);
       }
     }
+
+    return ret;
+  }
+
+  /**
+   * @deprecated will be removed in 2.0.0; Not reusing FieldGetter in this method could lead to
+   *     performance degradation, use {@link #clone(RowData, RowData, RowType, TypeSerializer[],
+   *     RowData.FieldGetter[])} instead.
+   */
+  @Deprecated
+  public static RowData clone(
+      RowData from, RowData reuse, RowType rowType, TypeSerializer[] fieldSerializers) {
+    GenericRowData ret;
+    if (reuse instanceof GenericRowData) {
+      ret = (GenericRowData) reuse;
+    } else {
+      ret = new GenericRowData(from.getArity());
+    }
+
+    ret.setRowKind(from.getRowKind());
+    for (int i = 0; i < rowType.getFieldCount(); i++) {
+      if (!from.isNullAt(i)) {
+        RowData.FieldGetter getter = RowData.createFieldGetter(rowType.getTypeAt(i), i);
+        ret.setField(i, fieldSerializers[i].copy(getter.getFieldOrNull(from)));
+      } else {
+        ret.setField(i, null);
+      }
+    }
+
     return ret;
   }
 }
