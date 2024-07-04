@@ -104,7 +104,7 @@ public class RowDataUtil {
   }
 
   /**
-   * @deprecated will be removed in 2.0.0; Not reusing FieldGetter in this method could lead to
+   * @deprecated will be removed in 1.7.0; Not reusing FieldGetter in this method could lead to
    *     performance degradation, use {@link #clone(RowData, RowData, RowType, TypeSerializer[],
    *     RowData.FieldGetter[])} instead.
    */
