@@ -422,7 +422,7 @@ public class FlinkParquetReaders {
       long value = readLong();
       return TimestampData.fromLocalDateTime(
           Instant.ofEpochSecond(
-                  Math.floorDiv(value, 1000_000), Math.floorMod(value, 1000_000) * 1000)
+                  Math.floorDiv(value, 1000_000L), Math.floorMod(value, 1000_000L) * 1000L)
               .atOffset(ZoneOffset.UTC)
               .toLocalDateTime());
     }
@@ -444,7 +444,7 @@ public class FlinkParquetReaders {
       long value = readLong();
       return TimestampData.fromInstant(
           Instant.ofEpochSecond(
-              Math.floorDiv(value, 1000_000), Math.floorMod(value, 1000_000) * 1000));
+              Math.floorDiv(value, 1000_000L), Math.floorMod(value, 1000_000L) * 1000L));
     }
 
     @Override
@@ -517,7 +517,7 @@ public class FlinkParquetReaders {
     @Override
     public Integer read(Integer reuse) {
       // Discard microseconds since Flink uses millisecond unit for TIME type.
-      return (int) Math.floorDiv(column.nextLong(), 1000);
+      return (int) Math.floorDiv(column.nextLong(), 1000L);
     }
   }
 
