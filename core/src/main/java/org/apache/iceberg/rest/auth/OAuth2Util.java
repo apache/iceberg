@@ -738,7 +738,7 @@ public class OAuth2Util {
         long startTimeMillis,
         AuthSession parent,
         String credential) {
-      // issued token type is not present in every OAuth2 response:
+      // issued_token_type is required in RFC 8693 but not in RFC 6749, thus assume type is access_token for compatibility with RFC 6749.
       // assume type is access token if none provided.
       // See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4.3
       // for an example of a response that does not include the issued token type.
