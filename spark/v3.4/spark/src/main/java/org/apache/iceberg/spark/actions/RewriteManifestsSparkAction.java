@@ -103,9 +103,9 @@ public class RewriteManifestsSparkAction
   private final long targetManifestSizeBytes;
   private final boolean shouldStageManifests;
 
-  private PartitionSpec spec = null;
+  private PartitionSpec spec;
   private Predicate<ManifestFile> predicate = manifest -> true;
-  private String outputLocation = null;
+  private String outputLocation;
 
   RewriteManifestsSparkAction(SparkSession spark, Table table) {
     super(spark);

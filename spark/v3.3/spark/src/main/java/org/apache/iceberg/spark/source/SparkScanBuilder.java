@@ -93,7 +93,7 @@ public class SparkScanBuilder
   private final SparkReadConf readConf;
   private final List<String> metaColumns = Lists.newArrayList();
 
-  private Schema schema = null;
+  private Schema schema;
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
   private Filter[] pushedFilters = NO_FILTERS;
