@@ -321,7 +321,10 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
                       .description(glueTable.description())
                       .applyMutation(
                           builder ->
-                              IcebergToGlueConverter.setTableInputInformation(builder, metadata))
+                              IcebergToGlueConverter.setTableInputInformation(
+                                  builder,
+                                  metadata,
+                                  awsProperties.glueCatalogWriteNonCurrentColumns()))
                       .name(tableName)
                       .tableType(GLUE_EXTERNAL_TABLE_TYPE)
                       .parameters(parameters)
@@ -343,7 +346,10 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
                   TableInput.builder()
                       .applyMutation(
                           builder ->
-                              IcebergToGlueConverter.setTableInputInformation(builder, metadata))
+                              IcebergToGlueConverter.setTableInputInformation(
+                                  builder,
+                                  metadata,
+                                  awsProperties.glueCatalogWriteNonCurrentColumns()))
                       .name(tableName)
                       .tableType(GLUE_EXTERNAL_TABLE_TYPE)
                       .parameters(parameters)
