@@ -70,4 +70,9 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement rewritePositionDeletes");
   }
+  /** Instantiates an action to check snapshot integrity. */
+  default CheckSnapshotIntegrity checkSnapshotIntegrity(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement checkSnapshotIntegrity");
+  }
 }
