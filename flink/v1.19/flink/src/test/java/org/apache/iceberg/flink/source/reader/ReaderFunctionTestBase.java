@@ -18,11 +18,17 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
@@ -30,17 +36,14 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class ReaderFunctionTestBase<T> {
 
-  @Parameterized.Parameters(name = "fileFormat={0}")
+  @Parameters(name = "fileFormat={0}")
   public static Object[][] parameters() {
     return new Object[][] {
       new Object[] {FileFormat.AVRO},
@@ -49,19 +52,18 @@ public abstract class ReaderFunctionTestBase<T> {
     };
   }
 
-  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @TempDir protected Path temporaryFolder;
 
   protected abstract ReaderFunction<T> readerFunction();
 
   protected abstract void assertRecords(List<Record> expected, List<T> actual, Schema schema);
 
-  private final FileFormat fileFormat;
-  private final GenericAppenderFactory appenderFactory;
+  @Parameter(index = 0)
+  private FileFormat fileFormat;
 
-  public ReaderFunctionTestBase(FileFormat fileFormat) {
-    this.fileFormat = fileFormat;
-    this.appenderFactory = new GenericAppenderFactory(TestFixtures.SCHEMA);
-  }
+  @Parameter(index = 1)
+  private final GenericAppenderFactory appenderFactory =
+      new GenericAppenderFactory(TestFixtures.SCHEMA);
 
   private void assertRecordsAndPosition(
       List<Record> expectedRecords,
@@ -74,24 +76,22 @@ public abstract class ReaderFunctionTestBase<T> {
     RecordAndPosition<T> recordAndPosition;
     while ((recordAndPosition = batch.nextRecordFromSplit()) != null) {
       actualRecords.add(recordAndPosition.record());
-      Assert.assertEquals(
-          "expected file offset", expectedFileOffset, recordAndPosition.fileOffset());
-      Assert.assertEquals(
-          "expected record offset", recordOffset, recordAndPosition.recordOffset() - 1);
+      assertThat(recordAndPosition.fileOffset()).isEqualTo(expectedFileOffset);
+      assertThat(recordAndPosition.recordOffset() - 1).isEqualTo(recordOffset);
       recordOffset++;
     }
 
-    Assert.assertEquals("expected record count", expectedRecords.size(), actualRecords.size());
+    assertThat(actualRecords).hasSameSizeAs(expectedRecords);
     assertRecords(expectedRecords, actualRecords, TestFixtures.SCHEMA);
   }
 
-  @Test
+  @TestTemplate
   public void testNoCheckpointedPosition() throws IOException {
     List<List<Record>> recordBatchList =
         ReaderUtil.createRecordBatchList(TestFixtures.SCHEMA, 3, 2);
     CombinedScanTask combinedScanTask =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, TEMPORARY_FOLDER, fileFormat, appenderFactory);
+            recordBatchList, temporaryFolder, fileFormat, appenderFactory);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask);
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
         readerFunction().apply(split);
@@ -109,13 +109,13 @@ public abstract class ReaderFunctionTestBase<T> {
     batch2.recycle();
   }
 
-  @Test
+  @TestTemplate
   public void testCheckpointedPositionBeforeFirstFile() throws IOException {
     List<List<Record>> recordBatchList =
         ReaderUtil.createRecordBatchList(TestFixtures.SCHEMA, 3, 2);
     CombinedScanTask combinedScanTask =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, TEMPORARY_FOLDER, fileFormat, appenderFactory);
+            recordBatchList, temporaryFolder, fileFormat, appenderFactory);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 0, 0L);
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
         readerFunction().apply(split);
@@ -133,13 +133,13 @@ public abstract class ReaderFunctionTestBase<T> {
     batch2.recycle();
   }
 
-  @Test
+  @TestTemplate
   public void testCheckpointedPositionMiddleFirstFile() throws IOException {
     List<List<Record>> recordBatchList =
         ReaderUtil.createRecordBatchList(TestFixtures.SCHEMA, 3, 2);
     CombinedScanTask combinedScanTask =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, TEMPORARY_FOLDER, fileFormat, appenderFactory);
+            recordBatchList, temporaryFolder, fileFormat, appenderFactory);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 0, 1L);
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
         readerFunction().apply(split);
@@ -157,13 +157,13 @@ public abstract class ReaderFunctionTestBase<T> {
     batch2.recycle();
   }
 
-  @Test
+  @TestTemplate
   public void testCheckpointedPositionAfterFirstFile() throws IOException {
     List<List<Record>> recordBatchList =
         ReaderUtil.createRecordBatchList(TestFixtures.SCHEMA, 3, 2);
     CombinedScanTask combinedScanTask =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, TEMPORARY_FOLDER, fileFormat, appenderFactory);
+            recordBatchList, temporaryFolder, fileFormat, appenderFactory);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 0, 2L);
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
         readerFunction().apply(split);
@@ -177,13 +177,13 @@ public abstract class ReaderFunctionTestBase<T> {
     batch2.recycle();
   }
 
-  @Test
+  @TestTemplate
   public void testCheckpointedPositionBeforeSecondFile() throws IOException {
     List<List<Record>> recordBatchList =
         ReaderUtil.createRecordBatchList(TestFixtures.SCHEMA, 3, 2);
     CombinedScanTask combinedScanTask =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, TEMPORARY_FOLDER, fileFormat, appenderFactory);
+            recordBatchList, temporaryFolder, fileFormat, appenderFactory);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 1, 0L);
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
         readerFunction().apply(split);
@@ -197,13 +197,13 @@ public abstract class ReaderFunctionTestBase<T> {
     batch2.recycle();
   }
 
-  @Test
+  @TestTemplate
   public void testCheckpointedPositionMidSecondFile() throws IOException {
     List<List<Record>> recordBatchList =
         ReaderUtil.createRecordBatchList(TestFixtures.SCHEMA, 3, 2);
     CombinedScanTask combinedScanTask =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, TEMPORARY_FOLDER, fileFormat, appenderFactory);
+            recordBatchList, temporaryFolder, fileFormat, appenderFactory);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(combinedScanTask, 1, 1L);
     CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> reader =
         readerFunction().apply(split);
