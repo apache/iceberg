@@ -853,7 +853,11 @@ public class TableMetadata implements Serializable {
   }
 
   public static Builder buildFromEmpty() {
-    return new Builder();
+    return new Builder(DEFAULT_TABLE_FORMAT_VERSION);
+  }
+
+  public static Builder buildFromEmpty(int formatVersion) {
+    return new Builder(formatVersion);
   }
 
   public static class Builder {
@@ -903,8 +907,12 @@ public class TableMetadata implements Serializable {
     private final Map<Integer, SortOrder> sortOrdersById;
 
     private Builder() {
+      this(DEFAULT_TABLE_FORMAT_VERSION);
+    }
+
+    public Builder(int formatVersion) {
       this.base = null;
-      this.formatVersion = DEFAULT_TABLE_FORMAT_VERSION;
+      this.formatVersion = formatVersion;
       this.lastSequenceNumber = INITIAL_SEQUENCE_NUMBER;
       this.uuid = UUID.randomUUID().toString();
       this.schemas = Lists.newArrayList();
