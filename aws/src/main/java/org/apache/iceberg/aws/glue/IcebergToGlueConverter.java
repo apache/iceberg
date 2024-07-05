@@ -19,6 +19,7 @@
 package org.apache.iceberg.aws.glue;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -49,6 +50,7 @@ import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.DatabaseInput;
 import software.amazon.awssdk.services.glue.model.StorageDescriptor;
+import software.amazon.awssdk.services.glue.model.Table;
 import software.amazon.awssdk.services.glue.model.TableInput;
 
 class IcebergToGlueConverter {
@@ -219,6 +221,29 @@ class IcebergToGlueConverter {
    */
   static void setTableInputInformation(
       TableInput.Builder tableInputBuilder, TableMetadata metadata) {
+    setTableInputInformation(tableInputBuilder, metadata, null);
+  }
+
+  /**
+   * Set Glue table input information based on Iceberg table metadata, optionally preserving
+   * comments from an existing Glue table's columns.
+   *
+   * <p>A best-effort conversion of Iceberg metadata to Glue table is performed to display Iceberg
+   * information in Glue, but such information is only intended for informational human read access
+   * through tools like UI or CLI, and should never be used by any query processing engine to infer
+   * information like schema, partition spec, etc. The source of truth is stored in the actual
+   * Iceberg metadata file defined by the metadata_location table property.
+   *
+   * <p>If an existing Glue table is provided, the comments from its columns will be preserved in
+   * the resulting Glue TableInput. This is useful when updating an existing Glue table to retain
+   * any user-defined comments on the columns.
+   *
+   * @param tableInputBuilder Glue TableInput builder
+   * @param metadata Iceberg table metadata
+   * @param existingTable optional existing Glue table, used to preserve column comments
+   */
+  static void setTableInputInformation(
+      TableInput.Builder tableInputBuilder, TableMetadata metadata, Table existingTable) {
     try {
       Map<String, String> properties = metadata.properties();
       StorageDescriptor.Builder storageDescriptor = StorageDescriptor.builder();
@@ -231,11 +256,28 @@ class IcebergToGlueConverter {
                 .collect(Collectors.toSet()));
       }
 
-      Optional.ofNullable(properties.get(GLUE_DESCRIPTION_KEY))
-          .ifPresent(tableInputBuilder::description);
+      String description = properties.get(GLUE_DESCRIPTION_KEY);
+      if (description != null) {
+        tableInputBuilder.description(description);
+      } else if (existingTable != null) {
+        Optional.ofNullable(existingTable.description()).ifPresent(tableInputBuilder::description);
+      }
+
+      Map<String, String> existingColumnMap = null;
+      if (existingTable != null) {
+        List<Column> existingColumns = existingTable.storageDescriptor().columns();
+        existingColumnMap =
+            existingColumns.stream()
+                .filter(column -> column.comment() != null)
+                .collect(Collectors.toMap(Column::name, Column::comment));
+      } else {
+        existingColumnMap = Collections.emptyMap();
+      }
+
+      List<Column> columns = toColumns(metadata, existingColumnMap);
 
       tableInputBuilder.storageDescriptor(
-          storageDescriptor.location(metadata.location()).columns(toColumns(metadata)).build());
+          storageDescriptor.location(metadata.location()).columns(columns).build());
     } catch (RuntimeException e) {
       LOG.warn(
           "Encountered unexpected exception while converting Iceberg metadata to Glue table information",
@@ -297,18 +339,20 @@ class IcebergToGlueConverter {
     }
   }
 
-  private static List<Column> toColumns(TableMetadata metadata) {
+  private static List<Column> toColumns(
+      TableMetadata metadata, Map<String, String> existingColumnMap) {
     List<Column> columns = Lists.newArrayList();
     Set<String> addedNames = Sets.newHashSet();
 
     for (NestedField field : metadata.schema().columns()) {
-      addColumnWithDedupe(columns, addedNames, field, true /* is current */);
+      addColumnWithDedupe(columns, addedNames, field, true /* is current */, existingColumnMap);
     }
 
     for (Schema schema : metadata.schemas()) {
       if (schema.schemaId() != metadata.currentSchemaId()) {
         for (NestedField field : schema.columns()) {
-          addColumnWithDedupe(columns, addedNames, field, false /* is not current */);
+          addColumnWithDedupe(
+              columns, addedNames, field, false /* is not current */, existingColumnMap);
         }
       }
     }
@@ -317,19 +361,29 @@ class IcebergToGlueConverter {
   }
 
   private static void addColumnWithDedupe(
-      List<Column> columns, Set<String> dedupe, NestedField field, boolean isCurrent) {
+      List<Column> columns,
+      Set<String> dedupe,
+      NestedField field,
+      boolean isCurrent,
+      Map<String, String> existingColumnMap) {
     if (!dedupe.contains(field.name())) {
-      columns.add(
+      Column.Builder builder =
           Column.builder()
               .name(field.name())
               .type(toTypeString(field.type()))
-              .comment(field.doc())
               .parameters(
                   ImmutableMap.of(
                       ICEBERG_FIELD_ID, Integer.toString(field.fieldId()),
                       ICEBERG_FIELD_OPTIONAL, Boolean.toString(field.isOptional()),
-                      ICEBERG_FIELD_CURRENT, Boolean.toString(isCurrent)))
-              .build());
+                      ICEBERG_FIELD_CURRENT, Boolean.toString(isCurrent)));
+
+      if (field.doc() != null && !field.doc().isEmpty()) {
+        builder.comment(field.doc());
+      } else if (existingColumnMap != null && existingColumnMap.containsKey(field.name())) {
+        builder.comment(existingColumnMap.get(field.name()));
+      }
+
+      columns.add(builder.build());
       dedupe.add(field.name());
     }
   }
