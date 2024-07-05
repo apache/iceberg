@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.flink.source.assigner;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
+
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -25,13 +29,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.flink.source.SplitHelpers;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitState;
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public abstract class SplitAssignerTestBase {
-  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @TempDir protected Path temporaryFolder;
 
   @Test
   public void testEmptyInitialization() {
@@ -86,11 +88,11 @@ public abstract class SplitAssignerTestBase {
     // calling isAvailable again should return the same object reference
     // note that thenAccept will return a new future.
     // we want to assert the same instance on the assigner returned future
-    Assert.assertSame(future, assigner.isAvailable());
+    assertThat(assigner.isAvailable()).isSameAs(future);
 
     // now add some splits
     addSplitsRunnable.run();
-    Assert.assertEquals(true, futureCompleted.get());
+    assertThat(futureCompleted.get()).isTrue();
 
     for (int i = 0; i < splitCount; ++i) {
       assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
@@ -101,29 +103,29 @@ public abstract class SplitAssignerTestBase {
 
   protected void assertGetNext(SplitAssigner assigner, GetSplitResult.Status expectedStatus) {
     GetSplitResult result = assigner.getNext(null);
-    Assert.assertEquals(expectedStatus, result.status());
+    assertThat(result.status()).isEqualTo(expectedStatus);
     switch (expectedStatus) {
       case AVAILABLE:
-        Assert.assertNotNull(result.split());
+        assertThat(result.split()).isNotNull();
         break;
       case CONSTRAINED:
       case UNAVAILABLE:
-        Assert.assertNull(result.split());
+        assertThat(result.split()).isNull();
         break;
       default:
-        Assert.fail("Unknown status: " + expectedStatus);
+        fail(String.format("Unknown status: %s", expectedStatus));
     }
   }
 
   protected void assertSnapshot(SplitAssigner assigner, int splitCount) {
     Collection<IcebergSourceSplitState> stateBeforeGet = assigner.state();
-    Assert.assertEquals(splitCount, stateBeforeGet.size());
+    assertThat(stateBeforeGet).hasSize(splitCount);
   }
 
   protected List<IcebergSourceSplit> createSplits(int fileCount, int filesPerSplit, String version)
       throws Exception {
     return SplitHelpers.createSplitsFromTransientHadoopTable(
-        TEMPORARY_FOLDER, fileCount, filesPerSplit, version);
+        temporaryFolder, fileCount, filesPerSplit, version);
   }
 
   protected abstract SplitAssigner splitAssigner();

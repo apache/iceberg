@@ -28,7 +28,6 @@ import org.apache.flink.table.data.conversion.DataStructureConverters;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
@@ -42,10 +41,6 @@ public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
   protected static final RowType rowType = FlinkSchemaUtil.convert(TestFixtures.SCHEMA);
   private static final DataStructureConverter<Object, Object> rowDataConverter =
       DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(rowType));
-
-  public TestRowDataReaderFunction(FileFormat fileFormat) {
-    super(fileFormat);
-  }
 
   @Override
   protected ReaderFunction<RowData> readerFunction() {
