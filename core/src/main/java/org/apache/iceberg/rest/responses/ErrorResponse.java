@@ -64,6 +64,10 @@ public class ErrorResponse implements RESTResponse {
 
   @Override
   public String toString() {
+    return toString(true);
+  }
+
+  public String toString(boolean includeStack) {
     StringBuilder sb = new StringBuilder();
     sb.append("ErrorResponse(")
         .append("code=")
@@ -74,7 +78,7 @@ public class ErrorResponse implements RESTResponse {
         .append(message)
         .append(")");
 
-    if (stack != null && !stack.isEmpty()) {
+    if (includeStack && stack != null && !stack.isEmpty()) {
       for (String line : stack) {
         sb.append("\n").append(line);
       }
