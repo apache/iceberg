@@ -113,7 +113,7 @@ public abstract class SplitAssignerTestBase {
         assertThat(result.split()).isNull();
         break;
       default:
-        fail(String.format("Unknown status: %s", expectedStatus));
+        fail("Unknown status: %s", expectedStatus);
     }
   }
 

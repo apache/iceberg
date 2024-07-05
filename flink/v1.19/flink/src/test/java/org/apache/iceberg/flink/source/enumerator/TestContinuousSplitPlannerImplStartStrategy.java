@@ -44,7 +44,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
   @TempDir protected Path temporaryFolder;
 
   @RegisterExtension
-  private static final HadoopTableExtension tableResource =
+  private static final HadoopTableExtension TABLE_RESOURCE =
       new HadoopTableExtension(TestFixtures.DATABASE, TestFixtures.TABLE, TestFixtures.SCHEMA);
 
   private GenericAppenderHelper dataAppender;
@@ -54,21 +54,21 @@ public class TestContinuousSplitPlannerImplStartStrategy {
 
   @BeforeEach
   public void before() throws IOException {
-    dataAppender = new GenericAppenderHelper(tableResource.table(), FILE_FORMAT, temporaryFolder);
+    dataAppender = new GenericAppenderHelper(TABLE_RESOURCE.table(), FILE_FORMAT, temporaryFolder);
   }
 
   private void appendThreeSnapshots() throws IOException {
     List<Record> batch1 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     dataAppender.appendToTable(batch1);
-    snapshot1 = tableResource.table().currentSnapshot();
+    snapshot1 = TABLE_RESOURCE.table().currentSnapshot();
 
     List<Record> batch2 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 1L);
     dataAppender.appendToTable(batch2);
-    snapshot2 = tableResource.table().currentSnapshot();
+    snapshot2 = TABLE_RESOURCE.table().currentSnapshot();
 
     List<Record> batch3 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 2L);
     dataAppender.appendToTable(batch3);
-    snapshot3 = tableResource.table().currentSnapshot();
+    snapshot3 = TABLE_RESOURCE.table().currentSnapshot();
   }
 
   @Test
@@ -80,12 +80,12 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .build();
 
     // empty table
-    assertThat(ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext))
+    assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
         .isNotPresent();
 
     appendThreeSnapshots();
     Snapshot startSnapshot =
-        ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext).get();
+        ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext).get();
     assertThat(startSnapshot.snapshotId()).isEqualTo(snapshot3.snapshotId());
   }
 
@@ -98,12 +98,12 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .build();
 
     // empty table
-    assertThat(ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext))
+    assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
         .isNotPresent();
 
     appendThreeSnapshots();
     Snapshot startSnapshot =
-        ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext).get();
+        ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext).get();
     assertThat(startSnapshot.snapshotId()).isEqualTo(snapshot3.snapshotId());
   }
 
@@ -116,12 +116,12 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .build();
 
     // empty table
-    assertThat(ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext))
+    assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
         .isNotPresent();
 
     appendThreeSnapshots();
     Snapshot startSnapshot =
-        ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext).get();
+        ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext).get();
     assertThat(startSnapshot.snapshotId()).isEqualTo(snapshot1.snapshotId());
   }
 
@@ -138,7 +138,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
     assertThatThrownBy(
             () ->
                 ContinuousSplitPlannerImpl.startSnapshot(
-                    tableResource.table(), scanContextInvalidSnapshotId))
+                    TABLE_RESOURCE.table(), scanContextInvalidSnapshotId))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Start snapshot id not found in history: 1");
 
@@ -152,7 +152,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .build();
 
     Snapshot startSnapshot =
-        ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext).get();
+        ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext).get();
     assertThat(startSnapshot.snapshotId()).isEqualTo(snapshot2.snapshotId());
   }
 
@@ -169,7 +169,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
     assertThatThrownBy(
             () ->
                 ContinuousSplitPlannerImpl.startSnapshot(
-                    tableResource.table(), scanContextInvalidSnapshotTimestamp))
+                    TABLE_RESOURCE.table(), scanContextInvalidSnapshotTimestamp))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot find a snapshot after: ");
 
@@ -183,7 +183,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .build();
 
     Snapshot startSnapshot =
-        ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), scanContext).get();
+        ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext).get();
     assertThat(startSnapshot.snapshotId()).isEqualTo(snapshot2.snapshotId());
   }
 
@@ -199,7 +199,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .build();
 
     Snapshot startSnapshot =
-        ContinuousSplitPlannerImpl.startSnapshot(tableResource.table(), config).get();
+        ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), config).get();
     assertThat(startSnapshot.snapshotId()).isEqualTo(snapshot2.snapshotId());
   }
 }

@@ -47,7 +47,7 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestArrayPoolDataIteratorBatcherRowData {
 
   @TempDir protected Path temporaryFolder;
-  private static final FileFormat fileFormat = FileFormat.PARQUET;
+  private static final FileFormat FILE_FORMAT = FileFormat.PARQUET;
   private static final Configuration config = new Configuration();
 
   private final GenericAppenderFactory appenderFactory =
@@ -71,7 +71,7 @@ public class TestArrayPoolDataIteratorBatcherRowData {
         ReaderUtil.createFileTask(
             records,
             File.createTempFile("junit", null, temporaryFolder.toFile()),
-            fileFormat,
+            FILE_FORMAT,
             appenderFactory);
     CombinedScanTask combinedTask = new BaseCombinedScanTask(fileTask);
     DataIterator<RowData> dataIterator = ReaderUtil.createDataIterator(combinedTask);
@@ -117,7 +117,7 @@ public class TestArrayPoolDataIteratorBatcherRowData {
         ReaderUtil.createFileTask(
             records,
             File.createTempFile("junit", null, temporaryFolder.toFile()),
-            fileFormat,
+            FILE_FORMAT,
             appenderFactory);
     CombinedScanTask combinedTask = new BaseCombinedScanTask(fileTask);
     DataIterator<RowData> dataIterator = ReaderUtil.createDataIterator(combinedTask);
@@ -227,21 +227,21 @@ public class TestArrayPoolDataIteratorBatcherRowData {
         ReaderUtil.createFileTask(
             records0,
             File.createTempFile("junit", null, temporaryFolder.toFile()),
-            fileFormat,
+            FILE_FORMAT,
             appenderFactory);
     List<Record> records1 = RandomGenericData.generate(TestFixtures.SCHEMA, 4, 2);
     FileScanTask fileTask1 =
         ReaderUtil.createFileTask(
             records1,
             File.createTempFile("junit", null, temporaryFolder.toFile()),
-            fileFormat,
+            FILE_FORMAT,
             appenderFactory);
     List<Record> records2 = RandomGenericData.generate(TestFixtures.SCHEMA, 3, 3);
     FileScanTask fileTask2 =
         ReaderUtil.createFileTask(
             records2,
             File.createTempFile("junit", null, temporaryFolder.toFile()),
-            fileFormat,
+            FILE_FORMAT,
             appenderFactory);
     CombinedScanTask combinedTask =
         new BaseCombinedScanTask(Arrays.asList(fileTask0, fileTask1, fileTask2));
@@ -307,7 +307,7 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records1.get(3), recordAndPosition.record());
 
     assertThat(batch11.nextRecordFromSplit()).isNull();
-    assertThat(batch11.nextSplit());
+    assertThat(batch11.nextSplit()).isNull();
     batch11.recycle();
 
     ///////////////////////////////

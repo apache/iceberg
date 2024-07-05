@@ -52,7 +52,7 @@ public class TestContinuousSplitPlannerImpl {
   private static final AtomicLong randomSeed = new AtomicLong();
 
   @RegisterExtension
-  private static final HadoopTableExtension tableResource =
+  private static final HadoopTableExtension TABLE_RESOURCE =
       new HadoopTableExtension(TestFixtures.DATABASE, TestFixtures.TABLE, TestFixtures.SCHEMA);
 
   private GenericAppenderHelper dataAppender;
@@ -63,7 +63,7 @@ public class TestContinuousSplitPlannerImpl {
 
   @BeforeEach
   public void before() throws IOException {
-    dataAppender = new GenericAppenderHelper(tableResource.table(), fileFormat, temporaryFolder);
+    dataAppender = new GenericAppenderHelper(TABLE_RESOURCE.table(), fileFormat, temporaryFolder);
   }
 
   private void appendTwoSnapshots() throws IOException {
@@ -71,13 +71,13 @@ public class TestContinuousSplitPlannerImpl {
     List<Record> batch1 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     dataFile1 = dataAppender.writeFile(null, batch1);
     dataAppender.appendToTable(dataFile1);
-    snapshot1 = tableResource.table().currentSnapshot();
+    snapshot1 = TABLE_RESOURCE.table().currentSnapshot();
 
     // snapshot2
     List<Record> batch2 = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 1L);
     dataFile2 = dataAppender.writeFile(null, batch2);
     dataAppender.appendToTable(dataFile2);
-    snapshot2 = tableResource.table().currentSnapshot();
+    snapshot2 = TABLE_RESOURCE.table().currentSnapshot();
   }
 
   /** @return the last enumerated snapshot id */
@@ -88,7 +88,7 @@ public class TestContinuousSplitPlannerImpl {
         RandomGenericData.generate(TestFixtures.SCHEMA, 2, randomSeed.incrementAndGet());
     DataFile dataFile = dataAppender.writeFile(null, batch);
     dataAppender.appendToTable(dataFile);
-    Snapshot snapshot = tableResource.table().currentSnapshot();
+    Snapshot snapshot = TABLE_RESOURCE.table().currentSnapshot();
 
     ContinuousEnumerationResult result = splitPlanner.planSplits(lastPosition);
     assertThat(result.fromPosition().snapshotId()).isEqualTo(lastPosition.snapshotId());
@@ -114,7 +114,7 @@ public class TestContinuousSplitPlannerImpl {
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult emptyTableInitialDiscoveryResult = splitPlanner.planSplits(null);
     assertThat(emptyTableInitialDiscoveryResult.splits()).isEmpty();
@@ -146,7 +146,7 @@ public class TestContinuousSplitPlannerImpl {
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     assertThat(initialResult.fromPosition()).isNull();
@@ -179,7 +179,7 @@ public class TestContinuousSplitPlannerImpl {
             .splitSize(1L)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult emptyTableInitialDiscoveryResult = splitPlanner.planSplits(null);
     assertThat(emptyTableInitialDiscoveryResult.splits()).isEmpty();
@@ -217,7 +217,7 @@ public class TestContinuousSplitPlannerImpl {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     assertThat(initialResult.fromPosition()).isNull();
@@ -261,7 +261,7 @@ public class TestContinuousSplitPlannerImpl {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult emptyTableInitialDiscoveryResult = splitPlanner.planSplits(null);
     assertThat(emptyTableInitialDiscoveryResult.splits()).isEmpty();
@@ -293,7 +293,7 @@ public class TestContinuousSplitPlannerImpl {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     assertThat(initialResult.fromPosition()).isNull();
@@ -336,7 +336,7 @@ public class TestContinuousSplitPlannerImpl {
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
-            tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
+            TABLE_RESOURCE.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
 
     assertThatThrownBy(() -> splitPlanner.planSplits(null))
         .isInstanceOf(IllegalArgumentException.class)
@@ -362,7 +362,7 @@ public class TestContinuousSplitPlannerImpl {
 
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
-            tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
+            TABLE_RESOURCE.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
 
     assertThatThrownBy(() -> splitPlanner.planSplits(null))
         .isInstanceOf(IllegalArgumentException.class)
@@ -379,7 +379,7 @@ public class TestContinuousSplitPlannerImpl {
             .startSnapshotId(snapshot2.snapshotId())
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     assertThat(initialResult.fromPosition()).isNull();
@@ -425,7 +425,7 @@ public class TestContinuousSplitPlannerImpl {
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
-            tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
+            TABLE_RESOURCE.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
 
     assertThatThrownBy(() -> splitPlanner.planSplits(null))
         .isInstanceOf(IllegalArgumentException.class)
@@ -446,7 +446,7 @@ public class TestContinuousSplitPlannerImpl {
 
     ContinuousSplitPlannerImpl splitPlanner =
         new ContinuousSplitPlannerImpl(
-            tableResource.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
+            TABLE_RESOURCE.tableLoader().clone(), scanContextWithInvalidSnapshotId, null);
 
     assertThatThrownBy(() -> splitPlanner.planSplits(null))
         .isInstanceOf(IllegalArgumentException.class)
@@ -463,7 +463,7 @@ public class TestContinuousSplitPlannerImpl {
             .startSnapshotTimestamp(snapshot2.timestampMillis())
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     assertThat(initialResult.fromPosition()).isNull();
@@ -514,7 +514,7 @@ public class TestContinuousSplitPlannerImpl {
             .maxPlanningSnapshotCount(1)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     assertThat(initialResult.fromPosition()).isNull();
@@ -545,7 +545,7 @@ public class TestContinuousSplitPlannerImpl {
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     assertThat(initialResult.splits()).hasSize(1);
@@ -571,7 +571,7 @@ public class TestContinuousSplitPlannerImpl {
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     assertThat(initialResult.splits()).hasSize(1);
@@ -597,7 +597,7 @@ public class TestContinuousSplitPlannerImpl {
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
     ContinuousSplitPlannerImpl splitPlanner =
-        new ContinuousSplitPlannerImpl(tableResource.tableLoader().clone(), scanContext, null);
+        new ContinuousSplitPlannerImpl(TABLE_RESOURCE.tableLoader().clone(), scanContext, null);
 
     ContinuousEnumerationResult initialResult = splitPlanner.planSplits(null);
     assertThat(initialResult.splits()).hasSize(1);
@@ -677,7 +677,7 @@ public class TestContinuousSplitPlannerImpl {
     List<Record> batch = RandomGenericData.generate(TestFixtures.SCHEMA, numRecords, seed);
     DataFile dataFile = dataAppender.writeFile(null, batch);
     dataAppender.appendToTable(dataFile);
-    return tableResource.table().currentSnapshot();
+    return TABLE_RESOURCE.table().currentSnapshot();
   }
 
   private static class CycleResult {
