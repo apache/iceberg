@@ -50,7 +50,7 @@ httpcomponents-httpclient5 = "5.3.1"
 hive2 = { strictly = "2.3.9"} # see rich version usage explanation above
 hive3 = "3.1.3"
 immutables-value = "2.10.1"
-jackson-bom = "2.14.2"
+jackson-bom = "2.17.2"
 jackson211 = { strictly = "2.11.4"} # see rich version usage explanation above
 jackson212 = { strictly = "2.12.3"}
 jackson213 = { strictly = "2.13.4"}
