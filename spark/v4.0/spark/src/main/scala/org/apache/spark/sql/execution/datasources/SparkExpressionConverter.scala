@@ -20,7 +20,6 @@
 package org.apache.spark.sql.execution.datasources
 
 import org.apache.iceberg.spark.SparkV2Filters
-import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.IcebergAnalysisException
 import org.apache.spark.sql.catalyst.expressions.Attribute

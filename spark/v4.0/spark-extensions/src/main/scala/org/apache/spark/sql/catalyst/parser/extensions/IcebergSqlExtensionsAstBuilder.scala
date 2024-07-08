@@ -30,7 +30,6 @@ import org.apache.iceberg.NullOrder
 import org.apache.iceberg.SortDirection
 import org.apache.iceberg.expressions.Term
 import org.apache.iceberg.spark.Spark3Util
-import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.analysis.IcebergAnalysisException
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.Literal
@@ -62,7 +61,6 @@ import org.apache.spark.sql.connector.expressions.FieldReference
 import org.apache.spark.sql.connector.expressions.IdentityTransform
 import org.apache.spark.sql.connector.expressions.LiteralValue
 import org.apache.spark.sql.connector.expressions.Transform
-
 import scala.jdk.CollectionConverters._
 
 class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergSqlExtensionsBaseVisitor[AnyRef] {

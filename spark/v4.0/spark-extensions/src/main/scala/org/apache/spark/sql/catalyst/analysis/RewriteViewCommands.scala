@@ -19,7 +19,6 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
-import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.analysis.ViewUtil.IcebergViewHelper
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
@@ -36,7 +35,6 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreePattern.UNRESOLVED_FUNCTION
 import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.connector.catalog.LookupCatalog
-
 import scala.collection.mutable
 
 /**
