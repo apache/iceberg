@@ -140,6 +140,25 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
   }
 
   @Test
+  public void testCreateNamespaceWithMultipleLevels() throws NessieConflictException, NessieNotFoundException {
+    String branch = "createNamespaceWithMultipleLevelsBranch";
+    createBranch(branch);
+    Map<String, String> catalogOptions =
+            Map.of(
+                    CatalogProperties.USER, "iceberg-user",
+                    CatalogProperties.APP_ID, "iceberg-nessie");
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, catalogOptions);
+
+    client.createNamespace(Namespace.of("a", "b", "c"), Map.of());
+    assertThat(client.listNamespaces(Namespace.of("a"))).isNotNull();
+    assertThat(client.listNamespaces(Namespace.of("a", "b"))).isNotNull();
+    assertThat(client.listNamespaces(Namespace.of("a", "b", "c"))).isNotNull();
+
+    client.createNamespace(Namespace.of("a", "b", "d"), Map.of());
+    assertThat(client.listNamespaces(Namespace.of("a", "b", "d"))).isNotNull();
+  }
+
+  @Test
   public void testCreateNamespaceInvalid() throws NessieConflictException, NessieNotFoundException {
     String branch = "createNamespaceInvalidBranch";
     createBranch(branch);

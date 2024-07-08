@@ -18,9 +18,11 @@
  */
 package org.apache.iceberg.nessie;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,6 +45,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.view.ViewMetadata;
@@ -226,8 +229,32 @@ public class NessieIcebergClient implements AutoCloseable {
       if (existing != null) {
         throw namespaceAlreadyExists(key, existing, null);
       }
+
+      // check if the parent namespace exists
+      List<ContentKey> keys = new ArrayList<>(namespace.levels().length);
+      Map<ContentKey, Content> contentInfo = new HashMap<>();
+      for (int i = 0; i < namespace.levels().length - 1; i++) {
+        Namespace parent = Namespace.of(Arrays.copyOf(namespace.levels(), i + 1));
+        ContentKey parentKey = ContentKey.of(parent.levels());
+        keys.add(parentKey);
+        Content c = api.getContent().reference(getReference()).key(parentKey).get().get(parentKey);
+        contentInfo.put(parentKey, c);
+      }
+
+
+      ArrayList<Operation.Put> putOperations = new ArrayList<>(keys.size());
+      for (Map.Entry<ContentKey, Content> contentKeyContentEntry : contentInfo.entrySet()) {
+        if (contentKeyContentEntry.getValue() == null) {
+          org.projectnessie.model.Namespace parentContent =
+              org.projectnessie.model.Namespace.of(
+                  contentKeyContentEntry.getKey().getElements(), ImmutableMap.of());
+          putOperations.add(Operation.Put.of(contentKeyContentEntry.getKey(), parentContent));
+        }
+      }
+      putOperations.add(Operation.Put.of(key, content));
+
       try {
-        commitRetry("create namespace " + key, Operation.Put.of(key, content));
+        commitRetry("create namespace " + keys, putOperations.toArray(new Operation.Put[0]));
       } catch (NessieReferenceConflictException e) {
         Optional<Conflict> conflict =
             NessieUtil.extractSingleConflict(
