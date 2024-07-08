@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import org.apache.hadoop.hive.common.type.TimestampTZ;
 import org.apache.hadoop.hive.serde2.io.TimestampLocalTZWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -55,9 +56,12 @@ public class TestIcebergTimestampWithZoneObjectInspectorHive3 {
     LocalDateTime dateTimeAtUTC = LocalDateTime.of(2020, 12, 10, 15, 55, 20, 30000);
     OffsetDateTime offsetDateTime =
         OffsetDateTime.of(dateTimeAtUTC.plusHours(4), ZoneOffset.ofHours(4));
+    ZonedDateTime zdt =
+        offsetDateTime.atZoneSameInstant(TypeInfoFactory.timestampLocalTZTypeInfo.getTimeZone());
     TimestampTZ ts = new TimestampTZ(dateTimeAtUTC.atZone(ZoneId.of("UTC")));
 
     Assert.assertEquals(ts, oi.getPrimitiveJavaObject(offsetDateTime));
+    Assert.assertEquals(zdt, oi.getPrimitiveJavaObject(offsetDateTime).getZonedDateTime());
     Assert.assertEquals(
         new TimestampLocalTZWritable(ts), oi.getPrimitiveWritableObject(offsetDateTime));
 
