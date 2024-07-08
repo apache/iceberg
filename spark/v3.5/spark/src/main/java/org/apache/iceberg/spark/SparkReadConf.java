@@ -347,4 +347,12 @@ public class SparkReadConf {
         .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_LOCALITY_ENABLED_DEFAULT)
         .parse();
   }
+
+  public boolean enableColumnStats() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.ENABLE_COLUMN_STATS)
+        .defaultValue(SparkSQLProperties.ENABLE_COLUMN_STATS_DEFAULT)
+        .parse();
+  }
 }

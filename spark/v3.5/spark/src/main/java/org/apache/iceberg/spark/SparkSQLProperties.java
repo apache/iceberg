@@ -90,4 +90,8 @@ public class SparkSQLProperties {
   public static final String EXECUTOR_CACHE_LOCALITY_ENABLED =
       "spark.sql.iceberg.executor-cache.locality.enabled";
   public static final boolean EXECUTOR_CACHE_LOCALITY_ENABLED_DEFAULT = false;
+
+  // Controls whether column statistics are enabled when estimating statistics
+  public static final String ENABLE_COLUMN_STATS = "spark.sql.iceberg.enable-column-stats";
+  public static final boolean ENABLE_COLUMN_STATS_DEFAULT = false;
 }

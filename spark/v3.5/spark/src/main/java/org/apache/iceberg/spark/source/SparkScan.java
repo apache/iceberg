@@ -23,15 +23,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.iceberg.BlobMetadata;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -75,12 +78,15 @@ import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.expressions.FieldReference;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
+import org.apache.spark.sql.connector.read.colstats.ColumnStatistics;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
@@ -175,7 +181,25 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   protected Statistics estimateStatistics(Snapshot snapshot) {
     // its a fresh table, no data
     if (snapshot == null) {
-      return new Stats(0L, 0L);
+      return new Stats(0L, 0L, Maps.newHashMap());
+    }
+
+    Map<NamedReference, ColumnStatistics> map = Maps.newHashMap();
+
+    if (readConf.enableColumnStats()) {
+      List<StatisticsFile> files = table.statisticsFiles();
+      if (!files.isEmpty()) {
+        List<BlobMetadata> metadataList = (files.get(0)).blobMetadata();
+
+        for (BlobMetadata blobMetadata : metadataList) {
+          long ndv = Long.parseLong(blobMetadata.properties().get("ndv"));
+          ColumnStatistics colStats = new ColStats(ndv, null, null, 0L, 0L, 0L, null);
+          int id = blobMetadata.fields().get(0);
+          String colName = table.schema().findColumnName(id);
+          NamedReference ref = FieldReference.column(colName);
+          map.put(ref, colStats);
+        }
+      }
     }
 
     // estimate stats using snapshot summary only for partitioned tables
@@ -186,12 +210,12 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
           snapshot.snapshotId(),
           table.name());
       long totalRecords = totalRecords(snapshot);
-      return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords);
+      return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords, map);
     }
 
     long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
     long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
-    return new Stats(sizeInBytes, rowsCount);
+    return new Stats(sizeInBytes, rowsCount, map);
   }
 
   private long totalRecords(Snapshot snapshot) {
