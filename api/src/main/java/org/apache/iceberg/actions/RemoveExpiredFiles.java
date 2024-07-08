@@ -23,7 +23,7 @@ import java.util.concurrent.ExecutorService;
 public interface RemoveExpiredFiles extends Action<RemoveExpiredFiles, RemoveExpiredFiles.Result> {
 
   /**
-   * Passes an alternative executor service that will be used for snapshot integrity checking. If
+   * Passes an alternative executor service that will be used for the removal of expired files. If
    * this method is not called, snapshot integrity checker will still be running by a single
    * threaded executor service.
    *
