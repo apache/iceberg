@@ -19,7 +19,6 @@
 package org.apache.iceberg.nessie;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -291,14 +290,6 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
-    if (namespace.levels().length > 1) {
-      for (int i = 0; i < namespace.levels().length - 1; i++) {
-        Namespace parents = Namespace.of(Arrays.copyOf(namespace.levels(), i + 1));
-        if (!namespaceExists(parents)) {
-          client.createNamespace(parents, ImmutableMap.of());
-        }
-      }
-    }
     client.createNamespace(namespace, metadata);
   }
 
