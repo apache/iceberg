@@ -174,6 +174,8 @@ public class TestSparkMetadataColumns extends SparkTestBase {
 
   @Test
   public void testPartitionMetadataColumnWithManyColumns() {
+    // TODO: support metadata structs in vectorized ORC reads
+    Assume.assumeFalse(fileFormat == FileFormat.ORC && vectorized);
     List<Types.NestedField> fields =
         Lists.newArrayList(Types.NestedField.required(0, "id", Types.LongType.get()));
     List<Types.NestedField> additionalCols =
