@@ -113,7 +113,7 @@ public class SplitHelpers {
               null,
               properties);
       final GenericAppenderHelper dataAppender =
-          new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder.getRoot().toPath());
+          new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
       for (int i = 0; i < fileCount; ++i) {
         List<Record> records = RandomGenericData.generate(TestFixtures.SCHEMA, 2, i);
         dataAppender.appendToTable(records);

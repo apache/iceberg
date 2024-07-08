@@ -43,7 +43,7 @@ public class DataTestHelpers {
   public static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
     Type elementType = list.elementType();
 
-    assertThat(actual).as("List size should match").hasSize(expected.size());
+    assertThat(actual).as("List size should match").hasSameSizeAs(expected);
 
     for (int i = 0; i < expected.size(); i += 1) {
       Object expectedValue = expected.get(i);
@@ -56,7 +56,7 @@ public class DataTestHelpers {
   public static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
     Type valueType = map.valueType();
 
-    assertThat(actual).as("Map size should match").hasSize(expected.size());
+    assertThat(actual).as("Map size should match").hasSameSizeAs(expected);
 
     for (Object expectedKey : expected.keySet()) {
       Object expectedValue = expected.get(expectedKey);
@@ -91,7 +91,7 @@ public class DataTestHelpers {
       case FIXED:
         assertThat(expected).as("Expected should be a byte[]").isInstanceOf(byte[].class);
         assertThat(expected).as("Actual should be a byte[]").isInstanceOf(byte[].class);
-        assertThat((byte[]) actual).as("Array contents should be equal").isEqualTo(expected);
+        assertThat(actual).as("Array contents should be equal").isEqualTo(expected);
         break;
       case STRUCT:
         assertThat(expected).as("Expected should be a Record").isInstanceOf(Record.class);

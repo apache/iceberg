@@ -26,8 +26,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.nio.file.Files;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
@@ -86,7 +86,7 @@ public abstract class TestWriterMetrics<T> {
   private OutputFileFactory fileFactory = null;
 
   @Parameters(name = "fileFormat = {0}")
-  public static Collection<FileFormat> parameters() {
+  public static List<Object> parameters() {
     return Arrays.asList(FileFormat.ORC, FileFormat.PARQUET);
   }
 
@@ -102,7 +102,7 @@ public abstract class TestWriterMetrics<T> {
 
   @BeforeEach
   public void setupTable() throws Exception {
-    File tableDir = new File(tempDir, "table");
+    File tableDir = Files.createTempDirectory(tempDir.toPath(), "junit").toFile();
     tableDir.delete(); // created by table create
 
     this.table =

@@ -125,7 +125,7 @@ public class TestIcebergSourceFailover {
     Table sinkTable = sinkTableResource.table();
     GenericAppenderHelper dataAppender =
         new GenericAppenderHelper(
-            sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER.getRoot().toPath());
+            sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
     for (int i = 0; i < 4; ++i) {
       List<Record> records = generateRecords(2, i);
       expectedRecords.addAll(records);
@@ -182,7 +182,7 @@ public class TestIcebergSourceFailover {
     List<Record> expectedRecords = Lists.newArrayList();
     GenericAppenderHelper dataAppender =
         new GenericAppenderHelper(
-            sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER.getRoot().toPath());
+            sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
     for (int i = 0; i < 4; ++i) {
       List<Record> records = generateRecords(2, i);
       expectedRecords.addAll(records);
@@ -219,7 +219,7 @@ public class TestIcebergSourceFailover {
   private void testContinuousIcebergSource(FailoverType failoverType) throws Exception {
     GenericAppenderHelper dataAppender =
         new GenericAppenderHelper(
-            sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER.getRoot().toPath());
+            sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
     List<Record> expectedRecords = Lists.newArrayList();
 
     List<Record> batch = generateRecords(2, 0);

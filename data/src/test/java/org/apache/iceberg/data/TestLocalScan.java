@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -81,7 +80,7 @@ public class TestLocalScan {
   private static final Tables TABLES = new HadoopTables(CONF);
 
   @Parameters(name = "fileFormat = {0}")
-  public static Collection<FileFormat> parameters() {
+  public static List<Object> parameters() {
     return Arrays.asList(FileFormat.PARQUET, FileFormat.ORC, FileFormat.AVRO);
   }
 
@@ -262,7 +261,7 @@ public class TestLocalScan {
     append.commit();
 
     Set<Record> records = Sets.newHashSet(IcebergGenerics.read(table).build());
-    assertThat(records).as("Should produce correct number of records").hasSize(expected.size());
+    assertThat(records).as("Should produce correct number of records").hasSameSizeAs(expected);
     assertThat(records).as("Random record set should match").isEqualTo(Sets.newHashSet(expected));
   }
 
@@ -276,7 +275,7 @@ public class TestLocalScan {
     expected.addAll(file3FirstSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    assertThat(records).as("Should produce correct number of records").hasSize(expected.size());
+    assertThat(records).as("Should produce correct number of records").hasSameSizeAs(expected);
     assertThat(records).as("Random record set should match").isEqualTo(expected);
   }
 
@@ -415,7 +414,7 @@ public class TestLocalScan {
     expected.addAll(file3SecondSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    assertThat(records).as("Should produce correct number of records").hasSize(expected.size());
+    assertThat(records).as("Should produce correct number of records").hasSameSizeAs(expected);
     assertThat(records).as("Record set should match").isEqualTo(Sets.newHashSet(expected));
     assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
     assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
@@ -435,7 +434,7 @@ public class TestLocalScan {
     expected.addAll(file3ThirdSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    assertThat(records).as("Should produce correct number of records").hasSize(expected.size());
+    assertThat(records).as("Should produce correct number of records").hasSameSizeAs(expected);
     assertThat(records).as("Record set should match").isEqualTo(Sets.newHashSet(expected));
     assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
     assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
@@ -457,7 +456,7 @@ public class TestLocalScan {
     expected.addAll(file3ThirdSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    assertThat(records).as("Should produce correct number of records").hasSize(expected.size());
+    assertThat(records).as("Should produce correct number of records").hasSameSizeAs(expected);
     assertThat(records).as("Record set should match").isEqualTo(Sets.newHashSet(expected));
     assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
     assertThat(Iterables.get(records, 0).getField("data")).isNotNull();
@@ -480,7 +479,7 @@ public class TestLocalScan {
     expected.addAll(file3ThirdSnapshotRecords);
 
     Set<Record> records = Sets.newHashSet(results);
-    assertThat(records).as("Should produce correct number of records").hasSize(expected.size());
+    assertThat(records).as("Should produce correct number of records").hasSameSizeAs(expected);
     assertThat(records).as("Record set should match").isEqualTo(Sets.newHashSet(expected));
     assertThat(Iterables.get(records, 0).getField("id")).isNotNull();
     assertThat(Iterables.get(records, 0).getField("data")).isNotNull();

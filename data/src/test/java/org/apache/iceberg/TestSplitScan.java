@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.data.GenericAppenderFactory;
@@ -50,34 +49,32 @@ public class TestSplitScan {
       new Schema(
           required(1, "id", Types.IntegerType.get()), required(2, "data", Types.StringType.get()));
 
-  @Parameters(name = "fileFormat = {0}")
-  public static Collection<FileFormat> parameters() {
-    return Arrays.asList(FileFormat.PARQUET, FileFormat.AVRO);
-  }
-
   private Table table;
   private File tableLocation;
   private List<Record> expectedRecords;
+
+  @Parameters(name = "fileFormat = {0}")
+  public static List<Object> parameters() {
+    return Arrays.asList(FileFormat.PARQUET, FileFormat.AVRO);
+  }
 
   @Parameter private FileFormat format;
   @TempDir private File tempDir;
 
   @BeforeEach
   public void before() throws IOException {
-    tableLocation = new File(tempDir, "table");
+    tableLocation = java.nio.file.Files.createTempDirectory(tempDir.toPath(), "table").toFile();
     setupTable();
   }
 
   @TestTemplate
   public void test() {
-    List<CombinedScanTask> tasks = Lists.newArrayList(table.newScan().planTasks());
-    assertThat(tasks)
+    assertThat(Lists.newArrayList(table.newScan().planTasks()))
         .as(
             "There should be 4 tasks created since file size is approximately close to 64MB and split size 16MB")
         .hasSize(4);
 
     List<Record> records = Lists.newArrayList(IcebergGenerics.read(table).build());
-    assertThat(records).hasSize(expectedRecords.size());
     assertThat(records).isEqualTo(expectedRecords);
   }
 

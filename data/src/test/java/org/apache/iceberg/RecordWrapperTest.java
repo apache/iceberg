@@ -104,11 +104,11 @@ public abstract class RecordWrapperTest {
 
   private void generateAndValidate(Schema schema) {
     generateAndValidate(
-        schema, (actual, message, expected) -> assertThat(actual).as(message).isEqualTo(expected));
+        schema, (message, expected, actual) -> assertThat(actual).as(message).isEqualTo(expected));
   }
 
   public interface AssertMethod {
-    void assertEquals(StructLikeWrapper actual, String message, StructLikeWrapper expected);
+    void assertEquals(String message, StructLikeWrapper expected, StructLikeWrapper actual);
   }
 
   protected abstract void generateAndValidate(Schema schema, AssertMethod assertMethod);

@@ -35,6 +35,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.junit.rules.TemporaryFolder;
 
 /** Helper for appending {@link DataFile} to a table or appending {@link Record}s to a table. */
 public class GenericAppenderHelper {
@@ -44,19 +45,26 @@ public class GenericAppenderHelper {
 
   private final Table table;
   private final FileFormat fileFormat;
-  private final Path tempDir;
+  private final Path temp;
   private final Configuration conf;
 
-  public GenericAppenderHelper(
-      Table table, FileFormat fileFormat, Path tempDir, Configuration conf) {
+  public GenericAppenderHelper(Table table, FileFormat fileFormat, Path temp, Configuration conf) {
     this.table = table;
     this.fileFormat = fileFormat;
-    this.tempDir = tempDir;
+    this.temp = temp;
     this.conf = conf;
   }
 
-  public GenericAppenderHelper(Table table, FileFormat fileFormat, Path tempDir) {
-    this(table, fileFormat, tempDir, null);
+  @Deprecated
+  public GenericAppenderHelper(Table table, FileFormat fileFormat, TemporaryFolder tmp) {
+    this.table = table;
+    this.fileFormat = fileFormat;
+    this.temp = tmp.getRoot().toPath();
+    this.conf = null;
+  }
+
+  public GenericAppenderHelper(Table table, FileFormat fileFormat, Path temp) {
+    this(table, fileFormat, temp, null);
   }
 
   public void appendToTable(String branch, DataFile... dataFiles) {
@@ -95,14 +103,14 @@ public class GenericAppenderHelper {
 
   public DataFile writeFile(List<Record> records) throws IOException {
     Preconditions.checkNotNull(table, "table not set");
-    File file = File.createTempFile("junit", null, tempDir.toFile());
+    File file = File.createTempFile("junit", null, temp.toFile());
     assertThat(file.delete()).isTrue();
     return appendToLocalFile(table, file, fileFormat, null, records, conf);
   }
 
   public DataFile writeFile(StructLike partition, List<Record> records) throws IOException {
     Preconditions.checkNotNull(table, "table not set");
-    File file = File.createTempFile("junit", null, tempDir.toFile());
+    File file = File.createTempFile("junit", null, temp.toFile());
     assertThat(file.delete()).isTrue();
     return appendToLocalFile(table, file, fileFormat, partition, records, conf);
   }

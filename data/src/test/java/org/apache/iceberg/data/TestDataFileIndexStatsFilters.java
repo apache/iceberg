@@ -68,8 +68,7 @@ public class TestDataFileIndexStatsFilters {
 
   @BeforeEach
   public void createTableAndData() throws IOException {
-    File location = new File(tempDir, "table");
-    assertThat(location.mkdir()).isTrue();
+    File location = java.nio.file.Files.createTempDirectory(tempDir.toPath(), "table").toFile();
 
     this.table = TestTables.create(location, "test", SCHEMA, PartitionSpec.unpartitioned(), 2);
 

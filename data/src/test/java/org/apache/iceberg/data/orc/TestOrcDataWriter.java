@@ -70,8 +70,7 @@ public class TestOrcDataWriter {
 
   @Test
   public void testDataWriter() throws IOException {
-    File tempFile = File.createTempFile("junit", null, tempDir);
-    OutputFile file = Files.localOutput(tempFile);
+    OutputFile file = Files.localOutput(File.createTempFile("junit", null, tempDir));
 
     SortOrder sortOrder = SortOrder.builderFor(SCHEMA).withOrderId(10).asc("id").build();
 

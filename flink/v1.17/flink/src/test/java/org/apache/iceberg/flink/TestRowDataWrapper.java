@@ -41,7 +41,7 @@ public class TestRowDataWrapper extends RecordWrapperTest {
   public void testTime() {
     generateAndValidate(
         new Schema(TIME.fields()),
-        (actualWrapper, message, expectedWrapper) -> {
+        (message, expectedWrapper, actualWrapper) -> {
           for (int pos = 0; pos < TIME.fields().size(); pos++) {
             Object expected = expectedWrapper.get().get(pos, Object.class);
             Object actual = actualWrapper.get().get(pos, Object.class);
@@ -82,9 +82,9 @@ public class TestRowDataWrapper extends RecordWrapperTest {
       StructLike rowDataStructLike = rowDataWrapper.wrap(expected.next());
 
       assertMethod.assertEquals(
-          actualWrapper.set(recordStructLike),
           "Should have expected StructLike values",
-          expectedWrapper.set(rowDataStructLike));
+          expectedWrapper.set(rowDataStructLike),
+          actualWrapper.set(recordStructLike));
     }
 
     assertThat(actual).isExhausted();

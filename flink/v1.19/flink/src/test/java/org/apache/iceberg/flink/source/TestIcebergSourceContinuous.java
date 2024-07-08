@@ -80,8 +80,7 @@ public class TestIcebergSourceContinuous {
   @Test
   public void testTableScanThenIncremental() throws Exception {
     GenericAppenderHelper dataAppender =
-        new GenericAppenderHelper(
-            tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER.getRoot().toPath());
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
 
     // snapshot1
     List<Record> batch1 =
@@ -127,8 +126,7 @@ public class TestIcebergSourceContinuous {
   @Test
   public void testTableScanThenIncrementalAfterExpiration() throws Exception {
     GenericAppenderHelper dataAppender =
-        new GenericAppenderHelper(
-            tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER.getRoot().toPath());
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
 
     // snapshot1
     List<Record> batch1 =
@@ -180,8 +178,7 @@ public class TestIcebergSourceContinuous {
   @Test
   public void testEarliestSnapshot() throws Exception {
     GenericAppenderHelper dataAppender =
-        new GenericAppenderHelper(
-            tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER.getRoot().toPath());
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
 
     // snapshot0
     List<Record> batch0 =
@@ -232,8 +229,7 @@ public class TestIcebergSourceContinuous {
   @Test
   public void testLatestSnapshot() throws Exception {
     GenericAppenderHelper dataAppender =
-        new GenericAppenderHelper(
-            tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER.getRoot().toPath());
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
 
     // snapshot0
     List<Record> batch0 =
@@ -287,8 +283,7 @@ public class TestIcebergSourceContinuous {
   @Test
   public void testSpecificSnapshotId() throws Exception {
     GenericAppenderHelper dataAppender =
-        new GenericAppenderHelper(
-            tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER.getRoot().toPath());
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
 
     // snapshot0
     List<Record> batch0 =
@@ -340,8 +335,7 @@ public class TestIcebergSourceContinuous {
   @Test
   public void testSpecificSnapshotTimestamp() throws Exception {
     GenericAppenderHelper dataAppender =
-        new GenericAppenderHelper(
-            tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER.getRoot().toPath());
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
 
     // snapshot0
     List<Record> batch0 =

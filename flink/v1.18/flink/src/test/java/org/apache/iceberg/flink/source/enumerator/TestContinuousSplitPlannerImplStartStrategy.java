@@ -55,9 +55,7 @@ public class TestContinuousSplitPlannerImplStartStrategy {
 
   @Before
   public void before() throws IOException {
-    dataAppender =
-        new GenericAppenderHelper(
-            tableResource.table(), FILE_FORMAT, temporaryFolder.getRoot().toPath());
+    dataAppender = new GenericAppenderHelper(tableResource.table(), FILE_FORMAT, temporaryFolder);
   }
 
   private void appendThreeSnapshots() throws IOException {

@@ -40,13 +40,12 @@ public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
 
   @RegisterExtension
   private static final HadoopCatalogExtension catalogExtension =
-      new HadoopCatalogExtension(TestFixtures.DATABASE, TestFixtures.TABLE);
+      new HadoopCatalogExtension("test_db", "test_table");
 
   @Override
   protected FileAppender<RowData> writeAndGetAppender(List<Record> records) throws IOException {
     Table table = catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
     RowType flinkSchema = FlinkSchemaUtil.convert(SCHEMA);
-    File tempFile = File.createTempFile("junit", null, tempDir);
     FileAppender<RowData> appender =
         new FlinkAppenderFactory(
                 table,
@@ -57,7 +56,9 @@ public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
                 null,
                 null,
                 null)
-            .newAppender(org.apache.iceberg.Files.localOutput(tempFile), fileFormat);
+            .newAppender(
+                org.apache.iceberg.Files.localOutput(File.createTempFile("junit", null, tempDir)),
+                fileFormat);
     try (FileAppender<RowData> fileAppender = appender) {
       records.stream().map(r -> RowDataConverter.convert(SCHEMA, r)).forEach(fileAppender::add);
     }

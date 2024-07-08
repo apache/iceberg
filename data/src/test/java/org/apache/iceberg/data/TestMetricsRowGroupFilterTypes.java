@@ -33,8 +33,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.apache.hadoop.conf.Configuration;
@@ -239,71 +237,65 @@ public class TestMetricsRowGroupFilterTypes {
   private Object skipValue;
 
   @Parameters(name = "format = {0}, column = {1}, readValue = {2}, skipValue = {3}")
-  public static Collection<Object[]> parameters() {
-    return Arrays.asList(
-        new Object[][] {
-          {FileFormat.PARQUET, "boolean", false, true},
-          {FileFormat.PARQUET, "int", 5, 55},
-          {FileFormat.PARQUET, "long", 5_000_000_049L, 5_000L},
-          {FileFormat.PARQUET, "float", 1.97f, 2.11f},
-          {FileFormat.PARQUET, "double", 2.11d, 1.97d},
-          {FileFormat.PARQUET, "date", "2018-06-29", "2018-05-03"},
-          {FileFormat.PARQUET, "time", "10:02:34.000000", "10:02:34.000001"},
-          {
-            FileFormat.PARQUET,
-            "timestamp",
-            "2018-06-29T10:02:34.000000",
-            "2018-06-29T15:02:34.000000"
-          },
-          {
-            FileFormat.PARQUET,
-            "timestamptz",
-            "2018-06-29T10:02:34.000000+00:00",
-            "2018-06-29T10:02:34.000000-07:00"
-          },
-          {FileFormat.PARQUET, "string", "tapir", "monthly"},
-          // { FileFormat.PARQUET, "uuid", uuid, UUID.randomUUID() }, // not supported yet
-          {
-            FileFormat.PARQUET,
-            "fixed",
-            "abcd".getBytes(StandardCharsets.UTF_8),
-            new byte[] {0, 1, 2, 3}
-          },
-          {
-            FileFormat.PARQUET,
-            "binary",
-            "xyz".getBytes(StandardCharsets.UTF_8),
-            new byte[] {0, 1, 2, 3, 4, 5}
-          },
-          {FileFormat.PARQUET, "int_decimal", "77.77", "12.34"},
-          {FileFormat.PARQUET, "long_decimal", "88.88", "12.34"},
-          {FileFormat.PARQUET, "fixed_decimal", "99.99", "12.34"},
-          {FileFormat.ORC, "boolean", false, true},
-          {FileFormat.ORC, "int", 5, 55},
-          {FileFormat.ORC, "long", 5_000_000_049L, 5_000L},
-          {FileFormat.ORC, "float", 1.97f, 2.11f},
-          {FileFormat.ORC, "double", 2.11d, 1.97d},
-          {FileFormat.ORC, "date", "2018-06-29", "2018-05-03"},
-          {FileFormat.ORC, "time", "10:02:34.000000", "10:02:34.000001"},
-          {FileFormat.ORC, "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000"},
-          {
-            FileFormat.ORC,
-            "timestamptz",
-            "2018-06-29T10:02:34.000000+00:00",
-            "2018-06-29T10:02:34.000000-07:00"
-          },
-          {FileFormat.ORC, "string", "tapir", "monthly"},
-          // uuid, fixed and binary types not supported yet
-          // { FileFormat.ORC, "uuid", uuid, UUID.randomUUID() },
-          // { FileFormat.ORC, "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1,
-          // 2, 3 } },
-          // { FileFormat.ORC, "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1,
-          // 2, 3, 4, 5 }
-          // },
-          {FileFormat.ORC, "int_decimal", "77.77", "12.34"},
-          {FileFormat.ORC, "long_decimal", "88.88", "12.34"},
-          {FileFormat.ORC, "fixed_decimal", "99.99", "12.34"},
-        });
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {FileFormat.PARQUET, "boolean", false, true},
+      {FileFormat.PARQUET, "int", 5, 55},
+      {FileFormat.PARQUET, "long", 5_000_000_049L, 5_000L},
+      {FileFormat.PARQUET, "float", 1.97f, 2.11f},
+      {FileFormat.PARQUET, "double", 2.11d, 1.97d},
+      {FileFormat.PARQUET, "date", "2018-06-29", "2018-05-03"},
+      {FileFormat.PARQUET, "time", "10:02:34.000000", "10:02:34.000001"},
+      {FileFormat.PARQUET, "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000"},
+      {
+        FileFormat.PARQUET,
+        "timestamptz",
+        "2018-06-29T10:02:34.000000+00:00",
+        "2018-06-29T10:02:34.000000-07:00"
+      },
+      {FileFormat.PARQUET, "string", "tapir", "monthly"},
+      // { FileFormat.PARQUET, "uuid", uuid, UUID.randomUUID() }, // not supported yet
+      {
+        FileFormat.PARQUET,
+        "fixed",
+        "abcd".getBytes(StandardCharsets.UTF_8),
+        new byte[] {0, 1, 2, 3}
+      },
+      {
+        FileFormat.PARQUET,
+        "binary",
+        "xyz".getBytes(StandardCharsets.UTF_8),
+        new byte[] {0, 1, 2, 3, 4, 5}
+      },
+      {FileFormat.PARQUET, "int_decimal", "77.77", "12.34"},
+      {FileFormat.PARQUET, "long_decimal", "88.88", "12.34"},
+      {FileFormat.PARQUET, "fixed_decimal", "99.99", "12.34"},
+      {FileFormat.ORC, "boolean", false, true},
+      {FileFormat.ORC, "int", 5, 55},
+      {FileFormat.ORC, "long", 5_000_000_049L, 5_000L},
+      {FileFormat.ORC, "float", 1.97f, 2.11f},
+      {FileFormat.ORC, "double", 2.11d, 1.97d},
+      {FileFormat.ORC, "date", "2018-06-29", "2018-05-03"},
+      {FileFormat.ORC, "time", "10:02:34.000000", "10:02:34.000001"},
+      {FileFormat.ORC, "timestamp", "2018-06-29T10:02:34.000000", "2018-06-29T15:02:34.000000"},
+      {
+        FileFormat.ORC,
+        "timestamptz",
+        "2018-06-29T10:02:34.000000+00:00",
+        "2018-06-29T10:02:34.000000-07:00"
+      },
+      {FileFormat.ORC, "string", "tapir", "monthly"},
+      // uuid, fixed and binary types not supported yet
+      // { FileFormat.ORC, "uuid", uuid, UUID.randomUUID() },
+      // { FileFormat.ORC, "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1,
+      // 2, 3 } },
+      // { FileFormat.ORC, "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1,
+      // 2, 3, 4, 5 }
+      // },
+      {FileFormat.ORC, "int_decimal", "77.77", "12.34"},
+      {FileFormat.ORC, "long_decimal", "88.88", "12.34"},
+      {FileFormat.ORC, "fixed_decimal", "99.99", "12.34"},
+    };
   }
 
   @TestTemplate

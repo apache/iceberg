@@ -113,7 +113,7 @@ public abstract class TestMergingMetrics<T> {
   protected abstract FileAppender<T> writeAndGetAppender(List<Record> records) throws Exception;
 
   @Parameters(name = "fileFormat = {0}")
-  public static Collection<FileFormat> parameters() {
+  public static List<Object> parameters() {
     return Arrays.asList(FileFormat.PARQUET, FileFormat.ORC);
   }
 
@@ -194,9 +194,9 @@ public abstract class TestMergingMetrics<T> {
 
   private void assertNaNCountMatch(
       Long expected, Map<Integer, Long> nanValueCount, Types.NestedField field) {
-    assertThat(nanValueCount.get(FIELDS_WITH_NAN_COUNT_TO_ID.get(field)))
+    assertThat(nanValueCount)
         .as(String.format("NaN count for field %s does not match expected", field.name()))
-        .isEqualTo(expected);
+        .containsEntry(FIELDS_WITH_NAN_COUNT_TO_ID.get(field), expected);
   }
 
   private void assertBoundValueMatch(

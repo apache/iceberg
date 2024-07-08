@@ -96,8 +96,7 @@ public class TestIcebergSourceBoundedGenericRecord {
     Table table =
         catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
-    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER.getRoot().toPath())
-        .appendToTable(expectedRecords);
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(expectedRecords);
     TestHelpers.assertRecords(run(), expectedRecords, TestFixtures.SCHEMA);
   }
 
@@ -113,7 +112,7 @@ public class TestIcebergSourceBoundedGenericRecord {
       expectedRecords.get(i).setField("dt", dateStr);
     }
 
-    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER.getRoot().toPath())
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER)
         .appendToTable(org.apache.iceberg.TestHelpers.Row.of(dateStr, 0), expectedRecords);
     TestHelpers.assertRecords(run(), expectedRecords, TestFixtures.SCHEMA);
   }
@@ -125,7 +124,7 @@ public class TestIcebergSourceBoundedGenericRecord {
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
-    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER.getRoot().toPath())
+    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER)
         .appendToTable(org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), expectedRecords);
     // select the "data" field (fieldId == 1)
     Schema projectedSchema = TypeUtil.select(TestFixtures.SCHEMA, Sets.newHashSet(1));

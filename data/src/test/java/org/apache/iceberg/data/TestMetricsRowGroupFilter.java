@@ -47,7 +47,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData.Record;
@@ -94,7 +93,7 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestMetricsRowGroupFilter {
 
   @Parameters(name = "fileFormat = {0}")
-  public static Collection<FileFormat> parameters() {
+  public static List<Object> parameters() {
     return Arrays.asList(FileFormat.PARQUET, FileFormat.ORC);
   }
 

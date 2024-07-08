@@ -31,9 +31,10 @@ public class TestGenericMergingMetrics extends TestMergingMetrics<Record> {
 
   @Override
   protected FileAppender<Record> writeAndGetAppender(List<Record> records) throws IOException {
-    File tempFile = File.createTempFile("junit", null, tempDir);
     FileAppender<Record> appender =
-        new GenericAppenderFactory(SCHEMA).newAppender(Files.localOutput(tempFile), fileFormat);
+        new GenericAppenderFactory(SCHEMA)
+            .newAppender(
+                Files.localOutput(File.createTempFile("junit", null, tempDir)), fileFormat);
     try (FileAppender<Record> fileAppender = appender) {
       records.forEach(fileAppender::add);
     }
