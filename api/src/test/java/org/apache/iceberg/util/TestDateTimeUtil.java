@@ -40,6 +40,13 @@ public class TestDateTimeUtil {
   @Test
   public void nanosToMicros() {
     assertThat(DateTimeUtil.nanosToMicros(1510871468000001001L)).isEqualTo(1510871468000001L);
+    assertThat(DateTimeUtil.nanosToMicros(-1510871468000001001L)).isEqualTo(-1510871468000002L);
+  }
+
+  @Test
+  public void microsToNanos() {
+    assertThat(DateTimeUtil.microsToNanos(1510871468000001L)).isEqualTo(1510871468000001000L);
+    assertThat(DateTimeUtil.microsToNanos(-1510871468000001L)).isEqualTo(-1510871468000001000L);
   }
 
   @Test
@@ -50,6 +57,16 @@ public class TestDateTimeUtil {
 
   @Test
   public void convertNanos() {
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.ERAS)).isEqualTo(0);
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.MILLENNIA)).isEqualTo(0);
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.CENTURIES)).isEqualTo(0);
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.DECADES)).isEqualTo(4);
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.YEARS)).isEqualTo(47);
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.MONTHS)).isEqualTo(574);
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.WEEKS)).isEqualTo(2498);
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.DAYS)).isEqualTo(17486);
+    assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.HALF_DAYS))
+        .isEqualTo(34973);
     assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.HOURS)).isEqualTo(419686);
     assertThat(DateTimeUtil.convertNanos(1510871468000001001L, ChronoUnit.MINUTES))
         .isEqualTo(25181191);
@@ -65,7 +82,29 @@ public class TestDateTimeUtil {
 
   @Test
   public void convertNanosNegative() {
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.ERAS)).isEqualTo(-1);
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.MILLENNIA))
+        .isEqualTo(-1);
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.CENTURIES))
+        .isEqualTo(-1);
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.DECADES)).isEqualTo(-5);
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.YEARS)).isEqualTo(-48);
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.MONTHS)).isEqualTo(-575);
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.WEEKS)).isEqualTo(-2499);
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.DAYS)).isEqualTo(-17487);
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.HALF_DAYS))
+        .isEqualTo(-34974);
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.HOURS))
+        .isEqualTo(-419687);
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.MINUTES))
+        .isEqualTo(-25181192);
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.SECONDS))
+        .isEqualTo(-1510871469);
     assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.MILLIS))
         .isEqualTo(-1510871468001L);
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.MICROS))
+        .isEqualTo(-1510871468000002L);
+    assertThat(DateTimeUtil.convertNanos(-1510871468000001001L, ChronoUnit.NANOS))
+        .isEqualTo(-1510871468000001001L);
   }
 }
