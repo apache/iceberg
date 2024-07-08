@@ -890,7 +890,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "WHEN NOT MATCHED THEN "
                         + "  INSERT (id, dep) VALUES (s.id, 'unknown')",
                     commitTarget()))
-        .cause()
         .isInstanceOf(SparkRuntimeException.class)
         .hasMessageContaining(errorMsg);
 
@@ -927,7 +926,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "WHEN NOT MATCHED AND s.value = 2 THEN "
                         + "  INSERT (id, dep) VALUES (s.value, null)",
                     commitTarget()))
-        .cause()
         .isInstanceOf(SparkRuntimeException.class)
         .hasMessageContaining(errorMsg);
 
@@ -968,7 +966,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                               + "WHEN NOT MATCHED AND s.value = 2 THEN "
                               + "  INSERT (id, dep) VALUES (s.value, null)",
                           commitTarget()))
-              .cause()
               .isInstanceOf(SparkRuntimeException.class)
               .hasMessageContaining(errorMsg);
         });
@@ -1007,7 +1004,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                               + "WHEN NOT MATCHED AND s.value = 2 THEN "
                               + "  INSERT (id, dep) VALUES (s.value, null)",
                           commitTarget()))
-              .cause()
               .isInstanceOf(SparkRuntimeException.class)
               .hasMessageContaining(errorMsg);
         });
@@ -1043,7 +1039,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "WHEN MATCHED AND t.id = 6 THEN "
                         + "  DELETE",
                     commitTarget()))
-        .cause()
         .isInstanceOf(SparkRuntimeException.class)
         .hasMessageContaining(errorMsg);
     assertEquals(
@@ -1076,7 +1071,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "WHEN MATCHED AND t.id = 6 THEN "
                         + "  DELETE",
                     commitTarget()))
-        .cause()
         .isInstanceOf(SparkRuntimeException.class)
         .hasMessageContaining(errorMsg);
 
@@ -1114,7 +1108,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "WHEN NOT MATCHED AND s.id = 2 THEN "
                         + "  INSERT *",
                     commitTarget()))
-        .cause()
         .isInstanceOf(SparkRuntimeException.class)
         .hasMessageContaining(errorMsg);
 
@@ -1183,7 +1176,6 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "WHEN NOT MATCHED AND s.id = 2 THEN "
                         + "  INSERT *",
                     commitTarget()))
-        .cause()
         .isInstanceOf(SparkRuntimeException.class)
         .hasMessageContaining(errorMsg);
 
@@ -2331,7 +2323,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                     commitTarget()))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
-            "A column or function parameter with name `t`.`invalid_col` cannot be resolved");
+            "A column, variable, or function parameter with name `t`.`invalid_col` cannot be resolved");
 
     assertThatThrownBy(
             () ->
@@ -2356,7 +2348,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                     commitTarget()))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
-            "A column or function parameter with name `invalid_col` cannot be resolved");
+            "A column, variable, or function parameter with name `invalid_col` cannot be resolved");
   }
 
   @TestTemplate
@@ -2542,7 +2534,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                               + "  UPDATE SET t.s.n1 = s.c3",
                           commitTarget()))
               .isInstanceOf(AnalysisException.class)
-              .hasMessageEndingWith("Cannot safely cast `s`.`n1` \"STRING\" to \"INT\".");
+              .hasMessageContaining("Cannot safely cast `s`.`n1` \"STRING\" to \"INT\".");
 
           assertThatThrownBy(
                   () ->
@@ -2610,7 +2602,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                               + "  UPDATE SET t.s.n1 = s.c3",
                           commitTarget()))
               .isInstanceOf(AnalysisException.class)
-              .hasMessageEndingWith("Cannot safely cast `s`.`n1` \"STRING\" to \"INT\".");
+              .hasMessageContaining("Cannot safely cast `s`.`n1` \"STRING\" to \"INT\".");
 
           assertThatThrownBy(
                   () ->
@@ -2803,7 +2795,8 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
                         + "  INSERT (id, c2) VALUES (s.id, null)",
                     commitTarget()))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("A column or function parameter with name `c2` cannot be resolved");
+        .hasMessageContaining(
+            "A column, variable, or function parameter with name `c2` cannot be resolved");
   }
 
   @TestTemplate

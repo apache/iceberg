@@ -138,6 +138,7 @@ public class TestRewriteDataFilesAction extends TestBase {
   public static void setupSpark() {
     // disable AQE as tests assume that writes generate a particular number of files
     spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false");
+    spark.conf().set(SQLConf.ANSI_ENABLED().key(), "false");
   }
 
   @BeforeEach

@@ -19,8 +19,8 @@
 
 package org.apache.spark.sql.execution.datasources.v2
 
-import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.analysis.IcebergAnalysisException
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.ViewCatalog
@@ -38,7 +38,7 @@ case class AlterV2ViewUnsetPropertiesExec(
   override protected def run(): Seq[InternalRow] = {
     if (!ifExists) {
       propertyKeys.filterNot(catalog.loadView(ident).properties.containsKey).foreach { property =>
-        throw new AnalysisException(s"Cannot remove property that is not set: '$property'", Map.empty[String, String])
+        throw new IcebergAnalysisException(s"Cannot remove property that is not set: '$property'")
       }
     }
 

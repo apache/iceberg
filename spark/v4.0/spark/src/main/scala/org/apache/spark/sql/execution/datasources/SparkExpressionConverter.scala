@@ -22,6 +22,7 @@ package org.apache.spark.sql.execution.datasources
 import org.apache.iceberg.spark.SparkV2Filters
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.catalyst.analysis.IcebergAnalysisException
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.Literal
@@ -49,7 +50,7 @@ object SparkExpressionConverter {
     }
   }
 
-  @throws[AnalysisException]
+  @throws[IcebergAnalysisException]
   def collectResolvedSparkExpression(session: SparkSession, tableName: String, where: String): Expression = {
     val tableAttrs = session.table(tableName).queryExecution.analyzed.output
     val unresolvedExpression = session.sessionState.sqlParser.parseExpression(where)
@@ -57,9 +58,9 @@ object SparkExpressionConverter {
     val optimizedLogicalPlan = session.sessionState.executePlan(filter).optimizedPlan
     optimizedLogicalPlan.collectFirst {
       case filter: Filter => filter.condition
-      case dummyRelation: DummyRelation => Literal.TrueLiteral
-      case localRelation: LocalRelation => Literal.FalseLiteral
-    }.getOrElse(throw new AnalysisException("Failed to find filter expression", Map.empty[String, String]))
+      case _: DummyRelation => Literal.TrueLiteral
+      case _: LocalRelation => Literal.FalseLiteral
+    }.getOrElse(throw new IcebergAnalysisException("Failed to find filter expression"))
   }
 
   case class DummyRelation(output: Seq[Attribute]) extends LeafNode

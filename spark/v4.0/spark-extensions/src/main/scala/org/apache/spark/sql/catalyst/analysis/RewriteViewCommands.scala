@@ -36,6 +36,7 @@ import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.catalyst.trees.TreePattern.UNRESOLVED_FUNCTION
 import org.apache.spark.sql.connector.catalog.CatalogManager
 import org.apache.spark.sql.connector.catalog.LookupCatalog
+
 import scala.collection.mutable
 
 /**
@@ -66,7 +67,7 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
         allowExisting = allowExisting,
         replace = replace)
 
-    case view @ ShowViews(UnresolvedNamespace(Seq(), _), pattern, output) =>
+    case view @ ShowViews(CurrentNamespace, pattern, output) =>
       if (ViewUtil.isViewCatalog(catalogManager.currentCatalog)) {
         ShowIcebergViews(ResolvedNamespace(catalogManager.currentCatalog, catalogManager.currentNamespace),
           pattern, output)
@@ -128,8 +129,8 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
   }
 
   private def invalidRefToTempObject(ident: ResolvedIdentifier, tempObjectNames: String, tempObjectType: String) = {
-    new AnalysisException(String.format("Cannot create view %s.%s that references temporary %s: %s",
-      ident.catalog.name(), ident.identifier, tempObjectType, tempObjectNames), Map.empty[String, String])
+    new IcebergAnalysisException(String.format("Cannot create view %s.%s that references temporary %s: %s",
+      ident.catalog.name(), ident.identifier, tempObjectType, tempObjectNames))
   }
 
   /**

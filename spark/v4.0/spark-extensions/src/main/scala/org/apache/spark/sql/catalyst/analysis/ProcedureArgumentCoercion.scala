@@ -19,7 +19,6 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
-import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.expressions.Cast
 import org.apache.spark.sql.catalyst.plans.logical.Call
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
@@ -36,8 +35,8 @@ object ProcedureArgumentCoercion extends Rule[LogicalPlan] {
         val argType = arg.dataType
 
         if (paramType != argType && !Cast.canUpCast(argType, paramType)) {
-          throw new AnalysisException(
-            s"Wrong arg type for ${param.name}: cannot cast $argType to $paramType", Map.empty[String, String])
+          throw new IcebergAnalysisException(
+            s"Wrong arg type for ${param.name}: cannot cast $argType to $paramType")
         }
 
         if (paramType != argType) {

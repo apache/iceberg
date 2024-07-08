@@ -31,6 +31,7 @@ import org.apache.iceberg.SortDirection
 import org.apache.iceberg.expressions.Term
 import org.apache.iceberg.spark.Spark3Util
 import org.apache.spark.sql.AnalysisException
+import org.apache.spark.sql.catalyst.analysis.IcebergAnalysisException
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.parser.ParserInterface
@@ -61,6 +62,7 @@ import org.apache.spark.sql.connector.expressions.FieldReference
 import org.apache.spark.sql.connector.expressions.IdentityTransform
 import org.apache.spark.sql.connector.expressions.LiteralValue
 import org.apache.spark.sql.connector.expressions.Transform
+
 import scala.jdk.CollectionConverters._
 
 class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergSqlExtensionsBaseVisitor[AnyRef] {
@@ -221,9 +223,8 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
     val (distributionSpec, orderingSpec) = toDistributionAndOrderingSpec(ctx.writeSpec)
 
     if (distributionSpec == null && orderingSpec == null) {
-      throw new AnalysisException(
-        "ALTER TABLE has no changes: missing both distribution and ordering clauses",
-        Map.empty[String, String])
+      throw new IcebergAnalysisException(
+        "ALTER TABLE has no changes: missing both distribution and ordering clauses")
     }
 
     val distributionMode = if (distributionSpec != null) {
@@ -247,11 +248,11 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       writeSpec: WriteSpecContext): (WriteDistributionSpecContext, WriteOrderingSpecContext) = {
 
     if (writeSpec.writeDistributionSpec.size > 1) {
-      throw new AnalysisException("ALTER TABLE contains multiple distribution clauses", Map.empty[String, String])
+      throw new IcebergAnalysisException("ALTER TABLE contains multiple distribution clauses")
     }
 
     if (writeSpec.writeOrderingSpec.size > 1) {
-      throw new AnalysisException("ALTER TABLE contains multiple ordering clauses", Map.empty[String, String])
+      throw new IcebergAnalysisException("ALTER TABLE contains multiple ordering clauses")
     }
 
     val distributionSpec = toBuffer(writeSpec.writeDistributionSpec).headOption.orNull

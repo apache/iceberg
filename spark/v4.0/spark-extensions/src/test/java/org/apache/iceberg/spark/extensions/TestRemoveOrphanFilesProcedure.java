@@ -354,7 +354,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
                     "CALL %s.system.remove_orphan_files(table => '%s', file_list_view => '%s')",
                     catalogName, tableIdent, tempViewName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("file_path does not exist. Available: ");
+        .hasMessageContaining("No such struct field `file_path` in ");
 
     spark
         .createDataset(Lists.newArrayList(), Encoders.tuple(Encoders.INT(), Encoders.TIMESTAMP()))
