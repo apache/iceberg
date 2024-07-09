@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.data.orc;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import org.apache.iceberg.Files;
@@ -33,8 +35,8 @@ public class TestGenericReadProjection extends TestReadProjection {
   @Override
   protected Record writeAndRead(String desc, Schema writeSchema, Schema readSchema, Record record)
       throws IOException {
-    File file = temp.newFile(desc + ".orc");
-    file.delete();
+    File file = File.createTempFile("junit", ".orc", tempDir);
+    assertThat(file.delete()).isTrue();
 
     try (FileAppender<Record> appender =
         ORC.write(Files.localOutput(file))

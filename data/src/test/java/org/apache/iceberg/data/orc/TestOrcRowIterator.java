@@ -19,6 +19,7 @@
 package org.apache.iceberg.data.orc;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,11 +38,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.OrcConf;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestOrcRowIterator {
 
@@ -59,14 +58,14 @@ public class TestOrcRowIterator {
     }
   }
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir private File tempDir;
 
   private File testFile;
 
-  @Before
+  @BeforeEach
   public void writeFile() throws IOException {
-    testFile = temp.newFile();
-    Assert.assertTrue("Delete should succeed", testFile.delete());
+    testFile = File.createTempFile("junit", null, tempDir);
+    assertThat(testFile.delete()).as("Delete should succeed").isTrue();
 
     try (FileAppender<Record> writer =
         ORC.write(Files.localOutput(testFile))

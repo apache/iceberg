@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
 
 public class DataTestHelpers {
   private DataTestHelpers() {}
@@ -44,7 +43,7 @@ public class DataTestHelpers {
   public static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
     Type elementType = list.elementType();
 
-    Assert.assertEquals("List size should match", expected.size(), actual.size());
+    assertThat(actual).as("List size should match").hasSameSizeAs(expected);
 
     for (int i = 0; i < expected.size(); i += 1) {
       Object expectedValue = expected.get(i);
@@ -57,7 +56,7 @@ public class DataTestHelpers {
   public static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
     Type valueType = map.valueType();
 
-    Assert.assertEquals("Map size should match", expected.size(), actual.size());
+    assertThat(actual).as("Map size should match").hasSameSizeAs(expected);
 
     for (Object expectedKey : expected.keySet()) {
       Object expectedValue = expected.get(expectedKey);
@@ -85,14 +84,14 @@ public class DataTestHelpers {
       case UUID:
       case BINARY:
       case DECIMAL:
-        Assert.assertEquals(
-            "Primitive value should be equal to expected for type " + type, expected, actual);
+        assertThat(actual)
+            .as("Primitive value should be equal to expected for type " + type)
+            .isEqualTo(expected);
         break;
       case FIXED:
         assertThat(expected).as("Expected should be a byte[]").isInstanceOf(byte[].class);
         assertThat(expected).as("Actual should be a byte[]").isInstanceOf(byte[].class);
-        Assert.assertArrayEquals(
-            "Array contents should be equal", (byte[]) expected, (byte[]) actual);
+        assertThat(actual).as("Array contents should be equal").isEqualTo(expected);
         break;
       case STRUCT:
         assertThat(expected).as("Expected should be a Record").isInstanceOf(Record.class);

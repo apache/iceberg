@@ -19,9 +19,11 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.data.GenericAppenderFactory;
@@ -32,19 +34,15 @@ import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestSplitScan {
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);
-
   private static final long SPLIT_SIZE = 16 * 1024 * 1024;
 
   private static final Schema SCHEMA =
@@ -53,38 +51,31 @@ public class TestSplitScan {
 
   private Table table;
   private File tableLocation;
-
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
   private List<Record> expectedRecords;
 
-  @Parameterized.Parameters(name = "format = {0}")
-  public static Object[] parameters() {
-    return new Object[] {"parquet", "avro"};
+  @Parameters(name = "fileFormat = {0}")
+  public static List<Object> parameters() {
+    return Arrays.asList(FileFormat.PARQUET, FileFormat.AVRO);
   }
 
-  private final FileFormat format;
+  @Parameter private FileFormat format;
+  @TempDir private File tempDir;
 
-  public TestSplitScan(String format) {
-    this.format = FileFormat.fromString(format);
-  }
-
-  @Before
+  @BeforeEach
   public void before() throws IOException {
-    tableLocation = new File(temp.newFolder(), "table");
+    tableLocation = java.nio.file.Files.createTempDirectory(tempDir.toPath(), "table").toFile();
     setupTable();
   }
 
-  @Test
+  @TestTemplate
   public void test() {
-    Assert.assertEquals(
-        "There should be 4 tasks created since file size is approximately close to 64MB and split size 16MB",
-        4,
-        Lists.newArrayList(table.newScan().planTasks()).size());
+    assertThat(Lists.newArrayList(table.newScan().planTasks()))
+        .as(
+            "There should be 4 tasks created since file size is approximately close to 64MB and split size 16MB")
+        .hasSize(4);
+
     List<Record> records = Lists.newArrayList(IcebergGenerics.read(table).build());
-    Assert.assertEquals(expectedRecords.size(), records.size());
-    for (int i = 0; i < expectedRecords.size(); i++) {
-      Assert.assertEquals(expectedRecords.get(i), records.get(i));
-    }
+    assertThat(records).isEqualTo(expectedRecords);
   }
 
   private void setupTable() throws IOException {
@@ -109,8 +100,8 @@ public class TestSplitScan {
   }
 
   private File writeToFile(List<Record> records, FileFormat fileFormat) throws IOException {
-    File file = temp.newFile();
-    Assert.assertTrue(file.delete());
+    File file = File.createTempFile("junit", null, tempDir);
+    assertThat(file.delete()).isTrue();
 
     GenericAppenderFactory factory =
         new GenericAppenderFactory(SCHEMA)
