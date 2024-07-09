@@ -80,6 +80,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     private String defaultCatalog = null;
     private Schema schema = null;
     private String location = null;
+    private TableIdentifier storageTableIdentifier = null;
 
     protected BaseViewBuilder(TableIdentifier identifier) {
       Preconditions.checkArgument(
@@ -156,6 +157,12 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
     @Override
     public ViewBuilder withLocation(String newLocation) {
       this.location = newLocation;
+      return this;
+    }
+
+    @Override
+    public ViewBuilder withStorageTableIdentifier(TableIdentifier storageTableIdentifier) {
+      this.storageTableIdentifier = storageTableIdentifier;
       return this;
     }
 

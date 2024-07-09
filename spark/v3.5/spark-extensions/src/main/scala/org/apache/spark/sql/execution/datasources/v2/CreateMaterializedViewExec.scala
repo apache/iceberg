@@ -20,14 +20,14 @@
 package org.apache.spark.sql.execution.datasources.v2
 
 
+import org.apache.iceberg.{SnapshotUpdate, catalog}
+
 import java.util.UUID
+import org.apache.iceberg.catalog.{Namespace, TableIdentifier}
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap
-import org.apache.iceberg.spark.MaterializedViewUtil
-import org.apache.iceberg.spark.Spark3Util
-import org.apache.iceberg.spark.SparkCatalog
-import org.apache.iceberg.spark.source.SparkTable
-import org.apache.iceberg.spark.source.SparkView
+import org.apache.iceberg.spark.{MaterializedViewUtil, Spark3Util, SparkCatalog, SparkSchemaUtil}
+import org.apache.iceberg.spark.source.{SparkTable, SparkView}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -38,6 +38,7 @@ import org.apache.spark.sql.connector.catalog.View
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.connector.expressions.Transform
 import org.apache.spark.sql.types.StructType
+
 import scala.collection.JavaConverters._
 
 case class CreateMaterializedViewExec(
@@ -58,7 +59,7 @@ case class CreateMaterializedViewExec(
 
   override protected def run(): Seq[InternalRow] = {
 
-    // Check if storageTableIdentifier is provided, if not, generate a default identifier
+    // Check if storageTableIdentifier is provided. If not, generate a default identifier.
     val sparkStorageTableIdentifier = storageTableIdentifier match {
       case Some(identifier) => {
         val catalogAndIdentifier = Spark3Util.catalogAndIdentifier(session, identifier)
@@ -66,7 +67,7 @@ case class CreateMaterializedViewExec(
         Preconditions.checkState(
           storageTableCatalogName.equals(catalog.name()),
           "Storage table identifier must be in the same catalog as the view." +
-            " Found storage table in catalog: %s, expected: %s",
+            " Found storage table in catalog: %s, expected: %s.",
           Array[Object](storageTableCatalogName, catalog.name())
         )
         catalogAndIdentifier.identifier()
@@ -100,13 +101,11 @@ case class CreateMaterializedViewExec(
         // Insert into the storage table
         session.sql("INSERT INTO " + sparkStorageTableIdentifier + " " + queryText)
 
-
-        // Update the storage table properties
-        val storageTablePropertyChanges = storageTableProperties.map {
-          case (key, value) => TableChange.setProperty(key, value)
-        }.toArray
-
-        catalog.asInstanceOf[SparkCatalog].alterTable(sparkStorageTableIdentifier, storageTablePropertyChanges: _*)
+        // Load the storage table as an Iceberg table
+        val icebergStorageTable = catalog.asInstanceOf[org.apache.iceberg.catalog.Catalog].loadTable(TableIdentifier.parse(sparkStorageTableIdentifier.toString))
+        val replaceSnapshot = icebergStorageTable.newRewrite()
+        replaceSnapshot.set("mv-base-table-snapshots", baseTableSnapshots.asJava.toString)
+        replaceSnapshot.commit()
       }
       case None =>
     }
@@ -118,6 +117,7 @@ case class CreateMaterializedViewExec(
   }
 
   private def createView(storageTableIdentifier: String): Option[View] = {
+    val icebergSchema = SparkSchemaUtil.convert(viewSchema)
     val currentCatalogName = session.sessionState.catalogManager.currentCatalog.name
     val currentCatalog = if (!catalog.name().equals(currentCatalogName)) currentCatalogName else null
     val currentNamespace = session.sessionState.catalogManager.currentNamespace
@@ -128,7 +128,9 @@ case class CreateMaterializedViewExec(
       (ViewCatalog.PROP_CREATE_ENGINE_VERSION -> engineVersion,
         ViewCatalog.PROP_ENGINE_VERSION -> engineVersion) +
       (MaterializedViewUtil.MATERIALIZED_VIEW_PROPERTY_KEY -> "true") +
-      (MaterializedViewUtil.MATERIALIZED_VIEW_STORAGE_TABLE_PROPERTY_KEY -> storageTableIdentifier)
+      (MaterializedViewUtil.MATERIALIZED_VIEW_STORAGE_TABLE_PROPERTY_KEY -> storageTableIdentifier) +
+      ("queryColumnNames" -> queryColumnNames.mkString(","))
+
 
     if (replace) {
       // CREATE OR REPLACE VIEW
@@ -136,31 +138,32 @@ case class CreateMaterializedViewExec(
         catalog.dropView(ident)
       }
       // FIXME: replaceView API doesn't exist in Spark 3.5
-      val view = catalog.createView(
-        ident,
-        queryText,
-        currentCatalog,
-        currentNamespace,
-        viewSchema,
-        queryColumnNames.toArray,
-        columnAliases.toArray,
-        columnComments.map(c => c.orNull).toArray,
-        newProperties.asJava)
-      Some(view)
+      val icebergView = catalog.asInstanceOf[org.apache.iceberg.catalog.ViewCatalog].buildView(
+        Spark3Util.identifierToTableIdentifier(ident))
+        .withDefaultCatalog(currentCatalog)
+        .withDefaultNamespace(Namespace.of(currentNamespace: _*))
+        .withQuery("spark", queryText)
+        .withSchema(icebergSchema)
+        .withLocation(properties.get("location").orNull)
+        .withProperties(newProperties.asJava)
+        .withStorageTableIdentifier(TableIdentifier.parse(storageTableIdentifier))
+        .create()
+      Some(new SparkView(catalog.name(), icebergView))
+
     } else {
       try {
         // CREATE VIEW [IF NOT EXISTS]
-        val view = catalog.createView(
-          ident,
-          queryText,
-          currentCatalog,
-          currentNamespace,
-          viewSchema,
-          queryColumnNames.toArray,
-          columnAliases.toArray,
-          columnComments.map(c => c.orNull).toArray,
-          newProperties.asJava)
-        Some(view)
+        val icebergView = catalog.asInstanceOf[org.apache.iceberg.catalog.ViewCatalog].buildView(
+          Spark3Util.identifierToTableIdentifier(ident))
+          .withDefaultCatalog(currentCatalog)
+          .withDefaultNamespace(Namespace.of(currentNamespace: _*))
+          .withQuery("spark", queryText)
+          .withSchema(icebergSchema)
+          .withLocation(properties.get("location").orNull)
+          .withProperties(newProperties.asJava)
+          .withStorageTableIdentifier(TableIdentifier.parse(storageTableIdentifier))
+          .create()
+        Some(new SparkView(catalog.name(), icebergView))
       } catch {
         // TODO: Make sure the existing view is also a materialized view
         case _: ViewAlreadyExistsException if allowExisting => None

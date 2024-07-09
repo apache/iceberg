@@ -613,7 +613,8 @@ public class SparkCatalog extends BaseCatalog {
   }
 
   // Candidate to be moved to org.apache.iceberg.view.View but requires loadTable
-  private Table loadStorageTable(org.apache.iceberg.view.View view) {
+  private org.apache.iceberg.Table loadStorageTable(org.apache.iceberg.view.View view) {
+    String storageTableIdentifier = vie
     String storageTableIdentifier = getStorageTableIdentifier(view);
     try {
       SparkSession session = SparkSession.active();
