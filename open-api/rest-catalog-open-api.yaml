@@ -2119,11 +2119,11 @@ components:
         metadata-log:
           $ref: '#/components/schemas/MetadataLog'
         # statistics
-        statistics-files:
+        statistics:
           type: array
           items:
             $ref: '#/components/schemas/StatisticsFile'
-        partition-statistics-files:
+        partition-statistics:
           type: array
           items:
             $ref: '#/components/schemas/PartitionStatisticsFile'
@@ -3354,6 +3354,8 @@ components:
             type: integer
         properties:
           type: object
+          additionalProperties:
+            type: string
 
     PartitionStatisticsFile:
       type: object

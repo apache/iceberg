@@ -622,7 +622,7 @@ class BlobMetadata(BaseModel):
     snapshot_id: int = Field(..., alias='snapshot-id')
     sequence_number: int = Field(..., alias='sequence-number')
     fields: List[int]
-    properties: Optional[Dict[str, Any]] = None
+    properties: Optional[Dict[str, str]] = None
 
 
 class PartitionStatisticsFile(BaseModel):
@@ -1009,11 +1009,9 @@ class TableMetadata(BaseModel):
     last_sequence_number: Optional[int] = Field(None, alias='last-sequence-number')
     snapshot_log: Optional[SnapshotLog] = Field(None, alias='snapshot-log')
     metadata_log: Optional[MetadataLog] = Field(None, alias='metadata-log')
-    statistics_files: Optional[List[StatisticsFile]] = Field(
-        None, alias='statistics-files'
-    )
-    partition_statistics_files: Optional[List[PartitionStatisticsFile]] = Field(
-        None, alias='partition-statistics-files'
+    statistics: Optional[List[StatisticsFile]] = None
+    partition_statistics: Optional[List[PartitionStatisticsFile]] = Field(
+        None, alias='partition-statistics'
     )
 
 
