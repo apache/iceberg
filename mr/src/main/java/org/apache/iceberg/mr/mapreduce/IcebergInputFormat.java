@@ -153,8 +153,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
             conf.getInt(
                 SystemConfigs.WORKER_THREAD_POOL_SIZE.propertyKey(),
                 ThreadPools.WORKER_THREAD_POOL_SIZE));
-    scan = scan.planWith(workerPool);
     try {
+      scan = scan.planWith(workerPool);
       try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
         Table serializableTable = SerializableTable.copyOf(table);
         tasksIterable.forEach(
