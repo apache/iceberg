@@ -107,7 +107,20 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         Optional.ofNullable(
                 HiveIcebergStorageHandler.table(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER)))
             .orElseGet(() -> Catalogs.loadTable(conf));
+    final ExecutorService workerPool =
+        ThreadPools.newWorkerPool(
+            "iceberg-plan-worker-pool",
+            conf.getInt(
+                SystemConfigs.WORKER_THREAD_POOL_SIZE.propertyKey(),
+                ThreadPools.WORKER_THREAD_POOL_SIZE));
+    try {
+      return planInputSplits(table, conf, workerPool);
+    } finally {
+      workerPool.shutdown();
+    }
+  }
 
+  private List<InputSplit> planInputSplits(Table table, Configuration conf, ExecutorService workerPool) {
     TableScan scan =
         table
             .newScan()
@@ -147,32 +160,22 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     InputFormatConfig.InMemoryDataModel model =
         conf.getEnum(
             InputFormatConfig.IN_MEMORY_DATA_MODEL, InputFormatConfig.InMemoryDataModel.GENERIC);
-    final ExecutorService workerPool =
-        ThreadPools.newWorkerPool(
-            "iceberg-plan-worker-pool",
-            conf.getInt(
-                SystemConfigs.WORKER_THREAD_POOL_SIZE.propertyKey(),
-                ThreadPools.WORKER_THREAD_POOL_SIZE));
-    try {
-      scan = scan.planWith(workerPool);
-      try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
-        Table serializableTable = SerializableTable.copyOf(table);
-        tasksIterable.forEach(
-            task -> {
-              if (applyResidual
-                  && (model == InputFormatConfig.InMemoryDataModel.HIVE
-                      || model == InputFormatConfig.InMemoryDataModel.PIG)) {
-                // TODO: We do not support residual evaluation for HIVE and PIG in memory data model
-                // yet
-                checkResiduals(task);
-              }
-              splits.add(new IcebergSplit(serializableTable, conf, task));
-            });
-      } catch (IOException e) {
-        throw new UncheckedIOException(String.format("Failed to close table scan: %s", scan), e);
-      }
-    } finally {
-      workerPool.shutdown();
+    scan = scan.planWith(workerPool);
+    try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
+      Table serializableTable = SerializableTable.copyOf(table);
+      tasksIterable.forEach(
+          task -> {
+            if (applyResidual
+                && (model == InputFormatConfig.InMemoryDataModel.HIVE
+                    || model == InputFormatConfig.InMemoryDataModel.PIG)) {
+              // TODO: We do not support residual evaluation for HIVE and PIG in memory data model
+              // yet
+              checkResiduals(task);
+            }
+            splits.add(new IcebergSplit(serializableTable, conf, task));
+          });
+    } catch (IOException e) {
+      throw new UncheckedIOException(String.format("Failed to close table scan: %s", scan), e);
     }
 
     // if enabled, do not serialize FileIO hadoop config to decrease split size
