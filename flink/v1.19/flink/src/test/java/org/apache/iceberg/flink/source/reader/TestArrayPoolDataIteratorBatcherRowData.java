@@ -82,9 +82,7 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     ArrayBatchRecords<RowData> batch = (ArrayBatchRecords<RowData>) recordBatchIterator.next();
     assertThat(batch.finishedSplits()).isEmpty();
     assertThat(batch.nextSplit()).isEqualTo(splitId);
-    // reusable array size should be the configured value of 2
     assertThat(batch.records()).hasSize(2);
-    // assert actual number of records in the array
     assertThat(batch.numberOfRecords()).isEqualTo(1);
 
     RecordAndPosition<RowData> recordAndPosition = batch.nextRecordFromSplit();
@@ -93,15 +91,15 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     // assert first record
 
     assertThat(recordAndPosition.fileOffset()).isEqualTo(0);
-    // The position points to where the reader should resume after this record is processed.
-    assertThat(recordAndPosition.recordOffset()).isEqualTo(1);
+    assertThat(recordAndPosition.recordOffset())
+        .as("The position points to where the reader should resume after this record is processed.")
+        .isEqualTo(1);
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records.get(0), recordAndPosition.record());
 
     assertThat(batch.nextRecordFromSplit()).isNull();
     assertThat(batch.nextSplit()).isNull();
     batch.recycle();
 
-    // assert end of input
     assertThat(recordBatchIterator).isExhausted();
   }
 
@@ -131,9 +129,7 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     ArrayBatchRecords<RowData> batch0 = (ArrayBatchRecords<RowData>) recordBatchIterator.next();
     assertThat(batch0.finishedSplits()).isEmpty();
     assertThat(batch0.nextSplit()).isEqualTo(splitId);
-    // reusable array size should be the configured value of 2
     assertThat(batch0.records()).hasSize(2);
-    // assert actual number of records in the array
     assertThat(batch0.numberOfRecords()).isEqualTo(2);
 
     RecordAndPosition<RowData> recordAndPosition;
@@ -141,15 +137,17 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     // assert first record
     recordAndPosition = batch0.nextRecordFromSplit();
     assertThat(recordAndPosition.fileOffset()).isEqualTo(0);
-    // The position points to where the reader should resume after this record is processed.
-    assertThat(recordAndPosition.recordOffset()).isEqualTo(1);
+    assertThat(recordAndPosition.recordOffset())
+        .as("The position points to where the reader should resume after this record is processed.")
+        .isEqualTo(1);
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records.get(0), recordAndPosition.record());
 
     // assert second record
     recordAndPosition = batch0.nextRecordFromSplit();
     assertThat(recordAndPosition.fileOffset()).isEqualTo(0);
-    // The position points to where the reader should resume after this record is processed.
-    assertThat(recordAndPosition.recordOffset()).isEqualTo(2);
+    assertThat(recordAndPosition.recordOffset())
+        .as("The position points to where the reader should resume after this record is processed.")
+        .isEqualTo(2);
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records.get(1), recordAndPosition.record());
 
     assertThat(batch0.nextRecordFromSplit()).isNull();
@@ -160,27 +158,26 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     // assert second batch with full batch of 2 records
 
     ArrayBatchRecords<RowData> batch1 = (ArrayBatchRecords<RowData>) recordBatchIterator.next();
-    // assert array is reused
     assertThat(batch1.records()).containsExactlyInAnyOrder(batch0.records());
     assertThat(batch1.finishedSplits()).isEmpty();
     assertThat(batch1.nextSplit()).isEqualTo(splitId);
-    // reusable array size should be the configured value of 2
     assertThat(batch1.records()).hasSize(2);
-    // assert actual number of records in the array
     assertThat(batch1.numberOfRecords()).isEqualTo(2);
 
     // assert third record
     recordAndPosition = batch1.nextRecordFromSplit();
     assertThat(recordAndPosition.fileOffset()).isEqualTo(0);
-    // The position points to where the reader should resume after this record is processed.
-    assertThat(recordAndPosition.recordOffset()).isEqualTo(3);
+    assertThat(recordAndPosition.recordOffset())
+        .as("The position points to where the reader should resume after this record is processed.")
+        .isEqualTo(3);
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records.get(2), recordAndPosition.record());
 
     // assert fourth record
     recordAndPosition = batch1.nextRecordFromSplit();
     assertThat(recordAndPosition.fileOffset()).isEqualTo(0);
-    // The position points to where the reader should resume after this record is processed.
-    assertThat(recordAndPosition.recordOffset()).isEqualTo(4);
+    assertThat(recordAndPosition.recordOffset())
+        .as("The position points to where the reader should resume after this record is processed.")
+        .isEqualTo(4);
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records.get(3), recordAndPosition.record());
 
     assertThat(batch1.nextRecordFromSplit()).isNull();
@@ -191,27 +188,24 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     // assert third batch with partial batch of 1 record
 
     ArrayBatchRecords<RowData> batch2 = (ArrayBatchRecords<RowData>) recordBatchIterator.next();
-    // assert array is reused
     assertThat(batch2.records()).containsExactlyInAnyOrder(batch0.records());
     assertThat(batch2.finishedSplits()).isEmpty();
     assertThat(batch2.nextSplit()).isEqualTo(splitId);
-    // reusable array size should be the configured value of 2
     assertThat(batch2.records()).hasSize(2);
-    // assert actual number of records in the array
     assertThat(batch2.numberOfRecords()).isEqualTo(1);
 
     // assert fifth record
     recordAndPosition = batch2.nextRecordFromSplit();
     assertThat(recordAndPosition.fileOffset()).isEqualTo(0);
-    // The position points to where the reader should resume after this record is processed.
-    assertThat(recordAndPosition.recordOffset()).isEqualTo(5);
+    assertThat(recordAndPosition.recordOffset())
+        .as("The position points to where the reader should resume after this record is processed.")
+        .isEqualTo(5);
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records.get(4), recordAndPosition.record());
 
     assertThat(batch2.nextRecordFromSplit()).isNull();
     assertThat(batch2.nextSplit()).isNull();
     batch2.recycle();
 
-    // assert end of input
     assertThat(recordBatchIterator).isExhausted();
   }
 
@@ -274,8 +268,9 @@ public class TestArrayPoolDataIteratorBatcherRowData {
 
     recordAndPosition = batch10.nextRecordFromSplit();
     assertThat(recordAndPosition.fileOffset()).isEqualTo(1);
-    // seek should skip the first record in file1. starting from the second record
-    assertThat(recordAndPosition.recordOffset()).isEqualTo(2);
+    assertThat(recordAndPosition.recordOffset())
+        .as("seek should skip the first record in file1. starting from the second record")
+        .isEqualTo(2);
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records1.get(1), recordAndPosition.record());
 
     recordAndPosition = batch10.nextRecordFromSplit();
@@ -327,8 +322,9 @@ public class TestArrayPoolDataIteratorBatcherRowData {
 
     recordAndPosition = batch20.nextRecordFromSplit();
     assertThat(recordAndPosition.fileOffset()).isEqualTo(2);
-    // The position points to where the reader should resume after this record is processed.
-    assertThat(recordAndPosition.recordOffset()).isEqualTo(1);
+    assertThat(recordAndPosition.recordOffset())
+        .as("The position points to where the reader should resume after this record is processed.")
+        .isEqualTo(1);
     TestHelpers.assertRowData(TestFixtures.SCHEMA, records2.get(0), recordAndPosition.record());
 
     recordAndPosition = batch20.nextRecordFromSplit();

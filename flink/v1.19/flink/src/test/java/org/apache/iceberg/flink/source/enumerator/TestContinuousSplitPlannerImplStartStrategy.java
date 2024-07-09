@@ -79,8 +79,8 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
 
-    // empty table
     assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
+        .as("empty table")
         .isNotPresent();
 
     appendThreeSnapshots();
@@ -97,8 +97,8 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
             .build();
 
-    // empty table
     assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
+        .as("empty table")
         .isNotPresent();
 
     appendThreeSnapshots();
@@ -115,8 +115,8 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .build();
 
-    // empty table
     assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
+        .as("empty table")
         .isNotPresent();
 
     appendThreeSnapshots();
@@ -134,11 +134,11 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startSnapshotId(1L)
             .build();
 
-    // empty table
     assertThatThrownBy(
             () ->
                 ContinuousSplitPlannerImpl.startSnapshot(
                     TABLE_RESOURCE.table(), scanContextInvalidSnapshotId))
+        .as("empty table")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Start snapshot id not found in history: 1");
 
@@ -165,11 +165,11 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startSnapshotTimestamp(1L)
             .build();
 
-    // empty table
     assertThatThrownBy(
             () ->
                 ContinuousSplitPlannerImpl.startSnapshot(
                     TABLE_RESOURCE.table(), scanContextInvalidSnapshotTimestamp))
+        .as("empty table")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot find a snapshot after: ");
 

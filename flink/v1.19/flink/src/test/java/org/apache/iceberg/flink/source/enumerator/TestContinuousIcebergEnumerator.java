@@ -136,8 +136,7 @@ public class TestContinuousIcebergEnumerator {
             .map(IcebergSourceSplitState::split)
             .map(IcebergSourceSplit::splitId)
             .collect(Collectors.toList());
-    assertThat(pendingSplitIds).hasSameSizeAs(splits);
-    assertThat(pendingSplitIds).first().isEqualTo(splits.get(0).splitId());
+    assertThat(pendingSplitIds).hasSameSizeAs(splits).first().isEqualTo(splits.get(0).splitId());
 
     // register the reader again, and let it request a split
     enumeratorContext.registerReader(2, "localhost");
