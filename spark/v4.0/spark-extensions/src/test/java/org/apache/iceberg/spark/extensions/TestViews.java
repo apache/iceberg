@@ -596,7 +596,7 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql(sql))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot resolve function")
+        .hasMessageContaining("Cannot resolve routine")
         .hasMessageContaining("`system`.`bucket`");
 
     assertThat(sql("SELECT * FROM %s.%s.%s", catalogName, NAMESPACE, viewName))
@@ -1045,7 +1045,7 @@ public class TestViews extends ExtensionsTestBase {
                     "CREATE VIEW %s AS SELECT %s.%s.%s(id) FROM %s",
                     viewName, catalogName, NAMESPACE, functionName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot resolve function")
+        .hasMessageContaining("Cannot resolve routine")
         .hasMessageContaining(
             String.format("`%s`.`%s`.`%s`", catalogName, NAMESPACE, functionName));
 
@@ -1056,7 +1056,7 @@ public class TestViews extends ExtensionsTestBase {
                     "CREATE VIEW %s AS SELECT %s.%s(id) FROM %s",
                     viewName, NAMESPACE, functionName, tableName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Cannot resolve function")
+        .hasMessageContaining("Cannot resolve routine")
         .hasMessageContaining(String.format("`%s`.`%s`", NAMESPACE, functionName));
   }
 
