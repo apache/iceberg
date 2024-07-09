@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.UpdateLocation;
+import org.apache.iceberg.catalog.TableIdentifier;
 
 /** Interface for view definition. */
 public interface View {
@@ -86,6 +87,10 @@ public interface View {
    */
   default String location() {
     throw new UnsupportedOperationException("Retrieving a view's location is not supported");
+  }
+
+  default TableIdentifier storageTableIdentifier() {
+    throw new UnsupportedOperationException("Retrieving a view's storage table identifier is not supported");
   }
 
   /**

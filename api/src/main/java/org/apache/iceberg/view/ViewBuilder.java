@@ -19,6 +19,8 @@
 package org.apache.iceberg.view;
 
 import java.util.Map;
+
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.catalog.ViewCatalog;
 
 /**
@@ -54,6 +56,13 @@ public interface ViewBuilder extends VersionBuilder<ViewBuilder> {
   default ViewBuilder withLocation(String location) {
     throw new UnsupportedOperationException("Setting a view's location is not supported");
   }
+
+  /** Set the storage table identifier in case of a materialized view.
+   *
+   * @param storageTableIdentifier the storage table identifier
+   * @return this for method chaining
+    */
+  ViewBuilder withStorageTableIdentifier(TableIdentifier storageTableIdentifier);
 
   /**
    * Create the view.
