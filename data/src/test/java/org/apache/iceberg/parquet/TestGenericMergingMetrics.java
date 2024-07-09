@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.TestMergingMetrics;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
@@ -28,15 +29,12 @@ import org.apache.iceberg.io.FileAppender;
 
 public class TestGenericMergingMetrics extends TestMergingMetrics<Record> {
 
-  public TestGenericMergingMetrics(FileFormat fileFormat) {
-    super(fileFormat);
-  }
-
   @Override
   protected FileAppender<Record> writeAndGetAppender(List<Record> records) throws IOException {
     FileAppender<Record> appender =
         new GenericAppenderFactory(SCHEMA)
-            .newAppender(org.apache.iceberg.Files.localOutput(temp.newFile()), fileFormat);
+            .newAppender(
+                Files.localOutput(File.createTempFile("junit", null, tempDir)), fileFormat);
     try (FileAppender<Record> fileAppender = appender) {
       records.forEach(fileAppender::add);
     }
