@@ -45,6 +45,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -75,7 +76,6 @@ import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
@@ -148,10 +148,13 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         conf.getEnum(
             InputFormatConfig.IN_MEMORY_DATA_MODEL, InputFormatConfig.InMemoryDataModel.GENERIC);
     final ExecutorService workerPool =
-        ThreadPools.newWorkerPool("iceberg-plan-worker-pool",
-                conf.getInt(SystemConfigs.WORKER_THREAD_POOL_SIZE.propertyKey(), ThreadPools.WORKER_THREAD_POOL_SIZE));
+            ThreadPools.newWorkerPool(
+                    "iceberg-plan-worker-pool",
+                    conf.getInt(
+                            SystemConfigs.WORKER_THREAD_POOL_SIZE.propertyKey(),
+                            ThreadPools.WORKER_THREAD_POOL_SIZE));
     scan = scan.planWith(workerPool);
-    try{
+    try {
       try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
         Table serializableTable = SerializableTable.copyOf(table);
         tasksIterable.forEach(
@@ -168,7 +171,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       } catch (IOException e) {
         throw new UncheckedIOException(String.format("Failed to close table scan: %s", scan), e);
       }
-    } finally{
+    } finally {
       workerPool.shutdown();
     }
 
