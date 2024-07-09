@@ -39,12 +39,12 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 public class TestFlinkMergingMetrics extends TestMergingMetrics<RowData> {
 
   @RegisterExtension
-  private static final HadoopCatalogExtension catalogExtension =
+  private static final HadoopCatalogExtension CATALOG_EXTENSION =
       new HadoopCatalogExtension("test_db", "test_table");
 
   @Override
   protected FileAppender<RowData> writeAndGetAppender(List<Record> records) throws IOException {
-    Table table = catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
+    Table table = CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
     RowType flinkSchema = FlinkSchemaUtil.convert(SCHEMA);
     FileAppender<RowData> appender =
         new FlinkAppenderFactory(
