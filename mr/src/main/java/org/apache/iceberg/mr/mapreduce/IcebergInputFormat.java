@@ -120,7 +120,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     }
   }
 
-  private List<InputSplit> planInputSplits(Table table, Configuration conf, ExecutorService workerPool) {
+  private List<InputSplit> planInputSplits(
+      Table table, Configuration conf, ExecutorService workerPool) {
     TableScan scan =
         table
             .newScan()
