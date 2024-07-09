@@ -21,13 +21,18 @@ package org.apache.iceberg.mr.mapreduce;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.ql.exec.ObjectCache;
+import org.apache.hadoop.hive.ql.exec.ObjectCacheFactory;
+import org.apache.hadoop.hive.ql.metadata.HiveException;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.Job;
@@ -37,6 +42,7 @@ import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataTableScan;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
@@ -49,7 +55,9 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.data.DeleteFilter;
+import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.data.GenericDeleteFilter;
 import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.InternalRecordWrapper;
@@ -72,6 +80,7 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.hive.HiveIcebergStorageHandler;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
@@ -199,6 +208,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         "org.apache.iceberg.mr.hive.vector.HiveVectorizedReader";
     private static final DynMethods.StaticMethod HIVE_VECTORIZED_READER_BUILDER;
 
+    private ObjectCache cache;
+
     static {
       if (HiveVersion.min(HiveVersion.HIVE_3)) {
         HIVE_VECTORIZED_READER_BUILDER =
@@ -222,7 +233,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private boolean reuseContainers;
     private boolean caseSensitive;
     private InputFormatConfig.InMemoryDataModel inMemoryDataModel;
-    private Iterator<FileScanTask> tasks;
+    private Iterable<FileScanTask> tasks;
     private T current;
     private CloseableIterator<T> currentIterator;
     private FileIO io;
@@ -239,7 +250,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       HiveIcebergStorageHandler.checkAndSetIoConfig(conf, table);
       this.io = table.io();
       this.encryptionManager = table.encryption();
-      this.tasks = task.files().iterator();
+      this.tasks = task.files();
       this.tableSchema = InputFormatConfig.tableSchema(conf);
       this.nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
       this.caseSensitive =
@@ -250,22 +261,49 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       this.inMemoryDataModel =
           conf.getEnum(
               InputFormatConfig.IN_MEMORY_DATA_MODEL, InputFormatConfig.InMemoryDataModel.GENERIC);
-      this.currentIterator = open(tasks.next(), expectedSchema).iterator();
+      this.currentIterator = nextTask();
+
+      String queryId = HiveConf.getVar(conf, HiveConf.ConfVars.HIVEQUERYID);
+      this.cache = ObjectCacheFactory.getCache(conf, queryId, false);
+    }
+
+    private CloseableIterator<T> nextTask() {
+      return CloseableIterable.concat(
+              Iterables.transform(tasks, task -> open(task, expectedSchema)))
+          .iterator();
+    }
+
+    private static final class CachingDeleteLoader extends BaseDeleteLoader {
+      private ObjectCache cache;
+
+      CachingDeleteLoader(Function<DeleteFile, InputFile> loadInputFile, ObjectCache cache) {
+        super(loadInputFile);
+        this.cache = cache;
+      }
+
+      @Override
+      protected boolean canCache(long size) {
+        return cache != null;
+      }
+
+      @Override
+      protected <V> V getOrLoad(String key, Supplier<V> valueSupplier, long valueSize) {
+        try {
+          return cache.retrieve(key, valueSupplier::get);
+        } catch (HiveException e) {
+          throw new RuntimeException(e);
+        }
+      }
     }
 
     @Override
     public boolean nextKeyValue() throws IOException {
-      while (true) {
-        if (currentIterator.hasNext()) {
-          current = currentIterator.next();
-          return true;
-        } else if (tasks.hasNext()) {
-          currentIterator.close();
-          currentIterator = open(tasks.next(), expectedSchema).iterator();
-        } else {
-          currentIterator.close();
-          return false;
-        }
+      if (currentIterator.hasNext()) {
+        current = currentIterator.next();
+        return true;
+      } else {
+        currentIterator.close();
+        return false;
       }
     }
 
@@ -335,7 +373,13 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         case HIVE:
           return openTask(currentTask, readSchema);
         case GENERIC:
-          DeleteFilter deletes = new GenericDeleteFilter(io, currentTask, tableSchema, readSchema);
+          DeleteFilter deletes =
+              new GenericDeleteFilter(io, currentTask, tableSchema, readSchema) {
+                @Override
+                protected DeleteLoader newDeleteLoader() {
+                  return new CachingDeleteLoader(this::loadInputFile, cache);
+                }
+              };
           Schema requiredSchema = deletes.requiredSchema();
           return deletes.filter(openTask(currentTask, requiredSchema));
         default:
