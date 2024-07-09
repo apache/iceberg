@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.source;
 import static org.apache.iceberg.flink.MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG;
 
 import java.io.Serializable;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -38,7 +37,6 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.runtime.metrics.MetricNames;
-import org.apache.flink.runtime.minicluster.MiniCluster;
 import org.apache.flink.runtime.minicluster.RpcServiceSharing;
 import org.apache.flink.runtime.testutils.CommonTestUtils;
 import org.apache.flink.runtime.testutils.InMemoryReporter;
@@ -51,62 +49,50 @@ import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.test.junit5.InjectMiniCluster;
-import org.apache.flink.test.junit5.MiniClusterExtension;
+import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.flink.util.Collector;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.flink.HadoopCatalogExtension;
-import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.HadoopTableResource;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.awaitility.Awaitility;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.RegisterExtension;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
   private static final int PARALLELISM = 4;
   private static final String SOURCE_NAME = "IcebergSource";
   private static final int RECORD_NUM_FOR_2_SPLITS = 200;
-  private static final InMemoryReporter REPORTER = InMemoryReporter.createWithRetainedMetrics();
   private static final ConcurrentMap<Long, Integer> windows = Maps.newConcurrentMap();
 
-  @RegisterExtension
-  public static MiniClusterExtension miniClusterExtension =
-      new MiniClusterExtension(
+  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+
+  private final InMemoryReporter reporter = InMemoryReporter.createWithRetainedMetrics();
+
+  @Rule
+  public final MiniClusterWithClientResource miniClusterResource =
+      new MiniClusterWithClientResource(
           new MiniClusterResourceConfiguration.Builder()
               .setNumberTaskManagers(1)
               .setNumberSlotsPerTaskManager(PARALLELISM)
               .setRpcServiceSharing(RpcServiceSharing.DEDICATED)
-              .setConfiguration(REPORTER.addToConfiguration(DISABLE_CLASSLOADER_CHECK_CONFIG))
+              .setConfiguration(reporter.addToConfiguration(DISABLE_CLASSLOADER_CHECK_CONFIG))
               .withHaLeadershipControl()
               .build());
 
-  @RegisterExtension
-  private static final HadoopCatalogExtension catalogExtension =
-      new HadoopCatalogExtension(TestFixtures.DATABASE, TestFixtures.TABLE);
-
-  @TempDir private Path tempDir;
-  private Table table;
-  private TableLoader tableLoader;
-
-  @BeforeEach
-  public void init() {
-    table =
-        catalogExtension
-            .catalog()
-            .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.TS_SCHEMA);
-    tableLoader = catalogExtension.tableLoader();
-  }
+  @Rule
+  public final HadoopTableResource sourceTableResource =
+      new HadoopTableResource(
+          TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE, TestFixtures.TS_SCHEMA);
 
   /**
    * This is an integration test for watermark handling and windowing. Integration testing the
@@ -273,7 +259,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
    * the readers continue reading.
    */
   @Test
-  public void testThrottling(@InjectMiniCluster MiniCluster miniCluster) throws Exception {
+  public void testThrottling() throws Exception {
     GenericAppenderHelper dataAppender = appender();
 
     // Generate records in advance
@@ -324,7 +310,8 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
 
     try (CloseableIterator<RowData> resultIterator = stream.collectAsync()) {
       JobClient jobClient = env.executeAsync("Iceberg Source Throttling Test");
-      CommonTestUtils.waitForAllTaskRunning(miniCluster, jobClient.getJobID(), false);
+      CommonTestUtils.waitForAllTaskRunning(
+          miniClusterResource.getMiniCluster(), jobClient.getJobID(), false);
 
       // Insert the first data into the table
       dataAppender.appendToTable(dataAppender.writeFile(batch1), dataAppender.writeFile(batch2));
@@ -366,7 +353,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
 
   protected IcebergSource<RowData> source() {
     return IcebergSource.<RowData>builder()
-        .tableLoader(tableLoader)
+        .tableLoader(sourceTableResource.tableLoader())
         .watermarkColumn("ts")
         .project(TestFixtures.TS_SCHEMA)
         .splitSize(100L)
@@ -390,7 +377,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
 
   private Optional<Gauge<Long>> findAlignmentDriftMetric(JobID jobID, long withValue) {
     String metricsName = SOURCE_NAME + ".*" + MetricNames.WATERMARK_ALIGNMENT_DRIFT;
-    return REPORTER.findMetrics(jobID, metricsName).values().stream()
+    return reporter.findMetrics(jobID, metricsName).values().stream()
         .map(m -> (Gauge<Long>) m)
         .filter(m -> m.getValue() == withValue)
         .findFirst();
@@ -401,7 +388,8 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
     org.apache.hadoop.conf.Configuration hadoopConf = new org.apache.hadoop.conf.Configuration();
     hadoopConf.set("write.parquet.page-size-bytes", "64");
     hadoopConf.set("write.parquet.row-group-size-bytes", "64");
-    return new GenericAppenderHelper(table, FileFormat.PARQUET, tempDir, hadoopConf);
+    return new GenericAppenderHelper(
+        sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER, hadoopConf);
   }
 
   private static RowData row(long time, long count) {

@@ -48,6 +48,15 @@ public class GenericAppenderHelper {
   private final Path temp;
   private final Configuration conf;
 
+  @Deprecated
+  public GenericAppenderHelper(
+      Table table, FileFormat fileFormat, TemporaryFolder tmp, Configuration conf) {
+    this.table = table;
+    this.fileFormat = fileFormat;
+    this.temp = tmp.getRoot().toPath();
+    this.conf = conf;
+  }
+
   public GenericAppenderHelper(Table table, FileFormat fileFormat, Path temp, Configuration conf) {
     this.table = table;
     this.fileFormat = fileFormat;
@@ -57,10 +66,7 @@ public class GenericAppenderHelper {
 
   @Deprecated
   public GenericAppenderHelper(Table table, FileFormat fileFormat, TemporaryFolder tmp) {
-    this.table = table;
-    this.fileFormat = fileFormat;
-    this.temp = tmp.getRoot().toPath();
-    this.conf = null;
+    this(table, fileFormat, tmp, null);
   }
 
   public GenericAppenderHelper(Table table, FileFormat fileFormat, Path temp) {

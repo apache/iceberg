@@ -392,8 +392,7 @@ public class TestIcebergSourceContinuous {
   public void testReadingFromBranch() throws Exception {
     String branch = "b1";
     GenericAppenderHelper dataAppender =
-        new GenericAppenderHelper(
-            tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER.getRoot().toPath());
+        new GenericAppenderHelper(tableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
 
     List<Record> batchBase =
         RandomGenericData.generate(tableResource.table().schema(), 2, randomSeed.incrementAndGet());

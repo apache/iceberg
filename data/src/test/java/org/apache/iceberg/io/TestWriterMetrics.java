@@ -243,8 +243,8 @@ public abstract class TestWriterMetrics<T> {
 
   @TestTemplate
   public void testMaxColumns() throws IOException {
-    File tableDir = new File(tempDir, "table");
-    tableDir.delete(); // created by table create
+    File tableDir = Files.createTempDirectory(tempDir.toPath(), "table").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     int numColumns = TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT + 1;
     List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);
@@ -306,8 +306,8 @@ public abstract class TestWriterMetrics<T> {
 
   @TestTemplate
   public void testMaxColumnsWithDefaultOverride() throws IOException {
-    File tableDir = new File(tempDir, "table");
-    tableDir.delete(); // created by table create
+    File tableDir = Files.createTempDirectory(tempDir.toPath(), "table").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     int numColumns = TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS_DEFAULT + 1;
     List<Types.NestedField> fields = Lists.newArrayListWithCapacity(numColumns);

@@ -34,6 +34,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -194,7 +195,7 @@ public class TestLocalScan {
 
   @BeforeEach
   public void createTables() throws IOException {
-    File location = new File(tempDir, "shared");
+    File location = Files.createTempDirectory(tempDir.toPath(), "shared").toFile();
     this.sharedTableLocation = location.toString();
     this.sharedTable =
         TABLES.create(
@@ -225,7 +226,9 @@ public class TestLocalScan {
   public void testRandomData() throws IOException {
     List<Record> expected = RandomGenericData.generate(SCHEMA, 1000, 435691832918L);
 
-    File location = new File(tempDir, format.name());
+    File location = File.createTempFile("junit", null, tempDir);
+    assertThat(location.delete()).isTrue();
+
     Table table =
         TABLES.create(
             SCHEMA,
@@ -370,7 +373,7 @@ public class TestLocalScan {
             .copy(ImmutableMap.of("id", 2L, "data", "falafel", "_spec_id", 0, "_pos", 2L));
     expectedRecord.setField("_partition", null);
     assertThat(iterator.next()).isEqualTo(expectedRecord);
-    assertThat(iterator.hasNext()).isFalse();
+    assertThat(iterator).isExhausted();
   }
 
   @TestTemplate
@@ -508,6 +511,29 @@ public class TestLocalScan {
             "Cannot find a snapshot older than " + DateTimeUtil.formatTimestampMillis(timestamp));
   }
 
+  private DataFile writeFile(String location, String filename, List<Record> records)
+      throws IOException {
+    return writeFile(location, filename, SCHEMA, records);
+  }
+
+  private DataFile writeFile(String location, String filename, Schema schema, List<Record> records)
+      throws IOException {
+    Path path = new Path(location, filename);
+    FileFormat fileFormat = FileFormat.fromFileName(filename);
+    Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
+
+    FileAppender<Record> fileAppender =
+        new GenericAppenderFactory(schema).newAppender(fromPath(path, CONF), fileFormat);
+    try (FileAppender<Record> appender = fileAppender) {
+      appender.addAll(records);
+    }
+
+    return DataFiles.builder(PartitionSpec.unpartitioned())
+        .withInputFile(HadoopInputFile.fromPath(path, CONF))
+        .withMetrics(fileAppender.metrics())
+        .build();
+  }
+
   @TestTemplate
   public void testFilterWithDateAndTimestamp() throws IOException {
     // TODO: Add multiple timestamp tests - there's an issue with ORC caching TZ in ThreadLocal, so
@@ -520,7 +546,8 @@ public class TestLocalScan {
             required(3, "date", Types.DateType.get()),
             required(4, "time", Types.TimeType.get()));
 
-    File tableLocation = new File(tempDir, "complex_filter_table");
+    File tableLocation = File.createTempFile("junit", null, tempDir);
+    assertThat(tableLocation.delete()).isTrue();
 
     Table table =
         TABLES.create(
@@ -544,34 +571,11 @@ public class TestLocalScan {
               .where(equal("time", r.getField("time").toString()))
               .build();
 
-      assertThat(filterResult.iterator().hasNext()).isTrue();
+      assertThat(filterResult.iterator()).hasNext();
       Record readRecord = filterResult.iterator().next();
       assertThat(readRecord.getField("timestamp_with_zone"))
           .isEqualTo(r.getField("timestamp_with_zone"));
     }
-  }
-
-  private DataFile writeFile(String location, String filename, List<Record> records)
-      throws IOException {
-    return writeFile(location, filename, SCHEMA, records);
-  }
-
-  private DataFile writeFile(String location, String filename, Schema schema, List<Record> records)
-      throws IOException {
-    Path path = new Path(location, filename);
-    FileFormat fileFormat = FileFormat.fromFileName(filename);
-    Preconditions.checkNotNull(fileFormat, "Cannot determine format for file: %s", filename);
-
-    FileAppender<Record> fileAppender =
-        new GenericAppenderFactory(schema).newAppender(fromPath(path, CONF), fileFormat);
-    try (FileAppender<Record> appender = fileAppender) {
-      appender.addAll(records);
-    }
-
-    return DataFiles.builder(PartitionSpec.unpartitioned())
-        .withInputFile(HadoopInputFile.fromPath(path, CONF))
-        .withMetrics(fileAppender.metrics())
-        .build();
   }
 
   private static ByteBuffer longToBuffer(long value) {
