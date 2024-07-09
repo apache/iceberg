@@ -226,7 +226,7 @@ public class TestLocalScan {
   public void testRandomData() throws IOException {
     List<Record> expected = RandomGenericData.generate(SCHEMA, 1000, 435691832918L);
 
-    File location = File.createTempFile("junit", null, tempDir);
+    File location = Files.createTempDirectory(tempDir.toPath(), "junit").toFile();
     assertThat(location.delete()).isTrue();
 
     Table table =
@@ -546,7 +546,7 @@ public class TestLocalScan {
             required(3, "date", Types.DateType.get()),
             required(4, "time", Types.TimeType.get()));
 
-    File tableLocation = File.createTempFile("junit", null, tempDir);
+    File tableLocation = Files.createTempDirectory(tempDir.toPath(), "junit").toFile();
     assertThat(tableLocation.delete()).isTrue();
 
     Table table =
