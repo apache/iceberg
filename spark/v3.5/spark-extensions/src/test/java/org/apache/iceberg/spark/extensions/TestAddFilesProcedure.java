@@ -101,7 +101,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
 
   @AfterEach
   public void dropTables() {
-    sql("DROP TABLE IF EXISTS %s PURGE", sourceTableName);
+    sql("DROP TABLE IF EXISTS %s", sourceTableName);
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 

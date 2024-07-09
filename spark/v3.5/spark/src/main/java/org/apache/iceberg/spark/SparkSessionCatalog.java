@@ -275,10 +275,11 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
 
   @Override
   public boolean dropTable(Identifier ident) {
-    // no need to check table existence to determine which catalog to use. if a table doesn't exist
-    // then both are
-    // required to return false.
-    return icebergCatalog.dropTable(ident) || getSessionCatalog().dropTable(ident);
+    if (icebergCatalog.tableExists(ident)) {
+      return icebergCatalog.dropTable(ident);
+    } else {
+      return getSessionCatalog().dropTable(ident);
+    }
   }
 
   @Override
