@@ -160,8 +160,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         tasksIterable.forEach(
             task -> {
               if (applyResidual
-                       && (model == InputFormatConfig.InMemoryDataModel.HIVE
-                       || model == InputFormatConfig.InMemoryDataModel.PIG)) {
+                  && (model == InputFormatConfig.InMemoryDataModel.HIVE
+                      || model == InputFormatConfig.InMemoryDataModel.PIG)) {
                 // TODO: We do not support residual evaluation for HIVE and PIG in memory data model
                 // yet
                 checkResiduals(task);
