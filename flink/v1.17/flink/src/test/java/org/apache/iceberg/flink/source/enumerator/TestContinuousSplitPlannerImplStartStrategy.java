@@ -80,7 +80,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .build();
 
     assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
-        .as("empty table")
         .isNotPresent();
 
     appendThreeSnapshots();
@@ -98,7 +97,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .build();
 
     assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
-        .as("empty table")
         .isNotPresent();
 
     appendThreeSnapshots();
@@ -116,7 +114,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .build();
 
     assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
-        .as("empty table")
         .isNotPresent();
 
     appendThreeSnapshots();
@@ -138,7 +135,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             () ->
                 ContinuousSplitPlannerImpl.startSnapshot(
                     TABLE_RESOURCE.table(), scanContextInvalidSnapshotId))
-        .as("empty table")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Start snapshot id not found in history: 1");
 
@@ -169,7 +165,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             () ->
                 ContinuousSplitPlannerImpl.startSnapshot(
                     TABLE_RESOURCE.table(), scanContextInvalidSnapshotTimestamp))
-        .as("empty table")
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot find a snapshot after: ");
 

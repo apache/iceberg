@@ -40,7 +40,6 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.io.CloseableIterator;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -48,20 +47,15 @@ public class TestArrayPoolDataIteratorBatcherRowData {
 
   @TempDir protected Path temporaryFolder;
   private static final FileFormat FILE_FORMAT = FileFormat.PARQUET;
-  private static final Configuration config = new Configuration();
+  private final Configuration config =
+      new Configuration()
+          .set(SourceReaderOptions.ELEMENT_QUEUE_CAPACITY, 1)
+          .set(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT, 2);
 
   private final GenericAppenderFactory appenderFactory =
       new GenericAppenderFactory(TestFixtures.SCHEMA);;
   private final DataIteratorBatcher<RowData> batcher =
       new ArrayPoolDataIteratorBatcher<>(config, new RowDataRecordFactory(TestFixtures.ROW_TYPE));
-
-  @BeforeAll
-  public static void setConfig() {
-    // set array pool size to 1
-    config.set(SourceReaderOptions.ELEMENT_QUEUE_CAPACITY, 1);
-    // set batch array size to 2
-    config.set(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT, 2);
-  }
 
   /** Read a CombinedScanTask that contains a single file with less than a full batch of records */
   @Test
