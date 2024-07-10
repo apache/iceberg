@@ -38,7 +38,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestSparkCatalogOperations extends CatalogTestBase {
-  private static final boolean useNullableQuerySchema = ThreadLocalRandom.current().nextBoolean();
+  private static final boolean USE_NULLABLE_QUERY_SCHEMA =
+      ThreadLocalRandom.current().nextBoolean();
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   protected static Object[][] parameters() {
@@ -49,7 +50,7 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
         ImmutableMap.of(
             "type", "hive",
             "default-namespace", "default",
-            "use-nullable-query-schema", Boolean.toString(useNullableQuerySchema))
+            "use-nullable-query-schema", Boolean.toString(USE_NULLABLE_QUERY_SCHEMA))
       },
       {
         SparkCatalogConfig.HADOOP.catalogName(),
@@ -60,7 +61,7 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
             "cache-enabled",
             "false",
             "use-nullable-query-schema",
-            Boolean.toString(useNullableQuerySchema))
+            Boolean.toString(USE_NULLABLE_QUERY_SCHEMA))
       },
       {
         SparkCatalogConfig.SPARK.catalogName(),
@@ -75,7 +76,7 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
             "cache-enabled",
             "false", // Spark will delete tables using v1, leaving the cache out of sync
             "use-nullable-query-schema",
-            Boolean.toString(useNullableQuerySchema)),
+            Boolean.toString(USE_NULLABLE_QUERY_SCHEMA)),
       }
     };
   }
@@ -146,7 +147,7 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
 
     Schema expectedSchema =
         new Schema(
-            useNullableQuerySchema
+            USE_NULLABLE_QUERY_SCHEMA
                 ? Types.NestedField.optional(1, "id", Types.LongType.get())
                 : Types.NestedField.required(1, "id", Types.LongType.get()),
             Types.NestedField.optional(2, "data", Types.StringType.get()));
@@ -172,7 +173,7 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
 
     Schema expectedSchema =
         new Schema(
-            useNullableQuerySchema
+            USE_NULLABLE_QUERY_SCHEMA
                 ? Types.NestedField.optional(1, "id", Types.LongType.get())
                 : Types.NestedField.required(1, "id", Types.LongType.get()),
             Types.NestedField.optional(2, "data", Types.StringType.get()));

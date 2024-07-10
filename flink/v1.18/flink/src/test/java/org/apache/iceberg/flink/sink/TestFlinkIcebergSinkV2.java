@@ -61,13 +61,13 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
   @RegisterExtension
-  private static final HadoopCatalogExtension catalogResource =
+  private static final HadoopCatalogExtension CATALOG_EXTENSION =
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   @BeforeEach
   public void setupTable() {
     table =
-        catalogResource
+        CATALOG_EXTENSION
             .catalog()
             .createTable(
                 TestFixtures.TABLE_IDENTIFIER,
@@ -94,7 +94,7 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
             .setParallelism(parallelism)
             .setMaxParallelism(parallelism);
 
-    tableLoader = catalogResource.tableLoader();
+    tableLoader = CATALOG_EXTENSION.tableLoader();
   }
 
   @TestTemplate

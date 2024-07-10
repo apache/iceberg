@@ -72,7 +72,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
   private static final int PARALLELISM = 4;
   private static final String SOURCE_NAME = "IcebergSource";
   private static final int RECORD_NUM_FOR_2_SPLITS = 200;
-  private static final ConcurrentMap<Long, Integer> windows = Maps.newConcurrentMap();
+  private static final ConcurrentMap<Long, Integer> WINDOWS = Maps.newConcurrentMap();
 
   @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
 
@@ -187,12 +187,12 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
                 AtomicInteger count = new AtomicInteger(0);
                 values.forEach(a -> count.incrementAndGet());
                 out.collect(row(window.getStart(), count.get()));
-                windows.put(window.getStart(), count.get());
+                WINDOWS.put(window.getStart(), count.get());
               }
             });
 
     // Use static variable to collect the windows, since other solutions were flaky
-    windows.clear();
+    WINDOWS.clear();
     env.executeAsync("Iceberg Source Windowing Test");
 
     // Wait for the 2 first windows from File 2 and File 3
@@ -201,7 +201,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
         .atMost(30, TimeUnit.SECONDS)
         .until(
             () ->
-                windows.equals(
+                WINDOWS.equals(
                     ImmutableMap.of(0L, RECORD_NUM_FOR_2_SPLITS, TimeUnit.MINUTES.toMillis(5), 2)));
 
     // Write data so the windows containing test data are closed
@@ -214,7 +214,7 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
         .atMost(30, TimeUnit.SECONDS)
         .until(
             () ->
-                windows.equals(
+                WINDOWS.equals(
                     ImmutableMap.of(
                         0L,
                         RECORD_NUM_FOR_2_SPLITS,

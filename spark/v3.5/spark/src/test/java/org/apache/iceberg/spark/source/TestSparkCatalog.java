@@ -37,18 +37,18 @@ public class TestSparkCatalog<
         T extends TableCatalog & FunctionCatalog & SupportsNamespaces & ViewCatalog>
     extends SparkSessionCatalog<T> {
 
-  private static final Map<Identifier, Table> tableMap = Maps.newHashMap();
+  private static final Map<Identifier, Table> TABLE_MAP = Maps.newHashMap();
 
   public static void setTable(Identifier ident, Table table) {
     Preconditions.checkArgument(
-        !tableMap.containsKey(ident), "Cannot set " + ident + ". It is already set");
-    tableMap.put(ident, table);
+        !TABLE_MAP.containsKey(ident), "Cannot set " + ident + ". It is already set");
+    TABLE_MAP.put(ident, table);
   }
 
   @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
-    if (tableMap.containsKey(ident)) {
-      return tableMap.get(ident);
+    if (TABLE_MAP.containsKey(ident)) {
+      return TABLE_MAP.get(ident);
     }
 
     TableIdentifier tableIdentifier = Spark3Util.identifierToTableIdentifier(ident);
@@ -63,6 +63,6 @@ public class TestSparkCatalog<
   }
 
   public static void clearTables() {
-    tableMap.clear();
+    TABLE_MAP.clear();
   }
 }

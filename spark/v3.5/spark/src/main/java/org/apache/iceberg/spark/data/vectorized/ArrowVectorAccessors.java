@@ -27,11 +27,11 @@ import org.apache.spark.unsafe.types.UTF8String;
 
 public class ArrowVectorAccessors {
 
-  private static final ArrowVectorAccessorFactory factory = new ArrowVectorAccessorFactory();
+  private static final ArrowVectorAccessorFactory FACTORY = new ArrowVectorAccessorFactory();
 
   static ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector>
       getVectorAccessor(VectorHolder holder) {
-    return factory.getVectorAccessor(holder);
+    return FACTORY.getVectorAccessor(holder);
   }
 
   private ArrowVectorAccessors() {}
