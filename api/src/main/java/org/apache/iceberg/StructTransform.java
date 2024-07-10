@@ -26,7 +26,6 @@ import java.util.function.Function;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
-import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableFunction;
@@ -148,14 +147,7 @@ class StructTransform implements StructLike, Serializable {
     return Arrays.hashCode(transformedTuple);
   }
 
-  /**
-   * The transform result type is useful for building a comparator for the transformed struct (like
-   * {@link SortKey} using {@link Comparators#forType(Types.StructType)}.
-   *
-   * <p>
-   *
-   * @return the schema of transformed fields (a flattened structure)
-   */
+  /** Return the schema of transformed result (a flattened structure) */
   public Schema resultSchema() {
     return resultSchema;
   }
