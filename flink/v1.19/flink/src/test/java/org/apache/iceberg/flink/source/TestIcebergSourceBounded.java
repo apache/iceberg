@@ -50,7 +50,7 @@ import org.junit.jupiter.api.TestTemplate;
 public class TestIcebergSourceBounded extends TestFlinkScan {
   @TestTemplate
   public void testValidation() {
-    catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
+    CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
 
     assertThatThrownBy(
             () ->
@@ -68,7 +68,7 @@ public class TestIcebergSourceBounded extends TestFlinkScan {
   @Override
   protected List<Row> runWithProjection(String... projected) throws Exception {
     Schema icebergTableSchema =
-        catalogExtension.catalog().loadTable(TestFixtures.TABLE_IDENTIFIER).schema();
+        CATALOG_EXTENSION.catalog().loadTable(TestFixtures.TABLE_IDENTIFIER).schema();
     TableSchema.Builder builder = TableSchema.builder();
     TableSchema schema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergTableSchema));
     for (String field : projected) {
