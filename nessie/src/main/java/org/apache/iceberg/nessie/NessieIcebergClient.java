@@ -18,11 +18,9 @@
  */
 package org.apache.iceberg.nessie;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -46,6 +44,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.view.ViewMetadata;
@@ -231,17 +230,17 @@ public class NessieIcebergClient implements AutoCloseable {
       }
 
       // check if the parent namespace exists
-      List<ContentKey> keys = new ArrayList<>(namespace.levels().length);
-      Map<ContentKey, Content> contentInfo = new HashMap<>();
+      List<ContentKey> keys = Lists.newArrayList();
+      Map<ContentKey, Content> contentInfo = Maps.newHashMap();
       for (int i = 0; i < namespace.levels().length - 1; i++) {
         Namespace parent = Namespace.of(Arrays.copyOf(namespace.levels(), i + 1));
         ContentKey parentKey = ContentKey.of(parent.levels());
         keys.add(parentKey);
-        Content c = api.getContent().reference(getReference()).key(parentKey).get().get(parentKey);
-        contentInfo.put(parentKey, c);
+        Content parentContent = api.getContent().reference(getReference()).key(parentKey).get().get(parentKey);
+        contentInfo.put(parentKey, parentContent);
       }
 
-      ArrayList<Operation.Put> putOperations = new ArrayList<>(keys.size());
+      List<Operation.Put> putOperations = Lists.newArrayList();
       for (Map.Entry<ContentKey, Content> contentKeyContentEntry : contentInfo.entrySet()) {
         if (contentKeyContentEntry.getValue() == null) {
           org.projectnessie.model.Namespace parentContent =
