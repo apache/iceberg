@@ -34,11 +34,11 @@ public class VectorizedSupport {
       this.lowerCaseName = name().toLowerCase(Locale.ROOT);
     }
 
-    public static final Map<String, Support> nameToSupportMap = Maps.newHashMap();
+    public static final Map<String, Support> NAME_TO_SUPPORT_MAP = Maps.newHashMap();
 
     static {
       for (Support support : values()) {
-        nameToSupportMap.put(support.lowerCaseName, support);
+        NAME_TO_SUPPORT_MAP.put(support.lowerCaseName, support);
       }
     }
   }
