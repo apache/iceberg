@@ -76,7 +76,7 @@ import software.amazon.awssdk.utils.BinaryUtils;
 
 class S3OutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3OutputStream.class);
-  private static final String digestAlgorithm = "MD5";
+  private static final String digestAlgorithm = "SHA1";
 
   private static volatile ExecutorService executorService;
 
@@ -277,6 +277,9 @@ class S3OutputStream extends PositionOutputStream {
     if (s3FileIOProperties.writeStorageClass() != null) {
       requestBuilder.storageClass(s3FileIOProperties.writeStorageClass());
     }
+    if (isChecksumEnabled) {
+      requestBuilder.checksumAlgorithm(digestAlgorithm);
+    }
 
     S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
     S3RequestUtil.configurePermission(s3FileIOProperties, requestBuilder);
@@ -308,7 +311,7 @@ class S3OutputStream extends PositionOutputStream {
                       .contentLength(f.length());
 
               if (fileAndDigest.hasDigest()) {
-                requestBuilder.contentMD5(BinaryUtils.toBase64(fileAndDigest.digest()));
+                requestBuilder.checksumSHA1(BinaryUtils.toBase64(fileAndDigest.digest()));
               }
 
               S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
@@ -323,6 +326,7 @@ class S3OutputStream extends PositionOutputStream {
                             return CompletedPart.builder()
                                 .eTag(response.eTag())
                                 .partNumber(uploadRequest.partNumber())
+                                .checksumSHA1(uploadRequest.checksumSHA1())
                                 .build();
                           },
                           executorService)
@@ -363,13 +367,27 @@ class S3OutputStream extends PositionOutputStream {
       throw ce;
     }
 
-    CompleteMultipartUploadRequest request =
+    CompleteMultipartUploadRequest.Builder requestBuilder =
         CompleteMultipartUploadRequest.builder()
             .bucket(location.bucket())
             .key(location.key())
             .uploadId(multipartUploadId)
-            .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build())
-            .build();
+            .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build());
+
+    if (isChecksumEnabled) {
+      MessageDigest partDigest;
+      try {
+        partDigest = MessageDigest.getInstance(digestAlgorithm);
+      } catch (NoSuchAlgorithmException e) {
+        throw new RuntimeException(
+            "Failed to create part digest needed for s3 checksum checks.", e);
+      }
+      completedParts.forEach(
+          part -> partDigest.update(BinaryUtils.fromBase64(part.checksumSHA1())));
+      requestBuilder.checksumSHA1(BinaryUtils.toBase64(partDigest.digest()));
+    }
+
+    CompleteMultipartUploadRequest request = requestBuilder.build();
 
     Tasks.foreach(request)
         .noRetry()
@@ -429,7 +447,7 @@ class S3OutputStream extends PositionOutputStream {
       }
 
       if (isChecksumEnabled) {
-        requestBuilder.contentMD5(BinaryUtils.toBase64(completeMessageDigest.digest()));
+        requestBuilder.checksumSHA1(BinaryUtils.toBase64(completeMessageDigest.digest()));
       }
 
       S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
