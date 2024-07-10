@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
@@ -48,8 +50,6 @@ import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.ThreadPools;
-import org.junit.Assert;
-import org.junit.rules.TemporaryFolder;
 
 public class SplitHelpers {
 
@@ -67,14 +67,14 @@ public class SplitHelpers {
    *     attempt to read the data files.
    *
    *     <p>By default, v1 Iceberg table is created. For v2 table use {@link
-   *     SplitHelpers#createSplitsFromTransientHadoopTable(TemporaryFolder, int, int, String)}
+   *     SplitHelpers#createSplitsFromTransientHadoopTable(Path, int, int, String)}
    *
    * @param temporaryFolder Folder to place the data to
    * @param fileCount The number of files to create and add to the table
    * @param filesPerSplit The number of files used for a split
    */
   public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
-      TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit) throws Exception {
+      Path temporaryFolder, int fileCount, int filesPerSplit) throws Exception {
     return createSplitsFromTransientHadoopTable(temporaryFolder, fileCount, filesPerSplit, "1");
   }
 
@@ -95,10 +95,9 @@ public class SplitHelpers {
    * @param version The table version to create
    */
   public static List<IcebergSourceSplit> createSplitsFromTransientHadoopTable(
-      TemporaryFolder temporaryFolder, int fileCount, int filesPerSplit, String version)
-      throws Exception {
-    final File warehouseFile = temporaryFolder.newFolder();
-    Assert.assertTrue(warehouseFile.delete());
+      Path temporaryFolder, int fileCount, int filesPerSplit, String version) throws Exception {
+    final File warehouseFile = File.createTempFile("junit", null, temporaryFolder.toFile());
+    assertThat(warehouseFile.delete()).isTrue();
     final String warehouse = "file:" + warehouseFile;
     Configuration hadoopConf = new Configuration();
     final HadoopCatalog catalog = new HadoopCatalog(hadoopConf, warehouse);
@@ -155,9 +154,7 @@ public class SplitHelpers {
    * @throws IOException If there is any error creating the mock delete files
    */
   public static List<IcebergSourceSplit> equipSplitsWithMockDeleteFiles(
-      List<IcebergSourceSplit> icebergSourceSplits,
-      TemporaryFolder temporaryFolder,
-      int deleteFilesPerSplit)
+      List<IcebergSourceSplit> icebergSourceSplits, Path temporaryFolder, int deleteFilesPerSplit)
       throws IOException {
     List<IcebergSourceSplit> icebergSourceSplitsWithMockDeleteFiles = Lists.newArrayList();
     for (IcebergSourceSplit split : icebergSourceSplits) {
@@ -171,7 +168,7 @@ public class SplitHelpers {
         final DeleteFile deleteFile =
             FileMetadata.deleteFileBuilder(spec)
                 .withFormat(FileFormat.PARQUET)
-                .withPath(temporaryFolder.newFile().getPath())
+                .withPath(File.createTempFile("junit", null, temporaryFolder.toFile()).getPath())
                 .ofPositionDeletes()
                 .withFileSizeInBytes(1000)
                 .withRecordCount(1000)
