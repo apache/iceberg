@@ -53,7 +53,7 @@ public class TestArrayPoolDataIteratorBatcherRowData {
           .set(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT, 2);
 
   private final GenericAppenderFactory appenderFactory =
-      new GenericAppenderFactory(TestFixtures.SCHEMA);;
+      new GenericAppenderFactory(TestFixtures.SCHEMA);
   private final DataIteratorBatcher<RowData> batcher =
       new ArrayPoolDataIteratorBatcher<>(config, new RowDataRecordFactory(TestFixtures.ROW_TYPE));
 
