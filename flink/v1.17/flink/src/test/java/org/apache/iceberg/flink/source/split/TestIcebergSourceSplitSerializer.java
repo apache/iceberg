@@ -18,20 +18,21 @@
  */
 package org.apache.iceberg.flink.source.split;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.flink.source.SplitHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestIcebergSourceSplitSerializer {
 
-  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @TempDir protected Path temporaryFolder;
 
   private final IcebergSourceSplitSerializer serializer = new IcebergSourceSplitSerializer(true);
 
@@ -44,14 +45,14 @@ public class TestIcebergSourceSplitSerializer {
   private void serializeAndDeserialize(int splitCount, int filesPerSplit) throws Exception {
     final List<IcebergSourceSplit> splits =
         SplitHelpers.createSplitsFromTransientHadoopTable(
-            TEMPORARY_FOLDER, splitCount, filesPerSplit);
+            temporaryFolder, splitCount, filesPerSplit);
     for (IcebergSourceSplit split : splits) {
       byte[] result = serializer.serialize(split);
       IcebergSourceSplit deserialized = serializer.deserialize(serializer.getVersion(), result);
       assertSplitEquals(split, deserialized);
 
       byte[] cachedResult = serializer.serialize(split);
-      Assert.assertSame(result, cachedResult);
+      assertThat(cachedResult).isSameAs(result);
       IcebergSourceSplit deserialized2 =
           serializer.deserialize(serializer.getVersion(), cachedResult);
       assertSplitEquals(split, deserialized2);
@@ -59,7 +60,7 @@ public class TestIcebergSourceSplitSerializer {
       split.updatePosition(0, 100);
       byte[] resultAfterUpdatePosition = serializer.serialize(split);
       // after position change, serialized bytes should have changed
-      Assert.assertNotSame(cachedResult, resultAfterUpdatePosition);
+      assertThat(resultAfterUpdatePosition).isNotSameAs(cachedResult);
       IcebergSourceSplit deserialized3 =
           serializer.deserialize(serializer.getVersion(), resultAfterUpdatePosition);
       assertSplitEquals(split, deserialized3);
@@ -75,7 +76,7 @@ public class TestIcebergSourceSplitSerializer {
   private void serializeAndDeserializeV1(int splitCount, int filesPerSplit) throws Exception {
     final List<IcebergSourceSplit> splits =
         SplitHelpers.createSplitsFromTransientHadoopTable(
-            TEMPORARY_FOLDER, splitCount, filesPerSplit);
+            temporaryFolder, splitCount, filesPerSplit);
     for (IcebergSourceSplit split : splits) {
       byte[] result = split.serializeV1();
       IcebergSourceSplit deserialized = IcebergSourceSplit.deserializeV1(result);
@@ -92,7 +93,7 @@ public class TestIcebergSourceSplitSerializer {
   private void serializeAndDeserializeV2(int splitCount, int filesPerSplit) throws Exception {
     final List<IcebergSourceSplit> splits =
         SplitHelpers.createSplitsFromTransientHadoopTable(
-            TEMPORARY_FOLDER, splitCount, filesPerSplit);
+            temporaryFolder, splitCount, filesPerSplit);
     for (IcebergSourceSplit split : splits) {
       byte[] result = split.serializeV2();
       IcebergSourceSplit deserialized = IcebergSourceSplit.deserializeV2(result, true);
@@ -109,9 +110,9 @@ public class TestIcebergSourceSplitSerializer {
       throws Exception {
     final List<IcebergSourceSplit> splits =
         SplitHelpers.createSplitsFromTransientHadoopTable(
-            TEMPORARY_FOLDER, splitCount, filesPerSplit);
+            temporaryFolder, splitCount, filesPerSplit);
     final List<IcebergSourceSplit> splitsWithMockDeleteFiles =
-        SplitHelpers.equipSplitsWithMockDeleteFiles(splits, TEMPORARY_FOLDER, mockDeletesPerSplit);
+        SplitHelpers.equipSplitsWithMockDeleteFiles(splits, temporaryFolder, mockDeletesPerSplit);
 
     for (IcebergSourceSplit split : splitsWithMockDeleteFiles) {
       byte[] result = split.serializeV3();
@@ -123,7 +124,7 @@ public class TestIcebergSourceSplitSerializer {
   @Test
   public void testDeserializeV1() throws Exception {
     final List<IcebergSourceSplit> splits =
-        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 1, 1);
+        SplitHelpers.createSplitsFromTransientHadoopTable(temporaryFolder, 1, 1);
     for (IcebergSourceSplit split : splits) {
       byte[] result = split.serializeV1();
       IcebergSourceSplit deserialized = serializer.deserialize(1, result);
@@ -135,7 +136,7 @@ public class TestIcebergSourceSplitSerializer {
   public void testCheckpointedPosition() throws Exception {
     final AtomicInteger index = new AtomicInteger();
     final List<IcebergSourceSplit> splits =
-        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 10, 2).stream()
+        SplitHelpers.createSplitsFromTransientHadoopTable(temporaryFolder, 10, 2).stream()
             .map(
                 split -> {
                   IcebergSourceSplit result;
@@ -155,7 +156,7 @@ public class TestIcebergSourceSplitSerializer {
       assertSplitEquals(split, deserialized);
 
       byte[] cachedResult = serializer.serialize(split);
-      Assert.assertSame(result, cachedResult);
+      assertThat(cachedResult).isSameAs(result);
       IcebergSourceSplit deserialized2 =
           serializer.deserialize(serializer.getVersion(), cachedResult);
       assertSplitEquals(split, deserialized2);
@@ -165,18 +166,18 @@ public class TestIcebergSourceSplitSerializer {
   private void assertSplitEquals(IcebergSourceSplit expected, IcebergSourceSplit actual) {
     List<FileScanTask> expectedTasks = Lists.newArrayList(expected.task().tasks().iterator());
     List<FileScanTask> actualTasks = Lists.newArrayList(actual.task().tasks().iterator());
-    Assert.assertEquals(expectedTasks.size(), actualTasks.size());
+    assertThat(actualTasks).hasSameSizeAs(expectedTasks);
     for (int i = 0; i < expectedTasks.size(); ++i) {
       FileScanTask expectedTask = expectedTasks.get(i);
       FileScanTask actualTask = actualTasks.get(i);
-      Assert.assertEquals(expectedTask.file().path(), actualTask.file().path());
-      Assert.assertEquals(expectedTask.sizeBytes(), actualTask.sizeBytes());
-      Assert.assertEquals(expectedTask.filesCount(), actualTask.filesCount());
-      Assert.assertEquals(expectedTask.start(), actualTask.start());
-      Assert.assertEquals(expectedTask.length(), actualTask.length());
+      assertThat(actualTask.file().path()).isEqualTo(expectedTask.file().path());
+      assertThat(actualTask.sizeBytes()).isEqualTo(expectedTask.sizeBytes());
+      assertThat(actualTask.filesCount()).isEqualTo(expectedTask.filesCount());
+      assertThat(actualTask.start()).isEqualTo(expectedTask.start());
+      assertThat(actualTask.length()).isEqualTo(expectedTask.length());
     }
 
-    Assert.assertEquals(expected.fileOffset(), actual.fileOffset());
-    Assert.assertEquals(expected.recordOffset(), actual.recordOffset());
+    assertThat(actual.fileOffset()).isEqualTo(expected.fileOffset());
+    assertThat(actual.recordOffset()).isEqualTo(expected.recordOffset());
   }
 }

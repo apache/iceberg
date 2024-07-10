@@ -61,7 +61,6 @@ public abstract class ReaderFunctionTestBase<T> {
   @Parameter(index = 0)
   private FileFormat fileFormat;
 
-  @Parameter(index = 1)
   private final GenericAppenderFactory appenderFactory =
       new GenericAppenderFactory(TestFixtures.SCHEMA);
 

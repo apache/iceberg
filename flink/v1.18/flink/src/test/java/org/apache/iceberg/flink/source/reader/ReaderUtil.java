@@ -49,7 +49,6 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.rules.TemporaryFolder;
 
 public class ReaderUtil {
 
@@ -105,24 +104,6 @@ public class ReaderUtil {
       long seed, Schema schema, int listSize, int batchCount) {
     List<Record> records = RandomGenericData.generate(schema, listSize * batchCount, seed);
     return Lists.partition(records, batchCount);
-  }
-
-  // Only for JUnit4 tests. Keep this method for test migration from JUnit4 to JUnit5
-  public static CombinedScanTask createCombinedScanTask(
-      List<List<Record>> recordBatchList,
-      TemporaryFolder temporaryFolder,
-      FileFormat fileFormat,
-      GenericAppenderFactory appenderFactory)
-      throws IOException {
-    List<FileScanTask> fileTasks = Lists.newArrayListWithCapacity(recordBatchList.size());
-    for (List<Record> recordBatch : recordBatchList) {
-      FileScanTask fileTask =
-          ReaderUtil.createFileTask(
-              recordBatch, temporaryFolder.newFile(), fileFormat, appenderFactory);
-      fileTasks.add(fileTask);
-    }
-
-    return new BaseCombinedScanTask(fileTasks);
   }
 
   public static CombinedScanTask createCombinedScanTask(

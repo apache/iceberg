@@ -18,8 +18,9 @@
  */
 package org.apache.iceberg.flink.source.enumerator;
 
-import org.junit.Assert;
-import org.junit.Test;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
 
 public class TestEnumerationHistory {
   private static final int MAX_HISTORY_SIZE = 3;
@@ -89,28 +90,28 @@ public class TestEnumerationHistory {
   }
 
   private void testHistory(EnumerationHistory history, int[] expectedHistorySnapshot) {
-    Assert.assertFalse(history.shouldPauseSplitDiscovery(FEW_PENDING_SPLITS));
+    assertThat(history.shouldPauseSplitDiscovery(FEW_PENDING_SPLITS)).isFalse();
     if (history.hasFullHistory()) {
       // throttle because pending split count is more than the sum of enumeration history
-      Assert.assertTrue(history.shouldPauseSplitDiscovery(TOO_MANY_PENDING_SPLITS));
+      assertThat(history.shouldPauseSplitDiscovery(TOO_MANY_PENDING_SPLITS)).isTrue();
     } else {
       // skipped throttling check because there is not enough history
-      Assert.assertFalse(history.shouldPauseSplitDiscovery(TOO_MANY_PENDING_SPLITS));
+      assertThat(history.shouldPauseSplitDiscovery(TOO_MANY_PENDING_SPLITS)).isFalse();
     }
 
     int[] historySnapshot = history.snapshot();
-    Assert.assertArrayEquals(expectedHistorySnapshot, historySnapshot);
+    assertThat(historySnapshot).containsExactly(expectedHistorySnapshot);
 
     EnumerationHistory restoredHistory = new EnumerationHistory(MAX_HISTORY_SIZE);
     restoredHistory.restore(historySnapshot);
 
-    Assert.assertFalse(history.shouldPauseSplitDiscovery(FEW_PENDING_SPLITS));
+    assertThat(history.shouldPauseSplitDiscovery(FEW_PENDING_SPLITS)).isFalse();
     if (history.hasFullHistory()) {
       // throttle because pending split count is more than the sum of enumeration history
-      Assert.assertTrue(history.shouldPauseSplitDiscovery(TOO_MANY_PENDING_SPLITS));
+      assertThat(history.shouldPauseSplitDiscovery(TOO_MANY_PENDING_SPLITS)).isTrue();
     } else {
       // skipped throttling check because there is not enough history
-      Assert.assertFalse(history.shouldPauseSplitDiscovery(30));
+      assertThat(history.shouldPauseSplitDiscovery(30)).isFalse();
     }
   }
 
@@ -125,10 +126,10 @@ public class TestEnumerationHistory {
     EnumerationHistory smallerHistory = new EnumerationHistory(2);
     smallerHistory.restore(historySnapshot);
     int[] expectedRestoredHistorySnapshot = {2, 3};
-    Assert.assertArrayEquals(expectedRestoredHistorySnapshot, smallerHistory.snapshot());
+    assertThat(smallerHistory.snapshot()).containsExactly(expectedRestoredHistorySnapshot);
 
     EnumerationHistory largerHisotry = new EnumerationHistory(4);
     largerHisotry.restore(historySnapshot);
-    Assert.assertArrayEquals(historySnapshot, largerHisotry.snapshot());
+    assertThat(largerHisotry.snapshot()).containsExactly(historySnapshot);
   }
 }

@@ -79,7 +79,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startingStrategy(StreamingStartingStrategy.TABLE_SCAN_THEN_INCREMENTAL)
             .build();
 
-    // empty table
     assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
         .isNotPresent();
 
@@ -97,7 +96,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_LATEST_SNAPSHOT)
             .build();
 
-    // empty table
     assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
         .isNotPresent();
 
@@ -115,7 +113,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startingStrategy(StreamingStartingStrategy.INCREMENTAL_FROM_EARLIEST_SNAPSHOT)
             .build();
 
-    // empty table
     assertThat(ContinuousSplitPlannerImpl.startSnapshot(TABLE_RESOURCE.table(), scanContext))
         .isNotPresent();
 
@@ -134,7 +131,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startSnapshotId(1L)
             .build();
 
-    // empty table
     assertThatThrownBy(
             () ->
                 ContinuousSplitPlannerImpl.startSnapshot(
@@ -165,7 +161,6 @@ public class TestContinuousSplitPlannerImplStartStrategy {
             .startSnapshotTimestamp(1L)
             .build();
 
-    // empty table
     assertThatThrownBy(
             () ->
                 ContinuousSplitPlannerImpl.startSnapshot(

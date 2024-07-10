@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.source.assigner;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
@@ -26,8 +27,7 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.flink.source.split.SplitComparators;
 import org.apache.iceberg.util.SerializationUtil;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestBase {
   @Override
@@ -70,12 +70,12 @@ public class TestFileSequenceNumberBasedSplitAssigner extends SplitAssignerTestB
     byte[] bytes = SerializationUtil.serializeToBytes(SplitComparators.fileSequenceNumber());
     SerializableComparator<IcebergSourceSplit> comparator =
         SerializationUtil.deserializeFromBytes(bytes);
-    Assert.assertNotNull(comparator);
+    assertThat(comparator).isNotNull();
   }
 
   private void assertGetNext(SplitAssigner assigner, Long expectedSequenceNumber) {
     GetSplitResult result = assigner.getNext(null);
     ContentFile file = result.split().task().files().iterator().next().file();
-    Assert.assertEquals(expectedSequenceNumber, file.fileSequenceNumber());
+    assertThat(file.fileSequenceNumber()).isEqualTo(expectedSequenceNumber);
   }
 }

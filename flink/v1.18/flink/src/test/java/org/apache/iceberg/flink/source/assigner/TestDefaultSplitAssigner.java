@@ -19,7 +19,7 @@
 package org.apache.iceberg.flink.source.assigner;
 
 import org.apache.iceberg.flink.source.SplitHelpers;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestDefaultSplitAssigner extends SplitAssignerTestBase {
   @Override
@@ -32,7 +32,7 @@ public class TestDefaultSplitAssigner extends SplitAssignerTestBase {
   public void testMultipleFilesInASplit() throws Exception {
     SplitAssigner assigner = splitAssigner();
     assigner.onDiscoveredSplits(
-        SplitHelpers.createSplitsFromTransientHadoopTable(TEMPORARY_FOLDER, 4, 2));
+        SplitHelpers.createSplitsFromTransientHadoopTable(temporaryFolder, 4, 2));
 
     assertGetNext(assigner, GetSplitResult.Status.AVAILABLE);
     assertSnapshot(assigner, 1);
