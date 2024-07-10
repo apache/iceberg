@@ -77,22 +77,17 @@ class MapRangePartitioner implements Partitioner<RowData> {
   MapRangePartitioner(
       Schema schema,
       SortOrder sortOrder,
-      MapDataStatistics dataStatistics,
+      Map<SortKey, Long> mapStatistics,
       double closeFileCostInWeightPercentage) {
-    dataStatistics
-        .statistics()
-        .entrySet()
-        .forEach(
-            entry ->
-                Preconditions.checkArgument(
-                    entry.getValue() > 0,
-                    "Invalid statistics: weight is 0 for key %s",
-                    entry.getKey()));
+    mapStatistics.forEach(
+        (key, value) ->
+            Preconditions.checkArgument(
+                value > 0, "Invalid statistics: weight is 0 for key %s", key));
 
     this.rowDataWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(schema), schema.asStruct());
     this.sortKey = new SortKey(schema, sortOrder);
     this.comparator = SortOrderComparators.forSchema(schema, sortOrder);
-    this.mapStatistics = dataStatistics.statistics();
+    this.mapStatistics = mapStatistics;
     this.closeFileCostInWeightPercentage = closeFileCostInWeightPercentage;
     this.newSortKeyCounter = 0;
     this.lastNewSortKeyLogTimeMilli = System.currentTimeMillis();
@@ -117,8 +112,11 @@ class MapRangePartitioner implements Partitioner<RowData> {
       newSortKeyCounter += 1;
       long now = System.currentTimeMillis();
       if (now - lastNewSortKeyLogTimeMilli > TimeUnit.MINUTES.toMillis(1)) {
-        LOG.info("Encounter new sort keys in total {} times", newSortKeyCounter);
+        LOG.info(
+            "Encounter new sort keys {} times. Fall back to round robin as statistics not learned yet",
+            newSortKeyCounter);
         lastNewSortKeyLogTimeMilli = now;
+        newSortKeyCounter = 0;
       }
       return (int) (newSortKeyCounter % numPartitions);
     }
@@ -163,6 +161,8 @@ class MapRangePartitioner implements Partitioner<RowData> {
   }
 
   /**
+   * Returns assignment summary for every subtask.
+   *
    * @return assignment summary for every subtask. Key is subtaskId. Value pair is (weight assigned
    *     to the subtask, number of keys assigned to the subtask)
    */
@@ -328,7 +328,11 @@ class MapRangePartitioner implements Partitioner<RowData> {
       }
     }
 
-    /** @return subtask id */
+    /**
+     * Select a subtask for the key.
+     *
+     * @return subtask id
+     */
     int select() {
       if (assignedSubtasks.length == 1) {
         // only choice. no need to run random number generator.

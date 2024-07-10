@@ -26,7 +26,7 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'com.github.johnrengelman:shadow:8.1.1'
+    classpath 'io.github.goooler.shadow:shadow-gradle-plugin:8.1.8'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
     // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
     // in an old version of the errorprone, which doesn't work w/ Gradle 8, so bump errorpone as
@@ -38,9 +38,9 @@ buildscript {
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
-    classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
-    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.1'
-    classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.0.0'
+    classpath 'org.revapi:gradle-revapi:1.8.0'
+    classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.2'
+    classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.1.0'
     classpath 'org.openapitools:openapi-generator-gradle-plugin:6.6.0'
   }
 }
@@ -64,8 +64,7 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
   project.ext.extraJvmArgs = []
 } else if (JavaVersion.current() == JavaVersion.VERSION_17) {
   project.ext.jdkVersion = '17'
-  project.ext.extraJvmArgs = ["-XX:+IgnoreUnrecognizedVMOptions",
-                              "--add-opens", "java.base/java.io=ALL-UNNAMED",
+  project.ext.extraJvmArgs = ["--add-opens", "java.base/java.io=ALL-UNNAMED",
                               "--add-opens", "java.base/java.lang.invoke=ALL-UNNAMED",
                               "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED",
                               "--add-opens", "java.base/java.lang=ALL-UNNAMED",
@@ -140,7 +139,7 @@ subprojects {
   apply plugin: 'java-library'
 
   if (project.name in REVAPI_PROJECTS) {
-    apply plugin: 'com.palantir.revapi'
+    apply plugin: 'org.revapi.revapi-gradle-plugin'
     revapi {
       oldGroup = project.group
       oldName = project.name
@@ -165,6 +164,10 @@ subprojects {
       if (rootTask.name == 'revapi') {
         rootTask.finalizedBy showDeprecationRulesOnRevApiFailure
       }
+    }
+    
+    tasks.named("revapiAnalyze").configure {
+      dependsOn(":iceberg-common:jar")
     }
   }
 
@@ -254,7 +257,7 @@ subprojects {
 }
 
 project(':iceberg-bundled-guava') {
-  apply plugin: 'com.github.johnrengelman.shadow'
+  apply plugin: 'io.github.goooler.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 
@@ -352,8 +355,8 @@ project(':iceberg-core') {
     implementation libs.aircompressor
     implementation libs.httpcomponents.httpclient5
     implementation platform(libs.jackson.bom)
-    implementation "com.fasterxml.jackson.core:jackson-core"
-    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation libs.jackson.core
+    implementation libs.jackson.databind
     implementation libs.caffeine
     implementation libs.roaringbitmap
     compileOnly(libs.hadoop2.client) {
@@ -469,8 +472,8 @@ project(':iceberg-aws') {
     compileOnly libs.immutables.value
     implementation libs.caffeine
     implementation platform(libs.jackson.bom)
-    implementation "com.fasterxml.jackson.core:jackson-databind"
-    implementation "com.fasterxml.jackson.core:jackson-core"
+    implementation libs.jackson.core
+    implementation libs.jackson.databind
 
     compileOnly(platform(libs.awssdk.bom))
     compileOnly(libs.awssdk.s3accessgrants)
@@ -582,7 +585,7 @@ project(':iceberg-delta-lake') {
     implementation project(':iceberg-core')
     implementation project(':iceberg-parquet')
     implementation platform(libs.jackson.bom)
-    implementation "com.fasterxml.jackson.core:jackson-databind"
+    implementation libs.jackson.databind
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
 
@@ -912,8 +915,8 @@ project(':iceberg-nessie') {
       exclude group: 'com.fasterxml.jackson'
     }
     implementation platform(libs.jackson.bom)
-    implementation "com.fasterxml.jackson.core:jackson-databind"
-    implementation "com.fasterxml.jackson.core:jackson-core"
+    implementation libs.jackson.core
+    implementation libs.jackson.databind
 
     compileOnly libs.hadoop2.common
     // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
@@ -964,8 +967,8 @@ project(':iceberg-snowflake') {
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     implementation platform(libs.jackson.bom)
-    implementation "com.fasterxml.jackson.core:jackson-databind"
-    implementation "com.fasterxml.jackson.core:jackson-core"
+    implementation libs.jackson.core
+    implementation libs.jackson.databind
 
     runtimeOnly libs.snowflake.jdbc
 

@@ -83,8 +83,8 @@ public class TestRowDataWrapper extends RecordWrapperTest {
 
       assertMethod.assertEquals(
           "Should have expected StructLike values",
-          actualWrapper.set(recordStructLike),
-          expectedWrapper.set(rowDataStructLike));
+          expectedWrapper.set(rowDataStructLike),
+          actualWrapper.set(recordStructLike));
     }
 
     assertThat(actual).isExhausted();

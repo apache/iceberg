@@ -19,6 +19,7 @@
 package org.apache.iceberg.dell.ecs;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
@@ -33,7 +34,6 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
@@ -57,7 +57,7 @@ public class TestEcsTableOperations {
     // Use the TableOperations to test the CommitFailedException
     // High level actions, such as Table#updateProperties(), may refresh metadata.
     TableOperations operations = ((HasTableOperations) catalog2Table).operations();
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 operations.commit(
                     operations.current(),

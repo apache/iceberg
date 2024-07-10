@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -40,7 +42,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
@@ -79,7 +80,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -755,11 +755,10 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
 
     table.updateProperties().set(TableProperties.GC_ENABLED, "false").commit();
 
-    AssertHelpers.assertThrows(
-        "Should complain about removing orphan files",
-        ValidationException.class,
-        "Cannot delete orphan files: GC is disabled",
-        () -> SparkActions.get().deleteOrphanFiles(table).execute());
+    assertThatThrownBy(() -> SparkActions.get().deleteOrphanFiles(table).execute())
+        .as("Should complain about removing orphan files")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot delete orphan files: GC is disabled");
   }
 
   @Test
@@ -944,8 +943,8 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
         .olderThan(System.currentTimeMillis() + 1000)
         .execute();
 
-    Assertions.assertThat(statsLocation.exists()).as("stats file should exist").isTrue();
-    Assertions.assertThat(statsLocation.length())
+    assertThat(statsLocation.exists()).as("stats file should exist").isTrue();
+    assertThat(statsLocation.length())
         .as("stats file length")
         .isEqualTo(statisticsFile.fileSizeInBytes());
 
@@ -959,11 +958,11 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
             .olderThan(System.currentTimeMillis() + 1000)
             .execute();
     Iterable<String> orphanFileLocations = result.orphanFileLocations();
-    Assertions.assertThat(orphanFileLocations).as("Should be orphan files").hasSize(1);
-    Assertions.assertThat(Iterables.getOnlyElement(orphanFileLocations))
+    assertThat(orphanFileLocations).as("Should be orphan files").hasSize(1);
+    assertThat(Iterables.getOnlyElement(orphanFileLocations))
         .as("Deleted file")
         .isEqualTo(statsLocation.toURI().toString());
-    Assertions.assertThat(statsLocation.exists()).as("stats file should be deleted").isFalse();
+    assertThat(statsLocation.exists()).as("stats file should be deleted").isFalse();
   }
 
   @Test
@@ -991,18 +990,18 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   public void testPathsWithEqualSchemes() {
     List<String> validFiles = Lists.newArrayList("scheme1://bucket1/dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("scheme2://bucket1/dir1/dir2/file1");
-    AssertHelpers.assertThrows(
-        "Test remove orphan files with equal schemes",
-        ValidationException.class,
-        "Conflicting authorities/schemes: [(scheme1, scheme2)]",
-        () ->
-            executeTest(
-                validFiles,
-                actualFiles,
-                Lists.newArrayList(),
-                ImmutableMap.of(),
-                ImmutableMap.of(),
-                DeleteOrphanFiles.PrefixMismatchMode.ERROR));
+    assertThatThrownBy(
+            () ->
+                executeTest(
+                    validFiles,
+                    actualFiles,
+                    Lists.newArrayList(),
+                    ImmutableMap.of(),
+                    ImmutableMap.of(),
+                    DeleteOrphanFiles.PrefixMismatchMode.ERROR))
+        .as("Test remove orphan files with equal schemes")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Conflicting authorities/schemes: [(scheme1, scheme2)]");
 
     Map<String, String> equalSchemes = Maps.newHashMap();
     equalSchemes.put("scheme1", "scheme");
@@ -1020,18 +1019,18 @@ public abstract class TestRemoveOrphanFilesAction extends SparkTestBase {
   public void testPathsWithEqualAuthorities() {
     List<String> validFiles = Lists.newArrayList("hdfs://servicename1/dir1/dir2/file1");
     List<String> actualFiles = Lists.newArrayList("hdfs://servicename2/dir1/dir2/file1");
-    AssertHelpers.assertThrows(
-        "Test remove orphan files with equal authorities",
-        ValidationException.class,
-        "Conflicting authorities/schemes: [(servicename1, servicename2)]",
-        () ->
-            executeTest(
-                validFiles,
-                actualFiles,
-                Lists.newArrayList(),
-                ImmutableMap.of(),
-                ImmutableMap.of(),
-                DeleteOrphanFiles.PrefixMismatchMode.ERROR));
+    assertThatThrownBy(
+            () ->
+                executeTest(
+                    validFiles,
+                    actualFiles,
+                    Lists.newArrayList(),
+                    ImmutableMap.of(),
+                    ImmutableMap.of(),
+                    DeleteOrphanFiles.PrefixMismatchMode.ERROR))
+        .as("Test remove orphan files with equal authorities")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Conflicting authorities/schemes: [(servicename1, servicename2)]");
 
     Map<String, String> equalAuthorities = Maps.newHashMap();
     equalAuthorities.put("servicename1", "servicename");

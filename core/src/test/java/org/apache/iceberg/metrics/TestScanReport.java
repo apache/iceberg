@@ -18,29 +18,31 @@
  */
 package org.apache.iceberg.metrics;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.expressions.Expressions;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestScanReport {
 
   @Test
   public void missingFields() {
-    Assertions.assertThatThrownBy(() -> ImmutableScanReport.builder().build())
+    assertThatThrownBy(() -> ImmutableScanReport.builder().build())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Cannot build ScanReport, some of required attributes are not set [tableName, snapshotId, filter, schemaId, scanMetrics]");
 
-    Assertions.assertThatThrownBy(() -> ImmutableScanReport.builder().tableName("x").build())
+    assertThatThrownBy(() -> ImmutableScanReport.builder().tableName("x").build())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Cannot build ScanReport, some of required attributes are not set [snapshotId, filter, schemaId, scanMetrics]");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ImmutableScanReport.builder()
                     .tableName("x")
@@ -50,7 +52,7 @@ public class TestScanReport {
         .hasMessage(
             "Cannot build ScanReport, some of required attributes are not set [snapshotId, schemaId, scanMetrics]");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ImmutableScanReport.builder()
                     .tableName("x")
@@ -61,7 +63,7 @@ public class TestScanReport {
         .hasMessage(
             "Cannot build ScanReport, some of required attributes are not set [schemaId, scanMetrics]");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ImmutableScanReport.builder()
                     .tableName("x")
@@ -93,21 +95,21 @@ public class TestScanReport {
             .scanMetrics(ScanMetricsResult.fromScanMetrics(ScanMetrics.noop()))
             .build();
 
-    Assertions.assertThat(scanReport.tableName()).isEqualTo(tableName);
-    Assertions.assertThat(scanReport.schemaId()).isEqualTo(schemaId);
-    Assertions.assertThat(scanReport.projectedFieldIds()).isEqualTo(fieldIds);
-    Assertions.assertThat(scanReport.projectedFieldNames()).isEqualTo(fieldNames);
-    Assertions.assertThat(scanReport.filter()).isEqualTo(Expressions.alwaysTrue());
-    Assertions.assertThat(scanReport.snapshotId()).isEqualTo(23L);
-    Assertions.assertThat(scanReport.scanMetrics().totalPlanningDuration()).isNull();
-    Assertions.assertThat(scanReport.scanMetrics().resultDataFiles()).isNull();
-    Assertions.assertThat(scanReport.scanMetrics().resultDeleteFiles()).isNull();
-    Assertions.assertThat(scanReport.scanMetrics().totalDataManifests()).isNull();
-    Assertions.assertThat(scanReport.scanMetrics().totalDeleteManifests()).isNull();
-    Assertions.assertThat(scanReport.scanMetrics().scannedDataManifests()).isNull();
-    Assertions.assertThat(scanReport.scanMetrics().skippedDataManifests()).isNull();
-    Assertions.assertThat(scanReport.scanMetrics().totalFileSizeInBytes()).isNull();
-    Assertions.assertThat(scanReport.scanMetrics().totalDeleteFileSizeInBytes()).isNull();
+    assertThat(scanReport.tableName()).isEqualTo(tableName);
+    assertThat(scanReport.schemaId()).isEqualTo(schemaId);
+    assertThat(scanReport.projectedFieldIds()).isEqualTo(fieldIds);
+    assertThat(scanReport.projectedFieldNames()).isEqualTo(fieldNames);
+    assertThat(scanReport.filter()).isEqualTo(Expressions.alwaysTrue());
+    assertThat(scanReport.snapshotId()).isEqualTo(23L);
+    assertThat(scanReport.scanMetrics().totalPlanningDuration()).isNull();
+    assertThat(scanReport.scanMetrics().resultDataFiles()).isNull();
+    assertThat(scanReport.scanMetrics().resultDeleteFiles()).isNull();
+    assertThat(scanReport.scanMetrics().totalDataManifests()).isNull();
+    assertThat(scanReport.scanMetrics().totalDeleteManifests()).isNull();
+    assertThat(scanReport.scanMetrics().scannedDataManifests()).isNull();
+    assertThat(scanReport.scanMetrics().skippedDataManifests()).isNull();
+    assertThat(scanReport.scanMetrics().totalFileSizeInBytes()).isNull();
+    assertThat(scanReport.scanMetrics().totalDeleteFileSizeInBytes()).isNull();
   }
 
   @Test
@@ -136,24 +138,24 @@ public class TestScanReport {
             .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics))
             .build();
 
-    Assertions.assertThat(scanReport.tableName()).isEqualTo(tableName);
-    Assertions.assertThat(scanReport.schemaId()).isEqualTo(schemaId);
-    Assertions.assertThat(scanReport.projectedFieldIds()).isEqualTo(fieldIds);
-    Assertions.assertThat(scanReport.projectedFieldNames()).isEqualTo(fieldNames);
-    Assertions.assertThat(scanReport.filter()).isEqualTo(Expressions.alwaysTrue());
-    Assertions.assertThat(scanReport.snapshotId()).isEqualTo(23L);
-    Assertions.assertThat(scanReport.scanMetrics().totalPlanningDuration().totalDuration())
+    assertThat(scanReport.tableName()).isEqualTo(tableName);
+    assertThat(scanReport.schemaId()).isEqualTo(schemaId);
+    assertThat(scanReport.projectedFieldIds()).isEqualTo(fieldIds);
+    assertThat(scanReport.projectedFieldNames()).isEqualTo(fieldNames);
+    assertThat(scanReport.filter()).isEqualTo(Expressions.alwaysTrue());
+    assertThat(scanReport.snapshotId()).isEqualTo(23L);
+    assertThat(scanReport.scanMetrics().totalPlanningDuration().totalDuration())
         .isEqualTo(Duration.ofMinutes(10L));
-    Assertions.assertThat(scanReport.scanMetrics().resultDataFiles().value()).isEqualTo(5);
-    Assertions.assertThat(scanReport.scanMetrics().resultDeleteFiles().value()).isEqualTo(5);
-    Assertions.assertThat(scanReport.scanMetrics().scannedDataManifests().value()).isEqualTo(5);
-    Assertions.assertThat(scanReport.scanMetrics().totalDataManifests().value()).isEqualTo(5);
-    Assertions.assertThat(scanReport.scanMetrics().totalFileSizeInBytes().value()).isEqualTo(1024L);
+    assertThat(scanReport.scanMetrics().resultDataFiles().value()).isEqualTo(5);
+    assertThat(scanReport.scanMetrics().resultDeleteFiles().value()).isEqualTo(5);
+    assertThat(scanReport.scanMetrics().scannedDataManifests().value()).isEqualTo(5);
+    assertThat(scanReport.scanMetrics().totalDataManifests().value()).isEqualTo(5);
+    assertThat(scanReport.scanMetrics().totalFileSizeInBytes().value()).isEqualTo(1024L);
   }
 
   @Test
   public void nullScanMetrics() {
-    Assertions.assertThatThrownBy(() -> ScanMetrics.of(null))
+    assertThatThrownBy(() -> ScanMetrics.of(null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("metricsContext");
   }

@@ -254,7 +254,6 @@ public class RESTCatalogAdapter implements RESTClient {
       case "client_credentials":
         return OAuthTokenResponse.builder()
             .withToken("client-credentials-token:sub=" + request.get("client_id"))
-            .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
             .withTokenType("Bearer")
             .build();
 
@@ -298,7 +297,17 @@ public class RESTCatalogAdapter implements RESTClient {
             ns = Namespace.empty();
           }
 
-          return castResponse(responseType, CatalogHandlers.listNamespaces(asNamespaceCatalog, ns));
+          String pageToken = PropertyUtil.propertyAsString(vars, "pageToken", null);
+          String pageSize = PropertyUtil.propertyAsString(vars, "pageSize", null);
+
+          if (pageSize != null) {
+            return castResponse(
+                responseType,
+                CatalogHandlers.listNamespaces(asNamespaceCatalog, ns, pageToken, pageSize));
+          } else {
+            return castResponse(
+                responseType, CatalogHandlers.listNamespaces(asNamespaceCatalog, ns));
+          }
         }
         break;
 
@@ -339,7 +348,14 @@ public class RESTCatalogAdapter implements RESTClient {
       case LIST_TABLES:
         {
           Namespace namespace = namespaceFromPathVars(vars);
-          return castResponse(responseType, CatalogHandlers.listTables(catalog, namespace));
+          String pageToken = PropertyUtil.propertyAsString(vars, "pageToken", null);
+          String pageSize = PropertyUtil.propertyAsString(vars, "pageSize", null);
+          if (pageSize != null) {
+            return castResponse(
+                responseType, CatalogHandlers.listTables(catalog, namespace, pageToken, pageSize));
+          } else {
+            return castResponse(responseType, CatalogHandlers.listTables(catalog, namespace));
+          }
         }
 
       case CREATE_TABLE:
@@ -412,7 +428,16 @@ public class RESTCatalogAdapter implements RESTClient {
         {
           if (null != asViewCatalog) {
             Namespace namespace = namespaceFromPathVars(vars);
-            return castResponse(responseType, CatalogHandlers.listViews(asViewCatalog, namespace));
+            String pageToken = PropertyUtil.propertyAsString(vars, "pageToken", null);
+            String pageSize = PropertyUtil.propertyAsString(vars, "pageSize", null);
+            if (pageSize != null) {
+              return castResponse(
+                  responseType,
+                  CatalogHandlers.listViews(asViewCatalog, namespace, pageToken, pageSize));
+            } else {
+              return castResponse(
+                  responseType, CatalogHandlers.listViews(asViewCatalog, namespace));
+            }
           }
           break;
         }

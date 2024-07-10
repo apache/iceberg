@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -34,7 +35,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -83,8 +83,7 @@ public class TestBranchDDL extends ExtensionsTestBase {
         .isEqualTo(TimeUnit.DAYS.toMillis(maxSnapshotAge));
     assertThat(ref.maxRefAgeMs().longValue()).isEqualTo(TimeUnit.DAYS.toMillis(maxRefAge));
 
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s", tableName, branchName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Ref b1 already exists");
   }
@@ -195,7 +194,7 @@ public class TestBranchDDL extends ExtensionsTestBase {
         .isEqualTo(TimeUnit.DAYS.toMillis(maxSnapshotAge));
     assertThat(ref.maxRefAgeMs()).isNull();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s CREATE BRANCH %s WITH SNAPSHOT RETENTION",
@@ -217,18 +216,17 @@ public class TestBranchDDL extends ExtensionsTestBase {
     assertThat(ref.maxSnapshotAgeMs()).isNull();
     assertThat(ref.maxRefAgeMs().longValue()).isEqualTo(TimeUnit.DAYS.toMillis(maxRefAge));
 
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN", tableName, branchName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE BRANCH %s RETAIN", tableName, branchName))
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql("ALTER TABLE %s CREATE BRANCH %s RETAIN %s DAYS", tableName, branchName, "abc"))
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s CREATE BRANCH %s RETAIN %d SECONDS",
@@ -256,8 +254,7 @@ public class TestBranchDDL extends ExtensionsTestBase {
 
   @TestTemplate
   public void testDropBranchDoesNotExist() {
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "nonExistingBranch"))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "nonExistingBranch"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Branch does not exist: nonExistingBranch");
   }
@@ -268,21 +265,21 @@ public class TestBranchDDL extends ExtensionsTestBase {
     Table table = insertRows();
     table.manageSnapshots().createTag(tagName, table.currentSnapshot().snapshotId()).commit();
 
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, tagName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, tagName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Ref b1 is a tag not a branch");
   }
 
   @TestTemplate
   public void testDropBranchNonConformingName() {
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "123"))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH %s", tableName, "123"))
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input '123'");
   }
 
   @TestTemplate
   public void testDropMainBranchFails() {
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH main", tableName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP BRANCH main", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot remove main branch");
   }
@@ -387,7 +384,7 @@ public class TestBranchDDL extends ExtensionsTestBase {
   public void replaceBranchDoesNotExist() throws NoSuchTableException {
     Table table = insertRows();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s REPLACE BRANCH %s AS OF VERSION %d",

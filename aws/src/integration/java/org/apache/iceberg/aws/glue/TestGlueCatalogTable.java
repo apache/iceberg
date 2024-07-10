@@ -182,6 +182,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
     assertThat(current).isNull();
     // create table, refresh should update
     createTable(namespace, tableName);
+    String description = "test description";
+    updateTableDescription(namespace, tableName, description);
     current = ops.refresh();
     assertThat(current.schema()).asString().isEqualTo(schema.toString());
     assertThat(current.spec()).isEqualTo(partitionSpec);
@@ -206,6 +208,80 @@ public class TestGlueCatalogTable extends GlueTestBase {
         .isEqualTo("EXTERNAL_TABLE");
     assertThat(response.table().storageDescriptor().columns()).hasSameSizeAs(schema.columns());
     assertThat(response.table().partitionKeys()).hasSameSizeAs(partitionSpec.fields());
+    assertThat(response.table().description()).isEqualTo(description);
+
+    String updatedComment = "test updated comment";
+    table
+        .updateProperties()
+        .set(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, updatedComment)
+        .commit();
+    // check table in Glue
+    response =
+        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    assertThat(response.table().description()).isEqualTo(updatedComment);
+  }
+
+  @Test
+  public void testDropColumn() {
+    String namespace = createNamespace();
+    String tableName = createTable(namespace);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    table
+        .updateSchema()
+        .addColumn("c2", Types.StringType.get(), "updated from Iceberg API")
+        .addColumn("c3", Types.StringType.get())
+        .commit();
+
+    updateTableColumns(
+        namespace,
+        tableName,
+        column -> {
+          if (column.name().equals("c3")) {
+            return column.toBuilder().comment("updated from Glue API").build();
+          } else {
+            return column;
+          }
+        });
+
+    table.updateSchema().deleteColumn("c2").deleteColumn("c3").commit();
+
+    GetTableResponse response =
+        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    List<Column> actualColumns = response.table().storageDescriptor().columns();
+
+    List<Column> expectedColumns =
+        ImmutableList.of(
+            Column.builder()
+                .name("c1")
+                .type("string")
+                .comment("c1")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "1",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"))
+                .build(),
+            Column.builder()
+                .name("c2")
+                .type("string")
+                .comment("updated from Iceberg API")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "2",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "false"))
+                .build(),
+            Column.builder()
+                .name("c3")
+                .type("string")
+                .comment("updated from Glue API")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "3",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "false"))
+                .build());
+    assertThat(actualColumns).isEqualTo(expectedColumns);
   }
 
   @Test
@@ -497,6 +573,72 @@ public class TestGlueCatalogTable extends GlueTestBase {
                         IcebergToGlueConverter.ICEBERG_FIELD_ID, "5",
                         IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
                         IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "false"))
+                .build());
+    assertThat(actualColumns).isEqualTo(expectedColumns);
+  }
+
+  @Test
+  public void testGlueTableColumnCommentsPreserved() {
+    String namespace = createNamespace();
+    String tableName = createTable(namespace);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    table
+        .updateSchema()
+        .addColumn("c2", Types.StringType.get())
+        .addColumn("c3", Types.StringType.get())
+        .commit();
+
+    updateTableColumns(
+        namespace,
+        tableName,
+        column -> {
+          if (column.name().equals("c2") || column.name().equals("c3")) {
+            return column.toBuilder().comment("updated from Glue API").build();
+          } else {
+            return column;
+          }
+        });
+
+    table
+        .updateSchema()
+        .updateColumn("c2", Types.StringType.get(), "updated from Iceberg API")
+        .commit();
+
+    GetTableResponse response =
+        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    List<Column> actualColumns = response.table().storageDescriptor().columns();
+
+    List<Column> expectedColumns =
+        ImmutableList.of(
+            Column.builder()
+                .name("c1")
+                .type("string")
+                .comment("c1")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "1",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"))
+                .build(),
+            Column.builder()
+                .name("c2")
+                .type("string")
+                .comment("updated from Iceberg API")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "2",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"))
+                .build(),
+            Column.builder()
+                .name("c3")
+                .type("string")
+                .comment("updated from Glue API")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "3",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"))
                 .build());
     assertThat(actualColumns).isEqualTo(expectedColumns);
   }

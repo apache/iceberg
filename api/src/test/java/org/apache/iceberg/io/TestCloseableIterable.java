@@ -19,6 +19,7 @@
 package org.apache.iceberg.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -32,7 +33,6 @@ import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestCloseableIterable {
@@ -92,15 +92,14 @@ public class TestCloseableIterable {
     CloseableIterable<Integer> concat5 =
         CloseableIterable.concat(Lists.newArrayList(empty, empty, empty));
 
-    Assertions.assertThatThrownBy(() -> Iterables.getLast(concat5))
-        .isInstanceOf(NoSuchElementException.class);
+    assertThatThrownBy(() -> Iterables.getLast(concat5)).isInstanceOf(NoSuchElementException.class);
   }
 
   @Test
   public void testWithCompletionRunnable() throws IOException {
     AtomicInteger completionCounter = new AtomicInteger(0);
     List<Integer> items = Lists.newArrayList(1, 2, 3, 4, 5);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> CloseableIterable.whenComplete(CloseableIterable.combine(items, () -> {}), null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid runnable: null");
@@ -120,9 +119,9 @@ public class TestCloseableIterable {
     try (CloseableIterable<Integer> iter =
         CloseableIterable.whenComplete(
             CloseableIterable.combine(empty, () -> {}), completionCounter::incrementAndGet)) {
-      iter.forEach(val -> Assertions.assertThat(completionCounter.get()).isZero());
+      iter.forEach(val -> assertThat(completionCounter.get()).isZero());
     }
-    Assertions.assertThat(completionCounter.get()).isOne();
+    assertThat(completionCounter.get()).isOne();
   }
 
   @Test
@@ -142,7 +141,7 @@ public class TestCloseableIterable {
     AtomicInteger completionCounter = new AtomicInteger(0);
     List<Integer> items = Lists.newArrayList(1, 2, 3, 4, 5);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               try (CloseableIterable<Integer> iter =
                   CloseableIterable.whenComplete(
@@ -158,7 +157,7 @@ public class TestCloseableIterable {
         .isInstanceOf(RuntimeException.class)
         .hasMessage("expected");
 
-    Assertions.assertThat(completionCounter.get()).isOne();
+    assertThat(completionCounter.get()).isOne();
   }
 
   @Test
@@ -217,7 +216,7 @@ public class TestCloseableIterable {
             counter, CloseableIterable.withNoopClose(Arrays.asList(1, 2, 3, 4, 5)));
     assertThat(counter.value()).isZero();
     items.forEach(item -> {});
-    Assertions.assertThat(counter.value()).isEqualTo(5);
+    assertThat(counter.value()).isEqualTo(5);
   }
 
   @Test
@@ -230,45 +229,42 @@ public class TestCloseableIterable {
             x -> x % 2 == 0);
     assertThat(counter.value()).isZero();
     items.forEach(item -> {});
-    Assertions.assertThat(counter.value()).isEqualTo(3);
+    assertThat(counter.value()).isEqualTo(3);
   }
 
   @Test
   public void countNullCheck() {
-    Assertions.assertThatThrownBy(() -> CloseableIterable.count(null, CloseableIterable.empty()))
+    assertThatThrownBy(() -> CloseableIterable.count(null, CloseableIterable.empty()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid counter: null");
 
     Counter counter = new DefaultMetricsContext().counter("x");
-    Assertions.assertThatThrownBy(() -> CloseableIterable.count(counter, null))
+    assertThatThrownBy(() -> CloseableIterable.count(counter, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid iterable: null");
   }
 
   @Test
   public void countSkippedNullCheck() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 CloseableIterable.filter(null, CloseableIterable.empty(), Predicate.isEqual(true)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid counter: null");
 
     Counter counter = new DefaultMetricsContext().counter("x");
-    Assertions.assertThatThrownBy(
-            () -> CloseableIterable.filter(counter, null, Predicate.isEqual(true)))
+    assertThatThrownBy(() -> CloseableIterable.filter(counter, null, Predicate.isEqual(true)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid iterable: null");
 
-    Assertions.assertThatThrownBy(
-            () -> CloseableIterable.filter(counter, CloseableIterable.empty(), null))
+    assertThatThrownBy(() -> CloseableIterable.filter(counter, CloseableIterable.empty(), null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid predicate: null");
   }
 
   @Test
   public void transformNullCheck() {
-    Assertions.assertThatThrownBy(
-            () -> CloseableIterable.transform(CloseableIterable.empty(), null))
+    assertThatThrownBy(() -> CloseableIterable.transform(CloseableIterable.empty(), null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid transform: null");
   }

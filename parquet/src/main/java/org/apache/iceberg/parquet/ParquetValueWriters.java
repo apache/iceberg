@@ -147,16 +147,8 @@ public class ParquetValueWriters {
       super(desc);
     }
 
-    public void writeBoolean(int repetitionLevel, boolean value) {
-      column.writeBoolean(repetitionLevel, value);
-    }
-
     public void writeInteger(int repetitionLevel, int value) {
       column.writeInteger(repetitionLevel, value);
-    }
-
-    public void writeLong(int repetitionLevel, long value) {
-      column.writeLong(repetitionLevel, value);
     }
 
     public void writeFloat(int repetitionLevel, float value) {
@@ -379,7 +371,7 @@ public class ParquetValueWriters {
         List<FieldMetrics<?>> fieldMetricsFromWriter =
             writer.metrics().collect(Collectors.toList());
 
-        if (fieldMetricsFromWriter.size() == 0) {
+        if (fieldMetricsFromWriter.isEmpty()) {
           // we are not tracking field metrics for this type ourselves
           return Stream.empty();
         } else if (fieldMetricsFromWriter.size() == 1) {

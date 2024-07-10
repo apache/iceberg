@@ -23,26 +23,27 @@
 activation = "1.1.1"
 aliyun-sdk-oss = "3.10.2"
 antlr = "4.9.3"
-aircompressor = "0.26"
+aircompressor = "0.27"
 arrow = "15.0.2"
 avro = "1.11.3"
-assertj-core = "3.25.3"
+assertj-core = "3.26.0"
 awaitility = "4.2.1"
-awssdk-bom = "2.25.35"
-azuresdk-bom = "1.2.22"
+awssdk-bom = "2.26.16"
+azuresdk-bom = "1.2.25"
 awssdk-s3accessgrants = "2.0.0"
 caffeine = "2.9.3"
 calcite = "1.10.0"
-delta-standalone = "3.1.0"
-delta-spark = "3.1.0"
+datasketches = "6.0.0"
+delta-standalone = "3.2.0"
+delta-spark = "3.2.0"
 esotericsoftware-kryo = "4.0.3"
-errorprone-annotations = "2.26.1"
+errorprone-annotations = "2.28.0"
 findbugs-jsr305 = "3.0.2"
 flink117 = { strictly = "1.17.2"}
 flink118 =  { strictly = "1.18.1"}
 flink119 =  { strictly = "1.19.0"}
 google-libraries-bom = "26.28.0"
-guava = "33.1.0-jre"
+guava = "33.2.1-jre"
 hadoop2 = "2.7.3"
 hadoop3-client = "3.3.6"
 httpcomponents-httpclient5 = "5.3.1"
@@ -58,32 +59,32 @@ jackson215 = { strictly = "2.15.2"}
 jakarta-el-api = "3.0.3"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
-jetty = "9.4.54.v20240208"
+jetty = "9.4.55.v20240627"
 junit = "5.10.1"
-kafka = "3.7.0"
+kafka = "3.7.1"
 kryo-shaded = "4.0.3"
 microprofile-openapi-api = "3.1.1"
 mockito = "4.11.0"
 mockserver = "5.15.0"
-nessie = "0.79.0"
-netty-buffer = "4.1.109.Final"
-netty-buffer-compat = "4.1.109.Final"
+nessie = "0.91.3"
+netty-buffer = "4.1.111.Final"
+netty-buffer-compat = "4.1.111.Final"
 object-client-bundle = "3.3.2"
 orc = "1.9.3"
 parquet = "1.13.1"
 pig = "0.17.0"
-roaringbitmap = "1.0.6"
+roaringbitmap = "1.2.0"
 s3mock-junit5 = "2.11.0"
-scala-collection-compat = "2.11.0"
+scala-collection-compat = "2.12.0"
 slf4j = "1.7.36"
-snowflake-jdbc = "3.15.1"
+snowflake-jdbc = "3.16.1"
 spark-hive33 = "3.3.4"
-spark-hive34 = "3.4.2"
+spark-hive34 = "3.4.3"
 spark-hive35 = "3.5.1"
 spring-boot = "2.7.18"
-spring-web = "5.3.34"
-sqlite-jdbc = "3.45.2.0"
-testcontainers = "1.19.7"
+spring-web = "5.3.37"
+sqlite-jdbc = "3.46.0.0"
+testcontainers = "1.19.8"
 tez010 = "0.10.3"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
@@ -102,6 +103,7 @@ azuresdk-bom = { module = "com.azure:azure-sdk-bom", version.ref = "azuresdk-bom
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 calcite-core = { module = "org.apache.calcite:calcite-core", version.ref = "calcite" }
 calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "calcite" }
+datasketches = { module = "org.apache.datasketches:datasketches-java", version.ref = "datasketches" }
 delta-standalone = { module = "io.delta:delta-standalone_2.12", version.ref = "delta-standalone" }
 errorprone-annotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorprone-annotations" }
 findbugs-jsr305 = { module = "com.google.code.findbugs:jsr305", version.ref = "findbugs-jsr305" }
@@ -142,8 +144,9 @@ hive3-service = { module = "org.apache.hive:hive-service", version.ref = "hive3"
 httpcomponents-httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5", version.ref = "httpcomponents-httpclient5" }
 immutables-value = { module = "org.immutables:value", version.ref = "immutables-value" }
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson-bom" }
-jackson-core = { module = "com.fasterxml.jackson:jackson-core", version.ref = "jackson-bom" }
-jackson-databind = { module = "com.fasterxml.jackson:jackson-databind", version.ref = "jackson-bom" }
+jackson-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson-bom" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson-bom" }
+jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations", version.ref = "jackson-bom" }
 jackson211-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson211" }
 jackson212-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson212" }
 jackson213-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref =  "jackson213" }

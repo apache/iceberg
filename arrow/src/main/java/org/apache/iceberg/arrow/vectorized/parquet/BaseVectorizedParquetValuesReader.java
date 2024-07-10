@@ -145,7 +145,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
     int ch3 = inputStream.read();
     int ch2 = inputStream.read();
     int ch1 = inputStream.read();
-    return (ch1 << 24) + (ch2 << 16) + (ch3 << 8) + (ch4 << 0);
+    return (ch1 << 24) + (ch2 << 16) + (ch3 << 8) + ch4;
   }
 
   /** Reads the next byteWidth little endian int. */
@@ -166,7 +166,7 @@ public class BaseVectorizedParquetValuesReader extends ValuesReader {
           int ch3 = inputStream.read();
           int ch2 = inputStream.read();
           int ch1 = inputStream.read();
-          return (ch1 << 16) + (ch2 << 8) + (ch3 << 0);
+          return (ch1 << 16) + (ch2 << 8) + ch3;
         }
       case 4:
         {

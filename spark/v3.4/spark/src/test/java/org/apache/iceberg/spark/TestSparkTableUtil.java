@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.KryoHelpers;
@@ -27,7 +29,6 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -40,7 +41,7 @@ public class TestSparkTableUtil {
     SparkPartition sparkPartition = new SparkPartition(values, uri, format);
 
     SparkPartition deserialized = KryoHelpers.roundTripSerialize(sparkPartition);
-    Assertions.assertThat(sparkPartition).isEqualTo(deserialized);
+    assertThat(sparkPartition).isEqualTo(deserialized);
   }
 
   @Test
@@ -51,7 +52,7 @@ public class TestSparkTableUtil {
     SparkPartition sparkPartition = new SparkPartition(values, uri, format);
 
     SparkPartition deserialized = TestHelpers.roundTripSerialize(sparkPartition);
-    Assertions.assertThat(sparkPartition).isEqualTo(deserialized);
+    assertThat(sparkPartition).isEqualTo(deserialized);
   }
 
   @Test

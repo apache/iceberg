@@ -18,10 +18,13 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
@@ -55,7 +58,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -200,7 +202,7 @@ public class TestIcebergStreamWriter {
         LocatedFileStatus status = iterators.next();
         if (status.isFile()) {
           Path path = status.getPath();
-          if (path.getName().endsWith("." + format.toString().toLowerCase())) {
+          if (path.getName().endsWith("." + format.toString().toLowerCase(Locale.ROOT))) {
             paths.add(path.toString());
           }
         }
@@ -216,7 +218,7 @@ public class TestIcebergStreamWriter {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 2);
 
-      Assertions.assertThat(testHarness.getOneInputOperator()).isInstanceOf(BoundedOneInput.class);
+      assertThat(testHarness.getOneInputOperator()).isInstanceOf(BoundedOneInput.class);
       ((BoundedOneInput) testHarness.getOneInputOperator()).endInput();
 
       long expectedDataFiles = partitioned ? 2 : 1;

@@ -31,8 +31,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.SQLNonTransientConnectionException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -77,7 +79,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -165,6 +166,100 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     // second initialization should not fail even if tables are already created
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
     jdbcCatalog.initialize("test_jdbc_catalog", properties);
+  }
+
+  @Test
+  public void testDisableInitCatalogTablesOverridesDefault() throws Exception {
+    // as this test uses different connections, we can't use memory database (as it's per
+    // connection), but a file database instead
+    java.nio.file.Path dbFile = Files.createTempFile("icebergInitCatalogTables", "db");
+    String jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, jdbcUrl);
+    properties.put(JdbcUtil.INIT_CATALOG_TABLES_PROPERTY, "false");
+
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.initialize("test_jdbc_catalog", properties);
+
+    assertThat(catalogTablesExist(jdbcUrl)).isFalse();
+
+    assertThatThrownBy(() -> jdbcCatalog.listNamespaces())
+        .isInstanceOf(UncheckedSQLException.class)
+        .hasMessage(String.format("Failed to execute query: %s", JdbcUtil.LIST_ALL_NAMESPACES_SQL));
+  }
+
+  @Test
+  public void testEnableInitCatalogTablesOverridesDefault() throws Exception {
+    // as this test uses different connections, we can't use memory database (as it's per
+    // connection), but a file database instead
+    java.nio.file.Path dbFile = Files.createTempFile("icebergInitCatalogTables", "db");
+    String jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
+
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, jdbcUrl);
+    properties.put(JdbcUtil.INIT_CATALOG_TABLES_PROPERTY, "true");
+
+    JdbcCatalog jdbcCatalog = new JdbcCatalog(null, null, false);
+    jdbcCatalog.initialize("test_jdbc_catalog", properties);
+
+    assertThat(catalogTablesExist(jdbcUrl)).isTrue();
+  }
+
+  @Test
+  public void testRetryingErrorCodesProperty() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDB");
+    properties.put(JdbcUtil.RETRYABLE_STATUS_CODES, "57000,57P03,57P04");
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.setConf(conf);
+    jdbcCatalog.initialize("test_catalog_with_retryable_status_codes", properties);
+    JdbcClientPool jdbcClientPool = jdbcCatalog.connectionPool();
+    List<SQLException> expectedRetryableExceptions =
+        Lists.newArrayList(
+            new SQLException("operator_intervention", "57000"),
+            new SQLException("cannot_connect_now", "57P03"),
+            new SQLException("database_dropped", "57P04"));
+    JdbcClientPool.COMMON_RETRYABLE_CONNECTION_SQL_STATES.forEach(
+        code -> expectedRetryableExceptions.add(new SQLException("some failure", code)));
+
+    expectedRetryableExceptions.forEach(
+        exception -> {
+          assertThat(jdbcClientPool.isConnectionException(exception))
+              .as(String.format("%s status should be retryable", exception.getSQLState()))
+              .isTrue();
+        });
+
+    // Test the same retryable status codes but with spaces in the configuration
+    properties.put(JdbcUtil.RETRYABLE_STATUS_CODES, "57000, 57P03, 57P04");
+    jdbcCatalog.initialize("test_catalog_with_retryable_status_codes_with_spaces", properties);
+    JdbcClientPool updatedClientPool = jdbcCatalog.connectionPool();
+    expectedRetryableExceptions.forEach(
+        exception -> {
+          assertThat(updatedClientPool.isConnectionException(exception))
+              .as(String.format("%s status should be retryable", exception.getSQLState()))
+              .isTrue();
+        });
+  }
+
+  @Test
+  public void testSqlNonTransientExceptionNotRetryable() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(CatalogProperties.WAREHOUSE_LOCATION, this.tableDir.toAbsolutePath().toString());
+    properties.put(CatalogProperties.URI, "jdbc:sqlite:file::memory:?icebergDB");
+    properties.put(JdbcUtil.RETRYABLE_STATUS_CODES, "57000,57P03,57P04");
+    JdbcCatalog jdbcCatalog = new JdbcCatalog();
+    jdbcCatalog.setConf(conf);
+    jdbcCatalog.initialize("test_catalog_with_retryable_status_codes", properties);
+    JdbcClientPool jdbcClientPool = jdbcCatalog.connectionPool();
+    assertThat(
+            jdbcClientPool.isConnectionException(
+                new SQLNonTransientConnectionException("Failed to authenticate")))
+        .as("SQL Non Transient exception is not retryable")
+        .isFalse();
   }
 
   @Test
@@ -426,8 +521,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     FileSystem fs = Util.getFs(new Path(metaLocation), conf);
     assertThat(fs.isDirectory(new Path(metaLocation))).isTrue();
 
-    Assertions.assertThatThrownBy(
-            () -> catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned()))
+    assertThatThrownBy(() -> catalog.createTable(testTable, SCHEMA, PartitionSpec.unpartitioned()))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: db.ns1.ns2.tbl");
 
@@ -484,7 +578,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
             .withRecordCount(1)
             .build();
 
-    Assertions.assertThatThrownBy(() -> table.newAppend().appendFile(dataFile2).commit())
+    assertThatThrownBy(() -> table.newAppend().appendFile(dataFile2).commit())
         .isInstanceOf(NoSuchTableException.class)
         .hasMessage(
             "Failed to load table db.table from catalog test_jdbc_catalog: dropped by another process");
@@ -540,7 +634,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     assertThat(catalog.listTables(testTable.namespace())).doesNotContain(testTable);
     catalog.dropTable(testTable2);
 
-    Assertions.assertThatThrownBy(() -> catalog.listTables(testTable2.namespace()))
+    assertThatThrownBy(() -> catalog.listTables(testTable2.namespace()))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Namespace does not exist: db.ns1.ns2");
 
@@ -569,15 +663,14 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     assertThat(catalog.listTables(to.namespace())).contains(to).doesNotContain(from);
     assertThat(catalog.loadTable(to).name()).endsWith(to.name());
 
-    Assertions.assertThatThrownBy(
-            () -> catalog.renameTable(TableIdentifier.of("db", "tbl-not-exists"), to))
+    assertThatThrownBy(() -> catalog.renameTable(TableIdentifier.of("db", "tbl-not-exists"), to))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessage("Table does not exist: db.tbl-not-exists");
 
     // rename table to existing table name!
     TableIdentifier from2 = TableIdentifier.of("db", "tbl2");
     catalog.createTable(from2, SCHEMA, PartitionSpec.unpartitioned());
-    Assertions.assertThatThrownBy(() -> catalog.renameTable(from2, to))
+    assertThatThrownBy(() -> catalog.renameTable(from2, to))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: db.tbl2-newtable");
   }
@@ -601,7 +694,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     assertThat(tbls2).hasSize(1);
     assertThat(tbls2.get(0).name()).isEqualTo("tbl3");
 
-    Assertions.assertThatThrownBy(() -> catalog.listTables(Namespace.of("db", "ns1", "ns2")))
+    assertThatThrownBy(() -> catalog.listTables(Namespace.of("db", "ns1", "ns2")))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Namespace does not exist: db.ns1.ns2");
   }
@@ -678,7 +771,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Set<String> tblSet3 = Sets.newHashSet(nsp4.stream().map(Namespace::toString).iterator());
     assertThat(tblSet3).hasSize(3).contains("db", "db2", "");
 
-    Assertions.assertThatThrownBy(() -> catalog.listNamespaces(Namespace.of("db", "db2", "ns2")))
+    assertThatThrownBy(() -> catalog.listNamespaces(Namespace.of("db", "db2", "ns2")))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Namespace does not exist: db.db2.ns2");
   }
@@ -695,8 +788,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
     assertThat(catalog.loadNamespaceMetadata(Namespace.of("db"))).containsKey("location");
 
-    Assertions.assertThatThrownBy(
-            () -> catalog.loadNamespaceMetadata(Namespace.of("db", "db2", "ns2")))
+    assertThatThrownBy(() -> catalog.loadNamespaceMetadata(Namespace.of("db", "db2", "ns2")))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Namespace does not exist: db.db2.ns2");
   }
@@ -733,15 +825,15 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Lists.newArrayList(tbl0, tbl1, tbl2, tbl3, tbl4)
         .forEach(t -> catalog.createTable(t, SCHEMA, PartitionSpec.unpartitioned()));
 
-    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(tbl1.namespace()))
+    assertThatThrownBy(() -> catalog.dropNamespace(tbl1.namespace()))
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessage("Namespace db.ns1.ns2 is not empty. 2 tables exist.");
 
-    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(tbl2.namespace()))
+    assertThatThrownBy(() -> catalog.dropNamespace(tbl2.namespace()))
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessage("Namespace db.ns1 is not empty. 1 tables exist.");
 
-    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(tbl4.namespace()))
+    assertThatThrownBy(() -> catalog.dropNamespace(tbl4.namespace()))
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessage("Namespace db is not empty. 1 tables exist.");
   }
@@ -819,12 +911,12 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     try (JdbcCatalog jdbcCatalog = initCatalog("non_strict_jdbc_catalog", ImmutableMap.of())) {
       Namespace namespace = Namespace.of("test\\D_b%", "ns1", "ns2");
       TableIdentifier identifier = TableIdentifier.of(namespace, "someTable");
-      Assertions.assertThat(jdbcCatalog.namespaceExists(namespace)).isFalse();
-      Assertions.assertThat(jdbcCatalog.tableExists(identifier)).isFalse();
+      assertThat(jdbcCatalog.namespaceExists(namespace)).isFalse();
+      assertThat(jdbcCatalog.tableExists(identifier)).isFalse();
 
       // default=non-strict mode allows creating a table in a non-existing namespace
       jdbcCatalog.createTable(identifier, SCHEMA, PARTITION_SPEC);
-      Assertions.assertThat(jdbcCatalog.loadTable(identifier)).isNotNull();
+      assertThat(jdbcCatalog.loadTable(identifier)).isNotNull();
     }
   }
 
@@ -835,20 +927,19 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
             "strict_jdbc_catalog", ImmutableMap.of(JdbcUtil.STRICT_MODE_PROPERTY, "true"))) {
       Namespace namespace = Namespace.of("testDb", "ns1", "ns2");
       TableIdentifier identifier = TableIdentifier.of(namespace, "someTable");
-      Assertions.assertThat(jdbcCatalog.namespaceExists(namespace)).isFalse();
-      Assertions.assertThat(jdbcCatalog.tableExists(identifier)).isFalse();
-      Assertions.assertThatThrownBy(
-              () -> jdbcCatalog.createTable(identifier, SCHEMA, PARTITION_SPEC))
+      assertThat(jdbcCatalog.namespaceExists(namespace)).isFalse();
+      assertThat(jdbcCatalog.tableExists(identifier)).isFalse();
+      assertThatThrownBy(() -> jdbcCatalog.createTable(identifier, SCHEMA, PARTITION_SPEC))
           .isInstanceOf(NoSuchNamespaceException.class)
           .hasMessage(
               "Cannot create table testDb.ns1.ns2.someTable in catalog strict_jdbc_catalog. Namespace testDb.ns1.ns2 does not exist");
 
-      Assertions.assertThat(jdbcCatalog.tableExists(identifier)).isFalse();
+      assertThat(jdbcCatalog.tableExists(identifier)).isFalse();
 
       jdbcCatalog.createNamespace(namespace);
-      Assertions.assertThat(jdbcCatalog.tableExists(identifier)).isFalse();
+      assertThat(jdbcCatalog.tableExists(identifier)).isFalse();
       jdbcCatalog.createTable(identifier, SCHEMA, PARTITION_SPEC);
-      Assertions.assertThat(jdbcCatalog.loadTable(identifier)).isNotNull();
+      assertThat(jdbcCatalog.loadTable(identifier)).isNotNull();
     }
   }
 
@@ -871,7 +962,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Map<String, String> testMetadata = ImmutableMap.of();
     catalog.createNamespace(testNamespace, testMetadata);
 
-    Assertions.assertThat(catalog.loadNamespaceMetadata(testNamespace)).containsKey("location");
+    assertThat(catalog.loadNamespaceMetadata(testNamespace)).containsKey("location");
   }
 
   @Test
@@ -883,7 +974,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     Map<String, String> testMetadata = ImmutableMap.of("location", namespaceLocation);
     catalog.createNamespace(testNamespace, testMetadata);
 
-    Assertions.assertThat(catalog.loadNamespaceMetadata(testNamespace))
+    assertThat(catalog.loadNamespaceMetadata(testNamespace))
         .containsEntry("location", namespaceLocation);
   }
 
@@ -977,14 +1068,14 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
                   .build())
           .commit();
       try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
-        Assertions.assertThat(tasks.iterator()).hasNext();
+        assertThat(tasks.iterator()).hasNext();
       }
     } finally {
       catalogWithCustomReporter.dropTable(TABLE);
     }
     // counter of custom metrics reporter should have been increased
     // 1x for commit metrics / 1x for scan metrics
-    Assertions.assertThat(CustomMetricsReporter.COUNTER.get()).isEqualTo(2);
+    assertThat(CustomMetricsReporter.COUNTER.get()).isEqualTo(2);
   }
 
   @Test
@@ -1039,7 +1130,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   private String createMetadataLocationViaJdbcCatalog(TableIdentifier identifier)
       throws SQLException {
     // temporary connection just to actually create a concrete metadata location
-    String jdbcUrl = null;
+    String jdbcUrl;
     try {
       java.nio.file.Path dbFile = Files.createTempFile("temp", "metadata");
       jdbcUrl = "jdbc:sqlite:" + dbFile.toAbsolutePath();
@@ -1122,5 +1213,37 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
                   + "',null)")
           .execute();
     }
+  }
+
+  private boolean catalogTablesExist(String jdbcUrl) throws SQLException {
+    SQLiteDataSource dataSource = new SQLiteDataSource();
+    dataSource.setUrl(jdbcUrl);
+
+    boolean catalogTableExists = false;
+    boolean namespacePropertiesTableExists = false;
+
+    try (Connection connection = dataSource.getConnection()) {
+      DatabaseMetaData metadata = connection.getMetaData();
+      if (tableExists(metadata, JdbcUtil.CATALOG_TABLE_VIEW_NAME)) {
+        catalogTableExists = true;
+      }
+      if (tableExists(metadata, JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME)) {
+        namespacePropertiesTableExists = true;
+      }
+    }
+
+    return catalogTableExists && namespacePropertiesTableExists;
+  }
+
+  private boolean tableExists(DatabaseMetaData metadata, String tableName) throws SQLException {
+    ResultSet resultSet = metadata.getTables(null, null, tableName, new String[] {"TABLE"});
+
+    while (resultSet.next()) {
+      if (tableName.equals(resultSet.getString("TABLE_NAME"))) {
+        return true;
+      }
+    }
+
+    return false;
   }
 }

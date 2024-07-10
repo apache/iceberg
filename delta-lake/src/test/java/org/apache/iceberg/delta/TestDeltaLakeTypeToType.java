@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.delta;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import io.delta.standalone.types.ArrayType;
 import io.delta.standalone.types.BinaryType;
 import io.delta.standalone.types.BooleanType;
@@ -31,7 +34,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -75,12 +77,10 @@ public class TestDeltaLakeTypeToType {
             deltaAtomicSchema, new DeltaLakeTypeToType(deltaAtomicSchema));
     Schema convertedSchema = new Schema(converted.asNestedType().asStructType().fields());
 
-    Assertions.assertThat(convertedSchema.findType(optionalBooleanType))
-        .isInstanceOf(Types.BooleanType.class);
-    Assertions.assertThat(convertedSchema.findField(optionalBooleanType).isOptional()).isTrue();
-    Assertions.assertThat(convertedSchema.findType(requiredBinaryType))
-        .isInstanceOf(Types.BinaryType.class);
-    Assertions.assertThat(convertedSchema.findField(requiredBinaryType).isRequired()).isTrue();
+    assertThat(convertedSchema.findType(optionalBooleanType)).isInstanceOf(Types.BooleanType.class);
+    assertThat(convertedSchema.findField(optionalBooleanType).isOptional()).isTrue();
+    assertThat(convertedSchema.findType(requiredBinaryType)).isInstanceOf(Types.BinaryType.class);
+    assertThat(convertedSchema.findField(requiredBinaryType).isRequired()).isTrue();
   }
 
   @Test
@@ -90,49 +90,41 @@ public class TestDeltaLakeTypeToType {
             deltaNestedSchema, new DeltaLakeTypeToType(deltaNestedSchema));
     Schema convertedSchema = new Schema(converted.asNestedType().asStructType().fields());
 
-    Assertions.assertThat(convertedSchema.findType(innerAtomicSchema))
-        .isInstanceOf(Types.StructType.class);
-    Assertions.assertThat(convertedSchema.findField(innerAtomicSchema).isOptional()).isTrue();
-    Assertions.assertThat(
+    assertThat(convertedSchema.findType(innerAtomicSchema)).isInstanceOf(Types.StructType.class);
+    assertThat(convertedSchema.findField(innerAtomicSchema).isOptional()).isTrue();
+    assertThat(
             convertedSchema
                 .findType(innerAtomicSchema)
                 .asStructType()
                 .fieldType(optionalBooleanType))
         .isInstanceOf(Types.BooleanType.class);
-    Assertions.assertThat(
+    assertThat(
             convertedSchema
                 .findType(innerAtomicSchema)
                 .asStructType()
                 .fieldType(requiredBinaryType))
         .isInstanceOf(Types.BinaryType.class);
-    Assertions.assertThat(
+    assertThat(
             convertedSchema
                 .findType(innerAtomicSchema)
                 .asStructType()
                 .field(requiredBinaryType)
                 .isRequired())
         .isTrue();
-    Assertions.assertThat(convertedSchema.findType(stringLongMapType))
-        .isInstanceOf(Types.MapType.class);
-    Assertions.assertThat(convertedSchema.findType(stringLongMapType).asMapType().keyType())
+    assertThat(convertedSchema.findType(stringLongMapType)).isInstanceOf(Types.MapType.class);
+    assertThat(convertedSchema.findType(stringLongMapType).asMapType().keyType())
         .isInstanceOf(Types.StringType.class);
-    Assertions.assertThat(convertedSchema.findType(stringLongMapType).asMapType().valueType())
+    assertThat(convertedSchema.findType(stringLongMapType).asMapType().valueType())
         .isInstanceOf(Types.LongType.class);
-    Assertions.assertThat(convertedSchema.findType(doubleArrayType))
-        .isInstanceOf(Types.ListType.class);
-    Assertions.assertThat(convertedSchema.findField(doubleArrayType).isRequired()).isTrue();
-    Assertions.assertThat(
-            convertedSchema.findType(doubleArrayType).asListType().isElementOptional())
-        .isTrue();
-    Assertions.assertThat(convertedSchema.findType(structArrayType))
-        .isInstanceOf(Types.ListType.class);
-    Assertions.assertThat(convertedSchema.findField(structArrayType).isRequired()).isTrue();
-    Assertions.assertThat(
-            convertedSchema.findType(structArrayType).asListType().isElementOptional())
-        .isTrue();
-    Assertions.assertThat(convertedSchema.findType(structArrayType).asListType().elementType())
+    assertThat(convertedSchema.findType(doubleArrayType)).isInstanceOf(Types.ListType.class);
+    assertThat(convertedSchema.findField(doubleArrayType).isRequired()).isTrue();
+    assertThat(convertedSchema.findType(doubleArrayType).asListType().isElementOptional()).isTrue();
+    assertThat(convertedSchema.findType(structArrayType)).isInstanceOf(Types.ListType.class);
+    assertThat(convertedSchema.findField(structArrayType).isRequired()).isTrue();
+    assertThat(convertedSchema.findType(structArrayType).asListType().isElementOptional()).isTrue();
+    assertThat(convertedSchema.findType(structArrayType).asListType().elementType())
         .isInstanceOf(Types.StructType.class);
-    Assertions.assertThat(
+    assertThat(
             convertedSchema
                 .findType(structArrayType)
                 .asListType()
@@ -140,7 +132,7 @@ public class TestDeltaLakeTypeToType {
                 .asStructType()
                 .fieldType(optionalBooleanType))
         .isInstanceOf(Types.BooleanType.class);
-    Assertions.assertThat(
+    assertThat(
             convertedSchema
                 .findType(structArrayType)
                 .asListType()
@@ -149,7 +141,7 @@ public class TestDeltaLakeTypeToType {
                 .field(optionalBooleanType)
                 .isOptional())
         .isTrue();
-    Assertions.assertThat(
+    assertThat(
             convertedSchema
                 .findType(structArrayType)
                 .asListType()
@@ -157,7 +149,7 @@ public class TestDeltaLakeTypeToType {
                 .asStructType()
                 .fieldType(requiredBinaryType))
         .isInstanceOf(Types.BinaryType.class);
-    Assertions.assertThat(
+    assertThat(
             convertedSchema
                 .findType(structArrayType)
                 .asListType()
@@ -170,13 +162,13 @@ public class TestDeltaLakeTypeToType {
 
   @Test
   public void testNullTypeConversion() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 DeltaLakeDataTypeVisitor.visit(
                     deltaNullTypeSchema, new DeltaLakeTypeToType(deltaNullTypeSchema)))
         .isInstanceOf(ValidationException.class)
         .hasMessage(String.format("Not a supported type: %s", new NullType().getCatalogString()));
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 DeltaLakeDataTypeVisitor.visit(
                     deltaShallowNullTypeSchema,

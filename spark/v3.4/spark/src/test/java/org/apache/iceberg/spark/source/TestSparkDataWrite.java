@@ -20,6 +20,8 @@ package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.TableProperties.SPARK_WRITE_PARTITIONED_FANOUT_ENABLED;
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -52,7 +54,6 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -689,7 +690,7 @@ public class TestSparkDataWrite {
     ManualSource.setTable(manualTableName, sparkTable);
 
     // Although an exception is thrown here, write and commit have succeeded
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 df2.select("id", "data")
                     .sort("data")
@@ -707,7 +708,7 @@ public class TestSparkDataWrite {
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
     Assert.assertEquals(
         "Number of rows should match", records.size() + records2.size(), actual.size());
-    Assertions.assertThat(actual)
+    assertThat(actual)
         .describedAs("Result rows should match")
         .containsExactlyInAnyOrder(
             ImmutableList.<SimpleRecord>builder()

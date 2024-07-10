@@ -271,8 +271,8 @@ DataStream<Row> stream = env.fromSource(source, WatermarkStrategy.noWatermarks()
 
 ### Emitting watermarks
 Emitting watermarks from the source itself could be beneficial for several purposes, like harnessing the
-[Flink Watermark Alignment](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/event-time/generating_watermarks/#watermark-alignment),
-or prevent triggering [windows](https://nightlies.apache.org/flink/flink-docs-stable/docs/dev/datastream/operators/windows/)
+[Flink Watermark Alignment](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/datastream/event-time/generating_watermarks/#watermark-alignment),
+or prevent triggering [windows](https://nightlies.apache.org/flink/flink-docs-release-{{ flinkVersionMajor }}/docs/dev/datastream/operators/windows/)
 too early when reading multiple data files concurrently.
 
 Enable watermark generation for an `IcebergSource` by setting the `watermarkColumn`.

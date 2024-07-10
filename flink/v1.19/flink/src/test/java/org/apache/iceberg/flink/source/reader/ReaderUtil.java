@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import org.apache.flink.table.data.RowData;
@@ -48,7 +49,6 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.rules.TemporaryFolder;
 
 public class ReaderUtil {
 
@@ -92,7 +92,7 @@ public class ReaderUtil {
             TestFixtures.SCHEMA, TestFixtures.SCHEMA, null, true, Collections.emptyList()),
         combinedTask,
         new HadoopFileIO(new org.apache.hadoop.conf.Configuration()),
-        new PlaintextEncryptionManager());
+        PlaintextEncryptionManager.instance());
   }
 
   public static List<List<Record>> createRecordBatchList(
@@ -108,7 +108,7 @@ public class ReaderUtil {
 
   public static CombinedScanTask createCombinedScanTask(
       List<List<Record>> recordBatchList,
-      TemporaryFolder temporaryFolder,
+      Path temporaryFolder,
       FileFormat fileFormat,
       GenericAppenderFactory appenderFactory)
       throws IOException {
@@ -116,7 +116,10 @@ public class ReaderUtil {
     for (List<Record> recordBatch : recordBatchList) {
       FileScanTask fileTask =
           ReaderUtil.createFileTask(
-              recordBatch, temporaryFolder.newFile(), fileFormat, appenderFactory);
+              recordBatch,
+              File.createTempFile("junit", null, temporaryFolder.toFile()),
+              fileFormat,
+              appenderFactory);
       fileTasks.add(fileTask);
     }
 

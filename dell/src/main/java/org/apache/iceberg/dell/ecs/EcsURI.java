@@ -19,6 +19,7 @@
 package org.apache.iceberg.dell.ecs;
 
 import java.net.URI;
+import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -40,7 +41,9 @@ class EcsURI {
 
     URI uri = URI.create(location);
     ValidationException.check(
-        VALID_SCHEME.contains(uri.getScheme().toLowerCase()), "Invalid ecs location: %s", location);
+        VALID_SCHEME.contains(uri.getScheme().toLowerCase(Locale.ROOT)),
+        "Invalid ecs location: %s",
+        location);
     this.bucket = uri.getHost();
     this.name = uri.getPath().replaceAll("^/*", "");
   }

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,7 +39,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Pair;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestMapRangePartitioner {
@@ -63,34 +64,33 @@ public class TestMapRangePartitioner {
   }
 
   // Total weight is 800
-  private final MapDataStatistics mapDataStatistics =
-      new MapDataStatistics(
-          ImmutableMap.of(
-              SORT_KEYS[0],
-              350L,
-              SORT_KEYS[1],
-              230L,
-              SORT_KEYS[2],
-              120L,
-              SORT_KEYS[3],
-              40L,
-              SORT_KEYS[4],
-              10L,
-              SORT_KEYS[5],
-              10L,
-              SORT_KEYS[6],
-              10L,
-              SORT_KEYS[7],
-              10L,
-              SORT_KEYS[8],
-              10L,
-              SORT_KEYS[9],
-              10L));
+  private final Map<SortKey, Long> mapStatistics =
+      ImmutableMap.of(
+          SORT_KEYS[0],
+          350L,
+          SORT_KEYS[1],
+          230L,
+          SORT_KEYS[2],
+          120L,
+          SORT_KEYS[3],
+          40L,
+          SORT_KEYS[4],
+          10L,
+          SORT_KEYS[5],
+          10L,
+          SORT_KEYS[6],
+          10L,
+          SORT_KEYS[7],
+          10L,
+          SORT_KEYS[8],
+          10L,
+          SORT_KEYS[9],
+          10L);
 
   @Test
   public void testEvenlyDividableNoClosingFileCost() {
     MapRangePartitioner partitioner =
-        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapDataStatistics, 0.0);
+        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapStatistics, 0.0);
     int numPartitions = 8;
 
     // each task should get targeted weight of 100 (=800/8)
@@ -121,7 +121,7 @@ public class TestMapRangePartitioner {
             new MapRangePartitioner.KeyAssignment(ImmutableList.of(7), ImmutableList.of(10L), 0L));
     Map<SortKey, MapRangePartitioner.KeyAssignment> actualAssignment =
         partitioner.assignment(numPartitions);
-    Assertions.assertThat(actualAssignment).isEqualTo(expectedAssignment);
+    assertThat(actualAssignment).isEqualTo(expectedAssignment);
 
     // key: subtask id
     // value pair: first is the assigned weight, second is the number of assigned keys
@@ -144,7 +144,7 @@ public class TestMapRangePartitioner {
             7,
             Pair.of(100L, 7));
     Map<Integer, Pair<Long, Integer>> actualAssignmentInfo = partitioner.assignmentInfo();
-    Assertions.assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
+    assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
 
     Map<Integer, Pair<AtomicLong, Set<RowData>>> partitionResults =
         runPartitioner(partitioner, numPartitions);
@@ -154,7 +154,7 @@ public class TestMapRangePartitioner {
   @Test
   public void testEvenlyDividableWithClosingFileCost() {
     MapRangePartitioner partitioner =
-        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapDataStatistics, 5.0);
+        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapStatistics, 5.0);
     int numPartitions = 8;
 
     // target subtask weight is 100 before close file cost factored in.
@@ -192,7 +192,7 @@ public class TestMapRangePartitioner {
             new MapRangePartitioner.KeyAssignment(ImmutableList.of(7), ImmutableList.of(15L), 5L));
     Map<SortKey, MapRangePartitioner.KeyAssignment> actualAssignment =
         partitioner.assignment(numPartitions);
-    Assertions.assertThat(actualAssignment).isEqualTo(expectedAssignment);
+    assertThat(actualAssignment).isEqualTo(expectedAssignment);
 
     // key: subtask id
     // value pair: first is the assigned weight (excluding close file cost) for the subtask,
@@ -216,7 +216,7 @@ public class TestMapRangePartitioner {
             7,
             Pair.of(75L, 7));
     Map<Integer, Pair<Long, Integer>> actualAssignmentInfo = partitioner.assignmentInfo();
-    Assertions.assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
+    assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
 
     Map<Integer, Pair<AtomicLong, Set<RowData>>> partitionResults =
         runPartitioner(partitioner, numPartitions);
@@ -226,7 +226,7 @@ public class TestMapRangePartitioner {
   @Test
   public void testNonDividableNoClosingFileCost() {
     MapRangePartitioner partitioner =
-        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapDataStatistics, 0.0);
+        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapStatistics, 0.0);
     int numPartitions = 9;
 
     // before:     350, 230, 120, 40, 10, 10, 10, 10, 10, 10
@@ -259,7 +259,7 @@ public class TestMapRangePartitioner {
             new MapRangePartitioner.KeyAssignment(ImmutableList.of(8), ImmutableList.of(10L), 0L));
     Map<SortKey, MapRangePartitioner.KeyAssignment> actualAssignment =
         partitioner.assignment(numPartitions);
-    Assertions.assertThat(actualAssignment).isEqualTo(expectedAssignment);
+    assertThat(actualAssignment).isEqualTo(expectedAssignment);
 
     // key: subtask id
     // value pair: first is the assigned weight, second is the number of assigned keys
@@ -284,7 +284,7 @@ public class TestMapRangePartitioner {
             8,
             Pair.of(88L, 7));
     Map<Integer, Pair<Long, Integer>> actualAssignmentInfo = partitioner.assignmentInfo();
-    Assertions.assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
+    assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
 
     Map<Integer, Pair<AtomicLong, Set<RowData>>> partitionResults =
         runPartitioner(partitioner, numPartitions);
@@ -294,7 +294,7 @@ public class TestMapRangePartitioner {
   @Test
   public void testNonDividableWithClosingFileCost() {
     MapRangePartitioner partitioner =
-        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapDataStatistics, 5.0);
+        new MapRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, mapStatistics, 5.0);
     int numPartitions = 9;
 
     // target subtask weight is 89 before close file cost factored in.
@@ -332,7 +332,7 @@ public class TestMapRangePartitioner {
             new MapRangePartitioner.KeyAssignment(ImmutableList.of(8), ImmutableList.of(15L), 5L));
     Map<SortKey, MapRangePartitioner.KeyAssignment> actualAssignment =
         partitioner.assignment(numPartitions);
-    Assertions.assertThat(actualAssignment).isEqualTo(expectedAssignment);
+    assertThat(actualAssignment).isEqualTo(expectedAssignment);
 
     // key: subtask id
     // value pair: first is the assigned weight for the subtask, second is the number of keys
@@ -358,7 +358,7 @@ public class TestMapRangePartitioner {
             8,
             Pair.of(61L, 7));
     Map<Integer, Pair<Long, Integer>> actualAssignmentInfo = partitioner.assignmentInfo();
-    Assertions.assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
+    assertThat(actualAssignmentInfo).isEqualTo(expectedAssignmentInfo);
 
     Map<Integer, Pair<AtomicLong, Set<RowData>>> partitionResults =
         runPartitioner(partitioner, numPartitions);
@@ -400,7 +400,7 @@ public class TestMapRangePartitioner {
       Map<Integer, Pair<AtomicLong, Set<RowData>>> partitionResults,
       double maxDriftPercentage) {
 
-    Assertions.assertThat(partitionResults.size()).isEqualTo(expectedAssignmentInfo.size());
+    assertThat(partitionResults.size()).isEqualTo(expectedAssignmentInfo.size());
 
     List<Integer> expectedAssignedKeyCounts =
         Lists.newArrayListWithExpectedSize(expectedAssignmentInfo.size());
@@ -428,7 +428,7 @@ public class TestMapRangePartitioner {
         });
 
     // number of assigned keys should match exactly
-    Assertions.assertThat(actualAssignedKeyCounts)
+    assertThat(actualAssignedKeyCounts)
         .as("the number of assigned keys should match for every subtask")
         .isEqualTo(expectedAssignedKeyCounts);
 
@@ -438,7 +438,7 @@ public class TestMapRangePartitioner {
       double expectedWeight = expectedNormalizedWeights.get(subtaskId);
       double min = expectedWeight * (1 - maxDriftPercentage / 100);
       double max = expectedWeight * (1 + maxDriftPercentage / 100);
-      Assertions.assertThat(actualNormalizedWeights.get(subtaskId))
+      assertThat(actualNormalizedWeights.get(subtaskId))
           .as(
               "Subtask %d weight should within %.1f percent of the expected range %s",
               subtaskId, maxDriftPercentage, expectedWeight)

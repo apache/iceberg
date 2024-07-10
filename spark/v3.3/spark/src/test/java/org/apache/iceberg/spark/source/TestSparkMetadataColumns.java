@@ -25,12 +25,12 @@ import static org.apache.iceberg.TableProperties.PARQUET_BATCH_SIZE;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
 import static org.apache.spark.sql.functions.lit;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataColumns;
@@ -224,11 +224,10 @@ public class TestSparkMetadataColumns extends SparkTestBase {
     TableMetadata base = ops.current();
     ops.commit(base, base.updatePartitionSpec(UNKNOWN_SPEC));
 
-    AssertHelpers.assertThrows(
-        "Should fail to query the partition metadata column",
-        ValidationException.class,
-        "Cannot build table partition type, unknown transforms",
-        () -> sql("SELECT _partition FROM %s", TABLE_NAME));
+    assertThatThrownBy(() -> sql("SELECT _partition FROM %s", TABLE_NAME))
+        .as("Should fail to query the partition metadata column")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Cannot build table partition type, unknown transforms");
   }
 
   @Test
@@ -246,11 +245,10 @@ public class TestSparkMetadataColumns extends SparkTestBase {
         ImmutableList.of(row(1L, "a1")),
         sql("SELECT id, category FROM %s", TABLE_NAME));
 
-    AssertHelpers.assertThrows(
-        "Should fail to query conflicting columns",
-        ValidationException.class,
-        "column names conflict",
-        () -> sql("SELECT * FROM %s", TABLE_NAME));
+    assertThatThrownBy(() -> sql("SELECT * FROM %s", TABLE_NAME))
+        .as("Should fail to query conflicting columns")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("column names conflict");
 
     table.refresh();
 

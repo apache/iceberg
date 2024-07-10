@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.data;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 
 public class DataTestHelpers {
   private DataTestHelpers() {}
@@ -43,7 +43,7 @@ public class DataTestHelpers {
   public static void assertEquals(Types.ListType list, List<?> expected, List<?> actual) {
     Type elementType = list.elementType();
 
-    Assert.assertEquals("List size should match", expected.size(), actual.size());
+    assertThat(actual).as("List size should match").hasSameSizeAs(expected);
 
     for (int i = 0; i < expected.size(); i += 1) {
       Object expectedValue = expected.get(i);
@@ -56,7 +56,7 @@ public class DataTestHelpers {
   public static void assertEquals(Types.MapType map, Map<?, ?> expected, Map<?, ?> actual) {
     Type valueType = map.valueType();
 
-    Assert.assertEquals("Map size should match", expected.size(), actual.size());
+    assertThat(actual).as("Map size should match").hasSameSizeAs(expected);
 
     for (Object expectedKey : expected.keySet()) {
       Object expectedValue = expected.get(expectedKey);
@@ -84,32 +84,28 @@ public class DataTestHelpers {
       case UUID:
       case BINARY:
       case DECIMAL:
-        Assert.assertEquals(
-            "Primitive value should be equal to expected for type " + type, expected, actual);
+        assertThat(actual)
+            .as("Primitive value should be equal to expected for type " + type)
+            .isEqualTo(expected);
         break;
       case FIXED:
-        Assertions.assertThat(expected)
-            .as("Expected should be a byte[]")
-            .isInstanceOf(byte[].class);
-        Assertions.assertThat(expected).as("Actual should be a byte[]").isInstanceOf(byte[].class);
-        Assert.assertArrayEquals(
-            "Array contents should be equal", (byte[]) expected, (byte[]) actual);
+        assertThat(expected).as("Expected should be a byte[]").isInstanceOf(byte[].class);
+        assertThat(expected).as("Actual should be a byte[]").isInstanceOf(byte[].class);
+        assertThat(actual).as("Array contents should be equal").isEqualTo(expected);
         break;
       case STRUCT:
-        Assertions.assertThat(expected)
-            .as("Expected should be a Record")
-            .isInstanceOf(Record.class);
-        Assertions.assertThat(actual).as("Actual should be a Record").isInstanceOf(Record.class);
+        assertThat(expected).as("Expected should be a Record").isInstanceOf(Record.class);
+        assertThat(actual).as("Actual should be a Record").isInstanceOf(Record.class);
         assertEquals(type.asStructType(), (Record) expected, (Record) actual);
         break;
       case LIST:
-        Assertions.assertThat(expected).as("Expected should be a List").isInstanceOf(List.class);
-        Assertions.assertThat(actual).as("Actual should be a List").isInstanceOf(List.class);
+        assertThat(expected).as("Expected should be a List").isInstanceOf(List.class);
+        assertThat(actual).as("Actual should be a List").isInstanceOf(List.class);
         assertEquals(type.asListType(), (List) expected, (List) actual);
         break;
       case MAP:
-        Assertions.assertThat(expected).as("Expected should be a Map").isInstanceOf(Map.class);
-        Assertions.assertThat(actual).as("Actual should be a Map").isInstanceOf(Map.class);
+        assertThat(expected).as("Expected should be a Map").isInstanceOf(Map.class);
+        assertThat(actual).as("Actual should be a Map").isInstanceOf(Map.class);
         assertEquals(type.asMapType(), (Map<?, ?>) expected, (Map<?, ?>) actual);
         break;
       default:

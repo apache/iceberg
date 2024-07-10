@@ -24,6 +24,21 @@ Iceberg supports reading and writing Iceberg tables through [Hive](https://hive.
 a [StorageHandler](https://cwiki.apache.org/confluence/display/Hive/StorageHandlers).
 
 ## Feature support
+The following features matrix illustrates the support for different features across Hive releases for Iceberg tables - 
+
+| Feature support                                                 | Hive 2 / 3 | Hive 4 |
+|-----------------------------------------------------------------|------------|--------|
+| [SQL create table](#create-table)                               | ✔️          | ✔️      |
+| [SQL create table as select (CTAS)](#create-table-as-select)    | ✔️          | ✔️      |
+| [SQL create table like table (CTLT)](#create-table-like-table)  | ✔️          | ✔️      |
+| [SQL drop table](#drop-table)                                   | ✔️          | ✔️      |
+| [SQL insert into](#insert-into)                                 | ✔️          | ✔️      |
+| [SQL insert overwrite](#insert-overwrite)                       | ✔️          | ✔️      |
+| [SQL delete from](#delete-from)                                 |            | ✔️      |
+| [SQL update](#update)                                           |            | ✔️      |
+| [SQL merge into](#merge-into)                                   |            | ✔️      |
+| [Branches and tags](#branches-and-tags)                         |            | ✔️      |
+
 Iceberg compatibility with Hive 2.x and Hive 3.1.2/3 supports the following features:
 
 * Creating a table
@@ -34,16 +49,7 @@ Iceberg compatibility with Hive 2.x and Hive 3.1.2/3 supports the following feat
 !!! warning
     DML operations work only with MapReduce execution engine.
 
-The HiveCatalog supports the following additional features with Hive version 4.0.0-alpha-2 and above:
-
-* Altering a table with expiring snapshots.
-* Create a table like an existing table (CTLT table)
-* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/2.4.3/sql-data-sources-parquet.html#configuration)
-* Altering a table metadata location
-* Supporting table rollback
-* Honors sort orders on existing tables when writing a table [Sort orders specification](../../spec.md#sort-orders)
-
-With Hive version 4.0.0-alpha-1 and above, the Iceberg integration when using HiveCatalog supports the following additional features:
+Hive supports the following additional features with Hive version 4.0.0 and above:
 
 * Creating an Iceberg identity-partitioned table
 * Creating an Iceberg table with any partition spec, including the various transforms supported by Iceberg
@@ -51,13 +57,31 @@ With Hive version 4.0.0-alpha-1 and above, the Iceberg integration when using Hi
 * Altering a table while keeping Iceberg and Hive schemas in sync
 * Altering the partition schema (updating columns)
 * Altering the partition schema by specifying partition transforms
-* Truncating a table
+* Truncating a table / partition, dropping a partition.
 * Migrating tables in Avro, Parquet, or ORC (Non-ACID) format to Iceberg
-* Reading the schema of a table
-* Querying Iceberg metadata tables
-* Time travel applications
-* Inserting into a table (INSERT INTO)
-* Inserting data overwriting existing data (INSERT OVERWRITE)
+* Reading the schema of a table.
+* Querying Iceberg metadata tables.
+* Time travel applications.
+* Inserting into a table / partition (INSERT INTO).
+* Inserting data overwriting existing data (INSERT OVERWRITE) in a table / partition.
+* Copy-on-write support for delete, update and merge queries, CRUD support for Iceberg V1 tables.
+* Altering a table with expiring snapshots.
+* Create a table like an existing table (CTLT table)
+* Support adding parquet compression type via Table properties [Compression types](https://spark.apache.org/docs/2.4.3/sql-data-sources-parquet.html#configuration)
+* Altering a table metadata location.
+* Supporting table rollback.
+* Honors sort orders on existing tables when writing a table [Sort orders specification](../../spec.md#sort-orders)
+* Creating, writing to and dropping an Iceberg branch / tag.
+* Allowing expire snapshots by Snapshot ID, by time range, by retention of last N snapshots and using table properties.
+* Set current snapshot using snapshot ID for an Iceberg table.
+* Support for renaming an Iceberg table.
+* Altering a table to convert to an Iceberg table.
+* Fast forwarding, cherry-picking commit to an Iceberg branch.
+* Creating a branch from an Iceberg tag.
+* Set current snapshot using branch/tag for an Iceberg table.
+* Delete orphan files for an Iceberg table.
+* Allow full table compaction of Iceberg tables.
+* Support of showing partition information for Iceberg tables (SHOW PARTITIONS).
 
 !!! warning
     DML operations work only with Tez execution engine.
@@ -66,6 +90,10 @@ With Hive version 4.0.0-alpha-1 and above, the Iceberg integration when using Hi
 ## Enabling Iceberg support in Hive
 
 Hive 4 comes with `hive-iceberg` that ships Iceberg, so no additional downloads or jars are needed. For older versions of Hive a runtime jar has to be added.
+
+### Hive 4.0.0
+
+Hive 4.0.0 comes with the Iceberg 1.4.3 included.
 
 ### Hive 4.0.0-beta-1
 
@@ -387,6 +415,11 @@ ALTER TABLE t SET TBLPROPERTIES('...'='...');
 The Hive table schema is kept in sync with the Iceberg table. If an outside source (Impala/Spark/Java API/etc)
 changes the schema, the Hive table immediately reflects the changes. You alter the table schema using Hive commands:
 
+* Rename a table
+```sql
+ALTER TABLE orders RENAME TO renamed_orders;
+```
+
 * Add a column
 ```sql
 ALTER TABLE orders ADD COLUMNS (nickname string);
@@ -430,12 +463,121 @@ ALTER TABLE t SET TBLPROPERTIES ('storage_handler'='org.apache.iceberg.mr.hive.H
 During the migration the data files are not changed, only the appropriate Iceberg metadata files are created.
 After the migration, handle the table as a normal Iceberg table.
 
+#### Drop partitions
+You can drop partitions based on a single / multiple partition specification using the following commands:
+```sql
+ALTER TABLE orders DROP PARTITION (buy_date == '2023-01-01', market_price > 1000), PARTITION (buy_date == '2024-01-01', market_price <= 2000);
+```
+The partition specification supports only identity-partition columns. Transform columns in partition specification are not supported.
+
+#### Branches and tags
+
+`ALTER TABLE ... CREATE BRANCH`
+
+Branches can be created via the CREATE BRANCH statement with the following options:
+
+* Create a branch using default properties.
+* Create a branch at a specific snapshot ID.
+* Create a branch using system time.
+* Create a branch with a specified number of snapshot retentions.
+* Create a branch using specific tag.
+
+```sql
+-- CREATE branch1 with default properties.
+ALTER TABLE test CREATE BRANCH branch1;
+
+-- CREATE branch1 at a specific snapshot ID.
+ALTER TABLE test CREATE BRANCH branch1 FOR SYSTEM_VERSION AS OF 3369973735913135680;
+
+-- CREATE branch1 using system time.
+ALTER TABLE test CREATE BRANCH branch1 FOR SYSTEM_TIME AS OF '2023-09-16 09:46:38.939 Etc/UTC';
+
+-- CREATE branch1 with a specified number of snapshot retentions.
+ALTER TABLE test CREATE BRANCH branch1 FOR SYSTEM_VERSION AS OF 3369973735913135680 WITH SNAPSHOT RETENTION 5 SNAPSHOTS;
+
+-- CREATE branch1 using a specific tag.
+ALTER TABLE test CREATE BRANCH branch1 FOR TAG AS OF tag1;
+```
+
+`ALTER TABLE ... CREATE TAG`
+
+Tags can be created via the CREATE TAG statement with the following options:
+
+* Create a tag using default properties.
+* Create a tag at a specific snapshot ID.
+* Create a tag using system time.
+
+```sql
+-- CREATE tag1 with default properties.
+ALTER TABLE test CREATE TAG tag1;
+
+-- CREATE tag1 at a specific snapshot ID.
+ALTER TABLE test CREATE TAG tag1 FOR SYSTEM_VERSION AS OF 3369973735913135680;
+
+-- CREATE tag1 using system time.
+ALTER TABLE test CREATE TAG tag1 FOR SYSTEM_TIME AS OF '2023-09-16 09:46:38.939 Etc/UTC';
+```
+
+`ALTER TABLE ... DROP BRANCH`
+
+Branches can be dropped via the DROP BRANCH statement with the following options:
+
+* Do not fail if the branch does not exist with IF EXISTS
+
+```sql
+-- DROP branch1
+ALTER TABLE test DROP BRANCH branch1;
+
+-- DROP branch1 IF EXISTS
+ALTER TABLE test DROP BRANCH IF EXISTS branch1;
+```
+
+`ALTER TABLE ... DROP TAG`
+
+Tags can be dropped via the DROP TAG statement with the following options:
+
+* Do not fail if the tag does not exist with IF EXISTS
+
+```sql
+-- DROP tag1
+ALTER TABLE test DROP TAG tag1;
+
+-- DROP tag1 IF EXISTS
+ALTER TABLE test DROP TAG IF EXISTS tag1;
+```
+
+`ALTER TABLE ... EXECUTE FAST-FORWARD`
+
+An iceberg branch which is an ancestor of another branch can be fast-forwarded to the state of the other branch.
+
+```sql
+-- This fast-forwards the branch1 to the state of main branch of the Iceberg table.
+ALTER table test EXECUTE FAST-FORWARD 'branch1' 'main';
+
+-- This fast-forwards the branch1 to the state of branch2.
+ALTER table test EXECUTE FAST-FORWARD 'branch1' 'branch2';
+```
+
+#### `ALTER TABLE ... EXECUTE CHERRY-PICK`
+
+Cherry-pick of a snapshot requires the ID of the snapshot. Cherry-pick of snapshots as of now is supported only on the main branch of an Iceberg table.
+
+```sql
+ ALTER table test EXECUTE CHERRY-PICK 8602659039622823857;
+```
+
 ### TRUNCATE TABLE
 The following command truncates the Iceberg table:
 ```sql
 TRUNCATE TABLE t;
 ```
-Using a partition specification is not allowed.
+
+#### TRUNCATE TABLE ... PARTITION
+The following command truncates the partition in an Iceberg table:
+```sql
+TRUNCATE TABLE orders PARTITION (customer_id = 1, first_name = 'John');
+```
+The partition specification supports only identity-partition columns. Transform columns in partition specification are not supported.
 
 ### DROP TABLE
 
@@ -475,6 +617,12 @@ Here are the features highlights for Iceberg Hive read support:
 Some of the advanced / little used optimizations are not yet implemented for Iceberg tables, so you should check your individual queries.
 Also currently the statistics stored in the MetaStore are used for query planning. This is something we are planning to improve in the future.
 
+Hive 4 supports select operations on branches which also work similar to the table level select operations. However, the branch must be provided as follows - 
+```sql
+-- Branches should be specified as <database_name>.<table_name>.branch_<branch_name>
+SELECT * FROM default.test.branch_branch1;
+```
+
 ### INSERT INTO
 
 Hive supports the standard single-table INSERT INTO operation:
@@ -490,6 +638,15 @@ Multi-table insert is also supported, but it will not be atomic. Commits occur o
 Partial changes will be visible during the commit process and failures can leave partial changes committed.
 Changes within a single table will remain atomic.
 
+Insert-into operations on branches also work similar to the table level select operations. However, the branch must be provided as follows -
+```sql
+-- Branches should be specified as <database_name>.<table_name>.branch_<branch_name>
+INSERT INTO default.test.branch_branch1
+VALUES ('a', 1);
+INSERT INTO default.test.branch_branch1
+SELECT...;
+```
+
 Here is an example of inserting into multiple tables at once in Hive SQL:
 
 ```sql
@@ -497,6 +654,18 @@ FROM customers
    INSERT INTO target1 SELECT customer_id, first_name
    INSERT INTO target2 SELECT last_name, customer_id;
 ```
+
+#### INSERT INTO ... PARTITION
+
+Hive 4 supports partition-level INSERT INTO operation:
+
+```sql
+INSERT INTO table_a PARTITION (customer_id = 1, first_name = 'John')
+VALUES (1,2);
+INSERT INTO table_a PARTITION (customer_id = 1, first_name = 'John')
+SELECT...;
+```
+The partition specification supports only identity-partition columns. Transform columns in partition specification are not supported.
 
 ### INSERT OVERWRITE
 INSERT OVERWRITE can replace data in the table with the result of a query. Overwrites are atomic operations for Iceberg tables.
@@ -506,6 +675,69 @@ that have rows produced by the SELECT query will be replaced.
 INSERT OVERWRITE TABLE target SELECT * FROM source;
 ```
 
+#### INSERT OVERWRITE ... PARTITION
+
+Hive 4 supports partition-level INSERT OVERWRITE operation:
+
+```sql
+INSERT OVERWRITE TABLE target PARTITION (customer_id = 1, first_name = 'John') SELECT * FROM source;
+```
+The partition specification supports only identity-partition columns. Transform columns in partition specification are not supported.
+
+### DELETE FROM
+
+Hive 4 supports DELETE FROM queries to remove data from tables.
+
+Delete queries accept a filter to match rows to delete.
+
+```sql
+DELETE FROM target WHERE id > 1 AND id < 10;
+
+DELETE FROM target WHERE id IN (SELECT id FROM source);
+
+DELETE FROM target WHERE id IN (SELECT min(customer_id) FROM source);
+```
+If the delete filter matches entire partitions of the table, Iceberg will perform a metadata-only delete. If the filter matches individual rows of a table, then Iceberg will rewrite only the affected data files.
+
+### UPDATE
+
+Hive 4 supports UPDATE queries which accept a filter to match rows to update.
+
+```sql
+UPDATE target SET first_name = 'Raj' WHERE id > 1 AND id < 10;
+
+UPDATE target SET first_name = 'Raj' WHERE id IN (SELECT id FROM source);
+
+UPDATE target SET first_name = 'Raj' WHERE id IN (SELECT min(customer_id) FROM source);
+```
+For more complex row-level updates based on incoming data, see the section on MERGE INTO.
+
+### MERGE INTO
+
+Hive 4 added support for MERGE INTO queries that can express row-level updates.
+
+MERGE INTO updates a table, called the target table, using a set of updates from another query, called the source. The update for a row in the target table is found using the ON clause that is like a join condition.
+
+```sql
+MERGE INTO target AS t        -- a target table
+USING source s                -- the source updates
+ON t.id = s.id                -- condition to find updates for target rows
+WHEN ...                      -- updates
+```
+
+Updates to rows in the target table are listed using WHEN MATCHED ... THEN .... Multiple MATCHED clauses can be added with conditions that determine when each match should be applied. The first matching expression is used.
+```sql
+WHEN MATCHED AND s.op = 'delete' THEN DELETE
+WHEN MATCHED AND t.count IS NULL AND s.op = 'increment' THEN UPDATE SET t.count = 0
+WHEN MATCHED AND s.op = 'increment' THEN UPDATE SET t.count = t.count + 1
+```
+
+Source rows (updates) that do not match can be inserted:
+```sql
+WHEN NOT MATCHED THEN INSERT VALUES (s.a, s.b, s.c)
+```
+Only one record in the source data can update any given row of the target table, or else an error will be thrown.
+
 ### QUERYING METADATA TABLES
 Hive supports querying of the Iceberg Metadata tables. The tables could be used as normal
 Hive tables, so it is possible to use projections / joins / filters / etc.
@@ -513,11 +745,20 @@ To reference a metadata table the full name of the table should be used, like:
 <DB_NAME>.<TABLE_NAME>.<METADATA_TABLE_NAME>.
 
 Currently the following metadata tables are available in Hive:
-* files
-* entries
+
+* all_data_files 
+* all_delete_files 
+* all_entries all_files 
+* all_manifests 
+* data_files 
+* delete_files 
+* entries 
+* files 
+* manifests 
+* metadata_log_entries 
+* partitions 
+* refs 
 * snapshots
-* manifests
-* partitions
 
 ```sql
 SELECT * FROM default.table_a.files;
@@ -593,3 +834,17 @@ Rollback to a specific snapshot ID
 ```sql
 ALTER TABLE ice_t EXECUTE ROLLBACK(1111);
 ```
+
+### Compaction
+
+Hive 4 supports full table compaction of Iceberg tables using the following commands:
+* Using the `ALTER TABLE ... COMPACT` syntax
+* Using the `OPTIMIZE TABLE ... REWRITE DATA` syntax
+```sql
+-- Using the ALTER TABLE ... COMPACT syntax
+ALTER TABLE t COMPACT 'major';
+
+-- Using the OPTIMIZE TABLE ... REWRITE DATA syntax
+OPTIMIZE TABLE t REWRITE DATA;
+```
+Both these syntax have the same effect of performing full table compaction on an Iceberg table.

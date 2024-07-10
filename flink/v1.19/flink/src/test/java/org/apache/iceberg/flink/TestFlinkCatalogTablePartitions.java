@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.apache.flink.table.catalog.CatalogPartitionSpec;
@@ -32,14 +33,13 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
 
-  private String tableName = "test_table";
+  private final String tableName = "test_table";
 
   @Parameter(index = 2)
   private FileFormat format;
@@ -89,7 +89,7 @@ public class TestFlinkCatalogTablePartitions extends CatalogTestBase {
 
     ObjectPath objectPath = new ObjectPath(DATABASE, tableName);
     FlinkCatalog flinkCatalog = (FlinkCatalog) getTableEnv().getCatalog(catalogName).get();
-    Assertions.assertThatThrownBy(() -> flinkCatalog.listPartitions(objectPath))
+    assertThatThrownBy(() -> flinkCatalog.listPartitions(objectPath))
         .isInstanceOf(TableNotPartitionedException.class)
         .hasMessageStartingWith("Table db.test_table in catalog")
         .hasMessageEndingWith("is not partitioned.");

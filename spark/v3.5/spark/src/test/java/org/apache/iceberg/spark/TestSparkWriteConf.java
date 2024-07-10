@@ -80,6 +80,41 @@ public class TestSparkWriteConf extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testOptionCaseInsensitive() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    Map<String, String> options = ImmutableMap.of("option", "value");
+    SparkConfParser parser = new SparkConfParser(spark, table, options);
+    String parsedValue = parser.stringConf().option("oPtIoN").parseOptional();
+    assertThat(parsedValue).isEqualTo("value");
+  }
+
+  @TestTemplate
+  public void testCamelCaseSparkSessionConf() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    String confName = "spark.sql.iceberg.some-int-conf";
+    String sparkConfName = "spark.sql.iceberg.someIntConf";
+
+    withSQLConf(
+        ImmutableMap.of(sparkConfName, "1"),
+        () -> {
+          SparkConfParser parser = new SparkConfParser(spark, table, ImmutableMap.of());
+          Integer value = parser.intConf().sessionConf(confName).parseOptional();
+          assertThat(value).isEqualTo(1);
+        });
+  }
+
+  @TestTemplate
+  public void testCamelCaseSparkOption() {
+    Table table = validationCatalog.loadTable(tableIdent);
+    String option = "some-int-option";
+    String sparkOption = "someIntOption";
+    Map<String, String> options = ImmutableMap.of(sparkOption, "1");
+    SparkConfParser parser = new SparkConfParser(spark, table, options);
+    Integer value = parser.intConf().option(option).parseOptional();
+    assertThat(value).isEqualTo(1);
+  }
+
+  @TestTemplate
   public void testDurationConf() {
     Table table = validationCatalog.loadTable(tableIdent);
     String confName = "spark.sql.iceberg.some-duration-conf";

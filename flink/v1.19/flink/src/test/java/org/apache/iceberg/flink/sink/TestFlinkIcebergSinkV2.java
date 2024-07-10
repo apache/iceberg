@@ -18,77 +18,53 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.apache.iceberg.flink.TestFixtures.DATABASE;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import java.util.List;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.test.util.MiniClusterWithClientResource;
+import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.flink.HadoopCatalogResource;
+import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.MiniClusterResource;
+import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.source.BoundedTestSource;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
+@Timeout(value = 60)
 public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
+  @RegisterExtension
+  public static MiniClusterExtension miniClusterResource =
+      MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
-  @ClassRule
-  public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
-      MiniClusterResource.createWithClassloaderCheckDisabled();
+  @RegisterExtension
+  private static final HadoopCatalogExtension catalogResource =
+      new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
-  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
-
-  @Rule
-  public final HadoopCatalogResource catalogResource =
-      new HadoopCatalogResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE);
-
-  @Parameterized.Parameters(
-      name = "FileFormat = {0}, Parallelism = {1}, Partitioned={2}, WriteDistributionMode ={3}")
-  public static Object[][] parameters() {
-    return new Object[][] {
-      new Object[] {"avro", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {"avro", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {"avro", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {"avro", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {"orc", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {"orc", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {"orc", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {"orc", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {"parquet", 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
-      new Object[] {"parquet", 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
-      new Object[] {"parquet", 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
-      new Object[] {"parquet", 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE}
-    };
-  }
-
-  public TestFlinkIcebergSinkV2(
-      String format, int parallelism, boolean partitioned, String writeDistributionMode) {
-    this.format = FileFormat.fromString(format);
-    this.parallelism = parallelism;
-    this.partitioned = partitioned;
-    this.writeDistributionMode = writeDistributionMode;
-  }
-
-  @Before
+  @BeforeEach
   public void setupTable() {
     table =
         catalogResource
@@ -121,7 +97,7 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
     tableLoader = catalogResource.tableLoader();
   }
 
-  @Test
+  @TestTemplate
   public void testCheckAndGetEqualityFieldIds() {
     table
         .updateSchema()
@@ -136,28 +112,25 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
 
     // Use schema identifier field IDs as equality field id list by default
-    Assert.assertEquals(
-        table.schema().identifierFieldIds(),
-        Sets.newHashSet(builder.checkAndGetEqualityFieldIds()));
+    assertThat(builder.checkAndGetEqualityFieldIds())
+        .containsExactlyInAnyOrderElementsOf(table.schema().identifierFieldIds());
 
     // Use user-provided equality field column as equality field id list
     builder.equalityFieldColumns(Lists.newArrayList("id"));
-    Assert.assertEquals(
-        Sets.newHashSet(table.schema().findField("id").fieldId()),
-        Sets.newHashSet(builder.checkAndGetEqualityFieldIds()));
+    assertThat(builder.checkAndGetEqualityFieldIds())
+        .containsExactlyInAnyOrder(table.schema().findField("id").fieldId());
 
     builder.equalityFieldColumns(Lists.newArrayList("type"));
-    Assert.assertEquals(
-        Sets.newHashSet(table.schema().findField("type").fieldId()),
-        Sets.newHashSet(builder.checkAndGetEqualityFieldIds()));
+    assertThat(builder.checkAndGetEqualityFieldIds())
+        .containsExactlyInAnyOrder(table.schema().findField("type").fieldId());
   }
 
-  @Test
+  @TestTemplate
   public void testChangeLogOnIdKey() throws Exception {
     testChangeLogOnIdKey(SnapshotRef.MAIN_BRANCH);
   }
 
-  @Test
+  @TestTemplate
   public void testUpsertOnlyDeletesOnDataKey() throws Exception {
     List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
@@ -176,22 +149,22 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         SnapshotRef.MAIN_BRANCH);
   }
 
-  @Test
+  @TestTemplate
   public void testChangeLogOnDataKey() throws Exception {
     testChangeLogOnDataKey(SnapshotRef.MAIN_BRANCH);
   }
 
-  @Test
+  @TestTemplate
   public void testChangeLogOnIdDataKey() throws Exception {
     testChangeLogOnIdDataKey(SnapshotRef.MAIN_BRANCH);
   }
 
-  @Test
+  @TestTemplate
   public void testChangeLogOnSameKey() throws Exception {
     testChangeLogOnSameKey(SnapshotRef.MAIN_BRANCH);
   }
 
-  @Test
+  @TestTemplate
   public void testUpsertModeCheck() throws Exception {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
@@ -202,7 +175,7 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
             .writeParallelism(parallelism)
             .upsert(true);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 builder
                     .equalityFieldColumns(ImmutableList.of("id", "data"))
@@ -212,25 +185,52 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         .hasMessage(
             "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
   }
 
-  @Test
+  @TestTemplate
   public void testUpsertOnIdKey() throws Exception {
     testUpsertOnIdKey(SnapshotRef.MAIN_BRANCH);
   }
 
-  @Test
+  @TestTemplate
   public void testUpsertOnDataKey() throws Exception {
     testUpsertOnDataKey(SnapshotRef.MAIN_BRANCH);
   }
 
-  @Test
+  @TestTemplate
   public void testUpsertOnIdDataKey() throws Exception {
     testUpsertOnIdDataKey(SnapshotRef.MAIN_BRANCH);
+  }
+
+  @TestTemplate
+  public void testDeleteStats() throws Exception {
+    assumeThat(format).isNotEqualTo(FileFormat.AVRO);
+
+    List<List<Row>> elementsPerCheckpoint =
+        ImmutableList.of(
+            // Checkpoint #1
+            ImmutableList.of(row("+I", 1, "aaa"), row("-D", 1, "aaa"), row("+I", 1, "aaa")));
+
+    List<List<Record>> expectedRecords = ImmutableList.of(ImmutableList.of(record(1, "aaa")));
+
+    testChangeLogs(
+        ImmutableList.of("id", "data"),
+        row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
+        false,
+        elementsPerCheckpoint,
+        expectedRecords,
+        "main");
+
+    DeleteFile deleteFile = table.currentSnapshot().addedDeleteFiles(table.io()).iterator().next();
+    String fromStat =
+        new String(
+            deleteFile.lowerBounds().get(MetadataColumns.DELETE_FILE_PATH.fieldId()).array());
+    DataFile dataFile = table.currentSnapshot().addedDataFiles(table.io()).iterator().next();
+    assumeThat(fromStat).isEqualTo(dataFile.path().toString());
   }
 }

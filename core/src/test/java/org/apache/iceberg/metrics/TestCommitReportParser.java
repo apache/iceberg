@@ -18,53 +18,54 @@
  */
 package org.apache.iceberg.metrics;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestCommitReportParser {
 
   @Test
   public void nullCommitReport() {
-    Assertions.assertThatThrownBy(() -> CommitReportParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> CommitReportParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse commit report from null object");
 
-    Assertions.assertThatThrownBy(() -> CommitReportParser.toJson(null))
+    assertThatThrownBy(() -> CommitReportParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid commit report: null");
   }
 
   @Test
   public void missingFields() {
-    Assertions.assertThatThrownBy(() -> CommitReportParser.fromJson("{}"))
+    assertThatThrownBy(() -> CommitReportParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: table-name");
 
-    Assertions.assertThatThrownBy(
-            () -> CommitReportParser.fromJson("{\"table-name\":\"roundTripTableName\"}"))
+    assertThatThrownBy(() -> CommitReportParser.fromJson("{\"table-name\":\"roundTripTableName\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: snapshot-id");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 CommitReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: sequence-number");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 CommitReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"sequence-number\":24}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: operation");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 CommitReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":23,\"sequence-number\":24, \"operation\": \"DELETE\"}"))
@@ -74,14 +75,14 @@ public class TestCommitReportParser {
 
   @Test
   public void invalidTableName() {
-    Assertions.assertThatThrownBy(() -> CommitReportParser.fromJson("{\"table-name\":23}"))
+    assertThatThrownBy(() -> CommitReportParser.fromJson("{\"table-name\":23}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a string value: table-name: 23");
   }
 
   @Test
   public void invalidSnapshotId() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 CommitReportParser.fromJson(
                     "{\"table-name\":\"roundTripTableName\",\"snapshot-id\":\"invalid\"}"))
@@ -239,8 +240,8 @@ public class TestCommitReportParser {
             + "}";
 
     String json = CommitReportParser.toJson(commitReport, true);
-    Assertions.assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
-    Assertions.assertThat(json).isEqualTo(expectedJson);
+    assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
+    assertThat(json).isEqualTo(expectedJson);
   }
 
   @Test
@@ -265,8 +266,8 @@ public class TestCommitReportParser {
             + "}";
 
     String json = CommitReportParser.toJson(commitReport, true);
-    Assertions.assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
-    Assertions.assertThat(json).isEqualTo(expectedJson);
+    assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
+    assertThat(json).isEqualTo(expectedJson);
   }
 
   @Test
@@ -296,7 +297,7 @@ public class TestCommitReportParser {
             + "}";
 
     String json = CommitReportParser.toJson(commitReport, true);
-    Assertions.assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
-    Assertions.assertThat(json).isEqualTo(expectedJson);
+    assertThat(CommitReportParser.fromJson(json)).isEqualTo(commitReport);
+    assertThat(json).isEqualTo(expectedJson);
   }
 }

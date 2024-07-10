@@ -118,7 +118,7 @@ public abstract class TestBase extends SparkTestHelperBase {
 
   protected List<Object[]> sql(String query, Object... args) {
     List<Row> rows = spark.sql(String.format(query, args)).collectAsList();
-    if (rows.size() < 1) {
+    if (rows.isEmpty()) {
       return ImmutableList.of();
     }
 

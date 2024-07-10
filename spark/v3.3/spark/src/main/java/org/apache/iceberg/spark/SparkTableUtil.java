@@ -182,7 +182,7 @@ public class SparkTableUtil {
       Option<scala.collection.immutable.Map<String, String>> scalaPartitionFilter;
       if (partitionFilter != null && !partitionFilter.isEmpty()) {
         Builder<Tuple2<String, String>, scala.collection.immutable.Map<String, String>> builder =
-            Map$.MODULE$.<String, String>newBuilder();
+            Map$.MODULE$.newBuilder();
         partitionFilter.forEach((key, value) -> builder.$plus$eq(Tuple2.apply(key, value)));
         scalaPartitionFilter = Option.apply(builder.result());
       } else {
@@ -692,18 +692,6 @@ public class SparkTableUtil {
         .noRetry()
         .suppressFailureWhenFinished()
         .run(item -> io.deleteFile(item.path()));
-  }
-
-  /**
-   * Loads a metadata table.
-   *
-   * @deprecated since 0.14.0, will be removed in 0.15.0; use {@link
-   *     #loadMetadataTable(SparkSession, Table, MetadataTableType)}.
-   */
-  @Deprecated
-  public static Dataset<Row> loadCatalogMetadataTable(
-      SparkSession spark, Table table, MetadataTableType type) {
-    return loadMetadataTable(spark, table, type);
   }
 
   public static Dataset<Row> loadMetadataTable(

@@ -39,6 +39,11 @@ final class JdbcUtil {
   static final String STRICT_MODE_PROPERTY = JdbcCatalog.PROPERTY_PREFIX + "strict-mode";
   // property to control if view support is added to the existing database
   static final String SCHEMA_VERSION_PROPERTY = JdbcCatalog.PROPERTY_PREFIX + "schema-version";
+  // property to control if catalog tables are created during initialization
+  static final String INIT_CATALOG_TABLES_PROPERTY =
+      JdbcCatalog.PROPERTY_PREFIX + "init-catalog-tables";
+
+  static final String RETRYABLE_STATUS_CODES = "retryable_status_codes";
 
   enum SchemaVersion {
     V0,
