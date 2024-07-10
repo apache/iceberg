@@ -34,7 +34,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
-  private static final String SOURCE_NAME = "spark_catalog.default.source";
+  private static final String sourceName = "spark_catalog.default.source";
   // Currently we can only Snapshot only out of the Spark Session Catalog
 
   public TestSnapshotTableProcedure(
@@ -47,7 +47,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   @After
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
-    sql("DROP TABLE IF EXISTS %S", SOURCE_NAME);
+    sql("DROP TABLE IF EXISTS %S", sourceName);
   }
 
   @Test
@@ -55,10 +55,10 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     String location = temp.newFolder().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        SOURCE_NAME, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+        sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
     Object result =
-        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, SOURCE_NAME, tableName);
+        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
 
     Assert.assertEquals("Should have added one file", 1L, result);
 
@@ -79,12 +79,12 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     String location = temp.newFolder().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        SOURCE_NAME, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+        sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
     Object result =
         scalarSql(
             "CALL %s.system.snapshot(source_table => '%s', table => '%s', properties => map('foo','bar'))",
-            catalogName, SOURCE_NAME, tableName);
+            catalogName, sourceName, tableName);
 
     Assert.assertEquals("Should have added one file", 1L, result);
 
@@ -113,12 +113,12 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     String snapshotLocation = temp.newFolder().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        SOURCE_NAME, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+        sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
     Object[] result =
         sql(
                 "CALL %s.system.snapshot(source_table => '%s', table => '%s', location => '%s')",
-                catalogName, SOURCE_NAME, tableName, snapshotLocation)
+                catalogName, sourceName, tableName, snapshotLocation)
             .get(0);
 
     Assert.assertEquals("Should have added one file", 1L, result[0]);
@@ -140,11 +140,11 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     String location = temp.newFolder().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        SOURCE_NAME, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+        sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
 
     Object result =
-        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, SOURCE_NAME, tableName);
+        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
     Assert.assertEquals("Should have added one file", 1L, result);
 
     assertEquals(
@@ -157,7 +157,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Source table should be intact",
         ImmutableList.of(row(1L, "a")),
-        sql("SELECT * FROM %s", SOURCE_NAME));
+        sql("SELECT * FROM %s", sourceName));
   }
 
   @Test
@@ -165,8 +165,8 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     String location = temp.newFolder().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        SOURCE_NAME, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+        sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
 
     Object result =
         scalarSql(
@@ -174,7 +174,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
                 + "source_table => '%s',"
                 + "table => '%s',"
                 + "properties => map('%s', 'true', 'snapshot', 'false'))",
-            catalogName, SOURCE_NAME, tableName, TableProperties.GC_ENABLED);
+            catalogName, sourceName, tableName, TableProperties.GC_ENABLED);
     Assert.assertEquals("Should have added one file", 1L, result);
 
     assertEquals(
@@ -194,7 +194,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     String location = temp.newFolder().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        SOURCE_NAME, location);
+        sourceName, location);
 
     assertThatThrownBy(() -> sql("CALL %s.system.snapshot('foo')", catalogName))
         .as("Should reject calls without all required args")
@@ -211,7 +211,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
             () ->
                 sql(
                     "CALL %s.system.snapshot('%s', 'fable', 'loc', map(2, 1, 1))",
-                    catalogName, SOURCE_NAME))
+                    catalogName, sourceName))
         .as("Should reject calls with invalid map args")
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining("cannot resolve 'map");

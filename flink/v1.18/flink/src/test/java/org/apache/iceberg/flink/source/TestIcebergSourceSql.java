@@ -59,7 +59,7 @@ public class TestIcebergSourceSql extends TestSqlBase {
     SqlHelpers.sql(
         tableEnvironment,
         "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
-        CATALOG_EXTENSION.warehouse());
+        catalogResource.warehouse());
     SqlHelpers.sql(tableEnvironment, "use catalog iceberg_catalog");
 
     tableConf.set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
@@ -74,7 +74,7 @@ public class TestIcebergSourceSql extends TestSqlBase {
 
   /** Generates the records in the expected order, with respect to their datafile */
   private List<Record> generateExpectedRecords(boolean ascending) throws Exception {
-    Table table = CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA_TS);
+    Table table = catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA_TS);
     long baseTime = 1702382109000L;
 
     GenericAppenderHelper helper =

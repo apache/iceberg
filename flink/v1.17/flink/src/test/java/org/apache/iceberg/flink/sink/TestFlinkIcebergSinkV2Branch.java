@@ -43,7 +43,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
   @RegisterExtension
-  private static final HadoopCatalogExtension CATALOG_EXTENSION =
+  private static final HadoopCatalogExtension catalogResource =
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   @Parameter(index = 0)
@@ -57,7 +57,7 @@ public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
   @BeforeEach
   public void before() throws IOException {
     table =
-        CATALOG_EXTENSION
+        catalogResource
             .catalog()
             .createTable(
                 TestFixtures.TABLE_IDENTIFIER,
@@ -74,7 +74,7 @@ public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
                 MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
             .enableCheckpointing(100);
 
-    tableLoader = CATALOG_EXTENSION.tableLoader();
+    tableLoader = catalogResource.tableLoader();
   }
 
   @TestTemplate

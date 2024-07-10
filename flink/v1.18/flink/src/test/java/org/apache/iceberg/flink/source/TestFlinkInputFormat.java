@@ -75,7 +75,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
             required(6, "id", Types.LongType.get()));
 
     Table table =
-        CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("default", "t"), schema);
+        catalogExtension.catalog().createTable(TableIdentifier.of("default", "t"), schema);
 
     List<Record> writeRecords = RandomGenericData.generate(schema, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(writeRecords);
@@ -115,7 +115,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
             Types.NestedField.optional(2, "time", Types.TimestampType.withZone()));
 
     Table table =
-        CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("default", "t"), writeSchema);
+        catalogExtension.catalog().createTable(TableIdentifier.of("default", "t"), writeSchema);
 
     List<Record> writeRecords = RandomGenericData.generate(writeSchema, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(writeRecords);
@@ -157,7 +157,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
         PartitionSpec.builderFor(nestedSchema).identity("struct.innerName").build();
 
     Table table =
-        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, nestedSchema, spec);
+        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, nestedSchema, spec);
     List<Record> records = RandomGenericData.generate(nestedSchema, 10, 0L);
     GenericAppenderHelper appender =
         new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
@@ -189,7 +189,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
 
   @TestTemplate
   public void testValidation() {
-    CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
+    catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
 
     assertThatThrownBy(
             () ->

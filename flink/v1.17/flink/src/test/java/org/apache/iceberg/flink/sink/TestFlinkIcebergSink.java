@@ -66,7 +66,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
   @RegisterExtension
-  private static final HadoopCatalogExtension CATALOG_EXTENSION =
+  private static final HadoopCatalogExtension catalogResource =
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   private TableLoader tableLoader;
@@ -101,7 +101,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
   @BeforeEach
   public void before() throws IOException {
     table =
-        CATALOG_EXTENSION
+        catalogResource
             .catalog()
             .createTable(
                 TestFixtures.TABLE_IDENTIFIER,
@@ -118,7 +118,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .setParallelism(parallelism)
             .setMaxParallelism(parallelism);
 
-    tableLoader = CATALOG_EXTENSION.tableLoader();
+    tableLoader = catalogResource.tableLoader();
   }
 
   @TestTemplate
@@ -244,7 +244,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
 
     Table leftTable =
-        CATALOG_EXTENSION
+        catalogResource
             .catalog()
             .createTable(
                 TableIdentifier.of("left"),
@@ -254,10 +254,10 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
                     : PartitionSpec.unpartitioned(),
                 props);
     TableLoader leftTableLoader =
-        TableLoader.fromCatalog(CATALOG_EXTENSION.catalogLoader(), TableIdentifier.of("left"));
+        TableLoader.fromCatalog(catalogResource.catalogLoader(), TableIdentifier.of("left"));
 
     Table rightTable =
-        CATALOG_EXTENSION
+        catalogResource
             .catalog()
             .createTable(
                 TableIdentifier.of("right"),
@@ -267,7 +267,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
                     : PartitionSpec.unpartitioned(),
                 props);
     TableLoader rightTableLoader =
-        TableLoader.fromCatalog(CATALOG_EXTENSION.catalogLoader(), TableIdentifier.of("right"));
+        TableLoader.fromCatalog(catalogResource.catalogLoader(), TableIdentifier.of("right"));
 
     env =
         StreamExecutionEnvironment.getExecutionEnvironment(

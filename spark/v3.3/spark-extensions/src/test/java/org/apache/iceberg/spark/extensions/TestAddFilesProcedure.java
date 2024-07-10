@@ -894,7 +894,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     assertOutput(pathResult, 0L, 0L);
     assertEquals(
         "Iceberg table contains no added data when importing from an empty path",
-        EMPTY_QUERY_RESULT,
+        emptyQueryResult,
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     // Empty table based import
@@ -907,7 +907,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     assertOutput(tableResult, 0L, 0L);
     assertEquals(
         "Iceberg table contains no added data when importing from an empty table",
-        EMPTY_QUERY_RESULT,
+        emptyQueryResult,
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
@@ -935,13 +935,13 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     assertOutput(tableResult, 0L, 0L);
     assertEquals(
         "Iceberg table contains no added data when importing from an empty table",
-        EMPTY_QUERY_RESULT,
+        emptyQueryResult,
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  private static final List<Object[]> EMPTY_QUERY_RESULT = Lists.newArrayList();
+  private static final List<Object[]> emptyQueryResult = Lists.newArrayList();
 
-  private static final StructField[] STRUCT = {
+  private static final StructField[] struct = {
     new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
     new StructField("name", DataTypes.StringType, true, Metadata.empty()),
     new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
@@ -956,14 +956,14 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
                 RowFactory.create(2, "Jane Doe", "hr", "salary"),
                 RowFactory.create(3, "Matt Doe", "hr", "communications"),
                 RowFactory.create(4, "Will Doe", "facilities", "all")),
-            new StructType(STRUCT))
+            new StructType(struct))
         .repartition(1);
   }
 
   private Dataset<Row> singleNullRecordDF() {
     return spark
         .createDataFrame(
-            ImmutableList.of(RowFactory.create(null, null, null, null)), new StructType(STRUCT))
+            ImmutableList.of(RowFactory.create(null, null, null, null)), new StructType(struct))
         .repartition(1);
   }
 
@@ -988,7 +988,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         unpartitionedDF.col("name").as("naMe"));
   }
 
-  private static final StructField[] DATE_STRUCT = {
+  private static final StructField[] dateStruct = {
     new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
     new StructField("name", DataTypes.StringType, true, Metadata.empty()),
     new StructField("ts", DataTypes.DateType, true, Metadata.empty()),
@@ -1007,7 +1007,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
                 RowFactory.create(2, "Jane Doe", toDate("2021-01-01"), "01"),
                 RowFactory.create(3, "Matt Doe", toDate("2021-01-02"), "02"),
                 RowFactory.create(4, "Will Doe", toDate("2021-01-02"), "02")),
-            new StructType(DATE_STRUCT))
+            new StructType(dateStruct))
         .repartition(2);
   }
 

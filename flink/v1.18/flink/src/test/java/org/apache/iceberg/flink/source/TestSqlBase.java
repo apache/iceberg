@@ -56,7 +56,7 @@ public abstract class TestSqlBase {
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
   @RegisterExtension
-  public static final HadoopCatalogExtension CATALOG_EXTENSION =
+  public static final HadoopCatalogExtension catalogResource =
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   @TempDir protected Path temporaryFolder;
@@ -81,7 +81,7 @@ public abstract class TestSqlBase {
   @Test
   public void testResiduals() throws Exception {
     Table table =
-        CATALOG_EXTENSION
+        catalogResource
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
 
@@ -113,7 +113,7 @@ public abstract class TestSqlBase {
   @Test
   public void testExposeLocality() throws Exception {
     Table table =
-        CATALOG_EXTENSION
+        catalogResource
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
 

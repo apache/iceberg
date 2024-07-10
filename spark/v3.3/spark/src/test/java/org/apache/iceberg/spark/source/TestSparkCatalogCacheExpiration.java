@@ -34,9 +34,9 @@ import org.junit.Test;
 
 public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
 
-  private static final String SESSION_CATALOG_NAME = "spark_catalog";
-  private static final String SESSION_CATALOG_IMPL = SparkSessionCatalog.class.getName();
-  private static final Map<String, String> SESSION_CATALOG_CONFIG =
+  private static final String sessionCatalogName = "spark_catalog";
+  private static final String sessionCatalogImpl = SparkSessionCatalog.class.getName();
+  private static final Map<String, String> sessionCatalogConfig =
       ImmutableMap.of(
           "type",
           "hadoop",
@@ -88,7 +88,7 @@ public class TestSparkCatalogCacheExpiration extends SparkTestBaseWithCatalog {
   }
 
   public TestSparkCatalogCacheExpiration() {
-    super(SESSION_CATALOG_NAME, SESSION_CATALOG_IMPL, SESSION_CATALOG_CONFIG);
+    super(sessionCatalogName, sessionCatalogImpl, sessionCatalogConfig);
   }
 
   @Test

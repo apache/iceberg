@@ -38,11 +38,11 @@ import org.junit.runners.Parameterized;
 
 public class TestSparkCatalogHadoopOverrides extends SparkCatalogTestBase {
 
-  private static final String CONFIG_TO_OVERRIDE = "fs.s3a.buffer.dir";
+  private static final String configToOverride = "fs.s3a.buffer.dir";
   // prepend "hadoop." so that the test base formats SQLConf correctly
   //   as `spark.sql.catalogs.<catalogName>.hadoop.<configToOverride>
-  private static final String HADOOP_PREFIXED_CONFIG_TO_OVERRIDE = "hadoop." + CONFIG_TO_OVERRIDE;
-  private static final String CONFIG_OVERRIDE_VALUE = "/tmp-overridden";
+  private static final String hadoopPrefixedConfigToOverride = "hadoop." + configToOverride;
+  private static final String configOverrideValue = "/tmp-overridden";
 
   @Parameterized.Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
@@ -55,13 +55,13 @@ public class TestSparkCatalogHadoopOverrides extends SparkCatalogTestBase {
             "hive",
             "default-namespace",
             "default",
-            HADOOP_PREFIXED_CONFIG_TO_OVERRIDE,
-            CONFIG_OVERRIDE_VALUE)
+            hadoopPrefixedConfigToOverride,
+            configOverrideValue)
       },
       {
         "testhadoop",
         SparkCatalog.class.getName(),
-        ImmutableMap.of("type", "hadoop", HADOOP_PREFIXED_CONFIG_TO_OVERRIDE, CONFIG_OVERRIDE_VALUE)
+        ImmutableMap.of("type", "hadoop", hadoopPrefixedConfigToOverride, configOverrideValue)
       },
       {
         "spark_catalog",
@@ -71,8 +71,8 @@ public class TestSparkCatalogHadoopOverrides extends SparkCatalogTestBase {
             "hive",
             "default-namespace",
             "default",
-            HADOOP_PREFIXED_CONFIG_TO_OVERRIDE,
-            CONFIG_OVERRIDE_VALUE)
+            hadoopPrefixedConfigToOverride,
+            configOverrideValue)
       }
     };
   }
@@ -96,10 +96,10 @@ public class TestSparkCatalogHadoopOverrides extends SparkCatalogTestBase {
   public void testTableFromCatalogHasOverrides() throws Exception {
     Table table = getIcebergTableFromSparkCatalog();
     Configuration conf = ((Configurable) table.io()).getConf();
-    String actualCatalogOverride = conf.get(CONFIG_TO_OVERRIDE, "/whammies");
+    String actualCatalogOverride = conf.get(configToOverride, "/whammies");
     Assert.assertEquals(
         "Iceberg tables from spark should have the overridden hadoop configurations from the spark config",
-        CONFIG_OVERRIDE_VALUE,
+        configOverrideValue,
         actualCatalogOverride);
   }
 
@@ -107,10 +107,10 @@ public class TestSparkCatalogHadoopOverrides extends SparkCatalogTestBase {
   public void ensureRoundTripSerializedTableRetainsHadoopConfig() throws Exception {
     Table table = getIcebergTableFromSparkCatalog();
     Configuration originalConf = ((Configurable) table.io()).getConf();
-    String actualCatalogOverride = originalConf.get(CONFIG_TO_OVERRIDE, "/whammies");
+    String actualCatalogOverride = originalConf.get(configToOverride, "/whammies");
     Assert.assertEquals(
         "Iceberg tables from spark should have the overridden hadoop configurations from the spark config",
-        CONFIG_OVERRIDE_VALUE,
+        configOverrideValue,
         actualCatalogOverride);
 
     // Now convert to SerializableTable and ensure overridden property is still present.
@@ -118,19 +118,19 @@ public class TestSparkCatalogHadoopOverrides extends SparkCatalogTestBase {
     Table kryoSerializedTable =
         KryoHelpers.roundTripSerialize(SerializableTableWithSize.copyOf(table));
     Configuration configFromKryoSerde = ((Configurable) kryoSerializedTable.io()).getConf();
-    String kryoSerializedCatalogOverride = configFromKryoSerde.get(CONFIG_TO_OVERRIDE, "/whammies");
+    String kryoSerializedCatalogOverride = configFromKryoSerde.get(configToOverride, "/whammies");
     Assert.assertEquals(
         "Tables serialized with Kryo serialization should retain overridden hadoop configuration properties",
-        CONFIG_OVERRIDE_VALUE,
+        configOverrideValue,
         kryoSerializedCatalogOverride);
 
     // Do the same for Java based serde
     Table javaSerializedTable = TestHelpers.roundTripSerialize(serializableTable);
     Configuration configFromJavaSerde = ((Configurable) javaSerializedTable.io()).getConf();
-    String javaSerializedCatalogOverride = configFromJavaSerde.get(CONFIG_TO_OVERRIDE, "/whammies");
+    String javaSerializedCatalogOverride = configFromJavaSerde.get(configToOverride, "/whammies");
     Assert.assertEquals(
         "Tables serialized with Java serialization should retain overridden hadoop configuration properties",
-        CONFIG_OVERRIDE_VALUE,
+        configOverrideValue,
         javaSerializedCatalogOverride);
   }
 

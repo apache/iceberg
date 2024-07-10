@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.FileFormat.PARQUET;
 import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
 import static org.apache.iceberg.TableProperties.AVRO_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
@@ -81,7 +82,7 @@ import org.junit.runners.Parameterized;
 public class TestCompressionSettings extends SparkCatalogTestBase {
 
   private static final Configuration CONF = new Configuration();
-  private static final String TABLE_NAME = "testWriteData";
+  private static final String tableName = "testWriteData";
 
   private static SparkSession spark = null;
 
@@ -108,7 +109,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
 
   @Parameterized.AfterParam
   public static void clearSourceCache() {
-    spark.sql(String.format("DROP TABLE IF EXISTS %s", TABLE_NAME));
+    spark.sql(String.format("DROP TABLE IF EXISTS %s", tableName));
   }
 
   @AfterClass
@@ -129,7 +130,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
 
   @Test
   public void testWriteDataWithDifferentSetting() throws Exception {
-    sql("CREATE TABLE %s (id int, data string) USING iceberg", TABLE_NAME);
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     Map<String, String> tableProperties = Maps.newHashMap();
     tableProperties.put(PARQUET_COMPRESSION, "gzip");
     tableProperties.put(AVRO_COMPRESSION, "gzip");
@@ -139,14 +140,14 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
     tableProperties.put(DELETE_ORC_COMPRESSION, "zlib");
     tableProperties.put(DELETE_MODE, MERGE_ON_READ.modeName());
     tableProperties.put(FORMAT_VERSION, "2");
-    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')", TABLE_NAME, DEFAULT_FILE_FORMAT, format);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')", tableName, DEFAULT_FILE_FORMAT, format);
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')",
-        TABLE_NAME, DELETE_DEFAULT_FILE_FORMAT, format);
+        tableName, DELETE_DEFAULT_FILE_FORMAT, format);
     for (Map.Entry<String, String> entry : tableProperties.entrySet()) {
       sql(
           "ALTER TABLE %s SET TBLPROPERTIES ('%s' '%s')",
-          TABLE_NAME, entry.getKey(), entry.getValue());
+          tableName, entry.getKey(), entry.getValue());
     }
 
     List<SimpleRecord> expectedOrigin = Lists.newArrayList();
@@ -161,10 +162,10 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
     }
 
     df.select("id", "data")
-        .writeTo(TABLE_NAME)
+        .writeTo(tableName)
         .option(SparkWriteOptions.WRITE_FORMAT, format.toString())
         .append();
-    Table table = catalog.loadTable(TableIdentifier.of("default", TABLE_NAME));
+    Table table = catalog.loadTable(TableIdentifier.of("default", tableName));
     List<ManifestFile> manifestFiles = table.currentSnapshot().dataManifests(table.io());
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifestFiles.get(0), table.io())) {
       DataFile file = reader.iterator().next();
@@ -173,7 +174,7 @@ public class TestCompressionSettings extends SparkCatalogTestBase {
           .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
     }
 
-    sql("DELETE from %s where id < 100", TABLE_NAME);
+    sql("DELETE from %s where id < 100", tableName);
 
     table.refresh();
     List<ManifestFile> deleteManifestFiles = table.currentSnapshot().deleteManifests(table.io());

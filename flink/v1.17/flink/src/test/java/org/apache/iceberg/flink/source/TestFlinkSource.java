@@ -38,7 +38,7 @@ public abstract class TestFlinkSource extends TestFlinkScan {
     TableSchema schema =
         FlinkSchemaUtil.toSchema(
             FlinkSchemaUtil.convert(
-                CATALOG_EXTENSION.catalog().loadTable(TestFixtures.TABLE_IDENTIFIER).schema()));
+                catalogExtension.catalog().loadTable(TestFixtures.TABLE_IDENTIFIER).schema()));
     for (String field : projected) {
       TableColumn column = schema.getTableColumn(field).get();
       builder.field(column.getName(), column.getType());

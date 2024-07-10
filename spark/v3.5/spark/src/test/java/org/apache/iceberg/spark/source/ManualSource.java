@@ -31,16 +31,16 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 public class ManualSource implements TableProvider, DataSourceRegister {
   public static final String SHORT_NAME = "manual_source";
   public static final String TABLE_NAME = "TABLE_NAME";
-  private static final Map<String, Table> TABLE_MAP = Maps.newHashMap();
+  private static final Map<String, Table> tableMap = Maps.newHashMap();
 
   public static void setTable(String name, Table table) {
     Preconditions.checkArgument(
-        !TABLE_MAP.containsKey(name), "Cannot set " + name + ". It is already set");
-    TABLE_MAP.put(name, table);
+        !tableMap.containsKey(name), "Cannot set " + name + ". It is already set");
+    tableMap.put(name, table);
   }
 
   public static void clearTables() {
-    TABLE_MAP.clear();
+    tableMap.clear();
   }
 
   @Override
@@ -64,8 +64,8 @@ public class ManualSource implements TableProvider, DataSourceRegister {
     Preconditions.checkArgument(
         properties.containsKey(TABLE_NAME), "Missing property " + TABLE_NAME);
     String tableName = properties.get(TABLE_NAME);
-    Preconditions.checkArgument(TABLE_MAP.containsKey(tableName), "Table missing " + tableName);
-    return TABLE_MAP.get(tableName);
+    Preconditions.checkArgument(tableMap.containsKey(tableName), "Table missing " + tableName);
+    return tableMap.get(tableName);
   }
 
   @Override
