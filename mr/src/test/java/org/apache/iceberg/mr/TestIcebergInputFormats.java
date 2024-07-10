@@ -389,10 +389,11 @@ public class TestIcebergInputFormats {
   @TestTemplate
   public void testWorkerPool() throws Exception {
     // 1.The ugi in the same thread will not change
-    final ExecutorService workerPool1 =
-            ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
-    UserGroupInformation user1 = UserGroupInformation.createUserForTesting("user1", new String[]{});
-    UserGroupInformation user2 = UserGroupInformation.createUserForTesting("user2", new String[]{});
+    final ExecutorService workerPool1 = ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
+    UserGroupInformation user1 = 
+        UserGroupInformation.createUserForTesting("user1", new String[]{});
+    UserGroupInformation user2 = 
+        UserGroupInformation.createUserForTesting("user2", new String[]{});
     AtomicReference<String> atomicReference = new AtomicReference<>(null);
     setUgi(user1, workerPool1, atomicReference);
     while (atomicReference.get() == null) {
@@ -407,8 +408,7 @@ public class TestIcebergInputFormats {
     assertThat(atomicReference.get()).isEqualTo("user1");
 
     // 2.The ugi in different threads will be different
-    final ExecutorService workerPool2 =
-            ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
+    final ExecutorService workerPool2 = ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
     atomicReference.set(null);
     setUgi(user2, workerPool2, atomicReference);
     while (atomicReference.get() == null) {
@@ -417,7 +417,8 @@ public class TestIcebergInputFormats {
     assertThat(atomicReference.get()).isEqualTo("user2");
   }
 
-  private void setUgi(UserGroupInformation ugi, ExecutorService workpool, AtomicReference<String> atomicReference) {
+  private void setUgi(
+      UserGroupInformation ugi, ExecutorService workpool, AtomicReference<String> atomicReference) {
     ugi.doAs((PrivilegedAction<Object>) ()-> {
       workpool.submit(() -> {
         try {
