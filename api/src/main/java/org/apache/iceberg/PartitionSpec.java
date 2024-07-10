@@ -390,7 +390,7 @@ public class PartitionSpec implements Serializable {
     }
 
     private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
-      Types.NestedField schemaField = schema.findField(name);
+      Types.NestedField schemaField = schema.caseInsensitiveFindField(name);
       if (checkConflicts) {
         if (sourceColumnId != null) {
           // for identity transform case we allow conflicts between partition and schema field name
@@ -433,7 +433,7 @@ public class PartitionSpec implements Serializable {
     }
 
     private Types.NestedField findSourceColumn(String sourceName) {
-      Types.NestedField sourceColumn = schema.findField(sourceName);
+      Types.NestedField sourceColumn = schema.caseInsensitiveFindField(sourceName);
       Preconditions.checkArgument(
           sourceColumn != null, "Cannot find source column: %s", sourceName);
       return sourceColumn;
