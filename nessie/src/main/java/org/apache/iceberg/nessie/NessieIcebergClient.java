@@ -236,7 +236,8 @@ public class NessieIcebergClient implements AutoCloseable {
         Namespace parent = Namespace.of(Arrays.copyOf(namespace.levels(), i + 1));
         ContentKey parentKey = ContentKey.of(parent.levels());
         keys.add(parentKey);
-        Content parentContent = api.getContent().reference(getReference()).key(parentKey).get().get(parentKey);
+        Content parentContent =
+            api.getContent().reference(getReference()).key(parentKey).get().get(parentKey);
         contentInfo.put(parentKey, parentContent);
       }
 
