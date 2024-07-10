@@ -79,22 +79,45 @@ public class RowDataUtil {
    * the arity check.
    */
   public static RowData clone(
-      RowData from, RowData reuse, RowType rowType, TypeSerializer[] fieldSerializers) {
+      RowData from,
+      RowData reuse,
+      RowType rowType,
+      TypeSerializer[] fieldSerializers,
+      RowData.FieldGetter[] fieldGetters) {
     GenericRowData ret;
     if (reuse instanceof GenericRowData) {
       ret = (GenericRowData) reuse;
     } else {
       ret = new GenericRowData(from.getArity());
     }
+
     ret.setRowKind(from.getRowKind());
     for (int i = 0; i < rowType.getFieldCount(); i++) {
       if (!from.isNullAt(i)) {
-        RowData.FieldGetter getter = RowData.createFieldGetter(rowType.getTypeAt(i), i);
-        ret.setField(i, fieldSerializers[i].copy(getter.getFieldOrNull(from)));
+        ret.setField(i, fieldSerializers[i].copy(fieldGetters[i].getFieldOrNull(from)));
       } else {
         ret.setField(i, null);
       }
     }
+
     return ret;
+  }
+
+  /**
+   * @deprecated will be removed in 1.7.0; Not reusing FieldGetter in this method could lead to
+   *     performance degradation, use {@link #clone(RowData, RowData, RowType, TypeSerializer[],
+   *     RowData.FieldGetter[])} instead.
+   */
+  @Deprecated
+  public static RowData clone(
+      RowData from, RowData reuse, RowType rowType, TypeSerializer[] fieldSerializers) {
+    RowData.FieldGetter[] fieldGetters = new RowData.FieldGetter[rowType.getFieldCount()];
+    for (int i = 0; i < rowType.getFieldCount(); ++i) {
+      if (!from.isNullAt(i)) {
+        fieldGetters[i] = RowData.createFieldGetter(rowType.getTypeAt(i), i);
+      }
+    }
+
+    return clone(from, reuse, rowType, fieldSerializers, fieldGetters);
   }
 }
