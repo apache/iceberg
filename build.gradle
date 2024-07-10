@@ -212,7 +212,6 @@ subprojects {
   dependencies {
     implementation libs.slf4j.api
 
-    testImplementation libs.junit.vintage.engine
     testImplementation libs.junit.jupiter
     testImplementation libs.junit.jupiter.engine
     testImplementation libs.slf4j.simple
@@ -413,6 +412,7 @@ project(':iceberg-data') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation libs.junit.vintage.engine
   }
 
   test {
