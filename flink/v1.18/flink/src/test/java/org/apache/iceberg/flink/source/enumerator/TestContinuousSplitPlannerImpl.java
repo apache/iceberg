@@ -48,8 +48,8 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestContinuousSplitPlannerImpl {
   @TempDir protected Path temporaryFolder;
 
-  private static final FileFormat fileFormat = FileFormat.PARQUET;
-  private static final AtomicLong randomSeed = new AtomicLong();
+  private static final FileFormat FILE_FORMAT = FileFormat.PARQUET;
+  private static final AtomicLong RANDOM_SEED = new AtomicLong();
 
   @RegisterExtension
   private static final HadoopTableExtension TABLE_RESOURCE =
@@ -63,7 +63,7 @@ public class TestContinuousSplitPlannerImpl {
 
   @BeforeEach
   public void before() throws IOException {
-    dataAppender = new GenericAppenderHelper(TABLE_RESOURCE.table(), fileFormat, temporaryFolder);
+    dataAppender = new GenericAppenderHelper(TABLE_RESOURCE.table(), FILE_FORMAT, temporaryFolder);
   }
 
   private void appendTwoSnapshots() throws IOException {
@@ -85,7 +85,7 @@ public class TestContinuousSplitPlannerImpl {
       ContinuousSplitPlannerImpl splitPlanner, IcebergEnumeratorPosition lastPosition)
       throws Exception {
     List<Record> batch =
-        RandomGenericData.generate(TestFixtures.SCHEMA, 2, randomSeed.incrementAndGet());
+        RandomGenericData.generate(TestFixtures.SCHEMA, 2, RANDOM_SEED.incrementAndGet());
     DataFile dataFile = dataAppender.writeFile(null, batch);
     dataAppender.appendToTable(dataFile);
     Snapshot snapshot = TABLE_RESOURCE.table().currentSnapshot();
