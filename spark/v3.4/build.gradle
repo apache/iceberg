@@ -104,6 +104,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation libs.sqlite.jdbc
     testImplementation libs.awaitility
+    testImplementation libs.junit.vintage.engine
   }
 
   test {
@@ -167,6 +168,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 
     testImplementation libs.avro.avro
     testImplementation libs.parquet.hadoop
+    testImplementation libs.junit.vintage.engine
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     runtimeOnly libs.antlr.runtime

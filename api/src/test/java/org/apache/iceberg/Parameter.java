@@ -22,11 +22,10 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import org.junit.runners.Parameterized;
 
 /**
- * The annotation is used to replace {@link Parameterized.Parameter} for Junit 5 parameterized
- * tests.
+ * The annotation is used to replace {@link org.junit.runners.Parameterized.Parameter} for Junit 5
+ * parameterized tests.
  *
  * <p>This implementation has been taken from Flink repository. The only difference is the "index"
  * field, renamed to be more intuitive
