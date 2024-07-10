@@ -390,14 +390,14 @@ public class TestIcebergInputFormats {
   public void testWorkerPool() throws Exception {
     // 1.The ugi in the same thread will not change
     final ExecutorService workerPool1 = ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
-    UserGroupInformation user1 = 
+    UserGroupInformation user1 =
         UserGroupInformation.createUserForTesting("user1", new String[]{});
-    UserGroupInformation user2 = 
+    UserGroupInformation user2 =
         UserGroupInformation.createUserForTesting("user2", new String[]{});
     AtomicReference<String> atomicReference = new AtomicReference<>(null);
     setUgi(user1, workerPool1, atomicReference);
     while (atomicReference.get() == null) {
-     Thread.sleep(1000);
+      Thread.sleep(1000);
     }
     assertThat(atomicReference.get()).isEqualTo("user1");
     atomicReference.set(null);
@@ -419,17 +419,20 @@ public class TestIcebergInputFormats {
 
   private void setUgi(
       UserGroupInformation ugi, ExecutorService workpool, AtomicReference<String> atomicReference) {
-    ugi.doAs((PrivilegedAction<Object>) ()-> {
-      workpool.submit(() -> {
-        try {
-          atomicReference.set(UserGroupInformation.getCurrentUser().getUserName());
-        } catch (IOException e) {
-          throw new RuntimeException(e.getMessage());
-        }
-      });
-      return null;
-    });
-  }
+    ugi.doAs(
+        (PrivilegedAction<Object>) 
+            () -> {
+              workpool.submit(
+                  () -> {
+                    try {
+                      atomicReference.set(UserGroupInformation.getCurrentUser().getUserName());
+                    } catch (IOException e) {
+                      throw new RuntimeException(e.getMessage());
+                    }
+                  });
+              return null;
+           });
+    }
 
   // TODO - Capture template type T in toString method:
   // https://github.com/apache/iceberg/issues/1542
