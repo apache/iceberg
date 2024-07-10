@@ -327,11 +327,12 @@ public class FlinkSink {
       Preconditions.checkArgument(
           inputCreator != null,
           "Please use forRowData() or forMapperOutputType() to initialize the input DataStream.");
-      Preconditions.checkNotNull(tableLoader, "Table loader shouldn't be null");
 
       DataStream<RowData> rowDataInput = inputCreator.apply(uidPrefix);
 
       if (table == null) {
+        Preconditions.checkNotNull(tableLoader, "Table is null and Table loader shouldn't be null");
+
         if (!tableLoader.isOpen()) {
           tableLoader.open();
         }

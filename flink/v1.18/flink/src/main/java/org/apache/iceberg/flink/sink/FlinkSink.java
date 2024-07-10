@@ -332,6 +332,8 @@ public class FlinkSink {
       DataStream<RowData> rowDataInput = inputCreator.apply(uidPrefix);
 
       if (table == null) {
+        Preconditions.checkNotNull(tableLoader, "Table is null and Table loader shouldn't be null");
+
         if (!tableLoader.isOpen()) {
           tableLoader.open();
         }
