@@ -221,8 +221,6 @@ public class NessieIcebergClient implements AutoCloseable {
     checkNamespaceIsValid(namespace);
     getRef().checkMutable();
     ContentKey key = ContentKey.of(namespace.levels());
-    org.projectnessie.model.Namespace content =
-        org.projectnessie.model.Namespace.of(key.getElements(), metadata);
     try {
       Content existing = api.getContent().reference(getReference()).key(key).get().get(key);
       if (existing != null) {
@@ -232,7 +230,7 @@ public class NessieIcebergClient implements AutoCloseable {
       // check if the parent namespace exists
       List<ContentKey> keys = Lists.newArrayList();
       Map<ContentKey, Content> contentInfo = Maps.newHashMap();
-      for (int i = 0; i < namespace.levels().length - 1; i++) {
+      for (int i = 0; i < namespace.levels().length; i++) {
         Namespace parent = Namespace.of(Arrays.copyOf(namespace.levels(), i + 1));
         ContentKey parentKey = ContentKey.of(parent.levels());
         keys.add(parentKey);
@@ -244,13 +242,17 @@ public class NessieIcebergClient implements AutoCloseable {
       List<Operation.Put> putOperations = Lists.newArrayList();
       for (Map.Entry<ContentKey, Content> contentKeyContentEntry : contentInfo.entrySet()) {
         if (contentKeyContentEntry.getValue() == null) {
-          org.projectnessie.model.Namespace parentContent =
-              org.projectnessie.model.Namespace.of(
-                  contentKeyContentEntry.getKey().getElements(), ImmutableMap.of());
-          putOperations.add(Operation.Put.of(contentKeyContentEntry.getKey(), parentContent));
+          org.projectnessie.model.Namespace content;
+          if (contentKeyContentEntry.getKey().equals(key)) {
+            content = org.projectnessie.model.Namespace.of(key.getElements(), metadata);
+          } else {
+            content =
+                org.projectnessie.model.Namespace.of(
+                    contentKeyContentEntry.getKey().getElements(), ImmutableMap.of());
+          }
+          putOperations.add(Operation.Put.of(contentKeyContentEntry.getKey(), content));
         }
       }
-      putOperations.add(Operation.Put.of(key, content));
 
       try {
         commitRetry("create namespace " + keys, putOperations.toArray(new Operation.Put[0]));

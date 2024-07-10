@@ -132,7 +132,7 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
         .extracting(LogResponse.LogEntry::getCommitMeta)
         .extracting(CommitMeta::getMessage, CommitMeta::getAuthor, CommitMeta::getProperties)
         .containsExactly(
-            "create namespace a",
+            "create namespace [a]",
             "iceberg-user",
             ImmutableMap.of(
                 "application-type", "iceberg",
@@ -168,10 +168,6 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     assertThatThrownBy(() -> client.createNamespace(Namespace.empty(), Map.of()))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessageContaining("Invalid namespace: ");
-
-    assertThatThrownBy(() -> client.createNamespace(Namespace.of("a", "b"), Map.of()))
-        .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageContaining("Cannot create namespace 'a.b': parent namespace 'a' does not exist");
   }
 
   @Test
