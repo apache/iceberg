@@ -42,7 +42,7 @@ public class TestFlinkSourceSql extends TestSqlBase {
     SqlHelpers.sql(
         getTableEnv(),
         "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
-        catalogResource.warehouse());
+        CATALOG_EXTENSION.warehouse());
     SqlHelpers.sql(getTableEnv(), "use catalog iceberg_catalog");
     getTableEnv()
         .getConfig()
@@ -56,7 +56,7 @@ public class TestFlinkSourceSql extends TestSqlBase {
     cfg.set(PipelineOptions.MAX_PARALLELISM, 1);
 
     Table table =
-        catalogResource
+        CATALOG_EXTENSION
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, null);
 

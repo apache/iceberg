@@ -74,7 +74,7 @@ public class TestColumnStatsWatermarkExtractor {
   @TempDir protected Path temporaryFolder;
 
   @RegisterExtension
-  private static final HadoopTableExtension sourceTableResource =
+  private static final HadoopTableExtension SOURCE_TABLE_RESOURCE =
       new HadoopTableExtension(DATABASE, TestFixtures.TABLE, SCHEMA);
 
   @Parameter(index = 0)
