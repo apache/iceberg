@@ -241,7 +241,6 @@ public class NessieIcebergClient implements AutoCloseable {
         contentInfo.put(parentKey, c);
       }
 
-
       ArrayList<Operation.Put> putOperations = new ArrayList<>(keys.size());
       for (Map.Entry<ContentKey, Content> contentKeyContentEntry : contentInfo.entrySet()) {
         if (contentKeyContentEntry.getValue() == null) {
