@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobConf;
@@ -425,15 +424,12 @@ public class TestIcebergInputFormats {
             () -> {
               try {
                 method.invoke(new IcebergInputFormat<>(), table, conf, workerpool);
-                Future<String> submit =
-                    workerpool.submit(
+                return workerpool
+                    .submit(
                         () -> {
                           return UserGroupInformation.getCurrentUser().getUserName();
-                        });
-                while (!submit.isDone()) {
-                  Thread.sleep(10);
-                }
-                return submit.get();
+                        })
+                    .get();
               } catch (Exception e) {
                 throw new RuntimeException("Failed to get user from worker pool", e);
               }
