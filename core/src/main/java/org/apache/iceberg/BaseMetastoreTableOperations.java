@@ -395,9 +395,6 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
                 Iterables.transform(
                     removedPreviousMetadataFiles, TableMetadata.MetadataLogEntry::file));
       } else {
-        LOG.warn(
-            "IO {} does not support bulk operations. Using non-bulk deletes.",
-            io().getClass().getName());
         Tasks.foreach(removedPreviousMetadataFiles)
             .noRetry()
             .suppressFailureWhenFinished()
