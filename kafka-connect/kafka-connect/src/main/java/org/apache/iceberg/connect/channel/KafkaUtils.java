@@ -28,12 +28,8 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 class KafkaUtils {
-
-  private static final Logger LOG = LoggerFactory.getLogger(KafkaUtils.class);
 
   private static final String CONTEXT_CLASS_NAME =
       "org.apache.kafka.connect.runtime.WorkerSinkTaskContext";
@@ -50,20 +46,20 @@ class KafkaUtils {
     }
   }
 
+  static ConsumerGroupMetadata consumerGroupMetadata(SinkTaskContext context) {
+    return kafkaConsumer(context).groupMetadata();
+  }
+
   @SuppressWarnings("unchecked")
-  static ConsumerGroupMetadata consumerGroupMetadata(
-      SinkTaskContext context, String connectGroupId) {
+  private static Consumer<byte[], byte[]> kafkaConsumer(SinkTaskContext context) {
     String contextClassName = context.getClass().getName();
-    if (CONTEXT_CLASS_NAME.equals(contextClassName)) {
+    try {
       return ((Consumer<byte[], byte[]>)
-              DynFields.builder().hiddenImpl(CONTEXT_CLASS_NAME, "consumer").build(context).get())
-          .groupMetadata();
+          DynFields.builder().hiddenImpl(CONTEXT_CLASS_NAME, "consumer").build(context).get());
+    } catch (Exception e) {
+      throw new ConnectException(
+          "Unable to retrieve consumer from context: " + contextClassName, e);
     }
-    LOG.warn(
-        "Consumer group metadata not available for {}, zombie fencing will be less strong than with {}",
-        contextClassName,
-        CONTEXT_CLASS_NAME);
-    return new ConsumerGroupMetadata(connectGroupId);
   }
 
   private KafkaUtils() {}

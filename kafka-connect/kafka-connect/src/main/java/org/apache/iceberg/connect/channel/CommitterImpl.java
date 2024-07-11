@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Set;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -56,11 +57,7 @@ public class CommitterImpl implements Committer {
   }
 
   @Override
-  public void start(
-      Catalog catalog,
-      IcebergSinkConfig config,
-      SinkTaskContext context,
-      Collection<TopicPartition> partitions) {
+  public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
     KafkaClientFactory clientFactory = new KafkaClientFactory(config.kafkaProps());
 
     ConsumerGroupDescription groupDesc;
@@ -70,6 +67,7 @@ public class CommitterImpl implements Committer {
 
     if (groupDesc.state() == ConsumerGroupState.STABLE) {
       Collection<MemberDescription> members = groupDesc.members();
+      Set<TopicPartition> partitions = context.assignment();
       if (isLeader(members, partitions)) {
         LOG.info("Task elected leader, starting commit coordinator");
         Coordinator coordinator = new Coordinator(catalog, config, members, clientFactory, context);

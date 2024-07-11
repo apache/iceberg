@@ -20,16 +20,11 @@ package org.apache.iceberg.connect;
 
 import java.util.Collection;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 
 public interface Committer {
-  void start(
-      Catalog catalog,
-      IcebergSinkConfig config,
-      SinkTaskContext context,
-      Collection<TopicPartition> partitions);
+  void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context);
 
   void stop();
 

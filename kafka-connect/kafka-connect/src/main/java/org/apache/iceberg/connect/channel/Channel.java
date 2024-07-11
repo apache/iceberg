@@ -100,7 +100,7 @@ abstract class Channel {
         recordList.forEach(producer::send);
         if (!sourceOffsets.isEmpty()) {
           producer.sendOffsetsToTransaction(
-              offsetsToCommit, KafkaUtils.consumerGroupMetadata(context, connectGroupId));
+              offsetsToCommit, KafkaUtils.consumerGroupMetadata(context));
         }
         producer.commitTransaction();
       } catch (Exception e) {

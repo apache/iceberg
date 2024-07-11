@@ -55,7 +55,7 @@ public class IcebergSinkTask extends SinkTask {
 
     catalog = CatalogUtils.loadCatalog(config);
     committer = CommitterFactory.createCommitter(config);
-    committer.start(catalog, config, context, partitions);
+    committer.start(catalog, config, context);
   }
 
   @Override
