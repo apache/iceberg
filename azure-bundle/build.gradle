@@ -39,6 +39,10 @@ project(":iceberg-azure-bundle") {
       include 'NOTICE'
     }
 
+    dependencies {
+      exclude(dependency('org.slf4j:slf4j-api'))
+    }
+
     // relocate Azure-specific versions
     relocate 'io.netty', 'org.apache.iceberg.azure.shaded.io.netty'
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.azure.shaded.com.fasterxml.jackson'
