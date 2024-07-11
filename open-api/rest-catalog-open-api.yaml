@@ -145,7 +145,7 @@ paths:
         to the correct OAuth endpoint.
 
         Deprecated since Iceberg (Java) 1.6.0. The endpoint and related types will be removed from
-        this spec in Iceberg (Java) 1.8.0.
+        this spec in Iceberg (Java) 2.0, whichever is released sooner.
 
         See [Security improvements in the Iceberg REST specification](https://github.com/apache/iceberg/issues/10537)
 
