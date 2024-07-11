@@ -73,10 +73,10 @@ public abstract class TestWriterMetrics<T> {
   // create a schema with all supported fields
   protected static final Schema SCHEMA = new Schema(ID_FIELD, DATA_FIELD, STRUCT_FIELD);
 
-  protected static final SortOrder sortOrder =
+  protected static final SortOrder SORT_ORDER =
       SortOrder.builderFor(SCHEMA).asc("id").asc("structField.longValue").build();
 
-  protected static final Map<String, String> properties =
+  protected static final Map<String, String> PROPERTIES =
       ImmutableMap.of(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none");
 
   @TempDir private File tempDir;
@@ -107,7 +107,7 @@ public abstract class TestWriterMetrics<T> {
 
     this.table =
         TestTables.create(
-            tableDir, "test", SCHEMA, PartitionSpec.unpartitioned(), sortOrder, FORMAT_V2);
+            tableDir, "test", SCHEMA, PartitionSpec.unpartitioned(), SORT_ORDER, FORMAT_V2);
     table.updateProperties().set(TableProperties.DEFAULT_WRITE_METRICS_MODE, "none").commit();
 
     this.fileFactory = OutputFileFactory.builderFor(table, 1, 1).format(fileFormat).build();

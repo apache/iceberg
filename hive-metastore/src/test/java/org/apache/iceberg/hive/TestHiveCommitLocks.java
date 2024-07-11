@@ -86,7 +86,7 @@ public class TestHiveCommitLocks {
   private static HiveClientPool spyClientPool = null;
   private static CachedClientPool spyCachedClientPool = null;
   private static Configuration overriddenHiveConf;
-  private static final AtomicReference<IMetaStoreClient> spyClientRef = new AtomicReference<>();
+  private static final AtomicReference<IMetaStoreClient> SPY_CLIENT_REF = new AtomicReference<>();
   private static IMetaStoreClient spyClient = null;
   HiveTableOperations ops = null;
   TableMetadata metadataV1 = null;
@@ -100,9 +100,9 @@ public class TestHiveCommitLocks {
 
   private static final String DB_NAME = "hivedb";
   private static final String TABLE_NAME = "tbl";
-  private static final Schema schema =
+  private static final Schema SCHEMA =
       new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
-  private static final PartitionSpec partitionSpec = builderFor(schema).identity("id").build();
+  private static final PartitionSpec PARTITION_SPEC = builderFor(SCHEMA).identity("id").build();
   static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
 
   @RegisterExtension
@@ -143,8 +143,8 @@ public class TestHiveCommitLocks {
               // cannot spy on RetryingHiveMetastoreClient as it is a proxy
               IMetaStoreClient client =
                   spy(new HiveMetaStoreClient(HIVE_METASTORE_EXTENSION.hiveConf()));
-              spyClientRef.set(client);
-              return spyClientRef.get();
+              SPY_CLIENT_REF.set(client);
+              return SPY_CLIENT_REF.get();
             });
 
     spyClientPool.run(IMetaStoreClient::isLocalMetaStore); // To ensure new client is created.
@@ -153,15 +153,15 @@ public class TestHiveCommitLocks {
         spy(new CachedClientPool(HIVE_METASTORE_EXTENSION.hiveConf(), Collections.emptyMap()));
     when(spyCachedClientPool.clientPool()).thenAnswer(invocation -> spyClientPool);
 
-    assertThat(spyClientRef.get()).isNotNull();
+    assertThat(SPY_CLIENT_REF.get()).isNotNull();
 
-    spyClient = spyClientRef.get();
+    spyClient = SPY_CLIENT_REF.get();
   }
 
   @BeforeEach
   public void before() throws Exception {
     this.tableLocation =
-        new Path(catalog.createTable(TABLE_IDENTIFIER, schema, partitionSpec).location());
+        new Path(catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PARTITION_SPEC).location());
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
     ops = (HiveTableOperations) ((HasTableOperations) table).operations();
     String dbName = TABLE_IDENTIFIER.namespace().level(0);

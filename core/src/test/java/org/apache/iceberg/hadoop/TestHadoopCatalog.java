@@ -58,7 +58,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestHadoopCatalog extends HadoopTableTestBase {
-  private static final ImmutableMap<String, String> meta = ImmutableMap.of();
+  private static final ImmutableMap<String, String> META = ImmutableMap.of();
 
   @ParameterizedTest
   @ValueSource(ints = {1, 2})
@@ -337,7 +337,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
     TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
 
-    Lists.newArrayList(tbl1, tbl2).forEach(t -> catalog.createNamespace(t.namespace(), meta));
+    Lists.newArrayList(tbl1, tbl2).forEach(t -> catalog.createNamespace(t.namespace(), META));
 
     String metaLocation1 = warehouseLocation + "/" + "db/ns1/ns2";
     FileSystem fs1 = Util.getFs(new Path(metaLocation1), catalog.getConf());

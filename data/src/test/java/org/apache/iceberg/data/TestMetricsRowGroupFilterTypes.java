@@ -126,16 +126,16 @@ public class TestMetricsRowGroupFilterTypes {
   private static MessageType parquetSchema = null;
   private static BlockMetaData rowGroupMetadata = null;
 
-  private static final UUID uuid = UUID.randomUUID();
-  private static final LocalDate date =
+  private static final UUID UUID_VALUE = UUID.randomUUID();
+  private static final LocalDate DATE =
       LocalDate.parse("2018-06-29", DateTimeFormatter.ISO_LOCAL_DATE);
-  private static final LocalTime time =
+  private static final LocalTime TIME =
       LocalTime.parse("10:02:34.000000", DateTimeFormatter.ISO_LOCAL_TIME);
-  private static final OffsetDateTime timestamptz =
+  private static final OffsetDateTime TIMESTAMPTZ =
       OffsetDateTime.parse("2018-06-29T10:02:34.000000+00:00", DateTimeFormatter.ISO_DATE_TIME);
-  private static final LocalDateTime timestamp =
+  private static final LocalDateTime TIMESTAMP =
       LocalDateTime.parse("2018-06-29T10:02:34.000000", DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-  private static final byte[] fixed = "abcd".getBytes(StandardCharsets.UTF_8);
+  private static final byte[] FIXED = "abcd".getBytes(StandardCharsets.UTF_8);
 
   @BeforeEach
   public void createInputFile() throws IOException {
@@ -148,15 +148,16 @@ public class TestMetricsRowGroupFilterTypes {
       record.setField("_long", 5_000_000_000L + i);
       record.setField("_float", ((float) (100 - i)) / 100F + 1.0F); // 2.0f, 1.99f, 1.98f, ...
       record.setField("_double", ((double) i) / 100.0D + 2.0D); // 2.0d, 2.01d, 2.02d, ...
-      record.setField("_date", date);
-      record.setField("_time", time);
-      record.setField("_timestamp", timestamp);
-      record.setField("_timestamptz", timestamptz);
+      record.setField("_date", DATE);
+      record.setField("_time", TIME);
+      record.setField("_timestamp", TIMESTAMP);
+      record.setField("_timestamptz", TIMESTAMPTZ);
       record.setField("_string", "tapir");
-      // record.setField("_uuid", uuid); // Disable writing UUID value as GenericParquetWriter does
+      // record.setField("_uuid", UUID_VALUE); // Disable writing UUID value as GenericParquetWriter
+      // does
       // not handle UUID type
       // correctly; Also UUID tests are disabled for both ORC and Parquet anyway
-      record.setField("_fixed", fixed);
+      record.setField("_fixed", FIXED);
       record.setField("_binary", ByteBuffer.wrap("xyz".getBytes(StandardCharsets.UTF_8)));
       record.setField("_int_decimal", new BigDecimal("77.77"));
       record.setField("_long_decimal", new BigDecimal("88.88"));
@@ -254,7 +255,7 @@ public class TestMetricsRowGroupFilterTypes {
         "2018-06-29T10:02:34.000000-07:00"
       },
       {FileFormat.PARQUET, "string", "tapir", "monthly"},
-      // { FileFormat.PARQUET, "uuid", uuid, UUID.randomUUID() }, // not supported yet
+      // { FileFormat.PARQUET, "uuid", UUID_VALUE, UUID.randomUUID() }, // not supported yet
       {
         FileFormat.PARQUET,
         "fixed",
@@ -286,7 +287,7 @@ public class TestMetricsRowGroupFilterTypes {
       },
       {FileFormat.ORC, "string", "tapir", "monthly"},
       // uuid, fixed and binary types not supported yet
-      // { FileFormat.ORC, "uuid", uuid, UUID.randomUUID() },
+      // { FileFormat.ORC, "uuid", UUID_VALUE, UUID.randomUUID() },
       // { FileFormat.ORC, "fixed", "abcd".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1,
       // 2, 3 } },
       // { FileFormat.ORC, "binary", "xyz".getBytes(StandardCharsets.UTF_8), new byte[] { 0, 1,

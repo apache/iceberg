@@ -43,26 +43,26 @@ class AvroIO {
 
   private AvroIO() {}
 
-  private static final Class<?> fsDataInputStreamClass =
+  private static final Class<?> FS_DATA_INPUT_STREAM_CLASS =
       DynClasses.builder().impl("org.apache.hadoop.fs.FSDataInputStream").orNull().build();
 
-  private static final boolean relocated =
+  private static final boolean RELOCATED =
       "org.apache.avro.file.SeekableInput".equals(SeekableInput.class.getName());
 
-  private static final DynConstructors.Ctor<SeekableInput> avroFsInputCtor =
-      !relocated && fsDataInputStreamClass != null
+  private static final DynConstructors.Ctor<SeekableInput> AVRO_FS_INPUT_CTOR =
+      !RELOCATED && FS_DATA_INPUT_STREAM_CLASS != null
           ? DynConstructors.builder(SeekableInput.class)
-              .impl("org.apache.hadoop.fs.AvroFSInput", fsDataInputStreamClass, Long.TYPE)
+              .impl("org.apache.hadoop.fs.AvroFSInput", FS_DATA_INPUT_STREAM_CLASS, Long.TYPE)
               .build()
           : null;
 
   static SeekableInput stream(SeekableInputStream stream, long length) {
     if (stream instanceof DelegatingInputStream) {
       InputStream wrapped = ((DelegatingInputStream) stream).getDelegate();
-      if (avroFsInputCtor != null
-          && fsDataInputStreamClass != null
-          && fsDataInputStreamClass.isInstance(wrapped)) {
-        return avroFsInputCtor.newInstance(wrapped, length);
+      if (AVRO_FS_INPUT_CTOR != null
+          && FS_DATA_INPUT_STREAM_CLASS != null
+          && FS_DATA_INPUT_STREAM_CLASS.isInstance(wrapped)) {
+        return AVRO_FS_INPUT_CTOR.newInstance(wrapped, length);
       }
     }
     return new AvroInputStreamAdapter(stream, length);

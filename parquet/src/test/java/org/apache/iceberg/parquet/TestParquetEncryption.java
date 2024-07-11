@@ -46,36 +46,36 @@ import org.junit.jupiter.api.io.TempDir;
 
 public class TestParquetEncryption {
 
-  private static final String columnName = "intCol";
-  private static final int recordCount = 100;
-  private static final ByteBuffer fileDek = ByteBuffer.allocate(16);
-  private static final ByteBuffer aadPrefix = ByteBuffer.allocate(16);
+  private static final String COLUMN_NAME = "intCol";
+  private static final int RECORD_COUNT = 100;
+  private static final ByteBuffer FILE_DEK = ByteBuffer.allocate(16);
+  private static final ByteBuffer AAD_PREFIX = ByteBuffer.allocate(16);
+  private static final Schema SCHEMA = new Schema(optional(1, COLUMN_NAME, IntegerType.get()));
   private static File file;
-  private static final Schema schema = new Schema(optional(1, columnName, IntegerType.get()));
 
   @TempDir private Path temp;
 
   @BeforeEach
   public void writeEncryptedFile() throws IOException {
-    List<GenericData.Record> records = Lists.newArrayListWithCapacity(recordCount);
-    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
-    for (int i = 1; i <= recordCount; i++) {
+    List<GenericData.Record> records = Lists.newArrayListWithCapacity(RECORD_COUNT);
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(SCHEMA.asStruct());
+    for (int i = 1; i <= RECORD_COUNT; i++) {
       GenericData.Record record = new GenericData.Record(avroSchema);
-      record.put(columnName, i);
+      record.put(COLUMN_NAME, i);
       records.add(record);
     }
 
     SecureRandom rand = new SecureRandom();
-    rand.nextBytes(fileDek.array());
-    rand.nextBytes(aadPrefix.array());
+    rand.nextBytes(FILE_DEK.array());
+    rand.nextBytes(AAD_PREFIX.array());
 
     file = createTempFile(temp);
 
     FileAppender<GenericData.Record> writer =
         Parquet.write(localOutput(file))
-            .schema(schema)
-            .withFileEncryptionKey(fileDek)
-            .withAADPrefix(aadPrefix)
+            .schema(SCHEMA)
+            .withFileEncryptionKey(FILE_DEK)
+            .withAADPrefix(AAD_PREFIX)
             .build();
 
     try (Closeable toClose = writer) {
@@ -86,7 +86,7 @@ public class TestParquetEncryption {
   @Test
   public void testReadEncryptedFileWithoutKeys() throws IOException {
     assertThatThrownBy(
-            () -> Parquet.read(localInput(file)).project(schema).callInit().build().iterator())
+            () -> Parquet.read(localInput(file)).project(SCHEMA).callInit().build().iterator())
         .as("Decrypted without keys")
         .isInstanceOf(ParquetCryptoRuntimeException.class)
         .hasMessage("Trying to read file with encrypted footer. No keys available");
@@ -97,8 +97,8 @@ public class TestParquetEncryption {
     assertThatThrownBy(
             () ->
                 Parquet.read(localInput(file))
-                    .project(schema)
-                    .withFileEncryptionKey(fileDek)
+                    .project(SCHEMA)
+                    .withFileEncryptionKey(FILE_DEK)
                     .callInit()
                     .build()
                     .iterator())
@@ -113,15 +113,15 @@ public class TestParquetEncryption {
   public void testReadEncryptedFile() throws IOException {
     try (CloseableIterator readRecords =
         Parquet.read(localInput(file))
-            .withFileEncryptionKey(fileDek)
-            .withAADPrefix(aadPrefix)
-            .project(schema)
+            .withFileEncryptionKey(FILE_DEK)
+            .withAADPrefix(AAD_PREFIX)
+            .project(SCHEMA)
             .callInit()
             .build()
             .iterator()) {
-      for (int i = 1; i <= recordCount; i++) {
+      for (int i = 1; i <= RECORD_COUNT; i++) {
         GenericData.Record readRecord = (GenericData.Record) readRecords.next();
-        assertThat(readRecord.get(columnName)).isEqualTo(i);
+        assertThat(readRecord.get(COLUMN_NAME)).isEqualTo(i);
       }
     }
   }

@@ -55,17 +55,17 @@ public class HiveTableBaseTest {
 
   protected static HiveCatalog catalog;
 
-  static final Schema schema =
+  static final Schema SCHEMA =
       new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
 
-  static final Schema altered =
+  static final Schema ALTERED =
       new Schema(
           Types.StructType.of(
                   required(1, "id", Types.LongType.get()),
                   optional(2, "data", Types.LongType.get()))
               .fields());
 
-  private static final PartitionSpec partitionSpec = builderFor(schema).identity("id").build();
+  private static final PartitionSpec PARTITION_SPEC = builderFor(SCHEMA).identity("id").build();
 
   private Path tableLocation;
 
@@ -85,7 +85,7 @@ public class HiveTableBaseTest {
   @BeforeEach
   public void createTestTable() {
     this.tableLocation =
-        new Path(catalog.createTable(TABLE_IDENTIFIER, schema, partitionSpec).location());
+        new Path(catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PARTITION_SPEC).location());
   }
 
   @AfterEach

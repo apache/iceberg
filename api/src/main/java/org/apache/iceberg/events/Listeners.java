@@ -28,11 +28,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 public class Listeners {
   private Listeners() {}
 
-  private static final Map<Class<?>, Queue<Listener<?>>> listeners = Maps.newConcurrentMap();
+  private static final Map<Class<?>, Queue<Listener<?>>> LISTENERS = Maps.newConcurrentMap();
 
   public static <E> void register(Listener<E> listener, Class<E> eventType) {
     Queue<Listener<?>> list =
-        listeners.computeIfAbsent(eventType, k -> new ConcurrentLinkedQueue<>());
+        LISTENERS.computeIfAbsent(eventType, k -> new ConcurrentLinkedQueue<>());
     list.add(listener);
   }
 
@@ -40,7 +40,7 @@ public class Listeners {
   public static <E> void notifyAll(E event) {
     Preconditions.checkNotNull(event, "Cannot notify listeners for a null event.");
 
-    Queue<Listener<?>> list = listeners.get(event.getClass());
+    Queue<Listener<?>> list = LISTENERS.get(event.getClass());
     if (list != null) {
       for (Listener<?> value : list) {
         Listener<E> listener = (Listener<E>) value;

@@ -82,9 +82,9 @@ public class TestNessieTable extends BaseTestIceberg {
   private static final String TABLE_NAME = "tbl";
   private static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DB_NAME, TABLE_NAME);
   private static final ContentKey KEY = ContentKey.of(DB_NAME, TABLE_NAME);
-  private static final Schema schema =
+  private static final Schema SCHEMA =
       new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
-  private static final Schema altered =
+  private static final Schema ALTERED =
       new Schema(
           Types.StructType.of(
                   required(1, "id", Types.LongType.get()),
@@ -102,7 +102,7 @@ public class TestNessieTable extends BaseTestIceberg {
   public void beforeEach(NessieClientFactory clientFactory, @NessieClientUri URI nessieUri)
       throws IOException {
     super.beforeEach(clientFactory, nessieUri);
-    this.tableLocation = createTable(TABLE_IDENTIFIER, schema).location().replaceFirst("file:", "");
+    this.tableLocation = createTable(TABLE_IDENTIFIER, SCHEMA).location().replaceFirst("file:", "");
   }
 
   @Override
@@ -539,7 +539,7 @@ public class TestNessieTable extends BaseTestIceberg {
     // Only 2 snapshotFile Should exist and no manifests should exist
     assertThat(metadataVersionFiles(tableLocation)).isNotNull().hasSize(2);
     assertThat(manifestFiles(tableLocation)).isNotNull().isEmpty();
-    assertThat(altered.asStruct()).isEqualTo(icebergTable.schema().asStruct());
+    assertThat(ALTERED.asStruct()).isEqualTo(icebergTable.schema().asStruct());
   }
 
   @Test
@@ -614,7 +614,7 @@ public class TestNessieTable extends BaseTestIceberg {
                 .build());
 
     // Create the table again using updated config defaults.
-    tableLocation = createTable(TABLE_IDENTIFIER, schema).location().replaceFirst("file:", "");
+    tableLocation = createTable(TABLE_IDENTIFIER, SCHEMA).location().replaceFirst("file:", "");
     Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
 
     assertThatCode(
@@ -675,12 +675,12 @@ public class TestNessieTable extends BaseTestIceberg {
 
   private static String addRecordsToFile(Table table, String filename) throws IOException {
     GenericRecordBuilder recordBuilder =
-        new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
+        new GenericRecordBuilder(AvroSchemaUtil.convert(SCHEMA, "test"));
     List<GenericData.Record> records = Lists.newArrayListWithCapacity(3);
     records.add(recordBuilder.set("id", 1L).build());
     records.add(recordBuilder.set("id", 2L).build());
     records.add(recordBuilder.set("id", 3L).build());
 
-    return writeRecordsToFile(table, schema, filename, records);
+    return writeRecordsToFile(table, SCHEMA, filename, records);
   }
 }

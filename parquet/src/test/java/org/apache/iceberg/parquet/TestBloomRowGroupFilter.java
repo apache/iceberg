@@ -82,7 +82,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 public class TestBloomRowGroupFilter {
 
-  private static final Types.StructType structFieldType =
+  private static final Types.StructType STRUCT_FIELD_TYPE =
       Types.StructType.of(Types.NestedField.required(16, "int_field", IntegerType.get()));
   private static final Schema SCHEMA =
       new Schema(
@@ -100,7 +100,7 @@ public class TestBloomRowGroupFilter {
           optional(12, "all_nans", DoubleType.get()),
           optional(13, "some_nans", FloatType.get()),
           optional(14, "no_nans", DoubleType.get()),
-          optional(15, "struct_not_null", structFieldType),
+          optional(15, "struct_not_null", STRUCT_FIELD_TYPE),
           optional(17, "not_in_file", FloatType.get()),
           optional(18, "no_stats", StringType.get()),
           optional(19, "boolean", Types.BooleanType.get()),
@@ -113,7 +113,7 @@ public class TestBloomRowGroupFilter {
           optional(26, "long_decimal", Types.DecimalType.of(14, 2)),
           optional(27, "fixed_decimal", Types.DecimalType.of(31, 2)));
 
-  private static final Types.StructType _structFieldType =
+  private static final Types.StructType UNDERSCORE_STRUCT_FIELD_TYPE =
       Types.StructType.of(Types.NestedField.required(16, "_int_field", IntegerType.get()));
 
   private static final Schema FILE_SCHEMA =
@@ -132,7 +132,7 @@ public class TestBloomRowGroupFilter {
           optional(12, "_all_nans", DoubleType.get()),
           optional(13, "_some_nans", FloatType.get()),
           optional(14, "_no_nans", DoubleType.get()),
-          optional(15, "_struct_not_null", _structFieldType),
+          optional(15, "_struct_not_null", UNDERSCORE_STRUCT_FIELD_TYPE),
           optional(18, "_no_stats", StringType.get()),
           optional(19, "_boolean", Types.BooleanType.get()),
           optional(20, "_time", Types.TimeType.get()),
@@ -161,7 +161,7 @@ public class TestBloomRowGroupFilter {
   private static final double DOUBLE_BASE = 1000D;
   private static final float FLOAT_BASE = 10000F;
   private static final String BINARY_PREFIX = "BINARY测试_";
-  private static final Instant instant = Instant.parse("2018-10-10T00:00:00.000Z");
+  private static final Instant INSTANT = Instant.parse("2018-10-10T00:00:00.000Z");
   private static final List<UUID> RANDOM_UUIDS;
   private static final List<byte[]> RANDOM_BYTES;
 
@@ -192,7 +192,7 @@ public class TestBloomRowGroupFilter {
     assertThat(temp.delete()).isTrue();
 
     // build struct field schema
-    org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
+    org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(UNDERSCORE_STRUCT_FIELD_TYPE);
 
     OutputFile outFile = Files.localOutput(temp);
     try (FileAppender<Record> appender =
@@ -251,10 +251,10 @@ public class TestBloomRowGroupFilter {
         builder.set("_struct_not_null", structNotNull); // struct with int
         builder.set("_no_stats", TOO_LONG_FOR_STATS); // value longer than 4k will produce no stats
         builder.set("_boolean", i % 2 == 0);
-        builder.set("_time", instant.plusSeconds(i * 86400).toEpochMilli());
-        builder.set("_date", instant.plusSeconds(i * 86400).getEpochSecond());
-        builder.set("_timestamp", instant.plusSeconds(i * 86400).toEpochMilli());
-        builder.set("_timestamptz", instant.plusSeconds(i * 86400).toEpochMilli());
+        builder.set("_time", INSTANT.plusSeconds(i * 86400).toEpochMilli());
+        builder.set("_date", INSTANT.plusSeconds(i * 86400).getEpochSecond());
+        builder.set("_timestamp", INSTANT.plusSeconds(i * 86400).toEpochMilli());
+        builder.set("_timestamptz", INSTANT.plusSeconds(i * 86400).toEpochMilli());
         builder.set("_binary", RANDOM_BYTES.get(i));
         builder.set("_int_decimal", new BigDecimal(String.valueOf(77.77 + i)));
         builder.set("_long_decimal", new BigDecimal(String.valueOf(88.88 + i)));
@@ -807,7 +807,7 @@ public class TestBloomRowGroupFilter {
   @Test
   public void testTimeEq() {
     for (int i = -20; i < INT_VALUE_COUNT + 20; i++) {
-      Instant ins = instant.plusSeconds(i * 86400);
+      Instant ins = INSTANT.plusSeconds(i * 86400);
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, equal("time", ins.toEpochMilli()))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
@@ -822,7 +822,7 @@ public class TestBloomRowGroupFilter {
   @Test
   public void testDateEq() {
     for (int i = -20; i < INT_VALUE_COUNT + 20; i++) {
-      Instant ins = instant.plusSeconds(i * 86400);
+      Instant ins = INSTANT.plusSeconds(i * 86400);
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, equal("date", ins.getEpochSecond()))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
@@ -837,7 +837,7 @@ public class TestBloomRowGroupFilter {
   @Test
   public void testTimestampEq() {
     for (int i = -20; i < INT_VALUE_COUNT + 20; i++) {
-      Instant ins = instant.plusSeconds(i * 86400);
+      Instant ins = INSTANT.plusSeconds(i * 86400);
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, equal("timestamp", ins.toEpochMilli()))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);
@@ -852,7 +852,7 @@ public class TestBloomRowGroupFilter {
   @Test
   public void testTimestamptzEq() {
     for (int i = -20; i < INT_VALUE_COUNT + 20; i++) {
-      Instant ins = instant.plusSeconds(i * 86400);
+      Instant ins = INSTANT.plusSeconds(i * 86400);
       boolean shouldRead =
           new ParquetBloomRowGroupFilter(SCHEMA, equal("timestamptz", ins.toEpochMilli()))
               .shouldRead(parquetSchema, rowGroupMetadata, bloomStore);

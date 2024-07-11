@@ -70,8 +70,8 @@ public class IcebergStorage extends LoadFunc
 
   public static final String PIG_ICEBERG_TABLES_IMPL = "pig.iceberg.tables.impl";
   private static Tables iceberg;
-  private static final Map<String, Table> tables = Maps.newConcurrentMap();
-  private static final Map<String, String> locations = Maps.newConcurrentMap();
+  private static final Map<String, Table> TABLES = Maps.newConcurrentMap();
+  private static final Map<String, String> LOCATIONS = Maps.newConcurrentMap();
 
   private String signature;
 
@@ -81,7 +81,7 @@ public class IcebergStorage extends LoadFunc
   public void setLocation(String location, Job job) {
     LOG.info("[{}]: setLocation() -> {}", signature, location);
 
-    locations.put(signature, location);
+    LOCATIONS.put(signature, location);
 
     Configuration conf = job.getConfiguration();
 
@@ -93,9 +93,9 @@ public class IcebergStorage extends LoadFunc
   @Override
   public InputFormat getInputFormat() {
     LOG.info("[{}]: getInputFormat()", signature);
-    String location = locations.get(signature);
+    String location = LOCATIONS.get(signature);
 
-    return new IcebergPigInputFormat(tables.get(location), signature);
+    return new IcebergPigInputFormat(TABLES.get(location), signature);
   }
 
   @Override
@@ -323,13 +323,13 @@ public class IcebergStorage extends LoadFunc
       iceberg = (Tables) ReflectionUtils.newInstance(tablesImpl, job.getConfiguration());
     }
 
-    Table result = tables.get(location);
+    Table result = TABLES.get(location);
 
     if (result == null) {
       try {
         LOG.info("[{}]: Loading table for location: {}", signature, location);
         result = iceberg.load(location);
-        tables.put(location, result);
+        TABLES.put(location, result);
       } catch (Exception e) {
         throw new FrontendException("Failed to instantiate tables implementation", e);
       }
