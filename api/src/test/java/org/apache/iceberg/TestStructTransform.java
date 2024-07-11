@@ -73,9 +73,9 @@ public class TestStructTransform {
     assertThat(structTransform.resultSchema().asStruct())
         .isEqualTo(
             Types.StructType.of(
-                Types.NestedField.required(2, "ratio", Types.DoubleType.get()),
-                Types.NestedField.required(12, "ts", Types.IntegerType.get()),
-                Types.NestedField.optional(13, "device_id", Types.IntegerType.get()),
-                Types.NestedField.required(103, "blob", Types.BinaryType.get())));
+                Types.NestedField.required(0, "ratio_0", Types.DoubleType.get()),
+                Types.NestedField.required(1, "ts_1", Types.IntegerType.get()),
+                Types.NestedField.optional(2, "device_id_2", Types.IntegerType.get()),
+                Types.NestedField.required(3, "blob_3", Types.BinaryType.get())));
   }
 }

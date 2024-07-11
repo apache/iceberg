@@ -69,11 +69,15 @@ class StructTransform implements StructLike, Serializable {
       this.accessors[i] = accessor;
       this.transforms[i] = transform.bind(accessor.type());
       Type transformedType = transform.getResultType(sourceField.type());
+      // There could be multiple transformations on the same source column,
+      // like in the PartitionKey case. To resolve the collision,
+      // field id is set to transform index and
+      // field name is set to sourceFieldName_transformIndex
       Types.NestedField transformedField =
           Types.NestedField.of(
-              sourceFieldId,
+              i,
               sourceField.isOptional(),
-              sourceField.name(),
+              sourceField.name() + '_' + i,
               transformedType,
               sourceField.doc());
       transformedFields.add(transformedField);
