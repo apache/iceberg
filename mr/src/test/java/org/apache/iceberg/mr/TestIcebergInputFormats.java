@@ -77,7 +77,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestIcebergInputFormats {
@@ -422,7 +421,7 @@ public class TestIcebergInputFormats {
         (PrivilegedAction<String>)
             () -> {
               try {
-                method.invoke(Mockito.mock(IcebergInputFormat.class), table, conf, workerpool);
+                method.invoke(new IcebergInputFormat<>(), table, conf, workerpool);
                 Future<String> submit =
                     workerpool.submit(
                         () -> {
