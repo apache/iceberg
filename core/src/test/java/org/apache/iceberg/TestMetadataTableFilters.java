@@ -37,7 +37,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestMetadataTableFilters extends TestBase {
 
-  private static final Set<MetadataTableType> aggFileTables =
+  private static final Set<MetadataTableType> AGG_FILE_TABLES =
       Sets.newHashSet(
           MetadataTableType.ALL_DATA_FILES,
           MetadataTableType.ALL_DATA_FILES,
@@ -149,7 +149,7 @@ public class TestMetadataTableFilters extends TestBase {
   }
 
   private boolean isAggFileTable(MetadataTableType tableType) {
-    return aggFileTables.contains(tableType);
+    return AGG_FILE_TABLES.contains(tableType);
   }
 
   private String partitionColumn(String colName) {

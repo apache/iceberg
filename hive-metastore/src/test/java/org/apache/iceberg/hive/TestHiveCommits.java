@@ -302,7 +302,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
   @Test
   public void testInvalidObjectException() {
     TableIdentifier badTi = TableIdentifier.of(DB_NAME, "`tbl`");
-    assertThatThrownBy(() -> catalog.createTable(badTi, schema, PartitionSpec.unpartitioned()))
+    assertThatThrownBy(() -> catalog.createTable(badTi, SCHEMA, PartitionSpec.unpartitioned()))
         .isInstanceOf(ValidationException.class)
         .hasMessage(String.format("Invalid Hive object for %s.%s", DB_NAME, "`tbl`"));
   }
@@ -310,7 +310,7 @@ public class TestHiveCommits extends HiveTableBaseTest {
   @Test
   public void testAlreadyExistsException() {
     assertThatThrownBy(
-            () -> catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned()))
+            () -> catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned()))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage(String.format("Table already exists: %s.%s", DB_NAME, TABLE_NAME));
   }
