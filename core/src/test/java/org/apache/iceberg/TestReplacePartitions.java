@@ -67,6 +67,36 @@ public class TestReplacePartitions extends TestBase {
           .withRecordCount(1)
           .build();
 
+
+  static final DataFile FILE_NULL_PARTITION =
+      DataFiles.builder(SPEC)
+          .withPath("/path/to/data-null-partition.parquet")
+          .withFileSizeInBytes(0)
+          .withPartitionPath("data_bucket=__HIVE_DEFAULT_PARTITION__")
+          .withRecordCount(0)
+          .build();
+
+  // Partition spec with VOID partition transform ("alwaysNull" in Java code.)
+  public static final PartitionSpec SPEC_VOID =
+      PartitionSpec.builderFor(SCHEMA).alwaysNull("id").bucket("data", BUCKETS_NUMBER).build();
+
+
+  static final DataFile FILE_A_VOID_PARTITION =
+      DataFiles.builder(SPEC_VOID)
+          .withPath("/path/to/data-a-void-partition.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_null=__HIVE_DEFAULT_PARTITION__/data_bucket=0")
+          .withRecordCount(1)
+          .build();
+
+  static final DataFile FILE_B_VOID_PARTITION =
+      DataFiles.builder(SPEC_VOID)
+          .withPath("/path/to/data-b-void-partition.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("id_null=__HIVE_DEFAULT_PARTITION__/data_bucket=1")
+          .withRecordCount(10)
+          .build();
+
   static final DeleteFile FILE_UNPARTITIONED_A_DELETES =
       FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
           .ofPositionDeletes()
@@ -315,6 +345,56 @@ public class TestReplacePartitions extends TestBase {
         .hasMessage(
             "Found conflicting files that can contain records matching partitions "
                 + "[data_bucket=0, data_bucket=1]: [/path/to/data-a.parquet]");
+  }
+
+  @TestTemplate
+  public void testValidateWithNullPartition() {
+    commit(table, table.newReplacePartitions().addFile(FILE_NULL_PARTITION), branch);
+
+    // Concurrent Replace Partitions should fail with ValidationException
+    ReplacePartitions replace = table.newReplacePartitions();
+    assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    replace
+                        .addFile(FILE_NULL_PARTITION)
+                        .addFile(FILE_B)
+                        .validateNoConflictingData()
+                        .validateNoConflictingDeletes(),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Found conflicting files that can contain records matching partitions "
+                + "[data_bucket=null, data_bucket=1]: [/path/to/data-null-partition.parquet]");
+  }
+
+  @TestTemplate
+  public void testValidateWithVoidTransform() throws IOException {
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
+
+    Table tableVoid = TestTables.create(
+        tableDir, "tablevoid", SCHEMA, SPEC_VOID, formatVersion);
+    commit(tableVoid, tableVoid.newReplacePartitions().addFile(FILE_A_VOID_PARTITION), branch);
+
+    // Concurrent Replace Partitions should fail with ValidationException
+    ReplacePartitions replace = tableVoid.newReplacePartitions();
+    assertThatThrownBy(
+            () ->
+                commit(
+                    tableVoid,
+                    replace
+                        .addFile(FILE_A_VOID_PARTITION)
+                        .addFile(FILE_B_VOID_PARTITION)
+                        .validateNoConflictingData()
+                        .validateNoConflictingDeletes(),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage(
+            "Found conflicting files that can contain records matching partitions "
+                + "[id_null=null, data_bucket=1, id_null=null, data_bucket=0]: "
+                + "[/path/to/data-a-void-partition.parquet]");
   }
 
   @TestTemplate
