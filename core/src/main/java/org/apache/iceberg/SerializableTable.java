@@ -278,6 +278,7 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
     return lazyTable().newScan();
   }
 
+  @Override
   public IncrementalAppendScan newIncrementalAppendScan() {
     return lazyTable().newIncrementalAppendScan();
   }
