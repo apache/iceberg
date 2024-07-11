@@ -20,8 +20,8 @@ package org.apache.iceberg.connect;
 
 import org.apache.iceberg.connect.channel.CommitterImpl;
 
-public class CommitterFactory {
-  public static Committer createCommitter(IcebergSinkConfig config) {
+class CommitterFactory {
+  static Committer createCommitter(IcebergSinkConfig config) {
     return new CommitterImpl();
   }
 

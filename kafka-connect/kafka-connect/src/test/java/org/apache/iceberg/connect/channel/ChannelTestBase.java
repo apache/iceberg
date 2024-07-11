@@ -81,7 +81,7 @@ public class ChannelTestBase {
   protected static final String COMMIT_ID_SNAPSHOT_PROP = "kafka.connect.commit-id";
   protected static final String OFFSETS_SNAPSHOT_PROP =
       String.format("kafka.connect.offsets.%s.%s", CTL_TOPIC_NAME, CONNECT_CONSUMER_GROUP_ID);
-  protected static final String VTTS_SNAPSHOT_PROP = "kafka.connect.vtts";
+  protected static final String VALID_THROUGH_TS_SNAPSHOT_PROP = "kafka.connect.valid-through-ts";
 
   @BeforeEach
   @SuppressWarnings("deprecation")

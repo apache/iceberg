@@ -76,7 +76,7 @@ public class CoordinatorTest extends ChannelTestBase {
     Map<String, String> summary = snapshot.summary();
     Assertions.assertEquals(commitId.toString(), summary.get(COMMIT_ID_SNAPSHOT_PROP));
     Assertions.assertEquals("{\"0\":3}", summary.get(OFFSETS_SNAPSHOT_PROP));
-    Assertions.assertEquals(ts.toString(), summary.get(VTTS_SNAPSHOT_PROP));
+    Assertions.assertEquals(ts.toString(), summary.get(VALID_THROUGH_TS_SNAPSHOT_PROP));
   }
 
   @Test
@@ -103,7 +103,7 @@ public class CoordinatorTest extends ChannelTestBase {
     Map<String, String> summary = snapshot.summary();
     Assertions.assertEquals(commitId.toString(), summary.get(COMMIT_ID_SNAPSHOT_PROP));
     Assertions.assertEquals("{\"0\":3}", summary.get(OFFSETS_SNAPSHOT_PROP));
-    Assertions.assertEquals(ts.toString(), summary.get(VTTS_SNAPSHOT_PROP));
+    Assertions.assertEquals(ts.toString(), summary.get(VALID_THROUGH_TS_SNAPSHOT_PROP));
   }
 
   @Test

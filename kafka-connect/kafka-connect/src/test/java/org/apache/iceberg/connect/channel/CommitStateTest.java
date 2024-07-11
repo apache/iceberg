@@ -84,10 +84,10 @@ public class CommitStateTest {
     commitState.addReady(wrapInEnvelope(payload1));
     commitState.addReady(wrapInEnvelope(payload2));
 
-    assertThat(commitState.vtts(false)).isEqualTo(ts1);
-    assertThat(commitState.vtts(true)).isNull();
+    assertThat(commitState.validThroughTs(false)).isEqualTo(ts1);
+    assertThat(commitState.validThroughTs(true)).isNull();
 
-    // null timestamp for one, so should not set a vtts
+    // null timestamp for one, so should not set a valid-through timestamp
     DataComplete payload3 = mock(DataComplete.class);
     TopicPartitionOffset tp4 = mock(TopicPartitionOffset.class);
     when(tp4.timestamp()).thenReturn(null);
@@ -95,8 +95,8 @@ public class CommitStateTest {
 
     commitState.addReady(wrapInEnvelope(payload3));
 
-    assertThat(commitState.vtts(false)).isNull();
-    assertThat(commitState.vtts(true)).isNull();
+    assertThat(commitState.validThroughTs(false)).isNull();
+    assertThat(commitState.validThroughTs(true)).isNull();
   }
 
   private Envelope wrapInEnvelope(Payload payload) {

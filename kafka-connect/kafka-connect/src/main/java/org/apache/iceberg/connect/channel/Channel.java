@@ -151,10 +151,6 @@ abstract class Channel {
     consumer.commitSync(offsetsToCommit);
   }
 
-  protected Admin admin() {
-    return admin;
-  }
-
   void start() {
     consumer.subscribe(ImmutableList.of(controlTopic));
 

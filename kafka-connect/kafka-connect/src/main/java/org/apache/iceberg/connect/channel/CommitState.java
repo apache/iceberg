@@ -144,21 +144,21 @@ class CommitState {
                 envelope -> ((DataWritten) envelope.event().payload()).tableReference()));
   }
 
-  OffsetDateTime vtts(boolean partialCommit) {
-    boolean validVtts =
+  OffsetDateTime validThroughTs(boolean partialCommit) {
+    boolean hasValidThroughTs =
         !partialCommit
             && readyBuffer.stream()
                 .flatMap(event -> event.assignments().stream())
                 .allMatch(offset -> offset.timestamp() != null);
 
     OffsetDateTime result;
-    if (validVtts) {
+    if (hasValidThroughTs) {
       result =
           readyBuffer.stream()
               .flatMap(event -> event.assignments().stream())
               .map(TopicPartitionOffset::timestamp)
               .min(Comparator.naturalOrder())
-              .get();
+              .orElse(null);
     } else {
       result = null;
     }

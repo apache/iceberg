@@ -62,7 +62,7 @@ class Coordinator extends Channel {
   private static final Logger LOG = LoggerFactory.getLogger(Coordinator.class);
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String COMMIT_ID_SNAPSHOT_PROP = "kafka.connect.commit-id";
-  private static final String VTTS_SNAPSHOT_PROP = "kafka.connect.vtts";
+  private static final String VALID_THROUGH_TS_SNAPSHOT_PROP = "kafka.connect.valid-through-ts";
   private static final Duration POLL_DURATION = Duration.ofSeconds(1);
 
   private final Catalog catalog;
@@ -139,14 +139,14 @@ class Coordinator extends Channel {
     Map<TableReference, List<Envelope>> commitMap = commitState.tableCommitMap();
 
     String offsetsJson = offsetsJson();
-    OffsetDateTime vtts = commitState.vtts(partialCommit);
+    OffsetDateTime validThroughTs = commitState.validThroughTs(partialCommit);
 
     Tasks.foreach(commitMap.entrySet())
         .executeWith(exec)
         .stopOnFailure()
         .run(
             entry -> {
-              commitToTable(entry.getKey(), entry.getValue(), offsetsJson, vtts);
+              commitToTable(entry.getKey(), entry.getValue(), offsetsJson, validThroughTs);
             });
 
     // we should only get here if all tables committed successfully...
@@ -154,14 +154,16 @@ class Coordinator extends Channel {
     commitState.clearResponses();
 
     Event event =
-        new Event(config.connectGroupId(), new CommitComplete(commitState.currentCommitId(), vtts));
+        new Event(
+            config.connectGroupId(),
+            new CommitComplete(commitState.currentCommitId(), validThroughTs));
     send(event);
 
     LOG.info(
-        "Commit {} complete, committed to {} table(s), vtts {}",
+        "Commit {} complete, committed to {} table(s), valid-through {}",
         commitState.currentCommitId(),
         commitMap.size(),
-        vtts);
+        validThroughTs);
   }
 
   private String offsetsJson() {
@@ -176,7 +178,7 @@ class Coordinator extends Channel {
       TableReference tableReference,
       List<Envelope> envelopeList,
       String offsetsJson,
-      OffsetDateTime vtts) {
+      OffsetDateTime validThroughTs) {
     TableIdentifier tableIdentifier = tableReference.identifier();
     Table table;
     try {
@@ -226,8 +228,8 @@ class Coordinator extends Channel {
         }
         appendOp.set(snapshotOffsetsProp, offsetsJson);
         appendOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
-        if (vtts != null) {
-          appendOp.set(VTTS_SNAPSHOT_PROP, vtts.toString());
+        if (validThroughTs != null) {
+          appendOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
         dataFiles.forEach(appendOp::appendFile);
         appendOp.commit();
@@ -238,8 +240,8 @@ class Coordinator extends Channel {
         }
         deltaOp.set(snapshotOffsetsProp, offsetsJson);
         deltaOp.set(COMMIT_ID_SNAPSHOT_PROP, commitState.currentCommitId().toString());
-        if (vtts != null) {
-          deltaOp.set(VTTS_SNAPSHOT_PROP, vtts.toString());
+        if (validThroughTs != null) {
+          deltaOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
         dataFiles.forEach(deltaOp::addRows);
         deleteFiles.forEach(deltaOp::addDeletes);
@@ -250,15 +252,16 @@ class Coordinator extends Channel {
       Event event =
           new Event(
               config.connectGroupId(),
-              new CommitToTable(commitState.currentCommitId(), tableReference, snapshotId, vtts));
+              new CommitToTable(
+                  commitState.currentCommitId(), tableReference, snapshotId, validThroughTs));
       send(event);
 
       LOG.info(
-          "Commit complete to table {}, snapshot {}, commit ID {}, vtts {}",
+          "Commit complete to table {}, snapshot {}, commit ID {}, valid-through {}",
           tableIdentifier,
           snapshotId,
           commitState.currentCommitId(),
-          vtts);
+          validThroughTs);
     }
   }
 
