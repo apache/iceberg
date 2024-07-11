@@ -284,6 +284,11 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   }
 
   @Override
+  public IncrementalChangelogScan newIncrementalChangelogScan() {
+    return lazyTable().newIncrementalChangelogScan();
+  }
+
+  @Override
   public BatchScan newBatchScan() {
     return lazyTable().newBatchScan();
   }
