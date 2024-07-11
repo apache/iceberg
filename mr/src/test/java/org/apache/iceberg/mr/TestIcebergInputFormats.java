@@ -394,17 +394,20 @@ public class TestIcebergInputFormats {
     helper.appendToTable(null, records);
     UserGroupInformation user1 =
         UserGroupInformation.createUserForTesting("user1", new String[] {});
+    UserGroupInformation user2 =
+        UserGroupInformation.createUserForTesting("user2", new String[] {});
     final ExecutorService workerPool1 = ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
     try {
+      // different users still use the first ugi for execution
       assertThat(getUserFromWorkerPool(user1, table, workerPool1)).isEqualTo("user1");
+      assertThat(getUserFromWorkerPool(user2, table, workerPool1)).isEqualTo("user1");
     } finally {
       workerPool1.shutdown();
     }
 
-    UserGroupInformation user2 =
-        UserGroupInformation.createUserForTesting("user2", new String[] {});
     final ExecutorService workerPool2 = ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
     try {
+      // using different ugi in different workerpool
       assertThat(getUserFromWorkerPool(user2, table, workerPool2)).isEqualTo("user2");
     } finally {
       workerPool2.shutdown();
