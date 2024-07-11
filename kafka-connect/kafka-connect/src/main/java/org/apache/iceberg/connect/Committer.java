@@ -16,16 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.connect.data;
+package org.apache.iceberg.connect;
 
-import java.util.List;
+import java.util.Collection;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.kafka.connect.sink.SinkTaskContext;
 
-interface RecordWriter extends Cloneable {
+public interface Committer {
+  void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context);
 
-  void write(SinkRecord record);
+  void stop();
 
-  List<IcebergWriterResult> complete();
-
-  void close();
+  void save(Collection<SinkRecord> sinkRecords);
 }

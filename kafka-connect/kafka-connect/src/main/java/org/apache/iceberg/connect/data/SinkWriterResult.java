@@ -19,13 +19,24 @@
 package org.apache.iceberg.connect.data;
 
 import java.util.List;
-import org.apache.kafka.connect.sink.SinkRecord;
+import java.util.Map;
+import org.apache.kafka.common.TopicPartition;
 
-interface RecordWriter extends Cloneable {
+public class SinkWriterResult {
+  private final List<IcebergWriterResult> writerResults;
+  private final Map<TopicPartition, Offset> sourceOffsets;
 
-  void write(SinkRecord record);
+  public SinkWriterResult(
+      List<IcebergWriterResult> writerResults, Map<TopicPartition, Offset> sourceOffsets) {
+    this.writerResults = writerResults;
+    this.sourceOffsets = sourceOffsets;
+  }
 
-  List<IcebergWriterResult> complete();
+  public List<IcebergWriterResult> writerResults() {
+    return writerResults;
+  }
 
-  void close();
+  public Map<TopicPartition, Offset> sourceOffsets() {
+    return sourceOffsets;
+  }
 }

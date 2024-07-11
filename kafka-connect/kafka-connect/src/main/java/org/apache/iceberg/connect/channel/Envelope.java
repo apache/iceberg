@@ -16,16 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.connect.data;
+package org.apache.iceberg.connect.channel;
 
-import java.util.List;
-import org.apache.kafka.connect.sink.SinkRecord;
+import org.apache.iceberg.connect.events.Event;
 
-interface RecordWriter extends Cloneable {
+class Envelope {
+  private final Event event;
+  private final int partition;
+  private final long offset;
 
-  void write(SinkRecord record);
+  Envelope(Event event, int partition, long offset) {
+    this.event = event;
+    this.partition = partition;
+    this.offset = offset;
+  }
 
-  List<IcebergWriterResult> complete();
+  Event event() {
+    return event;
+  }
 
-  void close();
+  int partition() {
+    return partition;
+  }
+
+  long offset() {
+    return offset;
+  }
 }
