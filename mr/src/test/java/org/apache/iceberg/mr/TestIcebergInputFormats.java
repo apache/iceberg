@@ -433,7 +433,7 @@ public class TestIcebergInputFormats {
                 }
                 return submit.get();
               } catch (Exception e) {
-                throw new RuntimeException("Failed to getUserFromWorkerPool", e);
+                throw new RuntimeException("Failed to get user from worker pool", e);
               }
             });
   }
