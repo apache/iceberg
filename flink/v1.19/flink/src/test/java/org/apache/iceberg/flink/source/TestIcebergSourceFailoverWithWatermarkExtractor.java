@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.apache.iceberg.flink.TestFixtures.DATABASE;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -35,11 +37,13 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkReadOptions;
+import org.apache.iceberg.flink.HadoopTableExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIcebergSourceFailover {
   // Increment ts by 15 minutes for each generateRecords batch
@@ -49,11 +53,15 @@ public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIceberg
 
   private final AtomicLong tsMilli = new AtomicLong(System.currentTimeMillis());
 
+  @RegisterExtension
+  private static final HadoopTableExtension SOURCE_TABLE_EXTENSION =
+      new HadoopTableExtension(DATABASE, TestFixtures.TABLE, TestFixtures.TS_SCHEMA);
+
   @Override
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     Configuration config = new Configuration();
     return IcebergSource.forRowData()
-        .tableLoader(sourceTableResource.tableLoader())
+        .tableLoader(SOURCE_TABLE_EXTENSION.tableLoader())
         .watermarkColumn("ts")
         .project(TestFixtures.TS_SCHEMA)
         // Prevent combining splits

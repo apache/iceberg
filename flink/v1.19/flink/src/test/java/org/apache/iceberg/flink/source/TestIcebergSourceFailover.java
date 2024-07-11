@@ -19,8 +19,10 @@
 package org.apache.iceberg.flink.source;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.tableRecords;
+import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -30,6 +32,7 @@ import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.client.program.ClusterClient;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.core.execution.SavepointFormatType;
@@ -41,7 +44,9 @@ import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.test.util.MiniClusterWithClientResource;
+import org.apache.flink.test.junit5.InjectClusterClient;
+import org.apache.flink.test.junit5.InjectMiniCluster;
+import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -51,18 +56,18 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadOptions;
-import org.apache.iceberg.flink.HadoopTableResource;
+import org.apache.iceberg.flink.HadoopTableExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.sink.FlinkSink;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.rules.Timeout;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.io.TempDir;
 
+@Timeout(value = 120)
 public class TestIcebergSourceFailover {
 
   // Parallelism higher than 1, but lower than the number of splits used by some of our tests
@@ -70,11 +75,9 @@ public class TestIcebergSourceFailover {
   private static final int PARALLELISM = 2;
   private static final int DO_NOT_FAIL = Integer.MAX_VALUE;
 
-  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
-
-  @Rule
-  public final MiniClusterWithClientResource miniClusterResource =
-      new MiniClusterWithClientResource(
+  @RegisterExtension
+  public static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
+      new MiniClusterExtension(
           new MiniClusterResourceConfiguration.Builder()
               .setNumberTaskManagers(1)
               .setNumberSlotsPerTaskManager(PARALLELISM)
@@ -82,22 +85,20 @@ public class TestIcebergSourceFailover {
               .withHaLeadershipControl()
               .build());
 
-  @Rule
-  public final HadoopTableResource sourceTableResource =
-      new HadoopTableResource(
-          TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE, schema());
+  @TempDir protected Path temporaryFolder;
 
-  @Rule
-  public final HadoopTableResource sinkTableResource =
-      new HadoopTableResource(
-          TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.SINK_TABLE, schema());
+  @RegisterExtension
+  private static final HadoopTableExtension SOURCE_TABLE_EXTENSION =
+      new HadoopTableExtension(DATABASE, TestFixtures.TABLE, TestFixtures.SCHEMA);
 
-  @Rule public Timeout globalTimeout = Timeout.seconds(120);
+  @RegisterExtension
+  private static final HadoopTableExtension SINK_TABLE_EXTENSION =
+      new HadoopTableExtension(DATABASE, TestFixtures.SINK_TABLE, TestFixtures.SCHEMA);
 
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     Configuration config = new Configuration();
     return IcebergSource.forRowData()
-        .tableLoader(sourceTableResource.tableLoader())
+        .tableLoader(SOURCE_TABLE_EXTENSION.tableLoader())
         .assignerFactory(new SimpleSplitAssignerFactory())
         // Prevent combining splits
         .set(
@@ -120,12 +121,13 @@ public class TestIcebergSourceFailover {
   }
 
   @Test
-  public void testBoundedWithSavepoint() throws Exception {
+  public void testBoundedWithSavepoint(@InjectClusterClient ClusterClient<?> clusterClient)
+      throws Exception {
     List<Record> expectedRecords = Lists.newArrayList();
-    Table sinkTable = sinkTableResource.table();
+    Table sinkTable = SINK_TABLE_EXTENSION.table();
     GenericAppenderHelper dataAppender =
         new GenericAppenderHelper(
-            sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+            SOURCE_TABLE_EXTENSION.table(), FileFormat.PARQUET, temporaryFolder);
     for (int i = 0; i < 4; ++i) {
       List<Record> records = generateRecords(2, i);
       expectedRecords.addAll(records);
@@ -141,13 +143,8 @@ public class TestIcebergSourceFailover {
     // Write something, but do not finish before checkpoint is created
     RecordCounterToWait.waitForCondition();
     CompletableFuture<String> savepoint =
-        miniClusterResource
-            .getClusterClient()
-            .stopWithSavepoint(
-                jobId,
-                false,
-                TEMPORARY_FOLDER.newFolder().toPath().toString(),
-                SavepointFormatType.CANONICAL);
+        clusterClient.stopWithSavepoint(
+            jobId, false, temporaryFolder.toString(), SavepointFormatType.CANONICAL);
     RecordCounterToWait.continueProcessing();
 
     // Wait for the job to stop with the savepoint
@@ -169,20 +166,23 @@ public class TestIcebergSourceFailover {
   }
 
   @Test
-  public void testBoundedWithTaskManagerFailover() throws Exception {
-    testBoundedIcebergSource(FailoverType.TM);
+  public void testBoundedWithTaskManagerFailover(@InjectMiniCluster MiniCluster miniCluster)
+      throws Exception {
+    testBoundedIcebergSource(FailoverType.TM, miniCluster);
   }
 
   @Test
-  public void testBoundedWithJobManagerFailover() throws Exception {
-    testBoundedIcebergSource(FailoverType.JM);
+  public void testBoundedWithJobManagerFailover(@InjectMiniCluster MiniCluster miniCluster)
+      throws Exception {
+    testBoundedIcebergSource(FailoverType.JM, miniCluster);
   }
 
-  private void testBoundedIcebergSource(FailoverType failoverType) throws Exception {
+  private void testBoundedIcebergSource(
+      FailoverType failoverType, @InjectMiniCluster MiniCluster miniCluster) throws Exception {
     List<Record> expectedRecords = Lists.newArrayList();
     GenericAppenderHelper dataAppender =
         new GenericAppenderHelper(
-            sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+            SOURCE_TABLE_EXTENSION.table(), FileFormat.PARQUET, temporaryFolder);
     for (int i = 0; i < 4; ++i) {
       List<Record> records = generateRecords(2, i);
       expectedRecords.addAll(records);
@@ -197,29 +197,28 @@ public class TestIcebergSourceFailover {
     JobID jobId = jobClient.getJobID();
 
     RecordCounterToWait.waitForCondition();
-    triggerFailover(
-        failoverType,
-        jobId,
-        RecordCounterToWait::continueProcessing,
-        miniClusterResource.getMiniCluster());
+    triggerFailover(failoverType, jobId, RecordCounterToWait::continueProcessing, miniCluster);
 
-    assertRecords(sinkTableResource.table(), expectedRecords, Duration.ofSeconds(120));
+    assertRecords(SINK_TABLE_EXTENSION.table(), expectedRecords, Duration.ofSeconds(120));
   }
 
   @Test
-  public void testContinuousWithTaskManagerFailover() throws Exception {
-    testContinuousIcebergSource(FailoverType.TM);
+  public void testContinuousWithTaskManagerFailover(@InjectMiniCluster MiniCluster miniCluster)
+      throws Exception {
+    testContinuousIcebergSource(FailoverType.TM, miniCluster);
   }
 
   @Test
-  public void testContinuousWithJobManagerFailover() throws Exception {
-    testContinuousIcebergSource(FailoverType.JM);
+  public void testContinuousWithJobManagerFailover(@InjectMiniCluster MiniCluster miniCluster)
+      throws Exception {
+    testContinuousIcebergSource(FailoverType.JM, miniCluster);
   }
 
-  private void testContinuousIcebergSource(FailoverType failoverType) throws Exception {
+  private void testContinuousIcebergSource(
+      FailoverType failoverType, @InjectMiniCluster MiniCluster miniCluster) throws Exception {
     GenericAppenderHelper dataAppender =
         new GenericAppenderHelper(
-            sourceTableResource.table(), FileFormat.PARQUET, TEMPORARY_FOLDER);
+            SOURCE_TABLE_EXTENSION.table(), FileFormat.PARQUET, temporaryFolder);
     List<Record> expectedRecords = Lists.newArrayList();
 
     List<Record> batch = generateRecords(2, 0);
@@ -247,8 +246,8 @@ public class TestIcebergSourceFailover {
     // exactly-once behavior. When Iceberg sink, we can verify end-to-end
     // exactly-once. Here we mainly about source exactly-once behavior.
     FlinkSink.forRowData(stream)
-        .table(sinkTableResource.table())
-        .tableLoader(sinkTableResource.tableLoader())
+        .table(SINK_TABLE_EXTENSION.table())
+        .tableLoader(SINK_TABLE_EXTENSION.tableLoader())
         .append();
 
     JobClient jobClient = env.executeAsync("Continuous Iceberg Source Failover Test");
@@ -260,13 +259,13 @@ public class TestIcebergSourceFailover {
       expectedRecords.addAll(records);
       dataAppender.appendToTable(records);
       if (i == 2) {
-        triggerFailover(failoverType, jobId, () -> {}, miniClusterResource.getMiniCluster());
+        triggerFailover(failoverType, jobId, () -> {}, miniCluster);
       }
     }
 
     // wait longer for continuous source to reduce flakiness
     // because CI servers tend to be overloaded.
-    assertRecords(sinkTableResource.table(), expectedRecords, Duration.ofSeconds(120));
+    assertRecords(SINK_TABLE_EXTENSION.table(), expectedRecords, Duration.ofSeconds(120));
   }
 
   private void createBoundedStreams(StreamExecutionEnvironment env, int failAfter) {
@@ -286,8 +285,8 @@ public class TestIcebergSourceFailover {
     // exactly-once behavior. When Iceberg sink, we can verify end-to-end
     // exactly-once. Here we mainly about source exactly-once behavior.
     FlinkSink.forRowData(streamFailingInTheMiddleOfReading)
-        .table(sinkTableResource.table())
-        .tableLoader(sinkTableResource.tableLoader())
+        .table(SINK_TABLE_EXTENSION.table())
+        .tableLoader(SINK_TABLE_EXTENSION.tableLoader())
         .append();
   }
 
