@@ -157,6 +157,12 @@ public class TestStringLiteralConversions {
     Literal<CharSequence> timestampStr = Literal.of("2017-08-18T14:21:01.123456789");
     Literal<Long> timestamp = timestampStr.to(Types.TimestampNanoType.withoutZone());
 
+    // Not only using Avro's timestamp conversion as it has no timestampNanos().
+    long expected = 1503066061123456789L;
+    assertThat((long) timestamp.value())
+        .as("Timestamp without zone should match UTC")
+        .isEqualTo(expected);
+
     // use Avro's timestamp conversion to validate the result within one microsecond
     Schema avroSchema = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
     TimeConversions.TimestampMicrosConversion avroConversion =
@@ -168,13 +174,7 @@ public class TestStringLiteralConversions {
             avroSchema.getLogicalType());
     assertThat(timestamp.value() - avroValue * 1000)
         .as("Timestamp without zone should match UTC")
-        .isLessThan(1000);
-
-    // Not only using Avro's timestamp conversion as it has no timestampNanos().
-    long expected = 1503066061123456789L;
-    assertThat((long) timestamp.value())
-        .as("Timestamp without zone should match UTC")
-        .isEqualTo(expected);
+        .isEqualTo(789L);
   }
 
   @Test
