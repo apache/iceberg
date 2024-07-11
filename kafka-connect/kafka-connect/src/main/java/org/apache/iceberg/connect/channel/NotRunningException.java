@@ -16,16 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.connect.data;
+package org.apache.iceberg.connect.channel;
 
-import java.util.List;
-import org.apache.kafka.connect.sink.SinkRecord;
-
-interface RecordWriter extends Cloneable {
-
-  void write(SinkRecord record);
-
-  List<IcebergWriterResult> complete();
-
-  void close();
+public class NotRunningException extends RuntimeException {
+  public NotRunningException(String msg) {
+    super(msg);
+  }
 }

@@ -40,20 +40,19 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class IcebergWriterFactory {
+class IcebergWriterFactory {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergWriterFactory.class);
 
   private final Catalog catalog;
   private final IcebergSinkConfig config;
 
-  public IcebergWriterFactory(Catalog catalog, IcebergSinkConfig config) {
+  IcebergWriterFactory(Catalog catalog, IcebergSinkConfig config) {
     this.catalog = catalog;
     this.config = config;
   }
 
-  public RecordWriter createWriter(
-      String tableName, SinkRecord sample, boolean ignoreMissingTable) {
+  RecordWriter createWriter(String tableName, SinkRecord sample, boolean ignoreMissingTable) {
     TableIdentifier identifier = TableIdentifier.parse(tableName);
     Table table;
     try {

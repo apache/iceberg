@@ -18,14 +18,37 @@
  */
 package org.apache.iceberg.connect.data;
 
-import java.util.List;
-import org.apache.kafka.connect.sink.SinkRecord;
+import java.time.OffsetDateTime;
+import java.util.Objects;
 
-interface RecordWriter extends Cloneable {
+public class Offset implements Comparable<Offset> {
 
-  void write(SinkRecord record);
+  public static final Offset NULL_OFFSET = new Offset(null, null);
 
-  List<IcebergWriterResult> complete();
+  private final Long offset;
+  private final OffsetDateTime timestamp;
 
-  void close();
+  public Offset(Long offset, OffsetDateTime timestamp) {
+    this.offset = offset;
+    this.timestamp = timestamp;
+  }
+
+  public Long offset() {
+    return offset;
+  }
+
+  public OffsetDateTime timestamp() {
+    return timestamp;
+  }
+
+  @Override
+  public int compareTo(Offset other) {
+    if (Objects.equals(this.offset, other.offset)) {
+      return 0;
+    }
+    if (this.offset == null || (other.offset != null && other.offset > this.offset)) {
+      return -1;
+    }
+    return 1;
+  }
 }
