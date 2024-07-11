@@ -19,7 +19,9 @@
 package org.apache.iceberg.connect.channel;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
@@ -39,11 +41,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.kafka.clients.consumer.ConsumerGroupMetadata;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 
 public class WorkerTest extends ChannelTestBase {
 
@@ -51,55 +55,62 @@ public class WorkerTest extends ChannelTestBase {
   public void testSave() {
     when(config.catalogName()).thenReturn("catalog");
 
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    TopicPartition topicPartition = new TopicPartition(SRC_TOPIC_NAME, 0);
-    when(context.assignment()).thenReturn(ImmutableSet.of(topicPartition));
+    try (MockedStatic<KafkaUtils> mockKafkaUtils = mockStatic(KafkaUtils.class)) {
+      ConsumerGroupMetadata consumerGroupMetadata = mock(ConsumerGroupMetadata.class);
+      mockKafkaUtils
+          .when(() -> KafkaUtils.consumerGroupMetadata(any()))
+          .thenReturn(consumerGroupMetadata);
 
-    IcebergWriterResult writeResult =
-        new IcebergWriterResult(
-            TableIdentifier.parse(TABLE_NAME),
-            ImmutableList.of(EventTestUtil.createDataFile()),
-            ImmutableList.of(),
-            StructType.of());
+      SinkTaskContext context = mock(SinkTaskContext.class);
+      TopicPartition topicPartition = new TopicPartition(SRC_TOPIC_NAME, 0);
+      when(context.assignment()).thenReturn(ImmutableSet.of(topicPartition));
 
-    Map<TopicPartition, Offset> offsets =
-        ImmutableMap.of(topicPartition, new Offset(1L, EventTestUtil.now()));
+      IcebergWriterResult writeResult =
+          new IcebergWriterResult(
+              TableIdentifier.parse(TABLE_NAME),
+              ImmutableList.of(EventTestUtil.createDataFile()),
+              ImmutableList.of(),
+              StructType.of());
 
-    SinkWriterResult sinkWriterResult =
-        new SinkWriterResult(ImmutableList.of(writeResult), offsets);
-    SinkWriter sinkWriter = mock(SinkWriter.class);
-    when(sinkWriter.completeWrite()).thenReturn(sinkWriterResult);
+      Map<TopicPartition, Offset> offsets =
+          ImmutableMap.of(topicPartition, new Offset(1L, EventTestUtil.now()));
 
-    Worker worker = new Worker(config, clientFactory, sinkWriter, context);
-    worker.start();
+      SinkWriterResult sinkWriterResult =
+          new SinkWriterResult(ImmutableList.of(writeResult), offsets);
+      SinkWriter sinkWriter = mock(SinkWriter.class);
+      when(sinkWriter.completeWrite()).thenReturn(sinkWriterResult);
 
-    // init consumer after subscribe()
-    initConsumer();
+      Worker worker = new Worker(config, clientFactory, sinkWriter, context);
+      worker.start();
 
-    // save a record
-    Map<String, Object> value = ImmutableMap.of();
-    SinkRecord rec = new SinkRecord(SRC_TOPIC_NAME, 0, null, "key", null, value, 0L);
-    worker.save(ImmutableList.of(rec));
+      // init consumer after subscribe()
+      initConsumer();
 
-    UUID commitId = UUID.randomUUID();
-    Event commitRequest = new Event(config.connectGroupId(), new StartCommit(commitId));
-    byte[] bytes = AvroUtil.encode(commitRequest);
-    consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
+      // save a record
+      Map<String, Object> value = ImmutableMap.of();
+      SinkRecord rec = new SinkRecord(SRC_TOPIC_NAME, 0, null, "key", null, value, 0L);
+      worker.save(ImmutableList.of(rec));
 
-    worker.process();
+      UUID commitId = UUID.randomUUID();
+      Event commitRequest = new Event(config.connectGroupId(), new StartCommit(commitId));
+      byte[] bytes = AvroUtil.encode(commitRequest);
+      consumer.addRecord(new ConsumerRecord<>(CTL_TOPIC_NAME, 0, 1, "key", bytes));
 
-    assertThat(producer.history()).hasSize(2);
+      worker.process();
 
-    Event event = AvroUtil.decode(producer.history().get(0).value());
-    assertThat(event.payload().type()).isEqualTo(PayloadType.DATA_WRITTEN);
-    DataWritten dataWritten = (DataWritten) event.payload();
-    assertThat(dataWritten.commitId()).isEqualTo(commitId);
+      assertThat(producer.history()).hasSize(2);
 
-    event = AvroUtil.decode(producer.history().get(1).value());
-    assertThat(event.type()).isEqualTo(PayloadType.DATA_COMPLETE);
-    DataComplete dataComplete = (DataComplete) event.payload();
-    assertThat(dataComplete.commitId()).isEqualTo(commitId);
-    assertThat(dataComplete.assignments()).hasSize(1);
-    assertThat(dataComplete.assignments().get(0).offset()).isEqualTo(1L);
+      Event event = AvroUtil.decode(producer.history().get(0).value());
+      assertThat(event.payload().type()).isEqualTo(PayloadType.DATA_WRITTEN);
+      DataWritten dataWritten = (DataWritten) event.payload();
+      assertThat(dataWritten.commitId()).isEqualTo(commitId);
+
+      event = AvroUtil.decode(producer.history().get(1).value());
+      assertThat(event.type()).isEqualTo(PayloadType.DATA_COMPLETE);
+      DataComplete dataComplete = (DataComplete) event.payload();
+      assertThat(dataComplete.commitId()).isEqualTo(commitId);
+      assertThat(dataComplete.assignments()).hasSize(1);
+      assertThat(dataComplete.assignments().get(0).offset()).isEqualTo(1L);
+    }
   }
 }
