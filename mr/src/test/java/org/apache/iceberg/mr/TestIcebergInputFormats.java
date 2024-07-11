@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.PrivilegedAction;
@@ -32,7 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.Future;
 import java.util.function.Function;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobConf;
@@ -76,6 +77,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.Mockito;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestIcebergInputFormats {
@@ -388,42 +390,52 @@ public class TestIcebergInputFormats {
 
   @TestTemplate
   public void testWorkerPool() throws Exception {
-    // 1.The ugi in the same thread will not change
-    final ExecutorService workerPool1 = ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
+    Table table = helper.createUnpartitionedTable();
+    List<Record> records = helper.generateRandomRecords(1, 0L);
+    helper.appendToTable(null, records);
     UserGroupInformation user1 =
         UserGroupInformation.createUserForTesting("user1", new String[] {});
+    final ExecutorService workerPool1 = ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
+    try {
+      assertThat(getUserFromWorkerPool(user1, table, workerPool1)).isEqualTo("user1");
+    } finally {
+      workerPool1.shutdown();
+    }
+
     UserGroupInformation user2 =
         UserGroupInformation.createUserForTesting("user2", new String[] {});
-    assertThat(setAndGetUgi(user1, workerPool1)).isEqualTo("user1");
-    assertThat(setAndGetUgi(user2, workerPool1)).isEqualTo("user1");
-    workerPool1.shutdown();
-
-    // 2.The ugi in different threads will be different
     final ExecutorService workerPool2 = ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
-    assertThat(setAndGetUgi(user2, workerPool2)).isEqualTo("user2");
-    workerPool2.shutdown();
+    try {
+      assertThat(getUserFromWorkerPool(user2, table, workerPool2)).isEqualTo("user2");
+    } finally {
+      workerPool2.shutdown();
+    }
   }
 
-  private String setAndGetUgi(UserGroupInformation ugi, ExecutorService workpool)
-      throws InterruptedException {
-    AtomicReference<String> atomicReference = new AtomicReference<>(null);
-    ugi.doAs(
-        (PrivilegedAction<Object>)
+  private String getUserFromWorkerPool(
+      UserGroupInformation user, Table table, ExecutorService workerpool) throws Exception {
+    Method method =
+        IcebergInputFormat.class.getDeclaredMethod(
+            "planInputSplits", Table.class, Configuration.class, ExecutorService.class);
+    method.setAccessible(true);
+    return user.doAs(
+        (PrivilegedAction<String>)
             () -> {
-              workpool.submit(
-                  () -> {
-                    try {
-                      atomicReference.set(UserGroupInformation.getCurrentUser().getUserName());
-                    } catch (IOException e) {
-                      throw new RuntimeException(e.getMessage());
-                    }
-                  });
-              return null;
+              try {
+                method.invoke(Mockito.mock(IcebergInputFormat.class), table, conf, workerpool);
+                Future<String> submit =
+                    workerpool.submit(
+                        () -> {
+                          return UserGroupInformation.getCurrentUser().getUserName();
+                        });
+                while (!submit.isDone()) {
+                  Thread.sleep(10);
+                }
+                return submit.get();
+              } catch (Exception e) {
+                throw new RuntimeException("Failed to getUserFromWorkerPool", e);
+              }
             });
-    while (atomicReference.get() == null) {
-      Thread.sleep(1000);
-    }
-    return atomicReference.get();
   }
 
   // TODO - Capture template type T in toString method:
