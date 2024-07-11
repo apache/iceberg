@@ -67,7 +67,6 @@ public class TestReplacePartitions extends TestBase {
           .withRecordCount(1)
           .build();
 
-
   static final DataFile FILE_NULL_PARTITION =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-null-partition.parquet")
@@ -79,7 +78,6 @@ public class TestReplacePartitions extends TestBase {
   // Partition spec with VOID partition transform ("alwaysNull" in Java code.)
   public static final PartitionSpec SPEC_VOID =
       PartitionSpec.builderFor(SCHEMA).alwaysNull("id").bucket("data", BUCKETS_NUMBER).build();
-
 
   static final DataFile FILE_A_VOID_PARTITION =
       DataFiles.builder(SPEC_VOID)
@@ -374,8 +372,7 @@ public class TestReplacePartitions extends TestBase {
     File tableDir = Files.createTempDirectory(temp, "junit").toFile();
     assertThat(tableDir.delete()).isTrue();
 
-    Table tableVoid = TestTables.create(
-        tableDir, "tablevoid", SCHEMA, SPEC_VOID, formatVersion);
+    Table tableVoid = TestTables.create(tableDir, "tablevoid", SCHEMA, SPEC_VOID, formatVersion);
     commit(tableVoid, tableVoid.newReplacePartitions().addFile(FILE_A_VOID_PARTITION), branch);
 
     // Concurrent Replace Partitions should fail with ValidationException
