@@ -284,6 +284,10 @@
             <property name="format" value="^[a-z][a-zA-Z0-9]+$"/>
             <message key="name.invalidPattern" value="Member name ''{0}'' must match pattern ''{1}''."/>
         </module>
+        <module name="ConstantName">
+            <property name="format" value="^[A-Z][A-Z0-9]*(_[A-Z0-9]+)*$"/>
+            <message key="name.invalidPattern" value="Constant name ''{0}'' must match pattern ''{1}''."/>
+        </module>
         <module name="MethodName"> <!-- Java Style Guide: Method names -->
             <property name="format" value="^[a-z][a-zA-Z0-9_]+$"/>
             <message key="name.invalidPattern" value="Method name ''{0}'' must match pattern ''{1}''."/>
