@@ -236,16 +236,14 @@ INSERT INTO prod.db.table VALUES (3, 'c');
 
 Branch writes via DataFrames can be performed by providing a branch identifier, `branch_yourBranch` in the operation.
 
-To insert into `audit` branch
-
 ```scala
+// To insert into `audit` branch
 val data: DataFrame = ...
 data.writeTo("prod.db.table.branch_audit").append()
 ```
 
-To overwrite `audit` branch
-
 ```scala
+// To overwrite `audit` branch
 val data: DataFrame = ...
 data.writeTo("prod.db.table.branch_audit").overwritePartitions()
 ```
