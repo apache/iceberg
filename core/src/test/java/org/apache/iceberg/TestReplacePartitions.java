@@ -76,7 +76,7 @@ public class TestReplacePartitions extends TestBase {
           .build();
 
   // Partition spec with VOID partition transform ("alwaysNull" in Java code.)
- static final PartitionSpec SPEC_VOID =
+  static final PartitionSpec SPEC_VOID =
       PartitionSpec.builderFor(SCHEMA).alwaysNull("id").bucket("data", BUCKETS_NUMBER).build();
 
   static final DataFile FILE_A_VOID_PARTITION =
