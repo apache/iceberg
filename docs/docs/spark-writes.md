@@ -195,16 +195,20 @@ WHERE EXISTS (SELECT oid FROM prod.db.returned_orders WHERE t1.oid = oid)
 For more complex row-level updates based on incoming data, see the section on `MERGE INTO`.
 
 ### Writing to Branches
-Branch writes can be performed via SQL by providing a branch identifier, `branch_yourBranch` in the operation.
-Branch writes can also be performed as part of a write-audit-publish (WAP) workflow by specifying the `spark.wap.branch` config.
-Note WAP branch and branch identifier cannot both be specified.
-Also, the branch must exist before performing the write. 
-The operation does **not** create the branch if it does not exist. 
-For more information on branches please refer to [branches](branching.md).
+
+The branch must exist before performing write. The operations do **not** create the branch if it does not exist.
+A branch can be created using [Spark DDL](spark-ddl.md#branching-and-tagging-ddl).
 
 !!! info
-    Note: When writing to a branch, the current schema of the table will be used for validation.
+Note: When writing to a branch, the current schema of the table will be used for validation.
 
+#### Via SQL
+
+Branch writes can be performed by providing a branch identifier, `branch_yourBranch` in the operation.
+
+Branch writes can also be performed as part of a write-audit-publish (WAP) workflow by specifying the `spark.wap.branch` config.
+Note WAP branch and branch identifier cannot both be specified.
+Also, the branch must exist before performing the write.
  
 ```sql
 -- INSERT (1,' a') (2, 'b') into the audit branch.
@@ -226,6 +230,24 @@ DELETE FROM prod.dbl.table.branch_audit WHERE id = 2;
 -- WAP Branch write
 SET spark.wap.branch = audit-branch
 INSERT INTO prod.db.table VALUES (3, 'c');
+```
+
+### Via DataFrames
+
+Branch writes via DataFrames can be performed by providing a branch identifier, `branch_yourBranch` in the operation.
+
+To insert into `audit` branch
+
+```scala
+val data: DataFrame = ...
+data.writeTo("prod.db.table.branch_audit").append()
+```
+
+To overwrite `audit` branch
+
+```scala
+val data: DataFrame = ...
+data.writeTo("prod.db.table.branch_audit").overwritePartitions()
 ```
 
 ## Writing with DataFrames
