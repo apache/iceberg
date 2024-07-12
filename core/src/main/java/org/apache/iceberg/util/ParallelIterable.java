@@ -235,12 +235,16 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         if (iterator == null) {
           iterator = input.iterator();
         }
-        while (!closed.get() && iterator.hasNext()) {
+        while (iterator.hasNext()) {
           if (queue.size() >= approximateMaxQueueSize) {
             // yield
             return Optional.of(this);
           }
-          queue.add(iterator.next());
+          T next = iterator.next();
+          if (closed.get()) {
+            break;
+          }
+          queue.add(next);
         }
       } catch (Throwable e) {
         try {
