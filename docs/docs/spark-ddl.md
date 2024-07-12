@@ -425,6 +425,9 @@ To order within each task, not across tasks, use `LOCALLY ORDERED BY`:
 ALTER TABLE prod.db.sample WRITE LOCALLY ORDERED BY category, id
 ```
 
+!!! note
+    Write distribution of `hash` will be changed to `none` by this. Please use `ALTER TABLE .. WRITE DISTRIBUTED BY PARTITION LOCALLY ORDERED BY` to preserve the write distribution.
+
 To unset the sort order of the table, use `UNORDERED`:
 
 ```sql
