@@ -466,6 +466,8 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
                         Arrays.stream(n.levels())
                             .limit(subNamespaceLevelLength)
                             .toArray(String[]::new)))
+            // remove duplicates
+            .distinct()
             // exclude fuzzy matches when `namespace` contains `%` or `_`
             .filter(
                 n -> {
@@ -476,8 +478,6 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
                   }
                   return true;
                 })
-            // remove duplicates
-            .distinct()
             .collect(Collectors.toList());
 
     return namespaces;
