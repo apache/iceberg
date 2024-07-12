@@ -200,7 +200,7 @@ The branch must exist before performing write. The operations do **not** create 
 A branch can be created using [Spark DDL](spark-ddl.md#branching-and-tagging-ddl).
 
 !!! info
-Note: When writing to a branch, the current schema of the table will be used for validation.
+    Note: When writing to a branch, the current schema of the table will be used for validation.
 
 #### Via SQL
 
@@ -232,7 +232,7 @@ SET spark.wap.branch = audit-branch
 INSERT INTO prod.db.table VALUES (3, 'c');
 ```
 
-### Via DataFrames
+#### Via DataFrames
 
 Branch writes via DataFrames can be performed by providing a branch identifier, `branch_yourBranch` in the operation.
 
@@ -353,29 +353,6 @@ The writer must enable the `mergeSchema` option.
 
 ```scala
 data.writeTo("prod.db.sample").option("mergeSchema","true").append()
-```
-
-### Writing to Branches
-The branch must exist before performing write. The operation does **not** create the branch if it does not exist.
-For more information on branches please refer to [branches](branching.md). 
-A branch can be created using [Spark DDL](spark-ddl.md#branching-and-tagging-ddl). Branch writes can be performed via  
-by providing a branch identifier, `branch_yourBranch` in the operation.
-
-!!! info
-    Note: When writing to a branch, the current schema of the table will be used for validation.
-
-To insert into `audit` branch
-
-```scala
-val data: DataFrame = ...
-data.writeTo("prod.db.table.branch_audit").append()
-```
-
-To overwrite `audit` branch
-
-```scala
-val data: DataFrame = ...
-data.writeTo("prod.db.table.branch_audit").overwritePartitions()
 ```
 
 ## Writing Distribution Modes

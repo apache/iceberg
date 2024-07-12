@@ -110,8 +110,7 @@ Creating, querying and writing to branches and tags are supported in the Iceberg
 - [Iceberg Java Library](java-api-quickstart.md#branching-and-tagging)
 - [Spark DDLs](spark-ddl.md#branching-and-tagging-ddl)
 - [Spark Reads](spark-queries.md#time-travel)
-- [Spark Branch Writes using SQL](spark-writes.md#writing-to-branches)
-- [Spark Branch Writes using Dataframes](spark-writes.md#writing-to-branches-1)
+- [Spark Branch Writes](spark-writes.md#writing-to-branches)
 - [Flink Reads](flink-queries.md#reading-branches-and-tags-with-SQL)
 - [Flink Branch Writes](flink-writes.md#branch-writes)
 
