@@ -36,6 +36,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.io.Closer;
 
 public class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T> {
 
@@ -93,25 +94,24 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       // close first, avoid new task submit
       this.closed.set(true);
 
-      for (Task<T> task : yieldedTasks) {
-        try {
-          task.close();
-        } catch (Exception e) {
-          throw new RuntimeException("Close failed", e);
-        }
-      }
-      yieldedTasks.clear();
+      try (Closer closer = Closer.create()) {
+        yieldedTasks.forEach(closer::register);
+        yieldedTasks.clear();
 
-      // TODO close input iterables that were not started yet
+        // TODO close input iterables that were not started yet
 
-      // cancel background tasks
-      for (Future<?> taskFuture : taskFutures) {
-        if (taskFuture != null && !taskFuture.isDone()) {
-          taskFuture.cancel(true);
+        // cancel background tasks
+        for (Future<?> taskFuture : taskFutures) {
+          if (taskFuture != null && !taskFuture.isDone()) {
+            taskFuture.cancel(true);
+          }
         }
+
+        // clean queue
+        this.queue.clear();
+      } catch (IOException e) {
+        throw new RuntimeException("Close failed", e);
       }
-      // clean queue
-      this.queue.clear();
     }
 
     /**
@@ -210,7 +210,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     }
   }
 
-  private static class Task<T> implements Callable<Optional<Task<T>>>, AutoCloseable {
+  private static class Task<T> implements Callable<Optional<Task<T>>>, Closeable {
     private final Iterable<T> input;
     private final ConcurrentLinkedQueue<T> queue;
     private final AtomicBoolean closed;
@@ -263,7 +263,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() throws IOException {
       iterator = null;
       if (input instanceof Closeable) {
         ((Closeable) input).close();
