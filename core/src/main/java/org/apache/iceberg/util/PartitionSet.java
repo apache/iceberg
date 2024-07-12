@@ -200,7 +200,7 @@ public class PartitionSet extends AbstractSet<Pair<Integer, StructLike>> {
           StringBuilder partitionStringBuilder = new StringBuilder();
           partitionStringBuilder.append(structType.fields().get(i).name());
           partitionStringBuilder.append("=");
-          partitionStringBuilder.append(s.get(i, Object.class).toString());
+          partitionStringBuilder.append(s.get(i, Object.class));
           partitionDataJoiner.add(partitionStringBuilder.toString());
         }
       }
