@@ -389,26 +389,18 @@ public class TestIcebergInputFormats {
   @TestTemplate
   public void testWorkerPool() throws Exception {
     Table table = helper.createUnpartitionedTable();
-    List<Record> records = helper.generateRandomRecords(1, 0L);
-    helper.appendToTable(null, records);
     UserGroupInformation user1 =
         UserGroupInformation.createUserForTesting("user1", new String[] {});
     UserGroupInformation user2 =
         UserGroupInformation.createUserForTesting("user2", new String[] {});
     final ExecutorService workerPool1 = ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
-    try {
-      // different users still use the first ugi for execution
-      assertThat(getUserFromWorkerPool(user1, table, workerPool1)).isEqualTo("user1");
-      assertThat(getUserFromWorkerPool(user2, table, workerPool1)).isEqualTo("user1");
-    } finally {
-      workerPool1.shutdown();
-    }
-
     final ExecutorService workerPool2 = ThreadPools.newWorkerPool("iceberg-plan-worker-pool", 1);
     try {
-      // using different ugi in different workerpool
+      assertThat(getUserFromWorkerPool(user1, table, workerPool1)).isEqualTo("user1");
+      assertThat(getUserFromWorkerPool(user2, table, workerPool1)).isEqualTo("user1");
       assertThat(getUserFromWorkerPool(user2, table, workerPool2)).isEqualTo("user2");
     } finally {
+      workerPool1.shutdown();
       workerPool2.shutdown();
     }
   }
@@ -425,10 +417,7 @@ public class TestIcebergInputFormats {
               try {
                 method.invoke(new IcebergInputFormat<>(), table, conf, workerpool);
                 return workerpool
-                    .submit(
-                        () -> {
-                          return UserGroupInformation.getCurrentUser().getUserName();
-                        })
+                    .submit(() -> return UserGroupInformation.getCurrentUser().getUserName())
                     .get();
               } catch (Exception e) {
                 throw new RuntimeException("Failed to get user from worker pool", e);
