@@ -134,9 +134,22 @@ paths:
     post:
       tags:
         - OAuth2 API
-      summary: Get a token using an OAuth2 flow
+      summary: Get a token using an OAuth2 flow (DEPRECATED for REMOVAL)
+      deprecated: true
       operationId: getToken
       description:
+        The `oauth/tokens` endpoint is **DEPRECATED for REMOVAL**. It is _not_ recommended to
+        implement this endpoint, unless you are fully aware of the potential security implications.
+
+        All clients are encouraged to explicitly set the configuration property `oauth2-server-uri`
+        to the correct OAuth endpoint.
+
+        Deprecated since Iceberg (Java) 1.6.0. The endpoint and related types will be removed from
+        this spec in Iceberg (Java) 2.0.
+
+        See [Security improvements in the Iceberg REST specification](https://github.com/apache/iceberg/issues/10537)
+
+
         Exchange credentials for a token using the OAuth2 client credentials flow or token exchange.
 
 
@@ -2922,7 +2935,12 @@ components:
         See https://datatracker.ietf.org/doc/html/rfc8693#section-3
 
     OAuthClientCredentialsRequest:
-      description:
+      deprecated: true
+      description: 
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
+
+
         OAuth2 client credentials request
 
 
@@ -2957,7 +2975,12 @@ components:
             a Basic Authorization header.
 
     OAuthTokenExchangeRequest:
+      deprecated: true
       description:
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
+
+
         OAuth2 token exchange request
 
 
@@ -2988,6 +3011,10 @@ components:
           $ref: '#/components/schemas/TokenType'
 
     OAuthTokenRequest:
+      deprecated: true
+      description:
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
       anyOf:
         - $ref: '#/components/schemas/OAuthClientCredentialsRequest'
         - $ref: '#/components/schemas/OAuthTokenExchangeRequest'
@@ -3142,6 +3169,10 @@ components:
             type: string
 
     OAuthError:
+      deprecated: true
+      description:
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
       type: object
       required:
         - error
@@ -3161,6 +3192,10 @@ components:
           type: string
 
     OAuthTokenResponse:
+      deprecated: true
+      description:
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
       type: object
       required:
         - access_token
