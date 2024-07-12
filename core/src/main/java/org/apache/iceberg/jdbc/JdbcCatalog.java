@@ -468,6 +468,16 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
                             .toArray(String[]::new)))
             // remove duplicates
             .distinct()
+            // exclude fuzzy matches when `namespace` contains `%` or `_`
+            .filter(
+                n -> {
+                  for (int i = 0; i < namespace.levels().length; i++) {
+                    if (!n.levels()[i].equals(namespace.levels()[i])) {
+                      return false;
+                    }
+                  }
+                  return true;
+                })
             .collect(Collectors.toList());
 
     return namespaces;
