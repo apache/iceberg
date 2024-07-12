@@ -20,13 +20,17 @@ package org.apache.iceberg.util;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import org.apache.iceberg.exceptions.RuntimeIOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -34,51 +38,50 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
 public class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T> {
+
+  private static final int DEFAULT_MAX_QUEUE_SIZE = 10_000;
+
   private final Iterable<? extends Iterable<T>> iterables;
   private final ExecutorService workerPool;
 
+  // Bound for number of items in the queue to limit memory consumption
+  // even in the case when input iterables are large.
+  private final int approximateMaxQueueSize;
+
   public ParallelIterable(Iterable<? extends Iterable<T>> iterables, ExecutorService workerPool) {
-    this.iterables = iterables;
-    this.workerPool = workerPool;
+    this(iterables, workerPool, DEFAULT_MAX_QUEUE_SIZE);
+  }
+
+  public ParallelIterable(
+      Iterable<? extends Iterable<T>> iterables,
+      ExecutorService workerPool,
+      int approximateMaxQueueSize) {
+    this.iterables = Preconditions.checkNotNull(iterables, "Input iterables cannot be null");
+    this.workerPool = Preconditions.checkNotNull(workerPool, "Worker pool cannot be null");
+    this.approximateMaxQueueSize = approximateMaxQueueSize;
   }
 
   @Override
   public CloseableIterator<T> iterator() {
-    ParallelIterator<T> iter = new ParallelIterator<>(iterables, workerPool);
+    ParallelIterator<T> iter =
+        new ParallelIterator<>(iterables, workerPool, approximateMaxQueueSize);
     addCloseable(iter);
     return iter;
   }
 
   private static class ParallelIterator<T> implements CloseableIterator<T> {
-    private final Iterator<Runnable> tasks;
+    private final Iterator<Task<T>> tasks;
+    private final Deque<Task<T>> yieldedTasks = new ArrayDeque<>();
     private final ExecutorService workerPool;
-    private final Future<?>[] taskFutures;
+    private final Future<Optional<Task<T>>>[] taskFutures;
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
-    private volatile boolean closed = false;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     private ParallelIterator(
-        Iterable<? extends Iterable<T>> iterables, ExecutorService workerPool) {
+        Iterable<? extends Iterable<T>> iterables, ExecutorService workerPool, int maxQueueSize) {
       this.tasks =
           Iterables.transform(
-                  iterables,
-                  iterable ->
-                      (Runnable)
-                          () -> {
-                            try (Closeable ignored =
-                                (iterable instanceof Closeable) ? (Closeable) iterable : () -> {}) {
-                              for (T item : iterable) {
-                                // exit manually because `ConcurrentLinkedQueue` can't be
-                                // interrupted
-                                if (closed) {
-                                  return;
-                                }
-
-                                queue.add(item);
-                              }
-                            } catch (IOException e) {
-                              throw new RuntimeIOException(e, "Failed to close iterable");
-                            }
-                          })
+                  iterables, iterable -> new Task<>(iterable, queue, closed, maxQueueSize))
               .iterator();
       this.workerPool = workerPool;
       // submit 2 tasks per worker at a time
@@ -88,7 +91,18 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     @Override
     public void close() {
       // close first, avoid new task submit
-      this.closed = true;
+      this.closed.set(true);
+
+      for (Task<T> task : yieldedTasks) {
+        try {
+          task.close();
+        } catch (Exception e) {
+          throw new RuntimeException("Close failed", e);
+        }
+      }
+      yieldedTasks.clear();
+
+      // TODO close input iterables that were not started yet
 
       // cancel background tasks
       for (Future<?> taskFuture : taskFutures) {
@@ -113,9 +127,10 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       for (int i = 0; i < taskFutures.length; i += 1) {
         if (taskFutures[i] == null || taskFutures[i].isDone()) {
           if (taskFutures[i] != null) {
+            Optional<Task<T>> continuation;
             // check for task failure and re-throw any exception
             try {
-              taskFutures[i].get();
+              continuation = taskFutures[i].get();
             } catch (ExecutionException e) {
               if (e.getCause() instanceof RuntimeException) {
                 // rethrow a runtime exception
@@ -126,6 +141,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
             } catch (InterruptedException e) {
               throw new RuntimeException("Interrupted while running parallel task", e);
             }
+            continuation.ifPresent(yieldedTasks::addLast);
           }
 
           taskFutures[i] = submitNextTask();
@@ -136,19 +152,20 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         }
       }
 
-      return !closed && (tasks.hasNext() || hasRunningTask);
+      return !closed.get() && (tasks.hasNext() || hasRunningTask);
     }
 
-    private Future<?> submitNextTask() {
-      if (!closed && tasks.hasNext()) {
-        return workerPool.submit(tasks.next());
+    private Future<Optional<Task<T>>> submitNextTask() {
+      if (!closed.get() && (!yieldedTasks.isEmpty() || tasks.hasNext())) {
+        return workerPool.submit(
+            !yieldedTasks.isEmpty() ? yieldedTasks.removeFirst() : tasks.next());
       }
       return null;
     }
 
     @Override
     public synchronized boolean hasNext() {
-      Preconditions.checkState(!closed, "Already closed");
+      Preconditions.checkState(!closed.get(), "Already closed");
 
       // if the consumer is processing records more slowly than the producers, then this check will
       // prevent tasks from being submitted. while the producers are running, this will always
@@ -190,6 +207,63 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         throw new NoSuchElementException();
       }
       return queue.poll();
+    }
+  }
+
+  private static class Task<T> implements Callable<Optional<Task<T>>>, AutoCloseable {
+    private final Iterable<T> input;
+    private final ConcurrentLinkedQueue<T> queue;
+    private final AtomicBoolean closed;
+    private final int approximateMaxQueueSize;
+
+    private Iterator<T> iterator;
+
+    Task(
+        Iterable<T> input,
+        ConcurrentLinkedQueue<T> queue,
+        AtomicBoolean closed,
+        int approximateMaxQueueSize) {
+      this.input = Preconditions.checkNotNull(input, "input cannot be null");
+      this.queue = Preconditions.checkNotNull(queue, "queue cannot be null");
+      this.closed = Preconditions.checkNotNull(closed, "closed cannot be null");
+      this.approximateMaxQueueSize = approximateMaxQueueSize;
+    }
+
+    @Override
+    public Optional<Task<T>> call() throws Exception {
+      try {
+        if (iterator == null) {
+          iterator = input.iterator();
+        }
+        while (!closed.get() && iterator.hasNext()) {
+          if (queue.size() >= approximateMaxQueueSize) {
+            // yield
+            return Optional.of(this);
+          }
+          queue.add(iterator.next());
+        }
+      } catch (Throwable e) {
+        try {
+          close();
+        } catch (IOException closeException) {
+          // self-suppression is not permitted
+          // (e and closeException to be the same is unlikely, but possible)
+          if (closeException != e) {
+            e.addSuppressed(closeException);
+          }
+        }
+        throw e;
+      }
+      close();
+      return Optional.empty();
+    }
+
+    @Override
+    public void close() throws Exception {
+      iterator = null;
+      if (input instanceof Closeable) {
+        ((Closeable) input).close();
+      }
     }
   }
 }
