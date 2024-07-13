@@ -45,6 +45,7 @@ flink119 =  { strictly = "1.19.0"}
 google-libraries-bom = "26.43.0"
 guava = "33.2.1-jre"
 hadoop2 = "2.7.3"
+hadoop34 = "3.4.0" # For Spark 4.0 support
 hadoop3-client = "3.3.6"
 httpcomponents-httpclient5 = "5.3.1"
 hive2 = { strictly = "2.3.9"} # see rich version usage explanation above
@@ -133,6 +134,7 @@ hadoop2-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "ha
 hadoop2-hdfs = { module = "org.apache.hadoop:hadoop-hdfs", version.ref = "hadoop2" }
 hadoop2-mapreduce-client-core = { module = "org.apache.hadoop:hadoop-mapreduce-client-core", version.ref = "hadoop2" }
 hadoop2-minicluster = { module = "org.apache.hadoop:hadoop-minicluster", version.ref = "hadoop2" }
+hadoop34-minicluster = { module = "org.apache.hadoop:hadoop-minicluster", version.ref = "hadoop34" }
 hadoop3-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop3-client" }
 hive2-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive2" }
 hive2-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive2" }
