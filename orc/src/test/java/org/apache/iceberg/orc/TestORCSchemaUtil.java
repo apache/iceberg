@@ -519,8 +519,7 @@ public class TestORCSchemaUtil {
         .isTrue();
 
     TypeDescription projectedOrcSchema =
-        ORCSchemaUtil.buildOrcProjection(
-            mappingSchema, typeDescriptionWithIdsFromNameMapping);
+        ORCSchemaUtil.buildOrcProjection(mappingSchema, typeDescriptionWithIdsFromNameMapping);
 
     assertThat(equalsWithIds(expected, projectedOrcSchema))
         .as("Schema should be the prunned by projection")

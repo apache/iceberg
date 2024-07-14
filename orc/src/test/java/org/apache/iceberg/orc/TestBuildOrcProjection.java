@@ -86,8 +86,7 @@ public class TestBuildOrcProjection {
     // Original mapping (stored in ORC)
     TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
 
-    TypeDescription newOrcSchema =
-        ORCSchemaUtil.buildOrcProjection(originalSchema, orcSchema);
+    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(originalSchema, orcSchema);
     assertThat(newOrcSchema.getChildren()).hasSize(1);
     assertThat(newOrcSchema.findSubtype("a").getCategory())
         .isEqualTo(TypeDescription.Category.STRUCT);
@@ -137,8 +136,7 @@ public class TestBuildOrcProjection {
             required(1, "a", Types.IntegerType.get()),
             optional(2, "b", Types.StructType.of(required(3, "c", Types.LongType.get()))));
 
-    TypeDescription newOrcSchema =
-        ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema);
+    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema);
     assertThat(newOrcSchema.getChildren()).hasSize(2);
     assertThat(newOrcSchema.findSubtype("a").getCategory()).isEqualTo(TypeDescription.Category.INT);
     assertThat(newOrcSchema.findSubtype("b_r2").getId()).isEqualTo(2);
@@ -187,8 +185,7 @@ public class TestBuildOrcProjection {
     Schema evolveSchema = new Schema(optional(1, "a", Types.TimestampType.withZone()));
 
     // iceberg schema is timestamptz
-    TypeDescription newOrcSchema =
-        ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema, true);
+    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema, true);
     assertThat(newOrcSchema.getChildren()).hasSize(1);
     assertThat(newOrcSchema.findSubtype("a").getId()).isEqualTo(1);
     assertThat(newOrcSchema.findSubtype("a").getCategory())

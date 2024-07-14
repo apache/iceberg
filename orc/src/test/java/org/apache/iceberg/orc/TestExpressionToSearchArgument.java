@@ -378,9 +378,7 @@ public class TestExpressionToSearchArgument {
 
     TypeDescription readSchema =
         ORCSchemaUtil.buildOrcProjection(
-            mappingSchema,
-            ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping),
-            false);
+            mappingSchema, ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping), false);
 
     Expression expr = equal("int", 1);
     Expression boundFilter = Binder.bind(mappingSchema.asStruct(), expr, true);
@@ -453,9 +451,7 @@ public class TestExpressionToSearchArgument {
 
     TypeDescription readSchema =
         ORCSchemaUtil.buildOrcProjection(
-            mappingSchema,
-            ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping),
-            false);
+            mappingSchema, ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping), false);
 
     Expression expr =
         and(
