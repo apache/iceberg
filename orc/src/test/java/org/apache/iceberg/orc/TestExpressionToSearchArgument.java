@@ -310,7 +310,7 @@ public class TestExpressionToSearchArgument {
             optional(3, "float_added", Types.FloatType.get()));
 
     TypeDescription readSchema =
-        ORCSchemaUtil.buildOrcProjection(evolvedSchema, ORCSchemaUtil.convert(fileSchema), config);
+        ORCSchemaUtil.buildOrcProjection(evolvedSchema, ORCSchemaUtil.convert(fileSchema), false);
 
     Expression expr = equal("int_renamed", 1);
     Expression boundFilter = Binder.bind(evolvedSchema.asStruct(), expr, true);
@@ -347,7 +347,7 @@ public class TestExpressionToSearchArgument {
         ORCSchemaUtil.buildOrcProjection(
             originalSchema,
             ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping),
-            config);
+            false);
 
     Expression expr = and(equal("int", 1), equal("long", 1));
     Expression boundFilter = Binder.bind(originalSchema.asStruct(), expr, true);
@@ -380,7 +380,7 @@ public class TestExpressionToSearchArgument {
         ORCSchemaUtil.buildOrcProjection(
             mappingSchema,
             ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping),
-            config);
+            false);
 
     Expression expr = equal("int", 1);
     Expression boundFilter = Binder.bind(mappingSchema.asStruct(), expr, true);
@@ -455,7 +455,7 @@ public class TestExpressionToSearchArgument {
         ORCSchemaUtil.buildOrcProjection(
             mappingSchema,
             ORCSchemaUtil.applyNameMapping(orcSchemaWithoutIds, nameMapping),
-            config);
+            false);
 
     Expression expr =
         and(

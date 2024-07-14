@@ -24,7 +24,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMultimap;
@@ -258,13 +257,26 @@ public final class ORCSchemaUtil {
    *
    * @param schema an Iceberg schema
    * @param originalOrcSchema an existing ORC file schema
-   * @param config Hadoop configuration
    * @return the resulting ORC schema
    */
   public static TypeDescription buildOrcProjection(
-      Schema schema, TypeDescription originalOrcSchema, Boolean convertTimestampTZ) {
+      Schema schema, TypeDescription originalOrcSchema) {
+    return buildOrcProjection(schema, originalOrcSchema, false);
+  }
+
+  /**
+   * Overload function `buildOrcProjection`
+   *
+   * @param schema an Iceberg schema
+   * @param originalOrcSchema an existing ORC file schema
+   * @param convertTimestampTZ should convert timestamptz as timestamp
+   * @return the resulting ORC schema
+   */
+  public static TypeDescription buildOrcProjection(
+          Schema schema, TypeDescription originalOrcSchema, Boolean convertTimestampTZ) {
     final Map<Integer, OrcField> icebergToOrc = icebergToOrcMapping("root", originalOrcSchema);
-    return buildOrcProjection(Integer.MIN_VALUE, schema.asStruct(), true, icebergToOrc, convertTimestampTZ);
+    return buildOrcProjection(
+            Integer.MIN_VALUE, schema.asStruct(), true, icebergToOrc, convertTimestampTZ);
   }
 
   private static TypeDescription buildOrcProjection(
@@ -292,7 +304,7 @@ public final class ORCSchemaUtil {
                   nestedField.type(),
                   isRequired && nestedField.isRequired(),
                   mapping,
-                      convertTimestampTZ);
+                  convertTimestampTZ);
           orcType.addField(name, childType);
         }
         break;

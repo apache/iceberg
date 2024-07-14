@@ -212,8 +212,7 @@ public class TestORCSchemaUtil {
             optional(2, "b", Types.DoubleType.get()),
             optional(3, "c", Types.DecimalType.of(15, 2)));
 
-    TypeDescription newOrcSchema =
-        ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema, false);
+    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema, false);
     assertThat(newOrcSchema.getChildren()).hasSize(3);
     assertThat(newOrcSchema.findSubtype("a").getId()).isEqualTo(1);
     assertThat(newOrcSchema.findSubtype("a").getCategory())
@@ -236,8 +235,7 @@ public class TestORCSchemaUtil {
     TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
     Schema evolveSchema = new Schema(optional(1, "a", Types.IntegerType.get()));
 
-    assertThatThrownBy(
-            () -> ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema, false))
+    assertThatThrownBy(() -> ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema, false))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Can not promote LONG type to INTEGER");
   }
@@ -522,7 +520,7 @@ public class TestORCSchemaUtil {
 
     TypeDescription projectedOrcSchema =
         ORCSchemaUtil.buildOrcProjection(
-            mappingSchema, typeDescriptionWithIdsFromNameMapping, config);
+            mappingSchema, typeDescriptionWithIdsFromNameMapping);
 
     assertThat(equalsWithIds(expected, projectedOrcSchema))
         .as("Schema should be the prunned by projection")
