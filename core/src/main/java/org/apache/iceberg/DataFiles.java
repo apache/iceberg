@@ -28,6 +28,7 @@ import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.util.ByteBuffers;
 
@@ -190,12 +191,12 @@ public class DataFiles {
       this.format = toCopy.format();
       this.recordCount = toCopy.recordCount();
       this.fileSizeInBytes = toCopy.fileSizeInBytes();
-      this.columnSizes = toCopy.columnSizes();
-      this.valueCounts = toCopy.valueCounts();
-      this.nullValueCounts = toCopy.nullValueCounts();
-      this.nanValueCounts = toCopy.nanValueCounts();
-      this.lowerBounds = toCopy.lowerBounds();
-      this.upperBounds = toCopy.upperBounds();
+      this.columnSizes = copyMap(toCopy.columnSizes());
+      this.valueCounts = copyMap(toCopy.valueCounts());
+      this.nullValueCounts = copyMap(toCopy.nullValueCounts());
+      this.nanValueCounts = copyMap(toCopy.nanValueCounts());
+      this.lowerBounds = copyMap(toCopy.lowerBounds());
+      this.upperBounds = copyMap(toCopy.upperBounds());
       this.keyMetadata =
           toCopy.keyMetadata() == null ? null : ByteBuffers.copy(toCopy.keyMetadata());
       this.splitOffsets =
@@ -342,5 +343,13 @@ public class DataFiles {
           splitOffsets,
           sortOrderId);
     }
+  }
+
+  private static <K, V> Map<K, V> copyMap(Map<K, V> toCopy) {
+    if (toCopy == null) {
+      return null;
+    }
+
+    return Maps.newHashMap(toCopy);
   }
 }
