@@ -41,7 +41,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 public class TestHiveIcebergSerDe {
 
-  private static final Schema schema =
+  private static final Schema SCHEMA =
       new Schema(required(1, "string_field", Types.StringType.get()));
 
   @TempDir private Path tmp;
@@ -58,19 +58,19 @@ public class TestHiveIcebergSerDe {
     properties.setProperty(InputFormatConfig.CATALOG_NAME, Catalogs.ICEBERG_HADOOP_TABLE_NAME);
 
     HadoopTables tables = new HadoopTables(conf);
-    tables.create(schema, location.toString());
+    tables.create(SCHEMA, location.toString());
 
     HiveIcebergSerDe serDe = new HiveIcebergSerDe();
     serDe.initialize(conf, properties);
 
-    assertThat(serDe.getObjectInspector()).isEqualTo(IcebergObjectInspector.create(schema));
+    assertThat(serDe.getObjectInspector()).isEqualTo(IcebergObjectInspector.create(SCHEMA));
   }
 
   @Test
   public void testDeserialize() {
     HiveIcebergSerDe serDe = new HiveIcebergSerDe();
 
-    Record record = RandomGenericData.generate(schema, 1, 0).get(0);
+    Record record = RandomGenericData.generate(SCHEMA, 1, 0).get(0);
     Container<Record> container = new Container<>();
     container.set(record);
 

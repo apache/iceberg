@@ -97,7 +97,7 @@ public class TestMetricsRowGroupFilter {
     return Arrays.asList(FileFormat.PARQUET, FileFormat.ORC);
   }
 
-  private static final Types.StructType structFieldType =
+  private static final Types.StructType STRUCT_FIELD_TYPE =
       Types.StructType.of(Types.NestedField.required(8, "int_field", IntegerType.get()));
 
   private static final Schema SCHEMA =
@@ -108,7 +108,7 @@ public class TestMetricsRowGroupFilter {
           optional(4, "all_nulls", DoubleType.get()),
           optional(5, "some_nulls", StringType.get()),
           optional(6, "no_nulls", StringType.get()),
-          optional(7, "struct_not_null", structFieldType),
+          optional(7, "struct_not_null", STRUCT_FIELD_TYPE),
           optional(9, "not_in_file", FloatType.get()),
           optional(10, "str", StringType.get()),
           optional(
@@ -120,7 +120,7 @@ public class TestMetricsRowGroupFilter {
           optional(16, "no_nans", DoubleType.get()),
           optional(17, "some_double_nans", DoubleType.get()));
 
-  private static final Types.StructType _structFieldType =
+  private static final Types.StructType UNDERSCORE_STRUCT_FIELD_TYPE =
       Types.StructType.of(Types.NestedField.required(8, "_int_field", IntegerType.get()));
 
   private static final Schema FILE_SCHEMA =
@@ -131,7 +131,7 @@ public class TestMetricsRowGroupFilter {
           optional(4, "_all_nulls", DoubleType.get()),
           optional(5, "_some_nulls", StringType.get()),
           optional(6, "_no_nulls", StringType.get()),
-          optional(7, "_struct_not_null", _structFieldType),
+          optional(7, "_struct_not_null", UNDERSCORE_STRUCT_FIELD_TYPE),
           optional(10, "_str", StringType.get()),
           optional(14, "_all_nans", Types.DoubleType.get()),
           optional(15, "_some_nans", FloatType.get()),
@@ -202,7 +202,7 @@ public class TestMetricsRowGroupFilter {
             "_some_double_nans", (i % 10 == 0) ? Double.NaN : 2D); // includes some nan values
         record.setField("_no_nans", 3D); // optional, but always non-nan
 
-        GenericRecord structNotNull = GenericRecord.create(_structFieldType);
+        GenericRecord structNotNull = GenericRecord.create(UNDERSCORE_STRUCT_FIELD_TYPE);
         structNotNull.setField("_int_field", INT_MIN_VALUE + i);
         record.setField("_struct_not_null", structNotNull); // struct with int
 
@@ -225,7 +225,7 @@ public class TestMetricsRowGroupFilter {
     assertThat(parquetFile.delete()).isTrue();
 
     // build struct field schema
-    org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
+    org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(UNDERSCORE_STRUCT_FIELD_TYPE);
 
     OutputFile outFile = Files.localOutput(parquetFile);
     try (FileAppender<Record> appender = Parquet.write(outFile).schema(FILE_SCHEMA).build()) {

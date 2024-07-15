@@ -80,7 +80,6 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String TABLES_SCHEMA_CASE_INSENSITIVE_PROP =
       "iceberg.tables.schema-case-insensitive";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
-  private static final String CONTROL_GROUP_ID_PROP = "iceberg.control.group-id";
   private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
   private static final int COMMIT_INTERVAL_MS_DEFAULT = 300_000;
   private static final String COMMIT_TIMEOUT_MS_PROP = "iceberg.control.commit.timeout-ms";
@@ -104,11 +103,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   public static final ConfigDef CONFIG_DEF = newConfigDef();
 
   public static String version() {
-    String kcVersion = IcebergSinkConfig.class.getPackage().getImplementationVersion();
-    if (kcVersion == null) {
-      kcVersion = "unknown";
-    }
-    return IcebergBuild.version() + "-kc-" + kcVersion;
+    return IcebergBuild.version();
   }
 
   private static ConfigDef newConfigDef() {
@@ -185,12 +180,6 @@ public class IcebergSinkConfig extends AbstractConfig {
         DEFAULT_CONTROL_TOPIC,
         Importance.MEDIUM,
         "Name of the control topic");
-    configDef.define(
-        CONTROL_GROUP_ID_PROP,
-        ConfigDef.Type.STRING,
-        null,
-        Importance.MEDIUM,
-        "Name of the consumer group to store offsets");
     configDef.define(
         CONNECT_GROUP_ID_PROP,
         ConfigDef.Type.STRING,
@@ -368,16 +357,6 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public String controlTopic() {
     return getString(CONTROL_TOPIC_PROP);
-  }
-
-  public String controlGroupId() {
-    String result = getString(CONTROL_GROUP_ID_PROP);
-    if (result != null) {
-      return result;
-    }
-    String connectorName = connectorName();
-    Preconditions.checkNotNull(connectorName, "Connector name cannot be null");
-    return DEFAULT_CONTROL_GROUP_PREFIX + connectorName;
   }
 
   public String connectGroupId() {
