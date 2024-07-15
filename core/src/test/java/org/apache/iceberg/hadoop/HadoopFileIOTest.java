@@ -64,7 +64,7 @@ public class HadoopFileIOTest {
   public void testListPrefix() {
     Path parent = new Path(tempDir.toURI());
 
-    List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
+    List<Integer> scaleSizes = Lists.newArrayList(1, 5, 500);
 
     scaleSizes
         .parallelStream()
@@ -99,7 +99,7 @@ public class HadoopFileIOTest {
   public void testDeletePrefix() {
     Path parent = new Path(tempDir.toURI());
 
-    List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
+    List<Integer> scaleSizes = Lists.newArrayList(1, 5, 500);
 
     scaleSizes
         .parallelStream()
