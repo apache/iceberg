@@ -962,6 +962,11 @@ project(':iceberg-snowflake') {
     useJUnitPlatform()
   }
 
+  configurations {
+    integrationImplementation.extendsFrom testImplementation
+    integrationRuntime.extendsFrom testRuntimeOnly
+  }
+
   dependencies {
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
@@ -974,6 +979,25 @@ project(':iceberg-snowflake') {
 
     testImplementation libs.mockito.junit.jupiter
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    integrationImplementation("net.snowflake:snowflake-jdbc")
+  }
+
+  sourceSets {
+    integration {
+      java.srcDir "$projectDir/src/integration/java"
+      resources.srcDir "$projectDir/src/integration/resources"
+      compileClasspath += main.output + test.output
+      runtimeClasspath += main.output + test.output
+    }
+  }
+
+  task integrationTest(type: Test) {
+    testClassesDirs = sourceSets.integration.output.classesDirs
+    classpath = sourceSets.integration.runtimeClasspath
+  }
+
+  integrationTest{
+    useJUnitPlatform()
   }
 }
 
