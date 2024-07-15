@@ -445,6 +445,8 @@ class SchemaUpdate implements UpdateSchema {
   @Override
   public void commit() {
     TableMetadata update = applyChangesToMetadata(base.updateSchema(apply(), lastColumnId));
+    if (update.schema().columns().size() == 0)
+      throw new UnsupportedOperationException("Unable to commit table without any columns.");
     ops.commit(base, update);
   }
 
