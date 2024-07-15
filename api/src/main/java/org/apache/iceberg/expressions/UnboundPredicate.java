@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -27,6 +28,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.CharSequenceSet;
 
@@ -111,7 +114,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     BoundTerm<T> bound = term().bind(struct, caseSensitive);
 
     if (literals == null) {
-      return bindUnaryOperation(bound);
+      return bindUnaryOperation(bound, struct);
     }
 
     if (op() == Operation.IN || op() == Operation.NOT_IN) {
@@ -121,15 +124,15 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
     return bindLiteralOperation(bound);
   }
 
-  private Expression bindUnaryOperation(BoundTerm<T> boundTerm) {
+  private Expression bindUnaryOperation(BoundTerm<T> boundTerm, StructType struct) {
     switch (op()) {
       case IS_NULL:
-        if (boundTerm.ref().field().isRequired()) {
+        if (alwaysNonNull(boundTerm.ref().field(), struct)) {
           return Expressions.alwaysFalse();
         }
         return new BoundUnaryPredicate<>(Operation.IS_NULL, boundTerm);
       case NOT_NULL:
-        if (boundTerm.ref().field().isRequired()) {
+        if (alwaysNonNull(boundTerm.ref().field(), struct)) {
           return Expressions.alwaysTrue();
         }
         return new BoundUnaryPredicate<>(Operation.NOT_NULL, boundTerm);
@@ -148,6 +151,27 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       default:
         throw new ValidationException("Operation must be IS_NULL, NOT_NULL, IS_NAN, or NOT_NAN");
     }
+  }
+
+  private boolean alwaysNonNull(Types.NestedField field, StructType struct) {
+    if (field.isOptional()) {
+      return false;
+    }
+
+    if (struct.field(field.fieldId()) == null) { // nested field
+      Map<Integer, Integer> indexParent = TypeUtil.indexParents(struct);
+      Map<Integer, Types.NestedField> idToField = TypeUtil.indexById(struct);
+      Integer parent = indexParent.get(field.fieldId());
+      while (parent != null) {
+        if (idToField.get(parent).isOptional()) {
+          return false;
+        }
+
+        parent = indexParent.get(parent);
+      }
+    }
+
+    return true;
   }
 
   private boolean floatingType(Type.TypeID typeID) {

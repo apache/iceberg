@@ -43,7 +43,7 @@ public class Binder {
    * allowed, a {@link ValidationException validation exception} is thrown.
    *
    * <p>The result expression may be simplified when constructed. For example, {@code isNull("a")}
-   * is replaced with {@code alwaysFalse()} when {@code "a"} is resolved to a required field.
+   * is replaced with {@code alwaysFalse()} when {@code "a"} is resolved to be always non-null.
    *
    * <p>The expression cannot contain references that are already bound, or an {@link
    * IllegalStateException} will be thrown.
@@ -71,7 +71,7 @@ public class Binder {
    * allowed, a {@link ValidationException validation exception} is thrown.
    *
    * <p>The result expression may be simplified when constructed. For example, {@code isNull("a")}
-   * is replaced with {@code alwaysFalse()} when {@code "a"} is resolved to a required field.
+   * is replaced with {@code alwaysFalse()} when {@code "a"} is resolved to be always non-null.
    *
    * <p>The expression cannot contain references that are already bound, or an {@link
    * IllegalStateException} will be thrown.
