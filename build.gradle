@@ -373,6 +373,11 @@ project(':iceberg-core') {
     testImplementation libs.guava.testlib
     testImplementation libs.awaitility
   }
+  tasks.named("jar", Jar).configure {
+    into("META-INF/openapi") {
+      from("$rootDir/open-api")
+    }
+  }
 }
 
 project(':iceberg-data') {
