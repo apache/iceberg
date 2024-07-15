@@ -45,8 +45,9 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.test.junit5.InjectClusterClient;
-import org.apache.flink.test.junit5.InjectMiniCluster;
 import org.apache.flink.test.junit5.MiniClusterExtension;
+import org.apache.flink.test.util.MiniClusterWithClientResource;
+import org.apache.flink.util.function.ThrowingConsumer;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -74,21 +75,22 @@ public class TestIcebergSourceFailover {
   // The goal is to allow some splits to remain in the enumerator when restoring the state
   private static final int PARALLELISM = 2;
   private static final int DO_NOT_FAIL = Integer.MAX_VALUE;
+  protected static final MiniClusterResourceConfiguration MINI_CLUSTER_RESOURCE_CONFIG =
+      new MiniClusterResourceConfiguration.Builder()
+          .setNumberTaskManagers(1)
+          .setNumberSlotsPerTaskManager(PARALLELISM)
+          .setRpcServiceSharing(RpcServiceSharing.DEDICATED)
+          .withHaLeadershipControl()
+          .build();
 
   @RegisterExtension
   public static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
-      new MiniClusterExtension(
-          new MiniClusterResourceConfiguration.Builder()
-              .setNumberTaskManagers(1)
-              .setNumberSlotsPerTaskManager(PARALLELISM)
-              .setRpcServiceSharing(RpcServiceSharing.DEDICATED)
-              .withHaLeadershipControl()
-              .build());
+      new MiniClusterExtension(MINI_CLUSTER_RESOURCE_CONFIG);
 
   @TempDir protected Path temporaryFolder;
 
   @RegisterExtension
-  private static final HadoopTableExtension SOURCE_TABLE_EXTENSION =
+  protected static final HadoopTableExtension SOURCE_TABLE_EXTENSION =
       new HadoopTableExtension(DATABASE, TestFixtures.TABLE, TestFixtures.SCHEMA);
 
   @RegisterExtension
@@ -166,19 +168,19 @@ public class TestIcebergSourceFailover {
   }
 
   @Test
-  public void testBoundedWithTaskManagerFailover(@InjectMiniCluster MiniCluster miniCluster)
-      throws Exception {
-    testBoundedIcebergSource(FailoverType.TM, miniCluster);
+  public void testBoundedWithTaskManagerFailover() throws Exception {
+    runTestWithNewMiniCluster(
+        miniCluster -> testBoundedIcebergSource(FailoverType.TM, miniCluster));
   }
 
   @Test
-  public void testBoundedWithJobManagerFailover(@InjectMiniCluster MiniCluster miniCluster)
-      throws Exception {
-    testBoundedIcebergSource(FailoverType.JM, miniCluster);
+  public void testBoundedWithJobManagerFailover() throws Exception {
+    runTestWithNewMiniCluster(
+        miniCluster -> testBoundedIcebergSource(FailoverType.JM, miniCluster));
   }
 
-  private void testBoundedIcebergSource(
-      FailoverType failoverType, @InjectMiniCluster MiniCluster miniCluster) throws Exception {
+  private void testBoundedIcebergSource(FailoverType failoverType, MiniCluster miniCluster)
+      throws Exception {
     List<Record> expectedRecords = Lists.newArrayList();
     GenericAppenderHelper dataAppender =
         new GenericAppenderHelper(
@@ -203,19 +205,19 @@ public class TestIcebergSourceFailover {
   }
 
   @Test
-  public void testContinuousWithTaskManagerFailover(@InjectMiniCluster MiniCluster miniCluster)
-      throws Exception {
-    testContinuousIcebergSource(FailoverType.TM, miniCluster);
+  public void testContinuousWithTaskManagerFailover() throws Exception {
+    runTestWithNewMiniCluster(
+        miniCluster -> testContinuousIcebergSource(FailoverType.TM, miniCluster));
   }
 
   @Test
-  public void testContinuousWithJobManagerFailover(@InjectMiniCluster MiniCluster miniCluster)
-      throws Exception {
-    testContinuousIcebergSource(FailoverType.JM, miniCluster);
+  public void testContinuousWithJobManagerFailover() throws Exception {
+    runTestWithNewMiniCluster(
+        miniCluster -> testContinuousIcebergSource(FailoverType.JM, miniCluster));
   }
 
-  private void testContinuousIcebergSource(
-      FailoverType failoverType, @InjectMiniCluster MiniCluster miniCluster) throws Exception {
+  private void testContinuousIcebergSource(FailoverType failoverType, MiniCluster miniCluster)
+      throws Exception {
     GenericAppenderHelper dataAppender =
         new GenericAppenderHelper(
             SOURCE_TABLE_EXTENSION.table(), FileFormat.PARQUET, temporaryFolder);
@@ -293,6 +295,20 @@ public class TestIcebergSourceFailover {
   // ------------------------------------------------------------------------
   // test utilities copied from Flink's FileSourceTextLinesITCase
   // ------------------------------------------------------------------------
+
+  private static void runTestWithNewMiniCluster(ThrowingConsumer<MiniCluster, Exception> testMethod)
+      throws Exception {
+    MiniClusterWithClientResource miniCluster = null;
+    try {
+      miniCluster = new MiniClusterWithClientResource(MINI_CLUSTER_RESOURCE_CONFIG);
+      miniCluster.before();
+      testMethod.accept(miniCluster.getMiniCluster());
+    } finally {
+      if (miniCluster != null) {
+        miniCluster.after();
+      }
+    }
+  }
 
   private enum FailoverType {
     NONE,
