@@ -127,10 +127,10 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       for (int i = 0; i < taskFutures.length; i += 1) {
         if (taskFutures[i] == null || taskFutures[i].isDone()) {
           if (taskFutures[i] != null) {
-            Optional<Task<T>> continuation;
             // check for task failure and re-throw any exception
             try {
-              continuation = taskFutures[i].get();
+              Optional<Task<T>> continuation = taskFutures[i].get();
+              continuation.ifPresent(yieldedTasks::addLast);
             } catch (ExecutionException e) {
               if (e.getCause() instanceof RuntimeException) {
                 // rethrow a runtime exception
@@ -141,7 +141,6 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
             } catch (InterruptedException e) {
               throw new RuntimeException("Interrupted while running parallel task", e);
             }
-            continuation.ifPresent(yieldedTasks::addLast);
           }
 
           taskFutures[i] = submitNextTask();
@@ -156,9 +155,14 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     }
 
     private Future<Optional<Task<T>>> submitNextTask() {
-      if (!closed.get() && (!yieldedTasks.isEmpty() || tasks.hasNext())) {
-        return workerPool.submit(
-            !yieldedTasks.isEmpty() ? yieldedTasks.removeFirst() : tasks.next());
+      if (!closed.get()) {
+        if (!yieldedTasks.isEmpty()) {
+          return workerPool.submit(yieldedTasks.removeFirst());
+        }
+
+        if (tasks.hasNext()) {
+          return workerPool.submit(tasks.next());
+        }
       }
       return null;
     }
@@ -235,15 +239,19 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         if (iterator == null) {
           iterator = input.iterator();
         }
+
         while (iterator.hasNext()) {
           if (queue.size() >= approximateMaxQueueSize) {
-            // yield
+            // Yield. Stop execution so that the task can be resubmitted, in which case call() will
+            // be called again.
             return Optional.of(this);
           }
+
           T next = iterator.next();
           if (closed.get()) {
             break;
           }
+
           queue.add(next);
         }
       } catch (Throwable e) {
@@ -259,6 +267,8 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         throw e;
       }
       close();
+      // The task is complete. Returning empty means there is no continuation that should be
+      // executed.
       return Optional.empty();
     }
 
