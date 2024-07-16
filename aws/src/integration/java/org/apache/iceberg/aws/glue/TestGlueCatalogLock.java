@@ -56,18 +56,18 @@ public class TestGlueCatalogLock extends GlueTestBase {
   @BeforeAll
   public static void beforeClass() {
     GlueTestBase.beforeClass();
-    String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
+    String testBucketPath = "s3://" + TEST_BUCKET_NAME + "/" + TEST_PATH_PREFIX;
     lockTableName = getRandomName();
     glueCatalog = new GlueCatalog();
     AwsProperties awsProperties = new AwsProperties();
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
-    dynamo = clientFactory.dynamo();
+    dynamo = CLIENT_FACTORY.dynamo();
     glueCatalog.initialize(
-        catalogName,
+        CATALOG_NAME,
         testBucketPath,
         awsProperties,
         s3FileIOProperties,
-        glue,
+        GLUE,
         new DynamoDbLockManager(dynamo, lockTableName),
         ImmutableMap.of());
   }

@@ -72,7 +72,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
               .build());
 
   @RegisterExtension
-  private static final HadoopCatalogExtension catalogExtension =
+  private static final HadoopCatalogExtension CATALOG_EXTENSION =
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   private static final TypeInformation<Row> ROW_TYPE_INFO =
@@ -90,7 +90,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
   private void setupEnvironment(TableSchemaType tableSchemaType) {
     PartitionSpec partitionSpec = tableSchemaType.getPartitionSpec(numBuckets);
     table =
-        catalogExtension
+        CATALOG_EXTENSION
             .catalog()
             .createTable(
                 TABLE_IDENTIFIER,
@@ -102,7 +102,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
             .enableCheckpointing(100)
             .setParallelism(parallelism)
             .setMaxParallelism(parallelism * 2);
-    tableLoader = catalogExtension.tableLoader();
+    tableLoader = CATALOG_EXTENSION.tableLoader();
   }
 
   private void appendRowsToTable(List<RowData> allRows) throws Exception {

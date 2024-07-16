@@ -138,7 +138,7 @@ public class TestCreateActions extends SparkCatalogTestBase {
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
-  private String baseTableName = "baseTable";
+  private final String baseTableName = "baseTable";
   private File tableDir;
   private String tableLocation;
   private final String type;

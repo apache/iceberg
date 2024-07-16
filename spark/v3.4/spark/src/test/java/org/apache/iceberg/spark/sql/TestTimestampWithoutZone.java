@@ -49,10 +49,10 @@ import org.junit.runners.Parameterized;
 
 public class TestTimestampWithoutZone extends SparkCatalogTestBase {
 
-  private static final String newTableName = "created_table";
+  private static final String NEW_TABLE_NAME = "created_table";
   private final Map<String, String> config;
 
-  private static final Schema schema =
+  private static final Schema SCHEMA =
       new Schema(
           Types.NestedField.required(1, "id", Types.LongType.get()),
           Types.NestedField.required(2, "ts", Types.TimestampType.withoutZone()),
@@ -87,13 +87,13 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
 
   @Before
   public void createTables() {
-    validationCatalog.createTable(tableIdent, schema);
+    validationCatalog.createTable(tableIdent, SCHEMA);
   }
 
   @After
   public void removeTables() {
     validationCatalog.dropTable(tableIdent, true);
-    sql("DROP TABLE IF EXISTS %s", newTableName);
+    sql("DROP TABLE IF EXISTS %s", NEW_TABLE_NAME);
   }
 
   @Test
@@ -158,7 +158,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
                   () -> {
                     sql(
                         "CREATE OR REPLACE TABLE %s USING ICEBERG AS SELECT * FROM %s",
-                        newTableName, tableName);
+                        NEW_TABLE_NAME, tableName);
                   })
               .isInstanceOf(UnsupportedOperationException.class)
               .hasMessage(
@@ -176,7 +176,7 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
                     spark
                         .read()
                         .table(tableName)
-                        .writeTo(newTableName)
+                        .writeTo(NEW_TABLE_NAME)
                         .option(SparkWriteOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "true")
                         .using("iceberg")
                         .createOrReplace();
@@ -245,36 +245,36 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
   public void testCreateAsSelectWithTimestampWithoutZone() {
     sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
-    sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
+    sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", NEW_TABLE_NAME, tableName);
 
     Assert.assertEquals(
         "Should have " + values.size() + " row",
         (long) values.size(),
-        scalarSql("SELECT count(*) FROM %s", newTableName));
+        scalarSql("SELECT count(*) FROM %s", NEW_TABLE_NAME));
 
     assertEquals(
         "Row data should match expected",
         sql("SELECT * FROM %s ORDER BY id", tableName),
-        sql("SELECT * FROM %s ORDER BY id", newTableName));
+        sql("SELECT * FROM %s ORDER BY id", NEW_TABLE_NAME));
   }
 
   @Test
   public void testCreateNewTableShouldHaveTimestampWithZoneIcebergType() {
     sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
-    sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
+    sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", NEW_TABLE_NAME, tableName);
 
     Assert.assertEquals(
         "Should have " + values.size() + " row",
         (long) values.size(),
-        scalarSql("SELECT count(*) FROM %s", newTableName));
+        scalarSql("SELECT count(*) FROM %s", NEW_TABLE_NAME));
 
     assertEquals(
         "Data from created table should match data from base table",
         sql("SELECT * FROM %s ORDER BY id", tableName),
-        sql("SELECT * FROM %s ORDER BY id", newTableName));
+        sql("SELECT * FROM %s ORDER BY id", NEW_TABLE_NAME));
 
-    Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", newTableName));
+    Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", NEW_TABLE_NAME));
     assertFieldsType(createdTable.schema(), Types.TimestampType.withoutZone(), "ts");
     assertFieldsType(createdTable.schema(), Types.TimestampType.withZone(), "tsz");
   }
@@ -288,18 +288,18 @@ public class TestTimestampWithoutZone extends SparkCatalogTestBase {
         .initialize(catalog.name(), new CaseInsensitiveStringMap(config));
     sql("INSERT INTO %s VALUES %s", tableName, rowToSqlValues(values));
 
-    sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", newTableName, tableName);
+    sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", NEW_TABLE_NAME, tableName);
 
     Assert.assertEquals(
         "Should have " + values.size() + " row",
         (long) values.size(),
-        scalarSql("SELECT count(*) FROM %s", newTableName));
+        scalarSql("SELECT count(*) FROM %s", NEW_TABLE_NAME));
 
     assertEquals(
         "Row data should match expected",
         sql("SELECT * FROM %s ORDER BY id", tableName),
-        sql("SELECT * FROM %s ORDER BY id", newTableName));
-    Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", newTableName));
+        sql("SELECT * FROM %s ORDER BY id", NEW_TABLE_NAME));
+    Table createdTable = validationCatalog.loadTable(TableIdentifier.of("default", NEW_TABLE_NAME));
     assertFieldsType(createdTable.schema(), Types.TimestampType.withoutZone(), "ts");
     assertFieldsType(createdTable.schema(), Types.TimestampType.withZone(), "tsz");
   }

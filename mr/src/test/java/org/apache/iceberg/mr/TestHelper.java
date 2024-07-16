@@ -40,7 +40,6 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.rules.TemporaryFolder;
 
 public class TestHelper {
   private final Configuration conf;
@@ -49,29 +48,9 @@ public class TestHelper {
   private final Schema schema;
   private final PartitionSpec spec;
   private final FileFormat fileFormat;
-  private final TemporaryFolder tmp;
   private final Path temp;
 
   private Table table;
-
-  @Deprecated
-  public TestHelper(
-      Configuration conf,
-      Tables tables,
-      String tableIdentifier,
-      Schema schema,
-      PartitionSpec spec,
-      FileFormat fileFormat,
-      TemporaryFolder tmp) {
-    this.conf = conf;
-    this.tables = tables;
-    this.tableIdentifier = tableIdentifier;
-    this.schema = schema;
-    this.spec = spec;
-    this.fileFormat = fileFormat;
-    this.temp = null;
-    this.tmp = tmp;
-  }
 
   public TestHelper(
       Configuration conf,
@@ -88,7 +67,6 @@ public class TestHelper {
     this.spec = spec;
     this.fileFormat = fileFormat;
     this.temp = temp;
-    this.tmp = null;
   }
 
   public void setTable(Table table) {
@@ -144,9 +122,6 @@ public class TestHelper {
   }
 
   private GenericAppenderHelper appender() {
-    if (null != tmp) {
-      return new GenericAppenderHelper(table, fileFormat, tmp, conf);
-    }
     return new GenericAppenderHelper(table, fileFormat, temp, conf);
   }
 

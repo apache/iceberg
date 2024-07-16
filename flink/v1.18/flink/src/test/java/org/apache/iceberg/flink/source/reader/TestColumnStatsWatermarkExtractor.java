@@ -74,7 +74,7 @@ public class TestColumnStatsWatermarkExtractor {
   @TempDir protected Path temporaryFolder;
 
   @RegisterExtension
-  private static final HadoopTableExtension sourceTableResource =
+  private static final HadoopTableExtension SOURCE_TABLE_EXTENSION =
       new HadoopTableExtension(DATABASE, TestFixtures.TABLE, SCHEMA);
 
   @Parameter(index = 0)
@@ -122,7 +122,7 @@ public class TestColumnStatsWatermarkExtractor {
         new ColumnStatsWatermarkExtractor(SCHEMA, columnName, TimeUnit.MICROSECONDS);
 
     assertThat(extractor.extractWatermark(split(0)))
-        .isEqualTo(MIN_VALUES.get(0).get(columnName).longValue() / 1000L);
+        .isEqualTo(MIN_VALUES.get(0).get(columnName) / 1000L);
   }
 
   @TestTemplate

@@ -34,6 +34,7 @@ public class VectorizedSupport {
       this.lowerCaseName = name().toLowerCase(Locale.ROOT);
     }
 
+    @SuppressWarnings("checkstyle:ConstantName")
     public static final Map<String, Support> nameToSupportMap = Maps.newHashMap();
 
     static {
