@@ -41,6 +41,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.table.runtime.typeutils.SortedMapTypeInfo;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
@@ -83,6 +84,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   // TableLoader to load iceberg table lazily.
   private final TableLoader tableLoader;
   private final boolean replacePartitions;
+  private final boolean replaceAllPartitions;
   private final Map<String, String> snapshotProperties;
 
   // A sorted map to maintain the completed data files for each pending checkpointId (which have not
@@ -128,12 +130,14 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   IcebergFilesCommitter(
       TableLoader tableLoader,
       boolean replacePartitions,
+      boolean replaceAllPartitions,
       Map<String, String> snapshotProperties,
       Integer workerPoolSize,
       String branch,
       PartitionSpec spec) {
     this.tableLoader = tableLoader;
     this.replacePartitions = replacePartitions;
+    this.replaceAllPartitions = replaceAllPartitions;
     this.snapshotProperties = snapshotProperties;
     this.workerPoolSize = workerPoolSize;
     this.branch = branch;
@@ -333,20 +337,30 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     Preconditions.checkState(
         summary.deleteFilesCount() == 0, "Cannot overwrite partitions with delete files.");
     // Commit the overwrite transaction.
-    ReplacePartitions dynamicOverwrite = table.newReplacePartitions().scanManifestsWith(workerPool);
-    for (WriteResult result : pendingResults.values()) {
-      Preconditions.checkState(
-          result.referencedDataFiles().length == 0, "Should have no referenced data files.");
-      Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
+    SnapshotUpdate<?> update;
+    if (replaceAllPartitions) {
+      OverwriteFiles overwrite = table.newOverwrite().scanManifestsWith(workerPool);
+      // mark all existing files as deleted
+      table.newScan().planFiles().forEach(file -> overwrite.deleteFile(file.file()));
+      for (WriteResult result : pendingResults.values()) {
+        Preconditions.checkState(
+            result.referencedDataFiles().length == 0, "Should have no referenced data files.");
+        Arrays.stream(result.dataFiles()).forEach(overwrite::addFile);
+      }
+      update = overwrite;
+    } else {
+      ReplacePartitions dynamicOverwrite =
+          table.newReplacePartitions().scanManifestsWith(workerPool);
+      for (WriteResult result : pendingResults.values()) {
+        Preconditions.checkState(
+            result.referencedDataFiles().length == 0, "Should have no referenced data files.");
+        Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
+      }
+      update = dynamicOverwrite;
     }
 
     commitOperation(
-        dynamicOverwrite,
-        summary,
-        "dynamic partition overwrite",
-        newFlinkJobId,
-        operatorId,
-        checkpointId);
+        update, summary, "dynamic partition overwrite", newFlinkJobId, operatorId, checkpointId);
   }
 
   private void commitDeltaTxn(
