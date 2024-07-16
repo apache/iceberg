@@ -45,7 +45,6 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.junit.Test;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -381,16 +380,16 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     FileScanTask fileTask0 =
         ReaderUtil.createFileTask(
             ImmutableList.of(record0),
-            TEMPORARY_FOLDER.newFile(),
-            fileFormat,
+            File.createTempFile("junit", null, temporaryFolder.toFile()),
+            FILE_FORMAT,
             appenderFactory,
             residuals);
 
     FileScanTask fileTask1 =
         ReaderUtil.createFileTask(
             ImmutableList.of(record1),
-            TEMPORARY_FOLDER.newFile(),
-            fileFormat,
+            File.createTempFile("junit", null, temporaryFolder.toFile()),
+            FILE_FORMAT,
             appenderFactory,
             residuals);
 
