@@ -38,7 +38,7 @@ buildscript {
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
-    classpath 'io.github.nastra.gradle.revapi:gradle-revapi:1.8.1'
+    classpath 'org.revapi:gradle-revapi:1.8.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.2'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.1.0'
     classpath 'org.openapitools:openapi-generator-gradle-plugin:6.6.0'
@@ -139,7 +139,7 @@ subprojects {
   apply plugin: 'java-library'
 
   if (project.name in REVAPI_PROJECTS) {
-    apply plugin: 'io.github.nastra.revapi'
+    apply plugin: 'org.revapi.revapi-gradle-plugin'
     revapi {
       oldGroup = project.group
       oldName = project.name
@@ -212,7 +212,6 @@ subprojects {
   dependencies {
     implementation libs.slf4j.api
 
-    testImplementation libs.junit.vintage.engine
     testImplementation libs.junit.jupiter
     testImplementation libs.junit.jupiter.engine
     testImplementation libs.slf4j.simple
@@ -413,6 +412,7 @@ project(':iceberg-data') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation libs.junit.vintage.engine
   }
 
   test {
