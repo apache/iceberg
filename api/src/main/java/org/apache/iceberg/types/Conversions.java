@@ -27,6 +27,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -68,6 +69,8 @@ public class Conversions {
         return new BigDecimal(asString);
       case DATE:
         return Literal.of(asString).to(Types.DateType.get()).value();
+      case TIMESTAMP:
+        return (long) Timestamp.valueOf(asString).getNanos() / 1000;
       default:
         throw new UnsupportedOperationException(
             "Unsupported type for fromPartitionString: " + type);
