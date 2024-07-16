@@ -29,8 +29,8 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
-import org.apache.iceberg.actions.AnalyzeTable;
-import org.apache.iceberg.actions.ImmutableAnalyzeTable;
+import org.apache.iceberg.actions.ComputeTableStats;
+import org.apache.iceberg.actions.ImmutableComputeTableStats;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -47,16 +47,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Computes the statistic of the given columns and stores it as Puffin files. */
-public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAction>
-    implements AnalyzeTable {
+public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableStatsSparkAction>
+    implements ComputeTableStats {
 
-  private static final Logger LOG = LoggerFactory.getLogger(AnalyzeTableSparkAction.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ComputeTableStatsSparkAction.class);
 
   private final Table table;
   private Set<String> columns;
   private long snapshotId;
 
-  AnalyzeTableSparkAction(SparkSession spark, Table table) {
+  ComputeTableStatsSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
     Snapshot snapshot = table.currentSnapshot();
@@ -68,19 +68,20 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
   }
 
   @Override
-  protected AnalyzeTableSparkAction self() {
+  protected ComputeTableStatsSparkAction self() {
     return this;
   }
 
   @Override
   public Result execute() {
-    String desc = String.format("Analyzing table %s for snapshot id %s", table.name(), snapshotId);
-    JobGroupInfo info = newJobGroupInfo("ANALYZE-TABLE", desc);
+    String desc =
+        String.format("Computing stats for %s for snapshot id %s", table.name(), snapshotId);
+    JobGroupInfo info = newJobGroupInfo("COMPUTE-TABLE-STATS", desc);
     return withJobGroupInfo(info, this::doExecute);
   }
 
   private Result doExecute() {
-    LOG.info("Starting analysis of {} for snapshot {}", table.name(), snapshotId);
+    LOG.info("Computing stats of {} for snapshot {}", table.name(), snapshotId);
     List<Blob> blobs = generateNDVBlobs();
     StatisticsFile statisticFile;
     try {
@@ -88,7 +89,7 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
-    return ImmutableAnalyzeTable.Result.builder().statisticsFile(statisticFile).build();
+    return ImmutableComputeTableStats.Result.builder().statisticsFile(statisticFile).build();
   }
 
   private StatisticsFile writeAndCommitPuffin(List<Blob> blobs) throws Exception {
@@ -99,7 +100,7 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
     OutputFile outputFile = fileIO.newOutputFile(path);
     GenericStatisticsFile statisticsFile;
     try (PuffinWriter writer =
-        Puffin.write(outputFile).createdBy("Iceberg Analyze action").build()) {
+        Puffin.write(outputFile).createdBy("Iceberg ComputeTableStats action").build()) {
       blobs.forEach(writer::add);
       writer.finish();
       statisticsFile =
@@ -121,7 +122,7 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
   }
 
   @Override
-  public AnalyzeTable columns(String... columnNames) {
+  public ComputeTableStats columns(String... columnNames) {
     Preconditions.checkArgument(
         columnNames != null && columnNames.length > 0, "Columns cannot be null/empty");
     for (String columnName : columnNames) {
@@ -135,8 +136,8 @@ public class AnalyzeTableSparkAction extends BaseSparkAction<AnalyzeTableSparkAc
   }
 
   @Override
-  public AnalyzeTable snapshot(long snapshotIdToAnalyze) {
-    this.snapshotId = snapshotIdToAnalyze;
+  public ComputeTableStats snapshot(long snapshotIdToComputeStats) {
+    this.snapshotId = snapshotIdToComputeStats;
     return this;
   }
 }

@@ -20,7 +20,7 @@ package org.apache.iceberg.spark.actions;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ActionsProvider;
-import org.apache.iceberg.actions.AnalyzeTable;
+import org.apache.iceberg.actions.ComputeTableStats;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.spark.sql.SparkSession;
@@ -99,7 +99,7 @@ public class SparkActions implements ActionsProvider {
   }
 
   @Override
-  public AnalyzeTable analyzeTable(Table table) {
-    return new AnalyzeTableSparkAction(spark, table);
+  public ComputeTableStats computeTableStats(Table table) {
+    return new ComputeTableStatsSparkAction(spark, table);
   }
 }

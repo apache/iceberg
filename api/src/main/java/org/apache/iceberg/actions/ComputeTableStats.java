@@ -21,24 +21,24 @@ package org.apache.iceberg.actions;
 import org.apache.iceberg.StatisticsFile;
 
 /** An action that collects statistics of an Iceberg table and writes to Puffin files. */
-public interface AnalyzeTable extends Action<AnalyzeTable, AnalyzeTable.Result> {
+public interface ComputeTableStats extends Action<ComputeTableStats, ComputeTableStats.Result> {
   /**
-   * Choose the set of columns to be analyzed, by default all columns are analyzed.
+   * Choose the set of columns to collect stats, by default all columns are chosen.
    *
    * @param columns a set of column names to be analyzed
    * @return this for method chaining
    */
-  AnalyzeTable columns(String... columns);
+  ComputeTableStats columns(String... columns);
 
   /**
-   * Choose the table snapshot to analyze, by default the current snapshot is analyzed.
+   * Choose the table snapshot to compute stats, by default the current snapshot is used.
    *
-   * @param snapshotId long ID of the snapshot for which stats need to be analyzed
+   * @param snapshotId long ID of the snapshot for which stats need to be computed
    * @return this for method chaining
    */
-  AnalyzeTable snapshot(long snapshotId);
+  ComputeTableStats snapshot(long snapshotId);
 
-  /** The action result that contains summaries of the analysis. */
+  /** The action result that contains summaries of the stats computation. */
   interface Result {
 
     /** Returns statistics file. */

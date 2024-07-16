@@ -23,11 +23,11 @@ import org.immutables.value.Value;
 @Value.Enclosing
 @SuppressWarnings("ImmutablesStyle")
 @Value.Style(
-    typeImmutableEnclosing = "ImmutableAnalyzeTable",
+    typeImmutableEnclosing = "ImmutableComputeTableStats",
     visibilityString = "PUBLIC",
     builderVisibilityString = "PUBLIC")
-interface BaseAnalyzeTable extends AnalyzeTable {
+interface BaseComputeTableStats extends ComputeTableStats {
 
   @Value.Immutable
-  interface Result extends AnalyzeTable.Result {}
+  interface Result extends ComputeTableStats.Result {}
 }

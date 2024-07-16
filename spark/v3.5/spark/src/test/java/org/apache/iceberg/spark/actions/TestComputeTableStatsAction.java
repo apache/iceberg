@@ -28,7 +28,7 @@ import java.util.List;
 import org.apache.iceberg.BlobMetadata;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.actions.AnalyzeTable;
+import org.apache.iceberg.actions.ComputeTableStats;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
@@ -42,10 +42,10 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 
-public class TestAnalyzeTableAction extends CatalogTestBase {
+public class TestComputeTableStatsAction extends CatalogTestBase {
 
   @TestTemplate
-  public void testAnalyzeTableAction() throws NoSuchTableException, ParseException {
+  public void testComputeTableStatsAction() throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
 
@@ -63,7 +63,8 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
         .append();
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
-    AnalyzeTable.Result results = actions.analyzeTable(table).columns("id", "data").execute();
+    ComputeTableStats.Result results =
+        actions.computeTableStats(table).columns("id", "data").execute();
     assertNotNull(results);
 
     List<StatisticsFile> statisticsFiles = table.statisticsFiles();
@@ -80,7 +81,7 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testAnalyzeTableActionWithoutExplicitColumns()
+  public void testComputeTableStatsActionWithoutExplicitColumns()
       throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
@@ -98,7 +99,7 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
         .append();
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
-    AnalyzeTable.Result results = actions.analyzeTable(table).execute();
+    ComputeTableStats.Result results = actions.computeTableStats(table).execute();
     assertNotNull(results);
 
     Assertions.assertEquals(1, table.statisticsFiles().size());
@@ -122,7 +123,7 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testAnalyzeTableForInvalidColumns() throws NoSuchTableException, ParseException {
+  public void testComputeTableStatsForInvalidColumns() throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     // Append data to create snapshot
@@ -131,21 +132,22 @@ public class TestAnalyzeTableAction extends CatalogTestBase {
     SparkActions actions = SparkActions.get();
     ValidationException validationException =
         assertThrows(
-            ValidationException.class, () -> actions.analyzeTable(table).columns("id1").execute());
+            ValidationException.class,
+            () -> actions.computeTableStats(table).columns("id1").execute());
     String message = validationException.getMessage();
     assertTrue(message.contains("No column with id1 name in the table"));
   }
 
   @TestTemplate
   @Disabled
-  public void testAnalyzeTableWithNoSnapshots() throws NoSuchTableException, ParseException {
+  public void testComputeTableStatsWithNoSnapshots() throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
     RuntimeException exception =
         assertThrows(
-            RuntimeException.class, () -> actions.analyzeTable(table).columns("id").execute());
+            RuntimeException.class, () -> actions.computeTableStats(table).columns("id").execute());
     assertTrue(
         exception
             .getMessage()
