@@ -187,7 +187,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       return new Stats(0L, 0L, Collections.emptyMap());
     }
 
-    boolean cboEnabled = Boolean.parseBoolean(spark.conf().get(SQLConf.CBO_ENABLED().key(), "false"));
+    boolean cboEnabled =
+        Boolean.parseBoolean(spark.conf().get(SQLConf.CBO_ENABLED().key(), "false"));
     Map<NamedReference, ColumnStatistics> colStatsMap = null;
     if (readConf.enableColumnStats() && cboEnabled) {
       colStatsMap = Maps.newHashMap();
