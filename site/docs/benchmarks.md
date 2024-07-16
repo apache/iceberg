@@ -27,7 +27,7 @@ Also note that JMH benchmarks run within the same JVM as the system-under-test, 
 
 It is possible to run one or more Benchmarks via the **JMH Benchmarks** GH action on your own fork of the Iceberg repo. This GH action takes the following inputs:
 * The repository name where those benchmarks should be run against, such as `apache/iceberg` or `<user>/iceberg`
-* The branch name to run benchmarks against, such as `master` or `my-cool-feature-branch`
+* The branch name to run benchmarks against, such as `main` or `my-cool-feature-branch`
 * A list of comma-separated double-quoted Benchmark names, such as `"IcebergSourceFlatParquetDataReadBenchmark", "IcebergSourceFlatParquetDataFilterBenchmark", "IcebergSourceNestedListParquetDataWriteBenchmark"`
 
 Benchmark results will be uploaded once **all** benchmarks are done.
