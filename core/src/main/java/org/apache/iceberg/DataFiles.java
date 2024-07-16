@@ -79,9 +79,14 @@ public class DataFiles {
       PartitionField field = spec.fields().get(i);
       String[] parts = partitions[i].split("=", 2);
       Preconditions.checkArgument(
-          parts.length == 2 && parts[0] != null && field.name().equals(parts[0]),
+          parts.length == 2 && parts[0] != null,
           "Invalid partition: %s",
           partitions[i]);
+      Preconditions.checkArgument(
+          field.name().equals(parts[0]),
+          "Invalid partition key (expecting %s): %s",
+          field.name(),
+          parts[0]);
 
       data.set(i, Conversions.fromPartitionString(data.getType(i), parts[1]));
     }
