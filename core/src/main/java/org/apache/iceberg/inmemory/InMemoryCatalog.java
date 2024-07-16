@@ -88,7 +88,9 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
 
     String warehouse = properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "");
     this.warehouseLocation = warehouse.replaceAll("/*$", "");
-    this.io = new InMemoryFileIO();
+    String ioImpl =
+        properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, InMemoryFileIO.class.getName());
+    this.io = CatalogUtil.loadFileIO(ioImpl, properties, null);
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
