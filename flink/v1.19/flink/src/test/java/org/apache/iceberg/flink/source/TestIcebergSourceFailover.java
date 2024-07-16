@@ -100,7 +100,7 @@ public class TestIcebergSourceFailover {
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     Configuration config = new Configuration();
     return IcebergSource.forRowData()
-        .tableLoader(SOURCE_TABLE_EXTENSION.tableLoader())
+        .tableLoader(getSourceTableExtension().tableLoader())
         .assignerFactory(new SimpleSplitAssignerFactory())
         // Prevent combining splits
         .set(
@@ -111,6 +111,14 @@ public class TestIcebergSourceFailover {
 
   protected Schema schema() {
     return TestFixtures.SCHEMA;
+  }
+
+  protected HadoopTableExtension getSourceTableExtension() {
+    return SOURCE_TABLE_EXTENSION;
+  }
+
+  protected HadoopTableExtension getSinkTableExtension() {
+    return SINK_TABLE_EXTENSION;
   }
 
   protected List<Record> generateRecords(int numRecords, long seed) {
@@ -126,10 +134,10 @@ public class TestIcebergSourceFailover {
   public void testBoundedWithSavepoint(@InjectClusterClient ClusterClient<?> clusterClient)
       throws Exception {
     List<Record> expectedRecords = Lists.newArrayList();
-    Table sinkTable = SINK_TABLE_EXTENSION.table();
+    Table sinkTable = getSinkTableExtension().table();
     GenericAppenderHelper dataAppender =
         new GenericAppenderHelper(
-            SOURCE_TABLE_EXTENSION.table(), FileFormat.PARQUET, temporaryFolder);
+            getSourceTableExtension().table(), FileFormat.PARQUET, temporaryFolder);
     for (int i = 0; i < 4; ++i) {
       List<Record> records = generateRecords(2, i);
       expectedRecords.addAll(records);
@@ -184,7 +192,7 @@ public class TestIcebergSourceFailover {
     List<Record> expectedRecords = Lists.newArrayList();
     GenericAppenderHelper dataAppender =
         new GenericAppenderHelper(
-            SOURCE_TABLE_EXTENSION.table(), FileFormat.PARQUET, temporaryFolder);
+            getSourceTableExtension().table(), FileFormat.PARQUET, temporaryFolder);
     for (int i = 0; i < 4; ++i) {
       List<Record> records = generateRecords(2, i);
       expectedRecords.addAll(records);
@@ -201,7 +209,7 @@ public class TestIcebergSourceFailover {
     RecordCounterToWait.waitForCondition();
     triggerFailover(failoverType, jobId, RecordCounterToWait::continueProcessing, miniCluster);
 
-    assertRecords(SINK_TABLE_EXTENSION.table(), expectedRecords, Duration.ofSeconds(120));
+    assertRecords(getSinkTableExtension().table(), expectedRecords, Duration.ofSeconds(120));
   }
 
   @Test
@@ -220,7 +228,7 @@ public class TestIcebergSourceFailover {
       throws Exception {
     GenericAppenderHelper dataAppender =
         new GenericAppenderHelper(
-            SOURCE_TABLE_EXTENSION.table(), FileFormat.PARQUET, temporaryFolder);
+            getSourceTableExtension().table(), FileFormat.PARQUET, temporaryFolder);
     List<Record> expectedRecords = Lists.newArrayList();
 
     List<Record> batch = generateRecords(2, 0);
@@ -248,8 +256,8 @@ public class TestIcebergSourceFailover {
     // exactly-once behavior. When Iceberg sink, we can verify end-to-end
     // exactly-once. Here we mainly about source exactly-once behavior.
     FlinkSink.forRowData(stream)
-        .table(SINK_TABLE_EXTENSION.table())
-        .tableLoader(SINK_TABLE_EXTENSION.tableLoader())
+        .table(getSinkTableExtension().table())
+        .tableLoader(getSinkTableExtension().tableLoader())
         .append();
 
     JobClient jobClient = env.executeAsync("Continuous Iceberg Source Failover Test");
@@ -267,7 +275,7 @@ public class TestIcebergSourceFailover {
 
     // wait longer for continuous source to reduce flakiness
     // because CI servers tend to be overloaded.
-    assertRecords(SINK_TABLE_EXTENSION.table(), expectedRecords, Duration.ofSeconds(120));
+    assertRecords(getSinkTableExtension().table(), expectedRecords, Duration.ofSeconds(120));
   }
 
   private void createBoundedStreams(StreamExecutionEnvironment env, int failAfter) {
@@ -287,8 +295,8 @@ public class TestIcebergSourceFailover {
     // exactly-once behavior. When Iceberg sink, we can verify end-to-end
     // exactly-once. Here we mainly about source exactly-once behavior.
     FlinkSink.forRowData(streamFailingInTheMiddleOfReading)
-        .table(SINK_TABLE_EXTENSION.table())
-        .tableLoader(SINK_TABLE_EXTENSION.tableLoader())
+        .table(getSinkTableExtension().table())
+        .tableLoader(getSinkTableExtension().tableLoader())
         .append();
   }
 

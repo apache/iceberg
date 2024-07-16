@@ -57,11 +57,15 @@ public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIceberg
   private static final HadoopTableExtension SOURCE_TABLE_EXTENSION =
       new HadoopTableExtension(DATABASE, TestFixtures.TABLE, TestFixtures.TS_SCHEMA);
 
+  @RegisterExtension
+  private static final HadoopTableExtension SINK_TABLE_EXTENSION =
+      new HadoopTableExtension(DATABASE, TestFixtures.SINK_TABLE, TestFixtures.TS_SCHEMA);
+
   @Override
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     Configuration config = new Configuration();
     return IcebergSource.forRowData()
-        .tableLoader(SOURCE_TABLE_EXTENSION.tableLoader())
+        .tableLoader(getSourceTableExtension().tableLoader())
         .watermarkColumn("ts")
         .project(TestFixtures.TS_SCHEMA)
         // Prevent combining splits
@@ -74,6 +78,16 @@ public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIceberg
   @Override
   protected Schema schema() {
     return TestFixtures.TS_SCHEMA;
+  }
+
+  @Override
+  protected HadoopTableExtension getSourceTableExtension() {
+    return SOURCE_TABLE_EXTENSION;
+  }
+
+  @Override
+  protected HadoopTableExtension getSinkTableExtension() {
+    return SINK_TABLE_EXTENSION;
   }
 
   @Override
