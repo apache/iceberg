@@ -32,6 +32,7 @@ import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -287,6 +288,16 @@ public class TestGlueCatalog {
         .when(glue)
         .getTables(Mockito.any(GetTablesRequest.class));
     assertThat(glueCatalog.listTables(Namespace.of("db1"))).hasSize(10);
+  }
+
+  @Test
+  public void testListTablesWithNonExistingNamespace() {
+    Mockito.doThrow(EntityNotFoundException.class)
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
+    Assertions.assertThatThrownBy(() -> glueCatalog.listTables(Namespace.of("non_existent_db")))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Cannot list tables for namespace. Namespace does not exist: non_existent_db");
   }
 
   @Test
@@ -570,6 +581,14 @@ public class TestGlueCatalog {
     assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of("db1")))
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessage("Cannot drop namespace db1 because it still contains non-Iceberg tables");
+  }
+
+  @Test
+  public void testDropNonExistingNamespace() {
+    Mockito.doThrow(EntityNotFoundException.class)
+        .when(glue)
+        .getDatabase(Mockito.any(GetDatabaseRequest.class));
+    Assertions.assertThat(glueCatalog.dropNamespace(Namespace.of("non_existent_db"))).isFalse();
   }
 
   @Test
