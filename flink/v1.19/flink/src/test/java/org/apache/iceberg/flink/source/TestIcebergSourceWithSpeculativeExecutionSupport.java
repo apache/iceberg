@@ -20,8 +20,8 @@ package org.apache.iceberg.flink.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -83,7 +83,7 @@ public class TestIcebergSourceWithSpeculativeExecutionSupport extends TestBase {
   @BeforeEach
   public void before() throws IOException {
     String warehouse =
-        String.format("file:%s", File.createTempFile("junit", null, temporaryDirectory.toFile()));
+        String.format("file:%s", Files.createTempDirectory(temporaryDirectory, "junit").toString());
     sql(
         "CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
         CATALOG_NAME, warehouse);
