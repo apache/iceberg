@@ -470,6 +470,34 @@ public class InclusiveMetricsEvaluator {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean endsWith(BoundReference<T> ref, Literal<T> lit) {
+      // because we cannot use a min or max value to determine
+      // if it ends with a certain value.
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEndsWith(BoundReference<T> ref, Literal<T> lit) {
+      // because we cannot use a min or max value to determine
+      // if it not ends with a certain value.
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean contains(BoundReference<T> ref, Literal<T> lit) {
+      // because we cannot use a min or max value to determine
+      // if it contains with a certain value.
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notContains(BoundReference<T> ref, Literal<T> lit) {
+      // because we cannot use a min or max value to determine
+      // if it not contains with a certain value.
+      return ROWS_MIGHT_MATCH;
+    }
+
     private boolean mayContainNull(Integer id) {
       return nullCounts == null || (nullCounts.containsKey(id) && nullCounts.get(id) != 0);
     }

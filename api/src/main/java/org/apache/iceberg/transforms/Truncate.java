@@ -326,6 +326,8 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
         BoundLiteralPredicate<CharSequence> pred = predicate.asLiteralPredicate();
         switch (pred.op()) {
           case STARTS_WITH:
+          case ENDS_WITH:
+          case CONTAINS:
             if (pred.literal().value().length() < width()) {
               return Expressions.predicate(pred.op(), name, pred.literal().value());
             } else if (pred.literal().value().length() == width()) {
@@ -335,6 +337,8 @@ class Truncate<T> implements Transform<T, T>, Function<T, T> {
             return ProjectionUtil.truncateArray(name, pred, this);
 
           case NOT_STARTS_WITH:
+          case NOT_ENDS_WITH:
+          case NOT_CONTAINS:
             if (pred.literal().value().length() < width()) {
               return Expressions.predicate(pred.op(), name, pred.literal().value());
             } else if (pred.literal().value().length() == width()) {

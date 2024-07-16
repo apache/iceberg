@@ -400,6 +400,26 @@ public class AllManifestsTable extends BaseMetadataTable {
         return ROWS_MIGHT_MATCH;
       }
 
+      @Override
+      public <T> Boolean endsWith(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean notEndsWith(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean contains(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean notContains(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       /**
        * Comparison of snapshot reference and literal, using long comparator.
        *
