@@ -158,9 +158,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       if (!closed.get()) {
         if (!yieldedTasks.isEmpty()) {
           return workerPool.submit(yieldedTasks.removeFirst());
-        }
-
-        if (tasks.hasNext()) {
+        } else if (tasks.hasNext()) {
           return workerPool.submit(tasks.next());
         }
       }
