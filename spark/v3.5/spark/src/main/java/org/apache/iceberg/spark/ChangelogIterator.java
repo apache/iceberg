@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
@@ -26,6 +27,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.expressions.GenericRow;
 import org.apache.spark.sql.types.StructType;
 
 /** An iterator that transforms rows from changelog tables within a single Spark task. */
@@ -99,17 +101,11 @@ public abstract class ChangelogIterator implements Iterator<Row> {
   }
 
   protected boolean isSameRecord(Row currentRow, Row nextRow, int[] indicesToIdentifySameRow) {
-    for (int idx : indicesToIdentifySameRow) {
-      if (isDifferentValue(currentRow, nextRow, idx)) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  protected boolean isDifferentValue(Row currentRow, Row nextRow, int idx) {
-    return !Objects.equals(nextRow.get(idx), currentRow.get(idx));
+    Row currentRowPayload =
+        new GenericRow(Arrays.stream(indicesToIdentifySameRow).mapToObj(currentRow::get).toArray());
+    Row nextRowPayload =
+        new GenericRow(Arrays.stream(indicesToIdentifySameRow).mapToObj(nextRow::get).toArray());
+    return currentRowPayload.equals(nextRowPayload);
   }
 
   protected static int[] generateIndicesToIdentifySameRow(
