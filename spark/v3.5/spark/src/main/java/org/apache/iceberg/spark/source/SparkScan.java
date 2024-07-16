@@ -88,6 +88,7 @@ import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
 import org.apache.spark.sql.connector.read.colstats.ColumnStatistics;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
+import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,6 +98,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
   private final JavaSparkContext sparkContext;
   private final Table table;
+  private final SparkSession spark;
   private final SparkReadConf readConf;
   private final boolean caseSensitive;
   private final Schema expectedSchema;
@@ -117,6 +119,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
     SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, expectedSchema);
 
+    this.spark = spark;
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.readConf = readConf;
@@ -181,23 +184,34 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   protected Statistics estimateStatistics(Snapshot snapshot) {
     // its a fresh table, no data
     if (snapshot == null) {
-      return new Stats(0L, 0L, Maps.newHashMap());
+      return new Stats(0L, 0L, Collections.emptyMap());
     }
 
-    Map<NamedReference, ColumnStatistics> map = Maps.newHashMap();
-
-    if (readConf.enableColumnStats()) {
+    boolean cboEnabled = Boolean.parseBoolean(spark.conf().get(SQLConf.CBO_ENABLED().key(), "false"));
+    Map<NamedReference, ColumnStatistics> colStatsMap = null;
+    if (readConf.enableColumnStats() && cboEnabled) {
+      colStatsMap = Maps.newHashMap();
       List<StatisticsFile> files = table.statisticsFiles();
       if (!files.isEmpty()) {
         List<BlobMetadata> metadataList = (files.get(0)).blobMetadata();
 
         for (BlobMetadata blobMetadata : metadataList) {
-          long ndv = Long.parseLong(blobMetadata.properties().get("ndv"));
-          ColumnStatistics colStats = new ColStats(ndv, null, null, 0L, 0L, 0L, null);
           int id = blobMetadata.fields().get(0);
           String colName = table.schema().findColumnName(id);
           NamedReference ref = FieldReference.column(colName);
-          map.put(ref, colStats);
+
+          long ndv = 0;
+          String ndvStr = blobMetadata.properties().get("ndv");
+          if (ndvStr != null && !ndvStr.isEmpty()) {
+            ndv = Long.parseLong(blobMetadata.properties().get("ndv"));
+          } else {
+            LOG.debug("ndv is not set in BlobMetadata for column {}", colName);
+          }
+
+          // TODO: Fill min, max and null from the manifest file
+          ColumnStatistics colStats = new SparkColumnStatistics(ndv, null, null, 0L, 0L, 0L, null);
+
+          colStatsMap.put(ref, colStats);
         }
       }
     }
@@ -210,12 +224,13 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
           snapshot.snapshotId(),
           table.name());
       long totalRecords = totalRecords(snapshot);
-      return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords, map);
+      return new Stats(
+          SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords, colStatsMap);
     }
 
     long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
     long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
-    return new Stats(sizeInBytes, rowsCount, map);
+    return new Stats(sizeInBytes, rowsCount, colStatsMap);
   }
 
   private long totalRecords(Snapshot snapshot) {

@@ -23,7 +23,7 @@ import java.util.OptionalLong;
 import org.apache.spark.sql.connector.read.colstats.ColumnStatistics;
 import org.apache.spark.sql.connector.read.colstats.Histogram;
 
-class ColStats implements ColumnStatistics {
+class SparkColumnStatistics implements ColumnStatistics {
 
   private final OptionalLong distinctCount;
   private final Optional<Object> min;
@@ -33,7 +33,7 @@ class ColStats implements ColumnStatistics {
   private final OptionalLong maxLen;
   private final Optional<Histogram> histogram;
 
-  ColStats(
+  SparkColumnStatistics(
       long distinctCount,
       Object min,
       Object max,
@@ -42,12 +42,12 @@ class ColStats implements ColumnStatistics {
       long maxLen,
       Histogram histogram) {
     this.distinctCount = OptionalLong.of(distinctCount);
-    this.min = min != null ? Optional.of(min) : Optional.empty();
-    this.max = max != null ? Optional.of(max) : Optional.empty();
+    this.min = Optional.ofNullable(min);
+    this.max = Optional.ofNullable(max);
     this.nullCount = OptionalLong.of(nullCount);
     this.avgLen = OptionalLong.of(avgLen);
     this.maxLen = OptionalLong.of(maxLen);
-    this.histogram = histogram != null ? Optional.of(histogram) : Optional.empty();
+    this.histogram = Optional.ofNullable(histogram);
   }
 
   @Override

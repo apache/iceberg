@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToDayOrdinal;
@@ -31,7 +30,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.Parameter;
@@ -39,17 +37,12 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.hive.HiveCatalog;
-import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSQLProperties;
-import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
 import org.apache.iceberg.spark.functions.BucketFunction;
 import org.apache.iceberg.spark.functions.DaysFunction;
@@ -57,11 +50,9 @@ import org.apache.iceberg.spark.functions.HoursFunction;
 import org.apache.iceberg.spark.functions.MonthsFunction;
 import org.apache.iceberg.spark.functions.TruncateFunction;
 import org.apache.iceberg.spark.functions.YearsFunction;
-import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
 import org.apache.spark.sql.connector.expressions.Expression;
@@ -82,7 +73,6 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -115,36 +105,6 @@ public class TestSparkScan extends TestBaseWithCatalog {
         "orc"
       }
     };
-  }
-
-  @BeforeAll
-  public static void startMetastoreAndSpark() {
-    TestBase.metastore = new TestHiveMetastore();
-    metastore.start();
-    TestBase.hiveConf = metastore.hiveConf();
-
-    TestBase.spark =
-        SparkSession.builder()
-            .master("local[2]")
-            .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
-            .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
-            .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
-            .config(SparkSQLProperties.ENABLE_COLUMN_STATS, "true")
-            .enableHiveSupport()
-            .getOrCreate();
-
-    TestBase.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
-
-    TestBase.catalog =
-        (HiveCatalog)
-            CatalogUtil.loadCatalog(
-                HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
-
-    try {
-      catalog.createNamespace(Namespace.of("default"));
-    } catch (AlreadyExistsException ignored) {
-      // the default namespace already exists. ignore the create error
-    }
   }
 
   @BeforeEach
@@ -195,6 +155,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
         .coalesce(1)
         .writeTo(tableName)
         .append();
+
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId = table.currentSnapshot().snapshotId();
 
@@ -215,21 +176,19 @@ public class TestSparkScan extends TestBaseWithCatalog {
                     ImmutableMap.of("ndv", "2"))));
 
     table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
-
     SparkScanBuilder scanBuilder =
         new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
     SparkScan scan = (SparkScan) scanBuilder.build();
-    Statistics stats = scan.estimateStatistics();
 
-    assertThat(stats.numRows().getAsLong()).isEqualTo(4L);
+    Map<String, String> sqlConf = ImmutableMap.of(SparkSQLProperties.ENABLE_COLUMN_STATS, "true");
 
-    Map<NamedReference, ColumnStatistics> columnStats = stats.columnStats();
-    assertThat(columnStats.size()).isEqualTo(2);
+    Map<String, String> sqlConf2 =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.ENABLE_COLUMN_STATS, "true");
 
-    assertThat(columnStats.get(FieldReference.column("id")).distinctCount().getAsLong())
-        .isEqualTo(4L);
-    assertThat(columnStats.get(FieldReference.column("data")).distinctCount().getAsLong())
-        .isEqualTo(2L);
+    checkStatistics(scan, 4L, false);
+    withSQLConf(sqlConf, () -> checkStatistics(scan, 4L, false));
+    withSQLConf(sqlConf2, () -> checkStatistics(scan, 4L, true));
   }
 
   @TestTemplate
@@ -834,6 +793,19 @@ public class TestSparkScan extends TestBaseWithCatalog {
 
   private Expression[] expressions(Expression... expressions) {
     return expressions;
+  }
+
+  private void checkStatistics(SparkScan scan, long expectedRowCount, boolean expectedColumnStats) {
+    Statistics stats = scan.estimateStatistics();
+    assertThat(stats.numRows().getAsLong()).isEqualTo(expectedRowCount);
+
+    Map<NamedReference, ColumnStatistics> columnStats = stats.columnStats();
+    if (expectedColumnStats) {
+      assertThat(columnStats.get(FieldReference.column("id")).distinctCount().getAsLong())
+          .isEqualTo(4L);
+      assertThat(columnStats.get(FieldReference.column("data")).distinctCount().getAsLong())
+          .isEqualTo(2L);
+    }
   }
 
   private static LiteralValue<Integer> intLit(int value) {
