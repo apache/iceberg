@@ -198,6 +198,7 @@ To read appended data incrementally, use:
 
 * `start-snapshot-id` Start snapshot ID used in incremental scans (exclusive).
 * `end-snapshot-id` End snapshot ID used in incremental scans (inclusive). This is optional. Omitting it will default to the current snapshot.
+* `branch` Branch used in incremental scans.
 
 ```scala
 // get the data added after start-snapshot-id (10963874102873L) until end-snapshot-id (63874143573109L)
