@@ -196,7 +196,7 @@ For more complex row-level updates based on incoming data, see the section on `M
 
 ### Writing to Branches
 
-The branch must exist before performing write. The operations do **not** create the branch if it does not exist.
+The branch must exist before performing write. Operations do **not** create the branch if it does not exist.
 A branch can be created using [Spark DDL](spark-ddl.md#branching-and-tagging-ddl).
 
 !!! info
@@ -352,7 +352,6 @@ The writer must enable the `mergeSchema` option.
 ```scala
 data.writeTo("prod.db.sample").option("mergeSchema","true").append()
 ```
-
 ## Writing Distribution Modes
 
 Iceberg's default Spark writers require that the data in each spark task is clustered by partition values. This 
