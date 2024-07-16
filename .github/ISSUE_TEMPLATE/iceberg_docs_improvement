@@ -1,0 +1,69 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+---
+name: Iceberg Docs Site Improvement 📑
+description: Improvements to the Apache Iceberg Documentation, Specification, and/or Website
+labels: ["docs","site"]
+title: "[Docs]: "
+body:
+- type: markdown
+  attributes:
+    value: |
+      Thanks for contributing to Apache Iceberg docs ❤️ and taking time to fill out this form.
+      A quick primer on documentation in Iceberg:
+      * Documentation - refers to the versioned documentation that changes with each version of Apache Iceberg, maintained [in the `docs/` directory](https://github.com/apache/iceberg/tree/main/docs).
+      * Specification - refers to the core [Iceberg Specification](https://iceberg.apache.org/spec/), along with the [View](https://iceberg.apache.org/view-spec/), [Puffin](https://iceberg.apache.org/puffin-spec/), and [GCM stream specifications](https://iceberg.apache.org/gcm-stream-spec/) that are maintained [in the `format/` directory](https://github.com/apache/iceberg/tree/main/format).
+      * Website - refers to the non-versioned site that changes with each version of Apache Iceberg, maintained [in the `docs/` directory](https://github.com/apache/iceberg/tree/main/docs).
+    By default, the `docs` and `site` labels are applied. If you have a `Specification` change, tag a committer or contributor.
+
+  - type: textarea
+    attributes:
+      label: Improvement description
+      description: |
+        The default values can be used as a guide to describe the improvement and add specific urls, issues with the current state, and how it is addressed. 
+        This list can highlight important changes and is not intended to be exhaustive.
+      value: |
+        Please provide a general description of the improvement and the motivation behind it. 
+        1. Fix documentation
+           a. URL: https://iceberg.apache.org/docs/<version(s)>/<path>/<doc>.md 
+           b. Description: Fixing <doc> that applies only to <version(s)>. You can find 
+        2. Fix documentation for all versions
+           a. URL: https://iceberg.apache.org/docs/*/<doc>.md 
+           b. Description: Fixing <doc> that applies to all versions. 
+        3. Fix website page
+           a. URL: https://iceberg.apache.org/<page>.md 
+           b. Description: Fixing <page>.md that applies to the static site under the `site/` directory.
+        4. Fix specification page
+           a. URL: https://iceberg.apache.org/*spec.md 
+           b. Description: Fixing *spec.md that applies to the static site under the `format/` directory.
+        ...
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: Artifact(s) updated
+      description: Are you addressing a documentation issue, specification issue, website issue, or a combination?
+      multiple: true
+      options:
+        - Documentation Change
+        - Specification Change
+        - Website Change
+    validations:
+      required: true
