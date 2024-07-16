@@ -432,6 +432,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   @Override
   public void setRowGroupInfo(
       PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
+    setRowGroupInfo(source, metadata);
+  }
+
+  @Override
+  public void setRowGroupInfo(PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
     ColumnChunkMetaData chunkMetaData = metadata.get(ColumnPath.get(columnDescriptor.getPath()));
     this.dictionary =
         vectorizedColumnIterator.setRowGroupInfo(
@@ -474,6 +479,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public void setRowGroupInfo(
         PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
+
+    @Override
+    public void setRowGroupInfo(
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {}
 
     @Override
     public String toString() {
@@ -541,7 +550,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public void setRowGroupInfo(
         PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {
-      this.rowStart = rowPosition;
+      setRowGroupInfo(source, metadata);
+    }
+
+    @Override
+    public void setRowGroupInfo(
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
+      this.rowStart = source.getRowIndexOffset().orElse(0L);
     }
 
     @Override
@@ -587,6 +602,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
 
     @Override
+    public void setRowGroupInfo(
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {}
+
+    @Override
     public String toString() {
       return String.format("ConstantReader: %s", value);
     }
@@ -612,6 +631,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public void setRowGroupInfo(
         PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata, long rowPosition) {}
+
+    @Override
+    public void setRowGroupInfo(
+        PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {}
 
     @Override
     public String toString() {
