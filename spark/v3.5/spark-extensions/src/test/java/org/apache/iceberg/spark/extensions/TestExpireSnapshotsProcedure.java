@@ -68,7 +68,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
 
     List<Object[]> output = sql("CALL %s.system.expire_snapshots('%s')", catalogName, tableIdent);
     assertEquals(
-        "Should not delete any files", ImmutableList.of(row(0L, 0L, 0L, 0L, 0L, 0L)), output);
+        "Should not delete any files", ImmutableList.of(row(0L, 0L, 0L, 0L, 0L, 0L, 0L)), output);
   }
 
   @TestTemplate
@@ -97,7 +97,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
             "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s')",
             catalogName, tableIdent, secondSnapshotTimestamp);
     assertEquals(
-        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output1);
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L, 0L)), output1);
 
     table.refresh();
 
@@ -124,7 +124,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
             "CALL %s.system.expire_snapshots('%s', TIMESTAMP '%s', 2)",
             catalogName, tableIdent, currentTimestamp);
     assertEquals(
-        "Procedure output must match", ImmutableList.of(row(2L, 0L, 0L, 2L, 1L, 0L)), output);
+        "Procedure output must match", ImmutableList.of(row(2L, 0L, 0L, 2L, 1L, 0L, 0L)), output);
   }
 
   @TestTemplate
@@ -147,7 +147,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
             "CALL %s.system.expire_snapshots(older_than => TIMESTAMP '%s',table => '%s')",
             catalogName, currentTimestamp, tableIdent);
     assertEquals(
-        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L, 0L)), output);
   }
 
   @TestTemplate
@@ -227,7 +227,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
             catalogName, currentTimestamp, tableIdent, 4);
     assertEquals(
         "Expiring snapshots concurrently should succeed",
-        ImmutableList.of(row(0L, 0L, 0L, 0L, 3L, 0L)),
+        ImmutableList.of(row(0L, 0L, 0L, 0L, 3L, 0L, 0L)),
         output);
   }
 
@@ -312,7 +312,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
 
     assertEquals(
         "Should deleted 1 data and pos delete file and 4 manifests and lists (one for each txn)",
-        ImmutableList.of(row(1L, 1L, 0L, 4L, 4L, 0L)),
+        ImmutableList.of(row(1L, 1L, 0L, 4L, 4L, 0L, 0L)),
         output);
     assertThat(localFs.exists(deleteManifestPath))
         .as("Delete manifest should be removed")
@@ -343,7 +343,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
                 + "stream_results => true)",
             catalogName, currentTimestamp, tableIdent);
     assertEquals(
-        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L, 0L)), output);
   }
 
   @TestTemplate
@@ -422,7 +422,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
             + "   table => '%s')";
     List<Object[]> output = sql(callStatement, catalogName, currentTimestamp, tableIdent);
     assertEquals(
-        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L)), output);
+        "Procedure output must match", ImmutableList.of(row(0L, 0L, 0L, 0L, 1L, 0L, 0L)), output);
 
     table.refresh();
 
