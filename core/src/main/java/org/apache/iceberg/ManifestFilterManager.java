@@ -296,8 +296,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       return cached;
     }
 
-    boolean hasLiveFiles = manifest.hasAddedFiles() || manifest.hasExistingFiles();
-    if (!hasLiveFiles || !canContainDeletedFiles(manifest)) {
+    if (!manifest.hasLiveFiles() || !canContainDeletedFiles(manifest)) {
       filteredManifests.put(manifest, manifest);
       return manifest;
     }
