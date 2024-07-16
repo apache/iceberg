@@ -79,7 +79,7 @@ body:
   - type: checkboxes
     attributes:
       label: Willingness to contribute
-      description: The iceberg community encourages bug fix contributions. Would you or another member of your organization be willing to contribute a fix for this bug to the Iceberg codebase?
+      description: The Iceberg community encourages bug fix contributions. Would you or another member of your organization be willing to contribute a fix for this bug to the Iceberg codebase?
       options:
         - label: I can contribute a fix for this bug independently
         - label: I would be willing to contribute a fix for this bug with guidance from the Iceberg community
