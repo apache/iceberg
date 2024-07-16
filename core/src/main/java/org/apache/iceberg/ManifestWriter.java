@@ -243,7 +243,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("partition-spec-id", String.valueOf(spec.specId()))
             .meta("format-version", "2")
             .meta("content", "data")
-            .overwrite()
+            .overwriteIfNeeded()
             .build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
@@ -277,7 +277,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("partition-spec-id", String.valueOf(spec.specId()))
             .meta("format-version", "2")
             .meta("content", "deletes")
-            .overwrite()
+            .overwriteIfNeeded()
             .build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
@@ -315,7 +315,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
             .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
             .meta("partition-spec-id", String.valueOf(spec.specId()))
             .meta("format-version", "1")
-            .overwrite()
+            .overwriteIfNeeded()
             .build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);

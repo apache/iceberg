@@ -217,7 +217,7 @@ public class TestManifestListVersions {
         Avro.write(outputFile)
             .schema(schemaWithoutRowStats)
             .named("manifest_file")
-            .overwrite()
+            .overwriteIfNeeded()
             .build()) {
 
       org.apache.avro.Schema avroSchema =
