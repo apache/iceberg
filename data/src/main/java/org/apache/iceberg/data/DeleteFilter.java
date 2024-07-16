@@ -125,7 +125,7 @@ public abstract class DeleteFilter<T> {
     counter.increment();
   }
 
-  Accessor<StructLike> posAccessor() {
+  public Accessor<StructLike> posAccessor() {
     return posAccessor;
   }
 
