@@ -910,7 +910,7 @@ public class TableMetadata implements Serializable {
       this(DEFAULT_TABLE_FORMAT_VERSION);
     }
 
-    public Builder(int formatVersion) {
+    private Builder(int formatVersion) {
       this.base = null;
       this.formatVersion = formatVersion;
       this.lastSequenceNumber = INITIAL_SEQUENCE_NUMBER;
