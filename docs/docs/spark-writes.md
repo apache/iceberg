@@ -194,7 +194,7 @@ WHERE EXISTS (SELECT oid FROM prod.db.returned_orders WHERE t1.oid = oid)
 
 For more complex row-level updates based on incoming data, see the section on `MERGE INTO`.
 
-### Writing to Branches
+## Writing to Branches
 
 The branch must exist before performing write. Operations do **not** create the branch if it does not exist.
 A branch can be created using [Spark DDL](spark-ddl.md#branching-and-tagging-ddl).
@@ -202,7 +202,7 @@ A branch can be created using [Spark DDL](spark-ddl.md#branching-and-tagging-ddl
 !!! info
     Note: When writing to a branch, the current schema of the table will be used for validation.
 
-#### Via SQL
+### Via SQL
 
 Branch writes can be performed by providing a branch identifier, `branch_yourBranch` in the operation.
 
@@ -232,7 +232,7 @@ SET spark.wap.branch = audit-branch
 INSERT INTO prod.db.table VALUES (3, 'c');
 ```
 
-#### Via DataFrames
+### Via DataFrames
 
 Branch writes via DataFrames can be performed by providing a branch identifier, `branch_yourBranch` in the operation.
 
