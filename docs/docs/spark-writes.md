@@ -208,7 +208,6 @@ Branch writes can be performed by providing a branch identifier, `branch_yourBra
 
 Branch writes can also be performed as part of a write-audit-publish (WAP) workflow by specifying the `spark.wap.branch` config.
 Note WAP branch and branch identifier cannot both be specified.
-Also, the branch must exist before performing the write.
  
 ```sql
 -- INSERT (1,' a') (2, 'b') into the audit branch.
