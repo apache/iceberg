@@ -76,3 +76,11 @@ body:
         You can include files by dragging and dropping them here.
     validations:
       required: true
+  - type: checkboxes
+    attributes:
+      label: Willingness to contribute
+      description: The Apache Iceberg community encourages bug fix contributions. Would you or another member of your organization be willing to contribute a fix for this bug to the Apache Iceberg codebase?
+      options:
+        - label: I can contribute a fix for this bug independently
+        - label: I would be willing to contribute a fix for this bug with guidance from the Iceberg community
+        - label: I cannot contribute a fix for this bug at this time
