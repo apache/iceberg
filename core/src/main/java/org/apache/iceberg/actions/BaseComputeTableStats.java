@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.actions;
 
+import javax.annotation.Nullable;
+import org.apache.iceberg.StatisticsFile;
 import org.immutables.value.Value;
 
 @Value.Enclosing
@@ -29,5 +31,9 @@ import org.immutables.value.Value;
 interface BaseComputeTableStats extends ComputeTableStats {
 
   @Value.Immutable
-  interface Result extends ComputeTableStats.Result {}
+  interface Result extends ComputeTableStats.Result {
+    @Override
+    @Nullable
+    StatisticsFile statisticsFile();
+  }
 }

@@ -81,6 +81,9 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
   }
 
   private Result doExecute() {
+    if (snapshotId == 0L) {
+      return ImmutableComputeTableStats.Result.builder().build();
+    }
     LOG.info("Computing stats of {} for snapshot {}", table.name(), snapshotId);
     List<Blob> blobs = generateNDVBlobs();
     StatisticsFile statisticFile;

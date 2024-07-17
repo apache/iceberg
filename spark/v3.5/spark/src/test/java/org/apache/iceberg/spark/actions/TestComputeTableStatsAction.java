@@ -39,7 +39,6 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestComputeTableStatsAction extends CatalogTestBase {
@@ -139,19 +138,13 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
   }
 
   @TestTemplate
-  @Disabled
   public void testComputeTableStatsWithNoSnapshots() throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
-    RuntimeException exception =
-        assertThrows(
-            RuntimeException.class, () -> actions.computeTableStats(table).columns("id").execute());
-    assertTrue(
-        exception
-            .getMessage()
-            .contains("Unable to analyze the table since the table has no snapshots"));
+    ComputeTableStats.Result result = actions.computeTableStats(table).columns("id").execute();
+    Assertions.assertNull(result.statisticsFile());
   }
 
   @AfterEach
