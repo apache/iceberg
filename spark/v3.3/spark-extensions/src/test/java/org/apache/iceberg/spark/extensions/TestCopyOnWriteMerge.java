@@ -48,6 +48,7 @@ import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.Assert;
 import org.junit.Assume;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class TestCopyOnWriteMerge extends TestMerge {
@@ -70,6 +71,7 @@ public class TestCopyOnWriteMerge extends TestMerge {
   }
 
   @Test
+  @Ignore // Ignored due to https://github.com/apache/iceberg/issues/10040
   public synchronized void testMergeWithConcurrentTableRefresh() throws Exception {
     // this test can only be run with Hive tables as it requires a reliable lock
     // also, the table cache must be enabled so that the same table instance can be reused
