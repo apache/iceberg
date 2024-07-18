@@ -20,25 +20,30 @@ package org.apache.iceberg.util;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Optional;
-import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.io.Closer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ParallelIterable<T> extends CloseableGroup implements CloseableIterable<T> {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ParallelIterable.class);
 
   private static final int DEFAULT_MAX_QUEUE_SIZE = 10_000;
 
@@ -74,7 +79,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     private final Iterator<Task<T>> tasks;
     private final Deque<Task<T>> yieldedTasks = new ArrayDeque<>();
     private final ExecutorService workerPool;
-    private final Future<Optional<Task<T>>>[] taskFutures;
+    private final CompletableFuture<Optional<Task<T>>>[] taskFutures;
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -86,7 +91,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
               .iterator();
       this.workerPool = workerPool;
       // submit 2 tasks per worker at a time
-      this.taskFutures = new Future[2 * ThreadPools.WORKER_THREAD_POOL_SIZE];
+      this.taskFutures = new CompletableFuture[2 * ThreadPools.WORKER_THREAD_POOL_SIZE];
     }
 
     @Override
@@ -95,13 +100,25 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       this.closed.set(true);
 
       try (Closer closer = Closer.create()) {
-        yieldedTasks.forEach(closer::register);
-        yieldedTasks.clear();
+        synchronized (this) {
+          yieldedTasks.forEach(closer::register);
+          yieldedTasks.clear();
+        }
 
-        // cancel background tasks
-        for (Future<?> taskFuture : taskFutures) {
-          if (taskFuture != null && !taskFuture.isDone()) {
+        // cancel background tasks and close continuations if any
+        for (CompletableFuture<Optional<Task<T>>> taskFuture : taskFutures) {
+          if (taskFuture != null) {
             taskFuture.cancel(true);
+            taskFuture.thenAccept(
+                continuation -> {
+                  if (continuation.isPresent()) {
+                    try {
+                      continuation.get().close();
+                    } catch (IOException e) {
+                      LOG.error("Task close failed", e);
+                    }
+                  }
+                });
           }
         }
 
@@ -119,7 +136,8 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
      *
      * @return true if there are pending tasks, false otherwise
      */
-    private boolean checkTasks() {
+    private synchronized boolean checkTasks() {
+      Preconditions.checkState(!closed.get(), "Already closed");
       boolean hasRunningTask = false;
 
       for (int i = 0; i < taskFutures.length; i += 1) {
@@ -152,12 +170,12 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       return !closed.get() && (tasks.hasNext() || hasRunningTask);
     }
 
-    private Future<Optional<Task<T>>> submitNextTask() {
+    private CompletableFuture<Optional<Task<T>>> submitNextTask() {
       if (!closed.get()) {
         if (!yieldedTasks.isEmpty()) {
-          return workerPool.submit(yieldedTasks.removeFirst());
+          return CompletableFuture.supplyAsync(yieldedTasks.removeFirst(), workerPool);
         } else if (tasks.hasNext()) {
-          return workerPool.submit(tasks.next());
+          return CompletableFuture.supplyAsync(tasks.next(), workerPool);
         }
       }
       return null;
@@ -210,7 +228,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     }
   }
 
-  private static class Task<T> implements Callable<Optional<Task<T>>>, Closeable {
+  private static class Task<T> implements Supplier<Optional<Task<T>>>, Closeable {
     private final Iterable<T> input;
     private final ConcurrentLinkedQueue<T> queue;
     private final AtomicBoolean closed;
@@ -230,7 +248,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     }
 
     @Override
-    public Optional<Task<T>> call() throws Exception {
+    public Optional<Task<T>> get() {
       try {
         if (iterator == null) {
           iterator = input.iterator();
@@ -264,7 +282,12 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         throw e;
       }
 
-      close();
+      try {
+        close();
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+
       // The task is complete. Returning empty means there is no continuation that should be
       // executed.
       return Optional.empty();
