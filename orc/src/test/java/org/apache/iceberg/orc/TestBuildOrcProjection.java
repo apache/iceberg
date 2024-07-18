@@ -23,9 +23,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
 import org.junit.jupiter.api.Test;
@@ -50,7 +48,6 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testProjectionPrimitive() {
-    Configuration config = new Configuration();
     Schema originalSchema =
         new Schema(
             optional(1, "a", Types.IntegerType.get()), optional(2, "b", Types.StringType.get()));
@@ -77,7 +74,6 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testProjectionNestedNoOp() {
-    Configuration config = new Configuration();
     Types.StructType nestedStructType =
         Types.StructType.of(
             optional(2, "b", Types.StringType.get()), optional(3, "c", Types.DateType.get()));
@@ -99,7 +95,6 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testProjectionNested() {
-    Configuration config = new Configuration();
     Types.StructType nestedStructType =
         Types.StructType.of(
             optional(2, "b", Types.StringType.get()), optional(3, "c", Types.DateType.get()));
@@ -127,7 +122,6 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testEvolutionAddContainerField() {
-    Configuration config = new Configuration();
     Schema baseSchema = new Schema(required(1, "a", Types.IntegerType.get()));
     TypeDescription baseOrcSchema = ORCSchemaUtil.convert(baseSchema);
 
@@ -150,7 +144,6 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testRequiredNestedFieldMissingInFile() {
-    Configuration config = new Configuration();
     Schema baseSchema =
         new Schema(
             required(1, "a", Types.IntegerType.get()),
@@ -174,9 +167,6 @@ public class TestBuildOrcProjection {
 
   @Test
   public void testTimestampType() {
-    Configuration config = new Configuration();
-    config.setBoolean(ConfigProperties.ORC_CONVERT_TIMESTAMPTZ, true);
-
     Schema originalSchema = new Schema(optional(1, "a", Types.TimestampType.withoutZone()));
     // Orc schema would be `timestamp` if table is converted from a hive table
     TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);

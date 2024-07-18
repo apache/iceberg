@@ -273,7 +273,7 @@ public final class ORCSchemaUtil {
    * @return the resulting ORC schema
    */
   public static TypeDescription buildOrcProjection(
-      Schema schema, TypeDescription originalOrcSchema, Boolean convertTimestampTZ) {
+      Schema schema, TypeDescription originalOrcSchema, boolean convertTimestampTZ) {
     final Map<Integer, OrcField> icebergToOrc = icebergToOrcMapping("root", originalOrcSchema);
     return buildOrcProjection(
         Integer.MIN_VALUE, schema.asStruct(), true, icebergToOrc, convertTimestampTZ);
@@ -284,7 +284,7 @@ public final class ORCSchemaUtil {
       Type type,
       boolean isRequired,
       Map<Integer, OrcField> mapping,
-      Boolean convertTimestampTZ) {
+      boolean convertTimestampTZ) {
     final TypeDescription orcType;
 
     switch (type.typeId()) {

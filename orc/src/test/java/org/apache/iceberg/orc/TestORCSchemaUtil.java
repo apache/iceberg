@@ -29,7 +29,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
@@ -195,7 +194,6 @@ public class TestORCSchemaUtil {
 
   @Test
   public void testTypePromotions() {
-    Configuration config = new Configuration();
     Schema originalSchema =
         new Schema(
             optional(1, "a", Types.IntegerType.get()),
@@ -229,7 +227,6 @@ public class TestORCSchemaUtil {
 
   @Test
   public void testInvalidTypePromotions() {
-    Configuration config = new Configuration();
     Schema originalSchema = new Schema(optional(1, "a", Types.LongType.get()));
 
     TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
@@ -412,7 +409,6 @@ public class TestORCSchemaUtil {
 
   @Test
   public void testAssignIdsByNameMappingAndProject() {
-    Configuration config = new Configuration();
     Types.StructType structType =
         Types.StructType.of(
             required(1, "id", Types.LongType.get()),
