@@ -17,8 +17,10 @@ out
 build
 dependencies.lock
 **/dependencies.lock
-gradle/
+
+# Ignore Gradle wrapper jar file
 gradle/wrapper/gradle-wrapper.jar
+gradle/wrapper/gradle-wrapper-*.sha256
 
 # rat library install location
 lib/
