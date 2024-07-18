@@ -218,7 +218,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     private final AtomicBoolean closed;
     private final int approximateMaxQueueSize;
 
-    private Iterator<T> iterator;
+    private Iterator<T> iterator = null;
 
     Task(
         Iterable<T> input,
@@ -262,8 +262,10 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
             e.addSuppressed(closeException);
           }
         }
+
         throw e;
       }
+
       close();
       // The task is complete. Returning empty means there is no continuation that should be
       // executed.
