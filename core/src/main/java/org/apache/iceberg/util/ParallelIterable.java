@@ -98,8 +98,6 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         yieldedTasks.forEach(closer::register);
         yieldedTasks.clear();
 
-        // TODO close input iterables that were not started yet
-
         // cancel background tasks
         for (Future<?> taskFuture : taskFutures) {
           if (taskFuture != null && !taskFuture.isDone()) {
