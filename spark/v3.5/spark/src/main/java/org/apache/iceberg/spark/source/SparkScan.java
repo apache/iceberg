@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -204,7 +202,9 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
           NamedReference ref = FieldReference.column(colName);
 
           Long ndv = null;
-          if (blobMetadata.type().equals(APACHE_DATASKETCHES_THETA_V1)) {
+          if (blobMetadata
+              .type()
+              .equals(org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1)) {
             String ndvStr = blobMetadata.properties().get(NDV_KEY);
             if (ndvStr != null && !ndvStr.isEmpty()) {
               ndv = Long.parseLong(ndvStr);
