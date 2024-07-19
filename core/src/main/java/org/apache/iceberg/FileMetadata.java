@@ -178,7 +178,12 @@ public class FileMetadata {
           isPartitioned || newPartitionPath.isEmpty(),
           "Cannot add partition data for an unpartitioned table");
       if (!newPartitionPath.isEmpty()) {
-        this.partitionData = DataFiles.fillFromPath(spec, newPartitionPath, partitionData);
+        this.partitionData =
+            DataFiles.fillFromPath(
+                spec,
+                newPartitionPath,
+                partitionData,
+                DataFiles.DEFAULT_PARTITION_STRING_CONVERSION);
       }
       return this;
     }
