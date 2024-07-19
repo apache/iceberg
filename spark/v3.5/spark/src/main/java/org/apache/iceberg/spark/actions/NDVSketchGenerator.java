@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import org.apache.datasketches.theta.Sketch;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.StandardBlobTypes;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -33,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkValueConverter;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaPairRDD;
@@ -93,17 +95,20 @@ public class NDVSketchGenerator {
     Schema schema = table.schema();
     List<Types.NestedField> nestedFields =
         columns.stream().map(schema::findField).collect(Collectors.toList());
+    Schema sketchSchema = new Schema(nestedFields);
     JavaPairRDD<Integer, ByteBuffer> colNameAndSketchPairRDD =
         data.javaRDD()
             .flatMap(
                 row -> {
                   List<Tuple2<Integer, ByteBuffer>> columnsList =
                       Lists.newArrayListWithExpectedSize(columns.size());
-                  for (int i = 0; i < row.size(); i++) {
+
+                  Record record = SparkValueConverter.convert(sketchSchema, row);
+                  for (int i = 0; i < record.size(); i++) {
                     columnsList.add(
                         new Tuple2<>(
                             nestedFields.get(i).fieldId(),
-                            Conversions.toByteBuffer(nestedFields.get(i).type(), row.get(i))));
+                            Conversions.toByteBuffer(nestedFields.get(i).type(), record.get(i))));
                   }
                   return columnsList.iterator();
                 })
