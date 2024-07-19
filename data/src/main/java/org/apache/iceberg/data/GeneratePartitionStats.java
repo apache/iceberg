@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentSkipListMap;
 import org.apache.iceberg.ImmutableGenericPartitionStatisticsFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionStatisticsFile;
@@ -32,7 +33,10 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Comparators;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
@@ -42,9 +46,15 @@ public class GeneratePartitionStats {
   private static final Logger LOG = LoggerFactory.getLogger(GeneratePartitionStats.class);
 
   private final Table table;
+  private String branch;
 
-  GeneratePartitionStats(Table table) {
+  public GeneratePartitionStats(Table table) {
     this.table = table;
+  }
+
+  public GeneratePartitionStats(Table table, String branch) {
+    this.table = table;
+    this.branch = branch;
   }
 
   /**
@@ -54,18 +64,23 @@ public class GeneratePartitionStats {
    *     have any snapshot.
    */
   public PartitionStatisticsFile generate() {
-    // TODO: Support an option to accept branches and tag info and lookup corresponding snapshot.
-    Snapshot currentSnapshot = table.currentSnapshot();
+    Snapshot currentSnapshot = SnapshotUtil.latestSnapshot(table, branch);
     if (currentSnapshot == null) {
+      Preconditions.checkArgument(
+          branch == null, "Couldn't find the snapshot for the branch %s", branch);
       return null;
     }
 
-    // Map of partitionData, partition-stats-entry per partitionData
-    Map<Record, Record> partitionEntryMap = Maps.newConcurrentMap();
-    Schema dataSchema = PartitionStatsUtil.schema(Partitioning.partitionType(table));
+    Types.StructType partitionType = Partitioning.partitionType(table);
+    // Map of partitionData, partition-stats-entry per partitionData.
+    // Sorting the records based on partition as per spec.
+    Map<Record, Record> partitionEntryMap =
+        new ConcurrentSkipListMap<>(Comparators.forType(partitionType));
+
+    Schema dataSchema = PartitionStatsUtil.schema(partitionType);
     List<ManifestFile> manifestFiles = currentSnapshot.allManifests(table.io());
     Tasks.foreach(manifestFiles)
-        .suppressFailureWhenFinished()
+        .stopOnFailure()
         .executeWith(ThreadPools.getWorkerPool())
         .onFailure(
             (file, thrown) ->
@@ -80,10 +95,10 @@ public class GeneratePartitionStats {
                 entries.forEach(
                     entry ->
                         partitionEntryMap.compute(
-                            (Record) entry.get(PartitionStatsUtil.Column.PARTITION_DATA.ordinal()),
+                            (Record) entry.get(PartitionStatsUtil.Column.PARTITION.ordinal()),
                             (key, existingEntry) -> {
                               if (existingEntry != null) {
-                                PartitionStatsUtil.updateRecord(existingEntry, entry);
+                                PartitionStatsUtil.appendStatsFromRecord(existingEntry, entry);
                                 return existingEntry;
                               } else {
                                 return entry;

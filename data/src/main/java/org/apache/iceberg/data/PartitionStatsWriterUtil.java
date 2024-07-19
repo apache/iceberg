@@ -25,14 +25,12 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
-import java.util.List;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionStatsUtil;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -43,7 +41,6 @@ import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.types.Types;
 
 public final class PartitionStatsWriterUtil {
 
@@ -72,7 +69,6 @@ public final class PartitionStatsWriterUtil {
         GenericFileWriterFactory.builderFor(table)
             .dataSchema(dataSchema)
             .dataFileFormat(fileFormat)
-            .dataSortOrder(sortOrder(dataSchema))
             .build();
     DataWriter<Record> writer =
         factory.newDataWriter(
@@ -93,14 +89,5 @@ public final class PartitionStatsWriterUtil {
         .project(schema)
         .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
         .build();
-  }
-
-  private static SortOrder sortOrder(Schema schema) {
-    SortOrder.Builder builder = SortOrder.builderFor(schema);
-    List<Types.NestedField> partitionFields =
-        ((Types.StructType) schema.asStruct().fields().get(0).type()).fields();
-    partitionFields.forEach(
-        field -> builder.asc(PartitionStatsUtil.Column.PARTITION_DATA.name() + "." + field.name()));
-    return builder.build();
   }
 }
