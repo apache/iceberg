@@ -1086,6 +1086,12 @@ class ViewUpdate(BaseModel):
     ]
 
 
+class Credentials(BaseModel):
+    __root__: Union[ADLSCredentials, GCSCredentials, S3Credentials] = Field(
+        ..., discriminator='type'
+    )
+
+
 class LoadTableResult(BaseModel):
     """
     Result used when a table is successfully loaded.
@@ -1113,6 +1119,11 @@ class LoadTableResult(BaseModel):
      - `s3.session-token`: if present, this value should be used for as the session token
      - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
 
+    ## Credentials
+
+    Credentials for ADLS / GCS / S3 are provided through the `credentials` field. Clients should first check whether the
+    respective credentials exist in the `credentials` field before checking the `config` for credentials.
+
     """
 
     metadata_location: Optional[str] = Field(
@@ -1121,6 +1132,7 @@ class LoadTableResult(BaseModel):
         description='May be null if the table is staged as part of a transaction',
     )
     metadata: TableMetadata
+    credentials: Optional[Credentials] = None
     config: Optional[Dict[str, str]] = None
 
 
@@ -1183,10 +1195,16 @@ class LoadViewResult(BaseModel):
 
     - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled
 
+    ## Credentials
+
+    Credentials for ADLS / GCS / S3 are provided through the `credentials` field. Clients should first check whether the
+    respective credentials exist in the `credentials` field before checking the `config` for credentials.
+
     """
 
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: ViewMetadata
+    credentials: Optional[Credentials] = None
     config: Optional[Dict[str, str]] = None
 
 
@@ -1217,6 +1235,28 @@ class Schema(StructType):
     )
 
 
+class ADLSCredentials(BaseModel):
+    type: Literal['adls']
+    account_name: Optional[str] = Field(None, alias='account-name')
+    account_key: Optional[str] = Field(None, alias='account-key')
+    sas_token: Optional[str] = Field(None, alias='sas-token')
+    expires_at_ms: Optional[int] = Field(None, alias='expires-at-ms')
+
+
+class GCSCredentials(BaseModel):
+    type: Literal['gcs']
+    token: str
+    expires_at_ms: int = Field(..., alias='expires-at-ms')
+
+
+class S3Credentials(BaseModel):
+    type: Literal['s3']
+    access_key_id: str = Field(..., alias='access-key-id')
+    secret_access_key: str = Field(..., alias='secret-access-key')
+    session_token: str = Field(..., alias='session-token')
+    expires_at_ms: int = Field(..., alias='expires-at-ms')
+
+
 class ReportMetricsRequest1(ScanReport):
     report_type: str = Field(..., alias='report-type')
 
@@ -1228,6 +1268,10 @@ Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
+Credentials.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
+ADLSCredentials.update_forward_refs()
+GCSCredentials.update_forward_refs()
+S3Credentials.update_forward_refs()
