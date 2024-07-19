@@ -191,7 +191,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     boolean cboEnabled =
         Boolean.parseBoolean(spark.conf().get(SQLConf.CBO_ENABLED().key(), "false"));
     Map<NamedReference, ColumnStatistics> colStatsMap = Maps.newHashMap();
-    if (readConf.enableColumnStats() && cboEnabled) {
+    if (readConf.reportColumnStats() && cboEnabled) {
       List<StatisticsFile> files = table.statisticsFiles();
       if (!files.isEmpty()) {
         List<BlobMetadata> metadataList = (files.get(0)).blobMetadata();

@@ -348,7 +348,7 @@ public class SparkReadConf {
         .parse();
   }
 
-  public boolean enableColumnStats() {
+  public boolean reportColumnStats() {
     return confParser
         .booleanConf()
         .sessionConf(SparkSQLProperties.REPORT_COLUMN_STATS)
