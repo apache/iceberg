@@ -74,8 +74,8 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
       exclude group: 'org.roaringbitmap'
     }
 
-    implementation libs.parquet14.column
-    implementation libs.parquet14.hadoop
+    implementation libs.parquet.column
+    implementation libs.parquet.hadoop
 
     implementation("${libs.orc.core.get().module}:${libs.versions.orc.get()}:nohive") {
       exclude group: 'org.apache.hadoop'
@@ -167,7 +167,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     testImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
 
     testImplementation libs.avro.avro
-    testImplementation libs.parquet14.hadoop
+    testImplementation libs.parquet.hadoop
     testImplementation libs.awaitility
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above

@@ -108,14 +108,14 @@ public class TestCompressionSettings extends CatalogTestBase {
         SparkCatalogConfig.SPARK.implementation(),
         SparkCatalogConfig.SPARK.properties(),
         PARQUET,
-        ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_LEVEL, "1")
+        ImmutableMap.of(COMPRESSION_CODEC, "gzip")
       },
       {
         SparkCatalogConfig.SPARK.catalogName(),
         SparkCatalogConfig.SPARK.implementation(),
         SparkCatalogConfig.SPARK.properties(),
         PARQUET,
-        ImmutableMap.of(COMPRESSION_CODEC, "gzip")
+        ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_LEVEL, "1")
       },
       {
         SparkCatalogConfig.SPARK.catalogName(),
