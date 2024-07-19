@@ -81,7 +81,7 @@ public class ManifestFiles {
   }
 
   /** Drop manifest file cache object for a FileIO if exists. */
-  public static synchronized void dropCache(FileIO fileIO) {
+  public static void dropCache(FileIO fileIO) {
     CONTENT_CACHES.invalidate(fileIO);
     CONTENT_CACHES.cleanUp();
   }
