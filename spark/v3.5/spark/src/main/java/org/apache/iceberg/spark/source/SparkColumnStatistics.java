@@ -34,19 +34,20 @@ class SparkColumnStatistics implements ColumnStatistics {
   private final Optional<Histogram> histogram;
 
   SparkColumnStatistics(
-      long distinctCount,
+      Long distinctCount,
       Object min,
       Object max,
-      long nullCount,
-      long avgLen,
-      long maxLen,
+      Long nullCount,
+      Long avgLen,
+      Long maxLen,
       Histogram histogram) {
-    this.distinctCount = OptionalLong.of(distinctCount);
+    this.distinctCount =
+        (distinctCount == null) ? OptionalLong.empty() : OptionalLong.of(distinctCount);
     this.min = Optional.ofNullable(min);
     this.max = Optional.ofNullable(max);
-    this.nullCount = OptionalLong.of(nullCount);
-    this.avgLen = OptionalLong.of(avgLen);
-    this.maxLen = OptionalLong.of(maxLen);
+    this.nullCount = (nullCount == null) ? OptionalLong.empty() : OptionalLong.of(nullCount);
+    this.avgLen = (avgLen == null) ? OptionalLong.empty() : OptionalLong.of(avgLen);
+    this.maxLen = (maxLen == null) ? OptionalLong.empty() : OptionalLong.of(maxLen);
     this.histogram = Optional.ofNullable(histogram);
   }
 

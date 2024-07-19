@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToDayOrdinal;
@@ -30,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.Parameter;
@@ -167,27 +169,31 @@ public class TestSparkScan extends TestBaseWithCatalog {
             42,
             ImmutableList.of(
                 new GenericBlobMetadata(
-                    "stats-type", snapshotId, 1, ImmutableList.of(1), ImmutableMap.of("ndv", "4")),
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", "4")),
                 new GenericBlobMetadata(
-                    "stats-type",
+                    APACHE_DATASKETCHES_THETA_V1,
                     snapshotId,
                     1,
                     ImmutableList.of(2),
-                    ImmutableMap.of("ndv", "2"))));
+                    ImmutableMap.of())));
 
     table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
     SparkScanBuilder scanBuilder =
         new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
     SparkScan scan = (SparkScan) scanBuilder.build();
 
-    Map<String, String> sqlConf = ImmutableMap.of(SparkSQLProperties.ENABLE_COLUMN_STATS, "true");
-
-    Map<String, String> sqlConf2 =
+    Map<String, String> sqlConf1 =
         ImmutableMap.of(
-            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.ENABLE_COLUMN_STATS, "true");
+            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
+
+    Map<String, String> sqlConf2 = ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
 
     checkStatistics(scan, 4L, false);
-    withSQLConf(sqlConf, () -> checkStatistics(scan, 4L, false));
+    withSQLConf(sqlConf1, () -> checkStatistics(scan, 4L, false));
     withSQLConf(sqlConf2, () -> checkStatistics(scan, 4L, true));
   }
 
@@ -803,8 +809,10 @@ public class TestSparkScan extends TestBaseWithCatalog {
     if (expectedColumnStats) {
       assertThat(columnStats.get(FieldReference.column("id")).distinctCount().getAsLong())
           .isEqualTo(4L);
-      assertThat(columnStats.get(FieldReference.column("data")).distinctCount().getAsLong())
-          .isEqualTo(2L);
+      assertThat(columnStats.get(FieldReference.column("data")).distinctCount())
+          .isEqualTo(OptionalLong.empty());
+    } else {
+      assertThat(columnStats.isEmpty());
     }
   }
 

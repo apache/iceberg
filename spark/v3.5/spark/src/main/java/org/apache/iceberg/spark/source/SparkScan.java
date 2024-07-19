@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -95,6 +97,7 @@ import org.slf4j.LoggerFactory;
 
 abstract class SparkScan implements Scan, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkScan.class);
+  private static final String NDV_KEY = "ndv";
 
   private final JavaSparkContext sparkContext;
   private final Table table;
@@ -189,9 +192,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
     boolean cboEnabled =
         Boolean.parseBoolean(spark.conf().get(SQLConf.CBO_ENABLED().key(), "false"));
-    Map<NamedReference, ColumnStatistics> colStatsMap = null;
+    Map<NamedReference, ColumnStatistics> colStatsMap = Maps.newHashMap();
     if (readConf.enableColumnStats() && cboEnabled) {
-      colStatsMap = Maps.newHashMap();
       List<StatisticsFile> files = table.statisticsFiles();
       if (!files.isEmpty()) {
         List<BlobMetadata> metadataList = (files.get(0)).blobMetadata();
@@ -201,12 +203,16 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
           String colName = table.schema().findColumnName(id);
           NamedReference ref = FieldReference.column(colName);
 
-          long ndv = 0;
-          String ndvStr = blobMetadata.properties().get("ndv");
-          if (ndvStr != null && !ndvStr.isEmpty()) {
-            ndv = Long.parseLong(blobMetadata.properties().get("ndv"));
+          Long ndv = null;
+          if (blobMetadata.type().equals(APACHE_DATASKETCHES_THETA_V1)) {
+            String ndvStr = blobMetadata.properties().get(NDV_KEY);
+            if (ndvStr != null && !ndvStr.isEmpty()) {
+              ndv = Long.parseLong(ndvStr);
+            } else {
+              LOG.debug("ndv is not set in BlobMetadata for column {}", colName);
+            }
           } else {
-            LOG.debug("ndv is not set in BlobMetadata for column {}", colName);
+            LOG.debug("DataSketch blob is not available for column {}", colName);
           }
 
           // TODO: Fill min, max and null from the manifest file
