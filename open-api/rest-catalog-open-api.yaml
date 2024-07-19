@@ -3103,6 +3103,82 @@ components:
         uuid:
           type: string
 
+    ADLSCredentials:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/Credentials'
+      required:
+        - type
+        - sas-token
+        - expires-at-ms
+      properties:
+        type:
+          type: string
+          enum: [ "adls" ]
+        sas-token:
+          type: string
+        expires-at-ms:
+          type: integer
+          format: int64
+          description: The epoch millis at which the given token expires
+
+    GCSCredentials:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/Credentials'
+      required:
+        - type
+        - token
+        - expires-at-ms
+      properties:
+        type:
+          type: string
+          enum: [ "gcs" ]
+        token:
+          type: string
+        expires-at-ms:
+          type: integer
+          format: int64
+          description: The epoch millis at which the given token expires
+
+    S3Credentials:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/Credentials'
+      required:
+        - type
+        - access-key-id
+        - secret-access-key
+        - session-token
+        - expires-at-ms
+      properties:
+        type:
+          type: string
+          enum: [ "s3" ]
+        access-key-id:
+          type: string
+        secret-access-key:
+          type: string
+        session-token:
+          type: string
+        expires-at-ms:
+          type: integer
+          format: int64
+          description: The epoch millis at which the given token expires
+
+    Credentials:
+      type: object
+      discriminator:
+        propertyName: type
+        mapping:
+          adls: '#/components/schemas/ADLSCredentials'
+          gcs: '#/components/schemas/GCSCredentials'
+          s3: '#/components/schemas/S3Credentials'
+      oneOf:
+        - $ref: '#/components/schemas/ADLSCredentials'
+        - $ref: '#/components/schemas/GCSCredentials'
+        - $ref: '#/components/schemas/S3Credentials'
+
     LoadTableResult:
       description: |
         Result used when a table is successfully loaded.
@@ -3129,6 +3205,11 @@ components:
          - `s3.secret-access-key`: secret for credentials that provide access to data in S3 
          - `s3.session-token`: if present, this value should be used for as the session token 
          - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
+
+        ## Credentials
+
+        Credentials for ADLS / GCS / S3 are provided through the `credentials` field. Clients should first check whether the
+        respective credentials exist in the `credentials` field before checking the `config` for credentials.
       type: object
       required:
         - metadata
@@ -3138,6 +3219,8 @@ components:
           description: May be null if the table is staged as part of a transaction
         metadata:
           $ref: '#/components/schemas/TableMetadata'
+        credentials:
+          $ref: '#/components/schemas/Credentials'
         config:
           type: object
           additionalProperties:
@@ -3395,6 +3478,10 @@ components:
 
         - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled
 
+        ## Credentials
+
+        Credentials for ADLS / GCS / S3 are provided through the `credentials` field. Clients should first check whether the
+        respective credentials exist in the `credentials` field before checking the `config` for credentials.
       type: object
       required:
         - metadata-location
@@ -3404,6 +3491,8 @@ components:
           type: string
         metadata:
           $ref: '#/components/schemas/ViewMetadata'
+        credentials:
+          $ref: '#/components/schemas/Credentials'
         config:
           type: object
           additionalProperties:
