@@ -18,13 +18,20 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.RowType;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynFields;
@@ -35,53 +42,49 @@ import org.apache.iceberg.io.BaseTaskWriter;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestCompressionSettings {
-  @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
+  @TempDir protected Path temporaryFolder;
 
   private Table table;
 
-  private final Map<String, String> initProperties;
+  @Parameter(index = 0)
+  private Map<String, String> initProperties;
 
-  @Parameterized.Parameters(name = "tableProperties = {0}")
-  public static Object[] parameters() {
-    return new Object[] {
-      ImmutableMap.of(),
-      ImmutableMap.of(
-          TableProperties.AVRO_COMPRESSION,
-          "zstd",
-          TableProperties.AVRO_COMPRESSION_LEVEL,
-          "3",
-          TableProperties.PARQUET_COMPRESSION,
-          "zstd",
-          TableProperties.PARQUET_COMPRESSION_LEVEL,
-          "3",
-          TableProperties.ORC_COMPRESSION,
-          "zstd",
-          TableProperties.ORC_COMPRESSION_STRATEGY,
-          "compression")
+  @Parameters(name = "tableProperties = {0}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      new Object[] {ImmutableMap.of()},
+      new Object[] {
+        ImmutableMap.of(
+            TableProperties.AVRO_COMPRESSION,
+            "zstd",
+            TableProperties.AVRO_COMPRESSION_LEVEL,
+            "3",
+            TableProperties.PARQUET_COMPRESSION,
+            "zstd",
+            TableProperties.PARQUET_COMPRESSION_LEVEL,
+            "3",
+            TableProperties.ORC_COMPRESSION,
+            "zstd",
+            TableProperties.ORC_COMPRESSION_STRATEGY,
+            "compression")
+      }
     };
   }
 
-  public TestCompressionSettings(Map<String, String> initProperties) {
-    this.initProperties = initProperties;
-  }
-
-  @Before
+  @BeforeEach
   public void before() throws IOException {
-    File folder = tempFolder.newFolder();
+    File folder = Files.createTempDirectory(temporaryFolder, "junit").toFile();
     table = SimpleDataUtil.createTable(folder.getAbsolutePath(), initProperties, false);
   }
 
-  @Test
+  @TestTemplate
   public void testCompressionAvro() throws Exception {
     // No override provided
     Map<String, String> resultProperties =
@@ -91,19 +94,36 @@ public class TestCompressionSettings {
             ImmutableMap.of(FlinkWriteOptions.WRITE_FORMAT.key(), "AVRO"));
 
     if (initProperties.get(TableProperties.AVRO_COMPRESSION) == null) {
-      Assert.assertEquals(
-          TableProperties.AVRO_COMPRESSION_DEFAULT,
-          resultProperties.get(TableProperties.AVRO_COMPRESSION));
-      Assert.assertEquals(
-          TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT,
-          resultProperties.get(TableProperties.AVRO_COMPRESSION_LEVEL));
+      assertThat(resultProperties)
+          .containsEntry(TableProperties.AVRO_COMPRESSION, TableProperties.AVRO_COMPRESSION_DEFAULT)
+          .satisfies(
+              props -> {
+                if (props.containsKey(TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT)) {
+                  assertThat(props)
+                      .containsEntry(
+                          TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT,
+                          TableProperties.AVRO_COMPRESSION_LEVEL);
+                } else {
+                  assertThat(props)
+                      .doesNotContainKey(TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT);
+                }
+              });
     } else {
-      Assert.assertEquals(
-          initProperties.get(TableProperties.AVRO_COMPRESSION),
-          resultProperties.get(TableProperties.AVRO_COMPRESSION));
-      Assert.assertEquals(
-          initProperties.get(TableProperties.AVRO_COMPRESSION_LEVEL),
-          resultProperties.get(TableProperties.AVRO_COMPRESSION_LEVEL));
+      assertThat(resultProperties)
+          .containsEntry(
+              TableProperties.AVRO_COMPRESSION,
+              initProperties.get(TableProperties.AVRO_COMPRESSION))
+          .satisfies(
+              props -> {
+                if (props.containsKey(TableProperties.AVRO_COMPRESSION_LEVEL)) {
+                  assertThat(props)
+                      .containsEntry(
+                          TableProperties.AVRO_COMPRESSION_LEVEL,
+                          initProperties.get(TableProperties.AVRO_COMPRESSION_LEVEL));
+                } else {
+                  assertThat(props).doesNotContainKey(TableProperties.AVRO_COMPRESSION_LEVEL);
+                }
+              });
     }
 
     // Override compression to snappy and some random level
@@ -119,11 +139,12 @@ public class TestCompressionSettings {
                 FlinkWriteOptions.COMPRESSION_LEVEL.key(),
                 "6"));
 
-    Assert.assertEquals("snappy", resultProperties.get(TableProperties.AVRO_COMPRESSION));
-    Assert.assertEquals("6", resultProperties.get(TableProperties.AVRO_COMPRESSION_LEVEL));
+    assertThat(resultProperties)
+        .containsEntry(TableProperties.AVRO_COMPRESSION, "snappy")
+        .containsEntry(TableProperties.AVRO_COMPRESSION_LEVEL, "6");
   }
 
-  @Test
+  @TestTemplate
   public void testCompressionParquet() throws Exception {
     // No override provided
     Map<String, String> resultProperties =
@@ -133,19 +154,38 @@ public class TestCompressionSettings {
             ImmutableMap.of(FlinkWriteOptions.WRITE_FORMAT.key(), "PARQUET"));
 
     if (initProperties.get(TableProperties.PARQUET_COMPRESSION) == null) {
-      Assert.assertEquals(
-          TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0,
-          resultProperties.get(TableProperties.PARQUET_COMPRESSION));
-      Assert.assertEquals(
-          TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT,
-          resultProperties.get(TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0));
+      assertThat(resultProperties)
+          .containsEntry(
+              TableProperties.PARQUET_COMPRESSION,
+              TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0)
+          .satisfies(
+              props -> {
+                if (props.containsKey(TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0)) {
+                  assertThat(props)
+                      .containsEntry(
+                          TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0,
+                          TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT);
+                } else {
+                  assertThat(props)
+                      .doesNotContainKey(TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+                }
+              });
     } else {
-      Assert.assertEquals(
-          initProperties.get(TableProperties.PARQUET_COMPRESSION),
-          resultProperties.get(TableProperties.PARQUET_COMPRESSION));
-      Assert.assertEquals(
-          initProperties.get(TableProperties.PARQUET_COMPRESSION_LEVEL),
-          resultProperties.get(TableProperties.PARQUET_COMPRESSION_LEVEL));
+      assertThat(resultProperties)
+          .containsEntry(
+              TableProperties.PARQUET_COMPRESSION,
+              initProperties.get(TableProperties.PARQUET_COMPRESSION))
+          .satisfies(
+              props -> {
+                if (props.containsKey(TableProperties.PARQUET_COMPRESSION_LEVEL)) {
+                  assertThat(props)
+                      .containsEntry(
+                          TableProperties.PARQUET_COMPRESSION_LEVEL,
+                          initProperties.get(TableProperties.PARQUET_COMPRESSION_LEVEL));
+                } else {
+                  assertThat(props).doesNotContainKey(TableProperties.PARQUET_COMPRESSION_LEVEL);
+                }
+              });
     }
 
     // Override compression to snappy and some random level
@@ -161,11 +201,12 @@ public class TestCompressionSettings {
                 FlinkWriteOptions.COMPRESSION_LEVEL.key(),
                 "6"));
 
-    Assert.assertEquals("snappy", resultProperties.get(TableProperties.PARQUET_COMPRESSION));
-    Assert.assertEquals("6", resultProperties.get(TableProperties.PARQUET_COMPRESSION_LEVEL));
+    assertThat(resultProperties)
+        .containsEntry(TableProperties.PARQUET_COMPRESSION, "snappy")
+        .containsEntry(TableProperties.PARQUET_COMPRESSION_LEVEL, "6");
   }
 
-  @Test
+  @TestTemplate
   public void testCompressionOrc() throws Exception {
     // No override provided
     Map<String, String> resultProperties =
@@ -175,19 +216,34 @@ public class TestCompressionSettings {
             ImmutableMap.of(FlinkWriteOptions.WRITE_FORMAT.key(), "ORC"));
 
     if (initProperties.get(TableProperties.ORC_COMPRESSION) == null) {
-      Assert.assertEquals(
-          TableProperties.ORC_COMPRESSION_DEFAULT,
-          resultProperties.get(TableProperties.ORC_COMPRESSION));
-      Assert.assertEquals(
-          TableProperties.ORC_COMPRESSION_STRATEGY_DEFAULT,
-          resultProperties.get(TableProperties.ORC_COMPRESSION_STRATEGY));
+      assertThat(resultProperties)
+          .containsEntry(TableProperties.ORC_COMPRESSION, TableProperties.ORC_COMPRESSION_DEFAULT)
+          .satisfies(
+              props -> {
+                if (props.containsKey(TableProperties.ORC_COMPRESSION_STRATEGY)) {
+                  assertThat(props)
+                      .containsEntry(
+                          TableProperties.ORC_COMPRESSION_STRATEGY,
+                          TableProperties.ORC_COMPRESSION_STRATEGY_DEFAULT);
+                } else {
+                  assertThat(props).doesNotContainKey(TableProperties.ORC_COMPRESSION_STRATEGY);
+                }
+              });
     } else {
-      Assert.assertEquals(
-          initProperties.get(TableProperties.ORC_COMPRESSION),
-          resultProperties.get(TableProperties.ORC_COMPRESSION));
-      Assert.assertEquals(
-          initProperties.get(TableProperties.ORC_COMPRESSION_STRATEGY),
-          resultProperties.get(TableProperties.ORC_COMPRESSION_STRATEGY));
+      assertThat(resultProperties)
+          .containsEntry(
+              TableProperties.ORC_COMPRESSION, initProperties.get(TableProperties.ORC_COMPRESSION))
+          .satisfies(
+              props -> {
+                if (props.containsKey(TableProperties.ORC_COMPRESSION_STRATEGY)) {
+                  assertThat(props)
+                      .containsEntry(
+                          TableProperties.ORC_COMPRESSION_STRATEGY,
+                          initProperties.get(TableProperties.ORC_COMPRESSION_STRATEGY));
+                } else {
+                  assertThat(props).doesNotContainKey(TableProperties.ORC_COMPRESSION_STRATEGY);
+                }
+              });
     }
 
     // Override compression to snappy and a different strategy
@@ -203,8 +259,9 @@ public class TestCompressionSettings {
                 FlinkWriteOptions.COMPRESSION_STRATEGY.key(),
                 "speed"));
 
-    Assert.assertEquals("snappy", resultProperties.get(TableProperties.ORC_COMPRESSION));
-    Assert.assertEquals("speed", resultProperties.get(TableProperties.ORC_COMPRESSION_STRATEGY));
+    assertThat(resultProperties)
+        .containsEntry(TableProperties.ORC_COMPRESSION, "snappy")
+        .containsEntry(TableProperties.ORC_COMPRESSION_STRATEGY, "speed");
   }
 
   private static OneInputStreamOperatorTestHarness<RowData, WriteResult> createIcebergStreamWriter(
