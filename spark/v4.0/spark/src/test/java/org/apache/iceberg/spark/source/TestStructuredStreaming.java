@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import org.apache.hadoop.conf.Configuration;
@@ -116,7 +117,7 @@ public class TestStructuredStreaming {
 
       // remove the last commit to force Spark to reprocess batch #1
       File lastCommitFile = new File(checkpoint + "/commits/1");
-      assertThat(lastCommitFile.delete()).as("The commit file must be deleted").isTrue();
+      deleteFileAndCrc(lastCommitFile);
 
       // restart the query from the checkpoint
       StreamingQuery restartedQuery = streamWriter.start();
@@ -177,7 +178,7 @@ public class TestStructuredStreaming {
 
       // remove the last commit to force Spark to reprocess batch #1
       File lastCommitFile = new File(checkpoint + "/commits/1");
-      assertThat(lastCommitFile.delete()).as("The commit file must be deleted").isTrue();
+      deleteFileAndCrc(lastCommitFile);
 
       // restart the query from the checkpoint
       StreamingQuery restartedQuery = streamWriter.start();
@@ -238,7 +239,7 @@ public class TestStructuredStreaming {
 
       // remove the last commit to force Spark to reprocess batch #1
       File lastCommitFile = new File(checkpoint + "/commits/1");
-      assertThat(lastCommitFile.delete()).as("The commit file must be deleted").isTrue();
+      deleteFileAndCrc(lastCommitFile);
 
       // restart the query from the checkpoint
       StreamingQuery restartedQuery = streamWriter.start();
@@ -301,5 +302,13 @@ public class TestStructuredStreaming {
 
   private <T> void send(List<T> records, MemoryStream<T> stream) {
     stream.addData(JavaConverters.asScalaBuffer(records));
+  }
+
+  private void deleteFileAndCrc(File file) throws IOException {
+    File crcFile = new File(file.getParent(), "." + file.getName() + ".crc");
+    if (crcFile.exists()) {
+      assertThat(crcFile.delete()).as("CRC file must be deleted: " + crcFile.getPath()).isTrue();
+    }
+    assertThat(file.delete()).as("Commit file must be deleted: " + file.getPath()).isTrue();
   }
 }
