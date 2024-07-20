@@ -45,6 +45,8 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
   private static final Logger LOG = LoggerFactory.getLogger(ParallelIterable.class);
 
+  // Logic behind default value: ParallelIterable is often used for file planning.
+  // Assuming that a DataFile or DeleteFile is about 500 bytes, a 30k limit uses 14.3 MB of memory.
   private static final int DEFAULT_MAX_QUEUE_SIZE = 30_000;
 
   private final Iterable<? extends Iterable<T>> iterables;
