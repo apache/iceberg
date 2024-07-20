@@ -45,7 +45,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
   private static final Logger LOG = LoggerFactory.getLogger(ParallelIterable.class);
 
-  private static final int DEFAULT_MAX_QUEUE_SIZE = 10_000;
+  private static final int DEFAULT_MAX_QUEUE_SIZE = 30_000;
 
   private final Iterable<? extends Iterable<T>> iterables;
   private final ExecutorService workerPool;
@@ -127,7 +127,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         // clean queue
         this.queue.clear();
       } catch (IOException e) {
-        throw new RuntimeException("Close failed", e);
+        throw new UncheckedIOException("Close failed", e);
       }
     }
 
@@ -145,7 +145,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       for (int i = 0; i < taskFutures.length; i += 1) {
         if (taskFutures[i] == null || taskFutures[i].isDone()) {
           if (taskFutures[i] != null) {
-            // check for task failure and re-throw any exception
+            // check for task failure and re-throw any exception. Enqueue continuation if any.
             try {
               Optional<Task<T>> continuation = taskFutures[i].get();
               continuation.ifPresent(yieldedTasks::addLast);
@@ -257,8 +257,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
         while (iterator.hasNext()) {
           if (queue.size() >= approximateMaxQueueSize) {
-            // Yield. Stop execution so that the task can be resubmitted, in which case call() will
-            // be called again.
+            // Yield when queue is over the size limit. Task will be resubmitted later and continue the work.
             return Optional.of(this);
           }
 
@@ -286,7 +285,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       try {
         close();
       } catch (IOException e) {
-        throw new UncheckedIOException(e);
+        throw new UncheckedIOException("Close failed", e);
       }
 
       // The task is complete. Returning empty means there is no continuation that should be
