@@ -1753,4 +1753,35 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(scanTasks.get(0).file().path().toString()).isEqualTo("/path/to/delete1.parquet");
     assertThat(scanTasks.get(1).file().path().toString()).isEqualTo("/path/to/delete2.parquet");
   }
+
+  @TestTemplate
+  public void testFilesTableEstimateSize() throws Exception {
+    preparePartitionedTable(true);
+
+    assertEstimatedSize(new DataFilesTable(table));
+    assertEstimatedSize(new AllDataFilesTable(table));
+    assertEstimatedSize(new AllFilesTable(table));
+
+    if (formatVersion != 2) {
+      assertEstimatedSize(new DeleteFilesTable(table));
+      assertEstimatedSize(new AllDeleteFilesTable(table));
+    }
+  }
+
+  @TestTemplate
+  public void testEntriesTableEstimateSize() throws Exception {
+    preparePartitionedTable(true);
+
+    assertEstimatedSize(new ManifestEntriesTable(table));
+    assertEstimatedSize(new AllEntriesTable(table));
+  }
+
+  private void assertEstimatedSize(Table metadataTable) throws Exception {
+    TableScan scan = metadataTable.newScan();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      StreamSupport.stream(tasks.spliterator(), false)
+          .forEach(task -> assertThat(task.estimatedRowsCount()).isEqualTo(4));
+    }
+  }
 }
