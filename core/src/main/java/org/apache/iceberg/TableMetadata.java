@@ -564,6 +564,10 @@ public class TableMetadata implements Serializable {
     return new Builder(this).setDefaultPartitionSpec(newPartitionSpec).build();
   }
 
+  public TableMetadata addPartitionSpec(PartitionSpec newPartitionSpec) {
+    return new Builder(this).addPartitionSpec(newPartitionSpec).build();
+  }
+
   public TableMetadata replaceSortOrder(SortOrder newOrder) {
     return new Builder(this).setDefaultSortOrder(newOrder).build();
   }
