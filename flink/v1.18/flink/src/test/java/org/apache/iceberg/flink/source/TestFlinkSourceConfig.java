@@ -24,12 +24,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.flink.FlinkReadOptions;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestFlinkSourceConfig extends TestFlinkTableSource {
+public class TestFlinkSourceConfig extends TableSourceTestBase {
   private static final String TABLE = "test_table";
 
-  @Test
+  @TestTemplate
   public void testFlinkSessionConfig() {
     getTableEnv().getConfig().set(FlinkReadOptions.STREAMING_OPTION, true);
     assertThatThrownBy(() -> sql("SELECT * FROM %s /*+ OPTIONS('as-of-timestamp'='1')*/", TABLE))
@@ -37,7 +38,7 @@ public class TestFlinkSourceConfig extends TestFlinkTableSource {
         .hasMessage("Cannot set as-of-timestamp option for streaming reader");
   }
 
-  @Test
+  @TestTemplate
   public void testFlinkHintConfig() {
     List<Row> result =
         sql(
@@ -46,8 +47,11 @@ public class TestFlinkSourceConfig extends TestFlinkTableSource {
     assertThat(result).hasSize(3);
   }
 
-  @Test
+  @TestTemplate
   public void testReadOptionHierarchy() {
+    // TODO: FLIP-27 source doesn't implement limit pushdown yet
+    Assumptions.assumeFalse(useFlip27Source);
+
     getTableEnv().getConfig().set(FlinkReadOptions.LIMIT_OPTION, 1L);
     List<Row> result = sql("SELECT * FROM %s", TABLE);
     assertThat(result).hasSize(1);

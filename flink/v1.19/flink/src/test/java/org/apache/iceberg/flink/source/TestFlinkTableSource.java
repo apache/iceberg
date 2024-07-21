@@ -21,78 +21,16 @@ package org.apache.iceberg.flink.source;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.List;
-import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.table.api.SqlParserException;
-import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.events.Listeners;
-import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.flink.TestBase;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestFlinkTableSource extends TestBase {
+public class TestFlinkTableSource extends TableSourceTestBase {
 
-  private static final String CATALOG_NAME = "test_catalog";
-  private static final String DATABASE_NAME = "test_db";
-  private static final String TABLE_NAME = "test_table";
-  private final FileFormat format = FileFormat.AVRO;
-
-  private int scanEventCount = 0;
-  private ScanEvent lastScanEvent = null;
-
-  @Override
-  protected TableEnvironment getTableEnv() {
-    super.getTableEnv().getConfig().getConfiguration().set(CoreOptions.DEFAULT_PARALLELISM, 1);
-    return super.getTableEnv();
-  }
-
-  @BeforeEach
-  public void before() throws IOException {
-    // register a scan event listener to validate pushdown
-    Listeners.register(
-        event -> {
-          scanEventCount += 1;
-          lastScanEvent = event;
-        },
-        ScanEvent.class);
-
-    File warehouseFile = File.createTempFile("junit", null, temporaryDirectory.toFile());
-    assertThat(warehouseFile.delete()).isTrue();
-    String warehouse = String.format("file:%s", warehouseFile);
-
-    sql(
-        "CREATE CATALOG %s WITH ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
-        CATALOG_NAME, warehouse);
-    sql("USE CATALOG %s", CATALOG_NAME);
-    sql("CREATE DATABASE %s", DATABASE_NAME);
-    sql("USE %s", DATABASE_NAME);
-    sql(
-        "CREATE TABLE %s (id INT, data VARCHAR,d DOUBLE) WITH ('write.format.default'='%s')",
-        TABLE_NAME, format.name());
-    sql(
-        "INSERT INTO %s VALUES (1,'iceberg',10),(2,'b',20),(3,CAST(NULL AS VARCHAR),30)",
-        TABLE_NAME);
-
-    this.scanEventCount = 0;
-    this.lastScanEvent = null;
-  }
-
-  @AfterEach
-  public void clean() {
-    sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, TABLE_NAME);
-    dropDatabase(DATABASE_NAME, true);
-    dropCatalog(CATALOG_NAME, true);
-  }
-
-  @Test
+  @TestTemplate
   public void testLimitPushDown() {
 
     assertThatThrownBy(() -> sql("SELECT * FROM %s LIMIT -1", TABLE_NAME))
@@ -121,7 +59,7 @@ public class TestFlinkTableSource extends TestBase {
     assertThat(mixedResult).hasSize(1).first().isEqualTo(Row.of(1, "iceberg", 10.0));
   }
 
-  @Test
+  @TestTemplate
   public void testNoFilterPushDown() {
     String sql = String.format("SELECT * FROM %s ", TABLE_NAME);
     List<Row> result = sql(sql);
@@ -133,7 +71,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(Expressions.alwaysTrue());
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownEqual() {
     String sqlLiteralRight = String.format("SELECT * FROM %s WHERE id = 1 ", TABLE_NAME);
     String expectedFilter = "ref(name=\"id\") == 1";
@@ -147,7 +85,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownEqualNull() {
     String sqlEqualNull = String.format("SELECT * FROM %s WHERE data = NULL ", TABLE_NAME);
 
@@ -156,7 +94,7 @@ public class TestFlinkTableSource extends TestBase {
     assertThat(lastScanEvent).as("Should not push down a filter").isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownEqualLiteralOnLeft() {
     String sqlLiteralLeft = String.format("SELECT * FROM %s WHERE 1 = id ", TABLE_NAME);
     String expectedFilter = "ref(name=\"id\") == 1";
@@ -170,7 +108,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownNoEqual() {
     String sqlNE = String.format("SELECT * FROM %s WHERE id <> 1 ", TABLE_NAME);
     String expectedFilter = "ref(name=\"id\") != 1";
@@ -187,7 +125,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownNoEqualNull() {
     String sqlNotEqualNull = String.format("SELECT * FROM %s WHERE data <> NULL ", TABLE_NAME);
 
@@ -196,7 +134,7 @@ public class TestFlinkTableSource extends TestBase {
     assertThat(lastScanEvent).as("Should not push down a filter").isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownAnd() {
     String sqlAnd =
         String.format("SELECT * FROM %s WHERE id = 1 AND data = 'iceberg' ", TABLE_NAME);
@@ -211,7 +149,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownOr() {
     String sqlOr = String.format("SELECT * FROM %s WHERE id = 1 OR data = 'b' ", TABLE_NAME);
     String expectedFilter = "(ref(name=\"id\") == 1 or ref(name=\"data\") == \"b\")";
@@ -229,7 +167,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownGreaterThan() {
     String sqlGT = String.format("SELECT * FROM %s WHERE id > 1 ", TABLE_NAME);
     String expectedFilter = "ref(name=\"id\") > 1";
@@ -247,7 +185,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownGreaterThanNull() {
     String sqlGT = String.format("SELECT * FROM %s WHERE data > null ", TABLE_NAME);
 
@@ -256,7 +194,7 @@ public class TestFlinkTableSource extends TestBase {
     assertThat(lastScanEvent).as("Should not push down a filter").isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownGreaterThanLiteralOnLeft() {
     String sqlGT = String.format("SELECT * FROM %s WHERE 3 > id ", TABLE_NAME);
     String expectedFilter = "ref(name=\"id\") < 3";
@@ -274,7 +212,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownGreaterThanEqual() {
     String sqlGTE = String.format("SELECT * FROM %s WHERE id >= 2 ", TABLE_NAME);
     String expectedFilter = "ref(name=\"id\") >= 2";
@@ -292,7 +230,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownGreaterThanEqualNull() {
     String sqlGTE = String.format("SELECT * FROM %s WHERE data >= null ", TABLE_NAME);
 
@@ -301,7 +239,7 @@ public class TestFlinkTableSource extends TestBase {
     assertThat(lastScanEvent).as("Should not push down a filter").isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownGreaterThanEqualLiteralOnLeft() {
     String sqlGTE = String.format("SELECT * FROM %s WHERE 2 >= id ", TABLE_NAME);
     String expectedFilter = "ref(name=\"id\") <= 2";
@@ -319,7 +257,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownLessThan() {
     String sqlLT = String.format("SELECT * FROM %s WHERE id < 2 ", TABLE_NAME);
     String expectedFilter = "ref(name=\"id\") < 2";
@@ -334,7 +272,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownLessThanNull() {
     String sqlLT = String.format("SELECT * FROM %s WHERE data < null ", TABLE_NAME);
 
@@ -343,7 +281,7 @@ public class TestFlinkTableSource extends TestBase {
     assertThat(lastScanEvent).as("Should not push down a filter").isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownLessThanLiteralOnLeft() {
     String sqlLT = String.format("SELECT * FROM %s WHERE 2 < id ", TABLE_NAME);
     String expectedFilter = "ref(name=\"id\") > 2";
@@ -358,7 +296,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownLessThanEqual() {
     String sqlLTE = String.format("SELECT * FROM %s WHERE id <= 1 ", TABLE_NAME);
     String expectedFilter = "ref(name=\"id\") <= 1";
@@ -373,7 +311,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownLessThanEqualNull() {
     String sqlLTE = String.format("SELECT * FROM %s WHERE data <= null ", TABLE_NAME);
 
@@ -382,7 +320,7 @@ public class TestFlinkTableSource extends TestBase {
     assertThat(lastScanEvent).as("Should not push down a filter").isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownLessThanEqualLiteralOnLeft() {
     String sqlLTE = String.format("SELECT * FROM %s WHERE 3 <= id  ", TABLE_NAME);
     String expectedFilter = "ref(name=\"id\") >= 3";
@@ -397,7 +335,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownIn() {
     String sqlIN = String.format("SELECT * FROM %s WHERE id IN (1,2) ", TABLE_NAME);
     String expectedFilter = "(ref(name=\"id\") == 1 or ref(name=\"id\") == 2)";
@@ -413,7 +351,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownInNull() {
     String sqlInNull =
         String.format("SELECT * FROM %s WHERE data IN ('iceberg',NULL) ", TABLE_NAME);
@@ -430,7 +368,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedScan);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownNotIn() {
     String sqlNotIn = String.format("SELECT * FROM %s WHERE id NOT IN (3,2) ", TABLE_NAME);
 
@@ -444,7 +382,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedScan);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownNotInNull() {
     String sqlNotInNull = String.format("SELECT * FROM %s WHERE id NOT IN (1,2,NULL) ", TABLE_NAME);
     List<Row> resultGT = sql(sqlNotInNull);
@@ -455,7 +393,7 @@ public class TestFlinkTableSource extends TestBase {
         .isNull();
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownIsNotNull() {
     String sqlNotNull = String.format("SELECT * FROM %s WHERE data IS NOT NULL", TABLE_NAME);
     String expectedFilter = "not_null(ref(name=\"data\"))";
@@ -473,7 +411,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownIsNull() {
     String sqlNull = String.format("SELECT * FROM %s WHERE data IS  NULL", TABLE_NAME);
     String expectedFilter = "is_null(ref(name=\"data\"))";
@@ -488,7 +426,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownNot() {
     String sqlNot = String.format("SELECT * FROM %s WHERE NOT (id = 1 OR id = 2 ) ", TABLE_NAME);
 
@@ -503,7 +441,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownBetween() {
     String sqlBetween = String.format("SELECT * FROM %s WHERE id BETWEEN 1 AND 2 ", TABLE_NAME);
 
@@ -522,7 +460,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownNotBetween() {
     String sqlNotBetween =
         String.format("SELECT * FROM %s WHERE id  NOT BETWEEN 2 AND 3 ", TABLE_NAME);
@@ -538,7 +476,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedFilter);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDownLike() {
     String expectedFilter = "ref(name=\"data\") startsWith \"\"ice\"\"";
 
@@ -565,7 +503,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(expectedScan);
   }
 
-  @Test
+  @TestTemplate
   public void testFilterNotPushDownLike() {
     Row expectRecord = Row.of(1, "iceberg", 10.0);
     String sqlNoPushDown = "SELECT * FROM " + TABLE_NAME + " WHERE data LIKE '%%i' ";
@@ -604,7 +542,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(Expressions.alwaysTrue());
   }
 
-  @Test
+  @TestTemplate
   public void testFilterPushDown2Literal() {
     String sql2Literal = String.format("SELECT * FROM %s WHERE 1 > 0 ", TABLE_NAME);
     List<Row> result = sql(sql2Literal);
@@ -616,7 +554,7 @@ public class TestFlinkTableSource extends TestBase {
         .isEqualTo(Expressions.alwaysTrue());
   }
 
-  @Test
+  @TestTemplate
   public void testSqlParseNaN() {
     // todo add some test case to test NaN
   }
