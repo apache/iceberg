@@ -37,6 +37,7 @@ public class DataStatisticsCoordinatorProvider extends RecreateOnResetOperatorCo
   private final SortOrder sortOrder;
   private final int downstreamParallelism;
   private final StatisticsType type;
+  private final double closeFileCostWeightPercentage;
 
   public DataStatisticsCoordinatorProvider(
       String operatorName,
@@ -44,18 +45,26 @@ public class DataStatisticsCoordinatorProvider extends RecreateOnResetOperatorCo
       Schema schema,
       SortOrder sortOrder,
       int downstreamParallelism,
-      StatisticsType type) {
+      StatisticsType type,
+      double closeFileCostWeightPercentage) {
     super(operatorID);
     this.operatorName = operatorName;
     this.schema = schema;
     this.sortOrder = sortOrder;
     this.downstreamParallelism = downstreamParallelism;
     this.type = type;
+    this.closeFileCostWeightPercentage = closeFileCostWeightPercentage;
   }
 
   @Override
   public OperatorCoordinator getCoordinator(OperatorCoordinator.Context context) {
     return new DataStatisticsCoordinator(
-        operatorName, context, schema, sortOrder, downstreamParallelism, type);
+        operatorName,
+        context,
+        schema,
+        sortOrder,
+        downstreamParallelism,
+        type,
+        closeFileCostWeightPercentage);
   }
 }

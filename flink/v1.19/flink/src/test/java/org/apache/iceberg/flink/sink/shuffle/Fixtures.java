@@ -53,8 +53,10 @@ class Fixtures {
       new SortKeySerializer(SCHEMA, SORT_ORDER);
   public static final DataStatisticsSerializer TASK_STATISTICS_SERIALIZER =
       new DataStatisticsSerializer(SORT_KEY_SERIALIZER);
-  public static final AggregatedStatisticsSerializer AGGREGATED_STATISTICS_SERIALIZER =
-      new AggregatedStatisticsSerializer(SORT_KEY_SERIALIZER);
+  public static final GlobalStatisticsSerializer GLOBAL_STATISTICS_SERIALIZER =
+      new GlobalStatisticsSerializer(SORT_KEY_SERIALIZER);
+  public static final CompletedStatisticsSerializer COMPLETED_STATISTICS_SERIALIZER =
+      new CompletedStatisticsSerializer(SORT_KEY_SERIALIZER);
 
   public static final SortKey SORT_KEY = new SortKey(SCHEMA, SORT_ORDER);
   public static final Map<String, SortKey> CHAR_KEYS = createCharKeys();

@@ -53,7 +53,7 @@ public class TestSketchUtil {
   @Test
   public void testRangeBoundsOneChannel() {
     assertThat(
-            SketchUtil.determineBounds(
+            SketchUtil.rangeBounds(
                 1,
                 Fixtures.SORT_ORDER_COMPARTOR,
                 new SortKey[] {
@@ -70,7 +70,7 @@ public class TestSketchUtil {
   @Test
   public void testRangeBoundsDivisible() {
     assertThat(
-            SketchUtil.determineBounds(
+            SketchUtil.rangeBounds(
                 3,
                 Fixtures.SORT_ORDER_COMPARTOR,
                 new SortKey[] {
@@ -88,7 +88,7 @@ public class TestSketchUtil {
   public void testRangeBoundsNonDivisible() {
     // step is 3 = ceiling(11/4)
     assertThat(
-            SketchUtil.determineBounds(
+            SketchUtil.rangeBounds(
                 4,
                 Fixtures.SORT_ORDER_COMPARTOR,
                 new SortKey[] {
@@ -111,7 +111,7 @@ public class TestSketchUtil {
   public void testRangeBoundsSkipDuplicates() {
     // step is 3 = ceiling(11/4)
     assertThat(
-            SketchUtil.determineBounds(
+            SketchUtil.rangeBounds(
                 4,
                 Fixtures.SORT_ORDER_COMPARTOR,
                 new SortKey[] {

@@ -22,7 +22,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.function.Consumer;
-import org.apache.datasketches.sampling.ReservoirItemsSketch;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.StructLike;
 
@@ -90,37 +89,32 @@ class SketchUtil {
   /**
    * To understand how range bounds are used in range partitioning, here is an example for human
    * ages with 4 partitions: [15, 32, 60]. The 4 ranges would be
-   * <li>age <= 15
-   * <li>age > 15 && age <= 32
-   * <li>age >32 && age <= 60
-   * <li>age > 60
+   *
+   * <ul>
+   *   <li>age <= 15
+   *   <li>age > 15 && age <= 32
+   *   <li>age >32 && age <= 60
+   *   <li>age > 60
+   * </ul>
+   *
+   * <p>Assumption is that a single key is not dominant enough to span multiple subtasks.
    *
    * @param numPartitions number of partitions which maps to downstream operator parallelism
-   * @param sketch aggregated reservoir sampling sketch
-   * @return list of range partition bounds. It should be a sorted list (ascending). Number of items
-   *     should be {@code numPartitions - 1}. if numPartitions is 1, return an empty list
+   * @param samples sampled keys
+   * @return array of range partition bounds. It should be a sorted list (ascending). Number of
+   *     items should be {@code numPartitions - 1}. if numPartitions is 1, return an empty list
    */
   static SortKey[] rangeBounds(
-      int numPartitions, Comparator<StructLike> comparator, ReservoirItemsSketch<SortKey> sketch) {
-    SortKey[] sortKeys = sketch.getSamples();
-    return determineBounds(Math.min(numPartitions, sortKeys.length), comparator, sortKeys);
-  }
-
-  /**
-   * This assumes the sort keys have equal weight, which is usually the case for high-cardinality
-   * scenarios (like device_id, user_id, uuid etc.).
-   */
-  static SortKey[] determineBounds(
-      int numPartitions, Comparator<StructLike> comparator, SortKey[] sortKeys) {
+      int numPartitions, Comparator<StructLike> comparator, SortKey[] samples) {
     // sort the keys first
-    Arrays.sort(sortKeys, comparator);
+    Arrays.sort(samples, comparator);
     int numCandidates = numPartitions - 1;
     SortKey[] candidates = new SortKey[numCandidates];
-    int step = (int) Math.ceil((double) sortKeys.length / numPartitions);
+    int step = (int) Math.ceil((double) samples.length / numPartitions);
     int position = step - 1;
     int numChosen = 0;
-    while (position < sortKeys.length && numChosen < numCandidates) {
-      SortKey candidate = sortKeys[position];
+    while (position < samples.length && numChosen < numCandidates) {
+      SortKey candidate = samples[position];
       // skip duplicate values
       if (numChosen > 0 && candidate.equals(candidates[numChosen - 1])) {
         // linear probe for the next distinct value

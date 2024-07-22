@@ -30,11 +30,11 @@ import org.apache.flink.table.data.RowData;
 
 @Internal
 class StatisticsOrRecordSerializer extends TypeSerializer<StatisticsOrRecord> {
-  private final TypeSerializer<AggregatedStatistics> statisticsSerializer;
+  private final TypeSerializer<GlobalStatistics> statisticsSerializer;
   private final TypeSerializer<RowData> recordSerializer;
 
   StatisticsOrRecordSerializer(
-      TypeSerializer<AggregatedStatistics> statisticsSerializer,
+      TypeSerializer<GlobalStatistics> statisticsSerializer,
       TypeSerializer<RowData> recordSerializer) {
     this.statisticsSerializer = statisticsSerializer;
     this.recordSerializer = recordSerializer;
@@ -48,7 +48,7 @@ class StatisticsOrRecordSerializer extends TypeSerializer<StatisticsOrRecord> {
   @SuppressWarnings("ReferenceEquality")
   @Override
   public TypeSerializer<StatisticsOrRecord> duplicate() {
-    TypeSerializer<AggregatedStatistics> duplicateStatisticsSerializer =
+    TypeSerializer<GlobalStatistics> duplicateStatisticsSerializer =
         statisticsSerializer.duplicate();
     TypeSerializer<RowData> duplicateRowDataSerializer = recordSerializer.duplicate();
     if ((statisticsSerializer != duplicateStatisticsSerializer)
@@ -84,8 +84,7 @@ class StatisticsOrRecordSerializer extends TypeSerializer<StatisticsOrRecord> {
       to.record(record);
     } else {
       to = StatisticsOrRecord.reuseStatistics(reuse, statisticsSerializer);
-      AggregatedStatistics statistics =
-          statisticsSerializer.copy(from.statistics(), to.statistics());
+      GlobalStatistics statistics = statisticsSerializer.copy(from.statistics(), to.statistics());
       to.statistics(statistics);
     }
 
@@ -130,7 +129,7 @@ class StatisticsOrRecordSerializer extends TypeSerializer<StatisticsOrRecord> {
       to.record(record);
     } else {
       to = StatisticsOrRecord.reuseStatistics(reuse, statisticsSerializer);
-      AggregatedStatistics statistics = statisticsSerializer.deserialize(to.statistics(), source);
+      GlobalStatistics statistics = statisticsSerializer.deserialize(to.statistics(), source);
       to.statistics(statistics);
     }
 
@@ -200,8 +199,8 @@ class StatisticsOrRecordSerializer extends TypeSerializer<StatisticsOrRecord> {
     @Override
     protected StatisticsOrRecordSerializer createOuterSerializerWithNestedSerializers(
         TypeSerializer<?>[] nestedSerializers) {
-      TypeSerializer<AggregatedStatistics> statisticsSerializer =
-          (TypeSerializer<AggregatedStatistics>) nestedSerializers[0];
+      TypeSerializer<GlobalStatistics> statisticsSerializer =
+          (TypeSerializer<GlobalStatistics>) nestedSerializers[0];
       TypeSerializer<RowData> recordSerializer = (TypeSerializer<RowData>) nestedSerializers[1];
       return new StatisticsOrRecordSerializer(statisticsSerializer, recordSerializer);
     }

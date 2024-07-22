@@ -18,46 +18,43 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import java.io.Serializable;
 import java.util.Arrays;
-import java.util.Map;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * AggregatedStatistics is used by {@link DataStatisticsCoordinator} to collect {@link
- * DataStatistics} from {@link DataStatisticsOperator} subtasks for specific checkpoint. It stores
- * the merged {@link DataStatistics} result from all reported subtasks.
+ * This is used by {@link RangePartitioner} for guiding range partitioning. This is what is sent to
+ * the operator subtasks. For sketch statistics, it only contains much smaller range bounds than the
+ * complete raw samples.
  */
-class AggregatedStatistics implements Serializable {
+class GlobalStatistics {
   private final long checkpointId;
   private final StatisticsType type;
-  private final Map<SortKey, Long> keyFrequency;
+  private final MapAssignment mapAssignment;
   private final SortKey[] rangeBounds;
 
-  AggregatedStatistics(
-      long checkpointId,
-      StatisticsType type,
-      Map<SortKey, Long> keyFrequency,
-      SortKey[] rangeBounds) {
+  private transient Integer hashCode;
+
+  GlobalStatistics(
+      long checkpointId, StatisticsType type, MapAssignment mapAssignment, SortKey[] rangeBounds) {
     Preconditions.checkArgument(
-        (keyFrequency != null && rangeBounds == null)
-            || (keyFrequency == null && rangeBounds != null),
-        "Invalid key frequency or range bounds: both are non-null or null");
+        (mapAssignment != null && rangeBounds == null)
+            || (mapAssignment == null && rangeBounds != null),
+        "Invalid key assignment or range bounds: both are non-null or null");
     this.checkpointId = checkpointId;
     this.type = type;
-    this.keyFrequency = keyFrequency;
+    this.mapAssignment = mapAssignment;
     this.rangeBounds = rangeBounds;
   }
 
-  static AggregatedStatistics fromKeyFrequency(long checkpointId, Map<SortKey, Long> stats) {
-    return new AggregatedStatistics(checkpointId, StatisticsType.Map, stats, null);
+  static GlobalStatistics fromMapAssignment(long checkpointId, MapAssignment mapAssignment) {
+    return new GlobalStatistics(checkpointId, StatisticsType.Map, mapAssignment, null);
   }
 
-  static AggregatedStatistics fromRangeBounds(long checkpointId, SortKey[] stats) {
-    return new AggregatedStatistics(checkpointId, StatisticsType.Sketch, null, stats);
+  static GlobalStatistics fromRangeBounds(long checkpointId, SortKey[] rangeBounds) {
+    return new GlobalStatistics(checkpointId, StatisticsType.Sketch, null, rangeBounds);
   }
 
   @Override
@@ -65,7 +62,7 @@ class AggregatedStatistics implements Serializable {
     return MoreObjects.toStringHelper(this)
         .add("checkpointId", checkpointId)
         .add("type", type)
-        .add("keyFrequency", keyFrequency)
+        .add("mapAssignment", mapAssignment)
         .add("rangeBounds", rangeBounds)
         .toString();
   }
@@ -76,35 +73,42 @@ class AggregatedStatistics implements Serializable {
       return true;
     }
 
-    if (!(o instanceof AggregatedStatistics)) {
+    if (!(o instanceof GlobalStatistics)) {
       return false;
     }
 
-    AggregatedStatistics other = (AggregatedStatistics) o;
-    return Objects.equal(checkpointId, other.checkpointId())
-        && Objects.equal(type, other.type())
-        && Objects.equal(keyFrequency, other.keyFrequency())
+    GlobalStatistics other = (GlobalStatistics) o;
+    return Objects.equal(checkpointId, other.checkpointId)
+        && Objects.equal(type, other.type)
+        && Objects.equal(mapAssignment, other.mapAssignment())
         && Arrays.equals(rangeBounds, other.rangeBounds());
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(checkpointId, type, keyFrequency, rangeBounds);
+    // implemented caching because coordinator can call the hashCode many times.
+    // when subtasks request statistics refresh upon initialization for reconciliation purpose,
+    // hashCode is used to check if there is any difference btw coordinator and operator state.
+    if (hashCode == null) {
+      this.hashCode = Objects.hashCode(checkpointId, type, mapAssignment, rangeBounds);
+    }
+
+    return hashCode;
+  }
+
+  long checkpointId() {
+    return checkpointId;
   }
 
   StatisticsType type() {
     return type;
   }
 
-  Map<SortKey, Long> keyFrequency() {
-    return keyFrequency;
+  MapAssignment mapAssignment() {
+    return mapAssignment;
   }
 
   SortKey[] rangeBounds() {
     return rangeBounds;
-  }
-
-  long checkpointId() {
-    return checkpointId;
   }
 }
