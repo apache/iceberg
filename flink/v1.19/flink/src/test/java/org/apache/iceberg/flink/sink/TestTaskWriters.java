@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.table.data.RowData;
@@ -30,6 +33,9 @@ import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -39,69 +45,62 @@ import org.apache.iceberg.flink.data.RandomRowData;
 import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestTaskWriters {
   private static final Configuration CONF = new Configuration();
   private static final long TARGET_FILE_SIZE = 128 * 1024 * 1024;
 
-  @Rule public final TemporaryFolder tempFolder = new TemporaryFolder();
+  @TempDir protected java.nio.file.Path temporaryFolder;
 
-  @Parameterized.Parameters(name = "format = {0}, partitioned = {1}")
+  @Parameters(name = "format = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"avro", true},
-      {"avro", false},
-      {"orc", true},
-      {"orc", false},
-      {"parquet", true},
-      {"parquet", false}
+      {FileFormat.AVRO, true},
+      {FileFormat.AVRO, false},
+      {FileFormat.ORC, true},
+      {FileFormat.ORC, false},
+      {FileFormat.PARQUET, true},
+      {FileFormat.PARQUET, false}
     };
   }
 
-  private final FileFormat format;
-  private final boolean partitioned;
+  @Parameter(index = 0)
+  private FileFormat format;
+
+  @Parameter(index = 1)
+  private boolean partitioned;
 
   private Table table;
 
-  public TestTaskWriters(String format, boolean partitioned) {
-    this.format = FileFormat.fromString(format);
-    this.partitioned = partitioned;
-  }
-
-  @Before
+  @BeforeEach
   public void before() throws IOException {
-    File folder = tempFolder.newFolder();
+    File folder = Files.createTempDirectory(temporaryFolder, "junit").toFile();
     // Construct the iceberg table with the specified file format.
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
     table = SimpleDataUtil.createTable(folder.getAbsolutePath(), props, partitioned);
   }
 
-  @Test
+  @TestTemplate
   public void testWriteZeroRecord() throws IOException {
     try (TaskWriter<RowData> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
       taskWriter.close();
 
       DataFile[] dataFiles = taskWriter.dataFiles();
-      Assert.assertNotNull(dataFiles);
-      Assert.assertEquals(0, dataFiles.length);
+      assertThat(dataFiles).isNotNull().isEmpty();
 
       // Close again.
       taskWriter.close();
       dataFiles = taskWriter.dataFiles();
-      Assert.assertNotNull(dataFiles);
-      Assert.assertEquals(0, dataFiles.length);
+      assertThat(dataFiles).isNotNull().isEmpty();
     }
   }
 
-  @Test
+  @TestTemplate
   public void testCloseTwice() throws IOException {
     try (TaskWriter<RowData> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
       taskWriter.write(SimpleDataUtil.createRowData(1, "hello"));
@@ -111,16 +110,16 @@ public class TestTaskWriters {
 
       int expectedFiles = partitioned ? 2 : 1;
       DataFile[] dataFiles = taskWriter.dataFiles();
-      Assert.assertEquals(expectedFiles, dataFiles.length);
+      assertThat(dataFiles).hasSize(expectedFiles);
 
       FileSystem fs = FileSystem.get(CONF);
       for (DataFile dataFile : dataFiles) {
-        Assert.assertTrue(fs.exists(new Path(dataFile.path().toString())));
+        assertThat(fs.exists(new Path(dataFile.path().toString()))).isTrue();
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testAbort() throws IOException {
     try (TaskWriter<RowData> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
       taskWriter.write(SimpleDataUtil.createRowData(1, "hello"));
@@ -130,16 +129,16 @@ public class TestTaskWriters {
       DataFile[] dataFiles = taskWriter.dataFiles();
 
       int expectedFiles = partitioned ? 2 : 1;
-      Assert.assertEquals(expectedFiles, dataFiles.length);
+      assertThat(dataFiles).hasSize(expectedFiles);
 
       FileSystem fs = FileSystem.get(CONF);
       for (DataFile dataFile : dataFiles) {
-        Assert.assertFalse(fs.exists(new Path(dataFile.path().toString())));
+        assertThat(fs.exists(new Path(dataFile.path().toString()))).isFalse();
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testCompleteFiles() throws IOException {
     try (TaskWriter<RowData> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
       taskWriter.write(SimpleDataUtil.createRowData(1, "a"));
@@ -149,14 +148,14 @@ public class TestTaskWriters {
 
       DataFile[] dataFiles = taskWriter.dataFiles();
       int expectedFiles = partitioned ? 4 : 1;
-      Assert.assertEquals(expectedFiles, dataFiles.length);
+      assertThat(dataFiles).hasSize(expectedFiles);
 
       dataFiles = taskWriter.dataFiles();
-      Assert.assertEquals(expectedFiles, dataFiles.length);
+      assertThat(dataFiles).hasSize(expectedFiles);
 
       FileSystem fs = FileSystem.get(CONF);
       for (DataFile dataFile : dataFiles) {
-        Assert.assertTrue(fs.exists(new Path(dataFile.path().toString())));
+        assertThat(fs.exists(new Path(dataFile.path().toString()))).isTrue();
       }
 
       AppendFiles appendFiles = table.newAppend();
@@ -176,7 +175,7 @@ public class TestTaskWriters {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testRollingWithTargetFileSize() throws IOException {
     try (TaskWriter<RowData> taskWriter = createTaskWriter(4)) {
       List<RowData> rows = Lists.newArrayListWithCapacity(8000);
@@ -193,7 +192,7 @@ public class TestTaskWriters {
       }
 
       DataFile[] dataFiles = taskWriter.dataFiles();
-      Assert.assertEquals(8, dataFiles.length);
+      assertThat(dataFiles).hasSize(8);
 
       AppendFiles appendFiles = table.newAppend();
       for (DataFile dataFile : dataFiles) {
@@ -206,7 +205,7 @@ public class TestTaskWriters {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testRandomData() throws IOException {
     try (TaskWriter<RowData> taskWriter = createTaskWriter(TARGET_FILE_SIZE)) {
       Iterable<RowData> rows = RandomRowData.generate(SimpleDataUtil.SCHEMA, 100, 1996);

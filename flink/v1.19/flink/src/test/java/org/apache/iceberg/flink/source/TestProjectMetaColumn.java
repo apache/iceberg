@@ -18,13 +18,20 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
@@ -40,20 +47,19 @@ import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestProjectMetaColumn {
 
-  @Rule public final TemporaryFolder folder = new TemporaryFolder();
-  private final FileFormat format;
+  @TempDir protected Path temporaryFolder;
 
-  @Parameterized.Parameters(name = "fileFormat={0}")
+  @Parameter(index = 0)
+  private FileFormat format;
+
+  @Parameters(name = "fileFormat={0}")
   public static Iterable<Object[]> parameters() {
     return Lists.newArrayList(
         new Object[] {FileFormat.PARQUET},
@@ -61,13 +67,9 @@ public class TestProjectMetaColumn {
         new Object[] {FileFormat.AVRO});
   }
 
-  public TestProjectMetaColumn(FileFormat format) {
-    this.format = format;
-  }
-
   private void testSkipToRemoveMetaColumn(int formatVersion) throws IOException {
     // Create the table with given format version.
-    String location = folder.getRoot().getAbsolutePath();
+    String location = Files.createTempDirectory(temporaryFolder, "junit").toFile().toString();
     Table table =
         SimpleDataUtil.createTable(
             location,
@@ -89,7 +91,7 @@ public class TestProjectMetaColumn {
         input,
         rowData -> {
           // If project to remove the meta columns, it will get a RowDataProjection.
-          Assert.assertTrue(rowData instanceof GenericRowData);
+          assertThat(rowData).isInstanceOf(GenericRowData.class);
           results.add(TestHelpers.copyRowData(rowData, SimpleDataUtil.ROW_TYPE));
         });
 
@@ -97,20 +99,20 @@ public class TestProjectMetaColumn {
     TestHelpers.assertRows(rows, results, SimpleDataUtil.ROW_TYPE);
   }
 
-  @Test
+  @TestTemplate
   public void testV1SkipToRemoveMetaColumn() throws IOException {
     testSkipToRemoveMetaColumn(1);
   }
 
-  @Test
+  @TestTemplate
   public void testV2SkipToRemoveMetaColumn() throws IOException {
     testSkipToRemoveMetaColumn(2);
   }
 
-  @Test
+  @TestTemplate
   public void testV2RemoveMetaColumn() throws Exception {
     // Create the v2 table.
-    String location = folder.getRoot().getAbsolutePath();
+    String location = Files.createTempDirectory(temporaryFolder, "junit").toFile().toString();
     Table table =
         SimpleDataUtil.createTable(
             location, ImmutableMap.of(TableProperties.FORMAT_VERSION, "2"), false);
@@ -132,7 +134,7 @@ public class TestProjectMetaColumn {
         input,
         rowData -> {
           // If project to remove the meta columns, it will get a RowDataProjection.
-          Assert.assertTrue(rowData instanceof RowDataProjection);
+          assertThat(rowData).isInstanceOf(RowDataProjection.class);
           results.add(TestHelpers.copyRowData(rowData, SimpleDataUtil.ROW_TYPE));
         });
 
