@@ -93,7 +93,7 @@ public class TestHiveMetastore {
 
   // It's tricky to clear all static fields in an HMS instance in order to switch derby root dir.
   // Therefore, we reuse the same derby root between tests and remove it after JVM exits.
-  private static final File HIVE_LOCAL_DIR;
+  public static final File HIVE_LOCAL_DIR;
   private static final String DERBY_PATH;
 
   static {

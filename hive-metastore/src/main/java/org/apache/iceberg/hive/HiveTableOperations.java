@@ -167,7 +167,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     refreshFromMetadataLocation(metadataLocation, metadataRefreshMaxRetries);
   }
 
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  @SuppressWarnings({"checkstyle:CyclomaticComplexity", "MethodLength"})
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     boolean newTable = base == null;
@@ -191,6 +191,10 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
         if (newTable
             && tbl.getParameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP)
                 != null) {
+          if (tbl.getTableType().equalsIgnoreCase(TableType.VIRTUAL_VIEW.name())) {
+            throw new AlreadyExistsException(
+                "View with same name already exists: %s.%s", database, tableName);
+          }
           throw new AlreadyExistsException("Table already exists: %s.%s", database, tableName);
         }
 
