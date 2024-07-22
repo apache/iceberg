@@ -270,7 +270,7 @@ public interface Table {
   ReplacePartitions newReplacePartitions();
 
   /**
-   * Create a new {@link DeleteFiles delete API} to replace files in this table and commit.
+   * Create a new {@link DeleteFiles delete API} to delete files in this table and commit.
    *
    * @return a new {@link DeleteFiles}
    */
@@ -299,7 +299,7 @@ public interface Table {
   }
 
   /**
-   * Create a new {@link ExpireSnapshots expire API} to manage snapshots in this table and commit.
+   * Create a new {@link ExpireSnapshots expire API} to expire snapshots in this table and commit.
    *
    * @return a new {@link ExpireSnapshots}
    */
