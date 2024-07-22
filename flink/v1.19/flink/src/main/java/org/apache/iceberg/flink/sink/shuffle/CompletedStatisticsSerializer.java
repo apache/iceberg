@@ -35,17 +35,17 @@ import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.iceberg.SortKey;
 
-public class AggregatedStatisticsSerializer extends TypeSerializer<AggregatedStatistics> {
+class CompletedStatisticsSerializer extends TypeSerializer<CompletedStatistics> {
   private final TypeSerializer<SortKey> sortKeySerializer;
   private final EnumSerializer<StatisticsType> statisticsTypeSerializer;
   private final MapSerializer<SortKey, Long> keyFrequencySerializer;
-  private final ListSerializer<SortKey> rangeBoundsSerializer;
+  private final ListSerializer<SortKey> keySamplesSerializer;
 
-  AggregatedStatisticsSerializer(TypeSerializer<SortKey> sortKeySerializer) {
+  CompletedStatisticsSerializer(TypeSerializer<SortKey> sortKeySerializer) {
     this.sortKeySerializer = sortKeySerializer;
     this.statisticsTypeSerializer = new EnumSerializer<>(StatisticsType.class);
     this.keyFrequencySerializer = new MapSerializer<>(sortKeySerializer, LongSerializer.INSTANCE);
-    this.rangeBoundsSerializer = new ListSerializer<>(sortKeySerializer);
+    this.keySamplesSerializer = new ListSerializer<>(sortKeySerializer);
   }
 
   @Override
@@ -54,23 +54,23 @@ public class AggregatedStatisticsSerializer extends TypeSerializer<AggregatedSta
   }
 
   @Override
-  public TypeSerializer<AggregatedStatistics> duplicate() {
-    return new AggregatedStatisticsSerializer(sortKeySerializer);
+  public TypeSerializer<CompletedStatistics> duplicate() {
+    return new CompletedStatisticsSerializer(sortKeySerializer);
   }
 
   @Override
-  public AggregatedStatistics createInstance() {
-    return new AggregatedStatistics(0, StatisticsType.Map, Collections.emptyMap(), null);
+  public CompletedStatistics createInstance() {
+    return CompletedStatistics.fromKeyFrequency(0L, Collections.emptyMap());
   }
 
   @Override
-  public AggregatedStatistics copy(AggregatedStatistics from) {
-    return new AggregatedStatistics(
-        from.checkpointId(), from.type(), from.keyFrequency(), from.rangeBounds());
+  public CompletedStatistics copy(CompletedStatistics from) {
+    return new CompletedStatistics(
+        from.checkpointId(), from.type(), from.keyFrequency(), from.keySamples());
   }
 
   @Override
-  public AggregatedStatistics copy(AggregatedStatistics from, AggregatedStatistics reuse) {
+  public CompletedStatistics copy(CompletedStatistics from, CompletedStatistics reuse) {
     // no benefit of reuse
     return copy(from);
   }
@@ -81,35 +81,33 @@ public class AggregatedStatisticsSerializer extends TypeSerializer<AggregatedSta
   }
 
   @Override
-  public void serialize(AggregatedStatistics record, DataOutputView target) throws IOException {
+  public void serialize(CompletedStatistics record, DataOutputView target) throws IOException {
     target.writeLong(record.checkpointId());
     statisticsTypeSerializer.serialize(record.type(), target);
     if (record.type() == StatisticsType.Map) {
       keyFrequencySerializer.serialize(record.keyFrequency(), target);
     } else {
-      rangeBoundsSerializer.serialize(Arrays.asList(record.rangeBounds()), target);
+      keySamplesSerializer.serialize(Arrays.asList(record.keySamples()), target);
     }
   }
 
   @Override
-  public AggregatedStatistics deserialize(DataInputView source) throws IOException {
+  public CompletedStatistics deserialize(DataInputView source) throws IOException {
     long checkpointId = source.readLong();
     StatisticsType type = statisticsTypeSerializer.deserialize(source);
-    Map<SortKey, Long> keyFrequency = null;
-    SortKey[] rangeBounds = null;
     if (type == StatisticsType.Map) {
-      keyFrequency = keyFrequencySerializer.deserialize(source);
+      Map<SortKey, Long> keyFrequency = keyFrequencySerializer.deserialize(source);
+      return CompletedStatistics.fromKeyFrequency(checkpointId, keyFrequency);
     } else {
-      List<SortKey> sortKeys = rangeBoundsSerializer.deserialize(source);
-      rangeBounds = new SortKey[sortKeys.size()];
-      rangeBounds = sortKeys.toArray(rangeBounds);
+      List<SortKey> sortKeys = keySamplesSerializer.deserialize(source);
+      SortKey[] keySamples = new SortKey[sortKeys.size()];
+      keySamples = sortKeys.toArray(keySamples);
+      return CompletedStatistics.fromKeySamples(checkpointId, keySamples);
     }
-
-    return new AggregatedStatistics(checkpointId, type, keyFrequency, rangeBounds);
   }
 
   @Override
-  public AggregatedStatistics deserialize(AggregatedStatistics reuse, DataInputView source)
+  public CompletedStatistics deserialize(CompletedStatistics reuse, DataInputView source)
       throws IOException {
     // not much benefit to reuse
     return deserialize(source);
@@ -122,11 +120,15 @@ public class AggregatedStatisticsSerializer extends TypeSerializer<AggregatedSta
 
   @Override
   public boolean equals(Object obj) {
-    if (!(obj instanceof AggregatedStatisticsSerializer)) {
+    if (this == obj) {
+      return true;
+    }
+
+    if (obj == null || getClass() != obj.getClass()) {
       return false;
     }
 
-    AggregatedStatisticsSerializer other = (AggregatedStatisticsSerializer) obj;
+    CompletedStatisticsSerializer other = (CompletedStatisticsSerializer) obj;
     return Objects.equals(sortKeySerializer, other.sortKeySerializer);
   }
 
@@ -136,21 +138,20 @@ public class AggregatedStatisticsSerializer extends TypeSerializer<AggregatedSta
   }
 
   @Override
-  public TypeSerializerSnapshot<AggregatedStatistics> snapshotConfiguration() {
-    return new AggregatedStatisticsSerializerSnapshot(this);
+  public TypeSerializerSnapshot<CompletedStatistics> snapshotConfiguration() {
+    return new CompletedStatisticsSerializerSnapshot(this);
   }
 
-  public static class AggregatedStatisticsSerializerSnapshot
-      extends CompositeTypeSerializerSnapshot<
-          AggregatedStatistics, AggregatedStatisticsSerializer> {
+  public static class CompletedStatisticsSerializerSnapshot
+      extends CompositeTypeSerializerSnapshot<CompletedStatistics, CompletedStatisticsSerializer> {
     private static final int CURRENT_VERSION = 1;
 
     /** Constructor for read instantiation. */
     @SuppressWarnings({"unused", "checkstyle:RedundantModifier"})
-    public AggregatedStatisticsSerializerSnapshot() {}
+    public CompletedStatisticsSerializerSnapshot() {}
 
     @SuppressWarnings("checkstyle:RedundantModifier")
-    public AggregatedStatisticsSerializerSnapshot(AggregatedStatisticsSerializer serializer) {
+    public CompletedStatisticsSerializerSnapshot(CompletedStatisticsSerializer serializer) {
       super(serializer);
     }
 
@@ -161,15 +162,15 @@ public class AggregatedStatisticsSerializer extends TypeSerializer<AggregatedSta
 
     @Override
     protected TypeSerializer<?>[] getNestedSerializers(
-        AggregatedStatisticsSerializer outerSerializer) {
+        CompletedStatisticsSerializer outerSerializer) {
       return new TypeSerializer<?>[] {outerSerializer.sortKeySerializer};
     }
 
     @Override
-    protected AggregatedStatisticsSerializer createOuterSerializerWithNestedSerializers(
+    protected CompletedStatisticsSerializer createOuterSerializerWithNestedSerializers(
         TypeSerializer<?>[] nestedSerializers) {
       SortKeySerializer sortKeySerializer = (SortKeySerializer) nestedSerializers[0];
-      return new AggregatedStatisticsSerializer(sortKeySerializer);
+      return new CompletedStatisticsSerializer(sortKeySerializer);
     }
   }
 }
