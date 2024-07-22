@@ -259,7 +259,8 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
 
         while (iterator.hasNext()) {
           if (queue.size() >= approximateMaxQueueSize) {
-            // Yield when queue is over the size limit. Task will be resubmitted later and continue the work.
+            // Yield when queue is over the size limit. Task will be resubmitted later and continue
+            // the work.
             return Optional.of(this);
           }
 
