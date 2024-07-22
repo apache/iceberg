@@ -84,7 +84,7 @@ spark-hive35 = "3.5.1"
 spring-boot = "2.7.18"
 spring-web = "5.3.37"
 sqlite-jdbc = "3.46.0.0"
-testcontainers = "1.19.8"
+testcontainers = "1.20.0"
 tez010 = "0.10.3"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
