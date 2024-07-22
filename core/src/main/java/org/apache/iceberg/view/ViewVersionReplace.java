@@ -71,6 +71,8 @@ class ViewVersionReplace implements ReplaceViewVersion {
             .max(Integer::compareTo)
             .orElseGet(viewVersion::versionId);
 
+    this.schema = ViewUtil.assignFreshIds(base, schema);
+
     ViewVersion newVersion =
         ImmutableViewVersion.builder()
             .versionId(maxVersionId + 1)
