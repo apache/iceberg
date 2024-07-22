@@ -171,4 +171,29 @@ public interface Snapshot extends Serializable {
   default Integer schemaId() {
     return null;
   }
+
+  /**
+   * Return a {@link ManifestFile} for each data manifest in this snapshot which was added in
+   * addedSnapshotId
+   *
+   * @param io a {@link FileIO} instance used for reading files from storage
+   * @return a list of ManifestFile
+   */
+  default List<ManifestFile> dataManifests(FileIO io, Long addedSnapshotId) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement dataManifests(FileIO, Long)");
+  }
+
+  /**
+   * Return a {@link ManifestFile} for each delete manifest in this snapshot which was added in
+   * addedSnapshotId
+   *
+   * @param io a {@link FileIO} instance used for reading files from storage
+   * @param addedSnapshotId snapshot ID
+   * @return a list of ManifestFile
+   */
+  default List<ManifestFile> deleteManifests(FileIO io, Long addedSnapshotId) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement dataManifests(FileIO, Long)");
+  }
 }
