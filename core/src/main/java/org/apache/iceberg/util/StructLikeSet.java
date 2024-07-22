@@ -38,7 +38,7 @@ public class StructLikeSet extends AbstractSet<StructLike> implements Set<Struct
   private final Set<StructLikeWrapper> wrapperSet;
   private final ThreadLocal<StructLikeWrapper> wrappers;
 
-  private StructLikeSet(Types.StructType type) {
+  protected StructLikeSet(Types.StructType type) {
     this.type = type;
     this.wrapperSet = Sets.newHashSet();
     this.wrappers = ThreadLocal.withInitial(() -> StructLikeWrapper.forType(type));
