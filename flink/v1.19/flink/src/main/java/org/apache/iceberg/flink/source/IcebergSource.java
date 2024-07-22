@@ -28,6 +28,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Experimental;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.source.Boundedness;
 import org.apache.flink.api.connector.source.Source;
 import org.apache.flink.api.connector.source.SourceReader;
@@ -37,6 +39,10 @@ import org.apache.flink.api.connector.source.SplitEnumeratorContext;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
+import org.apache.flink.formats.avro.typeutils.GenericRecordAvroTypeInfo;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Preconditions;
@@ -44,6 +50,7 @@ import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadConf;
@@ -60,6 +67,7 @@ import org.apache.iceberg.flink.source.enumerator.ContinuousSplitPlannerImpl;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorState;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializer;
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
+import org.apache.iceberg.flink.source.reader.AvroGenericRecordReaderFunction;
 import org.apache.iceberg.flink.source.reader.ColumnStatsWatermarkExtractor;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
@@ -211,6 +219,27 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
   }
 
+  boolean shouldInferParallelism() {
+    return !scanContext.isStreaming();
+  }
+
+  int inferParallelism(ReadableConfig flinkConf, StreamExecutionEnvironment env) {
+    int parallelism =
+        SourceUtil.inferParallelism(
+            flinkConf,
+            scanContext.limit(),
+            () -> {
+              List<IcebergSourceSplit> splits = planSplitsForBatch(planningThreadName());
+              return splits.size();
+            });
+
+    if (env.getMaxParallelism() > 0) {
+      parallelism = Math.min(parallelism, env.getMaxParallelism());
+    }
+
+    return parallelism;
+  }
+
   public static <T> Builder<T> builder() {
     return new Builder<>();
   }
@@ -225,10 +254,13 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private SplitAssignerFactory splitAssignerFactory;
     private SerializableComparator<IcebergSourceSplit> splitComparator;
     private ReaderFunction<T> readerFunction;
+    private TypeInformation<T> outputTypeInfo;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
     private TableSchema projectedFlinkSchema;
     private Boolean exposeLocality;
+    private WatermarkStrategy<T> watermarkStrategy = WatermarkStrategy.noWatermarks();
+    private ScanContext context;
 
     private final Map<String, String> readOptions = Maps.newHashMap();
 
@@ -257,6 +289,15 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
     public Builder<T> readerFunction(ReaderFunction<T> newReaderFunction) {
       this.readerFunction = newReaderFunction;
+      return this;
+    }
+
+    /**
+     * Optional. Only provide if using custom reader function different from provided {@link
+     * RowDataReaderFunction} and {@link AvroGenericRecordReaderFunction}
+     */
+    public Builder<T> outputTypeInfo(TypeInformation<T> newOutputTypeInfo) {
+      this.outputTypeInfo = newOutputTypeInfo;
       return this;
     }
 
@@ -464,6 +505,15 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    /**
+     * Optional. Default is no watermark strategy. Only relevant if using the {@link
+     * Builder#buildStream(StreamExecutionEnvironment)}.
+     */
+    public Builder<T> watermarkStrategy(WatermarkStrategy<T> newStrategy) {
+      this.watermarkStrategy = newStrategy;
+      return this;
+    }
+
     /** @deprecated Use {@link #setAll} instead. */
     @Deprecated
     public Builder<T> properties(Map<String, String> properties) {
@@ -481,6 +531,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         }
       }
 
+      contextBuilder.exposeLocality(
+          SourceUtil.isLocalityEnabled(table, flinkConfig, exposeLocality));
       contextBuilder.resolveConfig(table, readOptions, flinkConfig);
       Schema icebergSchema = table.schema();
       if (projectedFlinkSchema != null) {
@@ -503,28 +555,10 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
             new OrderedSplitAssignerFactory(SplitComparators.watermark(watermarkExtractor));
       }
 
-      ScanContext context = contextBuilder.build();
+      this.context = contextBuilder.build();
       context.validate();
       if (readerFunction == null) {
-        if (table instanceof BaseMetadataTable) {
-          MetaDataReaderFunction rowDataReaderFunction =
-              new MetaDataReaderFunction(
-                  flinkConfig, table.schema(), context.project(), table.io(), table.encryption());
-          this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
-        } else {
-          RowDataReaderFunction rowDataReaderFunction =
-              new RowDataReaderFunction(
-                  flinkConfig,
-                  table.schema(),
-                  context.project(),
-                  context.nameMapping(),
-                  context.caseSensitive(),
-                  table.io(),
-                  table.encryption(),
-                  context.filters(),
-                  context.limit());
-          this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
-        }
+        this.readerFunction = defaultReaderFunction(table, context, flinkConfig);
       }
 
       if (splitAssignerFactory == null) {
@@ -544,6 +578,67 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
           splitComparator,
           table,
           emitter);
+    }
+
+    /**
+     * Build the {@link IcebergSource} and create a {@link DataStream} from the source.
+     *
+     * @return data stream from the Iceberg source
+     */
+    public DataStream<T> buildStream(StreamExecutionEnvironment env) {
+      IcebergSource<T> source = build();
+      // inferOutputTypeInfo depends on the ScanContext constructed by build() call above
+      if (outputTypeInfo == null) {
+        this.outputTypeInfo = inferOutputTypeInfo(table, context, readerFunction);
+      }
+
+      DataStreamSource<T> stream =
+          env.fromSource(source, watermarkStrategy, source.name(), outputTypeInfo);
+
+      if (source.shouldInferParallelism()) {
+        stream = stream.setParallelism(source.inferParallelism(flinkConfig, env));
+      }
+
+      return stream;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> ReaderFunction<T> defaultReaderFunction(
+        Table table, ScanContext context, ReadableConfig flinkConfig) {
+      if (table instanceof BaseMetadataTable) {
+        MetaDataReaderFunction rowDataReaderFunction =
+            new MetaDataReaderFunction(
+                flinkConfig, table.schema(), context.project(), table.io(), table.encryption());
+        return (ReaderFunction<T>) rowDataReaderFunction;
+      } else {
+        RowDataReaderFunction rowDataReaderFunction =
+            new RowDataReaderFunction(
+                flinkConfig,
+                table.schema(),
+                context.project(),
+                context.nameMapping(),
+                context.caseSensitive(),
+                table.io(),
+                table.encryption(),
+                context.filters(),
+                context.limit());
+        return (ReaderFunction<T>) rowDataReaderFunction;
+      }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> TypeInformation<T> inferOutputTypeInfo(
+        Table table, ScanContext context, ReaderFunction<T> readerFunction) {
+      if (readerFunction instanceof RowDataReaderFunction) {
+        return (TypeInformation<T>) TypeInformation.of(RowData.class);
+      } else if (readerFunction instanceof AvroGenericRecordReaderFunction) {
+        Schema readSchema = context.project() != null ? context.project() : table.schema();
+        org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(readSchema, table.name());
+        return (TypeInformation<T>) new GenericRecordAvroTypeInfo(avroSchema);
+      } else {
+        throw new IllegalStateException(
+            "Output type info must be provided for custom reader function");
+      }
     }
   }
 }

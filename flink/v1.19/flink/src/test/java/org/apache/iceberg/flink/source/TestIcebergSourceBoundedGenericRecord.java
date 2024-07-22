@@ -24,9 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.formats.avro.typeutils.GenericRecordAvroTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.types.logical.RowType;
@@ -178,11 +176,8 @@ public class TestIcebergSourceBoundedGenericRecord {
         AvroSchemaUtil.convert(readSchema, TestFixtures.TABLE_IDENTIFIER.name());
 
     DataStream<Row> stream =
-        env.fromSource(
-                sourceBuilder.build(),
-                WatermarkStrategy.noWatermarks(),
-                "testBasicRead",
-                new GenericRecordAvroTypeInfo(avroSchema))
+        sourceBuilder
+            .buildStream(env)
             // There are two reasons for converting GenericRecord back to Row.
             // 1. Avro GenericRecord/Schema is not serializable.
             // 2. leverage the TestHelpers.assertRecords for validation.
