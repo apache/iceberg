@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.source;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.tableRecords;
-import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Path;
@@ -57,12 +56,13 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkReadOptions;
-import org.apache.iceberg.flink.HadoopTableExtension;
+import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.sink.FlinkSink;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -90,17 +90,32 @@ public class TestIcebergSourceFailover {
   @TempDir protected Path temporaryFolder;
 
   @RegisterExtension
-  protected static final HadoopTableExtension SOURCE_TABLE_EXTENSION =
-      new HadoopTableExtension(DATABASE, TestFixtures.TABLE, TestFixtures.SCHEMA);
+  protected static final HadoopCatalogExtension SOURCE_CATALOG_EXTENSION =
+      new HadoopCatalogExtension(TestFixtures.DATABASE, TestFixtures.TABLE);
 
   @RegisterExtension
-  private static final HadoopTableExtension SINK_TABLE_EXTENSION =
-      new HadoopTableExtension(DATABASE, TestFixtures.SINK_TABLE, TestFixtures.SCHEMA);
+  protected static final HadoopCatalogExtension SINK_CATALOG_EXTENSION =
+      new HadoopCatalogExtension(TestFixtures.DATABASE, TestFixtures.SINK_TABLE);
+
+  protected Table sourceTable;
+  protected Table sinkTable;
+
+  @BeforeEach
+  protected void setupTable() {
+    this.sourceTable =
+        SOURCE_CATALOG_EXTENSION
+            .catalog()
+            .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+    this.sinkTable =
+        SINK_CATALOG_EXTENSION
+            .catalog()
+            .createTable(TestFixtures.SINK_TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+  }
 
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     Configuration config = new Configuration();
     return IcebergSource.forRowData()
-        .tableLoader(getSourceTableExtension().tableLoader())
+        .tableLoader(SOURCE_CATALOG_EXTENSION.tableLoader())
         .assignerFactory(new SimpleSplitAssignerFactory())
         // Prevent combining splits
         .set(
@@ -111,14 +126,6 @@ public class TestIcebergSourceFailover {
 
   protected Schema schema() {
     return TestFixtures.SCHEMA;
-  }
-
-  protected HadoopTableExtension getSourceTableExtension() {
-    return SOURCE_TABLE_EXTENSION;
-  }
-
-  protected HadoopTableExtension getSinkTableExtension() {
-    return SINK_TABLE_EXTENSION;
   }
 
   protected List<Record> generateRecords(int numRecords, long seed) {
@@ -134,10 +141,8 @@ public class TestIcebergSourceFailover {
   public void testBoundedWithSavepoint(@InjectClusterClient ClusterClient<?> clusterClient)
       throws Exception {
     List<Record> expectedRecords = Lists.newArrayList();
-    Table sinkTable = getSinkTableExtension().table();
     GenericAppenderHelper dataAppender =
-        new GenericAppenderHelper(
-            getSourceTableExtension().table(), FileFormat.PARQUET, temporaryFolder);
+        new GenericAppenderHelper(sourceTable, FileFormat.PARQUET, temporaryFolder);
     for (int i = 0; i < 4; ++i) {
       List<Record> records = generateRecords(2, i);
       expectedRecords.addAll(records);
@@ -191,8 +196,7 @@ public class TestIcebergSourceFailover {
       throws Exception {
     List<Record> expectedRecords = Lists.newArrayList();
     GenericAppenderHelper dataAppender =
-        new GenericAppenderHelper(
-            getSourceTableExtension().table(), FileFormat.PARQUET, temporaryFolder);
+        new GenericAppenderHelper(sourceTable, FileFormat.PARQUET, temporaryFolder);
     for (int i = 0; i < 4; ++i) {
       List<Record> records = generateRecords(2, i);
       expectedRecords.addAll(records);
@@ -209,7 +213,7 @@ public class TestIcebergSourceFailover {
     RecordCounterToWait.waitForCondition();
     triggerFailover(failoverType, jobId, RecordCounterToWait::continueProcessing, miniCluster);
 
-    assertRecords(getSinkTableExtension().table(), expectedRecords, Duration.ofSeconds(120));
+    assertRecords(sinkTable, expectedRecords, Duration.ofSeconds(120));
   }
 
   @Test
@@ -227,8 +231,7 @@ public class TestIcebergSourceFailover {
   private void testContinuousIcebergSource(FailoverType failoverType, MiniCluster miniCluster)
       throws Exception {
     GenericAppenderHelper dataAppender =
-        new GenericAppenderHelper(
-            getSourceTableExtension().table(), FileFormat.PARQUET, temporaryFolder);
+        new GenericAppenderHelper(sourceTable, FileFormat.PARQUET, temporaryFolder);
     List<Record> expectedRecords = Lists.newArrayList();
 
     List<Record> batch = generateRecords(2, 0);
@@ -256,8 +259,8 @@ public class TestIcebergSourceFailover {
     // exactly-once behavior. When Iceberg sink, we can verify end-to-end
     // exactly-once. Here we mainly about source exactly-once behavior.
     FlinkSink.forRowData(stream)
-        .table(getSinkTableExtension().table())
-        .tableLoader(getSinkTableExtension().tableLoader())
+        .table(sinkTable)
+        .tableLoader(SINK_CATALOG_EXTENSION.tableLoader())
         .append();
 
     JobClient jobClient = env.executeAsync("Continuous Iceberg Source Failover Test");
@@ -275,7 +278,7 @@ public class TestIcebergSourceFailover {
 
     // wait longer for continuous source to reduce flakiness
     // because CI servers tend to be overloaded.
-    assertRecords(getSinkTableExtension().table(), expectedRecords, Duration.ofSeconds(120));
+    assertRecords(sinkTable, expectedRecords, Duration.ofSeconds(120));
   }
 
   private void createBoundedStreams(StreamExecutionEnvironment env, int failAfter) {
@@ -295,8 +298,8 @@ public class TestIcebergSourceFailover {
     // exactly-once behavior. When Iceberg sink, we can verify end-to-end
     // exactly-once. Here we mainly about source exactly-once behavior.
     FlinkSink.forRowData(streamFailingInTheMiddleOfReading)
-        .table(getSinkTableExtension().table())
-        .tableLoader(getSinkTableExtension().tableLoader())
+        .table(sinkTable)
+        .tableLoader(SINK_CATALOG_EXTENSION.tableLoader())
         .append();
   }
 

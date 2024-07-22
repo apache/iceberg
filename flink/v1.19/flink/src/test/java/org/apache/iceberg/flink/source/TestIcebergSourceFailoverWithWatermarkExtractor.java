@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink.source;
 
-import static org.apache.iceberg.flink.TestFixtures.DATABASE;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -37,13 +35,12 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.FlinkReadOptions;
-import org.apache.iceberg.flink.HadoopTableExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.awaitility.Awaitility;
-import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.BeforeEach;
 
 public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIcebergSourceFailover {
   // Increment ts by 15 minutes for each generateRecords batch
@@ -53,19 +50,24 @@ public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIceberg
 
   private final AtomicLong tsMilli = new AtomicLong(System.currentTimeMillis());
 
-  @RegisterExtension
-  private static final HadoopTableExtension SOURCE_TABLE_EXTENSION =
-      new HadoopTableExtension(DATABASE, TestFixtures.TABLE, TestFixtures.TS_SCHEMA);
-
-  @RegisterExtension
-  private static final HadoopTableExtension SINK_TABLE_EXTENSION =
-      new HadoopTableExtension(DATABASE, TestFixtures.SINK_TABLE, TestFixtures.TS_SCHEMA);
+  @Override
+  @BeforeEach
+  protected void setupTable() {
+    this.sourceTable =
+        SOURCE_CATALOG_EXTENSION
+            .catalog()
+            .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.TS_SCHEMA);
+    this.sinkTable =
+        SINK_CATALOG_EXTENSION
+            .catalog()
+            .createTable(TestFixtures.SINK_TABLE_IDENTIFIER, TestFixtures.TS_SCHEMA);
+  }
 
   @Override
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     Configuration config = new Configuration();
     return IcebergSource.forRowData()
-        .tableLoader(getSourceTableExtension().tableLoader())
+        .tableLoader(SOURCE_CATALOG_EXTENSION.tableLoader())
         .watermarkColumn("ts")
         .project(TestFixtures.TS_SCHEMA)
         // Prevent combining splits
@@ -78,16 +80,6 @@ public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIceberg
   @Override
   protected Schema schema() {
     return TestFixtures.TS_SCHEMA;
-  }
-
-  @Override
-  protected HadoopTableExtension getSourceTableExtension() {
-    return SOURCE_TABLE_EXTENSION;
-  }
-
-  @Override
-  protected HadoopTableExtension getSinkTableExtension() {
-    return SINK_TABLE_EXTENSION;
   }
 
   @Override
