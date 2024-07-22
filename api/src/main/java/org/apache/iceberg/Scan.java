@@ -27,13 +27,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /**
  * Scan objects are immutable and can be shared between threads. Refinement methods, like {@link
- * #select(Collection)} and {@link #filter(Expression)}, create new TableScan instances.
+ * #select(Collection)} and {@link #filter(Expression)}, create new Scan instances.
  *
  * @param <ThisT> the child Java API class, returned by method chaining
  * @param <T> the Java type of tasks produces by this scan
  * @param <G> the Java type of task groups produces by this scan
  */
-public interface Scan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>> {
+public interface Scan<ThisT extends Scan, T extends ScanTask, G extends ScanTaskGroup<T>> {
   /**
    * Create a new scan from this scan's configuration that will override the {@link Table}'s
    * behavior based on the incoming pair. Unknown properties will be ignored.

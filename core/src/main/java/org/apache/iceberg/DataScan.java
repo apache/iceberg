@@ -21,7 +21,7 @@ package org.apache.iceberg;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
-abstract class DataScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
+abstract class DataScan<ThisT extends Scan, T extends ScanTask, G extends ScanTaskGroup<T>>
     extends SnapshotScan<ThisT, T, G> {
 
   protected DataScan(Table table, Schema schema, TableScanContext context) {

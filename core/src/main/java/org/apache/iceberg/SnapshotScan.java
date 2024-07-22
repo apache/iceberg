@@ -49,7 +49,8 @@ import org.slf4j.LoggerFactory;
  * @param <T> type of ScanTask returned
  * @param <G> type of ScanTaskGroup returned
  */
-public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
+public abstract class SnapshotScan<
+        ThisT extends Scan, T extends ScanTask, G extends ScanTaskGroup<T>>
     extends BaseScan<ThisT, T, G> {
 
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotScan.class);

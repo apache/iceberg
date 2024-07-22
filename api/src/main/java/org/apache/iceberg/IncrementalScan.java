@@ -19,7 +19,7 @@
 package org.apache.iceberg;
 
 /** API for configuring an incremental scan. */
-public interface IncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
+public interface IncrementalScan<ThisT extends Scan, T extends ScanTask, G extends ScanTaskGroup<T>>
     extends Scan<ThisT, T, G> {
   /**
    * Instructs this scan to look for changes starting from a particular snapshot (inclusive).

@@ -35,7 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
-abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
+abstract class BaseScan<ThisT extends Scan, T extends ScanTask, G extends ScanTaskGroup<T>>
     implements Scan<ThisT, T, G> {
 
   protected static final List<String> SCAN_COLUMNS =

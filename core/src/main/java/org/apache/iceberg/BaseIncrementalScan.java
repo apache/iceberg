@@ -24,7 +24,8 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SnapshotUtil;
 
-abstract class BaseIncrementalScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
+abstract class BaseIncrementalScan<
+        ThisT extends Scan, T extends ScanTask, G extends ScanTaskGroup<T>>
     extends BaseScan<ThisT, T, G> implements IncrementalScan<ThisT, T, G> {
 
   protected BaseIncrementalScan(Table table, Schema schema, TableScanContext context) {
