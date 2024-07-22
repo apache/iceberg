@@ -96,34 +96,15 @@ public class TestCompressionSettings {
     if (initProperties.get(TableProperties.AVRO_COMPRESSION) == null) {
       assertThat(resultProperties)
           .containsEntry(TableProperties.AVRO_COMPRESSION, TableProperties.AVRO_COMPRESSION_DEFAULT)
-          .satisfies(
-              props -> {
-                if (props.containsKey(TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT)) {
-                  assertThat(props)
-                      .containsEntry(
-                          TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT,
-                          TableProperties.AVRO_COMPRESSION_LEVEL);
-                } else {
-                  assertThat(props)
-                      .doesNotContainKey(TableProperties.AVRO_COMPRESSION_LEVEL_DEFAULT);
-                }
-              });
+          .doesNotContainKey(TableProperties.AVRO_COMPRESSION_LEVEL);
     } else {
       assertThat(resultProperties)
           .containsEntry(
               TableProperties.AVRO_COMPRESSION,
               initProperties.get(TableProperties.AVRO_COMPRESSION))
-          .satisfies(
-              props -> {
-                if (props.containsKey(TableProperties.AVRO_COMPRESSION_LEVEL)) {
-                  assertThat(props)
-                      .containsEntry(
-                          TableProperties.AVRO_COMPRESSION_LEVEL,
-                          initProperties.get(TableProperties.AVRO_COMPRESSION_LEVEL));
-                } else {
-                  assertThat(props).doesNotContainKey(TableProperties.AVRO_COMPRESSION_LEVEL);
-                }
-              });
+          .containsEntry(
+              TableProperties.AVRO_COMPRESSION_LEVEL,
+              initProperties.get(TableProperties.AVRO_COMPRESSION_LEVEL));
     }
 
     // Override compression to snappy and some random level
@@ -158,34 +139,15 @@ public class TestCompressionSettings {
           .containsEntry(
               TableProperties.PARQUET_COMPRESSION,
               TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0)
-          .satisfies(
-              props -> {
-                if (props.containsKey(TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0)) {
-                  assertThat(props)
-                      .containsEntry(
-                          TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0,
-                          TableProperties.PARQUET_COMPRESSION_LEVEL_DEFAULT);
-                } else {
-                  assertThat(props)
-                      .doesNotContainKey(TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
-                }
-              });
+          .doesNotContainKey(TableProperties.PARQUET_COMPRESSION_LEVEL);
     } else {
       assertThat(resultProperties)
           .containsEntry(
               TableProperties.PARQUET_COMPRESSION,
               initProperties.get(TableProperties.PARQUET_COMPRESSION))
-          .satisfies(
-              props -> {
-                if (props.containsKey(TableProperties.PARQUET_COMPRESSION_LEVEL)) {
-                  assertThat(props)
-                      .containsEntry(
-                          TableProperties.PARQUET_COMPRESSION_LEVEL,
-                          initProperties.get(TableProperties.PARQUET_COMPRESSION_LEVEL));
-                } else {
-                  assertThat(props).doesNotContainKey(TableProperties.PARQUET_COMPRESSION_LEVEL);
-                }
-              });
+          .containsEntry(
+              TableProperties.PARQUET_COMPRESSION_LEVEL,
+              initProperties.get(TableProperties.PARQUET_COMPRESSION_LEVEL));
     }
 
     // Override compression to snappy and some random level
@@ -218,32 +180,16 @@ public class TestCompressionSettings {
     if (initProperties.get(TableProperties.ORC_COMPRESSION) == null) {
       assertThat(resultProperties)
           .containsEntry(TableProperties.ORC_COMPRESSION, TableProperties.ORC_COMPRESSION_DEFAULT)
-          .satisfies(
-              props -> {
-                if (props.containsKey(TableProperties.ORC_COMPRESSION_STRATEGY)) {
-                  assertThat(props)
-                      .containsEntry(
-                          TableProperties.ORC_COMPRESSION_STRATEGY,
-                          TableProperties.ORC_COMPRESSION_STRATEGY_DEFAULT);
-                } else {
-                  assertThat(props).doesNotContainKey(TableProperties.ORC_COMPRESSION_STRATEGY);
-                }
-              });
+          .containsEntry(
+              TableProperties.ORC_COMPRESSION_STRATEGY,
+              TableProperties.ORC_COMPRESSION_STRATEGY_DEFAULT);
     } else {
       assertThat(resultProperties)
           .containsEntry(
               TableProperties.ORC_COMPRESSION, initProperties.get(TableProperties.ORC_COMPRESSION))
-          .satisfies(
-              props -> {
-                if (props.containsKey(TableProperties.ORC_COMPRESSION_STRATEGY)) {
-                  assertThat(props)
-                      .containsEntry(
-                          TableProperties.ORC_COMPRESSION_STRATEGY,
-                          initProperties.get(TableProperties.ORC_COMPRESSION_STRATEGY));
-                } else {
-                  assertThat(props).doesNotContainKey(TableProperties.ORC_COMPRESSION_STRATEGY);
-                }
-              });
+          .containsEntry(
+              TableProperties.ORC_COMPRESSION_STRATEGY,
+              initProperties.get(TableProperties.ORC_COMPRESSION_STRATEGY));
     }
 
     // Override compression to snappy and a different strategy
