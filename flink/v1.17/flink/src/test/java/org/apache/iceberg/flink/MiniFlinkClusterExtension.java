@@ -20,6 +20,7 @@ package org.apache.iceberg.flink;
 
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.CoreOptions;
+import org.apache.flink.runtime.testutils.InMemoryReporter;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 
@@ -48,6 +49,19 @@ public class MiniFlinkClusterExtension {
             .setNumberTaskManagers(DEFAULT_TM_NUM)
             .setNumberSlotsPerTaskManager(DEFAULT_PARALLELISM)
             .setConfiguration(DISABLE_CLASSLOADER_CHECK_CONFIG)
+            .build());
+  }
+
+  public static MiniClusterExtension createWithClassloaderCheckDisabled(
+      InMemoryReporter inMemoryReporter) {
+    Configuration configuration = new Configuration(DISABLE_CLASSLOADER_CHECK_CONFIG);
+    inMemoryReporter.addToConfiguration(configuration);
+
+    return new MiniClusterExtension(
+        new MiniClusterResourceConfiguration.Builder()
+            .setNumberTaskManagers(DEFAULT_TM_NUM)
+            .setNumberSlotsPerTaskManager(DEFAULT_PARALLELISM)
+            .setConfiguration(configuration)
             .build());
   }
 }

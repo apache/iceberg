@@ -33,8 +33,8 @@ import org.apache.iceberg.SortKey;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class TestDataStatisticsCoordinator {
   private static final String OPERATOR_NAME = "TestCoordinator";
@@ -52,7 +52,7 @@ public class TestDataStatisticsCoordinator {
   private DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>
       dataStatisticsCoordinator;
 
-  @Before
+  @BeforeEach
   public void before() throws Exception {
     receivingTasks = EventReceivingTasks.createForRunningTasks();
     dataStatisticsCoordinator =

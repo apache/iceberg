@@ -25,8 +25,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.types.Types;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class TestAggregatedStatisticsTracker {
   private static final int NUM_SUBTASKS = 2;
@@ -48,7 +48,7 @@ public class TestAggregatedStatisticsTracker {
     keyB.set(0, "b");
   }
 
-  @Before
+  @BeforeEach
   public void before() throws Exception {
     aggregatedStatisticsTracker =
         new AggregatedStatisticsTracker<>("testOperator", statisticsSerializer, NUM_SUBTASKS);
