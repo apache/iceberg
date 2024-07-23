@@ -70,6 +70,41 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
     return writer.length();
   }
 
+  static class V3Writer extends ManifestListWriter {
+    private final V3Metadata.IndexedManifestFile wrapper;
+
+    V3Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, long sequenceNumber) {
+      super(
+        snapshotFile,
+        ImmutableMap.of(
+          "snapshot-id", String.valueOf(snapshotId),
+          "parent-snapshot-id", String.valueOf(parentSnapshotId),
+          "sequence-number", String.valueOf(sequenceNumber),
+          "format-version", "3"));
+      this.wrapper = new V3Metadata.IndexedManifestFile(snapshotId, sequenceNumber);
+    }
+
+    @Override
+    protected ManifestFile prepare(ManifestFile manifest) {
+      return wrapper.wrap(manifest);
+    }
+
+    @Override
+    protected FileAppender<ManifestFile> newAppender(OutputFile file, Map<String, String> meta) {
+      try {
+        return Avro.write(file)
+          .schema(V3Metadata.MANIFEST_LIST_SCHEMA)
+          .named("manifest_file")
+          .meta(meta)
+          .overwrite()
+          .build();
+
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to create snapshot list writer for path: %s", file);
+      }
+    }
+  }
+
   static class V2Writer extends ManifestListWriter {
     private final V2Metadata.IndexedManifestFile wrapper;
 

@@ -1026,7 +1026,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scan);
 
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       // Four data and delete files of original spec, one data file written by new spec
       assertThat(entries).hasSize(9);
     } else {
