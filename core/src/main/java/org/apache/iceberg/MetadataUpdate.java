@@ -19,9 +19,11 @@
 package org.apache.iceberg;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewVersion;
@@ -162,6 +164,23 @@ public interface MetadataUpdate extends Serializable {
     @Override
     public void applyTo(TableMetadata.Builder metadataBuilder) {
       metadataBuilder.setDefaultPartitionSpec(specId);
+    }
+  }
+
+  class SetPartitionSpecs implements MetadataUpdate {
+    private final List<Integer> specIds;
+
+    public SetPartitionSpecs(List<Integer> specIds) {
+      this.specIds = specIds;
+    }
+
+    public List<Integer> specIds() {
+      return ImmutableList.copyOf(specIds);
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      throw new UnsupportedOperationException("Cannot apply setPartitionSpecs in a table handler");
     }
   }
 

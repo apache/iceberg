@@ -18,15 +18,15 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestRemoveUnusedSpecs extends TestBase {
 
-  @Test
+  @TestTemplate
   public void testRemoveAllButCurrent() {
     table
         .updateSchema()
@@ -37,50 +37,17 @@ public class TestRemoveUnusedSpecs extends TestBase {
     table.updateSpec().addField("ts").commit();
     table.updateSpec().addField("category").commit();
     table.updateSpec().addField("data").commit();
-    Assert.assertEquals(5, table.specs().size());
+    assertThat(table.specs().size()).as("added specs should be present").isEqualTo(5);
 
     PartitionSpec currentSpec = table.spec();
     table.removeUnusedSpecs().commit();
 
-    Assert.assertEquals(1, table.specs().size());
-    Assert.assertEquals(currentSpec, table.spec());
+    assertThat(table.specs().size()).as("all but current spec should be removed").isEqualTo(1);
+    assertThat(table.spec()).as("current spec shall not change").isEqualTo(currentSpec);
   }
 
-  @Test
-  public void testDontRemoveInUseSpecsV2() {
-    Assume.assumeTrue("V2", formatVersion == 2);
-
-    table
-        .updateSchema()
-        .addColumn("ts", Types.LongType.get())
-        .addColumn("category", Types.StringType.get())
-        .commit();
-
-    table.updateSpec().addField("id").commit(); // 1
-    table.newAppend().appendFile(newDataFile("data_bucket=0/id=5")).commit();
-
-    table.updateSpec().addField("ts").commit(); // 2
-
-    table.updateSpec().addField("category").commit(); // 3
-    table
-        .newRowDelta()
-        .addDeletes(newDeleteFile(table.spec().specId(), "data_bucket=0/id=5/ts=100/category=fo"))
-        .commit();
-
-    table.updateSpec().addField("data").commit(); // 4
-    Assert.assertEquals(5, table.specs().size());
-
-    PartitionSpec currentSpec = table.spec();
-    table.removeUnusedSpecs().commit();
-
-    Assert.assertEquals("Missing required spec", ImmutableSet.of(1, 3, 4), table.specs().keySet());
-    Assert.assertEquals(currentSpec, table.spec());
-  }
-
-  @Test
+  @TestTemplate
   public void testDontRemoveInUseSpecs() {
-    Assume.assumeTrue("V2", formatVersion == 2);
-
     table
         .updateSchema()
         .addColumn("ts", Types.LongType.get())
@@ -93,15 +60,27 @@ public class TestRemoveUnusedSpecs extends TestBase {
     table.updateSpec().addField("ts").commit(); // 2
 
     table.updateSpec().addField("category").commit(); // 3
-    table.newAppend().appendFile(newDataFile("data_bucket=0/id=5/ts=100/category=fo")).commit();
+    if (formatVersion == 1) {
+      table.newAppend().appendFile(newDataFile("data_bucket=0/id=5/ts=100/category=fo")).commit();
+    } else {
+      table
+          .newRowDelta()
+          .addDeletes(newDeleteFile(table.spec().specId(), "data_bucket=0/id=5/ts=100/category=fo"))
+          .commit();
+    }
 
     table.updateSpec().addField("data").commit(); // 4
-    Assert.assertEquals(5, table.specs().size());
+    V1Assert.assertEquals("Added specs should present", 5, table.specs().size());
+    V2Assert.assertEquals("Added specs should present", 5, table.specs().size());
 
     PartitionSpec currentSpec = table.spec();
     table.removeUnusedSpecs().commit();
 
-    Assert.assertEquals("Missing required spec", ImmutableSet.of(1, 3, 4), table.specs().keySet());
-    Assert.assertEquals(currentSpec, table.spec());
+    V1Assert.assertEquals(
+        "Missing required spec", ImmutableSet.of(1, 3, 4), table.specs().keySet());
+    V2Assert.assertEquals(
+        "Missing required spec", ImmutableSet.of(1, 3, 4), table.specs().keySet());
+    V1Assert.assertEquals("Current spec shall not change", currentSpec, table.spec());
+    V2Assert.assertEquals("Current spec shall not change", currentSpec, table.spec());
   }
 }

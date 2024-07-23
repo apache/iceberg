@@ -396,5 +396,9 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     public Iterable<FileScanTask> split(long splitSize) {
       return ImmutableList.of(this); // don't split
     }
+
+    int partitionSpecId() {
+      return manifest.partitionSpecId();
+    }
   }
 }

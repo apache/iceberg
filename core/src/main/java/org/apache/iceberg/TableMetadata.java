@@ -597,37 +597,16 @@ public class TableMetadata implements Serializable {
         .build();
   }
 
+  // it's not safe for external client to call this directly, must be called by
+  // `Table.removeUnusedSpecs()`.
+  TableMetadata withSpecs(List<Integer> specIds) {
+    return new Builder(this).setSpecs(specIds).build();
+  }
+
   private void validateCurrentSnapshot() {
     Preconditions.checkArgument(
         currentSnapshotId < 0 || snapshotsById.containsKey(currentSnapshotId),
         "Invalid table metadata: Cannot find current version");
-  }
-
-  /**
-   * Only use when it has been externally validated that the new specs completely cover all
-   * currently referencable data files.
-   */
-  TableMetadata withSpecs(List<PartitionSpec> newSpecs) {
-    return new TableMetadata(
-        null,
-        formatVersion,
-        uuid,
-        location,
-        lastSequenceNumber,
-        System.currentTimeMillis(),
-        lastColumnId,
-        currentSchemaId,
-        schemas,
-        defaultSpecId,
-        newSpecs,
-        lastAssignedPartitionId,
-        defaultSortOrderId,
-        sortOrders,
-        properties,
-        currentSnapshotId,
-        snapshots,
-        snapshotLog,
-        changes);
   }
 
   private PartitionSpec reassignPartitionIds(PartitionSpec partitionSpec, TypeUtil.NextID nextID) {
@@ -1126,6 +1105,29 @@ public class TableMetadata implements Serializable {
         changes.add(new MetadataUpdate.SetDefaultPartitionSpec(specId));
       }
 
+      return this;
+    }
+
+    // it's not safe for external caller to set specs directly, it must be called(indirectly) by
+    // `table.removeUnusedSpecs()`.
+    private Builder setSpecs(List<Integer> specIds) {
+      Preconditions.checkArgument(changes.isEmpty(), "Cannot set specs with other changes");
+      List<PartitionSpec> toSetSpecs =
+          specIds.stream().map(specsById::get).collect(Collectors.toList());
+      if (this.specs.equals(toSetSpecs)) {
+        // not changed
+        return this;
+      }
+      // rebuilt all the specs with current schema.
+      Schema currentSchema = schemasById.get(currentSchemaId);
+      this.specs =
+          Lists.newArrayList(
+              Iterables.transform(toSetSpecs, spec -> updateSpecSchema(currentSchema, spec)));
+      specsById.clear();
+      specsById.putAll(indexSpecs(toSetSpecs));
+      Preconditions.checkArgument(
+          specsById.containsKey(defaultSpecId), "Cannot set specs without default spec");
+      changes.add(new MetadataUpdate.SetPartitionSpecs(specIds));
       return this;
     }
 

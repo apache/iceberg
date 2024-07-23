@@ -81,11 +81,12 @@ public class BaseRemoveUnusedSpecs implements RemoveUnusedSpecs {
                 MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.ALL_ENTRIES)
                     .newScan()
                     .planFiles(),
-                fileScanTask -> fileScanTask.spec().specId()));
+                task -> ((BaseEntriesTable.ManifestReadTask) task).partitionSpecId()));
 
-    List<PartitionSpec> remainingSpecs =
+    List<Integer> remainingSpecs =
         specs.stream()
             .filter(spec -> spec.specId() == currentSpecId || specsInUse.contains(spec.specId()))
+            .map(PartitionSpec::specId)
             .collect(Collectors.toList());
 
     return current.withSpecs(remainingSpecs);
