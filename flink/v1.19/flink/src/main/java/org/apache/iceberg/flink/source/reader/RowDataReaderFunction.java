@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.source.reader;
 
 import java.util.List;
-import javax.annotation.Nullable;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
@@ -97,7 +96,7 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
         split.task(),
         io,
         encryption,
-        recordLimiter());
+        lazyLimiter());
   }
 
   private static Schema readSchema(Schema tableSchema, Schema projectedSchema) {
@@ -105,9 +104,9 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
     return projectedSchema == null ? tableSchema : projectedSchema;
   }
 
-  @Nullable
-  private RecordLimiter recordLimiter() {
-    if (limit > 0 && recordLimiter == null) {
+  /** Lazily create RecordLimiter to avoid the need to make it serializable */
+  private RecordLimiter lazyLimiter() {
+    if (recordLimiter == null) {
       this.recordLimiter = RecordLimiter.create(limit);
     }
 

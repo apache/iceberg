@@ -19,31 +19,27 @@
 package org.apache.iceberg.flink.source.reader;
 
 import java.util.concurrent.atomic.AtomicLong;
-import javax.annotation.Nullable;
 import org.apache.flink.annotation.Internal;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 @Internal
 class RecordLimiter {
   private final long limit;
   private final AtomicLong counter;
 
+  static RecordLimiter create(long limit) {
+    return new RecordLimiter(limit);
+  }
+
   private RecordLimiter(long limit) {
-    Preconditions.checkArgument(limit > 0, "Invalid limit: not a positive number");
     this.limit = limit;
     this.counter = new AtomicLong(0);
   }
 
-  public boolean reachLimit() {
-    return counter.get() >= limit;
+  public boolean reachedLimit() {
+    return limit > 0 && counter.get() >= limit;
   }
 
   public void increment() {
     counter.incrementAndGet();
-  }
-
-  @Nullable
-  static RecordLimiter create(long limit) {
-    return limit <= 0 ? null : new RecordLimiter(limit);
   }
 }

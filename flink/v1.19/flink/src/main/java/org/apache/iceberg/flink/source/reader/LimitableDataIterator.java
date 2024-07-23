@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
-import javax.annotation.Nullable;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.FileScanTaskReader;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class LimitableDataIterator<T> extends DataIterator<T> {
   private final RecordLimiter limiter;
@@ -33,14 +33,15 @@ class LimitableDataIterator<T> extends DataIterator<T> {
       CombinedScanTask task,
       FileIO io,
       EncryptionManager encryption,
-      @Nullable RecordLimiter limiter) {
+      RecordLimiter limiter) {
     super(fileScanTaskReader, task, io, encryption);
+    Preconditions.checkArgument(limiter != null, "Invalid record limiter:  null");
     this.limiter = limiter;
   }
 
   @Override
   public boolean hasNext() {
-    if (limiter != null && limiter.reachLimit()) {
+    if (limiter.reachedLimit()) {
       return false;
     }
 
@@ -49,10 +50,7 @@ class LimitableDataIterator<T> extends DataIterator<T> {
 
   @Override
   public T next() {
-    if (limiter != null) {
-      limiter.increment();
-    }
-
+    limiter.increment();
     return super.next();
   }
 }

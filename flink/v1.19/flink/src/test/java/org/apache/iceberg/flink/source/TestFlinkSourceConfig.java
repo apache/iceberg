@@ -50,6 +50,8 @@ public class TestFlinkSourceConfig extends TableSourceTestBase {
   public void testReadOptionHierarchy() {
     getTableEnv().getConfig().set(FlinkReadOptions.LIMIT_OPTION, 1L);
     List<Row> result = sql("SELECT * FROM %s", TABLE);
+    // This assertions works because limit is pushed down to the reader and
+    // reader parallelism is 1.
     assertThat(result).hasSize(1);
 
     result = sql("SELECT * FROM %s /*+ OPTIONS('limit'='3')*/", TABLE);
