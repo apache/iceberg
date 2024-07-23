@@ -20,8 +20,6 @@ package org.apache.iceberg.connect;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.CatalogProperties;
@@ -36,10 +34,6 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.testcontainers.containers.ComposeContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3Client;
 
 public class TestContext {
 
@@ -50,7 +44,6 @@ public class TestContext {
   private static final int MINIO_PORT = 9000;
   private static final int CATALOG_PORT = 8181;
   private static final String BOOTSTRAP_SERVERS = "localhost:29092";
-  private static final String BUCKET = "bucket";
   private static final String AWS_ACCESS_KEY = "minioadmin";
   private static final String AWS_SECRET_KEY = "minioadmin";
   private static final String AWS_REGION = "us-east-1";
@@ -60,10 +53,6 @@ public class TestContext {
         new ComposeContainer(new File("./docker/docker-compose.yml"))
             .waitingFor("connect", Wait.forHttp("/connectors"));
     container.start();
-
-    try (S3Client s3 = initLocalS3Client()) {
-      s3.createBucket(req -> req.bucket(BUCKET));
-    }
   }
 
   public void startConnector(KafkaConnectUtils.Config config) {
@@ -73,21 +62,6 @@ public class TestContext {
 
   public void stopConnector(String name) {
     KafkaConnectUtils.stopConnector(name);
-  }
-
-  public S3Client initLocalS3Client() {
-    try {
-      return S3Client.builder()
-          .endpointOverride(new URI("http://localhost:" + MINIO_PORT))
-          .region(Region.of(AWS_REGION))
-          .forcePathStyle(true)
-          .credentialsProvider(
-              StaticCredentialsProvider.create(
-                  AwsBasicCredentials.create(AWS_ACCESS_KEY, AWS_SECRET_KEY)))
-          .build();
-    } catch (URISyntaxException e) {
-      throw new RuntimeException(e);
-    }
   }
 
   public Catalog initLocalCatalog() {

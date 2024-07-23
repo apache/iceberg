@@ -41,12 +41,10 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.assertj.core.api.Condition;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import software.amazon.awssdk.services.s3.S3Client;
 
 public class IntegrationTestBase {
 
   private final TestContext context = TestContext.INSTANCE;
-  private S3Client s3;
   private Catalog catalog;
   private Admin admin;
   private String connectorName;
@@ -60,16 +58,8 @@ public class IntegrationTestBase {
     return context;
   }
 
-  protected S3Client s3() {
-    return s3;
-  }
-
   protected Catalog catalog() {
     return catalog;
-  }
-
-  protected Admin admin() {
-    return admin;
   }
 
   protected String connectorName() {
@@ -82,7 +72,6 @@ public class IntegrationTestBase {
 
   @BeforeEach
   public void baseBefore() {
-    s3 = context.initLocalS3Client();
     catalog = context.initLocalCatalog();
     producer = context.initLocalProducer();
     admin = context.initLocalAdmin();
@@ -102,7 +91,6 @@ public class IntegrationTestBase {
     }
     producer.close();
     admin.close();
-    s3.close();
   }
 
   protected void assertSnapshotProps(TableIdentifier tableIdentifier, String branch) {
