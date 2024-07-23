@@ -217,7 +217,10 @@ public interface Table {
    *
    * @return a new {@link RemoveUnusedSpecs}
    */
-  RemoveUnusedSpecs removeUnusedSpecs();
+  default RemoveUnusedSpecs removeUnusedSpecs() {
+    throw new UnsupportedOperationException(
+        "Removing unused partition specs is not supported by " + getClass().getName());
+  }
 
   /**
    * Create a new {@link AppendFiles append API} to add files to this table and commit.
