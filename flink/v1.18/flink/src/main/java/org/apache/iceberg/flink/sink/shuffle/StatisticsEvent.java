@@ -27,24 +27,39 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
  * statistics in bytes
  */
 @Internal
-class DataStatisticsEvent<D extends DataStatistics<D, S>, S> implements OperatorEvent {
+class StatisticsEvent implements OperatorEvent {
 
   private static final long serialVersionUID = 1L;
   private final long checkpointId;
   private final byte[] statisticsBytes;
+  private final boolean applyImmediately;
 
-  private DataStatisticsEvent(long checkpointId, byte[] statisticsBytes) {
+  private StatisticsEvent(long checkpointId, byte[] statisticsBytes, boolean applyImmediately) {
     this.checkpointId = checkpointId;
     this.statisticsBytes = statisticsBytes;
+    this.applyImmediately = applyImmediately;
   }
 
-  static <D extends DataStatistics<D, S>, S> DataStatisticsEvent<D, S> create(
+  static StatisticsEvent createTaskStatisticsEvent(
       long checkpointId,
-      DataStatistics<D, S> dataStatistics,
-      TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
-    return new DataStatisticsEvent<>(
+      DataStatistics statistics,
+      TypeSerializer<DataStatistics> statisticsSerializer) {
+    // applyImmediately is really only relevant for coordinator to operator event.
+    // task reported statistics is always merged immediately by the coordinator.
+    return new StatisticsEvent(
         checkpointId,
-        DataStatisticsUtil.serializeDataStatistics(dataStatistics, statisticsSerializer));
+        StatisticsUtil.serializeDataStatistics(statistics, statisticsSerializer),
+        true);
+  }
+
+  static StatisticsEvent createGlobalStatisticsEvent(
+      GlobalStatistics statistics,
+      TypeSerializer<GlobalStatistics> statisticsSerializer,
+      boolean applyImmediately) {
+    return new StatisticsEvent(
+        statistics.checkpointId(),
+        StatisticsUtil.serializeGlobalStatistics(statistics, statisticsSerializer),
+        applyImmediately);
   }
 
   long checkpointId() {
@@ -53,5 +68,9 @@ class DataStatisticsEvent<D extends DataStatistics<D, S>, S> implements Operator
 
   byte[] statisticsBytes() {
     return statisticsBytes;
+  }
+
+  boolean applyImmediately() {
+    return applyImmediately;
   }
 }
