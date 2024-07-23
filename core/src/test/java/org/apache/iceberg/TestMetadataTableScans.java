@@ -1762,7 +1762,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertEstimatedSize(new AllDataFilesTable(table));
     assertEstimatedSize(new AllFilesTable(table));
 
-    if (formatVersion != 2) {
+    if (formatVersion == 2) {
       assertEstimatedSize(new DeleteFilesTable(table));
       assertEstimatedSize(new AllDeleteFilesTable(table));
     }
@@ -1780,8 +1780,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scan = metadataTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      StreamSupport.stream(tasks.spliterator(), false)
-          .forEach(task -> assertThat(task.estimatedRowsCount()).isEqualTo(4));
+      List<FileScanTask> taskList = Lists.newArrayList(tasks);
+      assertThat(taskList.size()).isGreaterThan(0);
+      taskList.forEach(task -> assertThat(task.estimatedRowsCount()).isEqualTo(4));
     }
   }
 }
