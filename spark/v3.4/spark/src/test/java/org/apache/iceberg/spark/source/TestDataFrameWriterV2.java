@@ -209,4 +209,156 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
     fields = Spark3Util.loadIcebergTable(sparkSession, tableName).schema().asStruct().fields();
     Assert.assertEquals(4, fields.size());
   }
+
+  @Test
+  public void testMergeSchemaInMiddle() throws Exception {
+    sql(
+            "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+            tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+
+    Dataset<Row> twoColDF =
+            jsonToDF(
+                    "id bigint, data string",
+                    "{ \"id\": 1, \"data\": \"a\" }",
+                    "{ \"id\": 2, \"data\": \"b\" }");
+
+    twoColDF.writeTo(tableName).append();
+
+    assertEquals(
+            "Should have initial 2-column rows",
+            ImmutableList.of(row(1L, "a"), row(2L, "b")),
+            sql("select * from %s order by id", tableName));
+
+    Dataset<Row> threeColDF =
+            jsonToDF(
+                    "id bigint, new_col float, data string",
+                    "{ \"id\": 3, \"new_col\": 12.06, \"data\": \"c\" }",
+                    "{ \"id\": 4, \"new_col\": 14.41, \"data\": \"d\" }");
+
+    threeColDF.writeTo(tableName).option("mergeSchema", "true").append();
+
+    assertEquals(
+            "Should have 3-column rows",
+            ImmutableList.of(
+                    row(1L, null, "a"), row(2L, null, "b"), row(3L, 12.06F, "c"), row(4L, 14.41F, "d")),
+            sql("select * from %s order by id", tableName));
+  }
+
+  @Test
+  public void testMergeSchemaAtStart() throws Exception {
+    sql(
+            "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+            tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+
+    Dataset<Row> twoColDF =
+            jsonToDF(
+                    "id bigint, data string",
+                    "{ \"id\": 1, \"data\": \"a\" }",
+                    "{ \"id\": 2, \"data\": \"b\" }");
+
+    twoColDF.writeTo(tableName).append();
+
+    assertEquals(
+            "Should have initial 2-column rows",
+            ImmutableList.of(row(1L, "a"), row(2L, "b")),
+            sql("select * from %s order by id", tableName));
+
+    Dataset<Row> threeColDF =
+            jsonToDF(
+                    "new_col float, id bigint, data string",
+                    "{ \"new_col\": 12.06, \"id\": 3, \"data\": \"c\" }",
+                    "{ \"new_col\": 14.41, \"id\": 4, \"data\": \"d\" }");
+
+    threeColDF.writeTo(tableName).option("mergeSchema", "true").append();
+
+    assertEquals(
+            "Should have 3-column rows",
+            ImmutableList.of(
+                    row(null, 1L, "a"), row(null, 2L, "b"), row(12.06F, 3L, "c"), row(14.41F, 4L, "d")),
+            sql("select * from %s order by id", tableName));
+  }
+
+  @Test
+  public void testMergeSchemaMultiple() throws Exception {
+    sql(
+            "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+            tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+
+    Dataset<Row> twoColDF =
+            jsonToDF(
+                    "id bigint, data string",
+                    "{ \"id\": 1, \"data\": \"a\" }",
+                    "{ \"id\": 2, \"data\": \"b\" }");
+
+    twoColDF.writeTo(tableName).append();
+
+    assertEquals(
+            "Should have initial 2-column rows",
+            ImmutableList.of(row(1L, "a"), row(2L, "b")),
+            sql("select * from %s order by id", tableName));
+
+    Dataset<Row> threeColDF =
+            jsonToDF(
+                    "new_col float, new_col2 bigint, id bigint, new_col3 float, new_col4 bigint, data string, new_col5 float, new_col6 bigint",
+                    "{ \"new_col\": 12.06, \"new_col2\": 5, \"id\": 3, \"new_col3\": 11.06, \"new_col4\": 6, \"data\": \"c\", \"new_col5\": 15.06, \"new_col6\": 8 }",
+                    "{ \"new_col\": 14.41, \"new_col2\": 4, \"id\": 4, \"new_col3\": 13.06, \"new_col4\": 7, \"data\": \"d\", \"new_col5\": 16.06, \"new_col6\": 9 }");
+
+    threeColDF.writeTo(tableName).option("mergeSchema", "true").append();
+
+    assertThat(
+            spark.table(tableName).schema()
+    ).as("Schema should be correct").isEqualTo(
+            DataTypes.createStructType(new StructField[] {
+                    DataTypes.createStructField("new_col", DataTypes.FloatType, true),
+                    DataTypes.createStructField("new_col2", DataTypes.LongType, true),
+                    DataTypes.createStructField("id", DataTypes.LongType, true),
+                    DataTypes.createStructField("new_col3", DataTypes.FloatType, true),
+                    DataTypes.createStructField("new_col4", DataTypes.LongType, true),
+                    DataTypes.createStructField("data", DataTypes.StringType, true),
+                    DataTypes.createStructField("new_col5", DataTypes.FloatType, true),
+                    DataTypes.createStructField("new_col6", DataTypes.LongType, true)
+            })
+    );
+
+    assertEquals(
+            "Should have 8-column rows",
+            ImmutableList.of(
+                    row(null, null, 1L, null, null, "a", null, null),
+                    row(null, null, 2L, null, null, "b", null, null),
+                    row(12.06F, 5L, 3L, 11.06F, 6L, "c", 15.06F, 8L),
+                    row(14.41F, 4L, 4L, 13.06F, 7L, "d", 16.06F, 9L)),
+            sql("select * from %s order by id", tableName));
+  }
+
+  @Test
+  public void testMergeSchemaFailsOnIncompatible() throws Exception {
+    sql(
+            "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+            tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+
+    Dataset<Row> twoColDF =
+            jsonToDF(
+                    "id bigint, data string",
+                    "{ \"id\": 1, \"data\": \"a\" }",
+                    "{ \"id\": 2, \"data\": \"b\" }");
+
+    twoColDF.writeTo(tableName).append();
+
+    assertEquals(
+            "Should have initial 2-column rows",
+            ImmutableList.of(row(1L, "a"), row(2L, "b")),
+            sql("select * from %s order by id", tableName));
+
+    Dataset<Row> threeColDF =
+            jsonToDF(
+                    "id string, data string",
+                    "{ \"id\": \"3\", \"data\": \"c\" }",
+                    "{ \"id\": \"4\", \"data\": \"d\" }");
+
+    // this has a different error message than the case without accept-any-schema because it uses
+    // Iceberg checks
+    assertThatThrownBy(() -> threeColDF.writeTo(tableName).option("merge-schema", "true").append())
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Cannot change column type: id: long -> string");
+  }
 }
