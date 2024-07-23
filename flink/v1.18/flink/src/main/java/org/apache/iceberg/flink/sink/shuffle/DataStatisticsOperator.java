@@ -92,8 +92,8 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
 
   @Override
   public void initializeState(StateInitializationContext context) throws Exception {
-    this.parallelism = getRuntimeContext().getTaskInfo().getNumberOfParallelSubtasks();
-    this.subtaskIndex = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
+    this.parallelism = getRuntimeContext().getNumberOfParallelSubtasks();
+    this.subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
 
     // Use union state so that new subtasks can also restore global statistics during scale-up.
     this.globalStatisticsState =
@@ -204,8 +204,7 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
 
     // Only subtask 0 saves the state so that globalStatisticsState(UnionListState) stores
     // an exact copy of globalStatistics
-    if (globalStatistics != null
-        && getRuntimeContext().getTaskInfo().getIndexOfThisSubtask() == 0) {
+    if (globalStatistics != null && getRuntimeContext().getIndexOfThisSubtask() == 0) {
       globalStatisticsState.clear();
       LOG.info(
           "Operator {} subtask {} saving global statistics to state", operatorName, subtaskIndex);

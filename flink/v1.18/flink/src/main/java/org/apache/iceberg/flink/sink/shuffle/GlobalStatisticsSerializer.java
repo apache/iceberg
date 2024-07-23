@@ -172,7 +172,9 @@ class GlobalStatisticsSerializer extends TypeSerializer<GlobalStatistics> {
 
     /** Constructor for read instantiation. */
     @SuppressWarnings({"unused", "checkstyle:RedundantModifier"})
-    public GlobalStatisticsSerializerSnapshot() {}
+    public GlobalStatisticsSerializerSnapshot() {
+      super(GlobalStatisticsSerializer.class);
+    }
 
     @SuppressWarnings("checkstyle:RedundantModifier")
     public GlobalStatisticsSerializerSnapshot(GlobalStatisticsSerializer serializer) {

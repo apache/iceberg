@@ -177,7 +177,9 @@ class DataStatisticsSerializer extends TypeSerializer<DataStatistics> {
 
     /** Constructor for read instantiation. */
     @SuppressWarnings({"unused", "checkstyle:RedundantModifier"})
-    public DataStatisticsSerializerSnapshot() {}
+    public DataStatisticsSerializerSnapshot() {
+      super(DataStatisticsSerializer.class);
+    }
 
     @SuppressWarnings("checkstyle:RedundantModifier")
     public DataStatisticsSerializerSnapshot(DataStatisticsSerializer serializer) {

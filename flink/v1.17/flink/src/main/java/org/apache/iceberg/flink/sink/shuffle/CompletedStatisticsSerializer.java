@@ -148,7 +148,9 @@ class CompletedStatisticsSerializer extends TypeSerializer<CompletedStatistics> 
 
     /** Constructor for read instantiation. */
     @SuppressWarnings({"unused", "checkstyle:RedundantModifier"})
-    public CompletedStatisticsSerializerSnapshot() {}
+    public CompletedStatisticsSerializerSnapshot() {
+      super(CompletedStatisticsSerializer.class);
+    }
 
     @SuppressWarnings("checkstyle:RedundantModifier")
     public CompletedStatisticsSerializerSnapshot(CompletedStatisticsSerializer serializer) {

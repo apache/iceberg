@@ -174,7 +174,9 @@ class StatisticsOrRecordSerializer extends TypeSerializer<StatisticsOrRecord> {
 
     /** Constructor for read instantiation. */
     @SuppressWarnings({"unused", "checkstyle:RedundantModifier"})
-    public StatisticsOrRecordSerializerSnapshot() {}
+    public StatisticsOrRecordSerializerSnapshot() {
+      super(StatisticsOrRecordSerializer.class);
+    }
 
     @SuppressWarnings("checkstyle:RedundantModifier")
     public StatisticsOrRecordSerializerSnapshot(StatisticsOrRecordSerializer serializer) {

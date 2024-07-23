@@ -39,7 +39,6 @@ import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.operators.coordination.MockOperatorEventGateway;
 import org.apache.flink.runtime.operators.testutils.MockInputSplitProvider;
 import org.apache.flink.runtime.state.AbstractStateBackend;
-import org.apache.flink.runtime.state.OperatorStateBackendParametersImpl;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateInitializationContextImpl;
 import org.apache.flink.runtime.state.TestTaskStateManager;
@@ -333,8 +332,7 @@ public class TestDataStatisticsOperator {
     CloseableRegistry cancelStreamRegistry = new CloseableRegistry();
     OperatorStateStore operatorStateStore =
         abstractStateBackend.createOperatorStateBackend(
-            new OperatorStateBackendParametersImpl(
-                env, "test-operator", Collections.emptyList(), cancelStreamRegistry));
+            env, "test-operator", Collections.emptyList(), cancelStreamRegistry);
     return new StateInitializationContextImpl(null, operatorStateStore, null, null, null);
   }
 
