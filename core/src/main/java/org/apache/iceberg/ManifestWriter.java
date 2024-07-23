@@ -232,19 +232,19 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
     @Override
     protected FileAppender<ManifestEntry<DataFile>> newAppender(
-      PartitionSpec spec, OutputFile file) {
+        PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V3Metadata.entrySchema(spec.partitionType());
       try {
         return Avro.write(file)
-          .schema(manifestSchema)
-          .named("manifest_entry")
-          .meta("schema", SchemaParser.toJson(spec.schema()))
-          .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-          .meta("partition-spec-id", String.valueOf(spec.specId()))
-          .meta("format-version", "3")
-          .meta("content", "data")
-          .overwrite()
-          .build();
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "3")
+            .meta("content", "data")
+            .overwrite()
+            .build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
       }
@@ -266,19 +266,19 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
 
     @Override
     protected FileAppender<ManifestEntry<DeleteFile>> newAppender(
-      PartitionSpec spec, OutputFile file) {
+        PartitionSpec spec, OutputFile file) {
       Schema manifestSchema = V3Metadata.entrySchema(spec.partitionType());
       try {
         return Avro.write(file)
-          .schema(manifestSchema)
-          .named("manifest_entry")
-          .meta("schema", SchemaParser.toJson(spec.schema()))
-          .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
-          .meta("partition-spec-id", String.valueOf(spec.specId()))
-          .meta("format-version", "3")
-          .meta("content", "deletes")
-          .overwrite()
-          .build();
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "3")
+            .meta("content", "deletes")
+            .overwrite()
+            .build();
       } catch (IOException e) {
         throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
       }
