@@ -192,35 +192,29 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
   distributions {
     main {
       contents {
-        from(processResources.destinationDir) {
-          include 'manifest.json'
-        }
+        from "${processResources.destinationDir}/manifest.json"
         into('lib/') {
           from configurations.runtimeClasspath
         }
         into('doc/') {
-          from '$rootDir/LICENSE'
-          from '$rootDir/README.md'
+          from "$rootDir/LICENSE"
         }
         into('assets/') {
-          from '$rootDir/logos'
+          from "${processResources.destinationDir}/iceberg.png"
         }
       }
     }
     hive {
       contents {
-        from(processResources.destinationDir) {
-          include 'manifest.json'
-        }
+        from "${processResources.destinationDir}/manifest.json"
         into('lib/') {
           from configurations.hive
         }
         into('doc/') {
-          from '$rootDir/LICENSE'
-          from '$rootDir/README.md'
+          from "$rootDir/LICENSE"
         }
         into('assets/') {
-          from '$rootDir/logos'
+          from "${processResources.destinationDir}/iceberg.png"
         }
       }
     }
