@@ -31,8 +31,8 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.types.Types;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class TestDataStatisticsCoordinatorProvider {
   private static final OperatorID OPERATOR_ID = new OperatorID();
@@ -48,7 +48,7 @@ public class TestDataStatisticsCoordinatorProvider {
   private DataStatisticsCoordinatorProvider<MapDataStatistics, Map<SortKey, Long>> provider;
   private EventReceivingTasks receivingTasks;
 
-  @Before
+  @BeforeEach
   public void before() {
     provider =
         new DataStatisticsCoordinatorProvider<>(

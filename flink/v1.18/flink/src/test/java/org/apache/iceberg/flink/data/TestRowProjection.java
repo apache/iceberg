@@ -39,7 +39,6 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -212,7 +211,6 @@ public class TestRowProjection {
     projected = writeAndRead("basic_projection_data", writeSchema, dataOnly, row);
 
     assertThat(projected.getArity()).as("Should not project id").isEqualTo(1);
-    int cmp = Comparators.charSequences().compare("test", projected.getString(0).toString());
     assertThat(projected.getString(0)).asString().isEqualTo("test");
   }
 

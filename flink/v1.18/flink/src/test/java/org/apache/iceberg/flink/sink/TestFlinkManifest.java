@@ -19,9 +19,12 @@
 package org.apache.iceberg.flink.sink;
 
 import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
@@ -45,28 +48,26 @@ import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Pair;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestFlinkManifest {
   private static final Configuration CONF = new Configuration();
 
-  @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
+  @TempDir protected Path temporaryFolder;
 
   private Table table;
   private FileAppenderFactory<RowData> appenderFactory;
   private final AtomicInteger fileCount = new AtomicInteger(0);
 
-  @Before
+  @BeforeEach
   public void before() throws IOException {
-    File folder = tempFolder.newFolder();
+    File folder = Files.createTempDirectory(temporaryFolder, "junit").toFile();
     String warehouse = folder.getAbsolutePath();
 
     String tablePath = warehouse.concat("/test");
-    Assert.assertTrue("Should create the table directory correctly.", new File(tablePath).mkdir());
+    assertThat(new File(tablePath).mkdir()).isTrue();
 
     // Construct the iceberg table.
     table = SimpleDataUtil.createTable(tablePath, ImmutableMap.of(), false);
@@ -112,11 +113,11 @@ public class TestFlinkManifest {
 
       WriteResult result =
           FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs());
-      Assert.assertEquals("Size of data file list are not equal.", 10, result.deleteFiles().length);
+      assertThat(result.deleteFiles()).hasSize(10);
       for (int i = 0; i < dataFiles.size(); i++) {
         TestHelpers.assertEquals(dataFiles.get(i), result.dataFiles()[i]);
       }
-      Assert.assertEquals("Size of delete file list are not equal.", 10, result.dataFiles().length);
+      assertThat(result.deleteFiles()).hasSize(10);
       for (int i = 0; i < 5; i++) {
         TestHelpers.assertEquals(eqDeleteFiles.get(i), result.deleteFiles()[i]);
       }
@@ -131,7 +132,7 @@ public class TestFlinkManifest {
     long checkpointId = 1;
     String flinkJobId = newFlinkJobId();
     String operatorId = newOperatorUniqueId();
-    File userProvidedFolder = tempFolder.newFolder();
+    File userProvidedFolder = Files.createTempDirectory(temporaryFolder, "junit").toFile();
     Map<String, String> props =
         ImmutableMap.of(FLINK_MANIFEST_LOCATION, userProvidedFolder.getAbsolutePath() + "///");
     ManifestOutputFileFactory factory =
@@ -144,21 +145,18 @@ public class TestFlinkManifest {
             () -> factory.create(checkpointId),
             table.spec());
 
-    Assert.assertNotNull("Data manifest shouldn't be null", deltaManifests.dataManifest());
-    Assert.assertNull("Delete manifest should be null", deltaManifests.deleteManifest());
-    Assert.assertEquals(
-        "The newly created manifest file should be located under the user provided directory",
-        userProvidedFolder.toPath(),
-        Paths.get(deltaManifests.dataManifest().path()).getParent());
+    assertThat(deltaManifests.dataManifest()).isNotNull();
+    assertThat(deltaManifests.deleteManifest()).isNull();
+    assertThat(Paths.get(deltaManifests.dataManifest().path()))
+        .hasParent(userProvidedFolder.toPath());
 
     WriteResult result =
         FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs());
 
-    Assert.assertEquals(0, result.deleteFiles().length);
-    Assert.assertEquals(5, result.dataFiles().length);
+    assertThat(result.deleteFiles()).isEmpty();
+    assertThat(result.dataFiles()).hasSize(5);
 
-    Assert.assertEquals(
-        "Size of data file list are not equal.", dataFiles.size(), result.dataFiles().length);
+    assertThat(result.dataFiles()).hasSameSizeAs(dataFiles);
     for (int i = 0; i < dataFiles.size(); i++) {
       TestHelpers.assertEquals(dataFiles.get(i), result.dataFiles()[i]);
     }
@@ -198,7 +196,7 @@ public class TestFlinkManifest {
     byte[] versionedSerializeData2 =
         SimpleVersionedSerialization.writeVersionAndSerialize(
             DeltaManifestsSerializer.INSTANCE, actual);
-    Assert.assertArrayEquals(versionedSerializeData, versionedSerializeData2);
+    assertThat(versionedSerializeData2).containsExactly(versionedSerializeData);
   }
 
   @Test
@@ -220,14 +218,13 @@ public class TestFlinkManifest {
     DeltaManifests delta =
         SimpleVersionedSerialization.readVersionAndDeSerialize(
             DeltaManifestsSerializer.INSTANCE, dataV1);
-    Assert.assertNull("Serialization v1 don't include delete files.", delta.deleteManifest());
-    Assert.assertNotNull(
-        "Serialization v1 should not have null data manifest.", delta.dataManifest());
+    assertThat(delta.deleteManifest()).isNull();
+    assertThat(delta.dataManifest()).isNotNull();
     TestHelpers.assertEquals(manifest, delta.dataManifest());
 
     List<DataFile> actualFiles =
         FlinkManifestUtil.readDataFiles(delta.dataManifest(), table.io(), table.specs());
-    Assert.assertEquals(10, actualFiles.size());
+    assertThat(actualFiles).hasSize(10);
     for (int i = 0; i < 10; i++) {
       TestHelpers.assertEquals(dataFiles.get(i), actualFiles.get(i));
     }

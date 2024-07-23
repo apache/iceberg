@@ -25,7 +25,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.types.Types;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestAggregatedStatistics {
   private final Schema schema =
