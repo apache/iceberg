@@ -24,9 +24,8 @@ This page contains some of the vendors who are shipping and supporting Apache Ic
 ### [Bodo](https://bodo.ai)
 
 Bodo is a high performance SQL & Python compute engine that brings HPC and supercomputing techniques to data analytics.
-Bodo supports Apache Iceberg tables as a first-class data source, enabling users to read and write Iceberg tables
-with Bodo's high-performance data processing engine. Bodo's integration with Iceberg allows users to leverage
-Iceberg's table format for efficient data management and analytics. Bodo is available as a cloud service on
+Bodo supports Apache Iceberg tables as a first-class table format and storage, enabling users to read and write Iceberg
+tables with Bodo's high-performance data processing engine. Bodo is available as a cloud service on
 AWS and Azure, and as well as an on-premises solution.
 
 ### [CelerData](https://celerdata.com)
