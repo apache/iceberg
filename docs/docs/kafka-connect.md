@@ -60,7 +60,7 @@ Copy the distribution archive into the Kafka Connect plugins directory on all no
 | iceberg.tables.route-field                 | For multi-table fan-out, the name of the field used to route records to tables                                   |
 | iceberg.tables.default-commit-branch       | Default branch for commits, main is used if not specified                                                        |
 | iceberg.tables.default-id-columns          | Default comma-separated list of columns that identify a row in tables (primary key)                              |
-| iceberg.tables.default-partition-by        | Default comma-separated list of partition fields to use when creating tables                                     |
+| iceberg.tables.default-partition-by        | Default comma-separated list of partition field names to use when creating tables                                     |
 | iceberg.tables.auto-create-enabled         | Set to `true` to automatically create destination tables, default is `false`                                     |
 | iceberg.tables.evolve-schema-enabled       | Set to `true` to add any missing record fields to the table schema, default is `false`                           |
 | iceberg.tables.schema-force-optional       | Set to `true` to set columns as optional during table create and evolution, default is `false` to respect schema |
