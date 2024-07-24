@@ -169,6 +169,13 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       }
     }
 
+    @Override
+    public long estimatedRowsCount() {
+      return (long) manifest.addedFilesCount()
+          + (long) manifest.deletedFilesCount()
+          + (long) manifest.existingFilesCount();
+    }
+
     private CloseableIterable<? extends ContentFile<?>> files(Schema fileProjection) {
       switch (manifest.content()) {
         case DATA:

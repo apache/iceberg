@@ -1753,4 +1753,36 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(scanTasks.get(0).file().path().toString()).isEqualTo("/path/to/delete1.parquet");
     assertThat(scanTasks.get(1).file().path().toString()).isEqualTo("/path/to/delete2.parquet");
   }
+
+  @TestTemplate
+  public void testFilesTableEstimateSize() throws Exception {
+    preparePartitionedTable(true);
+
+    assertEstimatedRowCount(new DataFilesTable(table), 4);
+    assertEstimatedRowCount(new AllDataFilesTable(table), 4);
+    assertEstimatedRowCount(new AllFilesTable(table), 4);
+
+    if (formatVersion == 2) {
+      assertEstimatedRowCount(new DeleteFilesTable(table), 4);
+      assertEstimatedRowCount(new AllDeleteFilesTable(table), 4);
+    }
+  }
+
+  @TestTemplate
+  public void testEntriesTableEstimateSize() throws Exception {
+    preparePartitionedTable(true);
+
+    assertEstimatedRowCount(new ManifestEntriesTable(table), 4);
+    assertEstimatedRowCount(new AllEntriesTable(table), 4);
+  }
+
+  private void assertEstimatedRowCount(Table metadataTable, int size) throws Exception {
+    TableScan scan = metadataTable.newScan();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      List<FileScanTask> taskList = Lists.newArrayList(tasks);
+      assertThat(taskList.size()).isGreaterThan(0);
+      taskList.forEach(task -> assertThat(task.estimatedRowsCount()).isEqualTo(size));
+    }
+  }
 }
