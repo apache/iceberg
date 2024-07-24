@@ -55,7 +55,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   private void preparePartitionedTable(boolean transactional) {
     preparePartitionedTableData(transactional);
 
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       if (transactional) {
         table
             .newRowDelta()
