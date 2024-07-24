@@ -485,7 +485,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanNoFilter);
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       assertThat(entries).hasSize(8);
     } else {
       assertThat(entries).hasSize(4);
@@ -510,7 +510,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat(scanWithProjection.schema().asStruct()).isEqualTo(expected);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanWithProjection);
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       assertThat(entries).hasSize(8);
     } else {
       assertThat(entries).hasSize(4);
@@ -552,7 +552,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanAndEq = partitionsTable.newScan().filter(andEquals);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanAndEq);
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       assertThat(entries).hasSize(2);
     } else {
       assertThat(entries).hasSize(1);
@@ -574,7 +574,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanLtAnd = partitionsTable.newScan().filter(ltAnd);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanLtAnd);
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       assertThat(entries).hasSize(4);
     } else {
       assertThat(entries).hasSize(2);
@@ -598,7 +598,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanOr);
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       assertThat(entries).hasSize(8);
     } else {
       assertThat(entries).hasSize(4);
@@ -619,7 +619,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanNot = partitionsTable.newScan().filter(not);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanNot);
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       assertThat(entries).hasSize(4);
     } else {
       assertThat(entries).hasSize(2);
@@ -639,7 +639,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanSet = partitionsTable.newScan().filter(set);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanSet);
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       assertThat(entries).hasSize(4);
     } else {
       assertThat(entries).hasSize(2);
@@ -659,7 +659,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanUnary = partitionsTable.newScan().filter(unary);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanUnary);
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       assertThat(entries).hasSize(8);
     } else {
       assertThat(entries).hasSize(4);
@@ -719,8 +719,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testDeleteFilesTableSelection() throws IOException {
-    assumeThat(formatVersion).as("Only V2 Tables Support Deletes").isGreaterThanOrEqualTo(2);
-
+    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);
     table.newFastAppend().appendFile(FILE_A).commit();
 
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
@@ -960,7 +959,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scan = metadataTable.newScan().filter(filter);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scan);
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       // Four data files and delete files of old spec, one new data file of new spec
       assertThat(entries).hasSize(9);
     } else {
@@ -975,7 +974,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     scan = metadataTable.newScan().filter(filter);
     entries = PartitionsTable.planEntries((StaticTableScan) scan);
 
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       // 1 original data file and delete file written by old spec, plus 1 new data file written by
       // new spec
       assertThat(entries).hasSize(3);
@@ -1187,7 +1186,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                     }));
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scan);
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       assertThat(entries).hasSize(8);
     } else {
       assertThat(entries).hasSize(4);
@@ -1366,7 +1365,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testPositionDeletesWithFilter() {
-    assumeThat(formatVersion).as("Position deletes supported only for v2 tables").isEqualTo(2);
+    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable();
 
     PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
@@ -1429,7 +1428,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   private void testPositionDeletesBaseTableFilter(boolean transactional) {
-    assumeThat(formatVersion).as("Position deletes supported only for v2 tables").isEqualTo(2);
+    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable(transactional);
 
     PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
@@ -1490,9 +1489,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testPositionDeletesWithBaseTableFilterNot() {
-    assumeThat(formatVersion).as("Position deletes supported only for v2 tables").isEqualTo(2);
-
-    // use identity rather than bucket partition spec,
+    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);    // use identity rather than bucket partition spec,
     // as bucket.project does not support projecting notEq
     table.updateSpec().removeField("data_bucket").addField("id").commit();
     PartitionSpec spec = table.spec();
@@ -1574,7 +1571,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testPositionDeletesResiduals() {
-    assumeThat(formatVersion).as("Position deletes supported only for v2 tables").isEqualTo(2);
+    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable();
 
     PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
@@ -1603,7 +1600,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testPositionDeletesUnpartitioned() {
-    assumeThat(formatVersion).as("Position deletes supported only for v2 tables").isEqualTo(2);
+    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);
     table.updateSpec().removeField(Expressions.bucket("data", BUCKETS_NUMBER)).commit();
 
     assertThat(table.spec().fields()).as("Table should now be unpartitioned").hasSize(0);
@@ -1694,9 +1691,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testPositionDeletesManyColumns() {
-    assumeThat(formatVersion).as("Position deletes supported only for v2 tables").isEqualTo(2);
-
-    UpdateSchema updateSchema = table.updateSchema();
+    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);    UpdateSchema updateSchema = table.updateSchema();
     for (int i = 0; i <= 2000; i++) {
       updateSchema.addColumn(String.valueOf(i), Types.IntegerType.get());
     }

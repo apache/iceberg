@@ -163,9 +163,7 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
 
   @TestTemplate
   public void testPositionDeletesPartitionSpecRemoval() {
-    assumeThat(formatVersion).as("Position deletes supported only for v2 tables").isEqualTo(2);
-
-    table.updateSpec().removeField("id").commit();
+    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);    table.updateSpec().removeField("id").commit();
 
     DeleteFile deleteFile = newDeleteFile(table.ops().current().spec().specId(), "nested.id=1");
     table.newRowDelta().addDeletes(deleteFile).commit();
