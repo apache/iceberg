@@ -63,16 +63,21 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   private int lastAssignedPartitionId;
 
   BaseUpdatePartitionSpec(TableOperations ops) {
+    this(ops, ops.current().spec());
+  }
+
+  BaseUpdatePartitionSpec(TableOperations ops, PartitionSpec spec) {
     this.ops = ops;
     this.caseSensitive = true;
     this.setAsDefault = true;
     this.base = ops.current();
     this.formatVersion = base.formatVersion();
-    this.spec = base.spec();
+    this.spec = spec;
     this.schema = spec.schema();
     this.nameToField = indexSpecByName(spec);
     this.transformToField = indexSpecByTransform(spec);
-    this.lastAssignedPartitionId = base.lastAssignedPartitionId();
+    this.lastAssignedPartitionId =
+        formatVersion == 1 ? spec.lastAssignedFieldId() : base.lastAssignedPartitionId();
 
     spec.fields().stream()
         .filter(field -> field.transform() instanceof UnknownTransform)
@@ -82,6 +87,11 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
               throw new IllegalArgumentException(
                   "Cannot update partition spec with unknown transform: " + field);
             });
+  }
+
+  @Override
+  public UpdatePartitionSpec fromSpec(PartitionSpec partitionSpec) {
+    return new BaseUpdatePartitionSpec(ops, partitionSpec);
   }
 
   /** For testing only. */
