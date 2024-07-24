@@ -22,6 +22,13 @@ title: "Vendors"
 
 This page contains some of the vendors who are shipping and supporting Apache Iceberg in their products
 
+### [Bodo](https://bodo.ai)
+
+Bodo is a high performance SQL & Python compute engine that brings HPC and supercomputing techniques to data analytics.
+Bodo supports Apache Iceberg tables as a first-class table format and storage, enabling users to read and write Iceberg
+tables with Bodo's high-performance data processing engine. Bodo is available as a cloud service on
+AWS and Azure, and as well as an on-premises solution.
+
 ### [CelerData](https://celerdata.com)
 
 CelerData provides commercial offerings for [StarRocks](https://www.starrocks.io/), a distributed MPP SQL engine for enterprise analytics on Iceberg. With its fully vectorized technology, local caching, and intelligent materialized view, StarRocks delivers sub-second query latency for both batch and real-time analytics. CelerData offers both an [enterprise deployment](https://celerdata.com/celerdata-enterprise) and a [cloud service](https://celerdata.com/celerdata-cloud) to help customers use StarRocks more smoothly. Learn more about how to query Iceberg with StarRocks [here](https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog).
