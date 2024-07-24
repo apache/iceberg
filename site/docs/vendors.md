@@ -21,6 +21,7 @@ title: "Vendors"
 ## Vendors Supporting Iceberg Tables
 
 This page contains some of the vendors who are shipping and supporting Apache Iceberg in their products
+
 ### [Bodo](https://bodo.ai)
 
 Bodo is a high performance SQL & Python compute engine that brings HPC and supercomputing techniques to data analytics.
