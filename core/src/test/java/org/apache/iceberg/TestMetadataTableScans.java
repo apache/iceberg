@@ -1489,7 +1489,9 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testPositionDeletesWithBaseTableFilterNot() {
-    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);    // use identity rather than bucket partition spec,
+    assumeThat(formatVersion)
+        .as("Position deletes not supported by V1 Tables")
+        .isNotEqualTo(1); // use identity rather than bucket partition spec,
     // as bucket.project does not support projecting notEq
     table.updateSpec().removeField("data_bucket").addField("id").commit();
     PartitionSpec spec = table.spec();
@@ -1691,7 +1693,8 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testPositionDeletesManyColumns() {
-    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);    UpdateSchema updateSchema = table.updateSchema();
+    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);
+    UpdateSchema updateSchema = table.updateSchema();
     for (int i = 0; i <= 2000; i++) {
       updateSchema.addColumn(String.valueOf(i), Types.IntegerType.get());
     }
