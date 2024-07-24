@@ -87,7 +87,12 @@ public class TestHelpers {
         rowType.getChildren().stream()
             .map((LogicalType type) -> InternalSerializers.create(type))
             .toArray(TypeSerializer[]::new);
-    return RowDataUtil.clone(from, null, rowType, fieldSerializers);
+    RowData.FieldGetter[] fieldGetters = new RowData.FieldGetter[rowType.getFieldCount()];
+    for (int i = 0; i < rowType.getFieldCount(); ++i) {
+      fieldGetters[i] = RowData.createFieldGetter(rowType.getTypeAt(i), i);
+    }
+
+    return RowDataUtil.clone(from, null, rowType, fieldSerializers, fieldGetters);
   }
 
   public static void readRowData(FlinkInputFormat input, Consumer<RowData> visitor)

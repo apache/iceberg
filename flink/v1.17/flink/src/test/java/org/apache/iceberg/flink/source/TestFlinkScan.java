@@ -70,7 +70,7 @@ public abstract class TestFlinkScan {
   @TempDir protected Path temporaryDirectory;
 
   @RegisterExtension
-  protected static final HadoopCatalogExtension catalogExtension =
+  protected static final HadoopCatalogExtension CATALOG_EXTENSION =
       new HadoopCatalogExtension(TestFixtures.DATABASE, TestFixtures.TABLE);
 
   @Parameter protected FileFormat fileFormat;
@@ -81,7 +81,7 @@ public abstract class TestFlinkScan {
   }
 
   protected TableLoader tableLoader() {
-    return catalogExtension.tableLoader();
+    return CATALOG_EXTENSION.tableLoader();
   }
 
   protected abstract List<Row> runWithProjection(String... projected) throws Exception;
@@ -100,7 +100,7 @@ public abstract class TestFlinkScan {
   @TestTemplate
   public void testUnpartitionedTable() throws Exception {
     Table table =
-        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(expectedRecords);
     TestHelpers.assertRecords(run(), expectedRecords, TestFixtures.SCHEMA);
@@ -109,7 +109,7 @@ public abstract class TestFlinkScan {
   @TestTemplate
   public void testPartitionedTable() throws Exception {
     Table table =
-        catalogExtension
+        CATALOG_EXTENSION
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
@@ -122,7 +122,7 @@ public abstract class TestFlinkScan {
   @TestTemplate
   public void testProjection() throws Exception {
     Table table =
-        catalogExtension
+        CATALOG_EXTENSION
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
     List<Record> inputRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 1, 0L);
@@ -143,7 +143,7 @@ public abstract class TestFlinkScan {
         PartitionSpec.builderFor(logSchema).identity("dt").identity("level").build();
 
     Table table =
-        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, logSchema, spec);
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, logSchema, spec);
     List<Record> inputRecords = RandomGenericData.generate(logSchema, 10, 0L);
 
     int idx = 0;
@@ -208,7 +208,7 @@ public abstract class TestFlinkScan {
   @TestTemplate
   public void testSnapshotReads() throws Exception {
     Table table =
-        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
 
@@ -235,7 +235,7 @@ public abstract class TestFlinkScan {
   @TestTemplate
   public void testTagReads() throws Exception {
     Table table =
-        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
 
@@ -264,7 +264,7 @@ public abstract class TestFlinkScan {
   @TestTemplate
   public void testBranchReads() throws Exception {
     Table table =
-        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
 
@@ -300,7 +300,7 @@ public abstract class TestFlinkScan {
   @TestTemplate
   public void testIncrementalReadViaTag() throws Exception {
     Table table =
-        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
 
@@ -378,7 +378,7 @@ public abstract class TestFlinkScan {
   @TestTemplate
   public void testIncrementalRead() throws Exception {
     Table table =
-        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
 
@@ -413,7 +413,7 @@ public abstract class TestFlinkScan {
   @TestTemplate
   public void testFilterExpPartition() throws Exception {
     Table table =
-        catalogExtension
+        CATALOG_EXTENSION
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
 
@@ -438,7 +438,7 @@ public abstract class TestFlinkScan {
   private void testFilterExp(Expression filter, String sqlFilter, boolean caseSensitive)
       throws Exception {
     Table table =
-        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
 
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 3, 0L);
     expectedRecords.get(0).set(0, "a");
@@ -489,7 +489,7 @@ public abstract class TestFlinkScan {
             .build();
 
     Table table =
-        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, typesSchema, spec);
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, typesSchema, spec);
     List<Record> records = RandomGenericData.generate(typesSchema, 10, 0L);
     GenericAppenderHelper appender =
         new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
@@ -520,7 +520,7 @@ public abstract class TestFlinkScan {
                 Types.MapType.ofRequired(2, 3, Types.StringType.get(), Types.StringType.get())),
             Types.NestedField.required(
                 4, "arr", Types.ListType.ofRequired(5, Types.StringType.get())));
-    Table table = catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, schema);
+    Table table = CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, schema);
     List<Record> records = RandomGenericData.generate(schema, 10, 0L);
     GenericAppenderHelper helper = new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
     helper.appendToTable(records);

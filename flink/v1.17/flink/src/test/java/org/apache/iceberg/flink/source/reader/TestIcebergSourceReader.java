@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -37,19 +40,14 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.hadoop.HadoopFileIO;
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestIcebergSourceReader {
-  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @TempDir protected Path temporaryFolder;
 
-  private final GenericAppenderFactory appenderFactory;
-
-  public TestIcebergSourceReader() {
-    this.appenderFactory = new GenericAppenderFactory(TestFixtures.SCHEMA);
-  }
+  private final GenericAppenderFactory appenderFactory =
+      new GenericAppenderFactory(TestFixtures.SCHEMA);
 
   @Test
   public void testReaderMetrics() throws Exception {
@@ -70,13 +68,13 @@ public class TestIcebergSourceReader {
         ReaderUtil.createRecordBatchList(0L, TestFixtures.SCHEMA, 1, 1);
     CombinedScanTask task1 =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList1, TEMPORARY_FOLDER, FileFormat.PARQUET, appenderFactory);
+            recordBatchList1, temporaryFolder, FileFormat.PARQUET, appenderFactory);
 
     List<List<Record>> recordBatchList2 =
         ReaderUtil.createRecordBatchList(1L, TestFixtures.SCHEMA, 1, 1);
     CombinedScanTask task2 =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList2, TEMPORARY_FOLDER, FileFormat.PARQUET, appenderFactory);
+            recordBatchList2, temporaryFolder, FileFormat.PARQUET, appenderFactory);
 
     // Sort the splits in one way
     List<RowData> rowDataList1 =
@@ -95,8 +93,7 @@ public class TestIcebergSourceReader {
             2);
 
     // Check that the order of the elements is not changed
-    Assert.assertEquals(rowDataList1.get(0), rowDataList2.get(0));
-    Assert.assertEquals(rowDataList1.get(1), rowDataList2.get(1));
+    assertThat(rowDataList1).containsExactlyElementsOf(rowDataList2);
   }
 
   private List<RowData> read(List<IcebergSourceSplit> splits, long expected) throws Exception {
@@ -114,7 +111,7 @@ public class TestIcebergSourceReader {
 
     reader.pollNext(readerOutput);
 
-    Assert.assertEquals(expected, readerOutput.getEmittedRecords().size());
+    assertThat(readerOutput.getEmittedRecords()).hasSize((int) expected);
     return readerOutput.getEmittedRecords();
   }
 
@@ -130,20 +127,20 @@ public class TestIcebergSourceReader {
         ReaderUtil.createRecordBatchList(seed, TestFixtures.SCHEMA, 1, 1);
     CombinedScanTask task =
         ReaderUtil.createCombinedScanTask(
-            recordBatchList, TEMPORARY_FOLDER, FileFormat.PARQUET, appenderFactory);
+            recordBatchList, temporaryFolder, FileFormat.PARQUET, appenderFactory);
     IcebergSourceSplit split = IcebergSourceSplit.fromCombinedScanTask(task);
-    reader.addSplits(Arrays.asList(split));
+    reader.addSplits(Collections.singletonList(split));
 
     while (readerOutput.getEmittedRecords().size() < expectedCount) {
       reader.pollNext(readerOutput);
     }
 
-    Assert.assertEquals(expectedCount, readerOutput.getEmittedRecords().size());
+    assertThat(readerOutput.getEmittedRecords()).hasSize(expectedCount);
     TestHelpers.assertRowData(
         TestFixtures.SCHEMA,
         recordBatchList.get(0).get(0),
         readerOutput.getEmittedRecords().get(expectedCount - 1));
-    Assert.assertEquals(expectedCount, metricGroup.counters().get("assignedSplits").getCount());
+    assertThat(metricGroup.counters().get("assignedSplits").getCount()).isEqualTo(expectedCount);
 
     // One more poll will get null record batch.
     // That will finish the split and cause split fetcher to be closed due to idleness.

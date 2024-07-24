@@ -56,8 +56,8 @@ import org.junit.Test;
 
 public class TestParquetVectorizedReads extends AvroDataTest {
   private static final int NUM_ROWS = 200_000;
-  private static final ByteBuffer fileDek = ByteBuffer.allocate(16);
-  private static final ByteBuffer aadPrefix = ByteBuffer.allocate(16);
+  private static final ByteBuffer FILE_DEK = ByteBuffer.allocate(16);
+  private static final ByteBuffer AAD_PREFIX = ByteBuffer.allocate(16);
 
   static final int BATCH_SIZE = 10_000;
   static final Function<GenericData.Record, GenericData.Record> IDENTITY = record -> record;
@@ -134,12 +134,12 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   FileAppender<GenericData.Record> encryptedParquetWriter(Schema schema, File testFile)
       throws IOException {
     SecureRandom rand = new SecureRandom();
-    rand.nextBytes(fileDek.array());
-    rand.nextBytes(aadPrefix.array());
+    rand.nextBytes(FILE_DEK.array());
+    rand.nextBytes(AAD_PREFIX.array());
     return Parquet.write(Files.localOutput(testFile))
         .schema(schema)
-        .withFileEncryptionKey(fileDek)
-        .withAADPrefix(aadPrefix)
+        .withFileEncryptionKey(FILE_DEK)
+        .withAADPrefix(AAD_PREFIX)
         .named("test")
         .build();
   }
@@ -156,12 +156,12 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   FileAppender<GenericData.Record> encryptedParquetV2Writer(Schema schema, File testFile)
       throws IOException {
     SecureRandom rand = new SecureRandom();
-    rand.nextBytes(fileDek.array());
-    rand.nextBytes(aadPrefix.array());
+    rand.nextBytes(FILE_DEK.array());
+    rand.nextBytes(AAD_PREFIX.array());
     return Parquet.write(Files.localOutput(testFile))
         .schema(schema)
-        .withFileEncryptionKey(fileDek)
-        .withAADPrefix(aadPrefix)
+        .withFileEncryptionKey(FILE_DEK)
+        .withAADPrefix(AAD_PREFIX)
         .named("test")
         .writerVersion(ParquetProperties.WriterVersion.PARQUET_2_0)
         .build();
@@ -200,8 +200,8 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     }
 
     if (encrypted) {
-      readBuilder.withFileEncryptionKey(fileDek);
-      readBuilder.withAADPrefix(aadPrefix);
+      readBuilder.withFileEncryptionKey(FILE_DEK);
+      readBuilder.withAADPrefix(AAD_PREFIX);
     }
 
     try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {

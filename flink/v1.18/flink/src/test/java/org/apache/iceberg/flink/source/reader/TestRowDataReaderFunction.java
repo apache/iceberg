@@ -28,7 +28,6 @@ import org.apache.flink.table.data.conversion.DataStructureConverters;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
@@ -39,13 +38,9 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 
 public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
 
-  protected static final RowType rowType = FlinkSchemaUtil.convert(TestFixtures.SCHEMA);
-  private static final DataStructureConverter<Object, Object> rowDataConverter =
-      DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(rowType));
-
-  public TestRowDataReaderFunction(FileFormat fileFormat) {
-    super(fileFormat);
-  }
+  protected static final RowType ROW_TYPE = FlinkSchemaUtil.convert(TestFixtures.SCHEMA);
+  private static final DataStructureConverter<Object, Object> ROW_DATA_CONVERTER =
+      DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(ROW_TYPE));
 
   @Override
   protected ReaderFunction<RowData> readerFunction() {
@@ -68,7 +63,7 @@ public class TestRowDataReaderFunction extends ReaderFunctionTestBase<RowData> {
 
   private List<Row> toRows(List<RowData> actual) {
     return actual.stream()
-        .map(rowData -> (Row) rowDataConverter.toExternal(rowData))
+        .map(rowData -> (Row) ROW_DATA_CONVERTER.toExternal(rowData))
         .collect(Collectors.toList());
   }
 }
