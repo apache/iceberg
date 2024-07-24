@@ -1758,13 +1758,13 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   public void testFilesTableEstimateSize() throws Exception {
     preparePartitionedTable(true);
 
-    assertEstimatedSize(new DataFilesTable(table));
-    assertEstimatedSize(new AllDataFilesTable(table));
-    assertEstimatedSize(new AllFilesTable(table));
+    assertEstimatedRowCount(new DataFilesTable(table), 4);
+    assertEstimatedRowCount(new AllDataFilesTable(table), 4);
+    assertEstimatedRowCount(new AllFilesTable(table), 4);
 
     if (formatVersion == 2) {
-      assertEstimatedSize(new DeleteFilesTable(table));
-      assertEstimatedSize(new AllDeleteFilesTable(table));
+      assertEstimatedRowCount(new DeleteFilesTable(table), 4);
+      assertEstimatedRowCount(new AllDeleteFilesTable(table), 4);
     }
   }
 
@@ -1772,17 +1772,17 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   public void testEntriesTableEstimateSize() throws Exception {
     preparePartitionedTable(true);
 
-    assertEstimatedSize(new ManifestEntriesTable(table));
-    assertEstimatedSize(new AllEntriesTable(table));
+    assertEstimatedRowCount(new ManifestEntriesTable(table), 4);
+    assertEstimatedRowCount(new AllEntriesTable(table), 4);
   }
 
-  private void assertEstimatedSize(Table metadataTable) throws Exception {
+  private void assertEstimatedRowCount(Table metadataTable, int size) throws Exception {
     TableScan scan = metadataTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
       List<FileScanTask> taskList = Lists.newArrayList(tasks);
       assertThat(taskList.size()).isGreaterThan(0);
-      taskList.forEach(task -> assertThat(task.estimatedRowsCount()).isEqualTo(4));
+      taskList.forEach(task -> assertThat(task.estimatedRowsCount()).isEqualTo(size));
     }
   }
 }
