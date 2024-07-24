@@ -28,7 +28,7 @@ import java.util.List;
  * support is not required to read the table correctly.
  */
 public interface StatisticsFile {
-  /** ID of the Iceberg table's snapshot the statistics were computed from. */
+  /** ID of the Iceberg table's snapshot the statistics file is associated with. */
   long snapshotId();
 
   /**
