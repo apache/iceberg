@@ -83,12 +83,14 @@ public class BaseRemoveUnusedSpecs implements RemoveUnusedSpecs {
                     .planFiles(),
                 task -> ((BaseEntriesTable.ManifestReadTask) task).partitionSpecId()));
 
-    List<Integer> remainingSpecs =
+    // add current spec id to the set of specs in use
+    specsInUse.add(currentSpecId);
+
+    List<PartitionSpec> toRemoveSpecs =
         specs.stream()
-            .filter(spec -> spec.specId() == currentSpecId || specsInUse.contains(spec.specId()))
-            .map(PartitionSpec::specId)
+            .filter(spec -> !specsInUse.contains(spec.specId()))
             .collect(Collectors.toList());
 
-    return current.withSpecs(remainingSpecs);
+    return current.pruneUnusedSpecs(toRemoveSpecs);
   }
 }

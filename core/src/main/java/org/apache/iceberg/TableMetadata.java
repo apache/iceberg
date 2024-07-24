@@ -597,10 +597,22 @@ public class TableMetadata implements Serializable {
         .build();
   }
 
-  // it's not safe for external client to call this directly, must be called by
-  // `Table.removeUnusedSpecs()`.
-  TableMetadata withSpecs(List<Integer> specIds) {
-    return new Builder(this).setSpecs(specIds).build();
+  /**
+   * Prune the unused partition specs from the table metadata.
+   *
+   * <p>Note: it's not safe for external client to call this directly, it's usually called by the
+   * {@link Table#removeUnusedSpecs()} method. It's caller's responsibility to ensure that the
+   * toRemoveSpecs are indeed not in use by any existing manifests.
+   *
+   * @param toRemoveSpecs the partition specs to be removed
+   * @return the new table metadata with the unused partition specs removed
+   */
+  TableMetadata pruneUnusedSpecs(List<PartitionSpec> toRemoveSpecs) {
+    Builder builder = new Builder(this);
+    for (PartitionSpec spec : toRemoveSpecs) {
+      builder.removePartitionSpec(spec);
+    }
+    return builder.build();
   }
 
   private void validateCurrentSnapshot() {
@@ -892,6 +904,7 @@ public class TableMetadata implements Serializable {
     private final Map<Long, List<StatisticsFile>> statisticsFiles;
     private final Map<Long, List<PartitionStatisticsFile>> partitionStatisticsFiles;
     private boolean suppressHistoricalSnapshots = false;
+    private boolean hasRemovedSpecs = false;
 
     // change tracking
     private final List<MetadataUpdate> changes;
@@ -1108,26 +1121,19 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    // it's not safe for external caller to set specs directly, it must be called(indirectly) by
-    // `table.removeUnusedSpecs()`.
-    private Builder setSpecs(List<Integer> specIds) {
-      Preconditions.checkArgument(changes.isEmpty(), "Cannot set specs with other changes");
-      List<PartitionSpec> toSetSpecs =
-          specIds.stream().map(specsById::get).collect(Collectors.toList());
-      if (this.specs.equals(toSetSpecs)) {
-        // not changed
-        return this;
-      }
-      // rebuilt all the specs with current schema.
-      Schema currentSchema = schemasById.get(currentSchemaId);
-      this.specs =
-          Lists.newArrayList(
-              Iterables.transform(toSetSpecs, spec -> updateSpecSchema(currentSchema, spec)));
-      specsById.clear();
-      specsById.putAll(indexSpecs(toSetSpecs));
+    private Builder removePartitionSpec(PartitionSpec spec) {
       Preconditions.checkArgument(
-          specsById.containsKey(defaultSpecId), "Cannot set specs without default spec");
-      changes.add(new MetadataUpdate.SetPartitionSpecs(specIds));
+          changes.isEmpty(), "Cannot remove partition spec with other metadata update");
+      Preconditions.checkArgument(
+          spec.specId() != defaultSpecId, "Cannot remove default partition spec");
+      PartitionSpec toBeRemoved = specsById.remove(spec.specId());
+      Preconditions.checkArgument(
+          toBeRemoved != null && toBeRemoved.equals(spec),
+          "Cannot remove an unknown spec, spec id: %s",
+          spec.specId());
+      this.specs =
+          specs.stream().filter(s -> s.specId() != spec.specId()).collect(Collectors.toList());
+      this.hasRemovedSpecs = true;
       return this;
     }
 
@@ -1454,6 +1460,7 @@ public class TableMetadata implements Serializable {
           || (discardChanges && !changes.isEmpty())
           || metadataLocation != null
           || suppressHistoricalSnapshots
+          || hasRemovedSpecs
           || null != snapshotsSupplier;
     }
 
