@@ -2941,6 +2941,14 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FileScanTask'
+        delete-files:
+          description:
+            A list of delete files that can be either positional or equality. 
+            If the client does not recognize the type of delete file being returned by the service
+            it should immediately throw an exception that it does not support this type.
+          type: array
+          items:
+            $ref: '#/components/schemas/DeleteFile'
         next-page-token:
           $ref: '#/components/schemas/PageToken'
 
@@ -3818,23 +3826,104 @@ components:
             type: integer
           description: "List of equality field IDs"
 
+    DeleteFile:
+      oneOf:
+        - $ref: '#/components/schemas/PositionDeleteFile'
+        - $ref: '#/components/schemas/EqualityDeleteFile'
+
     PreplanTableRequest:
       type: object
-      required:
-        - table-scan-context
+      oneOf:
+        - required:
+            - snapshot-id
+        - required:
+            - start-snapshot-id
+            - end-snapshot-id
       properties:
-        table-scan-context:
-          $ref: '#/components/schemas/TableScanContext'
+        snapshot-id:
+          description:
+            The ID of the snapshot to use for the table scan.
+          type: integer
+          format: int64
+        select:
+          description:
+            A list of fields in schema that are selected in a table scan.
+            When not specified, all columns in the requested schema should be selected.
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldName'
+        filter:
+          description:
+            an unbounded expression to describe the filters to apply to a table scan,
+          $ref: '#/components/schemas/Expression'
+        case-sensitive:
+          description: If field selection and filtering should be case sensitive
+          type: boolean
+          default: true
+        use-snapshot-schema:
+          description:
+            If the client is performing time travel, the snapshot schema should be used.
+            For clients performing a plan for a branch, should default to using the table schema.
+          type: boolean
+          default: false
+        start-snapshot-id:
+          description: The ID of the starting snapshot of the incremental scan
+          type: integer
+          format: int64
+        end-snapshot-id:
+          description:
+            The ID of the inclusive ending snapshot of the incremental scan.
+            If not specified, the snapshot at the main branch head will be used as the end snapshot.
+          type: integer
+          format: int64
 
     PlanTableRequest:
       type: object
-      required:
-        - table-scan-context
+      oneOf:
+        - required:
+            - snapshot-id
+        - required:
+            - start-snapshot-id
+            - end-snapshot-id
       properties:
-        table-scan-context:
-          $ref: '#/components/schemas/TableScanContext'
         plan-task:
           $ref: '#/components/schemas/PlanTask'
+        snapshot-id:
+          description:
+            The ID of the snapshot to use for the table scan.
+          type: integer
+          format: int64
+        select:
+          description:
+            A list of fields in schema that are selected in a table scan.
+            When not specified, all columns in the requested schema should be selected.
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldName'
+        filter:
+          description:
+            an unbounded expression to describe the filters to apply to a table scan,
+          $ref: '#/components/schemas/Expression'
+        case-sensitive:
+          description: If field selection and filtering should be case sensitive
+          type: boolean
+          default: true
+        use-snapshot-schema:
+          description:
+            If the client is performing time travel, the snapshot schema should be used.
+            For clients performing a plan for a branch, should default to using the table schema.
+          type: boolean
+          default: false
+        start-snapshot-id:
+          description: The ID of the starting snapshot of the incremental scan
+          type: integer
+          format: int64
+        end-snapshot-id:
+          description:
+            The ID of the inclusive ending snapshot of the incremental scan.
+            If not specified, the snapshot at the main branch head will be used as the end snapshot.
+          type: integer
+          format: int64
         stats-fields:
           description:
             A list of fields that the client requests the server to send statistics
@@ -3842,92 +3931,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/FieldName'
-
-    TableScanContext:
-      anyOf:
-        - $ref: '#/components/schemas/SnapshotScanContext'
-        - $ref: '#/components/schemas/IncrementalSnapshotScanContext'
-
-    BaseTableScanContext:
-      discriminator:
-        propertyName: type
-        mapping:
-          snapshot-scan: '#/components/schemas/SnapshotScanContext'
-          incremental-snapshot-scan: '#/components/schemas/IncrementalSnapshotScanContext'
-      type: object
-      required:
-        - type
-      properties:
-        type:
-          type: string
-
-    SnapshotScanContext:
-      description: context for scanning data in a specific snapshot
-      type: object
-      allOf:
-        - $ref: '#/components/schemas/BaseTableScanContext'
-      required:
-        - type
-      properties:
-        type:
-          type: string
-          enum: ["snapshot-scan"]
-        select:
-          $ref: '#/components/schemas/SelectedFieldNames'
-        filter:
-          $ref: '#/components/schemas/Filter'
-        case-sensitive:
-          description: If field selection and filtering should be case sensitive
-          type: boolean
-          default: true
-        snapshot-id:
-          description:
-            The ID of the snapshot to use for the table scan.
-            If not specified, the snapshot at the main branch head will be used.
-          type: integer
-          format: int64
-        use-snapshot-schema:
-          description:
-            If the schema of the specific snapshot should be used instead of the table schema.
-          type: boolean
-          default: false
-
-    IncrementalSnapshotScanContext:
-      description:
-        Context for scanning data appended in a range of snapshots.
-        The scan always follows the schema of the snapshot at the main branch head.
-      type: object
-      allOf:
-        - $ref: '#/components/schemas/BaseTableScanContext'
-      required:
-        - type
-        - start-snapshot-id
-      properties:
-        type:
-          type: string
-          enum: ["incremental-snapshot-scan"]
-        select:
-          $ref: '#/components/schemas/SelectedFieldNames'
-        filter:
-          $ref: '#/components/schemas/Filter'
-        case-sensitive:
-          description: If field selection and filtering should be case sensitive
-          type: boolean
-          default: true
-        start-snapshot-id:
-          description: The ID of the starting snapshot of the incremental scan
-          type: integer
-          format: int64
-        inclusive-start:
-          description: If the data appended in the start snapshot should be included in the scan
-          type: boolean
-          default: false
-        end-snapshot-id:
-          description:
-            The ID of the inclusive ending snapshot of the incremental scan.
-            If not specified, the snapshot at the main branch head will be used as the end snapshot.
-          type: integer
-          format: int64
 
     FieldName:
       description:
@@ -3942,22 +3945,6 @@ components:
         - nested fields in a list are named using the keyword `element`, e.g. employees.element.first_name
       type: string
 
-    SelectedFieldNames:
-      description:
-        A list of fields in schema that are selected in a table scan.
-        When not specified, all columns in the requested schema should be selected.
-      type: array
-      items:
-        $ref: '#/components/schemas/FieldName'
-
-    Filter:
-      description:
-        an unbounded expression to describe the filters to apply to a table scan, 
-        default to `TrueExpression` meaning that nothing is filtered.
-      allOf:
-        - $ref: '#/components/schemas/Expression'
-      default: { "type": "true" }
-
     PlanTask:
       description:
         An opaque JSON object that contains information provided by the REST server
@@ -3969,24 +3956,20 @@ components:
       type: object
       required:
         - data-file
-        - residual-filter
       properties:
         data-file:
           $ref: '#/components/schemas/DataFile'
-        position-delete-files:
-          description: a list of position delete files that should be applied to the data file during a scan
+        delete-files-references:
+          description: A list of positional indices that correspond to a delete files array.
           type: array
           items:
-            $ref: '#/components/schemas/PositionDeleteFile'
-        equality-delete-files:
-          description: a list of equality delete files that should be applied to the data file during a scan
-          type: array
-          items:
-            $ref: '#/components/schemas/EqualityDeleteFile'
+            type: integer
         residual-filter:
-          description: the filters should be applied to rows in this file scan task
+          description:
+            An optional filter to be applied to rows in this file scan task.
+            If the residual is not present, the client should calculate this or the original filter should be used.
           allOf:
-            - $ref: '#/components/schemas/Filter'
+            - $ref: '#/components/schemas/Expression'
 
   #############################
   # Reusable Response Objects #
@@ -4150,8 +4133,6 @@ components:
             }
           }
 
-    #  Note that this is a representative example response for use as a shorthand in the spec.
-    #  The fields `message` and `type` as indicated here are not presently prescriptive.
     MisdirectedRequestResponse:
       description:
         Misdirected Request. The request was directed to a server that is not able to produce a response.
@@ -4167,8 +4148,6 @@ components:
             }
           }
 
-    #  Note that this is a representative example response for use as a shorthand in the spec.
-    #  The fields `message` and `type` as indicated here are not presently prescriptive.
     UnprocessableContentResponse:
       description:
         Unprocessable Content. The server understands the content type of the request entity, and the syntax of the

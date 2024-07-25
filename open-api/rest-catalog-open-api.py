@@ -818,25 +818,14 @@ class EqualityDeleteFile(ContentFile):
     )
 
 
-class BaseTableScanContext(BaseModel):
-    type: str
+class DeleteFile(BaseModel):
+    __root__: Union[PositionDeleteFile, EqualityDeleteFile]
 
 
 class FieldName(BaseModel):
     __root__: str = Field(
         ...,
         description='A field name that follows the Iceberg naming standard, and can be used in APIs like Java `Schema#findField(String name)`.\nThe nested field name follows these rules - nested struct fields are named by concatenating field names at each struct level using dot (`.`) delimiter, e.g. employer.contact_info.address.zip_code - nested fields in a map key are named using the keyword `key`, e.g. employee_address_map.key.first_name - nested fields in a map value are named using the keyword `value`, e.g. employee_address_map.value.zip_code - nested fields in a list are named using the keyword `element`, e.g. employees.element.first_name',
-    )
-
-
-class SelectedFieldNames(BaseModel):
-    """
-    A list of fields in schema that are selected in a table scan. When not specified, all columns in the requested schema should be selected.
-    """
-
-    __root__: List[FieldName] = Field(
-        ...,
-        description='A list of fields in schema that are selected in a table scan. When not specified, all columns in the requested schema should be selected.',
     )
 
 
@@ -1158,6 +1147,11 @@ class LoadTableResult(BaseModel):
 
 class PlanTableResult(BaseModel):
     file_scan_tasks: List[FileScanTask] = Field(..., alias='file-scan-tasks')
+    delete_files: Optional[List[DeleteFile]] = Field(
+        None,
+        alias='delete-files',
+        description='A list of delete files that can be either positional or equality. If the client does not recognize the type of delete file being returned by the service it should immediately throw an exception that it does not support this type.',
+    )
     next_page_token: Optional[PageToken] = Field(None, alias='next-page-token')
 
 
@@ -1247,71 +1241,34 @@ class CommitTableResponse(BaseModel):
     metadata: TableMetadata
 
 
-class PreplanTableRequest(BaseModel):
-    table_scan_context: TableScanContext = Field(..., alias='table-scan-context')
-
-
-class PlanTableRequest(BaseModel):
-    table_scan_context: TableScanContext = Field(..., alias='table-scan-context')
-    plan_task: Optional[PlanTask] = Field(None, alias='plan-task')
-    stats_fields: Optional[List[FieldName]] = Field(
-        None,
-        alias='stats-fields',
-        description='A list of fields that the client requests the server to send statistics in each `FileScanTask` returned in the response',
+class PreplanTableRequest1(BaseModel):
+    snapshot_id: int = Field(
+        ...,
+        alias='snapshot-id',
+        description='The ID of the snapshot to use for the table scan.',
     )
-
-
-class TableScanContext(BaseModel):
-    __root__: Union[SnapshotScanContext, IncrementalSnapshotScanContext]
-
-
-class SnapshotScanContext(BaseTableScanContext):
-    """
-    context for scanning data in a specific snapshot
-    """
-
-    type: Literal['snapshot-scan']
-    select: Optional[SelectedFieldNames] = None
-    filter: Optional[Filter] = None
+    select: Optional[List[FieldName]] = Field(
+        None,
+        description='A list of fields in schema that are selected in a table scan. When not specified, all columns in the requested schema should be selected.',
+    )
+    filter: Optional[Expression] = Field(
+        None,
+        description='an unbounded expression to describe the filters to apply to a table scan,',
+    )
     case_sensitive: Optional[bool] = Field(
         True,
         alias='case-sensitive',
         description='If field selection and filtering should be case sensitive',
-    )
-    snapshot_id: Optional[int] = Field(
-        None,
-        alias='snapshot-id',
-        description='The ID of the snapshot to use for the table scan. If not specified, the snapshot at the main branch head will be used.',
     )
     use_snapshot_schema: Optional[bool] = Field(
         False,
         alias='use-snapshot-schema',
-        description='If the schema of the specific snapshot should be used instead of the table schema.',
+        description='If the client is performing time travel, the snapshot schema should be used. For clients performing a plan for a branch, should default to using the table schema.',
     )
-
-
-class IncrementalSnapshotScanContext(BaseTableScanContext):
-    """
-    Context for scanning data appended in a range of snapshots. The scan always follows the schema of the snapshot at the main branch head.
-    """
-
-    type: Literal['incremental-snapshot-scan']
-    select: Optional[SelectedFieldNames] = None
-    filter: Optional[Filter] = None
-    case_sensitive: Optional[bool] = Field(
-        True,
-        alias='case-sensitive',
-        description='If field selection and filtering should be case sensitive',
-    )
-    start_snapshot_id: int = Field(
-        ...,
+    start_snapshot_id: Optional[int] = Field(
+        None,
         alias='start-snapshot-id',
         description='The ID of the starting snapshot of the incremental scan',
-    )
-    inclusive_start: Optional[bool] = Field(
-        False,
-        alias='inclusive-start',
-        description='If the data appended in the start snapshot should be included in the scan',
     )
     end_snapshot_id: Optional[int] = Field(
         None,
@@ -1320,22 +1277,145 @@ class IncrementalSnapshotScanContext(BaseTableScanContext):
     )
 
 
+class PreplanTableRequest2(BaseModel):
+    snapshot_id: Optional[int] = Field(
+        None,
+        alias='snapshot-id',
+        description='The ID of the snapshot to use for the table scan.',
+    )
+    select: Optional[List[FieldName]] = Field(
+        None,
+        description='A list of fields in schema that are selected in a table scan. When not specified, all columns in the requested schema should be selected.',
+    )
+    filter: Optional[Expression] = Field(
+        None,
+        description='an unbounded expression to describe the filters to apply to a table scan,',
+    )
+    case_sensitive: Optional[bool] = Field(
+        True,
+        alias='case-sensitive',
+        description='If field selection and filtering should be case sensitive',
+    )
+    use_snapshot_schema: Optional[bool] = Field(
+        False,
+        alias='use-snapshot-schema',
+        description='If the client is performing time travel, the snapshot schema should be used. For clients performing a plan for a branch, should default to using the table schema.',
+    )
+    start_snapshot_id: int = Field(
+        ...,
+        alias='start-snapshot-id',
+        description='The ID of the starting snapshot of the incremental scan',
+    )
+    end_snapshot_id: int = Field(
+        ...,
+        alias='end-snapshot-id',
+        description='The ID of the inclusive ending snapshot of the incremental scan. If not specified, the snapshot at the main branch head will be used as the end snapshot.',
+    )
+
+
+class PreplanTableRequest(BaseModel):
+    __root__: Union[PreplanTableRequest1, PreplanTableRequest2]
+
+
+class PlanTableRequest1(BaseModel):
+    plan_task: Optional[PlanTask] = Field(None, alias='plan-task')
+    snapshot_id: int = Field(
+        ...,
+        alias='snapshot-id',
+        description='The ID of the snapshot to use for the table scan.',
+    )
+    select: Optional[List[FieldName]] = Field(
+        None,
+        description='A list of fields in schema that are selected in a table scan. When not specified, all columns in the requested schema should be selected.',
+    )
+    filter: Optional[Expression] = Field(
+        None,
+        description='an unbounded expression to describe the filters to apply to a table scan,',
+    )
+    case_sensitive: Optional[bool] = Field(
+        True,
+        alias='case-sensitive',
+        description='If field selection and filtering should be case sensitive',
+    )
+    use_snapshot_schema: Optional[bool] = Field(
+        False,
+        alias='use-snapshot-schema',
+        description='If the client is performing time travel, the snapshot schema should be used. For clients performing a plan for a branch, should default to using the table schema.',
+    )
+    start_snapshot_id: Optional[int] = Field(
+        None,
+        alias='start-snapshot-id',
+        description='The ID of the starting snapshot of the incremental scan',
+    )
+    end_snapshot_id: Optional[int] = Field(
+        None,
+        alias='end-snapshot-id',
+        description='The ID of the inclusive ending snapshot of the incremental scan. If not specified, the snapshot at the main branch head will be used as the end snapshot.',
+    )
+    stats_fields: Optional[List[FieldName]] = Field(
+        None,
+        alias='stats-fields',
+        description='A list of fields that the client requests the server to send statistics in each `FileScanTask` returned in the response',
+    )
+
+
+class PlanTableRequest2(BaseModel):
+    plan_task: Optional[PlanTask] = Field(None, alias='plan-task')
+    snapshot_id: Optional[int] = Field(
+        None,
+        alias='snapshot-id',
+        description='The ID of the snapshot to use for the table scan.',
+    )
+    select: Optional[List[FieldName]] = Field(
+        None,
+        description='A list of fields in schema that are selected in a table scan. When not specified, all columns in the requested schema should be selected.',
+    )
+    filter: Optional[Expression] = Field(
+        None,
+        description='an unbounded expression to describe the filters to apply to a table scan,',
+    )
+    case_sensitive: Optional[bool] = Field(
+        True,
+        alias='case-sensitive',
+        description='If field selection and filtering should be case sensitive',
+    )
+    use_snapshot_schema: Optional[bool] = Field(
+        False,
+        alias='use-snapshot-schema',
+        description='If the client is performing time travel, the snapshot schema should be used. For clients performing a plan for a branch, should default to using the table schema.',
+    )
+    start_snapshot_id: int = Field(
+        ...,
+        alias='start-snapshot-id',
+        description='The ID of the starting snapshot of the incremental scan',
+    )
+    end_snapshot_id: int = Field(
+        ...,
+        alias='end-snapshot-id',
+        description='The ID of the inclusive ending snapshot of the incremental scan. If not specified, the snapshot at the main branch head will be used as the end snapshot.',
+    )
+    stats_fields: Optional[List[FieldName]] = Field(
+        None,
+        alias='stats-fields',
+        description='A list of fields that the client requests the server to send statistics in each `FileScanTask` returned in the response',
+    )
+
+
+class PlanTableRequest(BaseModel):
+    __root__: Union[PlanTableRequest1, PlanTableRequest2]
+
+
 class FileScanTask(BaseModel):
     data_file: DataFile = Field(..., alias='data-file')
-    position_delete_files: Optional[List[PositionDeleteFile]] = Field(
+    delete_files_references: Optional[List[int]] = Field(
         None,
-        alias='position-delete-files',
-        description='a list of position delete files that should be applied to the data file during a scan',
+        alias='delete-files-references',
+        description='A list of positional indices that correspond to a delete files array.',
     )
-    equality_delete_files: Optional[List[EqualityDeleteFile]] = Field(
+    residual_filter: Optional[Expression] = Field(
         None,
-        alias='equality-delete-files',
-        description='a list of equality delete files that should be applied to the data file during a scan',
-    )
-    residual_filter: Filter = Field(
-        ...,
         alias='residual-filter',
-        description='the filters should be applied to rows in this file scan task',
+        description='An optional filter to be applied to rows in this file scan task. If the residual is not present, the client should calculate this or the original filter should be used.',
     )
 
 
@@ -1344,12 +1424,6 @@ class Schema(StructType):
     identifier_field_ids: Optional[List[int]] = Field(
         None, alias='identifier-field-ids'
     )
-
-
-class Filter(BaseModel):
-    """
-    an unbounded expression to describe the filters to apply to a table scan, default to `TrueExpression` meaning that nothing is filtered.
-    """
 
 
 class ReportMetricsRequest1(ScanReport):
@@ -1367,10 +1441,3 @@ PlanTableResult.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
-PreplanTableRequest.update_forward_refs()
-PlanTableRequest.update_forward_refs()
-TableScanContext.update_forward_refs()
-SnapshotScanContext.update_forward_refs()
-IncrementalSnapshotScanContext.update_forward_refs()
-FileScanTask.update_forward_refs()
-Filter.update_forward_refs()
