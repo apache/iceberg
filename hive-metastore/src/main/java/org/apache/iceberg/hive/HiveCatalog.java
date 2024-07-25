@@ -531,7 +531,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   public TableOperations newTableOps(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
-    HiveTableOperations hiveTableOperations =
+    HiveTableOperations ops =
         new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
     fileIOCloser.put(hiveTableOperations, hiveTableOperations.io());
     return hiveTableOperations;
