@@ -319,8 +319,12 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
         return TypeSerializerSchemaCompatibility.incompatible();
       }
 
-      SortKeySerializer newAvroSerializer = (SortKeySerializer) newSerializer;
-      return resolveSchemaCompatibility(newAvroSerializer.schema, schema);
+      SortKeySerializer sortKeySerializer = (SortKeySerializer) newSerializer;
+      if (!sortOrder.sameOrder(sortKeySerializer.sortOrder)) {
+        return TypeSerializerSchemaCompatibility.incompatible();
+      }
+
+      return resolveSchemaCompatibility(sortKeySerializer.schema, schema);
     }
 
     @Override
