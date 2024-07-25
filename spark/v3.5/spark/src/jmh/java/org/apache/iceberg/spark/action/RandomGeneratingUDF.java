@@ -29,7 +29,7 @@ import org.apache.spark.sql.types.DataTypes;
 
 class RandomGeneratingUDF implements Serializable {
   private final long uniqueValues;
-  private final Random rand = new Random();
+  private Random rand = new Random();
 
   RandomGeneratingUDF(long uniqueValues) {
     this.uniqueValues = uniqueValues;
@@ -43,7 +43,8 @@ class RandomGeneratingUDF implements Serializable {
 
   UserDefinedFunction randomString() {
     return udf(
-            () -> RandomUtil.generatePrimitive(Types.StringType.get(), rand), DataTypes.StringType)
+            () -> (String) RandomUtil.generatePrimitive(Types.StringType.get(), rand),
+            DataTypes.StringType)
         .asNondeterministic()
         .asNonNullable();
   }

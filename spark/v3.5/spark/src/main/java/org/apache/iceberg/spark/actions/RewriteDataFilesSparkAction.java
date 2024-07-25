@@ -393,7 +393,7 @@ public class RewriteDataFilesSparkAction
   Stream<RewriteFileGroup> toGroupStream(
       RewriteExecutionContext ctx, Map<StructLike, List<List<FileScanTask>>> groupsByPartition) {
     return groupsByPartition.entrySet().stream()
-        .filter(e -> !e.getValue().isEmpty())
+        .filter(e -> e.getValue().size() != 0)
         .flatMap(
             e -> {
               StructLike partition = e.getKey();

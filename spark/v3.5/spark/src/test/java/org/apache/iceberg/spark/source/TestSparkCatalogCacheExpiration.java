@@ -35,7 +35,7 @@ import org.junit.jupiter.api.TestTemplate;
 
 public class TestSparkCatalogCacheExpiration extends TestBaseWithCatalog {
 
-  private static final Map<String, String> SESSION_CATALOG_CONFIG =
+  private static final Map<String, String> sessionCatalogConfig =
       ImmutableMap.of(
           "type",
           "hadoop",
@@ -49,7 +49,7 @@ public class TestSparkCatalogCacheExpiration extends TestBaseWithCatalog {
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"spark_catalog", SparkSessionCatalog.class.getName(), SESSION_CATALOG_CONFIG},
+      {"spark_catalog", SparkSessionCatalog.class.getName(), sessionCatalogConfig},
     };
   }
 

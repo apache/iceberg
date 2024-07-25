@@ -91,7 +91,7 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
 
   private Map<String, String> tableProperties;
 
-  private final org.apache.spark.sql.types.StructType sparkSchema =
+  private org.apache.spark.sql.types.StructType sparkSchema =
       new org.apache.spark.sql.types.StructType(
           new org.apache.spark.sql.types.StructField[] {
             new org.apache.spark.sql.types.StructField(
@@ -106,16 +106,16 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
                 org.apache.spark.sql.types.Metadata.empty())
           });
 
-  private final Schema icebergSchema =
+  private Schema icebergSchema =
       new Schema(
           Types.NestedField.optional(1, "optionalField", Types.StringType.get()),
           Types.NestedField.required(2, "requiredField", Types.StringType.get()));
 
-  private final List<String> data0 =
+  private List<String> data0 =
       Arrays.asList(
           "{\"optionalField\": \"a1\", \"requiredField\": \"bid_001\"}",
           "{\"optionalField\": \"a2\", \"requiredField\": \"bid_002\"}");
-  private final List<String> data1 =
+  private List<String> data1 =
       Arrays.asList(
           "{\"optionalField\": \"d1\", \"requiredField\": \"bid_101\"}",
           "{\"optionalField\": \"d2\", \"requiredField\": \"bid_102\"}",
@@ -220,15 +220,16 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
     final int numPartitions = 10;
     final int partitionToFail = new Random().nextInt(numPartitions);
     MapPartitionsFunction<Row, Row> failOnFirstPartitionFunc =
-        input -> {
-          int partitionId = TaskContext.getPartitionId();
+        (MapPartitionsFunction<Row, Row>)
+            input -> {
+              int partitionId = TaskContext.getPartitionId();
 
-          if (partitionId == partitionToFail) {
-            throw new SparkException(
-                String.format("Intended exception in partition %d !", partitionId));
-          }
-          return input;
-        };
+              if (partitionId == partitionToFail) {
+                throw new SparkException(
+                    String.format("Intended exception in partition %d !", partitionId));
+              }
+              return input;
+            };
 
     Dataset<Row> df =
         createDataset(records, schema)
@@ -286,8 +287,8 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
         .startsWith("2");
 
     File location = temp.resolve("parquet").resolve("test").toFile();
-    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location);
-    String targetPath = String.format("%s/nullable_poc/targetFolder/", location);
+    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
+    String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
 
     tableProperties = ImmutableMap.of(TableProperties.WRITE_DATA_LOCATION, targetPath);
 
@@ -340,8 +341,8 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
         .startsWith("2");
 
     File location = temp.resolve("parquet").resolve("test").toFile();
-    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location);
-    String targetPath = String.format("%s/nullable_poc/targetFolder/", location);
+    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
+    String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
 
     tableProperties = ImmutableMap.of(TableProperties.WRITE_DATA_LOCATION, targetPath);
 

@@ -203,7 +203,7 @@ public class PruneColumnsWithReordering extends TypeUtil.CustomOrderSchemaVisito
         "Cannot project a map of optional values as required values: %s",
         map);
     Preconditions.checkArgument(
-        requestedMap.keyType() instanceof StringType,
+        StringType.class.isInstance(requestedMap.keyType()),
         "Invalid map key type (not string): %s",
         requestedMap.keyType());
 

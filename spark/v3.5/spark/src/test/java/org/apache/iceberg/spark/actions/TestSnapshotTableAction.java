@@ -32,12 +32,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshotTableAction extends CatalogTestBase {
-  private static final String SOURCE_NAME = "spark_catalog.default.source";
+  private static final String sourceName = "spark_catalog.default.source";
 
   @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
-    sql("DROP TABLE IF EXISTS %s PURGE", SOURCE_NAME);
+    sql("DROP TABLE IF EXISTS %s PURGE", sourceName);
   }
 
   @TestTemplate
@@ -45,13 +45,13 @@ public class TestSnapshotTableAction extends CatalogTestBase {
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        SOURCE_NAME, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
-    sql("INSERT INTO TABLE %s VALUES (2, 'b')", SOURCE_NAME);
+        sourceName, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", sourceName);
 
     AtomicInteger snapshotThreadsIndex = new AtomicInteger(0);
     SparkActions.get()
-        .snapshotTable(SOURCE_NAME)
+        .snapshotTable(sourceName)
         .as(tableName)
         .executeWith(
             Executors.newFixedThreadPool(

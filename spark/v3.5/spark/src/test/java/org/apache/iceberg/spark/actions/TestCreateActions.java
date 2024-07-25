@@ -141,7 +141,7 @@ public class TestCreateActions extends CatalogTestBase {
     };
   }
 
-  private final String baseTableName = "baseTable";
+  private String baseTableName = "baseTable";
   private File tableDir;
   private String tableLocation;
 

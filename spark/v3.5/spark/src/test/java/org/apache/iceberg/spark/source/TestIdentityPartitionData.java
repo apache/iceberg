@@ -134,7 +134,7 @@ public class TestIdentityPartitionData extends TestBase {
 
   @TempDir private Path temp;
 
-  private final PartitionSpec spec =
+  private PartitionSpec spec =
       PartitionSpec.builderFor(LOG_SCHEMA).identity("date").identity("level").build();
   private Table table = null;
   private Dataset<Row> logs = null;
