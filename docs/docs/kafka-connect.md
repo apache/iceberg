@@ -60,7 +60,7 @@ Copy the distribution archive into the Kafka Connect plugins directory on all no
 | iceberg.tables.route-field                 | For multi-table fan-out, the name of the field used to route records to tables                                   |
 | iceberg.tables.default-commit-branch       | Default branch for commits, main is used if not specified                                                        |
 | iceberg.tables.default-id-columns          | Default comma-separated list of columns that identify a row in tables (primary key)                              |
-| iceberg.tables.default-partition-by        | Default comma-separated list of partition field names to use when creating tables                                     |
+| iceberg.tables.default-partition-by        | Default comma-separated list of partition field names to use when creating tables                                |
 | iceberg.tables.auto-create-enabled         | Set to `true` to automatically create destination tables, default is `false`                                     |
 | iceberg.tables.evolve-schema-enabled       | Set to `true` to add any missing record fields to the table schema, default is `false`                           |
 | iceberg.tables.schema-force-optional       | Set to `true` to set columns as optional during table create and evolution, default is `false` to respect schema |
@@ -72,7 +72,6 @@ Copy the distribution archive into the Kafka Connect plugins directory on all no
 | iceberg.table.\<table name\>.partition-by  | Comma-separated list of partition fields to use when creating the table                                          |
 | iceberg.table.\<table name\>.route-regex   | The regex used to match a record's `routeField` to a table                                                       |
 | iceberg.control.topic                      | Name of the control topic, default is `control-iceberg`                                                          |
-| iceberg.control.group-id                   | Name of the consumer group to store offsets, default is `cg-control-<connector name>`                            |
 | iceberg.control.commit.interval-ms         | Commit interval in msec, default is 300,000 (5 min)                                                              |
 | iceberg.control.commit.timeout-ms          | Commit timeout interval in msec, default is 30,000 (30 sec)                                                      |
 | iceberg.control.commit.threads             | Number of threads to use for commits, default is (cores * 2)                                                     |
@@ -91,15 +90,6 @@ contain the name of the table.
 By default the connector will attempt to use Kafka client config from the worker properties for connecting to
 the control topic. If that config cannot be read for some reason, Kafka client settings
 can be set explicitly using `iceberg.kafka.*` properties.
-
-#### Source topic offsets
-
-Source topic offsets are stored in two different consumer groups. The first is the sink-managed consumer
-group defined by the `iceberg.control.group-id` property. The second is the Kafka Connect managed
-consumer group which is named `connect-<connector name>` by default. The sink-managed consumer
-group is used by the sink to achieve exactly-once processing. The Kafka Connect consumer group is
-only used as a fallback if the sink-managed consumer group is missing. To reset the offsets,
-both consumer groups need to be reset.
 
 #### Message format
 
