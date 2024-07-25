@@ -191,6 +191,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
+  public StreamingUpdate newStreamingUpdate() {
+    return new BaseStreamingUpdate(name, ops).reportWith(reporter);
+  }
+
+  @Override
   public RewriteManifests rewriteManifests() {
     return new BaseRewriteManifests(ops).reportWith(reporter);
   }

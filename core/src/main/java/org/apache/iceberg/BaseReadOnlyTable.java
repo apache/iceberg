@@ -67,6 +67,11 @@ abstract class BaseReadOnlyTable implements Table {
   }
 
   @Override
+  public StreamingUpdate newStreamingUpdate() {
+    throw new UnsupportedOperationException("Cannot update a " + descriptor + " table");
+  }
+
+  @Override
   public RewriteManifests rewriteManifests() {
     throw new UnsupportedOperationException(
         "Cannot rewrite manifests in a " + descriptor + " table");

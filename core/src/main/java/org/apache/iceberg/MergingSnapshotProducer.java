@@ -285,6 +285,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
+  protected void clearFiles() {
+    newDataFilePaths.clear();
+    newDataFilesBySpec.clear();
+    newDeleteFilePaths.clear();
+    newDeleteFilesBySpec.clear();
+    addedFilesSummary.clear();
+    hasNewDataFiles = false;
+    hasNewDeleteFiles = false;
+  }
+
   /** Add all files in a manifest to the new snapshot. */
   protected void add(ManifestFile manifest) {
     Preconditions.checkArgument(
