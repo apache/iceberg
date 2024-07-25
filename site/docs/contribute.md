@@ -218,8 +218,8 @@ public class SnapshotManager implements ManageSnapshots {
   // existing code...
 
   @Override
-  public ManageSnapshots createBranch(String name) {
-    updateSnapshotReferencesOperation().createBranch(name);
+  public ManageSnapshots createBranch(String name, long snapshotId) {
+    updateSnapshotReferencesOperation().createBranch(name, snapshotId);
     return this;
   }
 }
