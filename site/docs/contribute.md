@@ -54,7 +54,7 @@ of interest with a pull request they review, they are encouraged to ask for anot
 
 There are several exceptions to this process:
 
-* Large changes or functional changes to a specification must go through the an [Iceberg improvement proposal](#apache-iceberg-improvement-proposals) before any code can be merged.
+* Large changes or functional changes to a specification must go through the [Iceberg improvement proposal](#apache-iceberg-improvement-proposals) before any code can be merged.
 * Changes to files under the `format` directory and `open-api/rest-catalog*` are considered specification changes. Unless already covered under an Iceberg improvement proposal, specification changes require their own vote (e.g. bug fixes or specification clarifications). The vote follows the ASF [code modification](https://www.apache.org/foundation/voting.html#votes-on-code-modification) model and no lazy consensus modifier. Grammar, spelling and minor formatting fixes are exempted from this rule.
 
 ## Apache Iceberg Improvement Proposals
