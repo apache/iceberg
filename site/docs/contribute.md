@@ -49,13 +49,13 @@ The Iceberg community prefers to receive contributions as [Github pull requests]
 
 Most pull requests can be merged once a committer is satisfied with the code in the PR. For larger changes or additions to public
 APIs committers will wait at least 24 hours before merging to ensure there is no additional feedback from members of the community. As in
-all ASF governed projects committers are expected to act in the best interest of the project. If committer feels there might be a conflict
+all ASF governed projects committers are expected to act in the best interest of the project. If a committer feels there might be a conflict
 of interest with a pull request they review, they are encouraged to ask for another committer to look at the pull request.
 
 There are several exceptions to this process:
 
 * Large changes or functional changes to a specification must go through the an [Iceberg improvement proposal](#apache-iceberg-improvement-proposals) before any code can be merged.
-* Changes to files under the `format` directory and `open-api/rest-catalog*` are considered specification changes. Unless already covered under an Iceberg improvement proposal, specification changes require their own vote (e.g. bug fixes or specification clarifications). The vote follows the ASF [code modification][apache-vote] model with three positive PMC votes required and no lazy consensus modifier. Grammar, spelling and minor formatting fixes are exempted from this rule.
+* Changes to files under the `format` directory and `open-api/rest-catalog*` are considered specification changes. Unless already covered under an Iceberg improvement proposal, specification changes require their own vote (e.g. bug fixes or specification clarifications). The vote follows the ASF [code modification](https://www.apache.org/foundation/voting.html#votes-on-code-modification) model with three positive PMC votes required and no lazy consensus modifier. Grammar, spelling and minor formatting fixes are exempted from this rule.
 
 ## Apache Iceberg Improvement Proposals
 
