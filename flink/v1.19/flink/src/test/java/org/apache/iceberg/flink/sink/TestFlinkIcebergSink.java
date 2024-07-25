@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -29,9 +28,7 @@ import java.util.Map;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
-import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
@@ -43,7 +40,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.FlinkWriteOptions;
-import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
@@ -55,21 +51,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.RegisterExtension;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
-
-  @RegisterExtension
-  public static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
-      MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
-
-  @RegisterExtension
-  private static final HadoopCatalogExtension CATALOG_EXTENSION =
-      new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
-
-  private TableLoader tableLoader;
-
   @Parameter(index = 0)
   private FileFormat format;
 
@@ -99,7 +83,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
 
   @BeforeEach
   public void before() throws IOException {
-    table =
+    this.table =
         CATALOG_EXTENSION
             .catalog()
             .createTable(
@@ -110,14 +94,14 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
                     : PartitionSpec.unpartitioned(),
                 ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
 
-    env =
+    this.env =
         StreamExecutionEnvironment.getExecutionEnvironment(
                 MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG)
             .enableCheckpointing(100)
             .setParallelism(parallelism)
             .setMaxParallelism(parallelism);
 
-    tableLoader = CATALOG_EXTENSION.tableLoader();
+    this.tableLoader = CATALOG_EXTENSION.tableLoader();
   }
 
   @TestTemplate
@@ -140,102 +124,14 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
   }
 
-  private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)
-      throws Exception {
-    List<Row> rows = createRows("");
-    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
-
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-        .table(table)
-        .tableLoader(tableLoader)
-        .tableSchema(tableSchema)
-        .writeParallelism(parallelism)
-        .distributionMode(distributionMode)
-        .append();
-
-    // Execute the program.
-    env.execute("Test Iceberg DataStream.");
-
-    SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
-  }
-
-  private int partitionFiles(String partition) throws IOException {
-    return SimpleDataUtil.partitionDataFiles(table, ImmutableMap.of("data", partition)).size();
-  }
-
   @TestTemplate
   public void testWriteRow() throws Exception {
-    testWriteRow(null, DistributionMode.NONE);
+    testWriteRow(parallelism, null, DistributionMode.NONE);
   }
 
   @TestTemplate
   public void testWriteRowWithTableSchema() throws Exception {
-    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE);
-  }
-
-  @TestTemplate
-  public void testJobNoneDistributeMode() throws Exception {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
-        .commit();
-
-    testWriteRow(null, DistributionMode.NONE);
-
-    if (parallelism > 1) {
-      if (partitioned) {
-        int files = partitionFiles("aaa") + partitionFiles("bbb") + partitionFiles("ccc");
-        assertThat(files).isGreaterThan(3);
-      }
-    }
-  }
-
-  @TestTemplate
-  public void testJobHashDistributionMode() {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
-        .commit();
-
-    assertThatThrownBy(() -> testWriteRow(null, DistributionMode.RANGE))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Flink does not support 'range' write distribution mode now.");
-  }
-
-  @TestTemplate
-  public void testJobNullDistributionMode() throws Exception {
-    table
-        .updateProperties()
-        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
-        .commit();
-
-    testWriteRow(null, null);
-
-    if (partitioned) {
-      assertThat(partitionFiles("aaa")).isEqualTo(1);
-      assertThat(partitionFiles("bbb")).isEqualTo(1);
-      assertThat(partitionFiles("ccc")).isEqualTo(1);
-    }
-  }
-
-  @TestTemplate
-  public void testPartitionWriteMode() throws Exception {
-    testWriteRow(null, DistributionMode.HASH);
-    if (partitioned) {
-      assertThat(partitionFiles("aaa")).isEqualTo(1);
-      assertThat(partitionFiles("bbb")).isEqualTo(1);
-      assertThat(partitionFiles("ccc")).isEqualTo(1);
-    }
-  }
-
-  @TestTemplate
-  public void testShuffleByPartitionWithSchema() throws Exception {
-    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH);
-    if (partitioned) {
-      assertThat(partitionFiles("aaa")).isEqualTo(1);
-      assertThat(partitionFiles("bbb")).isEqualTo(1);
-      assertThat(partitionFiles("ccc")).isEqualTo(1);
-    }
+    testWriteRow(parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE);
   }
 
   @TestTemplate
@@ -317,26 +213,6 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     assertThat(rightTable.currentSnapshot().summary())
         .containsEntry("flink.test", TestFlinkIcebergSink.class.getName())
         .containsEntry("direction", "rightTable");
-  }
-
-  @TestTemplate
-  public void testOverrideWriteConfigWithUnknownDistributionMode() {
-    Map<String, String> newProps = Maps.newHashMap();
-    newProps.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), "UNRECOGNIZED");
-
-    List<Row> rows = createRows("");
-    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
-
-    FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
-            .table(table)
-            .tableLoader(tableLoader)
-            .writeParallelism(parallelism)
-            .setAll(newProps);
-
-    assertThatThrownBy(builder::append)
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid distribution mode: UNRECOGNIZED");
   }
 
   @TestTemplate
