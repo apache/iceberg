@@ -54,7 +54,7 @@ public interface RewriteManifests extends SnapshotUpdate<RewriteManifests> {
    * then all manifests will be rewritten.
    *
    * @param predicate Predicate used to determine which manifests to rewrite. If true then the
-   *     manifest file will be included for rewrite. If false then then manifest is kept as-is.
+   *     manifest file will be included for rewrite. If false then the manifest is kept as-is.
    * @return this for method chaining
    */
   RewriteManifests rewriteIf(Predicate<ManifestFile> predicate);
