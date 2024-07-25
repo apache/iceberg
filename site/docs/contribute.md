@@ -196,6 +196,8 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   // existing code...
 
   // adding this method introduces an API-breaking change
+  // since existing classes implementing ManagedSnapshots
+  // will no longer compile.
   ManageSnapshots createBranch(String name);
 }
 ```
@@ -207,8 +209,8 @@ public class SnapshotManager implements ManageSnapshots {
   // existing code...
 
   @Override
-  public ManageSnapshots createBranch(String name, long snapshotId) {
-    updateSnapshotReferencesOperation().createBranch(name, snapshotId);
+  public ManageSnapshots createBranch(String name) {
+    updateSnapshotReferencesOperation().createBranch(name);
     return this;
   }
 }
