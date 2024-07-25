@@ -35,7 +35,7 @@ class LimitableDataIterator<T> extends DataIterator<T> {
       EncryptionManager encryption,
       RecordLimiter limiter) {
     super(fileScanTaskReader, task, io, encryption);
-    Preconditions.checkArgument(limiter != null, "Invalid record limiter:  null");
+    Preconditions.checkArgument(limiter != null, "Invalid record limiter: null");
     this.limiter = limiter;
   }
 
