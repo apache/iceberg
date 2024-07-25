@@ -196,7 +196,7 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   // existing code...
 
   // adding this method introduces an API-breaking change
-  // since existing classes implementing ManagedSnapshots
+  // since existing classes implementing ManageSnapshots
   // will no longer compile.
   ManageSnapshots createBranch(String name);
 }
