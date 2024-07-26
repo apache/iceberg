@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -41,7 +42,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Encoders;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -287,7 +287,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(3L, FILE_B2.path().toString()),
             Tuple2.apply(3L, FILE_C2.path().toString()),
             Tuple2.apply(3L, FILE_D2.path().toString()));
-    Assertions.assertThat(actual).isEqualTo(expected);
+    assertThat(actual).isEqualTo(expected);
 
     RemoveDanglingDeleteFiles.Result result =
         SparkActions.get().removeDanglingDeleteFiles(table).execute();
@@ -296,7 +296,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
     // because there are no data files in partition with a lesser sequence number
     Set<CharSequence> removedDeleteFiles =
         result.removedDeleteFiles().stream().map(DeleteFile::path).collect(Collectors.toSet());
-    Assertions.assertThat(removedDeleteFiles)
+    assertThat(removedDeleteFiles)
         .as("Expected 4 delete files removed")
         .hasSize(4)
         .containsExactlyInAnyOrder(
@@ -328,7 +328,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(3L, FILE_B2.path().toString()),
             Tuple2.apply(3L, FILE_C2.path().toString()),
             Tuple2.apply(3L, FILE_D2.path().toString()));
-    Assertions.assertThat(actualAfter).isEqualTo(expectedAfter);
+    assertThat(actualAfter).isEqualTo(expectedAfter);
   }
 
   @Test
@@ -381,7 +381,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(2L, FILE_B2_POS_DELETES.path().toString()),
             Tuple2.apply(2L, FILE_C2.path().toString()),
             Tuple2.apply(2L, FILE_D2.path().toString()));
-    Assertions.assertThat(actual).isEqualTo(expected);
+    assertThat(actual).isEqualTo(expected);
 
     RemoveDanglingDeleteFiles.Result result =
         SparkActions.get().removeDanglingDeleteFiles(table).execute();
@@ -390,7 +390,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
     // because there are no data files in partition with a lesser sequence number
     Set<CharSequence> removedDeleteFiles =
         result.removedDeleteFiles().stream().map(DeleteFile::path).collect(Collectors.toSet());
-    Assertions.assertThat(removedDeleteFiles)
+    assertThat(removedDeleteFiles)
         .as("Expected two delete files removed")
         .hasSize(2)
         .containsExactlyInAnyOrder(FILE_B_EQ_DELETES.path(), FILE_B2_EQ_DELETES.path());
@@ -420,7 +420,7 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(2L, FILE_B2_POS_DELETES.path().toString()),
             Tuple2.apply(2L, FILE_C2.path().toString()),
             Tuple2.apply(2L, FILE_D2.path().toString()));
-    Assertions.assertThat(actualAfter).isEqualTo(expectedAfter);
+    assertThat(actualAfter).isEqualTo(expectedAfter);
   }
 
   @Test
@@ -436,8 +436,6 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
 
     RemoveDanglingDeleteFiles.Result result =
         SparkActions.get().removeDanglingDeleteFiles(table).execute();
-    Assertions.assertThat(result.removedDeleteFiles())
-        .as("No-op for unpartitioned tables")
-        .isEmpty();
+    assertThat(result.removedDeleteFiles()).as("No-op for unpartitioned tables").isEmpty();
   }
 }
