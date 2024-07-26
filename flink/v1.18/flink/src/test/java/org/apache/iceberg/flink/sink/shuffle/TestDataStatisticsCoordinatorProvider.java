@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.SORT_ORDER_COMPARTOR;
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.TASK_STATISTICS_SERIALIZER;
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.createStatisticsEvent;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
@@ -27,117 +31,157 @@ import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.EventReceivingTasks;
 import org.apache.flink.runtime.operators.coordination.MockOperatorCoordinatorContext;
 import org.apache.flink.runtime.operators.coordination.RecreateOnResetOperatorCoordinator;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortKey;
-import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.types.Types;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 public class TestDataStatisticsCoordinatorProvider {
   private static final OperatorID OPERATOR_ID = new OperatorID();
-  private static final int NUM_SUBTASKS = 1;
 
-  private final Schema schema =
-      new Schema(Types.NestedField.optional(1, "str", Types.StringType.get()));
-  private final SortOrder sortOrder = SortOrder.builderFor(schema).asc("str").build();
-  private final SortKey sortKey = new SortKey(schema, sortOrder);
-  private final MapDataStatisticsSerializer statisticsSerializer =
-      MapDataStatisticsSerializer.fromSortKeySerializer(new SortKeySerializer(schema, sortOrder));
-
-  private DataStatisticsCoordinatorProvider<MapDataStatistics, Map<SortKey, Long>> provider;
   private EventReceivingTasks receivingTasks;
 
   @BeforeEach
   public void before() {
-    provider =
-        new DataStatisticsCoordinatorProvider<>(
-            "DataStatisticsCoordinatorProvider", OPERATOR_ID, statisticsSerializer);
     receivingTasks = EventReceivingTasks.createForRunningTasks();
   }
 
-  @Test
-  @SuppressWarnings("unchecked")
-  public void testCheckpointAndReset() throws Exception {
-    SortKey keyA = sortKey.copy();
-    keyA.set(0, "a");
-    SortKey keyB = sortKey.copy();
-    keyB.set(0, "b");
-    SortKey keyC = sortKey.copy();
-    keyC.set(0, "c");
-    SortKey keyD = sortKey.copy();
-    keyD.set(0, "c");
-    SortKey keyE = sortKey.copy();
-    keyE.set(0, "c");
-
+  @ParameterizedTest
+  @EnumSource(StatisticsType.class)
+  public void testCheckpointAndReset(StatisticsType type) throws Exception {
+    DataStatisticsCoordinatorProvider provider = createProvider(type, Fixtures.NUM_SUBTASKS);
     try (RecreateOnResetOperatorCoordinator coordinator =
         (RecreateOnResetOperatorCoordinator)
-            provider.create(new MockOperatorCoordinatorContext(OPERATOR_ID, NUM_SUBTASKS))) {
-      DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>> dataStatisticsCoordinator =
-          (DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>)
-              coordinator.getInternalCoordinator();
+            provider.create(
+                new MockOperatorCoordinatorContext(OPERATOR_ID, Fixtures.NUM_SUBTASKS))) {
+      DataStatisticsCoordinator dataStatisticsCoordinator =
+          (DataStatisticsCoordinator) coordinator.getInternalCoordinator();
 
       // Start the coordinator
       coordinator.start();
       TestDataStatisticsCoordinator.setAllTasksReady(
-          NUM_SUBTASKS, dataStatisticsCoordinator, receivingTasks);
-      MapDataStatistics checkpoint1Subtask0DataStatistic = new MapDataStatistics();
-      checkpoint1Subtask0DataStatistic.add(keyA);
-      checkpoint1Subtask0DataStatistic.add(keyB);
-      checkpoint1Subtask0DataStatistic.add(keyC);
-      DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
-          checkpoint1Subtask0DataStatisticEvent =
-              DataStatisticsEvent.create(1, checkpoint1Subtask0DataStatistic, statisticsSerializer);
+          Fixtures.NUM_SUBTASKS, dataStatisticsCoordinator, receivingTasks);
 
       // Handle events from operators for checkpoint 1
-      coordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0DataStatisticEvent);
+      StatisticsEvent checkpoint1Subtask0StatisticsEvent =
+          createStatisticsEvent(type, TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("a"));
+      coordinator.handleEventFromOperator(0, 0, checkpoint1Subtask0StatisticsEvent);
       TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+
+      StatisticsEvent checkpoint1Subtask1StatisticsEvent =
+          createStatisticsEvent(type, TASK_STATISTICS_SERIALIZER, 1L, CHAR_KEYS.get("b"));
+      coordinator.handleEventFromOperator(1, 0, checkpoint1Subtask1StatisticsEvent);
+      TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+
       // Verify checkpoint 1 global data statistics
-      MapDataStatistics checkpoint1GlobalDataStatistics =
-          (MapDataStatistics) dataStatisticsCoordinator.completedStatistics().dataStatistics();
-      assertThat(checkpoint1GlobalDataStatistics.statistics())
-          .isEqualTo(checkpoint1Subtask0DataStatistic.statistics());
+      Map<SortKey, Long> checkpoint1KeyFrequency =
+          ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 1L);
+      MapAssignment checkpoint1MapAssignment =
+          MapAssignment.fromKeyFrequency(
+              Fixtures.NUM_SUBTASKS, checkpoint1KeyFrequency, 0.0d, SORT_ORDER_COMPARTOR);
+
+      CompletedStatistics completedStatistics = dataStatisticsCoordinator.completedStatistics();
+      assertThat(completedStatistics).isNotNull();
+      assertThat(completedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(completedStatistics.keyFrequency()).isEqualTo(checkpoint1KeyFrequency);
+      } else {
+        assertThat(completedStatistics.keySamples())
+            .containsExactly(CHAR_KEYS.get("a"), CHAR_KEYS.get("b"));
+      }
+
+      GlobalStatistics globalStatistics = dataStatisticsCoordinator.globalStatistics();
+      assertThat(globalStatistics).isNotNull();
+      assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(checkpoint1MapAssignment);
+      } else {
+        assertThat(globalStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("a"));
+      }
+
       byte[] checkpoint1Bytes = waitForCheckpoint(1L, dataStatisticsCoordinator);
 
-      MapDataStatistics checkpoint2Subtask0DataStatistic = new MapDataStatistics();
-      checkpoint2Subtask0DataStatistic.add(keyD);
-      checkpoint2Subtask0DataStatistic.add(keyE);
-      checkpoint2Subtask0DataStatistic.add(keyE);
-      DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>>
-          checkpoint2Subtask0DataStatisticEvent =
-              DataStatisticsEvent.create(2, checkpoint2Subtask0DataStatistic, statisticsSerializer);
-      // Handle events from operators for checkpoint 2
-      coordinator.handleEventFromOperator(0, 0, checkpoint2Subtask0DataStatisticEvent);
+      StatisticsEvent checkpoint2Subtask0StatisticsEvent =
+          createStatisticsEvent(
+              type, TASK_STATISTICS_SERIALIZER, 2L, CHAR_KEYS.get("d"), CHAR_KEYS.get("e"));
+      coordinator.handleEventFromOperator(0, 0, checkpoint2Subtask0StatisticsEvent);
       TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+
+      StatisticsEvent checkpoint2Subtask1StatisticsEvent =
+          createStatisticsEvent(type, TASK_STATISTICS_SERIALIZER, 2L, CHAR_KEYS.get("f"));
+      coordinator.handleEventFromOperator(1, 0, checkpoint2Subtask1StatisticsEvent);
+      TestDataStatisticsCoordinator.waitForCoordinatorToProcessActions(dataStatisticsCoordinator);
+
       // Verify checkpoint 2 global data statistics
-      MapDataStatistics checkpoint2GlobalDataStatistics =
-          (MapDataStatistics) dataStatisticsCoordinator.completedStatistics().dataStatistics();
-      assertThat(checkpoint2GlobalDataStatistics.statistics())
-          .isEqualTo(checkpoint2Subtask0DataStatistic.statistics());
+      Map<SortKey, Long> checkpoint2KeyFrequency =
+          ImmutableMap.of(CHAR_KEYS.get("d"), 1L, CHAR_KEYS.get("e"), 1L, CHAR_KEYS.get("f"), 1L);
+      MapAssignment checkpoint2MapAssignment =
+          MapAssignment.fromKeyFrequency(
+              Fixtures.NUM_SUBTASKS, checkpoint2KeyFrequency, 0.0d, SORT_ORDER_COMPARTOR);
+      completedStatistics = dataStatisticsCoordinator.completedStatistics();
+      assertThat(completedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(completedStatistics.keyFrequency()).isEqualTo(checkpoint2KeyFrequency);
+      } else {
+        assertThat(completedStatistics.keySamples())
+            .containsExactly(CHAR_KEYS.get("d"), CHAR_KEYS.get("e"), CHAR_KEYS.get("f"));
+      }
+
+      globalStatistics = dataStatisticsCoordinator.globalStatistics();
+      assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(checkpoint2MapAssignment);
+      } else {
+        assertThat(globalStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("e"));
+      }
+
       waitForCheckpoint(2L, dataStatisticsCoordinator);
 
       // Reset coordinator to checkpoint 1
       coordinator.resetToCheckpoint(1L, checkpoint1Bytes);
-      DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>
-          restoredDataStatisticsCoordinator =
-              (DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>>)
-                  coordinator.getInternalCoordinator();
-      assertThat(dataStatisticsCoordinator).isNotEqualTo(restoredDataStatisticsCoordinator);
+      DataStatisticsCoordinator restoredDataStatisticsCoordinator =
+          (DataStatisticsCoordinator) coordinator.getInternalCoordinator();
+      assertThat(dataStatisticsCoordinator).isNotSameAs(restoredDataStatisticsCoordinator);
+
+      completedStatistics = restoredDataStatisticsCoordinator.completedStatistics();
+      assertThat(completedStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
       // Verify restored data statistics
-      MapDataStatistics restoredAggregateDataStatistics =
-          (MapDataStatistics)
-              restoredDataStatisticsCoordinator.completedStatistics().dataStatistics();
-      assertThat(restoredAggregateDataStatistics.statistics())
-          .isEqualTo(checkpoint1GlobalDataStatistics.statistics());
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(completedStatistics.keyFrequency())
+            .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L, CHAR_KEYS.get("b"), 1L));
+      } else {
+        assertThat(completedStatistics.keySamples())
+            .containsExactly(CHAR_KEYS.get("a"), CHAR_KEYS.get("b"));
+      }
+
+      globalStatistics = restoredDataStatisticsCoordinator.globalStatistics();
+      assertThat(globalStatistics).isNotNull();
+      assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(checkpoint1MapAssignment);
+      } else {
+        assertThat(globalStatistics.rangeBounds()).containsExactly(CHAR_KEYS.get("a"));
+      }
     }
   }
 
-  private byte[] waitForCheckpoint(
-      long checkpointId,
-      DataStatisticsCoordinator<MapDataStatistics, Map<SortKey, Long>> coordinator)
+  private byte[] waitForCheckpoint(long checkpointId, DataStatisticsCoordinator coordinator)
       throws InterruptedException, ExecutionException {
     CompletableFuture<byte[]> future = new CompletableFuture<>();
     coordinator.checkpointCoordinator(checkpointId, future);
     return future.get();
+  }
+
+  private static DataStatisticsCoordinatorProvider createProvider(
+      StatisticsType type, int downstreamParallelism) {
+    return new DataStatisticsCoordinatorProvider(
+        "DataStatisticsCoordinatorProvider",
+        OPERATOR_ID,
+        Fixtures.SCHEMA,
+        Fixtures.SORT_ORDER,
+        downstreamParallelism,
+        type,
+        0.0);
   }
 }

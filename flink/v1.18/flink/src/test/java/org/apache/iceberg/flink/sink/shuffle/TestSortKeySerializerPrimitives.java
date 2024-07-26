@@ -18,14 +18,24 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+
+import org.apache.flink.core.memory.DataInputDeserializer;
+import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortDirection;
+import org.apache.iceberg.SortKey;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.flink.DataGenerator;
 import org.apache.iceberg.flink.DataGenerators;
+import org.apache.iceberg.flink.RowDataWrapper;
+import org.junit.jupiter.api.Test;
 
 public class TestSortKeySerializerPrimitives extends TestSortKeySerializerBase {
   private final DataGenerator generator = new DataGenerators.Primitives();
@@ -53,5 +63,28 @@ public class TestSortKeySerializerPrimitives extends TestSortKeySerializerBase {
   @Override
   protected GenericRowData rowData() {
     return generator.generateFlinkRowData();
+  }
+
+  @Test
+  public void testSerializationSize() throws Exception {
+    RowData rowData =
+        GenericRowData.of(StringData.fromString("550e8400-e29b-41d4-a716-446655440000"), 1L);
+    RowDataWrapper rowDataWrapper =
+        new RowDataWrapper(Fixtures.ROW_TYPE, Fixtures.SCHEMA.asStruct());
+    StructLike struct = rowDataWrapper.wrap(rowData);
+    SortKey sortKey = Fixtures.SORT_KEY.copy();
+    sortKey.wrap(struct);
+    SortKeySerializer serializer = new SortKeySerializer(Fixtures.SCHEMA, Fixtures.SORT_ORDER);
+    DataOutputSerializer output = new DataOutputSerializer(1024);
+    serializer.serialize(sortKey, output);
+    byte[] serializedBytes = output.getCopyOfBuffer();
+    assertThat(serializedBytes.length)
+        .as(
+            "Serialized bytes for sort key should be 38 bytes (34 UUID text + 4 byte integer of string length")
+        .isEqualTo(38);
+
+    DataInputDeserializer input = new DataInputDeserializer(serializedBytes);
+    SortKey deserialized = serializer.deserialize(input);
+    assertThat(deserialized).isEqualTo(sortKey);
   }
 }
