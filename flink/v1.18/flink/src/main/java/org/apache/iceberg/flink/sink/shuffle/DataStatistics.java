@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import java.util.Map;
+import org.apache.datasketches.sampling.ReservoirItemsSketch;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.SortKey;
 
@@ -29,29 +31,18 @@ import org.apache.iceberg.SortKey;
  * (sketching) can be used.
  */
 @Internal
-interface DataStatistics<D extends DataStatistics<D, S>, S> {
+interface DataStatistics {
 
-  /**
-   * Check if data statistics contains any statistics information.
-   *
-   * @return true if data statistics doesn't contain any statistics information
-   */
+  StatisticsType type();
+
   boolean isEmpty();
 
   /** Add row sortKey to data statistics. */
   void add(SortKey sortKey);
 
   /**
-   * Merge current statistics with other statistics.
-   *
-   * @param otherStatistics the statistics to be merged
+   * Get the collected statistics. Could be a {@link Map} (low cardinality) or {@link
+   * ReservoirItemsSketch} (high cardinality)
    */
-  void merge(D otherStatistics);
-
-  /**
-   * Get the underline statistics.
-   *
-   * @return the underline statistics
-   */
-  S statistics();
+  Object result();
 }

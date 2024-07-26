@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
@@ -47,9 +48,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * distribution to downstream subtasks.
  */
 @Internal
-class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
-    extends AbstractStreamOperator<DataStatisticsOrRecord<D, S>>
-    implements OneInputStreamOperator<RowData, DataStatisticsOrRecord<D, S>>, OperatorEventHandler {
+public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrRecord>
+    implements OneInputStreamOperator<RowData, StatisticsOrRecord>, OperatorEventHandler {
 
   private static final long serialVersionUID = 1L;
 
@@ -57,141 +57,209 @@ class DataStatisticsOperator<D extends DataStatistics<D, S>, S>
   private final RowDataWrapper rowDataWrapper;
   private final SortKey sortKey;
   private final OperatorEventGateway operatorEventGateway;
-  private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
-  private transient volatile DataStatistics<D, S> localStatistics;
-  private transient volatile DataStatistics<D, S> globalStatistics;
-  private transient ListState<DataStatistics<D, S>> globalStatisticsState;
+  private final int downstreamParallelism;
+  private final StatisticsType statisticsType;
+  private final TypeSerializer<DataStatistics> taskStatisticsSerializer;
+  private final TypeSerializer<GlobalStatistics> globalStatisticsSerializer;
+
+  private transient int parallelism;
+  private transient int subtaskIndex;
+  private transient ListState<GlobalStatistics> globalStatisticsState;
+  // current statistics type may be different from the config due to possible
+  // migration from Map statistics to Sketch statistics when high cardinality detected
+  private transient volatile StatisticsType taskStatisticsType;
+  private transient volatile DataStatistics localStatistics;
+  private transient volatile GlobalStatistics globalStatistics;
 
   DataStatisticsOperator(
       String operatorName,
       Schema schema,
       SortOrder sortOrder,
       OperatorEventGateway operatorEventGateway,
-      TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
+      int downstreamParallelism,
+      StatisticsType statisticsType) {
     this.operatorName = operatorName;
     this.rowDataWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(schema), schema.asStruct());
     this.sortKey = new SortKey(schema, sortOrder);
     this.operatorEventGateway = operatorEventGateway;
-    this.statisticsSerializer = statisticsSerializer;
+    this.downstreamParallelism = downstreamParallelism;
+    this.statisticsType = statisticsType;
+
+    SortKeySerializer sortKeySerializer = new SortKeySerializer(schema, sortOrder);
+    this.taskStatisticsSerializer = new DataStatisticsSerializer(sortKeySerializer);
+    this.globalStatisticsSerializer = new GlobalStatisticsSerializer(sortKeySerializer);
   }
 
   @Override
   public void initializeState(StateInitializationContext context) throws Exception {
-    localStatistics = statisticsSerializer.createInstance();
-    globalStatisticsState =
+    this.parallelism = getRuntimeContext().getNumberOfParallelSubtasks();
+    this.subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
+
+    // Use union state so that new subtasks can also restore global statistics during scale-up.
+    this.globalStatisticsState =
         context
             .getOperatorStateStore()
             .getUnionListState(
-                new ListStateDescriptor<>("globalStatisticsState", statisticsSerializer));
+                new ListStateDescriptor<>("globalStatisticsState", globalStatisticsSerializer));
 
     if (context.isRestored()) {
-      int subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
       if (globalStatisticsState.get() == null
           || !globalStatisticsState.get().iterator().hasNext()) {
-        LOG.warn(
+        LOG.info(
             "Operator {} subtask {} doesn't have global statistics state to restore",
             operatorName,
             subtaskIndex);
-        globalStatistics = statisticsSerializer.createInstance();
+        // If Flink deprecates union state in the future, RequestGlobalStatisticsEvent can be
+        // leveraged to request global statistics from coordinator if new subtasks (scale-up case)
+        // has nothing to restore from.
       } else {
+        GlobalStatistics restoredStatistics = globalStatisticsState.get().iterator().next();
         LOG.info(
-            "Restoring operator {} global statistics state for subtask {}",
-            operatorName,
-            subtaskIndex);
-        globalStatistics = globalStatisticsState.get().iterator().next();
+            "Operator {} subtask {} restored global statistics state", operatorName, subtaskIndex);
+        this.globalStatistics = restoredStatistics;
       }
-    } else {
-      globalStatistics = statisticsSerializer.createInstance();
+
+      // Always request for new statistics from coordinator upon task initialization.
+      // There are a few scenarios this is needed
+      // 1. downstream writer parallelism changed due to rescale.
+      // 2. coordinator failed to send the aggregated statistics to subtask
+      //    (e.g. due to subtask failure at the time).
+      // Records may flow before coordinator can respond. Range partitioner should be
+      // able to continue to operate with potentially suboptimal behavior (in sketch case).
+      LOG.info(
+          "Operator {} subtask {} requests new global statistics from coordinator ",
+          operatorName,
+          subtaskIndex);
+      // coordinator can use the hashCode (if available) in the request event to determine
+      // if operator already has the latest global statistics and respond can be skipped.
+      // This makes the handling cheap in most situations.
+      RequestGlobalStatisticsEvent event =
+          globalStatistics != null
+              ? new RequestGlobalStatisticsEvent(globalStatistics.hashCode())
+              : new RequestGlobalStatisticsEvent();
+      operatorEventGateway.sendEventToCoordinator(event);
     }
+
+    this.taskStatisticsType = StatisticsUtil.collectType(statisticsType, globalStatistics);
+    this.localStatistics =
+        StatisticsUtil.createTaskStatistics(taskStatisticsType, parallelism, downstreamParallelism);
   }
 
   @Override
   public void open() throws Exception {
-    if (!globalStatistics.isEmpty()) {
-      output.collect(
-          new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
+    if (globalStatistics != null) {
+      output.collect(new StreamRecord<>(StatisticsOrRecord.fromStatistics(globalStatistics)));
     }
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public void handleOperatorEvent(OperatorEvent event) {
-    int subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
     Preconditions.checkArgument(
-        event instanceof DataStatisticsEvent,
+        event instanceof StatisticsEvent,
         String.format(
             "Operator %s subtask %s received unexpected operator event %s",
             operatorName, subtaskIndex, event.getClass()));
-    DataStatisticsEvent<D, S> statisticsEvent = (DataStatisticsEvent<D, S>) event;
+    StatisticsEvent statisticsEvent = (StatisticsEvent) event;
     LOG.info(
-        "Operator {} received global data event from coordinator checkpoint {}",
+        "Operator {} subtask {} received global data event from coordinator checkpoint {}",
         operatorName,
+        subtaskIndex,
         statisticsEvent.checkpointId());
-    globalStatistics =
-        DataStatisticsUtil.deserializeDataStatistics(
-            statisticsEvent.statisticsBytes(), statisticsSerializer);
-    output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
+    this.globalStatistics =
+        StatisticsUtil.deserializeGlobalStatistics(
+            statisticsEvent.statisticsBytes(), globalStatisticsSerializer);
+    checkStatisticsTypeMigration();
+    // if applyImmediately not set, wait until the checkpoint time to switch
+    if (statisticsEvent.applyImmediately()) {
+      output.collect(new StreamRecord<>(StatisticsOrRecord.fromStatistics(globalStatistics)));
+    }
   }
 
   @Override
   public void processElement(StreamRecord<RowData> streamRecord) {
+    // collect data statistics
     RowData record = streamRecord.getValue();
     StructLike struct = rowDataWrapper.wrap(record);
     sortKey.wrap(struct);
     localStatistics.add(sortKey);
-    output.collect(new StreamRecord<>(DataStatisticsOrRecord.fromRecord(record)));
+
+    checkStatisticsTypeMigration();
+    output.collect(new StreamRecord<>(StatisticsOrRecord.fromRecord(record)));
   }
 
   @Override
   public void snapshotState(StateSnapshotContext context) throws Exception {
     long checkpointId = context.getCheckpointId();
-    int subTaskId = getRuntimeContext().getIndexOfThisSubtask();
     LOG.info(
-        "Snapshotting data statistics operator {} for checkpoint {} in subtask {}",
+        "Operator {} subtask {} snapshotting data statistics for checkpoint {}",
         operatorName,
-        checkpointId,
-        subTaskId);
+        subtaskIndex,
+        checkpointId);
 
-    // Pass global statistics to partitioners so that all the operators refresh statistics
+    // Pass global statistics to partitioner so that all the operators refresh statistics
     // at same checkpoint barrier
-    if (!globalStatistics.isEmpty()) {
-      output.collect(
-          new StreamRecord<>(DataStatisticsOrRecord.fromDataStatistics(globalStatistics)));
+    if (globalStatistics != null) {
+      output.collect(new StreamRecord<>(StatisticsOrRecord.fromStatistics(globalStatistics)));
     }
 
     // Only subtask 0 saves the state so that globalStatisticsState(UnionListState) stores
     // an exact copy of globalStatistics
-    if (!globalStatistics.isEmpty() && getRuntimeContext().getIndexOfThisSubtask() == 0) {
+    if (globalStatistics != null && getRuntimeContext().getIndexOfThisSubtask() == 0) {
       globalStatisticsState.clear();
       LOG.info(
-          "Saving operator {} global statistics {} to state in subtask {}",
-          operatorName,
-          globalStatistics,
-          subTaskId);
+          "Operator {} subtask {} saving global statistics to state", operatorName, subtaskIndex);
       globalStatisticsState.add(globalStatistics);
+      LOG.debug(
+          "Operator {} subtask {} saved global statistics to state: {}",
+          operatorName,
+          subtaskIndex,
+          globalStatistics);
     }
 
     // For now, local statistics are sent to coordinator at checkpoint
-    operatorEventGateway.sendEventToCoordinator(
-        DataStatisticsEvent.create(checkpointId, localStatistics, statisticsSerializer));
-    LOG.debug(
-        "Subtask {} of operator {} sent local statistics to coordinator at checkpoint{}: {}",
-        subTaskId,
+    LOG.info(
+        "Operator {} Subtask {} sending local statistics to coordinator for checkpoint {}",
         operatorName,
-        checkpointId,
-        localStatistics);
+        subtaskIndex,
+        checkpointId);
+    operatorEventGateway.sendEventToCoordinator(
+        StatisticsEvent.createTaskStatisticsEvent(
+            checkpointId, localStatistics, taskStatisticsSerializer));
 
     // Recreate the local statistics
-    localStatistics = statisticsSerializer.createInstance();
+    localStatistics =
+        StatisticsUtil.createTaskStatistics(taskStatisticsType, parallelism, downstreamParallelism);
+  }
+
+  @SuppressWarnings("unchecked")
+  private void checkStatisticsTypeMigration() {
+    // only check if the statisticsType config is Auto and localStatistics is currently Map type
+    if (statisticsType == StatisticsType.Auto && localStatistics.type() == StatisticsType.Map) {
+      Map<SortKey, Long> mapStatistics = (Map<SortKey, Long>) localStatistics.result();
+      // convert if local statistics has cardinality over the threshold or
+      // if received global statistics is already sketch type
+      if (mapStatistics.size() > SketchUtil.OPERATOR_SKETCH_SWITCH_THRESHOLD
+          || (globalStatistics != null && globalStatistics.type() == StatisticsType.Sketch)) {
+        LOG.info(
+            "Operator {} subtask {} switched local statistics from Map to Sketch.",
+            operatorName,
+            subtaskIndex);
+        this.taskStatisticsType = StatisticsType.Sketch;
+        this.localStatistics =
+            StatisticsUtil.createTaskStatistics(
+                taskStatisticsType, parallelism, downstreamParallelism);
+        SketchUtil.convertMapToSketch(mapStatistics, localStatistics::add);
+      }
+    }
   }
 
   @VisibleForTesting
-  DataStatistics<D, S> localDataStatistics() {
+  DataStatistics localStatistics() {
     return localStatistics;
   }
 
   @VisibleForTesting
-  DataStatistics<D, S> globalDataStatistics() {
+  GlobalStatistics globalStatistics() {
     return globalStatistics;
   }
 }
