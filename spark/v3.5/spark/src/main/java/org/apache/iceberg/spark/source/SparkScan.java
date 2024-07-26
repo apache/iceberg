@@ -216,7 +216,6 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
             LOG.debug("DataSketch blob is not available for column {}", colName);
           }
 
-          // TODO: Fill min, max and null from the manifest file
           ColumnStatistics colStats =
               new SparkColumnStatistics(ndv, null, null, null, null, null, null);
 

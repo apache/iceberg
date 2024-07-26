@@ -29,7 +29,6 @@ import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.GenericBlobMetadata;
@@ -42,6 +41,7 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.SparkSQLProperties;
@@ -143,7 +143,43 @@ public class TestSparkScan extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testColStats() throws NoSuchTableException {
+  public void testTableWithoutColStats() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "a"),
+            new SimpleRecord(4, "b"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+
+    Map<String, String> reportColStatsDisabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+
+    checkColStatisticsNotReported(scan, 4L);
+    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
+    // The expected col NDVs are nulls
+    withSQLConf(
+        reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, Maps.newHashMap()));
+  }
+
+  @TestTemplate
+  public void testTableWithOneColStats() throws NoSuchTableException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
 
     List<SimpleRecord> records =
@@ -172,12 +208,6 @@ public class TestSparkScan extends TestBaseWithCatalog {
     Map<String, String> reportColStatsEnabled =
         ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
 
-    // Test table does not have col stats
-    checkColStatisticsNotReported(scan, 4L);
-    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
-    // The expected col NDVs are nulls
-    withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, new HashMap<>()));
-
     GenericStatisticsFile statisticsFile =
         new GenericStatisticsFile(
             snapshotId,
@@ -194,15 +224,45 @@ public class TestSparkScan extends TestBaseWithCatalog {
 
     table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
 
-    // Test where 1 column has NDV and the other does not have NDV
     checkColStatisticsNotReported(scan, 4L);
     withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
 
-    HashMap<String, Long> expectedOneNDV = new HashMap<>();
+    Map<String, Long> expectedOneNDV = Maps.newHashMap();
     expectedOneNDV.put("id", 4L);
     withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, expectedOneNDV));
+  }
 
-    statisticsFile =
+  @TestTemplate
+  public void testTableWithTwoColStats() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "a"),
+            new SimpleRecord(4, "b"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+
+    Map<String, String> reportColStatsDisabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+
+    GenericStatisticsFile statisticsFile =
         new GenericStatisticsFile(
             snapshotId,
             "/test/statistics/file.puffin",
@@ -224,11 +284,10 @@ public class TestSparkScan extends TestBaseWithCatalog {
 
     table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
 
-    // Test with different distinct values for columns in the table
     checkColStatisticsNotReported(scan, 4L);
     withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
 
-    HashMap<String, Long> expectedTwoNDVs = new HashMap<>();
+    Map<String, Long> expectedTwoNDVs = Maps.newHashMap();
     expectedTwoNDVs.put("id", 4L);
     expectedTwoNDVs.put("data", 2L);
     withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, expectedTwoNDVs));
@@ -847,7 +906,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
   }
 
   private void checkColStatisticsReported(
-      SparkScan scan, long expectedRowCount, HashMap<String, Long> expectedNDVs) {
+      SparkScan scan, long expectedRowCount, Map<String, Long> expectedNDVs) {
     Statistics stats = scan.estimateStatistics();
     assertThat(stats.numRows().getAsLong()).isEqualTo(expectedRowCount);
 
