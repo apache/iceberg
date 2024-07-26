@@ -59,7 +59,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
-    implementation("org.apache.datasketches:datasketches-java:${libs.versions.data.sketch.get()}")
+    implementation("org.apache.datasketches:datasketches-java:${libs.versions.datasketches.get()}")
     if (scalaVersion == '2.12') {
       // scala-collection-compat_2.12 pulls scala 2.12.17 and we need 2.12.18 for JDK 21 support
       implementation 'org.scala-lang:scala-library:2.12.18'

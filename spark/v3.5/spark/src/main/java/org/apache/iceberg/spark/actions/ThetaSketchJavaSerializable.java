@@ -28,6 +28,7 @@ import org.apache.datasketches.theta.CompactSketch;
 import org.apache.datasketches.theta.SetOperationBuilder;
 import org.apache.datasketches.theta.Sketch;
 import org.apache.datasketches.theta.UpdateSketch;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 class ThetaSketchJavaSerializable implements Serializable {
 
@@ -59,18 +60,8 @@ class ThetaSketchJavaSerializable implements Serializable {
     if (sketch == null) {
       sketch = UpdateSketch.builder().build();
     }
-    if (sketch instanceof UpdateSketch) {
-      ((UpdateSketch) sketch).update(value);
-    } else {
-      throw new RuntimeException("update() on read-only sketch");
-    }
-  }
-
-  double getEstimate() {
-    if (sketch == null) {
-      return 0.0;
-    }
-    return sketch.getEstimate();
+    Preconditions.checkArgument(sketch instanceof UpdateSketch, "update() on read-only sketch");
+    ((UpdateSketch) sketch).update(value);
   }
 
   private void writeObject(ObjectOutputStream out) throws IOException {

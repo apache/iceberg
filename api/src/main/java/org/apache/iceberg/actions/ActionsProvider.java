@@ -74,6 +74,6 @@ public interface ActionsProvider {
   /** Instantiates an action to compute table stats. */
   default ComputeTableStats computeTableStats(Table table) {
     throw new UnsupportedOperationException(
-        this.getClass().getName() + " does not implement ComputeTableStats");
+        this.getClass().getName() + " does not implement computeTableStats");
   }
 }

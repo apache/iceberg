@@ -129,11 +129,11 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
     sql("INSERT into %s values(1, 'abcd')", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
-    ValidationException validationException =
+    IllegalArgumentException exception =
         assertThrows(
-            ValidationException.class,
+            IllegalArgumentException.class,
             () -> actions.computeTableStats(table).columns("id1").execute());
-    String message = validationException.getMessage();
+    String message = exception.getMessage();
     assertTrue(message.contains("No column with id1 name in the table"));
   }
 

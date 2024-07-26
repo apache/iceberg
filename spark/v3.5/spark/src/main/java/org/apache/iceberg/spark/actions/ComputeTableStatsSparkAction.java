@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -31,8 +32,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.actions.ComputeTableStats;
 import org.apache.iceberg.actions.ImmutableComputeTableStats;
-import org.apache.iceberg.exceptions.ValidationException;
-import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.Puffin;
@@ -43,10 +43,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Computes the statistic of the given columns and stores it as Puffin files. */
+/** Computes the statistics of the given columns and stores it as Puffin files. */
 public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableStatsSparkAction>
     implements ComputeTableStats {
 
@@ -54,15 +55,12 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
 
   private final Table table;
   private Set<String> columns;
-  private long snapshotId;
+  private Snapshot snapshot;
 
   ComputeTableStatsSparkAction(SparkSession spark, Table table) {
     super(spark);
     this.table = table;
-    Snapshot snapshot = table.currentSnapshot();
-    if (snapshot != null) {
-      this.snapshotId = snapshot.snapshotId();
-    }
+    this.snapshot = table.currentSnapshot();
     this.columns =
         table.schema().columns().stream().map(Types.NestedField::name).collect(Collectors.toSet());
   }
@@ -74,54 +72,59 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
 
   @Override
   public Result execute() {
-    String desc =
-        String.format("Computing stats for %s for snapshot id %s", table.name(), snapshotId);
+    String desc = String.format("Computing stats for %s", table.name());
     JobGroupInfo info = newJobGroupInfo("COMPUTE-TABLE-STATS", desc);
     return withJobGroupInfo(info, this::doExecute);
   }
 
   private Result doExecute() {
-    if (snapshotId == 0L) {
+    if (snapshot == null) {
       return ImmutableComputeTableStats.Result.builder().build();
     }
-    LOG.info("Computing stats of {} for snapshot {}", table.name(), snapshotId);
+    LOG.info("Computing stats of {} for snapshot {}", table.name(), snapshot.snapshotId());
     List<Blob> blobs = generateNDVBlobs();
     StatisticsFile statisticFile;
     try {
       statisticFile = writeAndCommitPuffin(blobs);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
     }
     return ImmutableComputeTableStats.Result.builder().statisticsFile(statisticFile).build();
   }
 
-  private StatisticsFile writeAndCommitPuffin(List<Blob> blobs) throws Exception {
-    LOG.info("Writing stats to puffin files for table {}", table.name());
+  private StatisticsFile writeAndCommitPuffin(List<Blob> blobs) throws IOException {
+    LOG.info(
+        "Writing stats to puffin files for table {} for snapshot{}",
+        table.name(),
+        snapshot.snapshotId());
     TableOperations operations = ((HasTableOperations) table).operations();
-    FileIO fileIO = operations.io();
     String path = operations.metadataFileLocation(String.format("%s.stats", UUID.randomUUID()));
-    OutputFile outputFile = fileIO.newOutputFile(path);
-    GenericStatisticsFile statisticsFile;
+    OutputFile outputFile = operations.io().newOutputFile(path);
+    GenericStatisticsFile statisticsFile = generateStatisticsFile(blobs, outputFile, path);
+    table.updateStatistics().setStatistics(snapshot.snapshotId(), statisticsFile).commit();
+    return statisticsFile;
+  }
+
+  @NotNull
+  private GenericStatisticsFile generateStatisticsFile(
+      List<Blob> blobs, OutputFile outputFile, String path) throws IOException {
     try (PuffinWriter writer =
         Puffin.write(outputFile).createdBy("Iceberg ComputeTableStats action").build()) {
       blobs.forEach(writer::add);
       writer.finish();
-      statisticsFile =
-          new GenericStatisticsFile(
-              snapshotId,
-              path,
-              writer.fileSize(),
-              writer.footerSize(),
-              writer.writtenBlobsMetadata().stream()
-                  .map(GenericBlobMetadata::from)
-                  .collect(ImmutableList.toImmutableList()));
+      return new GenericStatisticsFile(
+          snapshot.snapshotId(),
+          path,
+          writer.fileSize(),
+          writer.footerSize(),
+          writer.writtenBlobsMetadata().stream()
+              .map(GenericBlobMetadata::from)
+              .collect(ImmutableList.toImmutableList()));
     }
-    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
-    return statisticsFile;
   }
 
   private List<Blob> generateNDVBlobs() {
-    return NDVSketchGenerator.generateNDVSketchesAndBlobs(spark(), table, snapshotId, columns);
+    return NDVSketchGenerator.generateNDVSketchesAndBlobs(spark(), table, snapshot, columns);
   }
 
   @Override
@@ -131,7 +134,8 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
     for (String columnName : columnNames) {
       Types.NestedField field = table.schema().findField(columnName);
       if (field == null) {
-        throw new ValidationException("No column with %s name in the table", columnName);
+        throw new IllegalArgumentException(
+            String.format("No column with %s name in the table", columnName));
       }
     }
     this.columns = ImmutableSet.copyOf(columnNames);
@@ -140,7 +144,7 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
 
   @Override
   public ComputeTableStats snapshot(long snapshotIdToComputeStats) {
-    this.snapshotId = snapshotIdToComputeStats;
+    this.snapshot = table.snapshot(snapshotIdToComputeStats);
     return this;
   }
 }

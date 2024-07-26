@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.datasketches.theta.Sketch;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.puffin.Blob;
@@ -52,17 +53,17 @@ public class NDVSketchGenerator {
   public static final String APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY = "ndv";
 
   static List<Blob> generateNDVSketchesAndBlobs(
-      SparkSession spark, Table table, long snapshotId, Set<String> columnsToBeAnalyzed) {
+      SparkSession spark, Table table, Snapshot snapshot, Set<String> columnsToBeAnalyzed) {
     Map<Integer, ThetaSketchJavaSerializable> columnToSketchMap =
-        computeNDVSketches(spark, table, snapshotId, columnsToBeAnalyzed);
-    return generateBlobs(table, columnsToBeAnalyzed, columnToSketchMap, snapshotId);
+        computeNDVSketches(spark, table, snapshot.snapshotId(), columnsToBeAnalyzed);
+    return generateBlobs(table, columnsToBeAnalyzed, columnToSketchMap, snapshot);
   }
 
   private static List<Blob> generateBlobs(
       Table table,
       Set<String> columns,
       Map<Integer, ThetaSketchJavaSerializable> sketchMap,
-      long snapshotId) {
+      Snapshot snapshot) {
     return columns.stream()
         .map(
             columnName -> {
@@ -72,8 +73,8 @@ public class NDVSketchGenerator {
               return new Blob(
                   StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1,
                   ImmutableList.of(field.fieldId()),
-                  snapshotId,
-                  table.snapshot(snapshotId).sequenceNumber(),
+                  snapshot.snapshotId(),
+                  snapshot.sequenceNumber(),
                   ByteBuffer.wrap(sketch.toByteArray()),
                   null,
                   ImmutableMap.of(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, String.valueOf(ndv)));
