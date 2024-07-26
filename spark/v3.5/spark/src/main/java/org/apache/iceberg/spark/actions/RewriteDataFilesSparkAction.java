@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
@@ -82,8 +83,9 @@ public class RewriteDataFilesSparkAction
           PARTIAL_PROGRESS_MAX_FAILED_COMMITS,
           TARGET_FILE_SIZE_BYTES,
           USE_STARTING_SEQUENCE_NUMBER,
-          REWRITE_JOB_ORDER,
-          OUTPUT_SPEC_ID);
+          OUTPUT_SPEC_ID,
+          REMOVE_DANGLING_DELETES,
+          REWRITE_JOB_ORDER);
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
       ImmutableRewriteDataFiles.Result.builder().rewriteResults(ImmutableList.of()).build();
@@ -95,6 +97,7 @@ public class RewriteDataFilesSparkAction
   private int maxCommits;
   private int maxFailedCommits;
   private boolean partialProgressEnabled;
+  private boolean removeDanglingDeletes;
   private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
   private FileRewriter<FileScanTask, DataFile> rewriter = null;
@@ -175,11 +178,21 @@ public class RewriteDataFilesSparkAction
 
     Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
 
+    ImmutableRewriteDataFiles.Result.Builder resultBuilder;
     if (partialProgressEnabled) {
-      return doExecuteWithPartialProgress(ctx, groupStream, commitManager(startingSnapshotId));
+      resultBuilder =
+          doExecuteWithPartialProgress(ctx, groupStream, commitManager(startingSnapshotId));
     } else {
-      return doExecute(ctx, groupStream, commitManager(startingSnapshotId));
+      resultBuilder = doExecute(ctx, groupStream, commitManager(startingSnapshotId));
     }
+
+    if (removeDanglingDeletes) {
+      RemoveDanglingDeletesSparkAction action =
+          new RemoveDanglingDeletesSparkAction(spark(), table);
+      List<DeleteFile> removed = action.execute().removedDeleteFiles();
+      resultBuilder.removedDeleteFilesCount(removed.size());
+    }
+    return resultBuilder.build();
   }
 
   StructLikeMap<List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
@@ -264,7 +277,7 @@ public class RewriteDataFilesSparkAction
         table, startingSnapshotId, useStartingSequenceNumber, commitSummary());
   }
 
-  private Result doExecute(
+  private ImmutableRewriteDataFiles.Result.Builder doExecute(
       RewriteExecutionContext ctx,
       Stream<RewriteFileGroup> groupStream,
       RewriteDataFilesCommitManager commitManager) {
@@ -326,10 +339,10 @@ public class RewriteDataFilesSparkAction
 
     List<FileGroupRewriteResult> rewriteResults =
         rewrittenGroups.stream().map(RewriteFileGroup::asResult).collect(Collectors.toList());
-    return ImmutableRewriteDataFiles.Result.builder().rewriteResults(rewriteResults).build();
+    return ImmutableRewriteDataFiles.Result.builder().rewriteResults(rewriteResults);
   }
 
-  private Result doExecuteWithPartialProgress(
+  private ImmutableRewriteDataFiles.Result.Builder doExecuteWithPartialProgress(
       RewriteExecutionContext ctx,
       Stream<RewriteFileGroup> groupStream,
       RewriteDataFilesCommitManager commitManager) {
@@ -386,8 +399,7 @@ public class RewriteDataFilesSparkAction
 
     return ImmutableRewriteDataFiles.Result.builder()
         .rewriteResults(toRewriteResults(commitService.results()))
-        .rewriteFailures(rewriteFailures)
-        .build();
+        .rewriteFailures(rewriteFailures);
   }
 
   Stream<RewriteFileGroup> toGroupStream(
@@ -455,6 +467,10 @@ public class RewriteDataFilesSparkAction
     useStartingSequenceNumber =
         PropertyUtil.propertyAsBoolean(
             options(), USE_STARTING_SEQUENCE_NUMBER, USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
+
+    removeDanglingDeletes =
+        PropertyUtil.propertyAsBoolean(
+            options(), REMOVE_DANGLING_DELETES, REMOVE_DANGLING_DELETES_DEFAULT);
 
     rewriteJobOrder =
         RewriteJobOrder.fromName(

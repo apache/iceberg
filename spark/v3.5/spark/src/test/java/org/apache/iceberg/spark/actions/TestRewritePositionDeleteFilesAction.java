@@ -862,6 +862,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
         files.stream().collect(Collectors.groupingBy(ContentFile::partition));
     List<DeleteFile> deleteFiles =
         Lists.newArrayListWithCapacity(deleteFilesPerPartition * filesByPartition.size());
+    String suffix = String.format(".%s", FileFormat.PARQUET.name().toLowerCase());
 
     for (Map.Entry<StructLike, List<DataFile>> filesByPartitionEntry :
         filesByPartition.entrySet()) {
@@ -886,7 +887,7 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
           if (counter == deleteFileSize) {
             // Dump to file and reset variables
             OutputFile output =
-                Files.localOutput(File.createTempFile("junit", null, temp.toFile()));
+                Files.localOutput(File.createTempFile("junit", suffix, temp.toFile()));
             deleteFiles.add(FileHelpers.writeDeleteFile(table, output, partition, deletes).first());
             counter = 0;
             deletes.clear();

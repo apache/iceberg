@@ -70,4 +70,10 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement rewritePositionDeletes");
   }
+
+  /** Instantiates an action to remove dangling delete files from current snapshot. */
+  default RemoveDanglingDeleteFiles removeDanglingDeleteFiles(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement removeDanglingDeleteFiles");
+  }
 }
