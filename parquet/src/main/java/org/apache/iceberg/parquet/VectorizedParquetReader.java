@@ -114,17 +114,19 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     private long valuesRead = 0;
     private T last = null;
     private final long[] rowGroupsStartRowPos;
+    private final boolean hasRecordFilter;
 
     FileIterator(ReadConf conf) {
       this.reader = conf.reader();
       this.shouldSkip = conf.shouldSkip();
-      this.totalValues = conf.totalValues();
+      this.totalValues = reader.getFilteredRecordCount();
       this.reuseContainers = conf.reuseContainers();
       this.model = conf.vectorizedModel();
       this.batchSize = conf.batchSize();
       this.model.setBatchSize(this.batchSize);
       this.columnChunkMetadata = conf.columnChunkMetadataForRowGroups();
       this.rowGroupsStartRowPos = conf.startRowPositions();
+      this.hasRecordFilter = conf.hasRecordFilter();
     }
 
     @Override
@@ -160,7 +162,11 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       }
       PageReadStore pages;
       try {
-        pages = reader.readNextRowGroup();
+        if (hasRecordFilter) {
+          pages = reader.readNextFilteredRowGroup();
+        } else {
+          pages = reader.readNextRowGroup();
+        }
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }
