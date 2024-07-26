@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputFormat;
@@ -44,6 +45,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -78,6 +80,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.SerializationUtil;
+import org.apache.iceberg.util.ThreadPools;
 
 /**
  * Generic Mrv2 InputFormat API for Iceberg.
@@ -104,7 +107,21 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         Optional.ofNullable(
                 HiveIcebergStorageHandler.table(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER)))
             .orElseGet(() -> Catalogs.loadTable(conf));
+    final ExecutorService workerPool =
+        ThreadPools.newWorkerPool(
+            "iceberg-plan-worker-pool",
+            conf.getInt(
+                SystemConfigs.WORKER_THREAD_POOL_SIZE.propertyKey(),
+                ThreadPools.WORKER_THREAD_POOL_SIZE));
+    try {
+      return planInputSplits(table, conf, workerPool);
+    } finally {
+      workerPool.shutdown();
+    }
+  }
 
+  private List<InputSplit> planInputSplits(
+      Table table, Configuration conf, ExecutorService workerPool) {
     TableScan scan =
         table
             .newScan()
@@ -144,6 +161,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     InputFormatConfig.InMemoryDataModel model =
         conf.getEnum(
             InputFormatConfig.IN_MEMORY_DATA_MODEL, InputFormatConfig.InMemoryDataModel.GENERIC);
+    scan = scan.planWith(workerPool);
     try (CloseableIterable<CombinedScanTask> tasksIterable = scan.planTasks()) {
       Table serializableTable = SerializableTable.copyOf(table);
       tasksIterable.forEach(
