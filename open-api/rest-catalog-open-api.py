@@ -818,10 +818,6 @@ class EqualityDeleteFile(ContentFile):
     )
 
 
-class DeleteFile(BaseModel):
-    __root__: Union[PositionDeleteFile, EqualityDeleteFile]
-
-
 class FieldName(BaseModel):
     __root__: str = Field(
         ...,
@@ -934,6 +930,12 @@ class DataFile(ContentFile):
         None,
         alias='upper-bounds',
         description='Map of column id to upper bound primitive type values',
+    )
+
+
+class DeleteFile(BaseModel):
+    __root__: Union[PositionDeleteFile, EqualityDeleteFile] = Field(
+        ..., discriminator='content'
     )
 
 

@@ -3801,6 +3801,16 @@ components:
             - $ref: '#/components/schemas/ValueMap'
           description: "Map of column id to upper bound primitive type values"
 
+    DeleteFile:
+      discriminator:
+        propertyName: content
+        mapping:
+          position-deletes: '#/components/schemas/PositionDeleteFile'
+          equality-deletes: '#/components/schemas/EqualityDeleteFile'
+      oneOf:
+        - $ref: '#/components/schemas/PositionDeleteFile'
+        - $ref: '#/components/schemas/EqualityDeleteFile'
+
     PositionDeleteFile:
       allOf:
         - $ref: '#/components/schemas/ContentFile'
@@ -3825,11 +3835,6 @@ components:
           items:
             type: integer
           description: "List of equality field IDs"
-
-    DeleteFile:
-      oneOf:
-        - $ref: '#/components/schemas/PositionDeleteFile'
-        - $ref: '#/components/schemas/EqualityDeleteFile'
 
     PreplanTableRequest:
       type: object
