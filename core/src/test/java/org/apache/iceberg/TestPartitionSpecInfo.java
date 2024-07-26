@@ -97,14 +97,15 @@ public class TestPartitionSpecInfo {
 
   @TestTemplate
   public void testSpecInfoPartitionedTableCaseInsensitive() {
-    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("DATA").build();
+    PartitionSpec spec =
+        PartitionSpec.builderFor(schema).caseSensitive(false).identity("DATA").build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
 
     assertThat(table.spec()).isEqualTo(spec);
     assertThat(table.spec().lastAssignedFieldId()).isEqualTo(spec.lastAssignedFieldId());
     assertThat(table.specs())
-            .containsExactly(entry(spec.specId(), spec))
-            .doesNotContainKey(Integer.MAX_VALUE);
+        .containsExactly(entry(spec.specId(), spec))
+        .doesNotContainKey(Integer.MAX_VALUE);
   }
 
   @TestTemplate

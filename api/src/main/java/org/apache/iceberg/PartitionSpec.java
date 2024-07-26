@@ -371,6 +371,7 @@ public class PartitionSpec implements Serializable {
         new AtomicInteger(unpartitionedLastAssignedId());
     // check if there are conflicts between partition and schema field name
     private boolean checkConflicts = true;
+    private boolean caseSensitive = true;
 
     private Builder(Schema schema) {
       this.schema = schema;
@@ -390,7 +391,8 @@ public class PartitionSpec implements Serializable {
     }
 
     private void checkAndAddPartitionName(String name, Integer sourceColumnId) {
-      Types.NestedField schemaField = schema.caseInsensitiveFindField(name);
+      Types.NestedField schemaField =
+          this.caseSensitive ? schema.findField(name) : schema.caseInsensitiveFindField(name);
       if (checkConflicts) {
         if (sourceColumnId != null) {
           // for identity transform case we allow conflicts between partition and schema field name
@@ -427,13 +429,21 @@ public class PartitionSpec implements Serializable {
       dedupFields.put(dedupKey, field);
     }
 
+    public Builder caseSensitive(boolean sensitive) {
+      this.caseSensitive = sensitive;
+      return this;
+    }
+
     public Builder withSpecId(int newSpecId) {
       this.specId = newSpecId;
       return this;
     }
 
     private Types.NestedField findSourceColumn(String sourceName) {
-      Types.NestedField sourceColumn = schema.caseInsensitiveFindField(sourceName);
+      Types.NestedField sourceColumn =
+          this.caseSensitive
+              ? schema.findField(sourceName)
+              : schema.caseInsensitiveFindField(sourceName);
       Preconditions.checkArgument(
           sourceColumn != null, "Cannot find source column: %s", sourceName);
       return sourceColumn;
