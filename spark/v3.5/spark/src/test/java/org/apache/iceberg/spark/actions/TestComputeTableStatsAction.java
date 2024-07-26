@@ -29,7 +29,6 @@ import org.apache.iceberg.BlobMetadata;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ComputeTableStats;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
