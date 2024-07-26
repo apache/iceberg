@@ -190,8 +190,9 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
     boolean cboEnabled =
         Boolean.parseBoolean(spark.conf().get(SQLConf.CBO_ENABLED().key(), "false"));
-    Map<NamedReference, ColumnStatistics> colStatsMap = Maps.newHashMap();
+    Map<NamedReference, ColumnStatistics> colStatsMap = null;
     if (readConf.reportColumnStats() && cboEnabled) {
+      colStatsMap = Maps.newHashMap();
       List<StatisticsFile> files = table.statisticsFiles();
       if (!files.isEmpty()) {
         List<BlobMetadata> metadataList = (files.get(0)).blobMetadata();
@@ -216,11 +217,14 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
           }
 
           // TODO: Fill min, max and null from the manifest file
-          ColumnStatistics colStats = new SparkColumnStatistics(ndv, null, null, 0L, 0L, 0L, null);
+          ColumnStatistics colStats =
+              new SparkColumnStatistics(ndv, null, null, null, null, null, null);
 
           colStatsMap.put(ref, colStats);
         }
       }
+    } else {
+      colStatsMap = Collections.emptyMap();
     }
 
     // estimate stats using snapshot summary only for partitioned tables

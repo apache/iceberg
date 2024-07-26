@@ -29,9 +29,9 @@ import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.Parameter;
@@ -161,7 +161,48 @@ public class TestSparkScan extends TestBaseWithCatalog {
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId = table.currentSnapshot().snapshotId();
 
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+
+    Map<String, String> reportColStatsDisabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+
+    // Test table does not have col stats
+    checkColStatisticsNotReported(scan, 4L);
+    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
+    // The expected col NDVs are nulls
+    withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, new HashMap<>()));
+
     GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId,
+            "/test/statistics/file.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", "4"))));
+
+    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+
+    // Test where 1 column has NDV and the other does not have NDV
+    checkColStatisticsNotReported(scan, 4L);
+    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
+
+    HashMap<String, Long> expectedOneNDV = new HashMap<>();
+    expectedOneNDV.put("id", 4L);
+    withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, expectedOneNDV));
+
+    statisticsFile =
         new GenericStatisticsFile(
             snapshotId,
             "/test/statistics/file.puffin",
@@ -179,22 +220,18 @@ public class TestSparkScan extends TestBaseWithCatalog {
                     snapshotId,
                     1,
                     ImmutableList.of(2),
-                    ImmutableMap.of())));
+                    ImmutableMap.of("ndv", "2"))));
 
     table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
-    SparkScanBuilder scanBuilder =
-        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
-    SparkScan scan = (SparkScan) scanBuilder.build();
 
-    Map<String, String> sqlConf1 =
-        ImmutableMap.of(
-            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
+    // Test with different distinct values for columns in the table
+    checkColStatisticsNotReported(scan, 4L);
+    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
 
-    Map<String, String> sqlConf2 = ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
-
-    checkStatistics(scan, 4L, false);
-    withSQLConf(sqlConf1, () -> checkStatistics(scan, 4L, false));
-    withSQLConf(sqlConf2, () -> checkStatistics(scan, 4L, true));
+    HashMap<String, Long> expectedTwoNDVs = new HashMap<>();
+    expectedTwoNDVs.put("id", 4L);
+    expectedTwoNDVs.put("data", 2L);
+    withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, expectedTwoNDVs));
   }
 
   @TestTemplate
@@ -801,18 +838,23 @@ public class TestSparkScan extends TestBaseWithCatalog {
     return expressions;
   }
 
-  private void checkStatistics(SparkScan scan, long expectedRowCount, boolean expectedColumnStats) {
+  private void checkColStatisticsNotReported(SparkScan scan, long expectedRowCount) {
     Statistics stats = scan.estimateStatistics();
     assertThat(stats.numRows().getAsLong()).isEqualTo(expectedRowCount);
 
     Map<NamedReference, ColumnStatistics> columnStats = stats.columnStats();
-    if (expectedColumnStats) {
-      assertThat(columnStats.get(FieldReference.column("id")).distinctCount().getAsLong())
-          .isEqualTo(4L);
-      assertThat(columnStats.get(FieldReference.column("data")).distinctCount())
-          .isEqualTo(OptionalLong.empty());
-    } else {
-      assertThat(columnStats.isEmpty());
+    assertThat(columnStats.isEmpty());
+  }
+
+  private void checkColStatisticsReported(
+      SparkScan scan, long expectedRowCount, HashMap<String, Long> expectedNDVs) {
+    Statistics stats = scan.estimateStatistics();
+    assertThat(stats.numRows().getAsLong()).isEqualTo(expectedRowCount);
+
+    Map<NamedReference, ColumnStatistics> columnStats = stats.columnStats();
+    for (Map.Entry<String, Long> entry : expectedNDVs.entrySet()) {
+      assertThat(columnStats.get(FieldReference.column(entry.getKey())).distinctCount().getAsLong())
+          .isEqualTo(entry.getValue());
     }
   }
 
