@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
 import org.apache.hadoop.hive.ql.metadata.HiveStorageHandler;
@@ -45,7 +46,9 @@ import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.SerializationUtil;
 
 public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, HiveStorageHandler {
@@ -111,8 +114,24 @@ public class HiveIcebergStorageHandler implements HiveStoragePredicateHandler, H
   // @Override
   public void configureInputJobCredentials(TableDesc tableDesc, Map<String, String> secrets) {}
 
+  private void setCommonJobConf(JobConf jobConf) {
+    String key = "tez.mrreader.config.update.properties";
+    String customValue = jobConf.get(key, null);
+    String value;
+    if (null == customValue || customValue.trim().isEmpty()) {
+      value = "hive.io.file.readcolumn.names,hive.io.file.readcolumn.ids";
+    } else {
+      Set<String> uniqueValues =
+          Sets.newHashSet("hive.io.file.readcolumn.names", "hive.io.file.readcolumn.ids");
+      Lists.newArrayList(customValue.trim().split(",")).forEach(e -> uniqueValues.add(e.trim()));
+      value = String.join(",", uniqueValues);
+    }
+    jobConf.set(key, value);
+  }
+
   @Override
   public void configureJobConf(TableDesc tableDesc, JobConf jobConf) {
+    setCommonJobConf(jobConf);
     if (tableDesc != null
         && tableDesc.getProperties() != null
         && tableDesc.getProperties().get(WRITE_KEY) != null) {
