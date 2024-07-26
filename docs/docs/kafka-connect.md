@@ -193,6 +193,9 @@ Connection String for the ADLSv2 client
 
 ### Google GCS configuration example
 
+By default, Application Default Credentials (ADC) will be used to connect to GCS. Details on how ADC works can
+be found in the [Google Cloud documentation](https://cloud.google.com/docs/authentication/application-default-credentials).
+
 ```
 "iceberg.catalog.type": "rest",
 "iceberg.catalog.uri": "https://catalog:8181",
