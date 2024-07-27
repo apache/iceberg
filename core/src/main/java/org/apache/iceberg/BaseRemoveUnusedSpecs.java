@@ -46,7 +46,7 @@ class BaseRemoveUnusedSpecs implements RemoveUnusedSpecs {
   private final TableOperations ops;
   private final Table table;
 
-  public BaseRemoveUnusedSpecs(TableOperations ops, Table table) {
+  BaseRemoveUnusedSpecs(TableOperations ops, Table table) {
     this.ops = ops;
     this.table = table;
   }
