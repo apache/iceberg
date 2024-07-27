@@ -1482,6 +1482,11 @@ public class TableMetadata implements Serializable {
           "Cannot set metadata location with changes to table metadata: %s changes",
           changes.size());
 
+      if (hasRemovedSpecs) {
+        Preconditions.checkArgument(
+            changes.isEmpty(), "Cannot remove partition specs with other metadata update");
+      }
+
       Schema schema = schemasById.get(currentSchemaId);
       PartitionSpec.checkCompatibility(specsById.get(defaultSpecId), schema);
       SortOrder.checkCompatibility(sortOrdersById.get(defaultSortOrderId), schema);

@@ -24,10 +24,6 @@ import java.util.List;
  * API for removing partition specs from the metadata which are not the default spec and no longer
  * refer to any datafiles in the table.
  *
- * <p>When committing, these changes will be applied to the latest table metadata. Commit conflicts
- * will be resolved by recalculating which specs are no longer in use again in the latest metadata
- * and retrying.
- *
  * <p>{@link #apply()} returns the specs that will remain if committed on the current metadata
  */
 public interface RemoveUnusedSpecs extends PendingUpdate<List<PartitionSpec>> {}

@@ -35,7 +35,14 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 
-public class BaseRemoveUnusedSpecs implements RemoveUnusedSpecs {
+/**
+ * Implementation of RemoveUnusedSpecs API to remove unused partition specs.
+ *
+ * <p>When committing, these changes will be applied to the latest table metadata. Commit conflicts
+ * will be resolved by recalculating which specs are no longer in use again in the latest metadata
+ * and retrying.
+ */
+class BaseRemoveUnusedSpecs implements RemoveUnusedSpecs {
   private final TableOperations ops;
   private final Table table;
 

@@ -20,7 +20,7 @@ package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -37,13 +37,13 @@ public class TestRemoveUnusedSpecs extends TestBase {
     table.updateSpec().addField("ts").commit();
     table.updateSpec().addField("category").commit();
     table.updateSpec().addField("data").commit();
-    assertThat(table.specs().size()).as("added specs should be present").isEqualTo(5);
+    assertThat(table.specs().size()).as("Added specs should be present").isEqualTo(5);
 
     PartitionSpec currentSpec = table.spec();
     table.removeUnusedSpecs().commit();
 
-    assertThat(table.specs().size()).as("all but current spec should be removed").isEqualTo(1);
-    assertThat(table.spec()).as("current spec shall not change").isEqualTo(currentSpec);
+    assertThat(table.specs().size()).as("All but current spec should be removed").isEqualTo(1);
+    assertThat(table.spec()).as("Current spec shall not change").isEqualTo(currentSpec);
   }
 
   @TestTemplate
@@ -70,17 +70,63 @@ public class TestRemoveUnusedSpecs extends TestBase {
     }
 
     table.updateSpec().addField("data").commit(); // 4
-    V1Assert.assertEquals("Added specs should present", 5, table.specs().size());
-    V2Assert.assertEquals("Added specs should present", 5, table.specs().size());
+    assertThat(table.specs()).size().as("Added specs should be present").isEqualTo(5);
 
     PartitionSpec currentSpec = table.spec();
     table.removeUnusedSpecs().commit();
+    assertThat(table.specs().keySet()).as("Unused specs are removed").containsExactly(1, 3, 4);
+    assertThat(table.spec()).as("Current spec shall not change").isEqualTo(currentSpec);
+  }
 
-    V1Assert.assertEquals(
-        "Missing required spec", ImmutableSet.of(1, 3, 4), table.specs().keySet());
-    V2Assert.assertEquals(
-        "Missing required spec", ImmutableSet.of(1, 3, 4), table.specs().keySet());
-    V1Assert.assertEquals("Current spec shall not change", currentSpec, table.spec());
-    V2Assert.assertEquals("Current spec shall not change", currentSpec, table.spec());
+  @TestTemplate
+  public void testRemoveUnpartitionedSpec() {
+    // clean it first to reset to un-partitioned
+    cleanupTables();
+    this.table = create(SCHEMA, PartitionSpec.unpartitioned());
+    DataFile file =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-0.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .build();
+    table.newAppend().appendFile(file).commit();
+    // add a bucket partition
+    table.updateSpec().addField("data_bucket", Expressions.bucket("data", 16)).commit();
+
+    // removeUnusedPartitionSpec shall not remove the un-partitioned spec
+    table.removeUnusedSpecs().commit();
+    assertThat(table.specs().keySet())
+        .as("Un-partitioned spec is still used")
+        .containsExactly(0, 1);
+
+    table.newDelete().deleteFile(file).commit();
+    DataFile bucketFile =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data-0.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(100)
+            .withPartitionPath("data_bucket=0")
+            .build();
+    table.newAppend().appendFile(bucketFile).commit();
+
+    table.expireSnapshots().expireOlderThan(System.currentTimeMillis()).commit();
+    // un-partitioned spec can be removed.
+    table.removeUnusedSpecs().commit();
+    assertThat(table.specs().keySet()).as("Un-partitioned spec is removed").containsExactly(1);
+
+    // bucket spec can reset to un-partitioned
+    table.updateSpec().removeField("data_bucket").commit();
+    assertThat(table.spec().isUnpartitioned()).as("Should equal to un-partitioned").isTrue();
+    if (formatVersion == 1) {
+      assertThat(table.spec().fields().size()).as("Should have one void transform").isEqualTo(1);
+      assertThat(table.spec().specId())
+          .as("un-partitioned is evolved to use a new SpecId")
+          .isEqualTo(2);
+    } else {
+      assertThat(table.spec().fields().size()).as("Should have no fields").isEqualTo(0);
+      assertThat(table.spec().specId())
+          .as("un-partitioned is evolved to use a new SpecId")
+          .isEqualTo(2);
+    }
   }
 }
