@@ -53,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.kafka.clients.admin.MemberDescription;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -303,10 +304,10 @@ class Coordinator extends Channel {
     // ensure coordinator tasks are shut down, else cause the sink worker to fail
     try {
       if (!exec.awaitTermination(1, TimeUnit.MINUTES)) {
-        throw new RuntimeException("Timed out waiting for coordinator shutdown");
+        throw new ConnectException("Timed out waiting for coordinator shutdown");
       }
     } catch (InterruptedException e) {
-      throw new RuntimeException("Interrupted while waiting for coordinator shutdown", e);
+      throw new ConnectException("Interrupted while waiting for coordinator shutdown", e);
     }
 
     super.stop();

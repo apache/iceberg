@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.connect.channel;
 
+import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +26,7 @@ class CoordinatorThread extends Thread {
   private static final Logger LOG = LoggerFactory.getLogger(CoordinatorThread.class);
   private static final String THREAD_NAME = "iceberg-coord";
 
-  private Coordinator coordinator;
+  private volatile Coordinator coordinator;
   private volatile boolean terminated;
 
   CoordinatorThread(Coordinator coordinator) {
@@ -53,10 +54,10 @@ class CoordinatorThread extends Thread {
 
     try {
       coordinator.stop();
+      coordinator = null;
     } catch (Exception e) {
       LOG.error("Coordinator error during stop, ignoring", e);
     }
-    coordinator = null;
   }
 
   boolean isTerminated() {
@@ -65,5 +66,15 @@ class CoordinatorThread extends Thread {
 
   void terminate() {
     terminated = true;
+
+    try {
+      join();
+    } catch (InterruptedException e) {
+      throw new ConnectException(e);
+    }
+
+    if (coordinator != null) {
+      throw new ConnectException("Coordinator was not stopped during thread termination");
+    }
   }
 }
