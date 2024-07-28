@@ -68,9 +68,9 @@ class CoordinatorThread extends Thread {
     terminated = true;
 
     try {
-      join();
+      join(60_000);
     } catch (InterruptedException e) {
-      throw new ConnectException(e);
+      throw new ConnectException("Timed out waiting for coordinator thread to terminate", e);
     }
 
     if (coordinator != null) {
