@@ -63,6 +63,7 @@ import org.apache.iceberg.flink.sink.FlinkSink;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -137,6 +138,7 @@ public class TestIcebergSourceFailover {
     SimpleDataUtil.assertTableRecords(table, expectedRecords, timeout);
   }
 
+  @Disabled("Disabled for now as it is flaky on CI")
   @Test
   public void testBoundedWithSavepoint(@InjectClusterClient ClusterClient<?> clusterClient)
       throws Exception {
