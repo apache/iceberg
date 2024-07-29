@@ -24,8 +24,9 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
-import org.apache.flink.annotation.VisibleForTesting;
+import java.util.stream.Collectors;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerSchemaCompatibility;
 import org.apache.flink.api.common.typeutils.TypeSerializerSnapshot;
@@ -41,6 +42,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.types.CheckCompatibility;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 class SortKeySerializer extends TypeSerializer<SortKey> {
@@ -319,12 +321,25 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
         return TypeSerializerSchemaCompatibility.incompatible();
       }
 
+      // Sort order should be identical
       SortKeySerializerSnapshot oldSnapshot = (SortKeySerializerSnapshot) oldSerializerSnapshot;
       if (!sortOrder.sameOrder(oldSnapshot.sortOrder)) {
         return TypeSerializerSchemaCompatibility.incompatible();
       }
 
-      return resolveSchemaCompatibility(oldSnapshot.schema, schema);
+      Set<Integer> sortFieldIds =
+          sortOrder.fields().stream().map(SortField::sourceId).collect(Collectors.toSet());
+      // only care about the schema related to sort fields
+      Schema sortSchema = TypeUtil.project(schema, sortFieldIds);
+      Schema oldSortSchema = TypeUtil.project(oldSnapshot.schema, sortFieldIds);
+
+      List<String> compatibilityErrors =
+          CheckCompatibility.writeCompatibilityErrors(sortSchema, oldSortSchema);
+      if (compatibilityErrors.isEmpty()) {
+        return TypeSerializerSchemaCompatibility.compatibleAsIs();
+      }
+
+      return TypeSerializerSchemaCompatibility.incompatible();
     }
 
     @Override
@@ -339,18 +354,6 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
       String sortOrderJson = StringUtils.readString(in);
       this.schema = SchemaParser.fromJson(schemaJson);
       this.sortOrder = SortOrderParser.fromJson(sortOrderJson).bind(schema);
-    }
-
-    @VisibleForTesting
-    static <T> TypeSerializerSchemaCompatibility<T> resolveSchemaCompatibility(
-        Schema readSchema, Schema writeSchema) {
-      List<String> compatibilityErrors =
-          CheckCompatibility.writeCompatibilityErrors(readSchema, writeSchema);
-      if (compatibilityErrors.isEmpty()) {
-        return TypeSerializerSchemaCompatibility.compatibleAsIs();
-      }
-
-      return TypeSerializerSchemaCompatibility.incompatible();
     }
   }
 }
