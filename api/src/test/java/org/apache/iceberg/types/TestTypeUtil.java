@@ -28,7 +28,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types.IntegerType;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestTypeUtil {
@@ -445,15 +444,15 @@ public class TestTypeUtil {
                                     required(17, "x", Types.IntegerType.get()),
                                     required(18, "y", Types.IntegerType.get()))))))));
 
-    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(12)))
+    assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(12)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot explicitly project List or Map types");
 
-    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(13)))
+    assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(13)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot explicitly project List or Map types");
 
-    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(14)))
+    assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(14)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot explicitly project List or Map types");
 
@@ -496,15 +495,15 @@ public class TestTypeUtil {
                                     required(18, "x", Types.IntegerType.get()),
                                     required(19, "y", Types.IntegerType.get()))))))));
 
-    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(12)))
+    assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(12)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot explicitly project List or Map types");
 
-    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(14)))
+    assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(14)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot explicitly project List or Map types");
 
-    Assertions.assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(16)))
+    assertThatThrownBy(() -> TypeUtil.project(schema, Sets.newHashSet(16)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot explicitly project List or Map types");
 
@@ -534,7 +533,7 @@ public class TestTypeUtil {
         new Schema(
             required(1, "a", Types.IntegerType.get()), required(2, "b", Types.IntegerType.get()));
     Schema sourceSchema = new Schema(required(1, "a", Types.IntegerType.get()));
-    Assertions.assertThatThrownBy(() -> TypeUtil.reassignIds(schema, sourceSchema))
+    assertThatThrownBy(() -> TypeUtil.reassignIds(schema, sourceSchema))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Field b not found in source schema");
   }
@@ -549,7 +548,7 @@ public class TestTypeUtil {
                 required(2, "b", Types.StructType.of(required(3, "c", Types.BooleanType.get()))),
                 required(4, "b.c", Types.BooleanType.get())));
 
-    Assertions.assertThatThrownBy(() -> TypeUtil.indexByName(Types.StructType.of(nestedType)))
+    assertThatThrownBy(() -> TypeUtil.indexByName(Types.StructType.of(nestedType)))
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("Invalid schema: multiple fields for name a.b.c");
   }

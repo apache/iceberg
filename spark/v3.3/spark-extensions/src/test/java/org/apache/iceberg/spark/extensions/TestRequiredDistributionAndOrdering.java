@@ -18,10 +18,11 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.source.ThreeColumnRecord;
@@ -187,20 +188,20 @@ public class TestRequiredDistributionAndOrdering extends SparkExtensionsTestBase
     Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c1");
 
     // should fail if ordering is disabled
-    AssertHelpers.assertThrows(
-        "Should reject writes without ordering",
-        SparkException.class,
-        "Writing job aborted",
-        () -> {
-          try {
-            inputDF
-                .writeTo(tableName)
-                .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
-                .append();
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
+    assertThatThrownBy(
+            () -> {
+              try {
+                inputDF
+                    .writeTo(tableName)
+                    .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
+                    .append();
+              } catch (NoSuchTableException e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .as("Should reject writes without ordering")
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining("Writing job aborted");
   }
 
   @Test

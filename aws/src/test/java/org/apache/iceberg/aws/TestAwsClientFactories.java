@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.aws;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.Map;
 import org.apache.iceberg.TestHelpers;
@@ -27,7 +30,6 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SerializationUtil;
-import org.assertj.core.api.Assertions;
 import org.assertj.core.api.ThrowableAssert;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -44,11 +46,11 @@ public class TestAwsClientFactories {
 
   @Test
   public void testLoadDefault() {
-    Assertions.assertThat(AwsClientFactories.defaultFactory())
+    assertThat(AwsClientFactories.defaultFactory())
         .as("default client should be singleton")
         .isSameAs(AwsClientFactories.defaultFactory());
 
-    Assertions.assertThat(AwsClientFactories.from(Maps.newHashMap()))
+    assertThat(AwsClientFactories.from(Maps.newHashMap()))
         .as("should load default when not configured")
         .isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
   }
@@ -57,7 +59,7 @@ public class TestAwsClientFactories {
   public void testLoadCustom() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(AwsProperties.CLIENT_FACTORY, CustomFactory.class.getName());
-    Assertions.assertThat(AwsClientFactories.from(properties))
+    assertThat(AwsClientFactories.from(properties))
         .as("should load custom class")
         .isInstanceOf(CustomFactory.class);
   }
@@ -67,14 +69,14 @@ public class TestAwsClientFactories {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(S3FileIOProperties.ACCESS_KEY_ID, "key");
 
-    Assertions.assertThatThrownBy(() -> AwsClientFactories.from(properties))
+    assertThatThrownBy(() -> AwsClientFactories.from(properties))
         .isInstanceOf(ValidationException.class)
         .hasMessage("S3 client access key ID and secret access key must be set at the same time");
 
     properties.remove(S3FileIOProperties.ACCESS_KEY_ID);
     properties.put(S3FileIOProperties.SECRET_ACCESS_KEY, "secret");
 
-    Assertions.assertThatThrownBy(() -> AwsClientFactories.from(properties))
+    assertThatThrownBy(() -> AwsClientFactories.from(properties))
         .isInstanceOf(ValidationException.class)
         .hasMessage("S3 client access key ID and secret access key must be set at the same time");
   }
@@ -85,13 +87,12 @@ public class TestAwsClientFactories {
     AwsClientFactory defaultAwsClientFactory = AwsClientFactories.from(properties);
     AwsClientFactory roundTripResult =
         TestHelpers.KryoHelpers.roundTripSerialize(defaultAwsClientFactory);
-    Assertions.assertThat(roundTripResult)
-        .isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
+    assertThat(roundTripResult).isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
 
     byte[] serializedFactoryBytes = SerializationUtil.serializeToBytes(defaultAwsClientFactory);
     AwsClientFactory deserializedClientFactory =
         SerializationUtil.deserializeFromBytes(serializedFactoryBytes);
-    Assertions.assertThat(deserializedClientFactory)
+    assertThat(deserializedClientFactory)
         .isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
   }
 
@@ -104,12 +105,12 @@ public class TestAwsClientFactories {
     AwsClientFactory assumeRoleAwsClientFactory = AwsClientFactories.from(properties);
     AwsClientFactory roundTripResult =
         TestHelpers.KryoHelpers.roundTripSerialize(assumeRoleAwsClientFactory);
-    Assertions.assertThat(roundTripResult).isInstanceOf(AssumeRoleAwsClientFactory.class);
+    assertThat(roundTripResult).isInstanceOf(AssumeRoleAwsClientFactory.class);
 
     byte[] serializedFactoryBytes = SerializationUtil.serializeToBytes(assumeRoleAwsClientFactory);
     AwsClientFactory deserializedClientFactory =
         SerializationUtil.deserializeFromBytes(serializedFactoryBytes);
-    Assertions.assertThat(deserializedClientFactory).isInstanceOf(AssumeRoleAwsClientFactory.class);
+    assertThat(deserializedClientFactory).isInstanceOf(AssumeRoleAwsClientFactory.class);
   }
 
   @Test
@@ -125,14 +126,13 @@ public class TestAwsClientFactories {
     AwsClientFactory lakeFormationAwsClientFactory = AwsClientFactories.from(properties);
     AwsClientFactory roundTripResult =
         TestHelpers.KryoHelpers.roundTripSerialize(lakeFormationAwsClientFactory);
-    Assertions.assertThat(roundTripResult).isInstanceOf(LakeFormationAwsClientFactory.class);
+    assertThat(roundTripResult).isInstanceOf(LakeFormationAwsClientFactory.class);
 
     byte[] serializedFactoryBytes =
         SerializationUtil.serializeToBytes(lakeFormationAwsClientFactory);
     AwsClientFactory deserializedClientFactory =
         SerializationUtil.deserializeFromBytes(serializedFactoryBytes);
-    Assertions.assertThat(deserializedClientFactory)
-        .isInstanceOf(LakeFormationAwsClientFactory.class);
+    assertThat(deserializedClientFactory).isInstanceOf(LakeFormationAwsClientFactory.class);
   }
 
   @Test
@@ -143,7 +143,7 @@ public class TestAwsClientFactories {
     assertClientObjectsNotNull(defaultAwsClientFactory);
     // Ensuring S3Exception thrown instead exception thrown by resolveCredentials() implemented by
     // test credentials provider
-    Assertions.assertThatThrownBy(() -> defaultAwsClientFactory.s3().listBuckets())
+    assertThatThrownBy(() -> defaultAwsClientFactory.s3().listBuckets())
         .isInstanceOf(software.amazon.awssdk.services.s3.model.S3Exception.class)
         .hasMessageContaining("The AWS Access Key Id you provided does not exist in our records");
   }
@@ -195,31 +195,33 @@ public class TestAwsClientFactories {
   public void assertAllClientObjectsThrownBy(
       AwsClientFactory defaultAwsClientFactory, String containsMessage) {
     // invoking sdk client apis to ensure resolveCredentials() being called
-    assertThatThrownBy(() -> defaultAwsClientFactory.s3().listBuckets(), containsMessage);
-    assertThatThrownBy(
+    assertIllegalArgumentException(
+        () -> defaultAwsClientFactory.s3().listBuckets(), containsMessage);
+    assertIllegalArgumentException(
         () -> defaultAwsClientFactory.glue().getTables(GetTablesRequest.builder().build()),
         containsMessage);
-    assertThatThrownBy(() -> defaultAwsClientFactory.dynamo().listTables(), containsMessage);
-    assertThatThrownBy(() -> defaultAwsClientFactory.kms().listAliases(), containsMessage);
+    assertIllegalArgumentException(
+        () -> defaultAwsClientFactory.dynamo().listTables(), containsMessage);
+    assertIllegalArgumentException(
+        () -> defaultAwsClientFactory.kms().listAliases(), containsMessage);
   }
 
   private void assertClientObjectsNotNull(AwsClientFactory defaultAwsClientFactory) {
-    Assertions.assertThat(defaultAwsClientFactory.s3()).isNotNull();
-    Assertions.assertThat(defaultAwsClientFactory.dynamo()).isNotNull();
-    Assertions.assertThat(defaultAwsClientFactory.glue()).isNotNull();
-    Assertions.assertThat(defaultAwsClientFactory.kms()).isNotNull();
+    assertThat(defaultAwsClientFactory.s3()).isNotNull();
+    assertThat(defaultAwsClientFactory.dynamo()).isNotNull();
+    assertThat(defaultAwsClientFactory.glue()).isNotNull();
+    assertThat(defaultAwsClientFactory.kms()).isNotNull();
   }
 
-  private void assertThatThrownBy(
+  private void assertIllegalArgumentException(
       ThrowableAssert.ThrowingCallable shouldRaiseThrowable, String containsMessage) {
-    Assertions.assertThatThrownBy(shouldRaiseThrowable)
+    assertThatThrownBy(shouldRaiseThrowable)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(containsMessage);
   }
 
   private void assertDefaultAwsClientFactory(AwsClientFactory awsClientFactory) {
-    Assertions.assertThat(awsClientFactory)
-        .isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
+    assertThat(awsClientFactory).isInstanceOf(AwsClientFactories.DefaultAwsClientFactory.class);
   }
 
   private AwsClientFactory getAwsClientFactoryByCredentialsProvider(String providerClass) {

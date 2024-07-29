@@ -19,8 +19,8 @@
 package org.apache.iceberg.catalog;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestTableIdentifier {
@@ -54,26 +54,26 @@ public class TestTableIdentifier {
 
   @Test
   public void testInvalidTableName() {
-    Assertions.assertThatThrownBy(() -> TableIdentifier.of(Namespace.empty(), ""))
+    assertThatThrownBy(() -> TableIdentifier.of(Namespace.empty(), ""))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid table name: null or empty");
 
-    Assertions.assertThatThrownBy(() -> TableIdentifier.of(Namespace.empty(), null))
+    assertThatThrownBy(() -> TableIdentifier.of(Namespace.empty(), null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid table name: null or empty");
   }
 
   @Test
   public void testNulls() {
-    Assertions.assertThatThrownBy(() -> TableIdentifier.of((String[]) null))
+    assertThatThrownBy(() -> TableIdentifier.of((String[]) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot create table identifier from null array");
 
-    Assertions.assertThatThrownBy(() -> TableIdentifier.parse(null))
+    assertThatThrownBy(() -> TableIdentifier.parse(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse table identifier: null");
 
-    Assertions.assertThatThrownBy(() -> TableIdentifier.of(null, "name"))
+    assertThatThrownBy(() -> TableIdentifier.of(null, "name"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid Namespace: null");
   }

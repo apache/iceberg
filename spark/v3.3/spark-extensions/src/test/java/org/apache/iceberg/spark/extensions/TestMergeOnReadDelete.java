@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -25,7 +26,6 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.RowLevelOperationMode;
 import org.apache.iceberg.Table;
@@ -115,13 +115,13 @@ public class TestMergeOnReadDelete extends TestDelete {
     TestSparkCatalog.setTable(ident, sparkTable);
 
     // Although an exception is thrown here, write and commit have succeeded
-    AssertHelpers.assertThrowsWithCause(
-        "Should throw a Commit State Unknown Exception",
-        SparkException.class,
-        "Writing job aborted",
-        CommitStateUnknownException.class,
-        "Datacenter on Fire",
-        () -> sql("DELETE FROM %s WHERE id = 2", "dummy_catalog.default.table"));
+    assertThatThrownBy(() -> sql("DELETE FROM %s WHERE id = 2", "dummy_catalog.default.table"))
+        .as("Should throw a Commit State Unknown Exception")
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining("Writing job aborted")
+        .cause()
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageContaining("Datacenter on Fire");
 
     // Since write and commit succeeded, the rows should be readable
     assertEquals(

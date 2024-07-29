@@ -19,6 +19,8 @@
 package org.apache.iceberg.aws.dynamodb;
 
 import static org.apache.iceberg.aws.dynamodb.DynamoDbCatalog.toPropertyCol;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 
 import org.apache.iceberg.aws.AwsProperties;
@@ -26,7 +28,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -60,7 +61,7 @@ public class TestDynamoDbCatalog {
         .when(dynamo)
         .getItem(any(GetItemRequest.class));
     String location = catalogWithSlash.defaultWarehouseLocation(TABLE_IDENTIFIER);
-    Assertions.assertThat(location).isEqualTo(WAREHOUSE_PATH + "/db.db/table");
+    assertThat(location).isEqualTo(WAREHOUSE_PATH + "/db.db/table");
   }
 
   @Test
@@ -71,7 +72,7 @@ public class TestDynamoDbCatalog {
 
     String warehousePath = WAREHOUSE_PATH + "/db.db/table";
     String defaultWarehouseLocation = dynamoCatalog.defaultWarehouseLocation(TABLE_IDENTIFIER);
-    Assertions.assertThat(defaultWarehouseLocation).isEqualTo(warehousePath);
+    assertThat(defaultWarehouseLocation).isEqualTo(warehousePath);
   }
 
   @Test
@@ -88,7 +89,7 @@ public class TestDynamoDbCatalog {
         .getItem(any(GetItemRequest.class));
 
     String defaultWarehouseLocation = dynamoCatalog.defaultWarehouseLocation(TABLE_IDENTIFIER);
-    Assertions.assertThat(defaultWarehouseLocation).isEqualTo("s3://bucket2/db/table");
+    assertThat(defaultWarehouseLocation).isEqualTo("s3://bucket2/db/table");
   }
 
   @Test
@@ -97,7 +98,7 @@ public class TestDynamoDbCatalog {
         .when(dynamo)
         .getItem(any(GetItemRequest.class));
 
-    Assertions.assertThatThrownBy(() -> dynamoCatalog.defaultWarehouseLocation(TABLE_IDENTIFIER))
+    assertThatThrownBy(() -> dynamoCatalog.defaultWarehouseLocation(TABLE_IDENTIFIER))
         .as("default warehouse can't be called on non existent namespace")
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessageContaining("Cannot find default warehouse location:");

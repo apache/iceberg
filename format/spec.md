@@ -168,7 +168,7 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 
 Supported primitive types are defined in the table below. Primitive types added after v1 have an "added by" version that is the first spec version in which the type is allowed. For example, nanosecond-precision timestamps are part of the v3 spec; using v3 types in v1 or v2 tables can break forward compatibility.
 
-| Added by verison | Primitive type     | Description                                                              | Requirements                                     |
+| Added by version | Primitive type     | Description                                                              | Requirements                                     |
 |------------------|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|
 |                  | **`boolean`**      | True or false                                                            |                                                  |
 |                  | **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
@@ -201,8 +201,9 @@ For details on how to serialize a schema to JSON, see Appendix C.
 #### Default values
 
 Default values can be tracked for struct fields (both nested structs and the top-level schema's struct). There can be two defaults with a field:
-- `initial-default` is used to populate the field's value for all records that were written before the field was added to the schema
-- `write-default` is used to populate the field's value for any records written after the field was added to the schema, if the writer does not supply the field's value
+
+* `initial-default` is used to populate the field's value for all records that were written before the field was added to the schema
+* `write-default` is used to populate the field's value for any records written after the field was added to the schema, if the writer does not supply the field's value
 
 The `initial-default` is set only when a field is added to an existing schema. The `write-default` is initially set to the same value as `initial-default` and can be changed through schema evolution. If either default is not set for an optional field, then the default value is null for compatibility with older spec versions.
 

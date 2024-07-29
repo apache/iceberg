@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.hadoop;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -43,7 +45,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -62,8 +63,8 @@ public class TestTableSerialization extends HadoopTableTestBase {
     Table serializableTable = SerializableTable.copyOf(table);
     TestHelpers.assertSerializedAndLoadedMetadata(
         serializableTable, TestHelpers.KryoHelpers.roundTripSerialize(serializableTable));
-    Assertions.assertThat(serializableTable).isInstanceOf(HasTableOperations.class);
-    Assertions.assertThat(((HasTableOperations) serializableTable).operations())
+    assertThat(serializableTable).isInstanceOf(HasTableOperations.class);
+    assertThat(((HasTableOperations) serializableTable).operations())
         .isInstanceOf(StaticTableOperations.class);
   }
 
@@ -119,10 +120,10 @@ public class TestTableSerialization extends HadoopTableTestBase {
     Set<CharSequence> deserializedFiles = getFiles(deserialized);
 
     // Checks that the deserialized data stays the same
-    Assertions.assertThat(deserializedFiles).isEqualTo(expected);
+    assertThat(deserializedFiles).isEqualTo(expected);
 
     // We expect that the files changed in the meantime
-    Assertions.assertThat(deserializedFiles).isNotEqualTo(getFiles(table));
+    assertThat(deserializedFiles).isNotEqualTo(getFiles(table));
   }
 
   @ParameterizedTest
@@ -153,13 +154,13 @@ public class TestTableSerialization extends HadoopTableTestBase {
       Set<CharSequence> deserializedFiles = getFiles(deserializeFromBytes(serialized.get(type)));
 
       // Checks that the deserialized data stays the same
-      Assertions.assertThat(deserializedFiles).isEqualTo(expected.get(type));
+      assertThat(deserializedFiles).isEqualTo(expected.get(type));
 
       // Collect the current data
       Set<CharSequence> newFiles = getFiles(getMetaDataTable(table, type));
 
       // Expect that the new data is changed in the meantime
-      Assertions.assertThat(deserializedFiles).isNotEqualTo(newFiles);
+      assertThat(deserializedFiles).isNotEqualTo(newFiles);
     }
   }
 

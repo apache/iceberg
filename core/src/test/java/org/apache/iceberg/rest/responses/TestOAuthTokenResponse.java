@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.apache.iceberg.rest.RequestResponseTestBase;
 import org.apache.iceberg.rest.auth.OAuth2Util;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenResponse> {
@@ -43,17 +45,15 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
 
   @Override
   public void assertEquals(OAuthTokenResponse actual, OAuthTokenResponse expected) {
-    Assertions.assertThat(actual.token()).as("Token should match").isEqualTo(expected.token());
-    Assertions.assertThat(actual.tokenType())
-        .as("Token type should match")
-        .isEqualTo(expected.tokenType());
-    Assertions.assertThat(actual.issuedTokenType())
+    assertThat(actual.token()).as("Token should match").isEqualTo(expected.token());
+    assertThat(actual.tokenType()).as("Token type should match").isEqualTo(expected.tokenType());
+    assertThat(actual.issuedTokenType())
         .as("Issued token type should match")
         .isEqualTo(expected.issuedTokenType());
-    Assertions.assertThat(actual.expiresInSeconds())
+    assertThat(actual.expiresInSeconds())
         .as("Expiration should match")
         .isEqualTo(expected.expiresInSeconds());
-    Assertions.assertThat(actual.scopes()).as("Scope should match").isEqualTo(expected.scopes());
+    assertThat(actual.scopes()).as("Scope should match").isEqualTo(expected.scopes());
   }
 
   @Override
@@ -114,21 +114,19 @@ public class TestOAuthTokenResponse extends RequestResponseTestBase<OAuthTokenRe
 
   @Test
   public void testFailures() {
-    Assertions.assertThatThrownBy(() -> deserialize("{\"token_type\":\"bearer\"}"))
+    assertThatThrownBy(() -> deserialize("{\"token_type\":\"bearer\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("missing string: access_token");
 
-    Assertions.assertThatThrownBy(
-            () -> deserialize("{\"access_token\":34,\"token_type\":\"bearer\"}"))
+    assertThatThrownBy(() -> deserialize("{\"access_token\":34,\"token_type\":\"bearer\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot parse to a string value: access_token: 34");
 
-    Assertions.assertThatThrownBy(() -> deserialize("{\"access_token\":\"bearer-token\"}"))
+    assertThatThrownBy(() -> deserialize("{\"access_token\":\"bearer-token\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("missing string: token_type");
 
-    Assertions.assertThatThrownBy(
-            () -> deserialize("{\"access_token\":\"bearer-token\",\"token_type\":34}"))
+    assertThatThrownBy(() -> deserialize("{\"access_token\":\"bearer-token\",\"token_type\":34}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Cannot parse to a string value: token_type: 34");
   }

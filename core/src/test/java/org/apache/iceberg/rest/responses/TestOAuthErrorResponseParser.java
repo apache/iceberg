@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.rest.auth.OAuth2Properties;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestOAuthErrorResponseParser {
@@ -56,14 +58,14 @@ public class TestOAuthErrorResponseParser {
     String uri = "http://iceberg.apache.org";
     String json =
         String.format("{\"error_description\":\"%s\",\"error_uri\":\"%s\"}", description, uri);
-    Assertions.assertThatThrownBy(() -> OAuthErrorResponseParser.fromJson(400, json))
+    assertThatThrownBy(() -> OAuthErrorResponseParser.fromJson(400, json))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: error");
   }
 
   public void assertEquals(ErrorResponse expected, ErrorResponse actual) {
-    Assertions.assertThat(actual.code()).isEqualTo(expected.code());
-    Assertions.assertThat(actual.type()).isEqualTo(expected.type());
-    Assertions.assertThat(actual.message()).isEqualTo(expected.message());
+    assertThat(actual.code()).isEqualTo(expected.code());
+    assertThat(actual.type()).isEqualTo(expected.type());
+    assertThat(actual.message()).isEqualTo(expected.message());
   }
 }

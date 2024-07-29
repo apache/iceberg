@@ -19,12 +19,12 @@
 package org.apache.iceberg.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestClosingIterator {
@@ -67,8 +67,7 @@ public class TestClosingIterator {
 
   @Test
   public void transformNullCheck() {
-    Assertions.assertThatThrownBy(
-            () -> CloseableIterator.transform(CloseableIterator.empty(), null))
+    assertThatThrownBy(() -> CloseableIterator.transform(CloseableIterator.empty(), null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid transform: null");
   }

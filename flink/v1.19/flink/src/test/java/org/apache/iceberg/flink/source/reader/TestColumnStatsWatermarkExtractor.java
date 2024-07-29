@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source.reader;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -39,7 +40,6 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.BeforeClass;
@@ -149,7 +149,7 @@ public class TestColumnStatsWatermarkExtractor {
   @Test
   public void testWrongColumn() {
     Assume.assumeTrue("Run only for string column", columnName.equals("string_column"));
-    Assertions.assertThatThrownBy(() -> new ColumnStatsWatermarkExtractor(SCHEMA, columnName, null))
+    assertThatThrownBy(() -> new ColumnStatsWatermarkExtractor(SCHEMA, columnName, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Found STRING, expected a LONG or TIMESTAMP column for watermark generation.");
@@ -162,7 +162,7 @@ public class TestColumnStatsWatermarkExtractor {
     // Create an extractor for a column we do not have statistics
     ColumnStatsWatermarkExtractor extractor =
         new ColumnStatsWatermarkExtractor(10, "missing_field");
-    Assertions.assertThatThrownBy(() -> extractor.extractWatermark(split(0)))
+    assertThatThrownBy(() -> extractor.extractWatermark(split(0)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Missing statistics for column");
   }

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -45,7 +47,6 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -198,7 +199,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
-    Assertions.assertThatThrownBy(() -> testWriteRow(null, DistributionMode.RANGE))
+    assertThatThrownBy(() -> testWriteRow(null, DistributionMode.RANGE))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Flink does not support 'range' write distribution mode now.");
   }
@@ -346,7 +347,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .writeParallelism(parallelism)
             .setAll(newProps);
 
-    Assertions.assertThatThrownBy(builder::append)
+    assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid distribution mode: UNRECOGNIZED");
   }
@@ -366,7 +367,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .writeParallelism(parallelism)
             .setAll(newProps);
 
-    Assertions.assertThatThrownBy(builder::append)
+    assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid file format: UNRECOGNIZED");
   }

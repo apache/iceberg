@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.extensions.ExtensionsTestBase;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,7 +47,7 @@ public class SmokeTest extends ExtensionsTestBase {
 
     // Writing
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
-    Assertions.assertThat(scalarSql("SELECT COUNT(*) FROM %s", tableName))
+    assertThat(scalarSql("SELECT COUNT(*) FROM %s", tableName))
         .as("Should have inserted 3 rows")
         .isEqualTo(3L);
 
@@ -57,7 +58,7 @@ public class SmokeTest extends ExtensionsTestBase {
     sql("INSERT INTO source VALUES (10, 'd'), (11, 'ee')");
 
     sql("INSERT INTO %s SELECT id, data FROM source WHERE length(data) = 1", tableName);
-    Assertions.assertThat(scalarSql("SELECT COUNT(*) FROM %s", tableName))
+    assertThat(scalarSql("SELECT COUNT(*) FROM %s", tableName))
         .as("Table should now have 4 rows")
         .isEqualTo(4L);
 
@@ -72,15 +73,15 @@ public class SmokeTest extends ExtensionsTestBase {
             + "WHEN MATCHED THEN UPDATE SET t.data = u.data\n"
             + "WHEN NOT MATCHED THEN INSERT *",
         tableName);
-    Assertions.assertThat(scalarSql("SELECT COUNT(*) FROM %s", tableName))
+    assertThat(scalarSql("SELECT COUNT(*) FROM %s", tableName))
         .as("Table should now have 5 rows")
         .isEqualTo(5L);
-    Assertions.assertThat(scalarSql("SELECT data FROM %s WHERE id = 1", tableName))
+    assertThat(scalarSql("SELECT data FROM %s WHERE id = 1", tableName))
         .as("Record 1 should now have data x")
         .isEqualTo("x");
 
     // Reading
-    Assertions.assertThat(
+    assertThat(
             scalarSql(
                 "SELECT count(1) as count FROM %s WHERE data = 'x' GROUP BY data ", tableName))
         .as("There should be 2 records with data x")
@@ -88,7 +89,7 @@ public class SmokeTest extends ExtensionsTestBase {
 
     // Not supported because of Spark limitation
     if (!catalogName.equals("spark_catalog")) {
-      Assertions.assertThat(scalarSql("SELECT COUNT(*) FROM %s.snapshots", tableName))
+      assertThat(scalarSql("SELECT COUNT(*) FROM %s.snapshots", tableName))
           .as("There should be 3 snapshots")
           .isEqualTo(3L);
     }
@@ -107,9 +108,7 @@ public class SmokeTest extends ExtensionsTestBase {
     sql("ALTER TABLE %s ADD PARTITION FIELD years(ts)", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD bucket(16, category) AS shard", tableName);
     table = getTable();
-    Assertions.assertThat(table.spec().fields())
-        .as("Table should have 4 partition fields")
-        .hasSize(4);
+    assertThat(table.spec().fields()).as("Table should have 4 partition fields").hasSize(4);
 
     // Drop Examples
     sql("ALTER TABLE %s DROP PARTITION FIELD bucket(16, id)", tableName);
@@ -118,18 +117,14 @@ public class SmokeTest extends ExtensionsTestBase {
     sql("ALTER TABLE %s DROP PARTITION FIELD shard", tableName);
 
     table = getTable();
-    Assertions.assertThat(table.spec().isUnpartitioned())
-        .as("Table should be unpartitioned")
-        .isTrue();
+    assertThat(table.spec().isUnpartitioned()).as("Table should be unpartitioned").isTrue();
 
     // Sort order examples
     sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
     sql("ALTER TABLE %s WRITE ORDERED BY category ASC, id DESC", tableName);
     sql("ALTER TABLE %s WRITE ORDERED BY category ASC NULLS LAST, id DESC NULLS FIRST", tableName);
     table = getTable();
-    Assertions.assertThat(table.sortOrder().fields())
-        .as("Table should be sorted on 2 fields")
-        .hasSize(2);
+    assertThat(table.sortOrder().fields()).as("Table should be sorted on 2 fields").hasSize(2);
   }
 
   @TestTemplate
@@ -155,9 +150,7 @@ public class SmokeTest extends ExtensionsTestBase {
             + "PARTITIONED BY (category)",
         tableName("second"));
     Table second = getTable("second");
-    Assertions.assertThat(second.spec().fields())
-        .as("Should be partitioned on 1 column")
-        .hasSize(1);
+    assertThat(second.spec().fields()).as("Should be partitioned on 1 column").hasSize(1);
 
     sql(
         "CREATE TABLE %s (\n"
@@ -169,16 +162,14 @@ public class SmokeTest extends ExtensionsTestBase {
             + "PARTITIONED BY (bucket(16, id), days(ts), category)",
         tableName("third"));
     Table third = getTable("third");
-    Assertions.assertThat(third.spec().fields())
-        .as("Should be partitioned on 3 columns")
-        .hasSize(3);
+    assertThat(third.spec().fields()).as("Should be partitioned on 3 columns").hasSize(3);
   }
 
   @TestTemplate
   public void showView() {
     sql("DROP VIEW IF EXISTS %s", "test");
     sql("CREATE VIEW %s AS SELECT 1 AS id", "test");
-    Assertions.assertThat(sql("SHOW VIEWS")).contains(row("default", "test", false));
+    assertThat(sql("SHOW VIEWS")).contains(row("default", "test", false));
   }
 
   private Table getTable(String name) {

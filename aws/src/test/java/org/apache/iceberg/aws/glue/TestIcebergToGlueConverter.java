@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.aws.glue;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.PartitionSpec;
@@ -32,7 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.DatabaseInput;
@@ -49,8 +51,7 @@ public class TestIcebergToGlueConverter {
 
   @Test
   public void testToDatabaseName() {
-    Assertions.assertThat(IcebergToGlueConverter.toDatabaseName(Namespace.of("db"), false))
-        .isEqualTo("db");
+    assertThat(IcebergToGlueConverter.toDatabaseName(Namespace.of("db"), false)).isEqualTo("db");
   }
 
   @Test
@@ -64,7 +65,7 @@ public class TestIcebergToGlueConverter {
             Namespace.of(new String(new char[600]).replace("\0", "a")));
     for (Namespace name : badNames) {
 
-      Assertions.assertThatThrownBy(() -> IcebergToGlueConverter.toDatabaseName(name, false))
+      assertThatThrownBy(() -> IcebergToGlueConverter.toDatabaseName(name, false))
           .isInstanceOf(ValidationException.class)
           .hasMessageStartingWith("Cannot convert namespace")
           .hasMessageEndingWith(
@@ -78,8 +79,7 @@ public class TestIcebergToGlueConverter {
     List<Namespace> acceptableNames =
         Lists.newArrayList(Namespace.of("db-1"), Namespace.of("db-1-1-1"));
     for (Namespace name : acceptableNames) {
-      Assertions.assertThat(IcebergToGlueConverter.toDatabaseName(name, true))
-          .isEqualTo(name.toString());
+      assertThat(IcebergToGlueConverter.toDatabaseName(name, true)).isEqualTo(name.toString());
     }
   }
 
@@ -91,7 +91,7 @@ public class TestIcebergToGlueConverter {
             TableIdentifier.parse("db.a-1-1"),
             TableIdentifier.parse("db.a#1"));
     for (TableIdentifier identifier : acceptableIdentifiers) {
-      Assertions.assertThat(IcebergToGlueConverter.getTableName(identifier, true))
+      assertThat(IcebergToGlueConverter.getTableName(identifier, true))
           .isEqualTo(identifier.name());
     }
   }
@@ -108,24 +108,21 @@ public class TestIcebergToGlueConverter {
             "val");
     DatabaseInput databaseInput =
         IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
-    Assertions.assertThat(databaseInput.locationUri())
-        .as("Location should be set")
-        .isEqualTo("s3://location");
-    Assertions.assertThat(databaseInput.description())
+    assertThat(databaseInput.locationUri()).as("Location should be set").isEqualTo("s3://location");
+    assertThat(databaseInput.description())
         .as("Description should be set")
         .isEqualTo("description");
-    Assertions.assertThat(databaseInput.parameters())
+    assertThat(databaseInput.parameters())
         .as("Parameters should be set")
         .isEqualTo(ImmutableMap.of("key", "val"));
-    Assertions.assertThat(databaseInput.name()).as("Database name should be set").isEqualTo("ns");
+    assertThat(databaseInput.name()).as("Database name should be set").isEqualTo("ns");
   }
 
   @Test
   public void testToDatabaseInputNoParameter() {
     DatabaseInput input = DatabaseInput.builder().name("db").parameters(ImmutableMap.of()).build();
     Namespace namespace = Namespace.of("db");
-    Assertions.assertThat(
-            IcebergToGlueConverter.toDatabaseInput(namespace, ImmutableMap.of(), false))
+    assertThat(IcebergToGlueConverter.toDatabaseInput(namespace, ImmutableMap.of(), false))
         .isEqualTo(input);
   }
 
@@ -135,14 +132,14 @@ public class TestIcebergToGlueConverter {
         ImmutableMap.of(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, "description", "key", "val");
     DatabaseInput databaseInput =
         IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
-    Assertions.assertThat(databaseInput.locationUri()).as("Location should not be set").isNull();
-    Assertions.assertThat(databaseInput.description())
+    assertThat(databaseInput.locationUri()).as("Location should not be set").isNull();
+    assertThat(databaseInput.description())
         .as("Description should be set")
         .isEqualTo("description");
-    Assertions.assertThat(databaseInput.parameters())
+    assertThat(databaseInput.parameters())
         .as("Parameters should be set")
         .isEqualTo(ImmutableMap.of("key", "val"));
-    Assertions.assertThat(databaseInput.name()).as("Database name should be set").isEqualTo("ns");
+    assertThat(databaseInput.name()).as("Database name should be set").isEqualTo("ns");
   }
 
   @Test
@@ -151,14 +148,12 @@ public class TestIcebergToGlueConverter {
         ImmutableMap.of(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://location", "key", "val");
     DatabaseInput databaseInput =
         IcebergToGlueConverter.toDatabaseInput(Namespace.of("ns"), properties, false);
-    Assertions.assertThat(databaseInput.locationUri())
-        .as("Location should be set")
-        .isEqualTo("s3://location");
-    Assertions.assertThat(databaseInput.description()).as("Description should not be set").isNull();
-    Assertions.assertThat(databaseInput.parameters())
+    assertThat(databaseInput.locationUri()).as("Location should be set").isEqualTo("s3://location");
+    assertThat(databaseInput.description()).as("Description should not be set").isNull();
+    assertThat(databaseInput.parameters())
         .as("Parameters should be set")
         .isEqualTo(ImmutableMap.of("key", "val"));
-    Assertions.assertThat(databaseInput.name()).as("Database name should be set").isEqualTo("ns");
+    assertThat(databaseInput.name()).as("Database name should be set").isEqualTo("ns");
   }
 
   @Test
@@ -212,13 +207,13 @@ public class TestIcebergToGlueConverter {
                     .build())
             .build();
 
-    Assertions.assertThat(actualTableInput.storageDescriptor().additionalLocations())
+    assertThat(actualTableInput.storageDescriptor().additionalLocations())
         .as("additionalLocations should match")
         .isEqualTo(expectedTableInput.storageDescriptor().additionalLocations());
-    Assertions.assertThat(actualTableInput.storageDescriptor().location())
+    assertThat(actualTableInput.storageDescriptor().location())
         .as("Location should match")
         .isEqualTo(expectedTableInput.storageDescriptor().location());
-    Assertions.assertThat(actualTableInput.storageDescriptor().columns())
+    assertThat(actualTableInput.storageDescriptor().columns())
         .as("Columns should match")
         .isEqualTo(expectedTableInput.storageDescriptor().columns());
   }
@@ -278,13 +273,13 @@ public class TestIcebergToGlueConverter {
                     .build())
             .build();
 
-    Assertions.assertThat(actualTableInput.storageDescriptor().additionalLocations())
+    assertThat(actualTableInput.storageDescriptor().additionalLocations())
         .as("additionalLocations should match")
         .isEqualTo(expectedTableInput.storageDescriptor().additionalLocations());
-    Assertions.assertThat(actualTableInput.storageDescriptor().location())
+    assertThat(actualTableInput.storageDescriptor().location())
         .as("Location should match")
         .isEqualTo(expectedTableInput.storageDescriptor().location());
-    Assertions.assertThat(actualTableInput.storageDescriptor().columns())
+    assertThat(actualTableInput.storageDescriptor().columns())
         .as("Columns should match")
         .isEqualTo(expectedTableInput.storageDescriptor().columns());
   }
@@ -307,7 +302,7 @@ public class TestIcebergToGlueConverter {
     IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
     TableInput actualTableInput = actualTableInputBuilder.build();
 
-    Assertions.assertThat(actualTableInput.description())
+    assertThat(actualTableInput.description())
         .as("description should match")
         .isEqualTo(tableDescription);
   }
