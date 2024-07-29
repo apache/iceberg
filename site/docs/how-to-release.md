@@ -20,13 +20,7 @@ title: "How To Release"
 
 ## Introduction
 
-This page walks you through the release process of the Iceberg project. [Here](https://www.apache.org/legal/release-policy.html) you can read about the release process in general for an Apache project.
-
-Decisions about releases are made by three groups:
-
-* Release Manager: Does the work of creating the release, signing it, counting [votes](#voting), announcing the release and so on. Requires the assistance of a committer for some steps.
-* The community: Performs the discussion of whether it is the right time to create a release and what that release should contain. The community can also cast non-binding votes on the release.
-* PMC: Gives binding votes on the release.
+This page walks you through the release process of the Iceberg project. The Apache Iceberg release follows the [general Apache Software Foundation release policy](https://www.apache.org/legal/release-policy.html).
 
 This page describes the procedures that the release manager and voting PMC members take during the release process.
 
@@ -76,17 +70,33 @@ For more information, see the Gradle [signing documentation](https://docs.gradle
 The release should be executed against `https://github.com/apache/iceberg.git` instead of any fork.
 Set it as remote with name `apache` for release if it is not already set up.
 
-## Creating a release candidate
+## Initiating a new release
 
 ### Initiate a discussion about the release with the community
 
-This step can be useful to gather ongoing patches that the community thinks should be in the upcoming release.
+A new release can be started by raising a thread on the [dev-list](https://lists.apache.org/list.html?dev@iceberg.apache.org):
 
-The communication can be started via a [DISCUSS] mail on the dev@ channel and the desired tickets can be added to the github milestone of the next release.
+```txt
+------------------------------------------------------------
+To: dev@iceberg.apache.org
+Subject: [DISCUSS] Apache Iceberg Release x.y.z?
 
-Note, creating a milestone in github requires a committer. However, a non-committer can assign tasks to a milestone if added to the list of collaborators in [.asf.yaml](https://github.com/apache/iceberg/blob/main/.asf.yaml)
+Hello everyone,
 
-The release status is discussed during each community sync meeting. Release manager should join the meeting to report status and discuss any release blocker.
+I would like to discuss a new release of Iceberg because of:
+```
+
+For what goes into which release, please refer to [semantic versioning](contribute.md#semantic-versioning) section on the contributing page.
+
+Decisions about releases are made by three groups:
+
+* **Release Manager**: Does the work of creating the release, signing it, counting [votes](#voting), announcing the release and so on. Requires the assistance of a committer for some steps.
+* **The community**: Performs the discussion of whether it is the right time to create a release and what that release should contain. The community is encouraged to cast non-binding votes on the release.
+* **Project Management Committee**: Gives [binding votes](https://www.apache.org/foundation/voting.html#ReleaseVotes) on the release.
+
+Once there is consensus around a new release, create a new [milestone on GitHub](https://github.com/apache/iceberg/milestones) to track the release. A non-committer can assign tasks to a milestone if added to the list of collaborators in [.asf.yaml](https://github.com/apache/iceberg/blob/main/.asf.yaml) to track the issues that are targeted for the release.
+
+The release status is discussed during each community sync meeting. The Release Manager should join the meeting to report status and discuss any release blocker.
 
 ### Build the source release
 
