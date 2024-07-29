@@ -144,7 +144,7 @@ public class TestIcebergSpeculativeExecutionSupport extends TestBase {
   private static class TestingMap extends RichMapFunction<Row, Row> {
     @Override
     public Row map(Row row) throws Exception {
-      // Put the even subtask indices with the first attempt to sleep to trigger speculative
+      // Put the subtasks with the first attempt to sleep to trigger speculative
       // execution
       if (getRuntimeContext().getTaskInfo().getAttemptNumber() <= 0) {
         Thread.sleep(Integer.MAX_VALUE);

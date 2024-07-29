@@ -103,7 +103,7 @@ public class TestIcebergSpeculativeExecutionSupport extends TestBase {
   public void after() {
     sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, INPUT_TABLE_NAME);
     sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, OUTPUT_TABLE_NAME);
-    dropDatabase(DATABASE_NAME, true);
+    sql("DROP DATABASE %s", DATABASE_NAME);
     dropCatalog(CATALOG_NAME, true);
   }
 
@@ -144,7 +144,7 @@ public class TestIcebergSpeculativeExecutionSupport extends TestBase {
   private static class TestingMap extends RichMapFunction<Row, Row> {
     @Override
     public Row map(Row row) throws Exception {
-      // Put the even subtask indices with the first attempt to sleep to trigger speculative
+      // Put the subtasks with the first attempt to sleep to trigger speculative
       // execution
       if (getRuntimeContext().getAttemptNumber() <= 0) {
         Thread.sleep(Integer.MAX_VALUE);
