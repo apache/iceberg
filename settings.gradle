@@ -198,3 +198,7 @@ project(":iceberg-kafka-connect:kafka-connect-events").name = "iceberg-kafka-con
 include ":iceberg-kafka-connect:kafka-connect"
 project(":iceberg-kafka-connect:kafka-connect").projectDir = file('kafka-connect/kafka-connect')
 project(":iceberg-kafka-connect:kafka-connect").name = "iceberg-kafka-connect"
+
+include ":iceberg-kafka-connect:kafka-connect-runtime"
+project(":iceberg-kafka-connect:kafka-connect-runtime").projectDir = file('kafka-connect/kafka-connect-runtime')
+project(":iceberg-kafka-connect:kafka-connect-runtime").name = "iceberg-kafka-connect-runtime"

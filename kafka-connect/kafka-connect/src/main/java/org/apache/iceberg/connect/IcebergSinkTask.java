@@ -83,14 +83,16 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public void put(Collection<SinkRecord> sinkRecords) {
-    Preconditions.checkNotNull(committer, "Committer wasn't initialized");
-    committer.save(sinkRecords);
+    if (committer != null) {
+      committer.save(sinkRecords);
+    }
   }
 
   @Override
   public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
-    Preconditions.checkNotNull(committer, "Committer wasn't initialized");
-    committer.save(null);
+    if (committer != null) {
+      committer.save(null);
+    }
   }
 
   @Override
