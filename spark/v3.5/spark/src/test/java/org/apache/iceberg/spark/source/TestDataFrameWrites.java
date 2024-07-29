@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Parameter;
@@ -419,5 +420,8 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
 
     assertThat(snapshotBeforeFailingWrite).isEqualTo(snapshotAfterFailingWrite);
     assertThat(resultBeforeFailingWrite).isEqualTo(resultAfterFailingWrite);
+
+    FileUtils.deleteDirectory(location);
+    assertThat(location.exists()).isFalse();
   }
 }
