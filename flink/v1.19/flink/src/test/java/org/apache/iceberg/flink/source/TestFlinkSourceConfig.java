@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
 import org.apache.flink.types.Row;
@@ -49,11 +48,11 @@ public class TestFlinkSourceConfig extends TableSourceTestBase {
 
   @TestTemplate
   public void testReadOptionHierarchy() {
-    // TODO: FLIP-27 source doesn't implement limit pushdown yet
-    assumeThat(useFlip27Source).isFalse();
-
     getTableEnv().getConfig().set(FlinkReadOptions.LIMIT_OPTION, 1L);
     List<Row> result = sql("SELECT * FROM %s", TABLE);
+    // Note that this query doesn't have the limit clause in the SQL.
+    // This assertions works because limit is pushed down to the reader and
+    // reader parallelism is 1.
     assertThat(result).hasSize(1);
 
     result = sql("SELECT * FROM %s /*+ OPTIONS('limit'='3')*/", TABLE);
