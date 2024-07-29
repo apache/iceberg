@@ -32,12 +32,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import org.apache.iceberg.AppendFiles;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.RowDelta;
-import org.apache.iceberg.Snapshot;
-import org.apache.iceberg.Table;
+
+import org.apache.iceberg.*;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -48,6 +44,7 @@ import org.apache.iceberg.connect.events.Event;
 import org.apache.iceberg.connect.events.StartCommit;
 import org.apache.iceberg.connect.events.TableReference;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
@@ -174,6 +171,19 @@ class Coordinator extends Channel {
     }
   }
 
+  private Validation validateCommittedOffsets(
+          String branch,
+          Map<Integer, Long> expectedCommittedOffsets
+  ) {
+    return new Validation(
+            table -> {
+              Map<Integer, Long> committedOffsets = lastCommittedOffsetsForTable(table, branch);
+              return committedOffsets.equals(expectedCommittedOffsets);
+            },
+            "Actual committed offsets in table have been changed. Another coordinator may be running."
+    );
+  }
+
   private void commitToTable(
       TableReference tableReference,
       List<Envelope> envelopeList,
@@ -191,6 +201,7 @@ class Coordinator extends Channel {
     String branch = config.tableConfig(tableIdentifier.toString()).commitBranch();
 
     Map<Integer, Long> committedOffsets = lastCommittedOffsetsForTable(table, branch);
+    Validation committedOffsetsValidation = validateCommittedOffsets(branch, committedOffsets);
 
     List<DataWritten> payloads =
         envelopeList.stream()
@@ -232,7 +243,7 @@ class Coordinator extends Channel {
           appendOp.set(VALID_THROUGH_TS_SNAPSHOT_PROP, validThroughTs.toString());
         }
         dataFiles.forEach(appendOp::appendFile);
-        appendOp.commit();
+        appendOp.commitIf(ImmutableList.of(committedOffsetsValidation));
       } else {
         RowDelta deltaOp = table.newRowDelta();
         if (branch != null) {
@@ -245,7 +256,7 @@ class Coordinator extends Channel {
         }
         dataFiles.forEach(deltaOp::addRows);
         deleteFiles.forEach(deltaOp::addDeletes);
-        deltaOp.commit();
+        deltaOp.commitIf(ImmutableList.of(committedOffsetsValidation));
       }
 
       Long snapshotId = latestSnapshot(table, branch).snapshotId();
