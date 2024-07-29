@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.entry;
 
 import java.io.File;
@@ -106,6 +107,17 @@ public class TestPartitionSpecInfo {
     assertThat(table.specs())
         .containsExactly(entry(spec.specId(), spec))
         .doesNotContainKey(Integer.MAX_VALUE);
+  }
+
+  @TestTemplate
+  public void testSpecInfoPartitionedTableCaseSensitiveFails() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () -> {
+              PartitionSpec spec =
+                  PartitionSpec.builderFor(schema).caseSensitive(true).identity("DATA").build();
+            })
+        .withMessage("Cannot find source column: DATA");
   }
 
   @TestTemplate
