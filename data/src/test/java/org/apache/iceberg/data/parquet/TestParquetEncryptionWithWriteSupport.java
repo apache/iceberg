@@ -53,8 +53,8 @@ import org.apache.parquet.hadoop.ParquetWriter;
 import org.junit.jupiter.api.Test;
 
 public class TestParquetEncryptionWithWriteSupport extends DataTest {
-  private static final ByteBuffer fileDek = ByteBuffer.allocate(16);
-  private static final ByteBuffer aadPrefix = ByteBuffer.allocate(16);
+  private static final ByteBuffer FILE_DEK = ByteBuffer.allocate(16);
+  private static final ByteBuffer AAD_PREFIX = ByteBuffer.allocate(16);
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
@@ -64,14 +64,14 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
     assertThat(testFile.delete()).isTrue();
 
     SecureRandom rand = new SecureRandom();
-    rand.nextBytes(fileDek.array());
-    rand.nextBytes(aadPrefix.array());
+    rand.nextBytes(FILE_DEK.array());
+    rand.nextBytes(AAD_PREFIX.array());
 
     try (FileAppender<Record> appender =
         Parquet.write(Files.localOutput(testFile))
             .schema(schema)
-            .withFileEncryptionKey(fileDek)
-            .withAADPrefix(aadPrefix)
+            .withFileEncryptionKey(FILE_DEK)
+            .withAADPrefix(AAD_PREFIX)
             .createWriterFunc(GenericParquetWriter::buildWriter)
             .build()) {
       appender.addAll(expected);
@@ -92,8 +92,8 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
     try (CloseableIterable<Record> reader =
         Parquet.read(Files.localInput(testFile))
             .project(schema)
-            .withFileEncryptionKey(fileDek)
-            .withAADPrefix(aadPrefix)
+            .withFileEncryptionKey(FILE_DEK)
+            .withAADPrefix(AAD_PREFIX)
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
             .build()) {
       rows = Lists.newArrayList(reader);
@@ -107,8 +107,8 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
     try (CloseableIterable<Record> reader =
         Parquet.read(Files.localInput(testFile))
             .project(schema)
-            .withFileEncryptionKey(fileDek)
-            .withAADPrefix(aadPrefix)
+            .withFileEncryptionKey(FILE_DEK)
+            .withAADPrefix(AAD_PREFIX)
             .reuseContainers()
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
             .build()) {
@@ -134,10 +134,12 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
     assertThat(testFile.delete()).isTrue();
 
     SecureRandom rand = new SecureRandom();
-    rand.nextBytes(fileDek.array());
-    rand.nextBytes(aadPrefix.array());
+    rand.nextBytes(FILE_DEK.array());
+    rand.nextBytes(AAD_PREFIX.array());
     FileEncryptionProperties fileEncryptionProperties =
-        FileEncryptionProperties.builder(fileDek.array()).withAADPrefix(aadPrefix.array()).build();
+        FileEncryptionProperties.builder(FILE_DEK.array())
+            .withAADPrefix(AAD_PREFIX.array())
+            .build();
 
     ParquetWriter<org.apache.avro.generic.GenericRecord> writer =
         AvroParquetWriter.<org.apache.avro.generic.GenericRecord>builder(new Path(testFile.toURI()))
@@ -164,8 +166,8 @@ public class TestParquetEncryptionWithWriteSupport extends DataTest {
     try (CloseableIterable<Record> reader =
         Parquet.read(Files.localInput(testFile))
             .project(schema)
-            .withFileEncryptionKey(fileDek)
-            .withAADPrefix(aadPrefix)
+            .withFileEncryptionKey(FILE_DEK)
+            .withAADPrefix(AAD_PREFIX)
             .reuseContainers()
             .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
             .build()) {

@@ -40,6 +40,7 @@ import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.BeforeEach;
 
 public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIcebergSourceFailover {
   // Increment ts by 15 minutes for each generateRecords batch
@@ -50,10 +51,23 @@ public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIceberg
   private final AtomicLong tsMilli = new AtomicLong(System.currentTimeMillis());
 
   @Override
+  @BeforeEach
+  protected void setupTable() {
+    this.sourceTable =
+        SOURCE_CATALOG_EXTENSION
+            .catalog()
+            .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.TS_SCHEMA);
+    this.sinkTable =
+        SINK_CATALOG_EXTENSION
+            .catalog()
+            .createTable(TestFixtures.SINK_TABLE_IDENTIFIER, TestFixtures.TS_SCHEMA);
+  }
+
+  @Override
   protected IcebergSource.Builder<RowData> sourceBuilder() {
     Configuration config = new Configuration();
     return IcebergSource.forRowData()
-        .tableLoader(sourceTableResource.tableLoader())
+        .tableLoader(SOURCE_CATALOG_EXTENSION.tableLoader())
         .watermarkColumn("ts")
         .project(TestFixtures.TS_SCHEMA)
         // Prevent combining splits

@@ -84,7 +84,7 @@ This step can be useful to gather ongoing patches that the community thinks shou
 
 The communication can be started via a [DISCUSS] mail on the dev@ channel and the desired tickets can be added to the github milestone of the next release.
 
-Note, creating a milestone in github requires a committer. However, a non-committer can assign tasks to a milestone if added to the list of collaborators in [.asf.yaml](https://github.com/apache/iceberg/blob/master/.asf.yaml)
+Note, creating a milestone in github requires a committer. However, a non-committer can assign tasks to a milestone if added to the list of collaborators in [.asf.yaml](https://github.com/apache/iceberg/blob/main/.asf.yaml)
 
 The release status is discussed during each community sync meeting. Release manager should join the meeting to report status and discuss any release blocker.
 
@@ -101,7 +101,7 @@ Example console output:
 ```text
 Preparing source for apache-iceberg-0.13.0-rc1
 Adding version.txt and tagging release...
-[master ca8bb7d0] Add version.txt for release 0.13.0
+[main ca8bb7d0] Add version.txt for release 0.13.0
  1 file changed, 1 insertion(+)
  create mode 100644 version.txt
 Pushing apache-iceberg-0.13.0-rc1 to origin...

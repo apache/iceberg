@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.hive;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalListener;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -79,6 +83,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
   private Map<String, String> catalogProperties;
+  private Cache<TableOperations, FileIO> fileIOCloser;
 
   public HiveCatalog() {}
 
@@ -111,6 +116,20 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.clients = new CachedClientPool(conf, properties);
+    this.fileIOCloser = newFileIOCloser();
+  }
+
+  private Cache<TableOperations, FileIO> newFileIOCloser() {
+    return Caffeine.newBuilder()
+        .weakKeys()
+        .removalListener(
+            (RemovalListener<TableOperations, FileIO>)
+                (ops, fileIOInstance, cause) -> {
+                  if (null != fileIOInstance) {
+                    fileIOInstance.close();
+                  }
+                })
+        .build();
   }
 
   @Override
@@ -512,7 +531,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   public TableOperations newTableOps(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
-    return new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
+    HiveTableOperations ops =
+        new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
+    fileIOCloser.put(ops, ops.io());
+    return ops;
   }
 
   @Override
@@ -634,6 +656,15 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   @Override
   protected Map<String, String> properties() {
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
+  }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (fileIOCloser != null) {
+      fileIOCloser.invalidateAll();
+      fileIOCloser.cleanUp();
+    }
   }
 
   @VisibleForTesting

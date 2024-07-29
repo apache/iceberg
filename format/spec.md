@@ -851,7 +851,7 @@ The rows in the delete file must be sorted by `file_path` then `pos` to optimize
 
 Equality delete files identify deleted rows in a collection of data files by one or more column values, and may optionally contain additional columns of the deleted row.
 
-Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). Float and double columns cannot be used as delete columns in equality delete files.
+Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). The column restrictions for columns used in equality delete files are the same as those for [identifier fields](#identifier-field-ids) with the exception that optional columns and columns nested under optional structs are allowed (if a parent struct column is null it implies the leaf column is null).
 
 A data row is deleted if its values are equal to all delete columns for any row in an equality delete file that applies to the row's data file (see [`Scan Planning`](#scan-planning)).
 
@@ -1230,42 +1230,6 @@ Example
      ] } ]
 ```
 
-### Content File (Data and Delete) Serialization
-
-Content file (data or delete) is serialized as a JSON object according to the following table.
-
-| Metadata field           |JSON representation|Example|
-|--------------------------|--- |--- |
-| **`spec-id`**            |`JSON int`|`1`|
-| **`content`**            |`JSON string`|`DATA`, `POSITION_DELETES`, `EQUALITY_DELETES`|
-| **`file-path`**          |`JSON string`|`"s3://b/wh/data.db/table"`|
-| **`file-format`**        |`JSON string`|`AVRO`, `ORC`, `PARQUET`|
-| **`partition`**          |`JSON object: Partition data tuple using partition field ids for the struct field ids`|`{"1000":1}`|
-| **`record-count`**       |`JSON long`|`1`|
-| **`file-size-in-bytes`** |`JSON long`|`1024`|
-| **`column-sizes`**       |`JSON object: Map from column id to the total size on disk of all regions that store the column.`|`{"keys":[3,4],"values":[100,200]}`|
-| **`value-counts`**       |`JSON object: Map from column id to number of values in the column (including null and NaN values)`|`{"keys":[3,4],"values":[90,180]}`|
-| **`null-value-counts`**  |`JSON object: Map from column id to number of null values in the column`|`{"keys":[3,4],"values":[10,20]}`|
-| **`nan-value-counts`**   |`JSON object: Map from column id to number of NaN values in the column`|`{"keys":[3,4],"values":[0,0]}`|
-| **`lower-bounds`**       |`JSON object: Map from column id to lower bound binary in the column serialized as hexadecimal string`|`{"keys":[3,4],"values":["01000000","02000000"]}`|
-| **`upper-bounds`**       |`JSON object: Map from column id to upper bound binary in the column serialized as hexadecimal string`|`{"keys":[3,4],"values":["05000000","0A000000"]}`|
-| **`key-metadata`**       |`JSON string: Encryption key metadata binary serialized as hexadecimal string`|`00000000000000000000000000000000`|
-| **`split-offsets`**      |`JSON list of long: Split offsets for the data file`|`[128,256]`|
-| **`equality-ids`**       |`JSON list of int: Field ids used to determine row equality in equality delete files`|`[1]`|
-| **`sort-order-id`**      |`JSON int`|`1`|
-
-### File Scan Task Serialization
-
-File scan task is serialized as a JSON object according to the following table.
-
-| Metadata field       |JSON representation|Example|
-|--------------------------|--- |--- |
-| **`schema`**          |`JSON object`|`See above, read schemas instead`|
-| **`spec`**            |`JSON object`|`See above, read partition specs instead`|
-| **`data-file`**       |`JSON object`|`See above, read content file instead`|
-| **`delete-files`**    |`JSON list of objects`|`See above, read content file instead`|
-| **`residual-filter`** |`JSON object: residual filter expression`|`{"type":"eq","term":"id","value":1}`|
-
 ## Appendix D: Single-value serialization
 
 ### Binary single-value serialization
@@ -1419,3 +1383,14 @@ Writing v2 metadata:
     * `sort_columns` was removed
 
 Note that these requirements apply when writing data to a v2 table. Tables that are upgraded from v1 may contain metadata that does not follow these requirements. Implementations should remain backward-compatible with v1 metadata requirements.
+
+## Appendix F: Implementation Notes
+
+This section covers topics not required by the specification but recommendations for systems implementing the Iceberg specification to help maintain a uniform experience.
+
+### Point in Time Reads (Time Travel)
+
+Iceberg supports two types of histories for tables. A history of previous "current snapshots" stored in ["snapshot-log" table metadata](#table-metadata-fields) and [parent-child lineage stored in "snapshots"](#table-metadata-fields). These two histories 
+might indicate different snapshot IDs for a specific timestamp. The discrepancies can be caused by a variety of table operations (e.g. updating the `current-snapshot-id` can be used to set the snapshot of a table to any arbitrary snapshot, which might have a lineage derived from a table branch or no lineage at all).
+
+When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.

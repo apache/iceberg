@@ -184,19 +184,34 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     long startTimeMillis =
         System.currentTimeMillis(); // keep track of the init start time for token refresh
     String initToken = props.get(OAuth2Properties.TOKEN);
+    boolean hasInitToken = initToken != null;
 
     // fetch auth and config to complete initialization
     ConfigResponse config;
     OAuthTokenResponse authResponse;
     String credential = props.get(OAuth2Properties.CREDENTIAL);
+    boolean hasCredential = credential != null && !credential.isEmpty();
     String scope = props.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE);
     Map<String, String> optionalOAuthParams = OAuth2Util.buildOptionalParam(props);
+    if (!props.containsKey(OAuth2Properties.OAUTH2_SERVER_URI)
+        && (hasInitToken || hasCredential)
+        && !PropertyUtil.propertyAsBoolean(props, "rest.sigv4-enabled", false)) {
+      LOG.warn(
+          "Iceberg REST client is missing the OAuth2 server URI configuration and defaults to {}{}. "
+              + "This automatic fallback will be removed in a future Iceberg release."
+              + "It is recommended to configure the OAuth2 endpoint using the '{}' property to be prepared. "
+              + "This warning will disappear if the OAuth2 endpoint is explicitly configured. "
+              + "See https://github.com/apache/iceberg/issues/10537",
+          props.get(CatalogProperties.URI),
+          ResourcePaths.tokens(),
+          OAuth2Properties.OAUTH2_SERVER_URI);
+    }
     String oauth2ServerUri =
         props.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens());
     try (RESTClient initClient = clientBuilder.apply(props)) {
       Map<String, String> initHeaders =
           RESTUtil.merge(configHeaders(props), OAuth2Util.authHeaders(initToken));
-      if (credential != null && !credential.isEmpty()) {
+      if (hasCredential) {
         authResponse =
             OAuth2Util.fetchToken(
                 initClient, initHeaders, credential, scope, oauth2ServerUri, optionalOAuthParams);

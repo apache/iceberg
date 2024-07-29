@@ -304,6 +304,13 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
               : new Schema();
     }
 
+    @Override
+    public long estimatedRowsCount() {
+      return (long) manifest.addedFilesCount()
+          + (long) manifest.deletedFilesCount()
+          + (long) manifest.existingFilesCount();
+    }
+
     @VisibleForTesting
     ManifestFile manifest() {
       return manifest;

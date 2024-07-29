@@ -18,22 +18,25 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.SORT_ORDER_COMPARTOR;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.datasketches.sampling.ReservoirItemsSketch;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.state.OperatorStateStore;
-import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.CloseableRegistry;
 import org.apache.flink.runtime.checkpoint.OperatorSubtaskState;
 import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.operators.coordination.MockOperatorEventGateway;
-import org.apache.flink.runtime.operators.testutils.MockEnvironment;
-import org.apache.flink.runtime.operators.testutils.MockEnvironmentBuilder;
 import org.apache.flink.runtime.operators.testutils.MockInputSplitProvider;
 import org.apache.flink.runtime.state.AbstractStateBackend;
 import org.apache.flink.runtime.state.StateInitializationContext;
@@ -49,102 +52,95 @@ import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
-import org.apache.flink.table.types.logical.IntType;
-import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.table.types.logical.VarCharType;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortKey;
-import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Types;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.Mockito;
 
 public class TestDataStatisticsOperator {
-  private final Schema schema =
-      new Schema(
-          Types.NestedField.optional(1, "id", Types.StringType.get()),
-          Types.NestedField.optional(2, "number", Types.IntegerType.get()));
-  private final SortOrder sortOrder = SortOrder.builderFor(schema).asc("id").build();
-  private final SortKey sortKey = new SortKey(schema, sortOrder);
-  private final RowType rowType = RowType.of(new VarCharType(), new IntType());
-  private final TypeSerializer<RowData> rowSerializer = new RowDataSerializer(rowType);
-  private final TypeSerializer<DataStatistics<MapDataStatistics, Map<SortKey, Long>>>
-      statisticsSerializer =
-          MapDataStatisticsSerializer.fromSortKeySerializer(
-              new SortKeySerializer(schema, sortOrder));
 
-  private DataStatisticsOperator<MapDataStatistics, Map<SortKey, Long>> operator;
+  private Environment env;
 
-  private Environment getTestingEnvironment() {
-    return new StreamMockEnvironment(
-        new Configuration(),
-        new Configuration(),
-        new ExecutionConfig(),
-        1L,
-        new MockInputSplitProvider(),
-        1,
-        new TestTaskStateManager());
+  @BeforeEach
+  public void before() throws Exception {
+    this.env =
+        new StreamMockEnvironment(
+            new Configuration(),
+            new Configuration(),
+            new ExecutionConfig(),
+            1L,
+            new MockInputSplitProvider(),
+            1,
+            new TestTaskStateManager());
   }
 
-  @Before
-  public void before() throws Exception {
-    this.operator = createOperator();
-    Environment env = getTestingEnvironment();
-    this.operator.setup(
+  private DataStatisticsOperator createOperator(StatisticsType type, int downstreamParallelism)
+      throws Exception {
+    MockOperatorEventGateway mockGateway = new MockOperatorEventGateway();
+    return createOperator(type, downstreamParallelism, mockGateway);
+  }
+
+  private DataStatisticsOperator createOperator(
+      StatisticsType type, int downstreamParallelism, MockOperatorEventGateway mockGateway)
+      throws Exception {
+    DataStatisticsOperator operator =
+        new DataStatisticsOperator(
+            "testOperator",
+            Fixtures.SCHEMA,
+            Fixtures.SORT_ORDER,
+            mockGateway,
+            downstreamParallelism,
+            type);
+    operator.setup(
         new OneInputStreamTask<String, String>(env),
         new MockStreamConfig(new Configuration(), 1),
         new MockOutput<>(Lists.newArrayList()));
+    return operator;
   }
 
-  private DataStatisticsOperator<MapDataStatistics, Map<SortKey, Long>> createOperator() {
-    MockOperatorEventGateway mockGateway = new MockOperatorEventGateway();
-    return new DataStatisticsOperator<>(
-        "testOperator", schema, sortOrder, mockGateway, statisticsSerializer);
-  }
-
-  @After
-  public void clean() throws Exception {
-    operator.close();
-  }
-
-  @Test
-  public void testProcessElement() throws Exception {
-    try (OneInputStreamOperatorTestHarness<
-            RowData, DataStatisticsOrRecord<MapDataStatistics, Map<SortKey, Long>>>
-        testHarness = createHarness(this.operator)) {
+  @SuppressWarnings("unchecked")
+  @ParameterizedTest
+  @EnumSource(StatisticsType.class)
+  public void testProcessElement(StatisticsType type) throws Exception {
+    DataStatisticsOperator operator = createOperator(type, Fixtures.NUM_SUBTASKS);
+    try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness =
+        createHarness(operator)) {
       StateInitializationContext stateContext = getStateContext();
       operator.initializeState(stateContext);
       operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"), 5)));
       operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"), 3)));
       operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("b"), 1)));
-      assertThat(operator.localDataStatistics()).isInstanceOf(MapDataStatistics.class);
 
-      SortKey keyA = sortKey.copy();
-      keyA.set(0, "a");
-      SortKey keyB = sortKey.copy();
-      keyB.set(0, "b");
-      Map<SortKey, Long> expectedMap = ImmutableMap.of(keyA, 2L, keyB, 1L);
-
-      MapDataStatistics mapDataStatistics = (MapDataStatistics) operator.localDataStatistics();
-      Map<SortKey, Long> statsMap = mapDataStatistics.statistics();
-      assertThat(statsMap).hasSize(2);
-      assertThat(statsMap).containsExactlyInAnyOrderEntriesOf(expectedMap);
+      DataStatistics localStatistics = operator.localStatistics();
+      assertThat(localStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        Map<SortKey, Long> keyFrequency = (Map<SortKey, Long>) localStatistics.result();
+        assertThat(keyFrequency)
+            .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 2L, CHAR_KEYS.get("b"), 1L));
+      } else {
+        ReservoirItemsSketch<SortKey> sketch =
+            (ReservoirItemsSketch<SortKey>) localStatistics.result();
+        assertThat(sketch.getSamples())
+            .containsExactly(CHAR_KEYS.get("a"), CHAR_KEYS.get("a"), CHAR_KEYS.get("b"));
+      }
 
       testHarness.endInput();
     }
   }
 
-  @Test
-  public void testOperatorOutput() throws Exception {
-    try (OneInputStreamOperatorTestHarness<
-            RowData, DataStatisticsOrRecord<MapDataStatistics, Map<SortKey, Long>>>
-        testHarness = createHarness(this.operator)) {
+  @ParameterizedTest
+  @EnumSource(StatisticsType.class)
+  public void testOperatorOutput(StatisticsType type) throws Exception {
+    DataStatisticsOperator operator = createOperator(type, Fixtures.NUM_SUBTASKS);
+    try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness =
+        createHarness(operator)) {
       testHarness.processElement(
           new StreamRecord<>(GenericRowData.of(StringData.fromString("a"), 2)));
       testHarness.processElement(
@@ -154,8 +150,8 @@ public class TestDataStatisticsOperator {
 
       List<RowData> recordsOutput =
           testHarness.extractOutputValues().stream()
-              .filter(DataStatisticsOrRecord::hasRecord)
-              .map(DataStatisticsOrRecord::record)
+              .filter(StatisticsOrRecord::hasRecord)
+              .map(StatisticsOrRecord::record)
               .collect(Collectors.toList());
       assertThat(recordsOutput)
           .containsExactlyInAnyOrderElementsOf(
@@ -166,70 +162,172 @@ public class TestDataStatisticsOperator {
     }
   }
 
-  @Test
-  public void testRestoreState() throws Exception {
+  private static Stream<Arguments> provideRestoreStateParameters() {
+    return Stream.of(
+        Arguments.of(StatisticsType.Map, -1),
+        Arguments.of(StatisticsType.Map, 0),
+        Arguments.of(StatisticsType.Map, 1),
+        Arguments.of(StatisticsType.Sketch, -1),
+        Arguments.of(StatisticsType.Sketch, 0),
+        Arguments.of(StatisticsType.Sketch, 1));
+  }
+
+  @ParameterizedTest
+  @MethodSource("provideRestoreStateParameters")
+  public void testRestoreState(StatisticsType type, int parallelismAdjustment) throws Exception {
+    Map<SortKey, Long> keyFrequency =
+        ImmutableMap.of(CHAR_KEYS.get("a"), 2L, CHAR_KEYS.get("b"), 1L, CHAR_KEYS.get("c"), 1L);
+    SortKey[] rangeBounds = new SortKey[] {CHAR_KEYS.get("a")};
+    MapAssignment mapAssignment =
+        MapAssignment.fromKeyFrequency(2, keyFrequency, 0.0d, SORT_ORDER_COMPARTOR);
+    DataStatisticsOperator operator = createOperator(type, Fixtures.NUM_SUBTASKS);
     OperatorSubtaskState snapshot;
-    try (OneInputStreamOperatorTestHarness<
-            RowData, DataStatisticsOrRecord<MapDataStatistics, Map<SortKey, Long>>>
-        testHarness1 = createHarness(this.operator)) {
-      MapDataStatistics mapDataStatistics = new MapDataStatistics();
+    try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness1 =
+        createHarness(operator)) {
+      GlobalStatistics statistics;
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        statistics = GlobalStatistics.fromMapAssignment(1L, mapAssignment);
+      } else {
+        statistics = GlobalStatistics.fromRangeBounds(1L, rangeBounds);
+      }
 
-      SortKey key = sortKey.copy();
-      key.set(0, "a");
-      mapDataStatistics.add(key);
-      key.set(0, "a");
-      mapDataStatistics.add(key);
-      key.set(0, "b");
-      mapDataStatistics.add(key);
-      key.set(0, "c");
-      mapDataStatistics.add(key);
-
-      SortKey keyA = sortKey.copy();
-      keyA.set(0, "a");
-      SortKey keyB = sortKey.copy();
-      keyB.set(0, "b");
-      SortKey keyC = sortKey.copy();
-      keyC.set(0, "c");
-      Map<SortKey, Long> expectedMap = ImmutableMap.of(keyA, 2L, keyB, 1L, keyC, 1L);
-
-      DataStatisticsEvent<MapDataStatistics, Map<SortKey, Long>> event =
-          DataStatisticsEvent.create(0, mapDataStatistics, statisticsSerializer);
+      StatisticsEvent event =
+          StatisticsEvent.createGlobalStatisticsEvent(
+              statistics, Fixtures.GLOBAL_STATISTICS_SERIALIZER, false);
       operator.handleOperatorEvent(event);
-      assertThat(operator.globalDataStatistics()).isInstanceOf(MapDataStatistics.class);
-      assertThat(operator.globalDataStatistics().statistics())
-          .containsExactlyInAnyOrderEntriesOf(expectedMap);
+
+      GlobalStatistics globalStatistics = operator.globalStatistics();
+      assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(mapAssignment);
+        assertThat(globalStatistics.rangeBounds()).isNull();
+      } else {
+        assertThat(globalStatistics.mapAssignment()).isNull();
+        assertThat(globalStatistics.rangeBounds()).isEqualTo(rangeBounds);
+      }
+
       snapshot = testHarness1.snapshot(1L, 0);
     }
 
     // Use the snapshot to initialize state for another new operator and then verify that the global
     // statistics for the new operator is same as before
-    DataStatisticsOperator<MapDataStatistics, Map<SortKey, Long>> restoredOperator =
-        createOperator();
-    try (OneInputStreamOperatorTestHarness<
-            RowData, DataStatisticsOrRecord<MapDataStatistics, Map<SortKey, Long>>>
-        testHarness2 = new OneInputStreamOperatorTestHarness<>(restoredOperator, 2, 2, 1)) {
+    MockOperatorEventGateway spyGateway = Mockito.spy(new MockOperatorEventGateway());
+    DataStatisticsOperator restoredOperator =
+        createOperator(type, Fixtures.NUM_SUBTASKS + parallelismAdjustment, spyGateway);
+    try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness2 =
+        new OneInputStreamOperatorTestHarness<>(restoredOperator, 2, 2, 1)) {
       testHarness2.setup();
       testHarness2.initializeState(snapshot);
-      assertThat(restoredOperator.globalDataStatistics()).isInstanceOf(MapDataStatistics.class);
 
-      // restored RowData is BinaryRowData. convert to GenericRowData for comparison
-      Map<SortKey, Long> restoredStatistics = Maps.newHashMap();
-      restoredStatistics.putAll(restoredOperator.globalDataStatistics().statistics());
+      GlobalStatistics globalStatistics = restoredOperator.globalStatistics();
+      // global statistics is always restored and used initially even if
+      // downstream parallelism changed.
+      assertThat(globalStatistics).isNotNull();
+      // request is always sent to coordinator during initialization.
+      // coordinator would respond with a new global statistics that
+      // has range bound recomputed with new parallelism.
+      verify(spyGateway).sendEventToCoordinator(any(RequestGlobalStatisticsEvent.class));
+      assertThat(globalStatistics.type()).isEqualTo(StatisticsUtil.collectType(type));
+      if (StatisticsUtil.collectType(type) == StatisticsType.Map) {
+        assertThat(globalStatistics.mapAssignment()).isEqualTo(mapAssignment);
+        assertThat(globalStatistics.rangeBounds()).isNull();
+      } else {
+        assertThat(globalStatistics.mapAssignment()).isNull();
+        assertThat(globalStatistics.rangeBounds()).isEqualTo(rangeBounds);
+      }
+    }
+  }
 
-      SortKey keyA = sortKey.copy();
-      keyA.set(0, "a");
-      SortKey keyB = sortKey.copy();
-      keyB.set(0, "b");
-      SortKey keyC = sortKey.copy();
-      keyC.set(0, "c");
-      Map<SortKey, Long> expectedMap = ImmutableMap.of(keyA, 2L, keyB, 1L, keyC, 1L);
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testMigrationWithLocalStatsOverThreshold() throws Exception {
+    DataStatisticsOperator operator = createOperator(StatisticsType.Auto, Fixtures.NUM_SUBTASKS);
+    try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness =
+        createHarness(operator)) {
+      StateInitializationContext stateContext = getStateContext();
+      operator.initializeState(stateContext);
 
-      assertThat(restoredStatistics).containsExactlyInAnyOrderEntriesOf(expectedMap);
+      // add rows with unique keys
+      for (int i = 0; i < SketchUtil.OPERATOR_SKETCH_SWITCH_THRESHOLD; ++i) {
+        operator.processElement(
+            new StreamRecord<>(GenericRowData.of(StringData.fromString(String.valueOf(i)), i)));
+        assertThat(operator.localStatistics().type()).isEqualTo(StatisticsType.Map);
+        assertThat((Map<SortKey, Long>) operator.localStatistics().result()).hasSize(i + 1);
+      }
+
+      // one more item should trigger the migration to sketch stats
+      operator.processElement(
+          new StreamRecord<>(GenericRowData.of(StringData.fromString("key-trigger-migration"), 1)));
+
+      int reservoirSize =
+          SketchUtil.determineOperatorReservoirSize(Fixtures.NUM_SUBTASKS, Fixtures.NUM_SUBTASKS);
+
+      assertThat(operator.localStatistics().type()).isEqualTo(StatisticsType.Sketch);
+      ReservoirItemsSketch<SortKey> sketch =
+          (ReservoirItemsSketch<SortKey>) operator.localStatistics().result();
+      assertThat(sketch.getK()).isEqualTo(reservoirSize);
+      assertThat(sketch.getN()).isEqualTo(SketchUtil.OPERATOR_SKETCH_SWITCH_THRESHOLD + 1);
+      // reservoir not full yet
+      assertThat(sketch.getN()).isLessThan(reservoirSize);
+      assertThat(sketch.getSamples()).hasSize((int) sketch.getN());
+
+      // add more items to saturate the reservoir
+      for (int i = 0; i < reservoirSize; ++i) {
+        operator.processElement(
+            new StreamRecord<>(GenericRowData.of(StringData.fromString(String.valueOf(i)), i)));
+      }
+
+      assertThat(operator.localStatistics().type()).isEqualTo(StatisticsType.Sketch);
+      sketch = (ReservoirItemsSketch<SortKey>) operator.localStatistics().result();
+      assertThat(sketch.getK()).isEqualTo(reservoirSize);
+      assertThat(sketch.getN())
+          .isEqualTo(SketchUtil.OPERATOR_SKETCH_SWITCH_THRESHOLD + 1 + reservoirSize);
+      // reservoir is full now
+      assertThat(sketch.getN()).isGreaterThan(reservoirSize);
+      assertThat(sketch.getSamples()).hasSize(reservoirSize);
+
+      testHarness.endInput();
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testMigrationWithGlobalSketchStatistics() throws Exception {
+    DataStatisticsOperator operator = createOperator(StatisticsType.Auto, Fixtures.NUM_SUBTASKS);
+    try (OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> testHarness =
+        createHarness(operator)) {
+      StateInitializationContext stateContext = getStateContext();
+      operator.initializeState(stateContext);
+
+      // started with Map stype
+      operator.processElement(new StreamRecord<>(GenericRowData.of(StringData.fromString("a"), 1)));
+      assertThat(operator.localStatistics().type()).isEqualTo(StatisticsType.Map);
+      assertThat((Map<SortKey, Long>) operator.localStatistics().result())
+          .isEqualTo(ImmutableMap.of(CHAR_KEYS.get("a"), 1L));
+
+      // received global statistics with sketch type
+      GlobalStatistics globalStatistics =
+          GlobalStatistics.fromRangeBounds(
+              1L, new SortKey[] {CHAR_KEYS.get("c"), CHAR_KEYS.get("f")});
+      operator.handleOperatorEvent(
+          StatisticsEvent.createGlobalStatisticsEvent(
+              globalStatistics, Fixtures.GLOBAL_STATISTICS_SERIALIZER, false));
+
+      int reservoirSize =
+          SketchUtil.determineOperatorReservoirSize(Fixtures.NUM_SUBTASKS, Fixtures.NUM_SUBTASKS);
+
+      assertThat(operator.localStatistics().type()).isEqualTo(StatisticsType.Sketch);
+      ReservoirItemsSketch<SortKey> sketch =
+          (ReservoirItemsSketch<SortKey>) operator.localStatistics().result();
+      assertThat(sketch.getK()).isEqualTo(reservoirSize);
+      assertThat(sketch.getN()).isEqualTo(1);
+      assertThat(sketch.getSamples()).isEqualTo(new SortKey[] {CHAR_KEYS.get("a")});
+
+      testHarness.endInput();
     }
   }
 
   private StateInitializationContext getStateContext() throws Exception {
-    MockEnvironment env = new MockEnvironmentBuilder().build();
     AbstractStateBackend abstractStateBackend = new HashMapStateBackend();
     CloseableRegistry cancelStreamRegistry = new CloseableRegistry();
     OperatorStateStore operatorStateStore =
@@ -238,17 +336,14 @@ public class TestDataStatisticsOperator {
     return new StateInitializationContextImpl(null, operatorStateStore, null, null, null);
   }
 
-  private OneInputStreamOperatorTestHarness<
-          RowData, DataStatisticsOrRecord<MapDataStatistics, Map<SortKey, Long>>>
-      createHarness(
-          final DataStatisticsOperator<MapDataStatistics, Map<SortKey, Long>>
-              dataStatisticsOperator)
-          throws Exception {
-
-    OneInputStreamOperatorTestHarness<
-            RowData, DataStatisticsOrRecord<MapDataStatistics, Map<SortKey, Long>>>
-        harness = new OneInputStreamOperatorTestHarness<>(dataStatisticsOperator, 1, 1, 0);
-    harness.setup(new DataStatisticsOrRecordSerializer<>(statisticsSerializer, rowSerializer));
+  private OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> createHarness(
+      DataStatisticsOperator dataStatisticsOperator) throws Exception {
+    OneInputStreamOperatorTestHarness<RowData, StatisticsOrRecord> harness =
+        new OneInputStreamOperatorTestHarness<>(
+            dataStatisticsOperator, Fixtures.NUM_SUBTASKS, Fixtures.NUM_SUBTASKS, 0);
+    harness.setup(
+        new StatisticsOrRecordSerializer(
+            Fixtures.GLOBAL_STATISTICS_SERIALIZER, Fixtures.ROW_SERIALIZER));
     harness.open();
     return harness;
   }

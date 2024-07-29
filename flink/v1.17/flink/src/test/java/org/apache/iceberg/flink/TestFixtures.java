@@ -46,6 +46,8 @@ public class TestFixtures {
   public static final String SINK_TABLE = "t_sink";
 
   public static final TableIdentifier TABLE_IDENTIFIER = TableIdentifier.of(DATABASE, TABLE);
+  public static final TableIdentifier SINK_TABLE_IDENTIFIER =
+      TableIdentifier.of(DATABASE, SINK_TABLE);
 
   public static final Schema TS_SCHEMA =
       new Schema(

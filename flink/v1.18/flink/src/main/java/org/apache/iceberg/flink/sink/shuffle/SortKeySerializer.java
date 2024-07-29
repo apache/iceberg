@@ -276,13 +276,12 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
     private Schema schema;
     private SortOrder sortOrder;
 
-    @SuppressWarnings({"checkstyle:RedundantModifier", "WeakerAccess"})
+    /** Constructor for read instantiation. */
+    @SuppressWarnings({"unused", "checkstyle:RedundantModifier"})
     public SortKeySerializerSnapshot() {
       // this constructor is used when restoring from a checkpoint.
     }
 
-    // constructors need to public. Otherwise, Flink state restore would complain
-    // "The class has no (implicit) public nullary constructor".
     @SuppressWarnings("checkstyle:RedundantModifier")
     public SortKeySerializerSnapshot(Schema schema, SortOrder sortOrder) {
       this.schema = schema;
@@ -320,8 +319,12 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
         return TypeSerializerSchemaCompatibility.incompatible();
       }
 
-      SortKeySerializer newAvroSerializer = (SortKeySerializer) newSerializer;
-      return resolveSchemaCompatibility(newAvroSerializer.schema, schema);
+      SortKeySerializer sortKeySerializer = (SortKeySerializer) newSerializer;
+      if (!sortOrder.sameOrder(sortKeySerializer.sortOrder)) {
+        return TypeSerializerSchemaCompatibility.incompatible();
+      }
+
+      return resolveSchemaCompatibility(sortKeySerializer.schema, schema);
     }
 
     @Override

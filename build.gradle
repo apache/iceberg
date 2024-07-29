@@ -62,8 +62,8 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
 } else if (JavaVersion.current() == JavaVersion.VERSION_11) {
   project.ext.jdkVersion = '11'
   project.ext.extraJvmArgs = []
-} else if (JavaVersion.current() == JavaVersion.VERSION_17) {
-  project.ext.jdkVersion = '17'
+} else if (JavaVersion.current() == JavaVersion.VERSION_17 || JavaVersion.current() == JavaVersion.VERSION_21) {
+  project.ext.jdkVersion = JavaVersion.current().getMajorVersion().toString()
   project.ext.extraJvmArgs = ["--add-opens", "java.base/java.io=ALL-UNNAMED",
                               "--add-opens", "java.base/java.lang.invoke=ALL-UNNAMED",
                               "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED",
@@ -86,7 +86,7 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
                               "--add-opens", "java.base/sun.security.action=ALL-UNNAMED",
                               "--add-opens", "java.base/sun.util.calendar=ALL-UNNAMED"]
 } else {
-  throw new GradleException("This build must be run with JDK 8 or 11 or 17 but was executed with JDK " + JavaVersion.current())
+  throw new GradleException("This build must be run with JDK 8 or 11 or 17 or 21 but was executed with JDK " + JavaVersion.current())
 }
 
 tasks.withType(AbstractArchiveTask).configureEach {
@@ -143,7 +143,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.5.0"
+      oldVersion = "1.6.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {

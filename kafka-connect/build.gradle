@@ -17,7 +17,7 @@
  * under the License.
  */
 
-project(":iceberg-kafka-connect:iceberg-kafka-connect-events") {
+project(':iceberg-kafka-connect:iceberg-kafka-connect-events') {
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-core')
@@ -28,10 +28,10 @@ project(":iceberg-kafka-connect:iceberg-kafka-connect-events") {
 
   test {
     useJUnitPlatform()
-  }  
+  }
 }
 
-project(":iceberg-kafka-connect:iceberg-kafka-connect") {
+project(':iceberg-kafka-connect:iceberg-kafka-connect') {
   dependencies {
     api project(':iceberg-api')
     implementation project(':iceberg-core')
@@ -56,4 +56,182 @@ project(":iceberg-kafka-connect:iceberg-kafka-connect") {
   test {
     useJUnitPlatform()
   }
+}
+
+project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
+  apply plugin: 'distribution'
+
+  configurations {
+    hive {
+      extendsFrom runtimeClasspath
+    }
+    all {
+      exclude group: 'javax.activation', module: 'activation'
+      // force upgrades for dependencies with known vulnerabilities...
+      resolutionStrategy {
+        force 'org.codehaus.jettison:jettison:1.5.4'
+        force 'org.xerial.snappy:snappy-java:1.1.10.5'
+        force 'org.apache.commons:commons-compress:1.26.0'
+        force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.2.0'
+      }
+    }
+  }
+
+  sourceSets {
+    integration {
+      java.srcDir "$projectDir/src/integration/java"
+      resources.srcDir "$projectDir/src/integration/resources"
+    }
+  }
+
+  configurations {
+    integrationImplementation.extendsFrom testImplementation
+    integrationRuntime.extendsFrom testRuntimeOnly
+  }
+
+  dependencies {
+    implementation project(':iceberg-kafka-connect:iceberg-kafka-connect')
+    implementation(libs.hadoop3.common) {
+      exclude group: 'log4j'
+      exclude group: 'org.slf4j'
+      exclude group: 'ch.qos.reload4j'
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'com.fasterxml.woodstox'
+      exclude group: 'com.google.guava'
+      exclude group: 'com.google.protobuf'
+      exclude group: 'org.apache.curator'
+      exclude group: 'org.apache.zookeeper'
+      exclude group: 'org.apache.kerby'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-auth'
+      exclude group: 'org.apache.commons', module: 'commons-configuration2'
+      exclude group: 'org.apache.hadoop.thirdparty', module: 'hadoop-shaded-protobuf_3_7'
+      exclude group: 'org.codehaus.woodstox'
+      exclude group: 'org.eclipse.jetty'
+    }
+    implementation project(':iceberg-orc')
+    implementation project(':iceberg-parquet')
+
+    implementation project(':iceberg-aws')
+    implementation platform(libs.awssdk.bom)
+    implementation 'software.amazon.awssdk:apache-client'
+    implementation 'software.amazon.awssdk:auth'
+    implementation 'software.amazon.awssdk:iam'
+    implementation 'software.amazon.awssdk:sso'
+    implementation 'software.amazon.awssdk:s3'
+    implementation 'software.amazon.awssdk:kms'
+    implementation 'software.amazon.awssdk:glue'
+    implementation 'software.amazon.awssdk:sts'
+    implementation 'software.amazon.awssdk:dynamodb'
+    implementation 'software.amazon.awssdk:lakeformation'
+
+    implementation project(':iceberg-gcp')
+    implementation platform(libs.google.libraries.bom)
+    implementation 'com.google.cloud:google-cloud-storage'
+
+    implementation project(':iceberg-azure')
+    implementation platform(libs.azuresdk.bom)
+    implementation 'com.azure:azure-storage-file-datalake'
+    implementation 'com.azure:azure-identity'
+
+    hive project(':iceberg-hive-metastore')
+    hive(libs.hive2.metastore) {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+      exclude group: 'org.pentaho' // missing dependency
+      exclude group: 'org.apache.hbase'
+      exclude group: 'org.apache.logging.log4j'
+      exclude group: 'co.cask.tephra'
+      exclude group: 'com.google.code.findbugs', module: 'jsr305'
+      exclude group: 'org.eclipse.jetty.aggregate', module: 'jetty-all'
+      exclude group: 'org.eclipse.jetty.orbit', module: 'javax.servlet'
+      exclude group: 'org.apache.parquet', module: 'parquet-hadoop-bundle'
+      exclude group: 'com.tdunning', module: 'json'
+      exclude group: 'javax.transaction', module: 'transaction-api'
+      exclude group: 'com.zaxxer', module: 'HikariCP'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-common'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-applicationhistoryservice'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-resourcemanager'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-yarn-server-web-proxy'
+      exclude group: 'org.apache.hive', module: 'hive-service-rpc'
+      exclude group: 'com.github.joshelser', module: 'dropwizard-metrics-hadoop-metrics2-reporter'
+    }
+    hive(libs.hadoop3.client) {
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    }
+
+    integrationImplementation project(':iceberg-api')
+    integrationImplementation project(':iceberg-common')
+    integrationImplementation project(':iceberg-core')
+    integrationImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    integrationImplementation platform(libs.jackson.bom)
+    integrationImplementation libs.jackson.core
+    integrationImplementation libs.jackson.databind
+    integrationImplementation libs.jackson.databind
+    integrationImplementation libs.kafka.clients
+    integrationImplementation libs.kafka.connect.api
+    integrationImplementation libs.kafka.connect.json
+    integrationImplementation libs.testcontainers
+    integrationImplementation libs.httpcomponents.httpclient5
+    integrationImplementation libs.awaitility
+  }
+
+  task integrationTest(type: Test) {
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.integration.output.classesDirs
+    classpath = sourceSets.integration.runtimeClasspath
+    jvmArgs += project.property('extraJvmArgs')
+  }
+
+  processResources {
+    filter {
+      it.replace('__VERSION__', project.version.toString())
+    }
+  }
+
+  distributions {
+    main {
+      contents {
+        from "${processResources.destinationDir}/manifest.json"
+        into('lib/') {
+          from configurations.runtimeClasspath
+        }
+        into('doc/') {
+          from "$rootDir/LICENSE"
+        }
+        into('assets/') {
+          from "${processResources.destinationDir}/iceberg.png"
+        }
+      }
+    }
+    hive {
+      contents {
+        from "${processResources.destinationDir}/manifest.json"
+        into('lib/') {
+          from configurations.hive
+        }
+        into('doc/') {
+          from "$rootDir/LICENSE"
+        }
+        into('assets/') {
+          from "${processResources.destinationDir}/iceberg.png"
+        }
+      }
+    }
+  }
+
+  tasks.jar.enabled = false
+
+  tasks.distTar.enabled = false
+  distZip.dependsOn processResources
+  installDist.dependsOn processResources
+
+  tasks.hiveDistTar.enabled = false
+  hiveDistZip.dependsOn processResources
+  installHiveDist.dependsOn processResources
+
+  integrationTest.dependsOn installDist
+  check.dependsOn integrationTest
+
+  assemble.dependsOn distZip, hiveDistZip
 }
