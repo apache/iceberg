@@ -130,7 +130,7 @@ class MetastoreLock implements HiveLock {
         Executors.newSingleThreadScheduledExecutor(
             new ThreadFactoryBuilder()
                 .setDaemon(true)
-                .setNameFormat("iceberg-hive-lock-heartbeat-" + fullName + "-%d")
+                .setNameFormat("iceberg-hive-lock-heartbeat-" + fullName.replace("%", "%%") + "-%d")
                 .build());
 
     initTableLevelLockCache(tableLevelLockCacheEvictionTimeout);
