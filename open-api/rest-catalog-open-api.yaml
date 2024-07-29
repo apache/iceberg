@@ -554,6 +554,9 @@ paths:
         Prepare a list of tasks that can be used to distribute table scan planning based on a set of table scan criteria
         such as selected columns, filters, snapshot range, case sensitivity, etc.
         
+        Requires that client specifies only a `snapshot-id` for a regular scan, or for performing incremental scans only provide 
+        a `start-snapshot-id` and an `end-snapshot-id`. 
+        
         This API returns a list of `plan-task`s, and each of them can be used in the `PlanTable` API
         to request a subset of all file scan tasks in a table scan.
         This mechanism allows clients to distribute and parallelize the entire table scan planning process.
@@ -614,6 +617,9 @@ paths:
       description:
         Perform scan planning against a table based on a set of table scan criteria such as selected columns, filters,
         snapshot range, case sensitivity, etc.
+        
+        Requires that client specifies only a `snapshot-id` for a regular scan, or for performing incremental scans only provide
+        a `start-snapshot-id` and an `end-snapshot-id`.
         
         An optional `plan-task` can be provided to request only a subset of file scan tasks.
         The `plan-task` can be retrieved by invoking the `PreplanTable` endpoint.
@@ -3838,12 +3844,6 @@ components:
 
     PreplanTableRequest:
       type: object
-      oneOf:
-        - required:
-            - snapshot-id
-        - required:
-            - start-snapshot-id
-            - end-snapshot-id
       properties:
         snapshot-id:
           description:
@@ -3884,12 +3884,6 @@ components:
 
     PlanTableRequest:
       type: object
-      oneOf:
-        - required:
-            - snapshot-id
-        - required:
-            - start-snapshot-id
-            - end-snapshot-id
       properties:
         plan-task:
           $ref: '#/components/schemas/PlanTask'
