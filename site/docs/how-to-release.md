@@ -270,6 +270,46 @@ git tag -am 'Release Apache Iceberg <VERSION>' apache-iceberg-<VERSION> apache-i
 
 Then release the candidate repository in [Nexus](https://repository.apache.org/#stagingRepositories).
 
+#### Update docs and javadoc for the release
+
+As part of the release publication task, docs and javadoc for the release have to be published.
+
+##### Docs
+
+The published docs are in the `docs` branch. So you have to checkout this branch:
+
+```bash
+git checkout docs
+```
+
+You can see each release as it's own folder with version. You have to create a folder with release version:
+
+```bash
+mkdir x.y.z
+```
+
+You have to copy in this folder the content of the `docs` folder on the release tag (using `git checkout apache-iceberg-x.y.z docs` for instance).
+
+Now, you can commit and create a Pull Request (base has to be the `docs` branch).
+
+##### Javadoc
+
+The published javadoc are in the `javadoc` branch.
+
+First, you have to generate the javadoc using the release distribution tar.gz, and use `aggregateJavadoc` gradle task:
+
+```bash
+tar zxvf apache-icebeg-x.y.z.tar.gz
+cd apache-iceberg-x.y.z
+./gradlew aggregateJavadoc
+```
+
+The aggregated javadoc is generated in `site/docs/javadoc` folder.
+
+Copy the `x.y.z` javadoc folder into the `javadoc` branch and update the `latest` folder with the release javadoc content.
+
+Now, you can commit the changes and create a Pull Request (base has to be the `javadoc` branch).
+
 #### Announcing the release
 
 To announce the release, wait until Maven central has mirrored the Apache binaries, then update the Iceberg site and send an announcement email:
