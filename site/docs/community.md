@@ -72,6 +72,12 @@ Iceberg has four mailing lists:
 
 ## Community Guidelines
 
+### Community members
+
+Apache Iceberg is governed by the Apache Software Foundation, which defines [several roles](https://www.apache.org/foundation/how-it-works/#roles) 
+within the project. Please refer to the [ASF Community Development] for guidelines and process around assessing and adding new 
+[committers](https://community.apache.org/newcommitter.html) and [PMC members](https://community.apache.org/newpmcmember.html).
+
 ### Apache Iceberg Community Guidelines
 
 The Apache Iceberg community is built on the principles described in the [Apache Way](https://www.apache.org/theapacheway/index.html) 
