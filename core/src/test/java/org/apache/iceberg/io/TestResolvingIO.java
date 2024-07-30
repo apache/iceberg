@@ -182,4 +182,16 @@ public class TestResolvingIO {
     // being null is ok here as long as the code doesn't throw an exception
     assertThat(resolvingFileIO.newInputFile("/file")).isNull();
   }
+
+  @Test
+  public void customFileIOScheme() {
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.setConf(new Configuration());
+    resolvingFileIO.initialize(
+        ImmutableMap.of(
+            "resolving-io.schemes.custom", "org.apache.iceberg.io.TestCustomResolvingFileIO"));
+
+    // testing custom scheme
+    assertThat(resolvingFileIO.ioClass("custom://foo")).isEqualTo(TestCustomResolvingFileIO.class);
+  }
 }
