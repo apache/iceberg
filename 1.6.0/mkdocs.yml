@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-site_name: docs/latest
+site_name: docs/1.6.0
 
 plugins:
   - search
