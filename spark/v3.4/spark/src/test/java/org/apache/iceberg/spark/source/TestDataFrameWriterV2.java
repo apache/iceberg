@@ -209,4 +209,49 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
     fields = Spark3Util.loadIcebergTable(sparkSession, tableName).schema().asStruct().fields();
     Assert.assertEquals(4, fields.size());
   }
+
+  @Test
+  public void testDeleteRecord() throws Exception {
+    sql(
+            "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+            tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+
+    Dataset<Row> twoColDF =
+            jsonToDF(
+                    "id bigint, data string",
+                    "{ \"id\": 1, \"data\": \"a\" }",
+                    "{ \"id\": 2, \"data\": \"b\" }");
+
+    twoColDF.writeTo(tableName).append();
+
+    assertEquals(
+            "Should have initial 2-column rows",
+            ImmutableList.of(row(1L, "a"), row(2L, "b")),
+            sql("select * from %s order by id", tableName));
+
+
+
+    Dataset<Row> threeColDF =
+            jsonToDF(
+                    "id bigint, data string, new_col float",
+                    "{ \"id\": 3, \"data\": \"c\", \"new_col\": 12.06 }",
+                    "{ \"id\": 4, \"data\": \"d\", \"new_col\": 14.41 }");
+
+    threeColDF.writeTo(tableName).option("merge-schema", "true").append();
+
+    sql("delete from %s where id = 1", tableName);
+
+    assertEquals(
+            "Should have 3-column 3-rows",
+            ImmutableList.of(
+                    row(2L, "b", null), row(3L, "c", 12.06F), row(4L, "d", 14.41F)),
+            sql("select * from %s order by id", tableName));
+
+    sql("delete from %s where new_col is not null and new_col < 14F", tableName);
+    assertEquals(
+            "Should have 3-column 2-rows",
+            ImmutableList.of(
+                    row(2L, "b", null), row(4L, "d", 14.41F)),
+            sql("select * from %s order by id", tableName));
+  }
 }
