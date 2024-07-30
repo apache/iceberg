@@ -43,12 +43,6 @@ public class DynConstructors {
       this.constructed = constructed;
     }
 
-    /** @deprecated since 1.6.0, will be removed in 1.7.0 */
-    @Deprecated
-    public Class<? extends C> getConstructedClass() {
-      return constructed;
-    }
-
     public C newInstanceChecked(Object... args) throws Exception {
       try {
         if (args.length > ctor.getParameterCount()) {
@@ -80,14 +74,6 @@ public class DynConstructors {
       Preconditions.checkArgument(
           target == null, "Invalid call to constructor: target must be null");
       return (R) newInstance(args);
-    }
-
-    @Override
-    @SuppressWarnings("unchecked")
-    public <R> R invokeChecked(Object target, Object... args) throws Exception {
-      Preconditions.checkArgument(
-          target == null, "Invalid call to constructor: target must be null");
-      return (R) newInstanceChecked(args);
     }
 
     @Override
@@ -169,16 +155,6 @@ public class DynConstructors {
         // not the right implementation
         problems.put(methodName(targetClass, types), e);
       }
-      return this;
-    }
-
-    /**
-     * @deprecated since 1.6.0, will be removed in 1.7.0; This varargs method conflicts with {@link
-     *     #hiddenImpl(Class, Class...)}. Use {@link #builder(Class)} instead.
-     */
-    @Deprecated
-    public Builder hiddenImpl(Class<?>... types) {
-      hiddenImpl(baseClass, types);
       return this;
     }
 

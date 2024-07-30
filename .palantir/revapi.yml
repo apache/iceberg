@@ -1058,6 +1058,41 @@ acceptedBreaks:
       new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
       justification: "Deprecations for 1.6.0 release"
   "1.6.0":
+    org.apache.iceberg:iceberg-common:
+    - code: "java.element.noLongerDeprecated"
+      old: "method <R> R org.apache.iceberg.common.DynMethods.UnboundMethod::invokeChecked(java.lang.Object,\
+        \ java.lang.Object[]) throws java.lang.Exception"
+      new: "method <R> R org.apache.iceberg.common.DynMethods.UnboundMethod::invokeChecked(java.lang.Object,\
+        \ java.lang.Object[]) throws java.lang.Exception"
+      justification: "Removing deprecated method"
+    - code: "java.method.removed"
+      old: "method <R> R org.apache.iceberg.common.DynConstructors.Ctor<C>::invokeChecked(java.lang.Object,\
+        \ java.lang.Object[]) throws java.lang.Exception"
+      justification: "Removing deprecated method"
+    - code: "java.method.removed"
+      old: "method <T> org.apache.iceberg.common.DynFields.StaticField<T> org.apache.iceberg.common.DynFields.Builder::buildStaticChecked()\
+        \ throws java.lang.NoSuchFieldException"
+      justification: "Removing deprecated method"
+    - code: "java.method.removed"
+      old: "method java.lang.Class<? extends C> org.apache.iceberg.common.DynConstructors.Ctor<C>::getConstructedClass()"
+      justification: "Removing deprecated method"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.common.DynConstructors.Builder org.apache.iceberg.common.DynConstructors.Builder::hiddenImpl(java.lang.Class<?>[])"
+      justification: "Removing deprecated method"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.common.DynMethods.Builder org.apache.iceberg.common.DynMethods.Builder::ctorImpl(java.lang.Class<?>,\
+        \ java.lang.Class<?>[])"
+      justification: "Removing deprecated method"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.common.DynMethods.Builder org.apache.iceberg.common.DynMethods.Builder::ctorImpl(java.lang.String,\
+        \ java.lang.Class<?>[])"
+      justification: "Removing deprecated method"
+    - code: "java.method.visibilityReduced"
+      old: "method <R> R org.apache.iceberg.common.DynMethods.UnboundMethod::invokeChecked(java.lang.Object,\
+        \ java.lang.Object[]) throws java.lang.Exception"
+      new: "method <R> R org.apache.iceberg.common.DynMethods.UnboundMethod::invokeChecked(java.lang.Object,\
+        \ java.lang.Object[]) throws java.lang.Exception"
+      justification: "Removing deprecated method"
     org.apache.iceberg:iceberg-core:
     - code: "java.class.removed"
       old: "enum org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus"
