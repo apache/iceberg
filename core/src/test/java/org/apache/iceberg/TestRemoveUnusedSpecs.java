@@ -80,7 +80,7 @@ public class TestRemoveUnusedSpecs extends TestBase {
 
   @TestTemplate
   public void testRemoveUnpartitionedSpec() {
-    // clean it first to reset to un-partitioned
+    // clean it first to reset to unpartitioned
     cleanupTables();
     this.table = create(SCHEMA, PartitionSpec.unpartitioned());
     DataFile file =
@@ -90,14 +90,12 @@ public class TestRemoveUnusedSpecs extends TestBase {
             .withRecordCount(100)
             .build();
     table.newAppend().appendFile(file).commit();
-    // add a bucket partition
+
     table.updateSpec().addField("data_bucket", Expressions.bucket("data", 16)).commit();
 
-    // removeUnusedPartitionSpec shall not remove the un-partitioned spec
+    // removeUnusedPartitionSpec shall not remove the unpartitioned spec
     table.removeUnusedSpecs().commit();
-    assertThat(table.specs().keySet())
-        .as("Un-partitioned spec is still used")
-        .containsExactly(0, 1);
+    assertThat(table.specs().keySet()).as("unpartitioned spec is still used").containsExactly(0, 1);
 
     table.newDelete().deleteFile(file).commit();
     DataFile bucketFile =
@@ -108,25 +106,22 @@ public class TestRemoveUnusedSpecs extends TestBase {
             .withPartitionPath("data_bucket=0")
             .build();
     table.newAppend().appendFile(bucketFile).commit();
-
     table.expireSnapshots().expireOlderThan(System.currentTimeMillis()).commit();
-    // un-partitioned spec can be removed.
-    table.removeUnusedSpecs().commit();
-    assertThat(table.specs().keySet()).as("Un-partitioned spec is removed").containsExactly(1);
 
-    // bucket spec can reset to un-partitioned
+    table.removeUnusedSpecs().commit();
+    assertThat(table.specs().keySet())
+        .as("unpartitioned spec should be removed")
+        .containsExactly(1);
+
     table.updateSpec().removeField("data_bucket").commit();
-    assertThat(table.spec().isUnpartitioned()).as("Should equal to un-partitioned").isTrue();
-    if (formatVersion == 1) {
-      assertThat(table.spec().fields().size()).as("Should have one void transform").isEqualTo(1);
-      assertThat(table.spec().specId())
-          .as("un-partitioned is evolved to use a new SpecId")
-          .isEqualTo(2);
-    } else {
-      assertThat(table.spec().fields().size()).as("Should have no fields").isEqualTo(0);
-      assertThat(table.spec().specId())
-          .as("un-partitioned is evolved to use a new SpecId")
-          .isEqualTo(2);
-    }
+    assertThat(table.spec().isUnpartitioned()).as("Should equal to unpartitioned").isTrue();
+
+    int unpartitionedFieldsSize = formatVersion == 1 ? 1 : 0;
+    assertThat(table.spec().fields().size())
+        .as("Should have one void transform for v1 and empty for v2")
+        .isEqualTo(unpartitionedFieldsSize);
+    assertThat(table.spec().specId())
+        .as("unpartitioned is evolved to use a new SpecId")
+        .isEqualTo(2);
   }
 }

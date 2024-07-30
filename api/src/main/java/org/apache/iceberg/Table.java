@@ -212,8 +212,9 @@ public interface Table {
   AppendFiles newAppend();
 
   /**
-   * Remove any partition specs from the Metadata that are no longer used in any data files. Always
-   * preserves the current default spec even if it has not yet been used.
+   * Remove any partition specs from the Metadata that are no longer used in any data files.
+   *
+   * <p>Always preserves the current default spec even if it has not yet been used.
    *
    * @return a new {@link RemoveUnusedSpecs}
    */

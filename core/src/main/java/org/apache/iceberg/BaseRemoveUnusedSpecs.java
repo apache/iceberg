@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.CommitFailedException;
-import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Tasks;
 
@@ -46,21 +46,23 @@ class BaseRemoveUnusedSpecs implements RemoveUnusedSpecs {
   private final TableOperations ops;
   private final Table table;
 
+  private TableMetadata base;
+
   BaseRemoveUnusedSpecs(TableOperations ops, Table table) {
     this.ops = ops;
+    this.base = ops.current();
     this.table = table;
   }
 
   @Override
   public List<PartitionSpec> apply() {
-    TableMetadata current = ops.refresh();
-    TableMetadata newMetadata = removeUnusedSpecs(current);
+    TableMetadata newMetadata = internalApply();
     return newMetadata.specs();
   }
 
   @Override
   public void commit() {
-    TableMetadata base = ops.refresh();
+    this.base = ops.refresh();
     Tasks.foreach(ops)
         .retry(base.propertyAsInt(COMMIT_NUM_RETRIES, COMMIT_NUM_RETRIES_DEFAULT))
         .exponentialBackoff(
@@ -71,33 +73,34 @@ class BaseRemoveUnusedSpecs implements RemoveUnusedSpecs {
         .onlyRetryOn(CommitFailedException.class)
         .run(
             taskOps -> {
-              TableMetadata current = ops.refresh();
-              TableMetadata newMetadata = removeUnusedSpecs(current);
-              taskOps.commit(current, newMetadata);
+              TableMetadata newMetadata = internalApply();
+              taskOps.commit(base, newMetadata);
             });
   }
 
-  private TableMetadata removeUnusedSpecs(TableMetadata current) {
-    List<PartitionSpec> specs = current.specs();
-    int currentSpecId = current.defaultSpecId();
+  private static Iterable<ManifestFile> reachableManifests(Table table) {
+    Iterable<Snapshot> snapshots = table.snapshots();
+    Iterable<Iterable<ManifestFile>> manifestIterables =
+        Iterables.transform(snapshots, snapshot -> snapshot.allManifests(table.io()));
+    return Iterables.concat(manifestIterables);
+  }
 
-    // Read ManifestLists and get all specId's in use
+  private TableMetadata internalApply() {
+    this.base = ops.refresh();
+    List<PartitionSpec> specs = base.specs();
+    int currentSpecId = base.defaultSpecId();
+
     Set<Integer> specsInUse =
         Sets.newHashSet(
-            CloseableIterable.transform(
-                MetadataTableUtils.createMetadataTableInstance(table, MetadataTableType.ALL_ENTRIES)
-                    .newScan()
-                    .planFiles(),
-                task -> ((BaseEntriesTable.ManifestReadTask) task).partitionSpecId()));
+            Iterables.transform(reachableManifests(table), ManifestFile::partitionSpecId));
 
-    // add current spec id to the set of specs in use
     specsInUse.add(currentSpecId);
 
-    List<PartitionSpec> toRemoveSpecs =
+    List<PartitionSpec> specsToRemove =
         specs.stream()
             .filter(spec -> !specsInUse.contains(spec.specId()))
             .collect(Collectors.toList());
 
-    return current.pruneUnusedSpecs(toRemoveSpecs);
+    return base.pruneUnusedSpecs(specsToRemove);
   }
 }
