@@ -25,7 +25,6 @@ import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.BasePageIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
-import org.apache.iceberg.parquet.ValuesAsBytesReader;
 import org.apache.parquet.CorruptDeltaByteArrays;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesUtils;
@@ -46,7 +45,7 @@ public class VectorizedPageIterator extends BasePageIterator {
     this.setArrowValidityVector = setValidityVector;
   }
 
-  private ValuesAsBytesReader plainValuesReader = null;
+  private VectorizedValuesReader valuesReader = null;
   private VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader = null;
   private boolean allPagesDictEncoded;
   private VectorizedParquetDefinitionLevelReader vectorizedDefinitionLevelReader;
@@ -66,13 +65,13 @@ public class VectorizedPageIterator extends BasePageIterator {
   @Override
   protected void reset() {
     super.reset();
-    this.plainValuesReader = null;
+    this.valuesReader = null;
     this.vectorizedDefinitionLevelReader = null;
   }
 
   @Override
   protected void initDataReader(Encoding dataEncoding, ByteBufferInputStream in, int valueCount) {
-    ValuesReader previousReader = plainValuesReader;
+    ValuesReader previousReader = (ValuesReader) valuesReader;
     if (dataEncoding.usesDictionary()) {
       if (dictionary == null) {
         throw new ParquetDecodingException(
@@ -95,7 +94,9 @@ public class VectorizedPageIterator extends BasePageIterator {
         throw new ParquetDecodingException("could not read page in col " + desc, e);
       }
     } else {
-      if (dataEncoding != Encoding.PLAIN) {
+      if (dataEncoding == Encoding.PLAIN) {
+        valuesReader = new VectorizedPlainValuesReader();
+      } else {
         throw new UnsupportedOperationException(
             "Cannot support vectorized reads for column "
                 + desc
@@ -104,14 +105,13 @@ public class VectorizedPageIterator extends BasePageIterator {
                 + dataEncoding
                 + ". Disable vectorized reads to read this table/file");
       }
-      plainValuesReader = new ValuesAsBytesReader();
-      plainValuesReader.initFromPage(valueCount, in);
+      valuesReader.initFromPage(valueCount, in);
       dictionaryDecodeMode = DictionaryDecodeMode.NONE;
     }
     if (CorruptDeltaByteArrays.requiresSequentialReads(writerVersion, dataEncoding)
         && previousReader instanceof RequiresPreviousReader) {
       // previous reader can only be set if reading sequentially
-      ((RequiresPreviousReader) plainValuesReader).setPreviousReader(previousReader);
+      ((RequiresPreviousReader) valuesReader).setPreviousReader(previousReader);
     }
   }
 
@@ -205,7 +205,7 @@ public class VectorizedPageIterator extends BasePageIterator {
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
       vectorizedDefinitionLevelReader
           .integerReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, valuesReader);
     }
 
     @Override
@@ -232,7 +232,7 @@ public class VectorizedPageIterator extends BasePageIterator {
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
       vectorizedDefinitionLevelReader
           .longReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, valuesReader);
     }
 
     @Override
@@ -263,7 +263,7 @@ public class VectorizedPageIterator extends BasePageIterator {
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
       vectorizedDefinitionLevelReader
           .timestampMillisReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, valuesReader);
     }
 
     @Override
@@ -289,7 +289,7 @@ public class VectorizedPageIterator extends BasePageIterator {
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
       vectorizedDefinitionLevelReader
           .timestampInt96Reader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, valuesReader);
     }
 
     @Override
@@ -316,7 +316,7 @@ public class VectorizedPageIterator extends BasePageIterator {
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
       vectorizedDefinitionLevelReader
           .floatReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, valuesReader);
     }
 
     @Override
@@ -343,7 +343,7 @@ public class VectorizedPageIterator extends BasePageIterator {
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
       vectorizedDefinitionLevelReader
           .doubleReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, valuesReader);
     }
 
     @Override
@@ -372,7 +372,7 @@ public class VectorizedPageIterator extends BasePageIterator {
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
       vectorizedDefinitionLevelReader
           .fixedSizeBinaryReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, valuesReader);
     }
 
     @Override
@@ -398,7 +398,7 @@ public class VectorizedPageIterator extends BasePageIterator {
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
       vectorizedDefinitionLevelReader
           .varWidthReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, valuesReader);
     }
 
     @Override
@@ -428,7 +428,7 @@ public class VectorizedPageIterator extends BasePageIterator {
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
       vectorizedDefinitionLevelReader
           .fixedWidthBinaryReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, valuesReader);
     }
 
     @Override
@@ -454,7 +454,7 @@ public class VectorizedPageIterator extends BasePageIterator {
         FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
       vectorizedDefinitionLevelReader
           .booleanReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
+          .nextBatch(vector, numVals, typeWidth, batchSize, holder, valuesReader);
     }
 
     @Override
