@@ -33,6 +33,7 @@ import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
@@ -190,7 +191,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
     boolean cboEnabled =
         Boolean.parseBoolean(spark.conf().get(SQLConf.CBO_ENABLED().key(), "false"));
-    Map<NamedReference, ColumnStatistics> colStatsMap = null;
+    Map<NamedReference, ColumnStatistics> colStatsMap = Collections.emptyMap();
     if (readConf.reportColumnStats() && cboEnabled) {
       colStatsMap = Maps.newHashMap();
       List<StatisticsFile> files = table.statisticsFiles();
@@ -207,7 +208,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
               .type()
               .equals(org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1)) {
             String ndvStr = blobMetadata.properties().get(NDV_KEY);
-            if (ndvStr != null && !ndvStr.isEmpty()) {
+            if (!Strings.isNullOrEmpty(ndvStr)) {
               ndv = Long.parseLong(ndvStr);
             } else {
               LOG.debug("ndv is not set in BlobMetadata for column {}", colName);
@@ -222,8 +223,6 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
           colStatsMap.put(ref, colStats);
         }
       }
-    } else {
-      colStatsMap = Collections.emptyMap();
     }
 
     // estimate stats using snapshot summary only for partitioned tables
