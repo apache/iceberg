@@ -42,7 +42,7 @@ import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.CatalogTestBase;
-import org.apache.iceberg.flink.MiniClusterResource;
+import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterEach;
@@ -70,7 +70,7 @@ public class TestStreamScanSql extends CatalogTestBase {
 
         StreamExecutionEnvironment env =
             StreamExecutionEnvironment.getExecutionEnvironment(
-                MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
+                MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
         env.enableCheckpointing(400);
 
         StreamTableEnvironment streamTableEnv =

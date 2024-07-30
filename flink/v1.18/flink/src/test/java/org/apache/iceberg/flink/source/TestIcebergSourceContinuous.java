@@ -67,7 +67,7 @@ public class TestIcebergSourceContinuous {
   @TempDir protected Path temporaryFolder;
 
   @RegisterExtension
-  public static MiniClusterExtension miniClusterExtension =
+  public static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled(METRIC_REPORTER);
 
   @RegisterExtension
