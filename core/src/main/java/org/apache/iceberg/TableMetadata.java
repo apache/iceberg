@@ -1482,7 +1482,8 @@ public class TableMetadata implements Serializable {
 
       if (hasRemovedSpecs) {
         Preconditions.checkArgument(
-            !hasPartitionSpecUpdates(), "Cannot remove partition specs with other partition spec update");
+            !hasPartitionSpecUpdates(),
+            "Cannot remove partition specs with other partition spec update");
       }
 
       Schema schema = schemasById.get(currentSchemaId);
