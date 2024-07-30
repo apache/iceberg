@@ -63,14 +63,13 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * This tests the more extended features of Flink sink. Extract them separately since it is
+ * This class tests the more extended features of Flink sink. Extract them separately since it is
  * unnecessary to test all the parameters combinations in {@link TestFlinkTableSink}, like catalog
  * types, namespaces, file format, streaming/batch. Those combinations explode exponentially. Each
  * test method in {@link TestFlinkTableSink} runs 21 combinations, which are expensive and slow.
  */
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestFlinkTableSinkExtended extends SqlBase {
-
   protected static final String CATALOG = "testhadoop";
   protected static final String DATABASE = "db";
   protected static final String TABLE = "tbl";
@@ -80,11 +79,10 @@ public class TestFlinkTableSinkExtended extends SqlBase {
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
   private static final String SOURCE_TABLE = "default_catalog.default_database.bounded_source";
+  private static final String FLINK_DATABASE = CATALOG + "." + DATABASE;
+  private static final Namespace ICEBERG_NAMESPACE = Namespace.of(new String[] {DATABASE});
 
   @TempDir protected File warehouseRoot;
-
-  protected final String flinkDatabase = CATALOG + "." + DATABASE;
-  protected final Namespace icebergNamespace = Namespace.of(new String[] {DATABASE});
 
   protected HadoopCatalog catalog = null;
 
@@ -97,23 +95,21 @@ public class TestFlinkTableSinkExtended extends SqlBase {
     return Arrays.asList(new Boolean[] {true}, new Boolean[] {false});
   }
 
-  protected TableEnvironment getTableEnv() {
+  protected synchronized TableEnvironment getTableEnv() {
     if (tEnv == null) {
-      synchronized (this) {
-        EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings.newInstance();
-        if (isStreamingJob) {
-          settingsBuilder.inStreamingMode();
-          StreamExecutionEnvironment env =
-              StreamExecutionEnvironment.getExecutionEnvironment(
-                  MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
-          env.enableCheckpointing(400);
-          env.setMaxParallelism(2);
-          env.setParallelism(2);
-          tEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
-        } else {
-          settingsBuilder.inBatchMode();
-          tEnv = TableEnvironment.create(settingsBuilder.build());
-        }
+      EnvironmentSettings.Builder settingsBuilder = EnvironmentSettings.newInstance();
+      if (isStreamingJob) {
+        settingsBuilder.inStreamingMode();
+        StreamExecutionEnvironment env =
+            StreamExecutionEnvironment.getExecutionEnvironment(
+                MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
+        env.enableCheckpointing(400);
+        env.setMaxParallelism(2);
+        env.setParallelism(2);
+        tEnv = StreamTableEnvironment.create(env, settingsBuilder.build());
+      } else {
+        settingsBuilder.inBatchMode();
+        tEnv = TableEnvironment.create(settingsBuilder.build());
       }
     }
     return tEnv;
@@ -129,7 +125,7 @@ public class TestFlinkTableSinkExtended extends SqlBase {
     config.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
     sql("CREATE CATALOG %s WITH %s", CATALOG, toWithClause(config));
 
-    sql("CREATE DATABASE %s", flinkDatabase);
+    sql("CREATE DATABASE %s", FLINK_DATABASE);
     sql("USE CATALOG %s", CATALOG);
     sql("USE %s", DATABASE);
     sql(
@@ -139,8 +135,8 @@ public class TestFlinkTableSinkExtended extends SqlBase {
 
   @AfterEach
   public void clean() throws Exception {
-    sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, TABLE);
-    dropDatabase(flinkDatabase, true);
+    sql("DROP TABLE IF EXISTS %s.%s", FLINK_DATABASE, TABLE);
+    dropDatabase(FLINK_DATABASE, true);
     BoundedTableFactory.clearDataSets();
 
     dropCatalog(CATALOG, true);
@@ -221,7 +217,7 @@ public class TestFlinkTableSinkExtended extends SqlBase {
       // Sometimes we will have more than one checkpoint if we pass the auto checkpoint interval,
       // thus producing multiple snapshots.  Here we assert that each snapshot has only 1 file per
       // partition.
-      Table table = catalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
+      Table table = catalog.loadTable(TableIdentifier.of(ICEBERG_NAMESPACE, tableName));
       Map<Long, List<DataFile>> snapshotToDataFiles = SimpleDataUtil.snapshotToDataFiles(table);
       for (List<DataFile> dataFiles : snapshotToDataFiles.values()) {
         if (dataFiles.isEmpty()) {
@@ -242,7 +238,7 @@ public class TestFlinkTableSinkExtended extends SqlBase {
             .hasSize(1);
       }
     } finally {
-      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
+      sql("DROP TABLE IF EXISTS %s.%s", FLINK_DATABASE, tableName);
     }
   }
 }
