@@ -521,7 +521,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
                   context.caseSensitive(),
                   table.io(),
                   table.encryption(),
-                  context.filters());
+                  context.filters(),
+                  context.limit());
           this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
         }
       }
