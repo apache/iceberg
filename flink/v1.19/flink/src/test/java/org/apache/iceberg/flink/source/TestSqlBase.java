@@ -52,7 +52,7 @@ import org.junit.jupiter.api.io.TempDir;
 /** Test other more advanced usage of SQL. They don't need to run for every file format. */
 public abstract class TestSqlBase {
   @RegisterExtension
-  public static MiniClusterExtension miniClusterResource =
+  public static MiniClusterExtension miniClusterExtension =
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
   @RegisterExtension
