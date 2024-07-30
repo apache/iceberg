@@ -55,7 +55,7 @@ public class TestIcebergSpeculativeExecutionSupport extends TestBase {
   private static final int NUM_TASK_SLOTS = 3;
 
   @RegisterExtension
-  public static MiniClusterExtension miniClusterResource =
+  public static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
       new MiniClusterExtension(
           new MiniClusterResourceConfiguration.Builder()
               .setNumberTaskManagers(NUM_TASK_MANAGERS)

@@ -91,7 +91,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
           settingsBuilder.inStreamingMode();
           StreamExecutionEnvironment env =
               StreamExecutionEnvironment.getExecutionEnvironment(
-                  MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
+                  MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
           env.enableCheckpointing(400);
           env.setMaxParallelism(2);
           env.setParallelism(2);

@@ -44,7 +44,7 @@ import org.junit.jupiter.api.io.TempDir;
 public abstract class TestBase extends TestBaseUtils {
 
   @RegisterExtension
-  public static MiniClusterExtension miniClusterResource =
+  public static MiniClusterExtension miniClusterExtension =
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
   @TempDir protected Path temporaryDirectory;

@@ -28,7 +28,7 @@ import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
-import org.apache.iceberg.flink.MiniClusterResource;
+import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.TestBase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,7 +61,7 @@ public class ChangeLogTableTestBase extends TestBase {
 
           StreamExecutionEnvironment env =
               StreamExecutionEnvironment.getExecutionEnvironment(
-                      MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
+                      MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG)
                   .enableCheckpointing(400)
                   .setMaxParallelism(1)
                   .setParallelism(1);

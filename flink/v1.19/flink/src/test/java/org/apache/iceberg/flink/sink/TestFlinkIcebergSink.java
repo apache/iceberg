@@ -44,7 +44,6 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
-import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
@@ -62,7 +61,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
 
   @RegisterExtension
-  public static MiniClusterExtension miniClusterResource =
+  public static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
   @RegisterExtension
@@ -113,7 +112,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
 
     env =
         StreamExecutionEnvironment.getExecutionEnvironment(
-                MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
+                MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG)
             .enableCheckpointing(100)
             .setParallelism(parallelism)
             .setMaxParallelism(parallelism);
@@ -271,7 +270,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
 
     env =
         StreamExecutionEnvironment.getExecutionEnvironment(
-                MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
+                MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG)
             .enableCheckpointing(100)
             .setParallelism(parallelism)
             .setMaxParallelism(parallelism);

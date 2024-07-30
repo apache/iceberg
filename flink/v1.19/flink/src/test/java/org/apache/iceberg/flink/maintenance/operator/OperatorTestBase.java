@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import static org.apache.iceberg.flink.MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG;
+import static org.apache.iceberg.flink.MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG;
 
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
@@ -34,7 +34,7 @@ class OperatorTestBase {
   static final String TABLE_NAME = "test_table";
 
   @RegisterExtension
-  protected static final MiniClusterExtension MINI_CLUSTER_RESOURCE =
+  protected static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
       new MiniClusterExtension(
           new MiniClusterResourceConfiguration.Builder()
               .setNumberTaskManagers(NUMBER_TASK_MANAGERS)

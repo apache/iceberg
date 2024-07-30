@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.flink.source;
 
-import static org.apache.iceberg.flink.MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG;
+import static org.apache.iceberg.flink.MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG;
 
 import java.io.Serializable;
 import java.nio.file.Path;
