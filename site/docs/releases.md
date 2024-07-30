@@ -83,7 +83,7 @@ The 1.6.0 release contains fixes, dependency updates, and new features (like Kaf
     - Add EnvironmentContext to commit summary ([\#9273](https://github.com/apache/iceberg/pull/9273))
     - Add explicit JSON parser for ConfigResponse ([\#9952](https://github.com/apache/iceberg/pull/9952))
     - Calling rewrite_position_delete_files fails on tables with more than 1k columns ([\#10020](https://github.com/apache/iceberg/pull/10020))
-    - Expose table incremental scan for appends API in SerializableTable ([\#10682](Expose table incremental scan for appends API in SerializableTable))
+    - Expose table incremental scan for appends API in SerializableTable ([\#10682](https://github.com/apache/iceberg/pull/10682))
     - Fix NPE during conflict handling of NULL partitions ([\#10680](https://github.com/apache/iceberg/pull/10680))
     - Fix ParallelIterable memory leak where queue continues to be populated even after iterator close ([\#9402](https://github.com/apache/iceberg/pull/9402))
     - Fix logging table name in scanning metadata table ([\#10141](https://github.com/apache/iceberg/pull/10141))
