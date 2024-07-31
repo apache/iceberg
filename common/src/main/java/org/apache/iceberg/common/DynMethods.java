@@ -69,7 +69,7 @@ public class DynMethods {
 
     public <R> R invoke(Object target, Object... args) {
       try {
-        return this.invokeChecked(target, args);
+        return invokeChecked(target, args);
       } catch (Exception e) {
         Throwables.propagateIfInstanceOf(e, RuntimeException.class);
         throw Throwables.propagate(e);
@@ -125,6 +125,12 @@ public class DynMethods {
     /** Singleton {@link UnboundMethod}, performs no operation and returns null. */
     private static final UnboundMethod NOOP =
         new UnboundMethod(null, "NOOP") {
+
+          @Override
+          public <R> R invoke(Object target, Object... args) {
+            return null;
+          }
+
           @Override
           public BoundMethod bind(Object receiver) {
             return new BoundMethod(this, receiver);
@@ -156,10 +162,6 @@ public class DynMethods {
       this.receiver = receiver;
     }
 
-    public <R> R invokeChecked(Object... args) throws Exception {
-      return method.invokeChecked(receiver, args);
-    }
-
     public <R> R invoke(Object... args) {
       return method.invoke(receiver, args);
     }
@@ -170,10 +172,6 @@ public class DynMethods {
 
     private StaticMethod(UnboundMethod method) {
       this.method = method;
-    }
-
-    public <R> R invokeChecked(Object... args) throws Exception {
-      return method.invokeChecked(null, args);
     }
 
     public <R> R invoke(Object... args) {
