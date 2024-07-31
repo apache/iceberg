@@ -779,7 +779,9 @@ When two commits happen at the same time and are based on the same version, only
 
 #### File System Tables
 
-An atomic swap can be implemented using atomic rename in file systems that support it, like HDFS or most local file systems [1].
+_Note: This file system based scheme to commit a metadata file is **deprecated** and will be removed in a future version of this spec. The scheme is **unsafe** in object stores and local file systems._
+
+An atomic swap can be implemented using atomic rename in file systems that support it, like HDFS [1].
 
 Each version of table metadata is stored in a metadata folder under the table’s base location using a file naming scheme that includes a version number, `V`: `v<V>.metadata.json`. To commit a new metadata version, `V+1`, the writer performs the following steps:
 
