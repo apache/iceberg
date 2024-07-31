@@ -48,7 +48,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class TestGeneratePartitionStats {
+public class TestPartitionStatsGenerator {
   private static final Schema SCHEMA =
       new Schema(
           optional(1, "c1", Types.IntegerType.get()),
@@ -66,8 +66,26 @@ public class TestGeneratePartitionStats {
         TestTables.create(
             temp.newFolder("empty_table"), "empty_table", SCHEMA, SPEC, SortOrder.unsorted(), 2);
 
-    GeneratePartitionStats generatePartitionStats = new GeneratePartitionStats(testTable);
-    assertThat(generatePartitionStats.generate()).isNull();
+    PartitionStatsGenerator partitionStatsGenerator = new PartitionStatsGenerator(testTable);
+    assertThat(partitionStatsGenerator.generate()).isNull();
+  }
+
+  @Test
+  public void testPartitionStatsOnEmptyBranch() throws Exception {
+    Table testTable =
+        TestTables.create(
+            temp.newFolder("empty_branch"), "empty_branch", SCHEMA, SPEC, SortOrder.unsorted(), 2);
+
+    testTable.manageSnapshots().createBranch("b1").commit();
+
+    PartitionStatsGenerator partitionStatsGenerator = new PartitionStatsGenerator(testTable, "b1");
+    // creates an empty stats file since the dummy snapshot exist
+    assertThat(partitionStatsGenerator.generate())
+        .extracting(PartitionStatisticsFile::fileSizeInBytes)
+        .isEqualTo(0L);
+    assertThat(partitionStatsGenerator.generate())
+        .extracting(PartitionStatisticsFile::snapshotId)
+        .isEqualTo(testTable.refs().get("b1").snapshotId());
   }
 
   @Test
@@ -81,9 +99,9 @@ public class TestGeneratePartitionStats {
             SortOrder.unsorted(),
             2);
 
-    GeneratePartitionStats generatePartitionStats =
-        new GeneratePartitionStats(testTable, "INVALID_BRANCH");
-    assertThatThrownBy(generatePartitionStats::generate)
+    PartitionStatsGenerator partitionStatsGenerator =
+        new PartitionStatsGenerator(testTable, "INVALID_BRANCH");
+    assertThatThrownBy(partitionStatsGenerator::generate)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Couldn't find the snapshot for the branch INVALID_BRANCH");
   }
@@ -471,8 +489,8 @@ public class TestGeneratePartitionStats {
       Table testTable, Schema recordSchema, Tuple... expectedValues) throws IOException {
     // compute and commit partition stats file
     Snapshot currentSnapshot = testTable.currentSnapshot();
-    GeneratePartitionStats generatePartitionStats = new GeneratePartitionStats(testTable);
-    PartitionStatisticsFile result = generatePartitionStats.generate();
+    PartitionStatsGenerator partitionStatsGenerator = new PartitionStatsGenerator(testTable);
+    PartitionStatisticsFile result = partitionStatsGenerator.generate();
     testTable.updatePartitionStatistics().setPartitionStatistics(result).commit();
     assertThat(result.snapshotId()).isEqualTo(currentSnapshot.snapshotId());
 

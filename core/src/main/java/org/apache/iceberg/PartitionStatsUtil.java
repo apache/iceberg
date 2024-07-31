@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.Map;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -46,15 +47,14 @@ public class PartitionStatsUtil {
   }
 
   /**
-   * Generates a Schema object as per partition statistics spec based on the given partition type.
+   * Generates a schema as per partition statistics spec based on the given partition type.
    *
    * @param partitionType the struct type that defines the structure of the partition.
-   * @return a Schema object that corresponds to the provided partition type.
+   * @return a schema that corresponds to the provided partition type.
    */
   public static Schema schema(Types.StructType partitionType) {
-    if (partitionType.fields().isEmpty()) {
-      throw new IllegalArgumentException("getting schema for an unpartitioned table");
-    }
+    Preconditions.checkState(
+        !partitionType.fields().isEmpty(), "getting schema for an unpartitioned table");
 
     return new Schema(
         Types.NestedField.required(1, Column.PARTITION.name(), partitionType),
@@ -144,7 +144,10 @@ public class PartitionStatsUtil {
       Types.StructType partitionSchema, PartitionData partitionData) {
     GenericRecord genericRecord = GenericRecord.create(partitionSchema);
     for (int index = 0; index < partitionData.size(); index++) {
-      genericRecord.set(index, partitionData.get(index));
+      genericRecord.set(
+          index,
+          IdentityPartitionConverters.convertConstant(
+              partitionSchema.fields().get(index).type(), partitionData.get(index)));
     }
 
     return genericRecord;
@@ -190,7 +193,7 @@ public class PartitionStatsUtil {
             "Unsupported file content type: " + entry.file().content());
     }
 
-    // TODO: optionally compute TOTAL_RECORD_COUNT based on the flag
+    // Note: Not computing the `TOTAL_RECORD_COUNT` for now as it needs scanning the data.
     return record;
   }
 
