@@ -719,7 +719,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testDeleteFilesTableSelection() throws IOException {
-    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     table.newFastAppend().appendFile(FILE_A).commit();
 
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
@@ -1365,7 +1365,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testPositionDeletesWithFilter() {
-    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable();
 
     PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
@@ -1428,7 +1428,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   }
 
   private void testPositionDeletesBaseTableFilter(boolean transactional) {
-    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable(transactional);
 
     PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
@@ -1490,7 +1490,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   @TestTemplate
   public void testPositionDeletesWithBaseTableFilterNot() {
     assumeThat(formatVersion)
-        .as("Position deletes not supported by V1 Tables")
+        .as("Position deletes are not supported by V1 Tables")
         .isNotEqualTo(1); // use identity rather than bucket partition spec,
     // as bucket.project does not support projecting notEq
     table.updateSpec().removeField("data_bucket").addField("id").commit();
@@ -1573,7 +1573,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testPositionDeletesResiduals() {
-    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable();
 
     PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
@@ -1602,7 +1602,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testPositionDeletesUnpartitioned() {
-    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     table.updateSpec().removeField(Expressions.bucket("data", BUCKETS_NUMBER)).commit();
 
     assertThat(table.spec().fields()).as("Table should now be unpartitioned").hasSize(0);
@@ -1693,7 +1693,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
   @TestTemplate
   public void testPositionDeletesManyColumns() {
-    assumeThat(formatVersion).as("Position deletes not supported by V1 Tables").isNotEqualTo(1);
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     UpdateSchema updateSchema = table.updateSchema();
     for (int i = 0; i <= 2000; i++) {
       updateSchema.addColumn(String.valueOf(i), Types.IntegerType.get());
