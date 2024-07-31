@@ -61,6 +61,9 @@ public class FlinkReadOptions {
   public static final ConfigOption<Long> START_SNAPSHOT_TIMESTAMP =
       ConfigOptions.key("start-snapshot-timestamp").longType().defaultValue(null);
 
+  public static final ConfigOption<Long> END_SNAPSHOT_TIMESTAMP =
+      ConfigOptions.key("end-snapshot-timestamp").longType().defaultValue(null);
+
   public static final ConfigOption<Long> START_SNAPSHOT_ID =
       ConfigOptions.key("start-snapshot-id").longType().defaultValue(null);
 

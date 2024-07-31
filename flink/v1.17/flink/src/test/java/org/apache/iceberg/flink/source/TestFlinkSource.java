@@ -71,6 +71,10 @@ public abstract class TestFlinkSource extends TestFlinkScan {
         .ifPresent(value -> builder.startSnapshotId(Long.parseLong(value)));
     Optional.ofNullable(options.get("end-snapshot-id"))
         .ifPresent(value -> builder.endSnapshotId(Long.parseLong(value)));
+    Optional.ofNullable(options.get("start-snapshot-timestamp"))
+        .ifPresent(value -> builder.startSnapshotTimestamp(Long.parseLong(value)));
+    Optional.ofNullable(options.get("end-snapshot-timestamp"))
+        .ifPresent(value -> builder.endSnapshotTimestamp(Long.parseLong(value)));
     Optional.ofNullable(options.get("as-of-timestamp"))
         .ifPresent(value -> builder.asOfTimestamp(Long.parseLong(value)));
     return run(builder, options, "", "*");

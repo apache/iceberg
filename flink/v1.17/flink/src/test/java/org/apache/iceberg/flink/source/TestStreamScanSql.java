@@ -429,6 +429,7 @@ public class TestStreamScanSql extends CatalogTestBase {
                         + "'start-snapshot-id'='%d' )*/",
                     TABLE, tagName, startSnapshotId))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("START_SNAPSHOT_ID and START_TAG cannot both be set.");
+        .hasMessage(
+            "Cannot specify more than one of start-snapshot-id, start-tag, or start-snapshot-timestamp.");
   }
 }

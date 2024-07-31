@@ -161,6 +161,22 @@ public class FlinkSource {
       return this;
     }
 
+    public Builder startSnapshotTimestamp(Long startSnapshotTimestamp) {
+      if (startSnapshotTimestamp != null) {
+        readOptions.put(
+            FlinkReadOptions.START_SNAPSHOT_TIMESTAMP.key(), Long.toString(startSnapshotTimestamp));
+      }
+      return this;
+    }
+
+    public Builder endSnapshotTimestamp(Long endSnapshotTimestamp) {
+      if (endSnapshotTimestamp != null) {
+        readOptions.put(
+            FlinkReadOptions.END_SNAPSHOT_TIMESTAMP.key(), Long.toString(endSnapshotTimestamp));
+      }
+      return this;
+    }
+
     public Builder startTag(String startTag) {
       readOptions.put(FlinkReadOptions.START_TAG.key(), startTag);
       return this;

@@ -85,6 +85,13 @@ public class FlinkReadConf {
         .parseOptional();
   }
 
+  public Long endSnapshotTimestamp() {
+    return confParser
+        .longConf()
+        .option(FlinkReadOptions.END_SNAPSHOT_TIMESTAMP.key())
+        .parseOptional();
+  }
+
   public Long startSnapshotId() {
     return confParser.longConf().option(FlinkReadOptions.START_SNAPSHOT_ID.key()).parseOptional();
   }
