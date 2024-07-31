@@ -1070,6 +1070,14 @@ acceptedBreaks:
         \ java.lang.Object[]) throws java.lang.Exception"
       justification: "Removing deprecated method"
     - code: "java.method.removed"
+      old: "method <R> R org.apache.iceberg.common.DynMethods.BoundMethod::invokeChecked(java.lang.Object[])\
+        \ throws java.lang.Exception"
+      justification: "Removing deprecated method"
+    - code: "java.method.removed"
+      old: "method <R> R org.apache.iceberg.common.DynMethods.StaticMethod::invokeChecked(java.lang.Object[])\
+        \ throws java.lang.Exception"
+      justification: "Removing deprecated method"
+    - code: "java.method.removed"
       old: "method <T> org.apache.iceberg.common.DynFields.StaticField<T> org.apache.iceberg.common.DynFields.Builder::buildStaticChecked()\
         \ throws java.lang.NoSuchFieldException"
       justification: "Removing deprecated method"
