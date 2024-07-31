@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import java.io.IOException;
 import java.util.Map;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.ManageSnapshots;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,28 +42,41 @@ public class TagBasedLockFactory implements TriggerLockFactory {
   private static final int CHANGE_ATTEMPTS = 3;
 
   private final TableLoader tableLoader;
+  private transient Table table;
 
   public TagBasedLockFactory(TableLoader tableLoader) {
     this.tableLoader = tableLoader;
   }
 
   @Override
+  public void open() {
+    tableLoader.open();
+    this.table = tableLoader.loadTable();
+  }
+
+  @Override
   public TriggerLockFactory.Lock createLock() {
-    return new Lock(tableLoader, RUNNING_TAG);
+    return new Lock(table, RUNNING_TAG);
   }
 
   @Override
   public TriggerLockFactory.Lock createRecoveryLock() {
-    return new Lock(tableLoader, RECOVERING_TAG);
+    return new Lock(table, RECOVERING_TAG);
+  }
+
+  @Override
+  public void close() throws IOException {
+    tableLoader.close();
   }
 
   public static class Lock implements TriggerLockFactory.Lock {
     private final Table table;
     private final String lockKey;
 
-    public Lock(TableLoader tableLoader, String lockKey) {
-      tableLoader.open();
-      this.table = tableLoader.loadTable();
+    public Lock(Table table, String lockKey) {
+      Preconditions.checkNotNull(table, "Table should not be null");
+      Preconditions.checkNotNull(lockKey, "Lock key should not be null");
+      this.table = table;
       this.lockKey = lockKey;
     }
 
@@ -73,10 +88,8 @@ public class TagBasedLockFactory implements TriggerLockFactory {
      */
     @Override
     public boolean tryLock() {
-      table.refresh();
-      Map<String, SnapshotRef> refs = table.refs();
       if (isHeld()) {
-        LOG.info("Lock is already held by someone: {}", refs.keySet());
+        LOG.info("Lock is already held");
         return false;
       }
 

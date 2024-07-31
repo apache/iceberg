@@ -20,14 +20,29 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 abstract class TestLockFactoryBase extends OperatorTestBase {
+  private TriggerLockFactory lockFactory;
+
   abstract TriggerLockFactory lockFactory();
+
+  @BeforeEach
+  void before() {
+    this.lockFactory = lockFactory();
+    lockFactory.open();
+  }
+
+  @AfterEach
+  void after() throws IOException {
+    lockFactory.close();
+  }
 
   @Test
   void testTryLock() {
-    TriggerLockFactory lockFactory = lockFactory();
     TriggerLockFactory.Lock lock1 = lockFactory.createLock();
     TriggerLockFactory.Lock lock2 = lockFactory.createLock();
     assertThat(lock1.tryLock()).isTrue();
@@ -37,7 +52,6 @@ abstract class TestLockFactoryBase extends OperatorTestBase {
 
   @Test
   void testUnLock() {
-    TriggerLockFactory lockFactory = lockFactory();
     TriggerLockFactory.Lock lock = lockFactory.createLock();
     assertThat(lock.tryLock()).isTrue();
 
@@ -47,7 +61,6 @@ abstract class TestLockFactoryBase extends OperatorTestBase {
 
   @Test
   void testNoConflict() {
-    TriggerLockFactory lockFactory = lockFactory();
     TriggerLockFactory.Lock lock1 = lockFactory.createLock();
     TriggerLockFactory.Lock lock2 = lockFactory.createRecoveryLock();
     assertThat(lock1.tryLock()).isTrue();
@@ -56,7 +69,6 @@ abstract class TestLockFactoryBase extends OperatorTestBase {
 
   @Test
   void testDoubleUnLock() {
-    TriggerLockFactory lockFactory = lockFactory();
     TriggerLockFactory.Lock lock = lockFactory.createLock();
     assertThat(lock.tryLock()).isTrue();
 

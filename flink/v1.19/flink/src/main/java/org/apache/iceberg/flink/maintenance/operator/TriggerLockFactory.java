@@ -18,12 +18,15 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import java.io.Closeable;
 import java.io.Serializable;
 import org.apache.flink.annotation.Experimental;
 
 /** Lock interface for handling locks for the Flink Table Maintenance jobs. */
 @Experimental
-public interface TriggerLockFactory extends Serializable {
+public interface TriggerLockFactory extends Serializable, Closeable {
+  void open();
+
   Lock createLock();
 
   Lock createRecoveryLock();

@@ -28,6 +28,7 @@ import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetr
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.TRIGGERED;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
@@ -46,6 +47,7 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -57,17 +59,25 @@ class TestTriggerManager extends OperatorTestBase {
   private static final String NAME_1 = "name1";
   private static final String NAME_2 = "name2";
   private long processingTime = 0L;
+  private TriggerLockFactory lockFactory;
   private TriggerLockFactory.Lock lock;
   private TriggerLockFactory.Lock recoveringLock;
 
   @BeforeEach
   void before() {
     sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    lock = new JVMBasedLockFactory().createLock();
-    recoveringLock = new JVMBasedLockFactory().createRecoveryLock();
+    this.lockFactory = new TagBasedLockFactory(sql.tableLoader(TABLE_NAME));
+    lockFactory.open();
+    this.lock = lockFactory.createLock();
+    this.recoveringLock = lockFactory.createRecoveryLock();
     lock.unlock();
     recoveringLock.unlock();
     MetricsReporterFactoryForTests.reset();
+  }
+
+  @AfterEach
+  void after() throws IOException {
+    lockFactory.close();
   }
 
   @Test
@@ -185,7 +195,7 @@ class TestTriggerManager extends OperatorTestBase {
       testHarness.processElement(event, newTime);
       assertThat(testHarness.extractOutputValues()).hasSize(1);
 
-      // Remove the lock
+      // Remove the lock to allow the next trigger
       lock.unlock();
 
       // Send a new event
@@ -235,6 +245,7 @@ class TestTriggerManager extends OperatorTestBase {
           testHarness.extractOutputValues(),
           Lists.newArrayList(Trigger.cleanUp(testHarness.getProcessingTime())));
 
+      // Remove the lock to allow the next trigger
       recoveringLock.unlock();
       testHarness.setProcessingTime(EVENT_TIME_2);
       assertThat(testHarness.extractOutputValues()).hasSize(2);
@@ -367,7 +378,7 @@ class TestTriggerManager extends OperatorTestBase {
     TriggerManager manager =
         new TriggerManager(
             tableLoader,
-            new JVMBasedLockFactory(),
+            lockFactory,
             Lists.newArrayList(NAME_1, NAME_2),
             Lists.newArrayList(
                 new TriggerEvaluator.Builder().commitNumber(2).build(),
@@ -461,6 +472,8 @@ class TestTriggerManager extends OperatorTestBase {
       // Start the first trigger
       source.sendRecord(TableChange.builder().commitNum(2).build());
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
+
+      // Remove the lock to allow the next trigger
       lock.unlock();
 
       // The second trigger will be blocked
@@ -559,32 +572,28 @@ class TestTriggerManager extends OperatorTestBase {
     testHarness.setProcessingTime(processingTime);
     testHarness.processElement(event, processingTime);
     assertThat(testHarness.extractOutputValues()).hasSize(expectedSize);
+    // Remove the lock to allow the next trigger
     lock.unlock();
   }
 
-  private static TriggerManager manager(TableLoader tableLoader, TriggerEvaluator evaluator) {
+  private TriggerManager manager(TableLoader tableLoader, TriggerEvaluator evaluator) {
     return new TriggerManager(
-        tableLoader,
-        new JVMBasedLockFactory(),
-        Lists.newArrayList(NAME_1),
-        Lists.newArrayList(evaluator),
-        1,
-        1);
+        tableLoader, lockFactory, Lists.newArrayList(NAME_1), Lists.newArrayList(evaluator), 1, 1);
   }
 
-  private static TriggerManager manager(TableLoader tableLoader) {
-    return manager(tableLoader, new TriggerEvaluator.Builder().commitNumber(2).build());
-  }
-
-  private static TriggerManager manager(
+  private TriggerManager manager(
       TableLoader tableLoader, long minFireDelayMs, long lockCheckDelayMs) {
     return new TriggerManager(
         tableLoader,
-        new JVMBasedLockFactory(),
+        lockFactory,
         Lists.newArrayList(NAME_1),
         Lists.newArrayList(new TriggerEvaluator.Builder().commitNumber(2).build()),
         minFireDelayMs,
         lockCheckDelayMs);
+  }
+
+  private TriggerManager manager(TableLoader tableLoader) {
+    return manager(tableLoader, new TriggerEvaluator.Builder().commitNumber(2).build());
   }
 
   private static void assertTriggers(List<Trigger> expected, List<Trigger> actual) {

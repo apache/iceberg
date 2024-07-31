@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
 import org.apache.iceberg.flink.TableLoader;
 import org.junit.jupiter.api.Test;
 
@@ -34,12 +35,14 @@ class TestTagBasedLockFactory extends TestLockFactoryBase {
   }
 
   @Test
-  void testTryLockWithEmptyTable() {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
+  void testTryLockWithEmptyTable() throws IOException {
+    sql.exec("CREATE TABLE %s (id int, data varchar)", "empty_table");
 
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    TriggerLockFactory lockFactory = new TagBasedLockFactory(tableLoader);
-    TriggerLockFactory.Lock lock = lockFactory.createLock();
-    assertThat(lock.tryLock()).isTrue();
+    TableLoader tableLoader = sql.tableLoader("empty_table");
+    try (TriggerLockFactory lockFactory = new TagBasedLockFactory(tableLoader)) {
+      lockFactory.open();
+      TriggerLockFactory.Lock lock = lockFactory.createLock();
+      assertThat(lock.tryLock()).isTrue();
+    }
   }
 }

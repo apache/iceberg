@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
@@ -77,8 +78,13 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
   private transient List<Long> lastTriggerTimes;
   private transient TriggerLockFactory.Lock lock;
   private transient TriggerLockFactory.Lock recoveryLock;
-  private transient boolean isCleanUp = false;
+  private transient boolean shouldRestoreTasks = false;
   private transient boolean inited = false;
+  // To keep the task scheduling fair we keep the last triggered task position in memory.
+  // If we find a task to trigger, then we run it, but after it is finished, we start from the given
+  // position to prevent "starvation" of the tasks.
+  // When there is nothing to trigger, we start from the beginning, as the order of the tasks might
+  // be important (RewriteDataFiles first, and then RewriteManifestFiles later)
   private transient int startsFrom = 0;
 
   TriggerManager(
@@ -91,12 +97,12 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
     Preconditions.checkNotNull(lockFactory, "Lock factory should no be null");
     Preconditions.checkArgument(
-        evaluators != null && !evaluators.isEmpty(), "Evaluators should not be empty");
+        evaluators != null && !evaluators.isEmpty(), "Invalid evaluators: null or empty");
     Preconditions.checkArgument(
         taskNames.size() == evaluators.size(), "Provide a name and evaluator for all of the tasks");
     Preconditions.checkArgument(minFireDelayMs > 0, "Minimum fire delay should be at least 1.");
     Preconditions.checkArgument(
-        lockCheckDelayMs > 0, "Minimum lock delay rate should be at least 1ms.");
+        lockCheckDelayMs > 0, "Minimum lock delay rate should be at least 1 ms.");
 
     this.tableLoader = tableLoader;
     this.lockFactory = lockFactory;
@@ -164,10 +170,11 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
   @Override
   public void initializeState(FunctionInitializationContext context) throws Exception {
     LOG.info("Initializing state restored: {}", context.isRestored());
+    lockFactory.open();
     this.lock = lockFactory.createLock();
     this.recoveryLock = lockFactory.createRecoveryLock();
     if (context.isRestored()) {
-      isCleanUp = true;
+      shouldRestoreTasks = true;
     }
   }
 
@@ -199,15 +206,22 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     checkAndFire(ctx.timerService().currentProcessingTime(), ctx.timerService(), out);
   }
 
+  @Override
+  public void close() throws IOException {
+    tableLoader.close();
+    lockFactory.close();
+  }
+
   private void checkAndFire(long current, TimerService timerService, Collector<Trigger> out) {
-    if (isCleanUp) {
+    if (shouldRestoreTasks) {
       if (recoveryLock.isHeld()) {
+        // Recovered tasks in progress. Skip trigger check
         LOG.debug("The cleanup lock is still held at {}", current);
         schedule(timerService, current + lockCheckDelayMs);
         return;
       } else {
         LOG.info("The cleanup is finished at {}", current);
-        isCleanUp = false;
+        shouldRestoreTasks = false;
       }
     }
 
@@ -220,6 +234,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
         LOG.debug("Nothing to execute at {} for collected: {}", current, accumulatedChanges);
       }
 
+      // Next time start from the beginning
       startsFrom = 0;
       return;
     }
@@ -290,13 +305,14 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
         }
       }
 
-      if (isCleanUp) {
+      if (shouldRestoreTasks) {
         // When the job state is restored, there could be ongoing tasks.
         // To prevent collision with the new triggers the following is done:
         //  - add a cleanup lock
         //  - fire a clean-up trigger
         // This ensures that the tasks of the previous trigger are executed, and the lock is removed
-        // in the end.
+        // in the end. The result of the 'tryLock' is ignored as an already existing lock prevents
+        // collisions as well.
         recoveryLock.tryLock();
         out.collect(Trigger.cleanUp(current));
         schedule(timerService, current + minFireDelayMs);
