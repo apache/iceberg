@@ -62,7 +62,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String KAFKA_PROP_PREFIX = "iceberg.kafka.";
   private static final String TABLE_PROP_PREFIX = "iceberg.table.";
   private static final String AUTO_CREATE_PROP_PREFIX = "iceberg.tables.auto-create-props.";
-  private static final String WRITE_PROP_PREFIX = "iceberg.table.write-props.";
+  private static final String WRITE_PROP_PREFIX = "iceberg.tables.write-props.";
 
   private static final String CATALOG_NAME_PROP = "iceberg.catalog";
   private static final String TABLES_PROP = "iceberg.tables";

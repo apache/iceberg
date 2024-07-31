@@ -64,7 +64,7 @@ import org.junit.jupiter.api.io.TempDir;
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestFlinkScan {
   @RegisterExtension
-  protected static MiniClusterExtension miniClusterResource =
+  protected static MiniClusterExtension miniClusterExtension =
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
   @TempDir protected Path temporaryDirectory;

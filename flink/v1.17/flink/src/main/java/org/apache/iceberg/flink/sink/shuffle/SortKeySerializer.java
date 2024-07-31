@@ -24,7 +24,9 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerSchemaCompatibility;
@@ -41,6 +43,7 @@ import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.SortOrderParser;
 import org.apache.iceberg.types.CheckCompatibility;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 class SortKeySerializer extends TypeSerializer<SortKey> {
@@ -276,13 +279,12 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
     private Schema schema;
     private SortOrder sortOrder;
 
-    @SuppressWarnings({"checkstyle:RedundantModifier", "WeakerAccess"})
+    /** Constructor for read instantiation. */
+    @SuppressWarnings({"unused", "checkstyle:RedundantModifier"})
     public SortKeySerializerSnapshot() {
       // this constructor is used when restoring from a checkpoint.
     }
 
-    // constructors need to public. Otherwise, Flink state restore would complain
-    // "The class has no (implicit) public nullary constructor".
     @SuppressWarnings("checkstyle:RedundantModifier")
     public SortKeySerializerSnapshot(Schema schema, SortOrder sortOrder) {
       this.schema = schema;
@@ -320,8 +322,26 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
         return TypeSerializerSchemaCompatibility.incompatible();
       }
 
-      SortKeySerializer newAvroSerializer = (SortKeySerializer) newSerializer;
-      return resolveSchemaCompatibility(newAvroSerializer.schema, schema);
+      // Sort order should be identical
+      SortKeySerializerSnapshot newSnapshot =
+          (SortKeySerializerSnapshot) newSerializer.snapshotConfiguration();
+      if (!sortOrder.sameOrder(newSnapshot.sortOrder)) {
+        return TypeSerializerSchemaCompatibility.incompatible();
+      }
+
+      Set<Integer> sortFieldIds =
+          sortOrder.fields().stream().map(SortField::sourceId).collect(Collectors.toSet());
+      // only care about the schema related to sort fields
+      Schema sortSchema = TypeUtil.project(schema, sortFieldIds);
+      Schema newSortSchema = TypeUtil.project(newSnapshot.schema, sortFieldIds);
+
+      List<String> compatibilityErrors =
+          CheckCompatibility.writeCompatibilityErrors(sortSchema, newSortSchema);
+      if (compatibilityErrors.isEmpty()) {
+        return TypeSerializerSchemaCompatibility.compatibleAsIs();
+      }
+
+      return TypeSerializerSchemaCompatibility.incompatible();
     }
 
     @Override

@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.flink.MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG;
+import static org.apache.iceberg.flink.MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG;
 import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.apache.iceberg.flink.TestFixtures.TABLE_IDENTIFIER;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -63,7 +63,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
   private static final int SLOTS_PER_TASK_MANAGER = 8;
 
   @RegisterExtension
-  private static final MiniClusterExtension MINI_CLUSTER_RESOURCE =
+  private static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
       new MiniClusterExtension(
           new MiniClusterResourceConfiguration.Builder()
               .setNumberTaskManagers(NUMBER_TASK_MANAGERS)
