@@ -117,7 +117,7 @@ networks:
 
 Next, start up the docker containers with this command:
 ```sh
-docker-compose up
+mkdir spark && docker-compose up
 ```
 
 You can then run any of the following commands to start a Spark session.
