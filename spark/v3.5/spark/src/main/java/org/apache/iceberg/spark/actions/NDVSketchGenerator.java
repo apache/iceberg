@@ -90,6 +90,7 @@ public class NDVSketchGenerator {
     Dataset<Row> data =
         spark
             .read()
+            .format("iceberg")
             .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
             .table(tableName)
             .select(columns.stream().map(functions::col).toArray(Column[]::new));

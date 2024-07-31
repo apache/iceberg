@@ -26,6 +26,8 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.HasTableOperations;
+import org.apache.iceberg.IcebergBuild;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
@@ -43,7 +45,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
-import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +53,7 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
     implements ComputeTableStats {
 
   private static final Logger LOG = LoggerFactory.getLogger(ComputeTableStatsSparkAction.class);
+  private static final Result EMPTY_RESULT = ImmutableComputeTableStats.Result.builder().build();
 
   private final Table table;
   private Set<String> columns;
@@ -61,8 +63,6 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
     super(spark);
     this.table = table;
     this.snapshot = table.currentSnapshot();
-    this.columns =
-        table.schema().columns().stream().map(Types.NestedField::name).collect(Collectors.toSet());
   }
 
   @Override
@@ -79,37 +79,26 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
 
   private Result doExecute() {
     if (snapshot == null) {
-      return ImmutableComputeTableStats.Result.builder().build();
+      return EMPTY_RESULT;
     }
     LOG.info("Computing stats of {} for snapshot {}", table.name(), snapshot.snapshotId());
     List<Blob> blobs = generateNDVBlobs();
-    StatisticsFile statisticFile;
+    StatisticsFile statisticsFile;
     try {
-      statisticFile = writeAndCommitPuffin(blobs);
+      statisticsFile = writeStatsFile(blobs);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
     }
-    return ImmutableComputeTableStats.Result.builder().statisticsFile(statisticFile).build();
+    table.updateStatistics().setStatistics(snapshot.snapshotId(), statisticsFile).commit();
+    return ImmutableComputeTableStats.Result.builder().statisticsFile(statisticsFile).build();
   }
 
-  private StatisticsFile writeAndCommitPuffin(List<Blob> blobs) throws IOException {
-    LOG.info(
-        "Writing stats to puffin files for table {} for snapshot{}",
-        table.name(),
-        snapshot.snapshotId());
+  private StatisticsFile writeStatsFile(List<Blob> blobs) throws IOException {
+    LOG.info("Writing stats for table {} for snapshot {}", table.name(), snapshot.snapshotId());
     TableOperations operations = ((HasTableOperations) table).operations();
     String path = operations.metadataFileLocation(String.format("%s.stats", UUID.randomUUID()));
     OutputFile outputFile = operations.io().newOutputFile(path);
-    GenericStatisticsFile statisticsFile = generateStatisticsFile(blobs, outputFile, path);
-    table.updateStatistics().setStatistics(snapshot.snapshotId(), statisticsFile).commit();
-    return statisticsFile;
-  }
-
-  @NotNull
-  private GenericStatisticsFile generateStatisticsFile(
-      List<Blob> blobs, OutputFile outputFile, String path) throws IOException {
-    try (PuffinWriter writer =
-        Puffin.write(outputFile).createdBy("Iceberg ComputeTableStats action").build()) {
+    try (PuffinWriter writer = Puffin.write(outputFile).createdBy(appIdentifier()).build()) {
       blobs.forEach(writer::add);
       writer.finish();
       return new GenericStatisticsFile(
@@ -124,27 +113,52 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
   }
 
   private List<Blob> generateNDVBlobs() {
-    return NDVSketchGenerator.generateNDVSketchesAndBlobs(spark(), table, snapshot, columns);
+    return NDVSketchGenerator.generateNDVSketchesAndBlobs(spark(), table, snapshot, columns());
   }
 
   @Override
-  public ComputeTableStats columns(String... columnNames) {
+  public ComputeTableStats columns(String... newColumns) {
     Preconditions.checkArgument(
-        columnNames != null && columnNames.length > 0, "Columns cannot be null/empty");
-    for (String columnName : columnNames) {
-      Types.NestedField field = table.schema().findField(columnName);
+        newColumns != null && newColumns.length > 0, "Columns cannot be null/empty");
+    this.columns = ImmutableSet.copyOf(newColumns);
+    return this;
+  }
+
+  @Override
+  public ComputeTableStats snapshot(long newSnapshotId) {
+    Snapshot newSnapshot = table.snapshot(newSnapshotId);
+    Preconditions.checkArgument(newSnapshot != null, "Snapshot not found: %s", newSnapshotId);
+    this.snapshot = newSnapshot;
+    return this;
+  }
+
+  private Set<String> columns() {
+    Schema schema = table.schemas().get(snapshot.schemaId());
+    if (columns == null) {
+      columns = schema.columns().stream().map(Types.NestedField::name).collect(Collectors.toSet());
+    }
+    validateColumns(schema);
+    return columns;
+  }
+
+  private void validateColumns(Schema schema) {
+    for (String columnName : columns) {
+      Types.NestedField field = schema.findField(columnName);
       if (field == null) {
         throw new IllegalArgumentException(
-            String.format("No column with %s name in the table", columnName));
+            String.format("No column with name %s in the table", columnName));
+      }
+      if (!field.type().isPrimitiveType()) {
+        throw new IllegalArgumentException(
+            String.format(
+                "Stats computation not supported on non-primitive type column: %s", columnName));
       }
     }
-    this.columns = ImmutableSet.copyOf(columnNames);
-    return this;
   }
 
-  @Override
-  public ComputeTableStats snapshot(long snapshotIdToComputeStats) {
-    this.snapshot = table.snapshot(snapshotIdToComputeStats);
-    return this;
+  private String appIdentifier() {
+    String icebergVersion = IcebergBuild.fullVersion();
+    String sparkVersion = spark().version();
+    return String.format("Iceberg %s Spark %s", icebergVersion, sparkVersion);
   }
 }
