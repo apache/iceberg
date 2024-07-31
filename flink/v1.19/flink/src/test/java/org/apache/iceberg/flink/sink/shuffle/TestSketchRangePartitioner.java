@@ -72,7 +72,7 @@ public class TestSketchRangePartitioner {
   }
 
   @Test
-  public void test() {
+  public void testRangePartitioningWithRangeBounds() {
     SketchRangePartitioner partitioner =
         new SketchRangePartitioner(TestFixtures.SCHEMA, SORT_ORDER, RANGE_BOUNDS);
     GenericRowData row =

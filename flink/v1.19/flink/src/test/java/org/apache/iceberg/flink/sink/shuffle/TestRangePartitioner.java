@@ -19,12 +19,13 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
-import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_ROWS;
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.SCHEMA;
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.SORT_ORDER;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Set;
+import org.apache.flink.table.data.GenericRowData;
+import org.apache.flink.table.data.StringData;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.Test;
@@ -38,7 +39,9 @@ public class TestRangePartitioner {
     Set<Integer> results = Sets.newHashSetWithExpectedSize(numPartitions);
     for (int i = 0; i < numPartitions; ++i) {
       results.add(
-          partitioner.partition(StatisticsOrRecord.fromRecord(CHAR_ROWS.get("a")), numPartitions));
+          partitioner.partition(
+              StatisticsOrRecord.fromRecord(GenericRowData.of(StringData.fromString("a"), 1)),
+              numPartitions));
     }
 
     // round-robin. every partition should get an assignment

@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink.shuffle;
 import java.util.Comparator;
 import java.util.Map;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.runtime.typeutils.RowDataSerializer;
 import org.apache.flink.table.types.logical.IntType;
@@ -45,7 +44,6 @@ class Fixtures {
           Types.NestedField.optional(1, "id", Types.StringType.get()),
           Types.NestedField.optional(2, "number", Types.IntegerType.get()));
   public static final RowType ROW_TYPE = RowType.of(new VarCharType(), new IntType());
-  public static final Map<String, RowData> CHAR_ROWS = createCharRows();
   public static final TypeSerializer<RowData> ROW_SERIALIZER = new RowDataSerializer(ROW_TYPE);
   public static final RowDataWrapper ROW_WRAPPER = new RowDataWrapper(ROW_TYPE, SCHEMA.asStruct());
   public static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
@@ -98,16 +96,5 @@ class Fixtures {
     }
 
     return keys;
-  }
-
-  private static Map<String, RowData> createCharRows() {
-    Map<String, RowData> rows = Maps.newHashMap();
-    for (char c = 'a'; c <= 'z'; ++c) {
-      String key = Character.toString(c);
-      RowData row = GenericRowData.of(key, c - 'a');
-      rows.put(key, row);
-    }
-
-    return rows;
   }
 }
