@@ -76,6 +76,13 @@ public class DynConstructors {
       return (R) newInstance(args);
     }
 
+    @SuppressWarnings("unchecked")
+    public <R> R invokeChecked(Object target, Object... args) throws Exception {
+      Preconditions.checkArgument(
+          target == null, "Invalid call to constructor: target must be null");
+      return (R) newInstanceChecked(args);
+    }
+
     @Override
     public DynMethods.BoundMethod bind(Object receiver) {
       throw new IllegalStateException("Cannot bind constructors");

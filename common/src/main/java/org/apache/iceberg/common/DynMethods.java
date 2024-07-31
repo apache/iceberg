@@ -162,6 +162,10 @@ public class DynMethods {
       this.receiver = receiver;
     }
 
+    public <R> R invokeChecked(Object... args) throws Exception {
+      return method.invokeChecked(receiver, args);
+    }
+
     public <R> R invoke(Object... args) {
       return method.invoke(receiver, args);
     }
@@ -172,6 +176,10 @@ public class DynMethods {
 
     private StaticMethod(UnboundMethod method) {
       this.method = method;
+    }
+
+    public <R> R invokeChecked(Object... args) throws Exception {
+      return method.invokeChecked(null, args);
     }
 
     public <R> R invoke(Object... args) {
