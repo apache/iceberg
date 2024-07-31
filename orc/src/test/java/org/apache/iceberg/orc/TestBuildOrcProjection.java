@@ -164,4 +164,21 @@ public class TestBuildOrcProjection {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Field 4 of type long is required and was not found.");
   }
+
+  @Test
+  public void testTimestampType() {
+    Schema originalSchema = new Schema(optional(1, "a", Types.TimestampType.withoutZone()));
+    // Orc schema would be `timestamp` if table is converted from a hive table
+    TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
+
+    // Evolve schema
+    Schema evolveSchema = new Schema(optional(1, "a", Types.TimestampType.withZone()));
+
+    // iceberg schema is timestamptz
+    TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema, true);
+    assertThat(newOrcSchema.getChildren()).hasSize(1);
+    assertThat(newOrcSchema.findSubtype("a").getId()).isEqualTo(1);
+    assertThat(newOrcSchema.findSubtype("a").getCategory())
+        .isEqualTo(TypeDescription.Category.TIMESTAMP_INSTANT);
+  }
 }
