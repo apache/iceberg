@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.data;
 
+import java.nio.ByteBuffer;
+import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -48,6 +50,13 @@ public class IdentityPartitionConverters {
       case FIXED:
         if (value instanceof GenericData.Fixed) {
           return ((GenericData.Fixed) value).bytes();
+        } else if (value instanceof ByteBuffer) {
+          return ((ByteBuffer) value).array();
+        }
+        return value;
+      case UUID:
+        if (value instanceof ByteBuffer) {
+          return ((ByteBuffer) value).array();
         }
         return value;
       default:
