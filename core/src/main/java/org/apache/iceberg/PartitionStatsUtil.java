@@ -167,17 +167,23 @@ public class PartitionStatsUtil {
 
     switch (entry.file().content()) {
       case DATA:
-        record.set(Column.DATA_FILE_COUNT.ordinal(), 1);
         record.set(Column.DATA_RECORD_COUNT.ordinal(), entry.file().recordCount());
+        record.set(Column.DATA_FILE_COUNT.ordinal(), 1);
         record.set(Column.TOTAL_DATA_FILE_SIZE_IN_BYTES.ordinal(), entry.file().fileSizeInBytes());
         break;
       case POSITION_DELETES:
-        record.set(Column.POSITION_DELETE_FILE_COUNT.ordinal(), 1);
         record.set(Column.POSITION_DELETE_RECORD_COUNT.ordinal(), entry.file().recordCount());
+        record.set(Column.POSITION_DELETE_FILE_COUNT.ordinal(), 1);
+        record.set(Column.DATA_RECORD_COUNT.ordinal(), 0L);
+        record.set(Column.DATA_FILE_COUNT.ordinal(), 0);
+        record.set(Column.TOTAL_DATA_FILE_SIZE_IN_BYTES.ordinal(), 0L);
         break;
       case EQUALITY_DELETES:
-        record.set(Column.EQUALITY_DELETE_FILE_COUNT.ordinal(), 1);
         record.set(Column.EQUALITY_DELETE_RECORD_COUNT.ordinal(), entry.file().recordCount());
+        record.set(Column.EQUALITY_DELETE_FILE_COUNT.ordinal(), 1);
+        record.set(Column.DATA_RECORD_COUNT.ordinal(), 0L);
+        record.set(Column.DATA_FILE_COUNT.ordinal(), 0);
+        record.set(Column.TOTAL_DATA_FILE_SIZE_IN_BYTES.ordinal(), 0L);
         break;
       default:
         throw new UnsupportedOperationException(
@@ -217,11 +223,15 @@ public class PartitionStatsUtil {
   }
 
   private static void checkAndIncrementInt(Record toUpdate, Record fromRecord, Column column) {
-    if (toUpdate.get(column.ordinal()) != null && fromRecord.get(column.ordinal()) != null) {
-      toUpdate.set(
-          column.ordinal(),
-          toUpdate.get(column.ordinal(), Integer.class)
-              + fromRecord.get(column.ordinal(), Integer.class));
+    if (fromRecord.get(column.ordinal()) != null) {
+      if (toUpdate.get(column.ordinal()) != null) {
+        toUpdate.set(
+            column.ordinal(),
+            toUpdate.get(column.ordinal(), Integer.class)
+                + fromRecord.get(column.ordinal(), Integer.class));
+      } else {
+        toUpdate.set(column.ordinal(), fromRecord.get(column.ordinal(), Integer.class));
+      }
     }
   }
 }
