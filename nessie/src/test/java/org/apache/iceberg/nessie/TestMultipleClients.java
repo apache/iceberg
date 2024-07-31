@@ -72,6 +72,18 @@ public class TestMultipleClients extends BaseTestIceberg {
   }
 
   @Test
+  public void testCreateNamespacesWithLevels() {
+    catalog.createNamespace(Namespace.of("l1", "l2", "l3", "l4"));
+    assertThat(catalog.listNamespaces()).containsExactlyInAnyOrder(Namespace.of("l1"));
+    assertThat(catalog.listNamespaces(Namespace.of("l1")))
+        .containsExactlyInAnyOrder(Namespace.of("l1", "l2"));
+    assertThat(catalog.listNamespaces(Namespace.of("l1", "l2")))
+        .containsExactlyInAnyOrder(Namespace.of("l1", "l2", "l3"));
+    assertThat(catalog.listNamespaces(Namespace.of("l1", "l2", "l3")))
+        .containsExactlyInAnyOrder(Namespace.of("l1", "l2", "l3", "l4"));
+  }
+
+  @Test
   public void testListNamespaces() throws NessieConflictException, NessieNotFoundException {
     assertThat(catalog.listNamespaces()).isEmpty();
     assertThat(anotherCatalog.listNamespaces()).isEmpty();

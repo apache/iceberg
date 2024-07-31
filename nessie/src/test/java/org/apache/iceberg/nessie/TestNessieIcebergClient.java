@@ -132,11 +132,31 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
         .extracting(LogResponse.LogEntry::getCommitMeta)
         .extracting(CommitMeta::getMessage, CommitMeta::getAuthor, CommitMeta::getProperties)
         .containsExactly(
-            "create namespace a",
+            "create namespace [a]",
             "iceberg-user",
             ImmutableMap.of(
                 "application-type", "iceberg",
                 "app-id", "iceberg-nessie"));
+  }
+
+  @Test
+  public void testCreateNamespaceWithMultipleLevels()
+      throws NessieConflictException, NessieNotFoundException {
+    String branch = "createNamespaceWithMultipleLevelsBranch";
+    createBranch(branch);
+    Map<String, String> catalogOptions =
+        Map.of(
+            CatalogProperties.USER, "iceberg-user",
+            CatalogProperties.APP_ID, "iceberg-nessie");
+    NessieIcebergClient client = new NessieIcebergClient(api, branch, null, catalogOptions);
+
+    client.createNamespace(Namespace.of("a", "b", "c"), Map.of());
+    assertThat(client.listNamespaces(Namespace.of("a"))).isNotNull();
+    assertThat(client.listNamespaces(Namespace.of("a", "b"))).isNotNull();
+    assertThat(client.listNamespaces(Namespace.of("a", "b", "c"))).isNotNull();
+
+    client.createNamespace(Namespace.of("a", "b", "d"), Map.of());
+    assertThat(client.listNamespaces(Namespace.of("a", "b", "d"))).isNotNull();
   }
 
   @Test
@@ -148,10 +168,6 @@ public class TestNessieIcebergClient extends BaseTestIceberg {
     assertThatThrownBy(() -> client.createNamespace(Namespace.empty(), Map.of()))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessageContaining("Invalid namespace: ");
-
-    assertThatThrownBy(() -> client.createNamespace(Namespace.of("a", "b"), Map.of()))
-        .isInstanceOf(NoSuchNamespaceException.class)
-        .hasMessageContaining("Cannot create namespace 'a.b': parent namespace 'a' does not exist");
   }
 
   @Test
