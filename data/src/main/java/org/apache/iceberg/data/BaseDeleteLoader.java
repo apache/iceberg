@@ -115,17 +115,18 @@ public class BaseDeleteLoader implements DeleteLoader {
     long estimatedSize = estimateEqDeletesSize(deleteFile, projection);
     if (canCache(estimatedSize)) {
       String cacheKey = deleteFile.path().toString();
-      return getOrLoad(cacheKey, () -> readEqDeletes(deleteFile, projection), estimatedSize);
+      return getOrLoad(cacheKey, () -> readEqDeletes(deleteFile, projection, true), estimatedSize);
     } else {
-      return readEqDeletes(deleteFile, projection);
+      return readEqDeletes(deleteFile, projection, false);
     }
   }
 
-  private Iterable<StructLike> readEqDeletes(DeleteFile deleteFile, Schema projection) {
+  private Iterable<StructLike> readEqDeletes(
+      DeleteFile deleteFile, Schema projection, boolean materialize) {
     CloseableIterable<Record> deletes = openDeletes(deleteFile, projection);
     CloseableIterable<Record> copiedDeletes = CloseableIterable.transform(deletes, Record::copy);
     CloseableIterable<StructLike> copiedDeletesAsStructs = toStructs(copiedDeletes, projection);
-    return materialize(copiedDeletesAsStructs);
+    return materialize ? materialize(copiedDeletesAsStructs) : copiedDeletesAsStructs;
   }
 
   private CloseableIterable<StructLike> toStructs(
