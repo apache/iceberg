@@ -91,7 +91,7 @@ For what goes into which release, please refer to [semantic versioning](contribu
 Decisions about releases are made by three groups:
 
 * **Release Manager**: Does the work of creating the release, signing it, counting [votes](#voting), announcing the release and so on. Requires the assistance of a committer for some steps.
-* **The community**: Performs the discussion of whether it is the right time to create a release and what that release should contain. The community is encouraged to cast non-binding votes on the release.
+* **The community**: Performs the discussion of whether it is the right time to create a release and what that release should contain. Everyone is encouraged to test, validate, and vote on the release to help prevent regressions or issues.
 * **Project Management Committee**: Gives [binding votes](https://www.apache.org/foundation/voting.html#ReleaseVotes) on the release.
 
 Once there is consensus around a new release, create a new [milestone on GitHub](https://github.com/apache/iceberg/milestones) to track the release. A non-committer can assign tasks to a milestone if added to the list of collaborators in [.asf.yaml](https://github.com/apache/iceberg/blob/main/.asf.yaml) to track the issues that are targeted for the release.
