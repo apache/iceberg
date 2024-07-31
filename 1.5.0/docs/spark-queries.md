@@ -269,6 +269,7 @@ order by made_current_at;
 | 2019-02-09 16:24:30.13  | delete    | 29641004024753 | false               | application_1520379288616_151109 |
 | 2019-02-09 16:32:47.336 | append    | 57897183625154 | true                | application_1520379288616_155055 |
 | 2019-02-08 03:47:55.948 | overwrite | 51792995261850 | true                | application_1520379288616_152431 |
+
 ### Entries
 
 To show all the table's current manifest entries for both data and delete files.
