@@ -71,7 +71,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("UnnecessaryAnonymousClass")
-abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
+abstract class SnapshotProducer<ThisT> extends BasePendingUpdate<Snapshot>
+    implements SnapshotUpdate<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
   static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
 
@@ -396,6 +397,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                   }
 
                   TableMetadata updated = update.build();
+                  validate(base);
                   if (updated.changes().isEmpty()) {
                     // do not commit if the metadata has not changed. for example, this may happen
                     // when setting the current

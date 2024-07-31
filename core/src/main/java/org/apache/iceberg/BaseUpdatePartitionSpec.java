@@ -41,7 +41,8 @@ import org.apache.iceberg.transforms.UnknownTransform;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.Pair;
 
-class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
+class BaseUpdatePartitionSpec extends BasePendingUpdate<PartitionSpec>
+    implements UpdatePartitionSpec {
   private final TableOperations ops;
   private final TableMetadata base;
   private final int formatVersion;
@@ -328,6 +329,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   @Override
   public void commit() {
     TableMetadata update = base.updatePartitionSpec(apply());
+    validate(base);
     ops.commit(base, update);
   }
 

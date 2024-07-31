@@ -57,7 +57,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("UnnecessaryAnonymousClass")
-class RemoveSnapshots implements ExpireSnapshots {
+class RemoveSnapshots extends BasePendingUpdate<List<Snapshot>> implements ExpireSnapshots {
   private static final Logger LOG = LoggerFactory.getLogger(RemoveSnapshots.class);
 
   // Creates an executor service that runs each task in the thread that invokes execute/submit.
@@ -304,6 +304,7 @@ class RemoveSnapshots implements ExpireSnapshots {
         .run(
             item -> {
               TableMetadata updated = internalApply();
+              validate(base);
               ops.commit(base, updated);
             });
     LOG.info("Committed snapshot changes");

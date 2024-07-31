@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public class SnapshotManager implements ManageSnapshots {
@@ -180,5 +181,13 @@ public class SnapshotManager implements ManageSnapshots {
     if (!isExternalTransaction) {
       transaction.commitTransaction();
     }
+  }
+
+  @Override
+  public void commitIf(List<Validation> validations) {
+    commitIfRefUpdatesExist();
+    // Add a no-op UpdateProperties to add given validations to transaction
+    transaction.updateProperties().commitIf(validations);
+    commit();
   }
 }
