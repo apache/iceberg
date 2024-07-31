@@ -98,7 +98,7 @@ public class AwsIntegTestUtil {
     while (hasContent) {
       ListObjectsV2Response response =
           s3.listObjectsV2(
-              ListObjectsV2Request.builder().bucket(bucketName).prefix(prefix).build());
+              ListObjectsV2Request.builder().bucket(bucketName).prefix(prefix + "/").build());
       hasContent = response.hasContents();
       if (hasContent) {
         s3.deleteObjects(
