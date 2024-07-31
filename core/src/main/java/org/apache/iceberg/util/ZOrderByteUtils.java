@@ -55,7 +55,7 @@ public class ZOrderByteUtils {
    * ByteBuffer)}
    */
   public static ByteBuffer intToOrderedBytes(int val, ByteBuffer reuse) {
-    return longToOrderedBytes(val, reuse);
+    return wholeNumberOrderedBytes(val, reuse);
   }
 
   /**
@@ -64,9 +64,7 @@ public class ZOrderByteUtils {
    * the 0 value so that we don't break our ordering when we cross the new 0 value.
    */
   public static ByteBuffer longToOrderedBytes(long val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
-    bytes.putLong(val ^ 0x8000000000000000L);
-    return bytes;
+    return wholeNumberOrderedBytes(val, reuse);
   }
 
   /**
@@ -74,7 +72,7 @@ public class ZOrderByteUtils {
    * ByteBuffer)}
    */
   public static ByteBuffer shortToOrderedBytes(short val, ByteBuffer reuse) {
-    return longToOrderedBytes(val, reuse);
+    return wholeNumberOrderedBytes(val, reuse);
   }
 
   /**
@@ -82,12 +80,12 @@ public class ZOrderByteUtils {
    * ByteBuffer)}
    */
   public static ByteBuffer tinyintToOrderedBytes(byte val, ByteBuffer reuse) {
-    return longToOrderedBytes(val, reuse);
+    return wholeNumberOrderedBytes(val, reuse);
   }
 
   /** Floats are treated the same as doubles in {@link #doubleToOrderedBytes(double, ByteBuffer)} */
   public static ByteBuffer floatToOrderedBytes(float val, ByteBuffer reuse) {
-    return doubleToOrderedBytes(val, reuse);
+    return floatingPointOrderedBytes(val, reuse);
   }
 
   /**
@@ -99,6 +97,16 @@ public class ZOrderByteUtils {
    * into lexicographically comparable bytes
    */
   public static ByteBuffer doubleToOrderedBytes(double val, ByteBuffer reuse) {
+    return floatingPointOrderedBytes(val, reuse);
+  }
+
+  private static ByteBuffer wholeNumberOrderedBytes(long val, ByteBuffer reuse) {
+    ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
+    bytes.putLong(val ^ 0x8000000000000000L);
+    return bytes;
+  }
+
+  private static ByteBuffer floatingPointOrderedBytes(double val, ByteBuffer reuse) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
     long lval = Double.doubleToLongBits(val);
     lval ^= ((lval >> (Integer.SIZE - 1)) | Long.MIN_VALUE);
