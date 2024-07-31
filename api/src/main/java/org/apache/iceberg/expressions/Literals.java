@@ -301,7 +301,7 @@ class Literals {
         case TIMESTAMP:
           return (Literal<T>) new TimestampLiteral(value());
         case TIMESTAMP_NANO:
-          return (Literal<T>) new TimestampNanoLiteral(value());
+          return new TimestampLiteral(value()).to(type);
         case DATE:
           if ((long) Integer.MAX_VALUE < value()) {
             return aboveMax();

@@ -109,9 +109,9 @@ public class TestConversions {
     assertConversion(
         400000L, TimestampNanoType.withZone(), new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
     assertThat(Literal.of(400000L).to(TimestampNanoType.withoutZone()).toByteBuffer().array())
-        .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+        .isEqualTo(new byte[] {0, -124, -41, 23, 0, 0, 0, 0});
     assertThat(Literal.of(400000L).to(TimestampNanoType.withZone()).toByteBuffer().array())
-        .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+        .isEqualTo(new byte[] {0, -124, -41, 23, 0, 0, 0, 0});
 
     // strings are stored as UTF-8 bytes (without length)
     // 'A' -> 65, 'B' -> 66, 'C' -> 67
