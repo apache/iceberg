@@ -688,9 +688,9 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
-    public RemoveUnusedSpecs removeUnusedSpecs() {
+    public MetadataMaintenance maintenance() {
       throw new UnsupportedOperationException(
-          "Cannot remove unused partition specs as part of a transaction");
+          "Cannot maintenance metadata as part of a transaction");
     }
 
     @Override

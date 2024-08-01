@@ -40,7 +40,7 @@ public class TestRemoveUnusedSpecs extends TestBase {
     assertThat(table.specs().size()).as("Added specs should be present").isEqualTo(5);
 
     PartitionSpec currentSpec = table.spec();
-    table.removeUnusedSpecs().commit();
+    table.maintenance().removeUnusedSpecs().commit();
 
     assertThat(table.specs().size()).as("All but current spec should be removed").isEqualTo(1);
     assertThat(table.spec()).as("Current spec shall not change").isEqualTo(currentSpec);
@@ -73,7 +73,7 @@ public class TestRemoveUnusedSpecs extends TestBase {
     assertThat(table.specs()).size().as("Added specs should be present").isEqualTo(5);
 
     PartitionSpec currentSpec = table.spec();
-    table.removeUnusedSpecs().commit();
+    table.maintenance().removeUnusedSpecs().commit();
     assertThat(table.specs().keySet()).as("Unused specs are removed").containsExactly(1, 3, 4);
     assertThat(table.spec()).as("Current spec shall not change").isEqualTo(currentSpec);
   }
@@ -94,7 +94,7 @@ public class TestRemoveUnusedSpecs extends TestBase {
     table.updateSpec().addField("data_bucket", Expressions.bucket("data", 16)).commit();
 
     // removeUnusedPartitionSpec shall not remove the unpartitioned spec
-    table.removeUnusedSpecs().commit();
+    table.maintenance().removeUnusedSpecs().commit();
     assertThat(table.specs().keySet()).as("unpartitioned spec is still used").containsExactly(0, 1);
 
     table.newDelete().deleteFile(file).commit();
@@ -108,7 +108,7 @@ public class TestRemoveUnusedSpecs extends TestBase {
     table.newAppend().appendFile(bucketFile).commit();
     table.expireSnapshots().expireOlderThan(System.currentTimeMillis()).commit();
 
-    table.removeUnusedSpecs().commit();
+    table.maintenance().removeUnusedSpecs().commit();
     assertThat(table.specs().keySet())
         .as("unpartitioned spec should be removed")
         .containsExactly(1);

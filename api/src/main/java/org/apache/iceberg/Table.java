@@ -212,15 +212,14 @@ public interface Table {
   AppendFiles newAppend();
 
   /**
-   * Remove any partition specs from the Metadata that are no longer used in any data files.
+   * Create a new {@link MetadataMaintenance maintenance API} to perform metadata maintenance
+   * operations.
    *
-   * <p>Always preserves the current default spec even if it has not yet been used.
-   *
-   * @return a new {@link RemoveUnusedSpecs}
+   * @return a new {@link MetadataMaintenance}
    */
-  default RemoveUnusedSpecs removeUnusedSpecs() {
+  default MetadataMaintenance maintenance() {
     throw new UnsupportedOperationException(
-        "Removing unused partition specs is not supported by " + getClass().getName());
+        "Maintenance operations are not supported by " + getClass().getName());
   }
 
   /**

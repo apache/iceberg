@@ -27,13 +27,18 @@ import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
 
 /**
  * Implementation of RemoveUnusedSpecs API to remove unused partition specs.
@@ -44,14 +49,12 @@ import org.apache.iceberg.util.Tasks;
  */
 class BaseRemoveUnusedSpecs implements RemoveUnusedSpecs {
   private final TableOperations ops;
-  private final Table table;
 
   private TableMetadata base;
 
-  BaseRemoveUnusedSpecs(TableOperations ops, Table table) {
+  BaseRemoveUnusedSpecs(TableOperations ops) {
     this.ops = ops;
     this.base = ops.current();
-    this.table = table;
   }
 
   @Override
@@ -78,11 +81,16 @@ class BaseRemoveUnusedSpecs implements RemoveUnusedSpecs {
             });
   }
 
-  private static Iterable<ManifestFile> reachableManifests(Table table) {
-    Iterable<Snapshot> snapshots = table.snapshots();
+  private Iterable<ManifestFile> reachableManifests() {
+    Iterable<Snapshot> snapshots = base.snapshots();
     Iterable<Iterable<ManifestFile>> manifestIterables =
-        Iterables.transform(snapshots, snapshot -> snapshot.allManifests(table.io()));
-    return Iterables.concat(manifestIterables);
+        Iterables.transform(snapshots, snapshot -> snapshot.allManifests(ops.io()));
+    try (CloseableIterable<ManifestFile> iterable =
+        new ParallelIterable<>(manifestIterables, ThreadPools.getWorkerPool())) {
+      return Sets.newHashSet(iterable);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close parallel iterable", e);
+    }
   }
 
   private TableMetadata internalApply() {
@@ -91,8 +99,7 @@ class BaseRemoveUnusedSpecs implements RemoveUnusedSpecs {
     int currentSpecId = base.defaultSpecId();
 
     Set<Integer> specsInUse =
-        Sets.newHashSet(
-            Iterables.transform(reachableManifests(table), ManifestFile::partitionSpecId));
+        Sets.newHashSet(Iterables.transform(reachableManifests(), ManifestFile::partitionSpecId));
 
     specsInUse.add(currentSpecId);
 
@@ -101,6 +108,6 @@ class BaseRemoveUnusedSpecs implements RemoveUnusedSpecs {
             .filter(spec -> !specsInUse.contains(spec.specId()))
             .collect(Collectors.toList());
 
-    return base.pruneUnusedSpecs(specsToRemove);
+    return TableMetadata.buildFrom(base).removeUnusedSpecs(specsToRemove).build();
   }
 }

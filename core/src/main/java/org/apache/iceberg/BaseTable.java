@@ -171,8 +171,8 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
-  public RemoveUnusedSpecs removeUnusedSpecs() {
-    return new BaseRemoveUnusedSpecs(ops, this);
+  public MetadataMaintenance maintenance() {
+    return new BaseMetadataMaintenance(ops);
   }
 
   @Override

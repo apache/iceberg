@@ -344,8 +344,8 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   }
 
   @Override
-  public RemoveUnusedSpecs removeUnusedSpecs() {
-    throw new UnsupportedOperationException(errorMsg("removeUnusedSpecs"));
+  public MetadataMaintenance maintenance() {
+    throw new UnsupportedOperationException(errorMsg("metadataMaintenance"));
   }
 
   @Override

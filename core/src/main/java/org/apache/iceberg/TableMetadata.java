@@ -597,20 +597,6 @@ public class TableMetadata implements Serializable {
         .build();
   }
 
-  /**
-   * Prune the unused partition specs from the table metadata.
-   *
-   * @param specsToRemove the partition specs to be removed
-   * @return the new table metadata with the unused partition specs removed
-   */
-  TableMetadata pruneUnusedSpecs(List<PartitionSpec> specsToRemove) {
-    Builder builder = new Builder(this);
-    for (PartitionSpec spec : specsToRemove) {
-      builder.removePartitionSpec(spec);
-    }
-    return builder.build();
-  }
-
   private void validateCurrentSnapshot() {
     Preconditions.checkArgument(
         currentSnapshotId < 0 || snapshotsById.containsKey(currentSnapshotId),
@@ -900,7 +886,6 @@ public class TableMetadata implements Serializable {
     private final Map<Long, List<StatisticsFile>> statisticsFiles;
     private final Map<Long, List<PartitionStatisticsFile>> partitionStatisticsFiles;
     private boolean suppressHistoricalSnapshots = false;
-    private boolean hasRemovedSpecs = false;
 
     // change tracking
     private final List<MetadataUpdate> changes;
@@ -1117,21 +1102,39 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    private Builder removePartitionSpec(PartitionSpec spec) {
-      Preconditions.checkArgument(
-          !hasPartitionSpecUpdates(),
-          "Cannot remove partition spec with other other partition spec update");
-      Preconditions.checkArgument(
-          spec.specId() != defaultSpecId, "Cannot remove default partition spec");
-      PartitionSpec toBeRemoved = specsById.remove(spec.specId());
-      Preconditions.checkArgument(
-          toBeRemoved == null || toBeRemoved.equals(spec),
-          "Cannot remove an unknown spec, spec id: %s",
-          spec.specId());
+    Builder removeUnusedSpecs(Iterable<PartitionSpec> specsToRemove) {
+      Set<Integer> specIdsToRemove = Sets.newHashSet();
+      for (PartitionSpec spec : specsToRemove) {
+        Preconditions.checkArgument(
+            spec.specId() != defaultSpecId, "Cannot remove default partition spec");
+        PartitionSpec toBeRemoved = specsById.remove(spec.specId());
+        Preconditions.checkArgument(
+            toBeRemoved == null || toBeRemoved.equals(spec),
+            "Cannot remove an unknown spec, spec id: %s",
+            spec.specId());
+        if (toBeRemoved != null) {
+          specIdsToRemove.add(spec.specId());
+        }
+      }
       this.specs =
-          specs.stream().filter(s -> s.specId() != spec.specId()).collect(Collectors.toList());
-      // TODO: Define a new MetadataUpdate for removing partition spec
-      this.hasRemovedSpecs = true;
+          specs.stream()
+              .filter(s -> !specIdsToRemove.contains(s.specId()))
+              .collect(Collectors.toList());
+      changes.add(new MetadataUpdate.RemoveUnusedSpecs(specIdsToRemove));
+      return this;
+    }
+
+    Builder removeUnusedSpecsById(Iterable<Integer> specIds) {
+      Set<Integer> specIdsToRemove = Sets.newHashSet(specIds);
+      Preconditions.checkArgument(
+          !specIdsToRemove.contains(defaultSpecId), "Cannot remove default partition spec");
+      this.specs =
+          specs.stream()
+              .filter(s -> !specIdsToRemove.contains(s.specId()))
+              .collect(Collectors.toList());
+      specsById.clear();
+      specsById.putAll(indexSpecs(specs));
+      changes.add(new MetadataUpdate.RemoveUnusedSpecs(specIdsToRemove));
       return this;
     }
 
@@ -1458,7 +1461,6 @@ public class TableMetadata implements Serializable {
           || (discardChanges && !changes.isEmpty())
           || metadataLocation != null
           || suppressHistoricalSnapshots
-          || hasRemovedSpecs
           || null != snapshotsSupplier;
     }
 
@@ -1479,12 +1481,6 @@ public class TableMetadata implements Serializable {
           changes.isEmpty() || discardChanges || metadataLocation == null,
           "Cannot set metadata location with changes to table metadata: %s changes",
           changes.size());
-
-      if (hasRemovedSpecs) {
-        Preconditions.checkArgument(
-            !hasPartitionSpecUpdates(),
-            "Cannot remove partition specs with other partition spec update");
-      }
 
       Schema schema = schemasById.get(currentSchemaId);
       PartitionSpec.checkCompatibility(specsById.get(defaultSpecId), schema);
@@ -1835,14 +1831,6 @@ public class TableMetadata implements Serializable {
 
     private <U extends MetadataUpdate> Stream<U> changes(Class<U> updateClass) {
       return changes.stream().filter(updateClass::isInstance).map(updateClass::cast);
-    }
-
-    private boolean hasPartitionSpecUpdates() {
-      return Stream.concat(
-              changes(MetadataUpdate.SetDefaultPartitionSpec.class),
-              changes(MetadataUpdate.AddPartitionSpec.class))
-          .findAny()
-          .isPresent();
     }
   }
 }
