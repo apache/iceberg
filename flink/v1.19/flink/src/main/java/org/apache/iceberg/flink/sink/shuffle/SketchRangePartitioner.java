@@ -18,17 +18,16 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import java.util.Arrays;
 import java.util.Comparator;
 import org.apache.flink.api.common.functions.Partitioner;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.SortOrderComparators;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.RowDataWrapper;
+import org.apache.iceberg.types.Comparators;
 
 class SketchRangePartitioner implements Partitioner<RowData> {
   private final SortKey sortKey;
@@ -38,7 +37,7 @@ class SketchRangePartitioner implements Partitioner<RowData> {
 
   SketchRangePartitioner(Schema schema, SortOrder sortOrder, SortKey[] rangeBounds) {
     this.sortKey = new SortKey(schema, sortOrder);
-    this.comparator = SortOrderComparators.forSchema(schema, sortOrder);
+    this.comparator = Comparators.forType(SortKeyUtil.sortKeySchema(schema, sortOrder).asStruct());
     this.rangeBounds = rangeBounds;
     this.rowDataWrapper = new RowDataWrapper(FlinkSchemaUtil.convert(schema), schema.asStruct());
   }
@@ -47,18 +46,6 @@ class SketchRangePartitioner implements Partitioner<RowData> {
   public int partition(RowData row, int numPartitions) {
     // reuse the sortKey and rowDataWrapper
     sortKey.wrap(rowDataWrapper.wrap(row));
-    int partition = Arrays.binarySearch(rangeBounds, sortKey, comparator);
-
-    // binarySearch either returns the match location or -[insertion point]-1
-    if (partition < 0) {
-      partition = -partition - 1;
-    }
-
-    if (partition > rangeBounds.length) {
-      partition = rangeBounds.length;
-    }
-
-    return RangePartitioner.adjustPartitionWithRescale(
-        partition, rangeBounds.length + 1, numPartitions);
+    return SketchUtil.partition(sortKey, numPartitions, rangeBounds, comparator);
   }
 }
