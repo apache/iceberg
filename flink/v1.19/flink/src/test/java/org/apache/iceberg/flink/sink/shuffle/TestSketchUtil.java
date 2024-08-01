@@ -137,107 +137,53 @@ public class TestSketchUtil {
   @ParameterizedTest
   @ValueSource(ints = {4, 6})
   public void testPartitioningAndScaleUp(int numPartitions) {
-    // calculated based on 4 partitions
+    // Range bounds are calculated based on 4 partitions
     SortKey[] rangeBounds =
         new SortKey[] {CHAR_KEYS.get("c"), CHAR_KEYS.get("j"), CHAR_KEYS.get("m")};
 
     // <= c
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("a"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(0);
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("c"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(0);
+    assertPartition(0, CHAR_KEYS.get("a"), numPartitions, rangeBounds);
+    assertPartition(0, CHAR_KEYS.get("c"), numPartitions, rangeBounds);
     // > c && <= j
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("d"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(1);
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("i"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(1);
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("j"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(1);
+    assertPartition(1, CHAR_KEYS.get("d"), numPartitions, rangeBounds);
+    assertPartition(1, CHAR_KEYS.get("i"), numPartitions, rangeBounds);
+    assertPartition(1, CHAR_KEYS.get("j"), numPartitions, rangeBounds);
     // > j && <= m
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("k"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(2);
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("l"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(2);
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("m"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(2);
+    assertPartition(2, CHAR_KEYS.get("k"), numPartitions, rangeBounds);
+    assertPartition(2, CHAR_KEYS.get("l"), numPartitions, rangeBounds);
+    assertPartition(2, CHAR_KEYS.get("m"), numPartitions, rangeBounds);
     // > m
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("n"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(3);
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("z"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(3);
+    assertPartition(3, CHAR_KEYS.get("n"), numPartitions, rangeBounds);
+    assertPartition(3, CHAR_KEYS.get("z"), numPartitions, rangeBounds);
   }
 
   @Test
   public void testPartitionScaleDown() {
-    // calculated based on 4 partitions
+    // Range bounds are calculated based on 4 partitions
     SortKey[] rangeBounds =
         new SortKey[] {CHAR_KEYS.get("c"), CHAR_KEYS.get("j"), CHAR_KEYS.get("m")};
-
     int numPartitions = 3;
+
     // <= c
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("a"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(0);
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("c"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(0);
+    assertPartition(0, CHAR_KEYS.get("a"), numPartitions, rangeBounds);
+    assertPartition(0, CHAR_KEYS.get("c"), numPartitions, rangeBounds);
     // > c && <= j
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("d"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(1);
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("i"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(1);
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("j"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(1);
+    assertPartition(1, CHAR_KEYS.get("d"), numPartitions, rangeBounds);
+    assertPartition(1, CHAR_KEYS.get("i"), numPartitions, rangeBounds);
+    assertPartition(1, CHAR_KEYS.get("j"), numPartitions, rangeBounds);
     // > j && <= m
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("k"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(2);
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("l"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(2);
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("m"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(2);
+    assertPartition(2, CHAR_KEYS.get("k"), numPartitions, rangeBounds);
+    assertPartition(2, CHAR_KEYS.get("l"), numPartitions, rangeBounds);
+    assertPartition(2, CHAR_KEYS.get("m"), numPartitions, rangeBounds);
     // > m
     // reassigns out-of-range partitions via mod (% 3 in this case)
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("n"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(0);
-    assertThat(
-            SketchUtil.partition(
-                CHAR_KEYS.get("z"), numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
-        .isEqualTo(0);
+    assertPartition(0, CHAR_KEYS.get("n"), numPartitions, rangeBounds);
+    assertPartition(0, CHAR_KEYS.get("z"), numPartitions, rangeBounds);
+  }
+
+  private static void assertPartition(
+      int expectedPartition, SortKey key, int numPartitions, SortKey[] rangeBounds) {
+    assertThat(SketchUtil.partition(key, numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
+        .isEqualTo(expectedPartition);
   }
 }
