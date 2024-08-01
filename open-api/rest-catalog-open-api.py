@@ -360,6 +360,11 @@ class RemovePartitionStatisticsUpdate(BaseUpdate):
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
+class RemovePartitionSpecsUpdate(BaseUpdate):
+    action: Optional[Literal['remove-partition-specs']] = None
+    spec_ids: List[int] = Field(..., alias='spec-ids')
+
+
 class AssertCreate(BaseModel):
     """
     The table must not already exist; used for create transactions
@@ -1070,6 +1075,7 @@ class TableUpdate(BaseModel):
         RemovePropertiesUpdate,
         SetStatisticsUpdate,
         RemoveStatisticsUpdate,
+        RemovePartitionSpecsUpdate,
     ]
 
 
