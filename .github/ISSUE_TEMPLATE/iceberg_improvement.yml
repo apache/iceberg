@@ -51,3 +51,11 @@ body:
         - Other
     validations:
       required: false
+  - type: checkboxes
+    attributes:
+      label: Willingness to contribute
+      description: The Apache Iceberg community encourages contributions. Would you or another member of your organization be willing to contribute this improvement/feature to the Apache Iceberg codebase?
+      options:
+        - label: I can contribute this improvement/feature independently
+        - label: I would be willing to contribute this improvement/feature with guidance from the Iceberg community
+        - label: I cannot contribute this improvement/feature at this time
