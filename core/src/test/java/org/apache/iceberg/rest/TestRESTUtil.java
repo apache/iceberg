@@ -20,11 +20,14 @@ package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestRESTUtil {
 
@@ -67,18 +70,24 @@ public class TestRESTUtil {
     }
   }
 
-  @Test
-  public void testRoundTripUrlEncodeDecodeNamespace() {
+  @ParameterizedTest
+  @ValueSource(strings = {"%1F", "%2D", "%2E", "#", "_"})
+  public void testRoundTripUrlEncodeDecodeNamespace(String namespaceSeparator) {
     // Namespace levels and their expected url encoded form
     Object[][] testCases =
         new Object[][] {
           new Object[] {new String[] {"dogs"}, "dogs"},
           new Object[] {new String[] {"dogs.named.hank"}, "dogs.named.hank"},
           new Object[] {new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank"},
-          new Object[] {new String[] {"dogs", "named", "hank"}, "dogs%1Fnamed%1Fhank"},
+          new Object[] {
+            new String[] {"dogs", "named", "hank"},
+            String.format("dogs%snamed%shank", namespaceSeparator, namespaceSeparator)
+          },
           new Object[] {
             new String[] {"dogs.and.cats", "named", "hank.or.james-westfall"},
-            "dogs.and.cats%1Fnamed%1Fhank.or.james-westfall"
+            String.format(
+                "dogs.and.cats%snamed%shank.or.james-westfall",
+                namespaceSeparator, namespaceSeparator),
           }
         };
 
@@ -89,12 +98,23 @@ public class TestRESTUtil {
       Namespace namespace = Namespace.of(levels);
 
       // To be placed into a URL path as query parameter or path parameter
-      assertThat(RESTUtil.encodeNamespace(namespace)).isEqualTo(encodedNs);
+      assertThat(RESTUtil.encodeNamespace(namespace, namespaceSeparator)).isEqualTo(encodedNs);
 
       // Decoded (after pulling as String) from URL
-      Namespace asNamespace = RESTUtil.decodeNamespace(encodedNs);
-      assertThat(asNamespace).isEqualTo(namespace);
+      assertThat(RESTUtil.decodeNamespace(encodedNs, namespaceSeparator)).isEqualTo(namespace);
     }
+  }
+
+  @Test
+  public void encodeAsOldClientAndDecodeAsNewServer() {
+    Namespace namespace = Namespace.of("first", "second", "third");
+    // old client would call encodeNamespace without specifying a separator
+    String encodedNamespace = RESTUtil.encodeNamespace(namespace);
+    assertThat(encodedNamespace).contains(RESTUtil.NAMESPACE_ESCAPED_SEPARATOR);
+
+    // newer server would try and decode the namespace with the separator it communicates to clients
+    Namespace decodeNamespace = RESTUtil.decodeNamespace(encodedNamespace, "%2E");
+    assertThat(decodeNamespace).isEqualTo(namespace);
   }
 
   @Test
@@ -138,5 +158,25 @@ public class TestRESTUtil {
     String formString = "client_id=12345&client_secret=" + asString;
 
     assertThat(RESTUtil.decodeFormData(formString)).isEqualTo(expected);
+  }
+
+  @Test
+  public void nullOrEmptyNamespaceSeparator() {
+    String errorMsg = "Invalid separator: null or empty";
+    assertThatThrownBy(() -> RESTUtil.encodeNamespace(Namespace.empty(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.encodeNamespace(Namespace.empty(), ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.decodeNamespace("namespace", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
+
+    assertThatThrownBy(() -> RESTUtil.decodeNamespace("namespace", ""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(errorMsg);
   }
 }

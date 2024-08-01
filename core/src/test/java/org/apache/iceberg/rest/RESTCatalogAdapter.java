@@ -73,6 +73,7 @@ import org.apache.iceberg.util.PropertyUtil;
 /** Adaptor class to translate REST requests into {@link Catalog} API calls. */
 public class RESTCatalogAdapter implements RESTClient {
   private static final Splitter SLASH = Splitter.on('/');
+  private static final String NAMESPACE_SEPARATOR = "%2E";
 
   private static final Map<Class<? extends Exception>, Integer> EXCEPTION_ERROR_CODES =
       ImmutableMap.<Class<? extends Exception>, Integer>builder()
@@ -282,7 +283,11 @@ public class RESTCatalogAdapter implements RESTClient {
         return castResponse(responseType, handleOAuthRequest(body));
 
       case CONFIG:
-        return castResponse(responseType, ConfigResponse.builder().build());
+        return castResponse(
+            responseType,
+            ConfigResponse.builder()
+                .withOverride(RESTSessionCatalog.NAMESPACE_SEPARATOR, NAMESPACE_SEPARATOR)
+                .build());
 
       case LIST_NAMESPACES:
         if (asNamespaceCatalog != null) {
@@ -665,7 +670,7 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {
-    return RESTUtil.decodeNamespace(pathVars.get("namespace"));
+    return RESTUtil.decodeNamespace(pathVars.get("namespace"), NAMESPACE_SEPARATOR);
   }
 
   private static TableIdentifier identFromPathVars(Map<String, String> pathVars) {

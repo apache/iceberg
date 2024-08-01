@@ -28,15 +28,13 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class RESTUtil {
-  private static final String NAMESPACE_ESCAPED_SEPARATOR = "%1F";
-  private static final Joiner NAMESPACE_ESCAPED_JOINER = Joiner.on(NAMESPACE_ESCAPED_SEPARATOR);
-  private static final Splitter NAMESPACE_ESCAPED_SPLITTER =
-      Splitter.on(NAMESPACE_ESCAPED_SEPARATOR);
+  static final String NAMESPACE_ESCAPED_SEPARATOR = "%1F";
 
   /**
    * @deprecated since 1.7.0, will be made private in 1.8.0; use {@link
@@ -194,15 +192,34 @@ public class RESTUtil {
    * @return UTF-8 encoded string representing the namespace, suitable for use as a URL parameter
    */
   public static String encodeNamespace(Namespace ns) {
-    Preconditions.checkArgument(ns != null, "Invalid namespace: null");
-    String[] levels = ns.levels();
+    return encodeNamespace(ns, NAMESPACE_ESCAPED_SEPARATOR);
+  }
+
+  /**
+   * Returns a String representation of a namespace that is suitable for use in a URL / URI.
+   *
+   * <p>This function needs to be called when a namespace is used as a path variable (or query
+   * parameter etc.), to format the namespace per the spec.
+   *
+   * <p>{@link RESTUtil#decodeNamespace(String, String)} should be used to parse the namespace from
+   * a URL parameter.
+   *
+   * @param namespace namespace to encode
+   * @param separator The namespace separator to use for encoding
+   * @return UTF-8 encoded string representing the namespace, suitable for use as a URL parameter
+   */
+  public static String encodeNamespace(Namespace namespace, String separator) {
+    Preconditions.checkArgument(namespace != null, "Invalid namespace: null");
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(separator), "Invalid separator: null or empty");
+    String[] levels = namespace.levels();
     String[] encodedLevels = new String[levels.length];
 
     for (int i = 0; i < levels.length; i++) {
       encodedLevels[i] = encodeString(levels[i]);
     }
 
-    return NAMESPACE_ESCAPED_JOINER.join(encodedLevels);
+    return Joiner.on(separator).join(encodedLevels);
   }
 
   /**
@@ -215,8 +232,32 @@ public class RESTUtil {
    * @return a namespace
    */
   public static Namespace decodeNamespace(String encodedNs) {
-    Preconditions.checkArgument(encodedNs != null, "Invalid namespace: null");
-    String[] levels = Iterables.toArray(NAMESPACE_ESCAPED_SPLITTER.split(encodedNs), String.class);
+    return decodeNamespace(encodedNs, NAMESPACE_ESCAPED_SEPARATOR);
+  }
+
+  /**
+   * Takes in a string representation of a namespace as used for a URL parameter and returns the
+   * corresponding namespace.
+   *
+   * <p>See also {@link #encodeNamespace} for generating correctly formatted URLs.
+   *
+   * @param encodedNamespace a namespace to decode
+   * @param separator The namespace separator to use for decoding. This should be the same separator
+   *     that was used when calling {@link RESTUtil#encodeNamespace(Namespace, String)}
+   * @return a namespace
+   */
+  public static Namespace decodeNamespace(String encodedNamespace, String separator) {
+    Preconditions.checkArgument(encodedNamespace != null, "Invalid namespace: null");
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(separator), "Invalid separator: null or empty");
+
+    // use legacy splitter for backwards compatibility in case an old clients encoded the namespace
+    // with %1F
+    Splitter splitter =
+        encodedNamespace.contains(NAMESPACE_ESCAPED_SEPARATOR)
+            ? NAMESPACE_SPLITTER
+            : Splitter.on(separator);
+    String[] levels = Iterables.toArray(splitter.split(encodedNamespace), String.class);
 
     // Decode levels in place
     for (int i = 0; i < levels.length; i++) {

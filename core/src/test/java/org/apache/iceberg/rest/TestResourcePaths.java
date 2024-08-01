@@ -24,6 +24,8 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestResourcePaths {
   private final String prefix = "ws/catalog";
@@ -62,6 +64,50 @@ public class TestResourcePaths {
     Namespace ns = Namespace.of("n", "s");
     assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs");
     assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%1Fs");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"%1F", "%2D", "%2E"})
+  public void testNamespaceWithMultipartNamespace(String namespaceSeparator) {
+    Namespace ns = Namespace.of("n", "s");
+    String namespace = String.format("n%ss", namespaceSeparator);
+    assertThat(
+            ResourcePaths.forCatalogProperties(
+                    ImmutableMap.of(
+                        "prefix",
+                        prefix,
+                        RESTSessionCatalog.NAMESPACE_SEPARATOR,
+                        namespaceSeparator))
+                .namespace(ns))
+        .isEqualTo("v1/ws/catalog/namespaces/" + namespace);
+
+    assertThat(
+            ResourcePaths.forCatalogProperties(
+                    ImmutableMap.of(RESTSessionCatalog.NAMESPACE_SEPARATOR, namespaceSeparator))
+                .namespace(ns))
+        .isEqualTo("v1/namespaces/" + namespace);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"%1F", "%2D", "%2E"})
+  public void testNamespaceWithDot(String namespaceSeparator) {
+    Namespace ns = Namespace.of("n.s", "a.b");
+    String namespace = String.format("n.s%sa.b", namespaceSeparator);
+    assertThat(
+            ResourcePaths.forCatalogProperties(
+                    ImmutableMap.of(
+                        "prefix",
+                        prefix,
+                        RESTSessionCatalog.NAMESPACE_SEPARATOR,
+                        namespaceSeparator))
+                .namespace(ns))
+        .isEqualTo("v1/ws/catalog/namespaces/" + namespace);
+
+    assertThat(
+            ResourcePaths.forCatalogProperties(
+                    ImmutableMap.of(RESTSessionCatalog.NAMESPACE_SEPARATOR, namespaceSeparator))
+                .namespace(ns))
+        .isEqualTo("v1/namespaces/" + namespace);
   }
 
   @Test
