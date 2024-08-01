@@ -19,12 +19,13 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.ManageSnapshots;
-import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -37,8 +38,8 @@ import org.slf4j.LoggerFactory;
 @Internal
 public class TagBasedLockFactory implements TriggerLockFactory {
   private static final Logger LOG = LoggerFactory.getLogger(TagBasedLockFactory.class);
-  private static final String RUNNING_TAG = "__flink_maintenance_running";
-  private static final String RECOVERING_TAG = "__flink_maintenance_recovering";
+  @VisibleForTesting static final String RUNNING_TAG_PREFIX = "__flink_maintenance_running_";
+  @VisibleForTesting static final String RECOVERING_TAG_PREFIX = "__flink_maintenance_recovering_";
   private static final int CHANGE_ATTEMPTS = 3;
 
   private final TableLoader tableLoader;
@@ -56,12 +57,12 @@ public class TagBasedLockFactory implements TriggerLockFactory {
 
   @Override
   public TriggerLockFactory.Lock createLock() {
-    return new Lock(table, RUNNING_TAG);
+    return new Lock(table, RUNNING_TAG_PREFIX);
   }
 
   @Override
   public TriggerLockFactory.Lock createRecoveryLock() {
-    return new Lock(table, RECOVERING_TAG);
+    return new Lock(table, RECOVERING_TAG_PREFIX);
   }
 
   @Override
@@ -71,13 +72,13 @@ public class TagBasedLockFactory implements TriggerLockFactory {
 
   public static class Lock implements TriggerLockFactory.Lock {
     private final Table table;
-    private final String lockKey;
+    private final String lockPrefix;
 
-    public Lock(Table table, String lockKey) {
+    public Lock(Table table, String lockPrefix) {
       Preconditions.checkNotNull(table, "Table should not be null");
-      Preconditions.checkNotNull(lockKey, "Lock key should not be null");
+      Preconditions.checkNotNull(lockPrefix, "Lock key should not be null");
       this.table = table;
-      this.lockKey = lockKey;
+      this.lockPrefix = lockPrefix;
     }
 
     /**
@@ -89,7 +90,7 @@ public class TagBasedLockFactory implements TriggerLockFactory {
     @Override
     public boolean tryLock() {
       if (isHeld()) {
-        LOG.info("Lock is already held");
+        LOG.info("Lock is already held. The relevant tag: {}", findLock());
         return false;
       }
 
@@ -99,6 +100,7 @@ public class TagBasedLockFactory implements TriggerLockFactory {
         LOG.info("Empty table, new empty commit added for using tags");
       }
 
+      String lockKey = lockPrefix + UUID.randomUUID();
       try {
         Tasks.foreach(1)
             .retry(CHANGE_ATTEMPTS)
@@ -106,11 +108,20 @@ public class TagBasedLockFactory implements TriggerLockFactory {
             .throwFailureWhenFinished()
             .run(
                 unused -> {
-                  table.refresh();
-                  ManageSnapshots manage = table.manageSnapshots();
-                  manage.createTag(lockKey, table.currentSnapshot().snapshotId());
-                  manage.commit();
-                  LOG.debug("Lock created");
+                  try {
+                    table.refresh();
+                    ManageSnapshots manage = table.manageSnapshots();
+                    manage.createTag(lockKey, table.currentSnapshot().snapshotId());
+                    manage.commit();
+                    LOG.debug("Lock created");
+                  } catch (Exception e) {
+                    if (!isHeld()) {
+                      LOG.warn("Retrying lock after exception", e);
+                      throw e;
+                    } else {
+                      LOG.debug("Lock created, hiding exception", e);
+                    }
+                  }
                 });
       } catch (Exception e) {
         LOG.info("Concurrent lock created. Is there a concurrent maintenance job running?", e);
@@ -124,29 +135,45 @@ public class TagBasedLockFactory implements TriggerLockFactory {
     public void unlock() {
       table.refresh();
 
-      if (table.refs().get(lockKey) != null) {
-        Tasks.foreach(1)
+      Optional<String> lockKey = findLock();
+      if (lockKey.isPresent()) {
+        Tasks.foreach(lockKey.get())
             .retry(CHANGE_ATTEMPTS)
             .stopOnFailure()
             .throwFailureWhenFinished()
             .run(
-                unused -> {
-                  table.refresh();
-                  ManageSnapshots manage = table.manageSnapshots();
-                  manage.removeTag(lockKey);
-                  manage.commit();
+                key -> {
+                  try {
+                    table.refresh();
+                    ManageSnapshots manage = table.manageSnapshots();
+                    manage.removeTag(key);
+                    manage.commit();
+                  } catch (Exception e) {
+                    table.refresh();
+                    if (table.refs().containsKey(key)) {
+                      LOG.warn("Retrying lock removal after exception", e);
+                      throw e;
+                    } else {
+                      LOG.debug("Lock removed, hiding exception", e);
+                    }
+                  }
                 });
         LOG.debug("Lock removed");
       } else {
-        LOG.warn("Missing lock, can not remove. Found {}.", table.refs().keySet());
+        LOG.warn(
+            "Missing lock, can not remove. Found only the following tags: {}.",
+            table.refs().keySet());
       }
     }
 
     @Override
     public boolean isHeld() {
       table.refresh();
-      Map<String, SnapshotRef> refs = table.refs();
-      return refs.keySet().stream().anyMatch(key -> key.equals(lockKey));
+      return findLock().isPresent();
+    }
+
+    private Optional<String> findLock() {
+      return table.refs().keySet().stream().filter(tag -> tag.startsWith(lockPrefix)).findAny();
     }
   }
 }
