@@ -243,7 +243,7 @@ Struct evolution requires the following rules for default values:
 
 Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids.
 
-When a projected column has an [identity partition transform](#partition-transforms) applied to it for a data file, the value from the [manifest file](#manifests)  must be used for that column (i.e. the column should not be read from the data file). This is to support tables that were migrated from other table formats (notably Hive) that do not write partition values to data files. Otherwise, if a field id is missing from a data file, its value for each row should be `null`.
+When a projected column has an [identity partition transform](#partition-transforms) applied to it for a data file, the value from the [manifest file](#manifests) must be used for that column (i.e. the column should not be read from the data file). This is to support tables that were migrated from other table formats (notably Hive) that do not write partition values to data files. Otherwise, if a field id is missing from a data file, its value for each row should be `null`.
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
 
