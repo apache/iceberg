@@ -211,7 +211,7 @@ paths:
         If table accounting.tax.paid.info exists, using 'SELECT NAMESPACE IN accounting' would
         translate into `GET /namespaces?parent=accounting` and must return a namespace, ["accounting", "tax"] only.
         Using 'SELECT NAMESPACE IN accounting.tax' would
-        translate into `GET /namespaces?parent=accounting%1Ftax` and must return a namespace, ["accounting", "tax", "paid"].
+        translate into `GET /namespaces?parent=accounting%2Etax` and must return a namespace, ["accounting", "tax", "paid"].
         If `parent` is not provided, all top-level namespaces should be listed.
       operationId: listNamespaces
       parameters:
@@ -222,12 +222,12 @@ paths:
           description:
             An optional namespace, underneath which to list namespaces.
             If not provided or empty, all top-level namespaces should be listed.
-            If parent is a multipart namespace, the parts must be separated by the unit separator (`0x1F`) byte.
+            If parent is a multipart namespace, the parts must be separated by the unit separator (`0x2E`) byte.
           required: false
           allowEmptyValue: true
           schema:
             type: string
-          example: "accounting%1Ftax"
+          example: "accounting%2Etax"
       responses:
         200:
           $ref: '#/components/responses/ListNamespacesResponse'
@@ -1450,14 +1450,14 @@ components:
       required: true
       description:
         A namespace identifier as a single string.
-        Multipart namespace parts should be separated by the unit separator (`0x1F`) byte.
+        Multipart namespace parts should be separated by the unit separator (`0x2E`) byte.
       schema:
         type: string
       examples:
         singlepart_namespace:
           value: "accounting"
         multipart_namespace:
-          value: "accounting%1Ftax"
+          value: "accounting%2Etax"
 
     prefix:
       name: prefix
@@ -3961,7 +3961,7 @@ components:
 
     MultipartNamespaceAsPathVariable:
       summary: A multi-part namespace, as represented in a path parameter
-      value: "accounting%1Ftax"
+      value: "accounting%2Etax"
 
     NamespaceAsPathVariable:
       summary: A single part namespace, as represented in a path paremeter
