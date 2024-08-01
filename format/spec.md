@@ -241,7 +241,9 @@ Struct evolution requires the following rules for default values:
 
 #### Column Projection
 
-Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids. If a field id is missing from a data file, its value for each row should be `null`.
+Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids. 
+
+When a projected column has an [identity partition transform](#partition-transforms) applied to it for a data file, the value from the [manifest file](#manifests)  must be used for that column (i.e. the column should not be read from the data file). This is to support tables that were migrated from other table formats (notably Hive) that do not write partition values to data files. Otherwise, if a field id is missing from a data file, its value for each row should be `null`.
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
 
@@ -399,6 +401,9 @@ Sorting floating-point numbers should produce the following behavior: `-NaN` < `
 
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
 
+#### Writing with Identity transform
+
+When writing data files, all columns including those with an identity transforms should be written to data files. This provides redundancy in case of corruption or bugs in the metadata layer. Due to [column projection rules](#column-projection) readers can still properly scan the table if columns that have an indentity partition transform applied are ommitted. This is not the  case for any other transform type.
 
 ### Manifests
 
@@ -591,10 +596,9 @@ For example, an `events` table with a timestamp column named `ts` that is partit
 
 Scan predicates are also used to filter data and delete files using column bounds and counts that are stored by field id in manifests. The same filter logic can be used for both data and delete files because both store metrics of the rows either inserted or deleted. If metrics show that a delete file has no rows that match a scan predicate, it may be ignored just as a data file would be ignored [2].
 
-Data files that match the query filter must be read by the scan. 
+Data files that match the query filter must be read by the scan.
 
 Note that for any snapshot, all file paths marked with "ADDED" or "EXISTING" may appear at most once across all manifest files in the snapshot. If a file path appears more than once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are not required to do so.
-
 
 Delete files that match the query filter must be applied to data files at read time, limited by the scope of the delete file using the following rules.
 
