@@ -77,7 +77,7 @@ public class TestCreateNamespaceRequest extends RequestResponseTestBase<CreateNa
   @Test
   public void testDeserializeInvalidRequest() {
     String jsonIncorrectTypeForNamespace =
-        "{\"namespace\":\"accounting%1Ftax\",\"properties\":null}";
+        "{\"namespace\":\"accounting%2Etax\",\"properties\":null}";
     assertThatThrownBy(() -> deserialize(jsonIncorrectTypeForNamespace))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageStartingWith("Cannot parse string array from non-array");

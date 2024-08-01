@@ -48,7 +48,7 @@ public class TestListTablesResponse extends RequestResponseTestBase<ListTablesRe
 
   @Test
   public void testDeserializeInvalidResponsesThrows() {
-    String identifiersHasWrongType = "{\"identifiers\":\"accounting%1Ftax\"}";
+    String identifiersHasWrongType = "{\"identifiers\":\"accounting%2Etax\"}";
     assertThatThrownBy(() -> deserialize(identifiersHasWrongType))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageContaining(

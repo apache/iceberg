@@ -33,13 +33,27 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class RESTUtil {
-  private static final char NAMESPACE_SEPARATOR = '\u001f';
-  public static final Joiner NAMESPACE_JOINER = Joiner.on(NAMESPACE_SEPARATOR);
-  public static final Splitter NAMESPACE_SPLITTER = Splitter.on(NAMESPACE_SEPARATOR);
-  private static final String NAMESPACE_ESCAPED_SEPARATOR = "%1F";
-  private static final Joiner NAMESPACE_ESCAPED_JOINER = Joiner.on(NAMESPACE_ESCAPED_SEPARATOR);
-  private static final Splitter NAMESPACE_ESCAPED_SPLITTER =
-      Splitter.on(NAMESPACE_ESCAPED_SEPARATOR);
+  private static final char NAMESPACE_LEGACY_SEPARATOR = '\u001f';
+  private static final String NAMESPACE_LEGACY_ESCAPED_SEPARATOR = "%1F";
+  private static final Splitter NAMESPACE_LEGACY_ESCAPED_SPLITTER =
+      Splitter.on(NAMESPACE_LEGACY_ESCAPED_SEPARATOR);
+
+  private static final String NAMESPACE_SEPARATOR = "%2E"; // u002e aka '.'
+  private static final Joiner NAMESPACE_ESCAPED_JOINER = Joiner.on(NAMESPACE_SEPARATOR);
+  private static final Splitter NAMESPACE_ESCAPED_SPLITTER = Splitter.on(NAMESPACE_SEPARATOR);
+
+  /**
+   * @deprecated since 1.7.0, will be made private in 1.8.0; use {@link
+   *     RESTUtil#encodeNamespace(Namespace)} instead.
+   */
+  @Deprecated public static final Joiner NAMESPACE_JOINER = Joiner.on(NAMESPACE_LEGACY_SEPARATOR);
+
+  /**
+   * @deprecated since 1.7.0, will be made private in 1.8.0; use {@link
+   *     RESTUtil#decodeNamespace(String)} instead.
+   */
+  @Deprecated
+  public static final Splitter NAMESPACE_SPLITTER = Splitter.on(NAMESPACE_LEGACY_SEPARATOR);
 
   private RESTUtil() {}
 
@@ -206,7 +220,14 @@ public class RESTUtil {
    */
   public static Namespace decodeNamespace(String encodedNs) {
     Preconditions.checkArgument(encodedNs != null, "Invalid namespace: null");
-    String[] levels = Iterables.toArray(NAMESPACE_ESCAPED_SPLITTER.split(encodedNs), String.class);
+    String[] levels;
+
+    // for backward compatibility with old clients that might send %1F as the namespace separator
+    if (encodedNs.contains(NAMESPACE_LEGACY_ESCAPED_SEPARATOR)) {
+      levels = Iterables.toArray(NAMESPACE_LEGACY_ESCAPED_SPLITTER.split(encodedNs), String.class);
+    } else {
+      levels = Iterables.toArray(NAMESPACE_ESCAPED_SPLITTER.split(encodedNs), String.class);
+    }
 
     // Decode levels in place
     for (int i = 0; i < levels.length; i++) {

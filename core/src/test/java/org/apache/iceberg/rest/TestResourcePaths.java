@@ -60,8 +60,8 @@ public class TestResourcePaths {
   @Test
   public void testNamespaceWithMultipartNamespace() {
     Namespace ns = Namespace.of("n", "s");
-    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs");
-    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%1Fs");
+    assertThat(withPrefix.namespace(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Es");
+    assertThat(withoutPrefix.namespace(ns)).isEqualTo("v1/namespaces/n%2Es");
   }
 
   @Test
@@ -84,8 +84,8 @@ public class TestResourcePaths {
   public void testNamespacePropertiesWithMultipartNamespace() {
     Namespace ns = Namespace.of("n", "s");
     assertThat(withPrefix.namespaceProperties(ns))
-        .isEqualTo("v1/ws/catalog/namespaces/n%1Fs/properties");
-    assertThat(withoutPrefix.namespaceProperties(ns)).isEqualTo("v1/namespaces/n%1Fs/properties");
+        .isEqualTo("v1/ws/catalog/namespaces/n%2Es/properties");
+    assertThat(withoutPrefix.namespaceProperties(ns)).isEqualTo("v1/namespaces/n%2Es/properties");
   }
 
   @Test
@@ -105,8 +105,8 @@ public class TestResourcePaths {
   @Test
   public void testTablesWithMultipartNamespace() {
     Namespace ns = Namespace.of("n", "s");
-    assertThat(withPrefix.tables(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/tables");
-    assertThat(withoutPrefix.tables(ns)).isEqualTo("v1/namespaces/n%1Fs/tables");
+    assertThat(withPrefix.tables(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Es/tables");
+    assertThat(withoutPrefix.tables(ns)).isEqualTo("v1/namespaces/n%2Es/tables");
   }
 
   @Test
@@ -126,8 +126,8 @@ public class TestResourcePaths {
   @Test
   public void testTableWithMultipartNamespace() {
     TableIdentifier ident = TableIdentifier.of("n", "s", "table");
-    assertThat(withPrefix.table(ident)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/tables/table");
-    assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/n%1Fs/tables/table");
+    assertThat(withPrefix.table(ident)).isEqualTo("v1/ws/catalog/namespaces/n%2Es/tables/table");
+    assertThat(withoutPrefix.table(ident)).isEqualTo("v1/namespaces/n%2Es/tables/table");
   }
 
   @Test
@@ -154,8 +154,8 @@ public class TestResourcePaths {
   @Test
   public void viewsWithMultipartNamespace() {
     Namespace ns = Namespace.of("n", "s");
-    assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/views");
-    assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/n%1Fs/views");
+    assertThat(withPrefix.views(ns)).isEqualTo("v1/ws/catalog/namespaces/n%2Es/views");
+    assertThat(withoutPrefix.views(ns)).isEqualTo("v1/namespaces/n%2Es/views");
   }
 
   @Test
@@ -176,7 +176,7 @@ public class TestResourcePaths {
   @Test
   public void viewWithMultipartNamespace() {
     TableIdentifier ident = TableIdentifier.of("n", "s", "view-name");
-    assertThat(withPrefix.view(ident)).isEqualTo("v1/ws/catalog/namespaces/n%1Fs/views/view-name");
-    assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/n%1Fs/views/view-name");
+    assertThat(withPrefix.view(ident)).isEqualTo("v1/ws/catalog/namespaces/n%2Es/views/view-name");
+    assertThat(withoutPrefix.view(ident)).isEqualTo("v1/namespaces/n%2Es/views/view-name");
   }
 }

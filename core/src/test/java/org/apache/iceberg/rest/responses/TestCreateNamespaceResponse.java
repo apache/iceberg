@@ -85,7 +85,7 @@ public class TestCreateNamespaceResponse extends RequestResponseTestBase<CreateN
   @Test
   public void testDeserializeInvalidResponse() {
     String jsonResponseMalformedNamespaceValue =
-        "{\"namespace\":\"accounting%1Ftax\",\"properties\":null}";
+        "{\"namespace\":\"accounting%2Etax\",\"properties\":null}";
     assertThatThrownBy(() -> deserialize(jsonResponseMalformedNamespaceValue))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageContaining("Cannot parse string array from non-array");

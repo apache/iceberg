@@ -25,6 +25,8 @@ import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestRESTUtil {
 
@@ -67,29 +69,41 @@ public class TestRESTUtil {
     }
   }
 
-  @Test
-  public void testRoundTripUrlEncodeDecodeNamespace() {
+  @ParameterizedTest
+  @ValueSource(strings = {"%1F", "%2E"})
+  public void testRoundTripUrlEncodeDecodeNamespace(String escapeChar) {
     // Namespace levels and their expected url encoded form
     Object[][] testCases =
         new Object[][] {
-          new Object[] {new String[] {"dogs"}, "dogs"},
-          new Object[] {new String[] {"dogs.named.hank"}, "dogs.named.hank"},
-          new Object[] {new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank"},
-          new Object[] {new String[] {"dogs", "named", "hank"}, "dogs%1Fnamed%1Fhank"},
+          // actual ns / encoded ns / expected ns
+          new Object[] {new String[] {"dogs"}, "dogs", "dogs"},
+          new Object[] {new String[] {"dogs.named.hank"}, "dogs.named.hank", "dogs.named.hank"},
+          new Object[] {
+            new String[] {"dogs/named/hank"}, "dogs%2Fnamed%2Fhank", "dogs%2Fnamed%2Fhank"
+          },
+          new Object[] {
+            new String[] {"dogs", "named", "hank"},
+            String.format("dogs%snamed%shank", escapeChar, escapeChar),
+            "dogs%2Enamed%2Ehank"
+          },
           new Object[] {
             new String[] {"dogs.and.cats", "named", "hank.or.james-westfall"},
-            "dogs.and.cats%1Fnamed%1Fhank.or.james-westfall"
+            String.format("dogs.and.cats%snamed%shank.or.james-westfall", escapeChar, escapeChar),
+            "dogs.and.cats%2Enamed%2Ehank.or.james-westfall"
           }
         };
 
     for (Object[] namespaceWithEncoding : testCases) {
       String[] levels = (String[]) namespaceWithEncoding[0];
       String encodedNs = (String) namespaceWithEncoding[1];
+      String expectedNamespace = (String) namespaceWithEncoding[2];
 
       Namespace namespace = Namespace.of(levels);
 
       // To be placed into a URL path as query parameter or path parameter
-      assertThat(RESTUtil.encodeNamespace(namespace)).isEqualTo(encodedNs);
+      assertThat(RESTUtil.encodeNamespace(namespace))
+          .doesNotContain("%1F")
+          .isEqualTo(expectedNamespace);
 
       // Decoded (after pulling as String) from URL
       Namespace asNamespace = RESTUtil.decodeNamespace(encodedNs);
