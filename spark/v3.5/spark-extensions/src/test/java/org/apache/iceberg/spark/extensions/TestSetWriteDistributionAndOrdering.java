@@ -214,6 +214,26 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testSetWriteLocallyOrderedToPartitionedTable() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, category string) USING iceberg PARTITIONED BY (id)",
+        tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.sortOrder().isUnsorted()).as("Table should start unsorted").isTrue();
+
+    sql("ALTER TABLE %s WRITE LOCALLY ORDERED BY category DESC", tableName);
+
+    table.refresh();
+
+    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
+    assertThat(distributionMode).as("Distribution mode must match").isEqualTo("none");
+
+    SortOrder expected =
+        SortOrder.builderFor(table.schema()).withOrderId(1).desc("category").build();
+    assertThat(table.sortOrder()).as("Sort order must match").isEqualTo(expected);
+  }
+
+  @TestTemplate
   public void testSetWriteDistributedByWithSort() {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, category string) USING iceberg PARTITIONED BY (category)",
