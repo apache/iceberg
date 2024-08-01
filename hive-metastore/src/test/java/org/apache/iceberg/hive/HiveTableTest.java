@@ -69,6 +69,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
+import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.ConfigProperties;
@@ -351,6 +352,11 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     assertThat(catalog.tableExists(TABLE_IDENTIFIER)).isTrue();
     HIVE_METASTORE_EXTENSION.metastoreClient().dropTable(DB_NAME, hiveTableName);
+
+    // test listing tables in a db that doesn't exist
+    assertThatThrownBy(() -> catalog.listTables(Namespace.of("db_does_not_exist")))
+            .isInstanceOf(NoSuchNamespaceException.class)
+            .hasMessage("Namespace does not exist: db_does_not_exist");
   }
 
   @ParameterizedTest
