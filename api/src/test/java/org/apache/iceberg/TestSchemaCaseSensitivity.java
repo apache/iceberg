@@ -37,8 +37,7 @@ public class TestSchemaCaseSensitivity {
             required(3, "DATA", Types.StringType.get()));
     assertThatIllegalArgumentException()
         .isThrownBy(() -> schema.caseInsensitiveFindField("DATA"))
-        .withMessageStartingWith(
-            "Schema does not support case-insensitivity; duplicate column name found in schema:");
+        .withMessage("Multiple entries with same key: data=3 and data=2");
   }
 
   @Test

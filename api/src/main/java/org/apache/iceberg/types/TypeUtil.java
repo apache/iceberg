@@ -36,7 +36,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class TypeUtil {
 
@@ -182,20 +181,10 @@ public class TypeUtil {
   }
 
   public static Map<String, Integer> indexByLowerCaseName(Types.StructType struct) {
-    Map<String, Integer> indexByLowerCaseName = Maps.newHashMap();
+    ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
     indexByName(struct)
-        .forEach(
-            (name, integer) -> {
-              String normalizedName = name.toLowerCase(Locale.ROOT);
-              if (indexByLowerCaseName.containsKey(normalizedName)) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        "Schema does not support case-insensitivity; duplicate column name found in schema: %s and %s",
-                        name, struct.toString()));
-              }
-              indexByLowerCaseName.put(normalizedName, integer);
-            });
-    return indexByLowerCaseName;
+        .forEach((name, integer) -> builder.put(name.toLowerCase(Locale.ROOT), integer));
+    return builder.buildOrThrow();
   }
 
   public static Map<Integer, Types.NestedField> indexById(Types.StructType struct) {
