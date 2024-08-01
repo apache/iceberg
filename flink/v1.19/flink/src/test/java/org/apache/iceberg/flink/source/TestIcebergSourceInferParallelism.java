@@ -126,7 +126,9 @@ public class TestIcebergSourceInferParallelism {
 
     Configuration config = new Configuration();
     config.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, true);
-    config.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX, 3);
+    config.set(
+        FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM_MAX,
+        MAX_INFERRED_PARALLELISM);
 
     DataStream<Row> dataStream =
         IcebergSource.forRowData()
@@ -153,6 +155,10 @@ public class TestIcebergSourceInferParallelism {
     }
   }
 
+  /**
+   * Borrowed this approach from Flink {@code FileSourceTextLinesITCase} to get source parallelism
+   * from execution graph.
+   */
   private static void verifySourceParallelism(
       int expectedParallelism, AccessExecutionGraph executionGraph) {
     AccessExecutionJobVertex sourceVertex =
@@ -160,6 +166,10 @@ public class TestIcebergSourceInferParallelism {
     assertThat(sourceVertex.getParallelism()).isEqualTo(expectedParallelism);
   }
 
+  /**
+   * Use reflection to get {@code InternalMiniClusterExtension} and {@code MiniCluster} to get
+   * execution graph and source parallelism. Haven't find other way via public APIS.
+   */
   private static MiniCluster miniCluster() throws Exception {
     Field privateField =
         MiniClusterExtension.class.getDeclaredField("internalMiniClusterExtension");
