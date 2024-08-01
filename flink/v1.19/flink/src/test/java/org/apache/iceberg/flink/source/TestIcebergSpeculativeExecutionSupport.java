@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.RuntimeExecutionMode;
+import org.apache.flink.api.common.TaskInfo;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.BatchExecutionOptions;
@@ -51,6 +52,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+/**
+ * There is a infinite sleep in the test. Add a timeout to the test to avoid stuck situation in case
+ * anything goes wrong unexpectedly.
+ */
 @Timeout(value = 60)
 public class TestIcebergSpeculativeExecutionSupport extends TestBase {
   private static final int NUM_TASK_MANAGERS = 1;
@@ -146,9 +151,9 @@ public class TestIcebergSpeculativeExecutionSupport extends TestBase {
   private static class TestingMap extends RichMapFunction<Row, Row> {
     @Override
     public Row map(Row row) throws Exception {
-      // Put the subtasks with the first attempt to sleep to trigger speculative
-      // execution
-      if (getRuntimeContext().getTaskInfo().getAttemptNumber() <= 0) {
+      // Simulate slow subtask 0 with attempt 0
+      TaskInfo taskInfo = getRuntimeContext().getTaskInfo();
+      if (taskInfo.getIndexOfThisSubtask() == 0 && taskInfo.getAttemptNumber() <= 0) {
         Thread.sleep(Integer.MAX_VALUE);
       }
 
