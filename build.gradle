@@ -364,6 +364,7 @@ project(':iceberg-core') {
     }
 
     testImplementation libs.jetty.servlet
+    testImplementation libs.jakarta.servlet
     testImplementation libs.jetty.server
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
