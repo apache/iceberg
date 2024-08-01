@@ -164,7 +164,7 @@ A **`list`** is a collection of values with some element type. The element field
 
 A **`map`** is a collection of key-value pairs with a key type and a value type. Both the key field and value field each have an integer id that is unique in the table schema. Map keys are required and map values can be either optional or required. Both map keys and map values may be any type, including nested types.
 
-A **`variant`** is a type to represent semi-structured data. A variant value can store a value of any other type, including any primitive, struct, list or map values. The variant value is encoded in its own binary [encoding](variant-spec.md). Variant type is ddded in [v3](#version-3).
+A **`variant`** is a type to represent semi-structured data. A variant value can store a value of any other type, including any primitive, struct, list or map values. The variant value is encoded in its own binary [encoding](https://docs.google.com/document/d/1gY_rdcfqlO0PAnYbRoOKsHz9NhUJSUYLaWvvVQpnKSI/). Variant type is added in [v3](#version-3).
 
 #### Primitive Types
 
