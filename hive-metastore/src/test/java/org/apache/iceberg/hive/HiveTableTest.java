@@ -355,8 +355,8 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     // test listing tables in a db that doesn't exist
     assertThatThrownBy(() -> catalog.listTables(Namespace.of("db_does_not_exist")))
-            .isInstanceOf(NoSuchNamespaceException.class)
-            .hasMessage("Namespace does not exist: db_does_not_exist");
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessage("Namespace does not exist: db_does_not_exist");
   }
 
   @ParameterizedTest
