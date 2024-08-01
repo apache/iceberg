@@ -50,6 +50,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
@@ -113,6 +114,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   private final FileIO fileIO;
   private final KeyManagementClient keyManagementClient;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
+  private final long kekCacheTimeout;
 
   private EncryptionManager encryptionManager;
   private EncryptingFileIO encryptingFileIO;
@@ -128,7 +130,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       String catalogName,
       String database,
       String table) {
-    this(conf, metaClients, fileIO, null, catalogName, database, table);
+    this(conf, metaClients, fileIO, null, catalogName, database, table, 0L);
   }
 
   protected HiveTableOperations(
@@ -138,7 +140,8 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       KeyManagementClient keyManagementClient,
       String catalogName,
       String database,
-      String table) {
+      String table,
+      long kekCacheTimeout) {
     this.conf = conf;
     this.metaClients = metaClients;
     this.fileIO = fileIO;
@@ -154,6 +157,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     this.maxHiveTablePropertySize =
         conf.getLong(HIVE_TABLE_PROPERTY_MAX_SIZE, HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT);
     this.encryptedTable = false;
+    this.kekCacheTimeout = kekCacheTimeout;
   }
 
   @Override
@@ -198,7 +202,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       encryptedTable = true;
       encryptionManager =
           EncryptionUtil.createEncryptionManager(
-              encryptionKeyId, encryptionDekLength, keyManagementClient);
+              encryptionKeyId, encryptionDekLength, keyManagementClient, kekCacheTimeout);
     } else {
       encryptionManager = PlaintextEncryptionManager.instance();
     }
@@ -236,7 +240,15 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   @Override
   protected void doCommit(TableMetadata base, TableMetadata metadata) {
     boolean newTable = base == null;
-    encryptionPropsFromMetadata(metadata);
+
+    encryptionPropsFromMetadata(metadata.properties());
+
+    if (encryption() instanceof StandardEncryptionManager) {
+      StandardEncryptionManager standardEncryptionManager =
+          (StandardEncryptionManager) encryptionManager;
+      metadata.setKekCache(standardEncryptionManager.kekCache());
+    }
+
     String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
     boolean hiveEngineEnabled = hiveEngineEnabled(metadata, conf);
     boolean keepHiveStats = conf.getBoolean(ConfigProperties.KEEP_HIVE_STATS, false);
@@ -389,13 +401,13 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
         "Committed to table {} with the new metadata location {}", fullName, newMetadataLocation);
   }
 
-  private void encryptionPropsFromMetadata(TableMetadata metadata) {
+  private void encryptionPropsFromMetadata(Map<String, String> tableProperties) {
     if (encryptionKeyId == null) {
-      encryptionKeyId = metadata.property(TableProperties.ENCRYPTION_TABLE_KEY, null);
+      encryptionKeyId = tableProperties.get(TableProperties.ENCRYPTION_TABLE_KEY);
     }
 
     if (encryptionKeyId != null && encryptionDekLength <= 0) {
-      String dekLength = metadata.property(TableProperties.ENCRYPTION_DEK_LENGTH, null);
+      String dekLength = tableProperties.get(TableProperties.ENCRYPTION_DEK_LENGTH);
       encryptionDekLength =
           (dekLength == null)
               ? TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT

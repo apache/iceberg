@@ -111,9 +111,18 @@ public class EncryptingFileIO implements FileIO, Serializable {
     }
   }
 
+  /**
+   * @deprecated will be removed in 2.0.0. use {@link #newDecryptingInputFile(String, long,
+   *     ByteBuffer)} instead.
+   */
+  @Deprecated
+  public InputFile newDecryptingInputFile(String path, ByteBuffer buffer) {
+    throw new RuntimeIOException("Deprecated API. File decryption without length is not safe");
+  }
+
   public InputFile newDecryptingInputFile(String path, long length, ByteBuffer buffer) {
     Preconditions.checkArgument(
-        length > 0, "Cannot safely decrypt table metadata file because its size is not specified");
+        length > 0, "Cannot safely decrypt file %s because its length is not specified", path);
 
     InputFile inputFile = io.newInputFile(path, length);
 

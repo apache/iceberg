@@ -58,6 +58,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,6 +83,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
   private Map<String, String> catalogProperties;
+  private long kekCacheTimeout;
 
   public HiveCatalog() {}
 
@@ -115,6 +117,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
     if (catalogProperties.containsKey(CatalogProperties.ENCRYPTION_KMS_IMPL)) {
       this.keyManagementClient = EncryptionUtil.createKmsClient(properties);
+      this.kekCacheTimeout =
+          PropertyUtil.propertyAsLong(
+              properties,
+              CatalogProperties.KEK_CACHE_TIMEOUT_MS,
+              CatalogProperties.KEK_CACHE_TIMEOUT_MS_DEFAULT);
     }
 
     this.clients = new CachedClientPool(conf, properties);
@@ -520,7 +527,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
     return new HiveTableOperations(
-        conf, clients, fileIO, keyManagementClient, name, dbName, tableName);
+        conf, clients, fileIO, keyManagementClient, name, dbName, tableName, kekCacheTimeout);
   }
 
   @Override

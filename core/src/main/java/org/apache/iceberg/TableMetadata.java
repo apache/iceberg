@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.encryption.KeyEncryptionKey;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -260,6 +261,7 @@ public class TableMetadata implements Serializable {
   private final List<PartitionStatisticsFile> partitionStatisticsFiles;
   private final List<MetadataUpdate> changes;
   private SerializableSupplier<List<Snapshot>> snapshotsSupplier;
+  private Map<String, KeyEncryptionKey> kekCache;
   private volatile List<Snapshot> snapshots;
   private volatile Map<Long, Snapshot> snapshotsById;
   private volatile Map<String, SnapshotRef> refs;
@@ -510,6 +512,14 @@ public class TableMetadata implements Serializable {
     ensureSnapshotsLoaded();
 
     return snapshots;
+  }
+
+  public void setKekCache(Map<String, KeyEncryptionKey> kekCache) {
+    this.kekCache = kekCache;
+  }
+
+  public Map<String, KeyEncryptionKey> kekCache() {
+    return kekCache;
   }
 
   private synchronized void ensureSnapshotsLoaded() {
