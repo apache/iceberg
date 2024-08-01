@@ -38,7 +38,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestManifestWriter extends TestBase {
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
-    return Arrays.asList(1, 2);
+    return Arrays.asList(1, 2, 3);
   }
 
   private static final int FILE_SIZE_CHECK_ROWS_DIVISOR = 250;

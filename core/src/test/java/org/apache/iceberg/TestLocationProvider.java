@@ -34,7 +34,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestLocationProvider extends TestBase {
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
-    return Arrays.asList(1, 2);
+    return Arrays.asList(1, 2, 3);
   }
 
   // publicly visible for testing to be dynamically loaded

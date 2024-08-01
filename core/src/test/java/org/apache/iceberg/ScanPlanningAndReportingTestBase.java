@@ -47,7 +47,7 @@ public abstract class ScanPlanningAndReportingTestBase<
 
   @Parameters(name = "formatVersion = {0}")
   public static List<Object> parameters() {
-    return Arrays.asList(2);
+    return Arrays.asList(2, 3);
   }
 
   protected abstract ScanT newScan(Table table);

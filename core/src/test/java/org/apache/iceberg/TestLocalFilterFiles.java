@@ -28,7 +28,7 @@ public class TestLocalFilterFiles
 
   @Parameters(name = "formatVersion = {0}")
   public static List<Object> parameters() {
-    return Arrays.asList(1, 2);
+    return Arrays.asList(1, 2, 3);
   }
 
   @Override

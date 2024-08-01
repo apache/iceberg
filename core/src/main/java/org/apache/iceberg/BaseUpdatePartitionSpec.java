@@ -118,7 +118,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
    */
   private PartitionField recycleOrCreatePartitionField(
       Pair<Integer, Transform<?, ?>> sourceTransform, String name) {
-    if (formatVersion == 2 && base != null) {
+    if (formatVersion >= 2 && base != null) {
       int sourceId = sourceTransform.first();
       Transform<?, ?> transform = sourceTransform.second();
 

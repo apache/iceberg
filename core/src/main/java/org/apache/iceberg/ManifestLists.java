@@ -66,6 +66,9 @@ class ManifestLists {
       case 2:
         return new ManifestListWriter.V2Writer(
             manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
+      case 3:
+        return new ManifestListWriter.V3Writer(
+            manifestListFile, snapshotId, parentSnapshotId, sequenceNumber);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest list for table version: " + formatVersion);

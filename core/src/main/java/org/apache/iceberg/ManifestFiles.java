@@ -182,6 +182,8 @@ public class ManifestFiles {
         return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId);
       case 2:
         return new ManifestWriter.V2Writer(spec, encryptedOutputFile, snapshotId);
+      case 3:
+        return new ManifestWriter.V3Writer(spec, encryptedOutputFile, snapshotId);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -238,6 +240,8 @@ public class ManifestFiles {
         throw new IllegalArgumentException("Cannot write delete files in a v1 table");
       case 2:
         return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId);
+      case 3:
+        return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);

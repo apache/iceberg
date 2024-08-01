@@ -71,7 +71,7 @@ public class TestFormatVersions extends TestBase {
                     base,
                     base.upgradeToFormatVersion(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1)))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot upgrade table to unsupported format version: v3 (supported: v2)");
+        .hasMessage("Cannot upgrade table to unsupported format version: v4 (supported: v3)");
 
     assertThat(ops.current().formatVersion()).isEqualTo(1);
   }
