@@ -243,7 +243,7 @@ class TestTriggerManager extends OperatorTestBase {
       testHarness.processElement(TableChange.builder().commitNum(1).build(), EVENT_TIME_2);
       assertTriggers(
           testHarness.extractOutputValues(),
-          Lists.newArrayList(Trigger.cleanUp(testHarness.getProcessingTime())));
+          Lists.newArrayList(Trigger.recovery(testHarness.getProcessingTime())));
 
       // Remove the lock to allow the next trigger
       recoveringLock.unlock();
@@ -328,7 +328,7 @@ class TestTriggerManager extends OperatorTestBase {
       testHarness.open();
 
       ++processingTime;
-      expected.add(Trigger.cleanUp(processingTime));
+      expected.add(Trigger.recovery(processingTime));
       testHarness.setProcessingTime(processingTime);
       testHarness.processElement(TableChange.builder().commitNum(2).build(), processingTime);
       assertTriggers(testHarness.extractOutputValues(), expected);
@@ -603,7 +603,7 @@ class TestTriggerManager extends OperatorTestBase {
       Trigger actualTrigger = actual.get(i);
       assertThat(actualTrigger.timestamp()).isEqualTo(expectedTrigger.timestamp());
       assertThat(actualTrigger.taskId()).isEqualTo(expectedTrigger.taskId());
-      assertThat(actualTrigger.isCleanUp()).isEqualTo(expectedTrigger.isCleanUp());
+      assertThat(actualTrigger.isRecovery()).isEqualTo(expectedTrigger.isRecovery());
       if (expectedTrigger.table() == null) {
         assertThat(actualTrigger.table()).isNull();
       } else {

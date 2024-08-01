@@ -27,20 +27,20 @@ class Trigger {
   private final long timestamp;
   private final SerializableTable table;
   private final Integer taskId;
-  private final boolean isCleanUp;
+  private final boolean isRecovery;
 
-  private Trigger(long timestamp, SerializableTable table, Integer taskId, boolean isCleanUp) {
+  private Trigger(long timestamp, SerializableTable table, Integer taskId, boolean isRecovery) {
     this.timestamp = timestamp;
     this.table = table;
     this.taskId = taskId;
-    this.isCleanUp = isCleanUp;
+    this.isRecovery = isRecovery;
   }
 
   static Trigger create(long timestamp, SerializableTable table, int taskId) {
     return new Trigger(timestamp, table, taskId, false);
   }
 
-  static Trigger cleanUp(long timestamp) {
+  static Trigger recovery(long timestamp) {
     return new Trigger(timestamp, null, null, true);
   }
 
@@ -56,8 +56,8 @@ class Trigger {
     return taskId;
   }
 
-  boolean isCleanUp() {
-    return isCleanUp;
+  boolean isRecovery() {
+    return isRecovery;
   }
 
   @Override
@@ -66,7 +66,7 @@ class Trigger {
         .add("timestamp", timestamp)
         .add("table", table == null ? null : table.name())
         .add("taskId", taskId)
-        .add("isCleanUp", isCleanUp)
+        .add("isRecovery", isRecovery)
         .toString();
   }
 }

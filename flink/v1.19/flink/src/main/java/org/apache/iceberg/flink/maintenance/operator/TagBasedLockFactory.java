@@ -113,7 +113,7 @@ public class TagBasedLockFactory implements TriggerLockFactory {
                   LOG.debug("Lock created");
                 });
       } catch (Exception e) {
-        LOG.info("Concurrent lock created. Stop concurrent maintenance jobs.", e);
+        LOG.info("Concurrent lock created. Is there a concurrent maintenance job running?", e);
         return false;
       }
 

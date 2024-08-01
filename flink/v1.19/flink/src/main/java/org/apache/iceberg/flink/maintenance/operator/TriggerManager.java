@@ -50,7 +50,9 @@ import org.slf4j.LoggerFactory;
  * result of the {@link TriggerEvaluator}.
  *
  * <p>The TriggerManager prevents overlapping Maintenance Task runs using {@link
- * org.apache.iceberg.flink.maintenance.operator.TriggerLockFactory.Lock}.
+ * org.apache.iceberg.flink.maintenance.operator.TriggerLockFactory.Lock}. The current
+ * implementation only handles conflicts within a single job. Users should avoid scheduling
+ * maintenance for the same table in different Flink jobs.
  *
  * <p>The TriggerManager should run as a global operator. {@link KeyedProcessFunction} is used, so
  * the timer functions are available, but the key is not used.
@@ -186,14 +188,13 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     accumulatedChanges.forEach(tableChange -> tableChange.merge(change));
 
     long current = ctx.timerService().currentProcessingTime();
-    Long nextTime = nextEvaluationTime;
-    if (nextTime == null) {
+    if (nextEvaluationTime == null) {
       checkAndFire(current, ctx.timerService(), out);
     } else {
       LOG.info(
           "Trigger manager rate limiter triggered current: {}, next: {}, accumulated changes: {}",
           current,
-          nextTime,
+          nextEvaluationTime,
           accumulatedChanges);
       rateLimiterTriggeredCounter.inc();
     }
@@ -216,11 +217,11 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     if (shouldRestoreTasks) {
       if (recoveryLock.isHeld()) {
         // Recovered tasks in progress. Skip trigger check
-        LOG.debug("The cleanup lock is still held at {}", current);
+        LOG.debug("The recovery lock is still held at {}", current);
         schedule(timerService, current + lockCheckDelayMs);
         return;
       } else {
-        LOG.info("The cleanup is finished at {}", current);
+        LOG.info("The recovery is finished at {}", current);
         shouldRestoreTasks = false;
       }
     }
@@ -251,7 +252,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
       schedule(timerService, current + minFireDelayMs);
       startsFrom = taskToStart + 1;
     } else {
-      // The lock is already held by someone
+      // A task is already running, waiting for it to finish
       LOG.info("Delaying task on failed lock check: {}", current);
 
       startsFrom = taskToStart;
@@ -308,14 +309,16 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
       if (shouldRestoreTasks) {
         // When the job state is restored, there could be ongoing tasks.
         // To prevent collision with the new triggers the following is done:
-        //  - add a cleanup lock
-        //  - fire a clean-up trigger
+        //  - add a recovery lock
+        //  - fire a recovery trigger
         // This ensures that the tasks of the previous trigger are executed, and the lock is removed
         // in the end. The result of the 'tryLock' is ignored as an already existing lock prevents
         // collisions as well.
         recoveryLock.tryLock();
-        out.collect(Trigger.cleanUp(current));
-        schedule(timerService, current + minFireDelayMs);
+        out.collect(Trigger.recovery(current));
+        if (nextEvaluationTime == null) {
+          schedule(timerService, current + minFireDelayMs);
+        }
       }
 
       inited = true;
