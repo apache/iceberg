@@ -690,7 +690,7 @@ public class BaseTransaction implements Transaction {
     @Override
     public MetadataMaintenance maintenance() {
       throw new UnsupportedOperationException(
-          "Cannot maintenance metadata as part of a transaction");
+          "Cannot perform metadata maintenance as part of a transaction");
     }
 
     @Override

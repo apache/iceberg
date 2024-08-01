@@ -175,13 +175,6 @@ public interface MetadataUpdate extends Serializable {
     public Set<Integer> specIds() {
       return specIds;
     }
-
-    @Override
-    public void applyTo(TableMetadata.Builder metadataBuilder) {
-      // metadataBuilder.removeUnusedSpecsById(specIds);
-      throw new UnsupportedOperationException(
-          "RemoveUnusedSpecs is not supported for REST catalog yet");
-    }
   }
 
   class AddSortOrder implements MetadataUpdate {
