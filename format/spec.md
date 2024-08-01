@@ -403,7 +403,7 @@ A data or delete file is associated with a sort order by the sort order's id wit
 
 #### Writing with Identity transform
 
-When writing data files, all columns including those with an identity transforms should be written to data files. This provides redundancy in case of corruption or bugs in the metadata layer. Due to [column projection rules](#column-projection) readers can still properly scan the table if columns that have an indentity partition transforms applied are ommitted. This is not the  case for any other transform type.
+When writing data files, all columns including those with an identity transforms should be written to data files. This provides redundancy in case of corruption or bugs in the metadata layer. Due to [column projection rules](#column-projection) readers can still properly scan the table if columns that have an identity partition transforms applied are omitted. This is not the case for any other transform type.
 
 ### Manifests
 
