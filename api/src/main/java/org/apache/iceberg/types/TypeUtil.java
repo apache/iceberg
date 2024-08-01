@@ -185,7 +185,16 @@ public class TypeUtil {
     Map<String, Integer> indexByLowerCaseName = Maps.newHashMap();
     indexByName(struct)
         .forEach(
-            (name, integer) -> indexByLowerCaseName.put(name.toLowerCase(Locale.ROOT), integer));
+            (name, integer) -> {
+              String normalizedName = name.toLowerCase(Locale.ROOT);
+              if (indexByLowerCaseName.containsKey(normalizedName)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        "Schema does not support case-insensitivity; duplicate column name found in schema: %s and %s",
+                        name, struct.toString()));
+              }
+              indexByLowerCaseName.put(normalizedName, integer);
+            });
     return indexByLowerCaseName;
   }
 
