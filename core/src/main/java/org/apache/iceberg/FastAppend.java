@@ -198,6 +198,16 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     }
   }
 
+  /**
+   * Cleanup after committing is disabled for FastAppend unless there are rewrittenAppendManifests
+   * because: 1.) Appended manifests are never rewritten 2.) Manifests which are written out as part
+   * of appendFile are already cleaned up between commit attempts in writeNewManifests
+   */
+  @Override
+  protected boolean cleanupAfterCommit() {
+    return !rewrittenAppendManifests.isEmpty();
+  }
+
   private List<ManifestFile> writeNewManifests() throws IOException {
     if (hasNewFiles && newManifests != null) {
       newManifests.forEach(file -> deleteFile(file.path()));
