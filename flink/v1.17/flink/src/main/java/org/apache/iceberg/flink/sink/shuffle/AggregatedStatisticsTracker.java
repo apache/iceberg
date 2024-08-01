@@ -223,7 +223,9 @@ class AggregatedStatisticsTracker {
           convertCoordinatorToSketch();
         }
 
-        sketchStatistics.update(taskSketch);
+        if (taskSketch.getNumSamples() > 0) {
+          sketchStatistics.update(taskSketch);
+        }
       }
     }
 
@@ -242,13 +244,18 @@ class AggregatedStatisticsTracker {
         return CompletedStatistics.fromKeyFrequency(checkpointId, mapStatistics);
       } else {
         ReservoirItemsSketch<SortKey> sketch = sketchStatistics.getResult();
-        LOG.info(
-            "Completed sketch statistics aggregation: "
-                + "reservoir size = {}, number of items seen = {}, number of samples = {}",
-            sketch.getK(),
-            sketch.getN(),
-            sketch.getNumSamples());
-        return CompletedStatistics.fromKeySamples(checkpointId, sketch.getSamples());
+        if (sketch != null) {
+          LOG.info(
+              "Completed sketch statistics aggregation: "
+                  + "reservoir size = {}, number of items seen = {}, number of samples = {}",
+              sketch.getK(),
+              sketch.getN(),
+              sketch.getNumSamples());
+          return CompletedStatistics.fromKeySamples(checkpointId, sketch.getSamples());
+        } else {
+          LOG.info("Empty sketch statistics.");
+          return CompletedStatistics.fromKeySamples(checkpointId, new SortKey[0]);
+        }
       }
     }
   }
