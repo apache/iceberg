@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.flink.source;
 
-import static org.apache.iceberg.flink.MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG;
-
 import java.io.Serializable;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -35,6 +33,8 @@ import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.runtime.metrics.MetricNames;
@@ -59,6 +59,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.HadoopTableExtension;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -79,6 +80,12 @@ public class TestIcebergSourceWithWatermarkExtractor implements Serializable {
   @TempDir protected Path temporaryFolder;
 
   private static final InMemoryReporter REPORTER = InMemoryReporter.createWithRetainedMetrics();
+  public static final Configuration DISABLE_CLASSLOADER_CHECK_CONFIG =
+      new Configuration()
+          // disable classloader check as Avro may cache class/object in the serializers.
+          .set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false)
+          // disable inferring source parallelism
+          .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
 
   @RegisterExtension
   public static final MiniClusterExtension MINI_CLUSTER_EXTENSION =

@@ -48,8 +48,10 @@ import org.apache.iceberg.flink.TestBase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+@Timeout(value = 60)
 public class TestIcebergSpeculativeExecutionSupport extends TestBase {
   private static final int NUM_TASK_MANAGERS = 1;
   private static final int NUM_TASK_SLOTS = 3;
@@ -169,6 +171,7 @@ public class TestIcebergSpeculativeExecutionSupport extends TestBase {
 
     // Use FLIP-27 source
     configuration.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE, true);
+    configuration.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
 
     // for speculative execution
     configuration.set(BatchExecutionOptions.SPECULATIVE_ENABLED, true);
