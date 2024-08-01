@@ -243,7 +243,11 @@ Struct evolution requires the following rules for default values:
 
 Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids.
 
-When a projected column has an [identity partition transform](#partition-transforms) applied to it for a data file, the value from the [manifest file](#manifests) must be used for that column (i.e. the column should not be read from the data file). This is to support tables that were migrated from other table formats (notably Hive) that do not write partition values to data files. Otherwise, if a field id is missing from a data file, its value for each row should be `null`.
+Values for Field ids which are not present in a data file must be resolved according the following rules:
+
+* Return the value from partition metadata if an [Identity Transform](#partition-transforms) exists for the field. 
+* Return the default value as defined in [Default values](#default-values) if it exists.
+* Return `null` in all other cases.
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
 
@@ -401,9 +405,6 @@ Sorting floating-point numbers should produce the following behavior: `-NaN` < `
 
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
 
-#### Writing with Identity transform
-
-When writing data files, all columns including those with an identity transforms should be written to data files. This provides redundancy in case of corruption or bugs in the metadata layer. Due to [column projection rules](#column-projection) readers can still properly scan the table if columns that have an identity partition transforms applied are omitted. This is not the case for any other transform type.
 
 ### Manifests
 
@@ -1398,3 +1399,7 @@ Iceberg supports two types of histories for tables. A history of previous "curre
 might indicate different snapshot IDs for a specific timestamp. The discrepancies can be caused by a variety of table operations (e.g. updating the `current-snapshot-id` can be used to set the snapshot of a table to any arbitrary snapshot, which might have a lineage derived from a table branch or no lineage at all).
 
 When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.
+
+### Writing data files
+
+All columns should be written to data files even if they introduce redundancy with metadata stored in manifest file (e.g. columns with identity partition transforms). Writing all columns provides redundancy in case of corruption or bugs in the metadata layer.
