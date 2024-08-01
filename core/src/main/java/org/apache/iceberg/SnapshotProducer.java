@@ -41,7 +41,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
@@ -368,8 +368,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   @Override
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public void commit() {
-    // this is always set to the latest commit attempt's snapshot id.
-    AtomicLong newSnapshotId = new AtomicLong(-1L);
+    // this is always set to the latest commit attempt's snapshot
+    AtomicReference<Snapshot> stagedSnapshot = new AtomicReference<>();
     try (Timed ignore = commitMetrics().totalDuration().start()) {
       try {
         Tasks.foreach(ops)
@@ -384,7 +384,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             .run(
                 taskOps -> {
                   Snapshot newSnapshot = apply();
-                  newSnapshotId.set(newSnapshot.snapshotId());
+                  stagedSnapshot.set(newSnapshot);
                   TableMetadata.Builder update = TableMetadata.buildFrom(base);
                   if (base.snapshot(newSnapshot.snapshotId()) != null) {
                     // this is a rollback operation
@@ -422,26 +422,23 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         throw e;
       }
 
+      // at this point, the commit must have succeeded so the stagedSnapshot is committed
+      Snapshot committedSnapshot = stagedSnapshot.get();
       try {
-        LOG.info("Committed snapshot {} ({})", newSnapshotId.get(), getClass().getSimpleName());
+        LOG.info(
+            "Committed snapshot {} ({})",
+            committedSnapshot.snapshotId(),
+            getClass().getSimpleName());
 
-        // at this point, the commit must have succeeded. after a refresh, the snapshot is loaded by
-        // id in case another commit was added between this commit and the refresh.
-        Snapshot saved = ops.refresh().snapshot(newSnapshotId.get());
-        if (saved != null) {
-          cleanUncommitted(Sets.newHashSet(saved.allManifests(ops.io())));
-          // also clean up unused manifest lists created by multiple attempts
-          for (String manifestList : manifestLists) {
-            if (!saved.manifestListLocation().equals(manifestList)) {
-              deleteFile(manifestList);
-            }
-          }
-        } else {
-          // saved may not be present if the latest metadata couldn't be loaded due to eventual
-          // consistency problems in refresh. in that case, don't clean up.
-          LOG.warn("Failed to load committed snapshot, skipping manifest clean-up");
+        if (cleanupAfterCommit()) {
+          cleanUncommitted(Sets.newHashSet(committedSnapshot.allManifests(ops.io())));
         }
-
+        // also clean up unused manifest lists created by multiple attempts
+        for (String manifestList : manifestLists) {
+          if (!committedSnapshot.manifestListLocation().equals(manifestList)) {
+            deleteFile(manifestList);
+          }
+        }
       } catch (Throwable e) {
         LOG.warn(
             "Failed to load committed table metadata or during cleanup, skipping further cleanup",
@@ -563,6 +560,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected boolean canInheritSnapshotId() {
     return canInheritSnapshotId;
+  }
+
+  protected boolean cleanupAfterCommit() {
+    return true;
   }
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
