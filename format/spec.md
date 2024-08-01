@@ -150,6 +150,10 @@ Readers should be more permissive because v1 metadata files are allowed in v2 ta
 
 Readers may be more strict for metadata JSON files because the JSON files are not reused and will always match the table version. Required v2 fields that were not present in v1 or optional in v1 may be handled as required fields. For example, a v2 table that is missing `last-sequence-number` can throw an exception.
 
+##### Writing data files
+
+All columns must be written to data files even if they introduce redundancy with metadata stored in manifest file (e.g. columns with identity partition transforms). Writing all columns provides a backup in case of corruption or bugs in the metadata layer.
+
 ### Schemas and Data Types
 
 A table's **schema** is a list of named columns. All data types are either primitives or nested types, which are maps, lists, or structs. A table schema is also a struct type.
@@ -243,10 +247,11 @@ Struct evolution requires the following rules for default values:
 
 Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids.
 
-Values for Field ids which are not present in a data file must be resolved according the following rules:
+Values for field ids which are not present in a data file must be resolved according the following rules:
 
-* Return the value from partition metadata if an [Identity Transform](#partition-transforms) exists for the field. 
-* Return the default value as defined in [Default values](#default-values) if it exists.
+* Return the value from partition metadata if an [Identity Transform](#partition-transforms) exists for the field and the partition value is present in the `partitition` struct on  `data_file` object in the manifest. 
+* Use `schema.name-mapping.default` metadata to map field id to columns without field id as described below and use the column if it is present.
+* Return the default value if it has a defined in `initial-default` (See [Default values](#default-values) section for more details). 
 * Return `null` in all other cases.
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
@@ -597,9 +602,10 @@ For example, an `events` table with a timestamp column named `ts` that is partit
 
 Scan predicates are also used to filter data and delete files using column bounds and counts that are stored by field id in manifests. The same filter logic can be used for both data and delete files because both store metrics of the rows either inserted or deleted. If metrics show that a delete file has no rows that match a scan predicate, it may be ignored just as a data file would be ignored [2].
 
-Data files that match the query filter must be read by the scan.
+Data files that match the query filter must be read by the scan. 
 
 Note that for any snapshot, all file paths marked with "ADDED" or "EXISTING" may appear at most once across all manifest files in the snapshot. If a file path appears more than once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are not required to do so.
+
 
 Delete files that match the query filter must be applied to data files at read time, limited by the scope of the delete file using the following rules.
 
@@ -1399,7 +1405,3 @@ Iceberg supports two types of histories for tables. A history of previous "curre
 might indicate different snapshot IDs for a specific timestamp. The discrepancies can be caused by a variety of table operations (e.g. updating the `current-snapshot-id` can be used to set the snapshot of a table to any arbitrary snapshot, which might have a lineage derived from a table branch or no lineage at all).
 
 When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.
-
-### Writing data files
-
-All columns should be written to data files even if they introduce redundancy with metadata stored in manifest file (e.g. columns with identity partition transforms). Writing all columns provides redundancy in case of corruption or bugs in the metadata layer.
