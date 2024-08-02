@@ -347,4 +347,12 @@ public class SparkReadConf {
         .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_LOCALITY_ENABLED_DEFAULT)
         .parse();
   }
+
+  public boolean reportColumnStats() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.REPORT_COLUMN_STATS)
+        .defaultValue(SparkSQLProperties.REPORT_COLUMN_STATS_DEFAULT)
+        .parse();
+  }
 }

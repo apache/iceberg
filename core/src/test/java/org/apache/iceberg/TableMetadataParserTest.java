@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 import org.apache.iceberg.TableMetadataParser.Codec;
-import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types.BooleanType;
@@ -69,7 +68,7 @@ public class TableMetadataParserTest {
     TableMetadataParser.write(metadata, outputFile);
     assertThat(isCompressed(fileName)).isEqualTo(codec == Codec.GZIP);
     TableMetadata actualMetadata =
-        TableMetadataParser.read((FileIO) null, Files.localInput(new File(fileName)));
+        TableMetadataParser.read(null, Files.localInput(new File(fileName)));
     verifyMetadata(metadata, actualMetadata);
   }
 
@@ -88,7 +87,7 @@ public class TableMetadataParserTest {
   }
 
   private boolean isCompressed(String path) throws IOException {
-    try (InputStream ignored = new GZIPInputStream(new FileInputStream(new File(path)))) {
+    try (InputStream ignored = new GZIPInputStream(new FileInputStream(path))) {
       return true;
     } catch (ZipException e) {
       if (e.getMessage().equals("Not in GZIP format")) {

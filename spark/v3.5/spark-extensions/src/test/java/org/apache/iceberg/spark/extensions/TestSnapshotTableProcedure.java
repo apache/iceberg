@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
@@ -36,13 +37,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSnapshotTableProcedure extends ExtensionsTestBase {
-  private static final String sourceName = "spark_catalog.default.source";
+  private static final String SOURCE_NAME = "spark_catalog.default.source";
   // Currently we can only Snapshot only out of the Spark Session Catalog
 
   @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
-    sql("DROP TABLE IF EXISTS %s PURGE", sourceName);
+    sql("DROP TABLE IF EXISTS %s PURGE", SOURCE_NAME);
   }
 
   @TestTemplate
@@ -50,10 +51,10 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        sourceName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
     Object result =
-        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
+        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, SOURCE_NAME, tableName);
 
     assertThat(result).as("Should have added one file").isEqualTo(1L);
 
@@ -76,12 +77,12 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        sourceName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
     Object result =
         scalarSql(
             "CALL %s.system.snapshot(source_table => '%s', table => '%s', properties => map('foo','bar'))",
-            catalogName, sourceName, tableName);
+            catalogName, SOURCE_NAME, tableName);
 
     assertThat(result).as("Should have added one file").isEqualTo(1L);
 
@@ -112,12 +113,12 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
     String snapshotLocation = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        sourceName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
     Object[] result =
         sql(
                 "CALL %s.system.snapshot(source_table => '%s', table => '%s', location => '%s')",
-                catalogName, sourceName, tableName, snapshotLocation)
+                catalogName, SOURCE_NAME, tableName, snapshotLocation)
             .get(0);
 
     assertThat(result[0]).as("Should have added one file").isEqualTo(1L);
@@ -140,11 +141,11 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        sourceName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
 
     Object result =
-        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
+        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, SOURCE_NAME, tableName);
     assertThat(result).as("Should have added one file").isEqualTo(1L);
 
     assertEquals(
@@ -157,7 +158,7 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
     assertEquals(
         "Source table should be intact",
         ImmutableList.of(row(1L, "a")),
-        sql("SELECT * FROM %s", sourceName));
+        sql("SELECT * FROM %s", SOURCE_NAME));
   }
 
   @TestTemplate
@@ -165,8 +166,8 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        sourceName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
 
     Object result =
         scalarSql(
@@ -174,7 +175,7 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
                 + "source_table => '%s',"
                 + "table => '%s',"
                 + "properties => map('%s', 'true', 'snapshot', 'false'))",
-            catalogName, sourceName, tableName, TableProperties.GC_ENABLED);
+            catalogName, SOURCE_NAME, tableName, TableProperties.GC_ENABLED);
     assertThat(result).as("Should have added one file").isEqualTo(1L);
 
     assertEquals(
@@ -195,7 +196,7 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
     String location = Files.createTempDirectory(temp, "junit").toFile().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        sourceName, location);
+        SOURCE_NAME, location);
 
     assertThatThrownBy(() -> sql("CALL %s.system.snapshot('foo')", catalogName))
         .isInstanceOf(AnalysisException.class)
@@ -210,7 +211,7 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
             () ->
                 sql(
                     "CALL %s.system.snapshot('%s', 'fable', 'loc', map(2, 1, 1))",
-                    catalogName, sourceName))
+                    catalogName, SOURCE_NAME))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
             "The `map` requires 2n (n > 0) parameters but the actual number is 3");
@@ -222,5 +223,43 @@ public class TestSnapshotTableProcedure extends ExtensionsTestBase {
     assertThatThrownBy(() -> sql("CALL %s.system.snapshot('src', '')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
+  }
+
+  @TestTemplate
+  public void testSnapshotWithParallelism() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", SOURCE_NAME);
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.snapshot(source_table => '%s', table => '%s', parallelism => %d)",
+            catalogName, SOURCE_NAME, tableName, 2);
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L)), result);
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L, "a"), row(2L, "b")),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testSnapshotWithInvalidParallelism() throws IOException {
+    String location = Files.createTempDirectory(temp, "junit").toFile().toString();
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
+    sql("INSERT INTO TABLE %s VALUES (2, 'b')", SOURCE_NAME);
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.snapshot(source_table => '%s', table => '%s', parallelism => %d)",
+                    catalogName, SOURCE_NAME, tableName, -1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Parallelism should be larger than 0");
   }
 }

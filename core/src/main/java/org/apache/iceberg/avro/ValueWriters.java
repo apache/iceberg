@@ -232,7 +232,7 @@ public class ValueWriters {
         throw new IllegalArgumentException("Cannot write null to required string column");
       } else {
         throw new IllegalArgumentException(
-            "Cannot write unknown string type: " + s.getClass().getName() + ": " + s.toString());
+            "Cannot write unknown string type: " + s.getClass().getName() + ": " + s);
       }
     }
   }

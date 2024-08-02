@@ -54,7 +54,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
   public Schema schema() {
     StructType partitionType = Partitioning.partitionType(table());
     Schema schema = ManifestEntry.getSchema(partitionType);
-    if (partitionType.fields().size() < 1) {
+    if (partitionType.fields().isEmpty()) {
       // avoid returning an empty struct, which is not always supported.
       // instead, drop the partition field (id 102)
       schema = TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
@@ -302,6 +302,13 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
           fileProjectionType != null
               ? new Schema(fileProjectionType.asStructType().fields())
               : new Schema();
+    }
+
+    @Override
+    public long estimatedRowsCount() {
+      return (long) manifest.addedFilesCount()
+          + (long) manifest.deletedFilesCount()
+          + (long) manifest.existingFilesCount();
     }
 
     @VisibleForTesting

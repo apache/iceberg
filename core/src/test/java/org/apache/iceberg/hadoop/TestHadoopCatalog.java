@@ -58,7 +58,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestHadoopCatalog extends HadoopTableTestBase {
-  private static ImmutableMap<String, String> meta = ImmutableMap.of();
+  private static final ImmutableMap<String, String> META = ImmutableMap.of();
 
   @ParameterizedTest
   @ValueSource(ints = {1, 2})
@@ -337,7 +337,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     TableIdentifier tbl1 = TableIdentifier.of("db", "ns1", "ns2", "metadata");
     TableIdentifier tbl2 = TableIdentifier.of("db", "ns2", "ns3", "tbl2");
 
-    Lists.newArrayList(tbl1, tbl2).forEach(t -> catalog.createNamespace(t.namespace(), meta));
+    Lists.newArrayList(tbl1, tbl2).forEach(t -> catalog.createNamespace(t.namespace(), META));
 
     String metaLocation1 = warehouseLocation + "/" + "db/ns1/ns2";
     FileSystem fs1 = Util.getFs(new Path(metaLocation1), catalog.getConf());
@@ -632,7 +632,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     catalog.createTable(identifier, SCHEMA);
     Table registeringTable = catalog.loadTable(identifier);
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
-    String metadataLocation = ((HadoopTableOperations) ops).current().metadataFileLocation();
+    String metadataLocation = ops.current().metadataFileLocation();
     assertThat(catalog.registerTable(identifier2, metadataLocation)).isNotNull();
     assertThat(catalog.loadTable(identifier2)).isNotNull();
     assertThat(catalog.dropTable(identifier)).isTrue();
@@ -646,7 +646,7 @@ public class TestHadoopCatalog extends HadoopTableTestBase {
     catalog.createTable(identifier, SCHEMA);
     Table registeringTable = catalog.loadTable(identifier);
     TableOperations ops = ((HasTableOperations) registeringTable).operations();
-    String metadataLocation = ((HadoopTableOperations) ops).current().metadataFileLocation();
+    String metadataLocation = ops.current().metadataFileLocation();
     assertThatThrownBy(() -> catalog.registerTable(identifier, metadataLocation))
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessage("Table already exists: a.t1");

@@ -71,6 +71,100 @@ To add a dependency on Iceberg in Maven, add the following to your `pom.xml`:
   ...
 </dependencies>
 ```
+
+### 1.6.0 release
+Apache Iceberg 1.6.0 was released on July 23, 2024.
+
+The 1.6.0 release contains fixes, dependency updates, and new features (like Kafak Connect commit coordinator and record converters).
+
+* Build
+    - Upgrade to Gradle 8.9 ([\#10686](https://github.com/apache/iceberg/pull/10686))
+* Core
+    - Add EnvironmentContext to commit summary ([\#9273](https://github.com/apache/iceberg/pull/9273))
+    - Add explicit JSON parser for ConfigResponse ([\#9952](https://github.com/apache/iceberg/pull/9952))
+    - Calling rewrite_position_delete_files fails on tables with more than 1k columns ([\#10020](https://github.com/apache/iceberg/pull/10020))
+    - Expose table incremental scan for appends API in SerializableTable ([\#10682](https://github.com/apache/iceberg/pull/10682))
+    - Fix NPE during conflict handling of NULL partitions ([\#10680](https://github.com/apache/iceberg/pull/10680))
+    - Fix ParallelIterable memory leak where queue continues to be populated even after iterator close ([\#9402](https://github.com/apache/iceberg/pull/9402))
+    - Fix logging table name in scanning metadata table ([\#10141](https://github.com/apache/iceberg/pull/10141))
+    - Lazily compute & cache hashCode in CharSequenceWrapper ([\#10023](https://github.com/apache/iceberg/pull/10023))
+    - Pushdown data_file.content when filter manifests in entries table ([\#10203](https://github.com/apache/iceberg/pull/10203))
+    - Use bulk delete when removing old metadata.json files ([\#10679](https://github.com/apache/iceberg/pull/10679))
+    - JDBC Catalog: Add property to disable table initialization for JdbcCatalog ([\#10124](https://github.com/apache/iceberg/pull/10124))
+    - JDBC Catalog: Exclude unexpected namespaces JdbcCatalog.listNamespaces ([\#10498](https://github.com/apache/iceberg/pull/10498))
+    - JDBC Catalog: Fix JDBC Catalog table commit when migrating from schema V0 to V1 ([\#10111](https://github.com/apache/iceberg/pull/10111))
+    - JDBC Catalog: Retry connections in JDBC catalog with user configured error code list ([\#10140](https://github.com/apache/iceberg/pull/10140))
+    - JDBC Catalog: fix namespace SQL statement using ESCAPE character working with MySQL, PostgreSQL, ... ([\#10167](https://github.com/apache/iceberg/pull/10167))
+    - REST Catalog: Assume issued_token_type is access_token to fully comply with RFC 6749 ([\#10314](https://github.com/apache/iceberg/pull/10314))
+    - REST Catalog: Fix create v1 table on REST Catalog ([\#10369](https://github.com/apache/iceberg/pull/10369))
+    - REST Catalog: Handles possible heap data corruption of OAuth2Util.AuthSession#headers ([\#10615](https://github.com/apache/iceberg/pull/10615))
+    - REST Catalog: Handles potential NPE in RESTSessionCatalog#newSessionCache ([\#10607](https://github.com/apache/iceberg/pull/10607))
+    - REST Catalog: Introduce AuthConfig ([\#10161](https://github.com/apache/iceberg/pull/10161))
+    - REST Catalog: Mark 502 and 504 statuses as retryable to the REST exponential retry strategy ([\#9885](https://github.com/apache/iceberg/pull/9885))
+    - REST Catalog: disallow overriding "credential" in table sessions ([\#10345](https://github.com/apache/iceberg/pull/10345))
+    - REST Catalog: fix incorrect token refresh thread name ([\#10223](https://github.com/apache/iceberg/pull/10223))
+    - REST Catalog: fix spurious warning when shutting down refresh executor ([\#10087](https://github.com/apache/iceberg/pull/10087))
+* Kafka Connect
+    - Commit coordinator ([\#10351](https://github.com/apache/iceberg/pull/10351))
+    - Record converters ([\#9641](https://github.com/apache/iceberg/pull/9641))
+    - Handle namespace creation for auto table creation ([\#10186](https://github.com/apache/iceberg/pull/10186))
+    - Update iceberg.hadoop-conf-dir config description ([\#10184](https://github.com/apache/iceberg/pull/10184))
+* Parquet
+    - Don't write column sizes when metrics mode is None ([\#10440](https://github.com/apache/iceberg/pull/10440))
+* Spark
+    - Fix handling of null binary values when sorting with zorder ([\#10026](https://github.com/apache/iceberg/pull/10026))
+    - Spark writes/actions should only perform cleanup if failure is cleanable ([\#10373](https://github.com/apache/iceberg/pull/10373))
+    - Use 'delete' if RowDelta only has delete files ([\#10123](https://github.com/apache/iceberg/pull/10123))
+    - Support read of partition metadata column when table is over 1k ([\#10641](https://github.com/apache/iceberg/pull/10641))
+    - Fix the setting of equalAuthorities in RemoveOrphanFilesProcedure ([\#10342](https://github.com/apache/iceberg/pull/10342))
+    - Fix system function pushdown in CoW row-level commands ([\#10119](https://github.com/apache/iceberg/pull/10119))
+    - Only traverse ancestors of current snapshot when building changelog scan ([\#10405](https://github.com/apache/iceberg/pull/10405))
+    - Add max allowed failed commits to RewriteDataFiles when partial progress is enabled ([\#9611](https://github.com/apache/iceberg/pull/9611))
+    - Fix issue when partitioning by UUID ([\#8250](https://github.com/apache/iceberg/pull/8250))
+    - Use bulk deletes in rewrite manifests action ([\#10343](https://github.com/apache/iceberg/pull/10343))
+* Flink
+    - Remove Flink 1.16 support ([\#10154](https://github.com/apache/iceberg/pull/10154))
+    - Add support for Flink 1.19 ([\#10112](https://github.com/apache/iceberg/pull/10112))
+    - Apply DeleteGranularity for writes ([\#10200](https://github.com/apache/iceberg/pull/10200))
+    - Move ParquetReader to LogicalTypeAnnotationVisitor ([\#9719](https://github.com/apache/iceberg/pull/9719))
+    - Pre-create fieldGetters to avoid constructing them for each row ([\#10565](https://github.com/apache/iceberg/pull/10565))
+    - Prevent setting endTag/endSnapshotId for streaming source ([\#10207](https://github.com/apache/iceberg/pull/10207))
+    - Implement range partitioner for map data statistics ([\#9321](https://github.com/apache/iceberg/pull/9321))
+    - refactor sink shuffling statistics collection ([\#10331](https://github.com/apache/iceberg/pull/10331))
+* Hive
+    - Fix metadata file not found ([\#10069](https://github.com/apache/iceberg/pull/10069))
+    - Use base table metadata to create HiveLock ([\#10016](https://github.com/apache/iceberg/pull/10016))
+    - Turn off the stats gathering when iceberg.hive.keep.stats is false ([\#10148](https://github.com/apache/iceberg/pull/10148))
+* Specs
+    - OpenAPI: TableRequirements should use union of subclasses ([\#10434](https://github.com/apache/iceberg/pull/10434))
+    - OpenAPI: Deprecate oauth/tokens endpoint ([\#10603](https://github.com/apache/iceberg/pull/10603))
+    - OpenAPI: Fix additionalProperties for SnapshotSummary ([\#9838](https://github.com/apache/iceberg/pull/9838))
+    - OpenAPI: Fix property names for stats/partition stats ([\#10662](https://github.com/apache/iceberg/pull/10662))
+* Vendor Integrations
+    - AWS: Make sure Signer + User Agent config are both applied ([\#10198](https://github.com/apache/iceberg/pull/10198))
+    - AWS: Retain Glue Catalog column comment after updating Iceberg table ([\#10276](https://github.com/apache/iceberg/pull/10276))
+    - AWS: Retain Glue Catalog table description after updating Iceberg table ([\#10199](https://github.com/apache/iceberg/pull/10199))
+    - AWS: Support S3 DSSE-KMS encryption ([\#8370](https://github.com/apache/iceberg/pull/8370))
+    - AWS: Close underlying executor for DynamoDb LockManager ([\#10132](https://github.com/apache/iceberg/pull/10132))
+    - AWS: Add Iceberg version to UserAgent in S3 requests ([\#9963](https://github.com/apache/iceberg/pull/9963))
+    - Azure: Make AzureProperties w/ shared-key creds serializable ([\#10045](https://github.com/apache/iceberg/pull/10045))
+* Dependencies
+    - Bump Nessie to 0.92.1
+    - Bump Spark 3.5 to 3.5.1
+    - Bump Apache Arrow to 15.0.2
+    - Bump Azure SDK to 1.2.25
+    - Bump Kryo to 4.0.3
+    - Bump Netty to 4.1.111.Final
+    - Bump Jetty to 9.4.55.v20240627
+    - Bump Kafka to 3.7.1
+    - Bump Apache ORC to 1.9.3
+    - Bump AWS SDK to 2.26.12
+    - Bump Google Cloud Libraries to 26.43.0
+
+For more details, please visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.6.0).
+
+## Past releases
+
 ### 1.5.2 release
 Apache Iceberg 1.5.2 was released on May 9, 2024.
 
@@ -160,8 +254,6 @@ The 1.5.0 release adds a variety of new features and bug fixes.
 * Note: To enable view support for JDBC catalog, configure `jdbc.schema-version` to `V1` in catalog properties.
                    
 For more details, please visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.5.0).
-
-## Past releases
 
 ### 1.4.3 Release
 

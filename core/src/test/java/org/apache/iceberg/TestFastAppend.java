@@ -39,7 +39,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestFastAppend extends TestBase {
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
-    return Arrays.asList(1, 2);
+    return Arrays.asList(1, 2, 3);
   }
 
   @TestTemplate
@@ -322,6 +322,56 @@ public class TestFastAppend extends TestBase {
     validateSnapshot(null, metadata.currentSnapshot(), FILE_B);
     assertThat(new File(newManifest.path())).exists();
     assertThat(metadata.currentSnapshot().allManifests(FILE_IO)).contains(newManifest);
+  }
+
+  @TestTemplate
+  public void testWriteNewManifestsIdempotency() {
+    // inject 3 failures, the last try will succeed
+    TestTables.TestTableOperations ops = table.ops();
+    ops.failCommits(3);
+
+    AppendFiles append = table.newFastAppend().appendFile(FILE_B);
+    Snapshot pending = append.apply();
+    ManifestFile newManifest = pending.allManifests(FILE_IO).get(0);
+    assertThat(new File(newManifest.path())).exists();
+
+    append.commit();
+
+    TableMetadata metadata = readMetadata();
+
+    // contains only a single manifest, does not duplicate manifests on retries
+    validateSnapshot(null, metadata.currentSnapshot(), FILE_B);
+    assertThat(new File(newManifest.path())).exists();
+    assertThat(metadata.currentSnapshot().allManifests(FILE_IO)).contains(newManifest);
+    assertThat(listManifestFiles(tableDir)).containsExactly(new File(newManifest.path()));
+  }
+
+  @TestTemplate
+  public void testWriteNewManifestsCleanup() {
+    // append file, stage changes with apply() but do not commit
+    AppendFiles append = table.newFastAppend().appendFile(FILE_A);
+    Snapshot pending = append.apply();
+    ManifestFile oldManifest = pending.allManifests(FILE_IO).get(0);
+    assertThat(new File(oldManifest.path())).exists();
+
+    // append file, stage changes with apply() but do not commit
+    // validate writeNewManifests deleted the old staged manifest
+    append.appendFile(FILE_B);
+    Snapshot newPending = append.apply();
+    List<ManifestFile> manifestFiles = newPending.allManifests(FILE_IO);
+    assertThat(manifestFiles).hasSize(1);
+    ManifestFile newManifest = manifestFiles.get(0);
+    assertThat(newManifest.path()).isNotEqualTo(oldManifest.path());
+
+    append.commit();
+    TableMetadata metadata = readMetadata();
+
+    // contains only a single manifest, old staged manifest is deleted
+    validateSnapshot(null, metadata.currentSnapshot(), FILE_A, FILE_B);
+    assertThat(new File(oldManifest.path())).doesNotExist();
+    assertThat(new File(newManifest.path())).exists();
+    assertThat(metadata.currentSnapshot().allManifests(FILE_IO)).containsExactly(newManifest);
+    assertThat(listManifestFiles(tableDir)).containsExactly(new File(newManifest.path()));
   }
 
   @TestTemplate

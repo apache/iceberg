@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source.assigner;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -44,8 +45,7 @@ import org.apache.iceberg.flink.source.split.SplitComparators;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializationUtil;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestWatermarkBasedSplitAssigner extends SplitAssignerTestBase {
   public static final Schema SCHEMA =
@@ -104,12 +104,12 @@ public class TestWatermarkBasedSplitAssigner extends SplitAssignerTestBase {
                     TestFixtures.SCHEMA, "id", TimeUnit.MILLISECONDS)));
     SerializableComparator<IcebergSourceSplit> comparator =
         SerializationUtil.deserializeFromBytes(bytes);
-    Assert.assertNotNull(comparator);
+    assertThat(comparator).isNotNull();
   }
 
   private void assertGetNext(SplitAssigner assigner, IcebergSourceSplit split) {
     GetSplitResult result = assigner.getNext(null);
-    Assert.assertEquals(result.split(), split);
+    assertThat(split).isEqualTo(result.split());
   }
 
   @Override
@@ -123,7 +123,7 @@ public class TestWatermarkBasedSplitAssigner extends SplitAssignerTestBase {
                         .mapToObj(
                             fileNum ->
                                 RandomGenericData.generate(
-                                    SCHEMA, 2, splitNum * filesPerSplit + fileNum))
+                                    SCHEMA, 2, (long) splitNum * filesPerSplit + fileNum))
                         .collect(Collectors.toList())))
         .collect(Collectors.toList());
   }
@@ -138,7 +138,7 @@ public class TestWatermarkBasedSplitAssigner extends SplitAssignerTestBase {
     try {
       return IcebergSourceSplit.fromCombinedScanTask(
           ReaderUtil.createCombinedScanTask(
-              records, TEMPORARY_FOLDER, FileFormat.PARQUET, APPENDER_FACTORY));
+              records, temporaryFolder, FileFormat.PARQUET, APPENDER_FACTORY));
     } catch (IOException e) {
       throw new RuntimeException("Split creation exception", e);
     }

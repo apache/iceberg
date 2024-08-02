@@ -578,7 +578,8 @@ public class OAuth2Util {
                 .token(response.token())
                 .tokenType(response.issuedTokenType())
                 .build();
-        this.headers = RESTUtil.merge(headers, authHeaders(config.token()));
+        Map<String, String> currentHeaders = this.headers;
+        this.headers = RESTUtil.merge(currentHeaders, authHeaders(config.token()));
 
         if (response.expiresInSeconds() != null) {
           return Pair.of(response.expiresInSeconds(), TimeUnit.SECONDS);
@@ -738,13 +739,21 @@ public class OAuth2Util {
         long startTimeMillis,
         AuthSession parent,
         String credential) {
+      // issued_token_type is required in RFC 8693 but not in RFC 6749,
+      // thus assume type is access_token for compatibility with RFC 6749.
+      // See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4.3
+      // for an example of a response that does not include the issued token type.
+      String issuedTokenType = response.issuedTokenType();
+      if (issuedTokenType == null) {
+        issuedTokenType = OAuth2Properties.ACCESS_TOKEN_TYPE;
+      }
       AuthSession session =
           new AuthSession(
               parent.headers(),
               AuthConfig.builder()
                   .from(parent.config())
                   .token(response.token())
-                  .tokenType(response.issuedTokenType())
+                  .tokenType(issuedTokenType)
                   .credential(credential)
                   .build());
 

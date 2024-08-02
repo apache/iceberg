@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.flink.table.data.GenericRowData;
@@ -35,8 +37,7 @@ import org.apache.iceberg.flink.RowDataWrapper;
 import org.apache.iceberg.flink.data.RandomRowData;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestRowDataPartitionKey {
   private static final Schema SCHEMA =
@@ -91,10 +92,10 @@ public class TestRowDataPartitionKey {
     for (RowData row : rows) {
       PartitionKey partitionKey = new PartitionKey(spec, schema);
       partitionKey.partition(rowWrapper.wrap(row));
-      Assert.assertEquals(partitionKey.size(), 1);
+      assertThat(partitionKey.size()).isEqualTo(1);
 
       String expectedStr = row.isNullAt(1) ? null : row.getString(1).toString();
-      Assert.assertEquals(expectedStr, partitionKey.get(0, String.class));
+      assertThat(partitionKey.get(0, String.class)).isEqualTo(expectedStr);
     }
   }
 
@@ -116,15 +117,15 @@ public class TestRowDataPartitionKey {
 
       PartitionKey partitionKey1 = new PartitionKey(spec1, NESTED_SCHEMA);
       partitionKey1.partition(rowWrapper.wrap(row));
-      Assert.assertEquals(partitionKey1.size(), 1);
+      assertThat(partitionKey1.size()).isEqualTo(1);
 
-      Assert.assertEquals(record.get(0), partitionKey1.get(0, String.class));
+      assertThat(partitionKey1.get(0, String.class)).isEqualTo(record.get(0));
 
       PartitionKey partitionKey2 = new PartitionKey(spec2, NESTED_SCHEMA);
       partitionKey2.partition(rowWrapper.wrap(row));
-      Assert.assertEquals(partitionKey2.size(), 1);
+      assertThat(partitionKey2.size()).isEqualTo(1);
 
-      Assert.assertEquals(record.get(1), partitionKey2.get(0, Integer.class));
+      assertThat(partitionKey2.get(0, Integer.class)).isEqualTo(record.get(1));
     }
   }
 
@@ -154,16 +155,16 @@ public class TestRowDataPartitionKey {
       Record record = (Record) records.get(i).get(0);
 
       pk1.partition(rowWrapper.wrap(row));
-      Assert.assertEquals(2, pk1.size());
+      assertThat(pk1.size()).isEqualTo(2);
 
-      Assert.assertEquals(record.get(1), pk1.get(0, Integer.class));
-      Assert.assertEquals(record.get(0), pk1.get(1, String.class));
+      assertThat(pk1.get(0, Integer.class)).isEqualTo(record.get(1));
+      assertThat(pk1.get(1, String.class)).isEqualTo(record.get(0));
 
       pk2.partition(rowWrapper.wrap(row));
-      Assert.assertEquals(2, pk2.size());
+      assertThat(pk2.size()).isEqualTo(2);
 
-      Assert.assertEquals(record.get(0), pk2.get(0, String.class));
-      Assert.assertEquals(record.get(1), pk2.get(1, Integer.class));
+      assertThat(pk2.get(0, String.class)).isEqualTo(record.get(0));
+      assertThat(pk2.get(1, Integer.class)).isEqualTo(record.get(1));
     }
   }
 
@@ -190,19 +191,18 @@ public class TestRowDataPartitionKey {
         pk.partition(rowWrapper.wrap(row));
         expectedPK.partition(recordWrapper.wrap(record));
 
-        Assert.assertEquals(
-            "Partition with column " + column + " should have one field.", 1, pk.size());
+        assertThat(pk.size())
+            .as("Partition with column " + column + " should have one field.")
+            .isEqualTo(1);
 
         if (column.equals("timeType")) {
-          Assert.assertEquals(
-              "Partition with column " + column + " should have the expected values",
-              expectedPK.get(0, Long.class) / 1000,
-              pk.get(0, Long.class) / 1000);
+          assertThat(pk.get(0, Long.class) / 1000)
+              .as("Partition with column " + column + " should have the expected values")
+              .isEqualTo(expectedPK.get(0, Long.class) / 1000);
         } else {
-          Assert.assertEquals(
-              "Partition with column " + column + " should have the expected values",
-              expectedPK.get(0, javaClasses[0]),
-              pk.get(0, javaClasses[0]));
+          assertThat(pk.get(0, javaClasses[0]))
+              .as("Partition with column " + column + " should have the expected values")
+              .isEqualTo(expectedPK.get(0, javaClasses[0]));
         }
       }
     }
@@ -232,19 +232,18 @@ public class TestRowDataPartitionKey {
         pk.partition(rowWrapper.wrap(rows.get(j)));
         expectedPK.partition(recordWrapper.wrap(records.get(j)));
 
-        Assert.assertEquals(
-            "Partition with nested column " + column + " should have one field.", 1, pk.size());
+        assertThat(pk.size())
+            .as("Partition with nested column " + column + " should have one field.")
+            .isEqualTo(1);
 
         if (column.equals("nested.timeType")) {
-          Assert.assertEquals(
-              "Partition with nested column " + column + " should have the expected values.",
-              expectedPK.get(0, Long.class) / 1000,
-              pk.get(0, Long.class) / 1000);
+          assertThat(pk.get(0, Long.class) / 1000)
+              .as("Partition with nested column " + column + " should have the expected values.")
+              .isEqualTo(expectedPK.get(0, Long.class) / 1000);
         } else {
-          Assert.assertEquals(
-              "Partition with nested column " + column + " should have the expected values.",
-              expectedPK.get(0, javaClasses[0]),
-              pk.get(0, javaClasses[0]));
+          assertThat(pk.get(0, javaClasses[0]))
+              .as("Partition with nested column " + column + " should have the expected values.")
+              .isEqualTo(expectedPK.get(0, javaClasses[0]));
         }
       }
     }

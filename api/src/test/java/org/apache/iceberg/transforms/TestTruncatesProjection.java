@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -447,10 +448,11 @@ public class TestTruncatesProjection {
 
   @Test
   public void testBinaryStrict() throws Exception {
-    ByteBuffer value = ByteBuffer.wrap("abcdefg".getBytes("UTF-8"));
+    ByteBuffer value = ByteBuffer.wrap("abcdefg".getBytes(StandardCharsets.UTF_8));
     Schema schema = new Schema(optional(1, "value", Types.BinaryType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 5).build();
-    String expectedValue = TransformUtil.base64encode(ByteBuffer.wrap("abcde".getBytes("UTF-8")));
+    String expectedValue =
+        TransformUtil.base64encode(ByteBuffer.wrap("abcde".getBytes(StandardCharsets.UTF_8)));
 
     assertProjectionStrict(spec, lessThan("value", value), Expression.Operation.LT, expectedValue);
     assertProjectionStrict(
@@ -463,7 +465,7 @@ public class TestTruncatesProjection {
         spec, notEqual("value", value), Expression.Operation.NOT_EQ, expectedValue);
     assertProjectionStrictValue(spec, equal("value", value), Expression.Operation.FALSE);
 
-    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
+    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes(StandardCharsets.UTF_8));
     assertProjectionStrict(
         spec,
         notIn("value", value, anotherValue),
@@ -474,10 +476,11 @@ public class TestTruncatesProjection {
 
   @Test
   public void testBinaryInclusive() throws Exception {
-    ByteBuffer value = ByteBuffer.wrap("abcdefg".getBytes("UTF-8"));
+    ByteBuffer value = ByteBuffer.wrap("abcdefg".getBytes(StandardCharsets.UTF_8));
     Schema schema = new Schema(optional(1, "value", Types.BinaryType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("value", 5).build();
-    String expectedValue = TransformUtil.base64encode(ByteBuffer.wrap("abcde".getBytes("UTF-8")));
+    String expectedValue =
+        TransformUtil.base64encode(ByteBuffer.wrap("abcde".getBytes(StandardCharsets.UTF_8)));
 
     assertProjectionInclusive(
         spec, lessThan("value", value), Expression.Operation.LT_EQ, expectedValue);
@@ -490,7 +493,7 @@ public class TestTruncatesProjection {
     assertProjectionInclusive(spec, equal("value", value), Expression.Operation.EQ, expectedValue);
     assertProjectionInclusiveValue(spec, notEqual("value", value), Expression.Operation.TRUE);
 
-    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes("UTF-8"));
+    ByteBuffer anotherValue = ByteBuffer.wrap("abcdehij".getBytes(StandardCharsets.UTF_8));
     assertProjectionInclusive(
         spec,
         in("value", value, anotherValue),

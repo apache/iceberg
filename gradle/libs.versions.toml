@@ -26,10 +26,10 @@ antlr = "4.9.3"
 aircompressor = "0.27"
 arrow = "15.0.2"
 avro = "1.11.3"
-assertj-core = "3.26.0"
+assertj-core = "3.26.3"
 awaitility = "4.2.1"
-awssdk-bom = "2.26.7"
-azuresdk-bom = "1.2.24"
+awssdk-bom = "2.26.25"
+azuresdk-bom = "1.2.25"
 awssdk-s3accessgrants = "2.0.0"
 caffeine = "2.9.3"
 calcite = "1.10.0"
@@ -37,15 +37,15 @@ datasketches = "6.0.0"
 delta-standalone = "3.2.0"
 delta-spark = "3.2.0"
 esotericsoftware-kryo = "4.0.3"
-errorprone-annotations = "2.28.0"
+errorprone-annotations = "2.29.2"
 findbugs-jsr305 = "3.0.2"
 flink117 = { strictly = "1.17.2"}
 flink118 =  { strictly = "1.18.1"}
 flink119 =  { strictly = "1.19.0"}
-google-libraries-bom = "26.28.0"
+google-libraries-bom = "26.43.0"
 guava = "33.2.1-jre"
 hadoop2 = "2.7.3"
-hadoop3-client = "3.3.6"
+hadoop3 = "3.3.6"
 httpcomponents-httpclient5 = "5.3.1"
 hive2 = { strictly = "2.3.9"} # see rich version usage explanation above
 hive3 = "3.1.3"
@@ -59,32 +59,32 @@ jackson215 = { strictly = "2.15.2"}
 jakarta-el-api = "3.0.3"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
-jetty = "9.4.54.v20240208"
+jetty = "9.4.55.v20240627"
 junit = "5.10.1"
-kafka = "3.7.0"
+kafka = "3.7.1"
 kryo-shaded = "4.0.3"
 microprofile-openapi-api = "3.1.1"
 mockito = "4.11.0"
 mockserver = "5.15.0"
-nessie = "0.91.2"
-netty-buffer = "4.1.111.Final"
-netty-buffer-compat = "4.1.111.Final"
+nessie = "0.94.2"
+netty-buffer = "4.1.112.Final"
+netty-buffer-compat = "4.1.112.Final"
 object-client-bundle = "3.3.2"
-orc = "1.9.3"
+orc = "1.9.4"
 parquet = "1.14.1"
 pig = "0.17.0"
-roaringbitmap = "1.1.0"
+roaringbitmap = "1.2.1"
 s3mock-junit5 = "2.11.0"
 scala-collection-compat = "2.12.0"
 slf4j = "1.7.36"
-snowflake-jdbc = "3.16.1"
+snowflake-jdbc = "3.18.0"
 spark-hive33 = "3.3.4"
 spark-hive34 = "3.4.3"
 spark-hive35 = "3.5.1"
 spring-boot = "2.7.18"
 spring-web = "5.3.37"
 sqlite-jdbc = "3.46.0.0"
-testcontainers = "1.19.8"
+testcontainers = "1.20.0"
 tez010 = "0.10.3"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
@@ -132,7 +132,8 @@ hadoop2-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "ha
 hadoop2-hdfs = { module = "org.apache.hadoop:hadoop-hdfs", version.ref = "hadoop2" }
 hadoop2-mapreduce-client-core = { module = "org.apache.hadoop:hadoop-mapreduce-client-core", version.ref = "hadoop2" }
 hadoop2-minicluster = { module = "org.apache.hadoop:hadoop-minicluster", version.ref = "hadoop2" }
-hadoop3-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop3-client" }
+hadoop3-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop3" }
+hadoop3-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "hadoop3" }
 hive2-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive2" }
 hive2-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive2" }
 hive2-serde = { module = "org.apache.hive:hive-serde", version.ref = "hive2" }

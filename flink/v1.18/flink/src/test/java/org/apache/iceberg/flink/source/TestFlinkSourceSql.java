@@ -33,7 +33,7 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /** Use the FlinkSource */
 public class TestFlinkSourceSql extends TestSqlBase {
@@ -42,7 +42,7 @@ public class TestFlinkSourceSql extends TestSqlBase {
     SqlHelpers.sql(
         getTableEnv(),
         "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
-        catalogResource.warehouse());
+        CATALOG_EXTENSION.warehouse());
     SqlHelpers.sql(getTableEnv(), "use catalog iceberg_catalog");
     getTableEnv()
         .getConfig()
@@ -56,12 +56,12 @@ public class TestFlinkSourceSql extends TestSqlBase {
     cfg.set(PipelineOptions.MAX_PARALLELISM, 1);
 
     Table table =
-        catalogResource
+        CATALOG_EXTENSION
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, null);
 
     GenericAppenderHelper helper =
-        new GenericAppenderHelper(table, FileFormat.PARQUET, TEMPORARY_FOLDER);
+        new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
     List<Record> expectedRecords = Lists.newArrayList();
     long maxFileLen = 0;
     for (int i = 0; i < 5; i++) {

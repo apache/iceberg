@@ -42,7 +42,7 @@ import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.CatalogTestBase;
-import org.apache.iceberg.flink.MiniClusterResource;
+import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterEach;
@@ -55,29 +55,31 @@ public class TestStreamScanSql extends CatalogTestBase {
   private static final String TABLE = "test_table";
   private static final FileFormat FORMAT = FileFormat.PARQUET;
 
-  private TableEnvironment tEnv;
+  private volatile TableEnvironment tEnv;
 
   @Override
   protected TableEnvironment getTableEnv() {
-    if (tEnv == null) {
-      synchronized (this) {
-        if (tEnv == null) {
-          EnvironmentSettings.Builder settingsBuilder =
-              EnvironmentSettings.newInstance().inStreamingMode();
+    TableEnvironment tableEnv = tEnv;
+    if (tableEnv != null) {
+      return tableEnv;
+    }
+    synchronized (this) {
+      if (tEnv == null) {
+        EnvironmentSettings.Builder settingsBuilder =
+            EnvironmentSettings.newInstance().inStreamingMode();
 
-          StreamExecutionEnvironment env =
-              StreamExecutionEnvironment.getExecutionEnvironment(
-                  MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
-          env.enableCheckpointing(400);
+        StreamExecutionEnvironment env =
+            StreamExecutionEnvironment.getExecutionEnvironment(
+                MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
+        env.enableCheckpointing(400);
 
-          StreamTableEnvironment streamTableEnv =
-              StreamTableEnvironment.create(env, settingsBuilder.build());
-          streamTableEnv
-              .getConfig()
-              .getConfiguration()
-              .set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
-          tEnv = streamTableEnv;
-        }
+        StreamTableEnvironment streamTableEnv =
+            StreamTableEnvironment.create(env, settingsBuilder.build());
+        streamTableEnv
+            .getConfig()
+            .getConfiguration()
+            .set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
+        tEnv = streamTableEnv;
       }
     }
     return tEnv;

@@ -174,7 +174,7 @@ public class TestBase {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
-    return Arrays.asList(1, 2);
+    return Arrays.asList(1, 2, 3);
   }
 
   @Parameter protected int formatVersion;
@@ -390,7 +390,7 @@ public class TestBase {
 
   Snapshot apply(SnapshotUpdate<?> snapshotUpdate, String branch) {
     if (branch.equals(SnapshotRef.MAIN_BRANCH)) {
-      return ((SnapshotProducer<?>) snapshotUpdate).apply();
+      return snapshotUpdate.apply();
     } else {
       return ((SnapshotProducer<?>) snapshotUpdate.toBranch(branch)).apply();
     }

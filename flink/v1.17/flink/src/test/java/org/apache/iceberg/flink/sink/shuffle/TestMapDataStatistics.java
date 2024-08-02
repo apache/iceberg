@@ -18,74 +18,50 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.ROW_WRAPPER;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.StringData;
-import org.apache.flink.table.types.logical.RowType;
 import org.apache.iceberg.SortKey;
-import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.RowDataWrapper;
-import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 
 public class TestMapDataStatistics {
-  private final SortOrder sortOrder = SortOrder.builderFor(TestFixtures.SCHEMA).asc("data").build();
-  private final SortKey sortKey = new SortKey(TestFixtures.SCHEMA, sortOrder);
-  private final RowType rowType = FlinkSchemaUtil.convert(TestFixtures.SCHEMA);
-  private final RowDataWrapper rowWrapper =
-      new RowDataWrapper(rowType, TestFixtures.SCHEMA.asStruct());
-
+  @SuppressWarnings("unchecked")
   @Test
   public void testAddsAndGet() {
     MapDataStatistics dataStatistics = new MapDataStatistics();
 
-    GenericRowData reusedRow =
-        GenericRowData.of(StringData.fromString("a"), 1, StringData.fromString("2023-06-20"));
-    sortKey.wrap(rowWrapper.wrap(reusedRow));
-    dataStatistics.add(sortKey);
+    GenericRowData reusedRow = GenericRowData.of(StringData.fromString("a"), 1);
+    Fixtures.SORT_KEY.wrap(ROW_WRAPPER.wrap(reusedRow));
+    dataStatistics.add(Fixtures.SORT_KEY);
 
     reusedRow.setField(0, StringData.fromString("b"));
-    sortKey.wrap(rowWrapper.wrap(reusedRow));
-    dataStatistics.add(sortKey);
+    Fixtures.SORT_KEY.wrap(ROW_WRAPPER.wrap(reusedRow));
+    dataStatistics.add(Fixtures.SORT_KEY);
 
     reusedRow.setField(0, StringData.fromString("c"));
-    sortKey.wrap(rowWrapper.wrap(reusedRow));
-    dataStatistics.add(sortKey);
+    Fixtures.SORT_KEY.wrap(ROW_WRAPPER.wrap(reusedRow));
+    dataStatistics.add(Fixtures.SORT_KEY);
 
     reusedRow.setField(0, StringData.fromString("b"));
-    sortKey.wrap(rowWrapper.wrap(reusedRow));
-    dataStatistics.add(sortKey);
+    Fixtures.SORT_KEY.wrap(ROW_WRAPPER.wrap(reusedRow));
+    dataStatistics.add(Fixtures.SORT_KEY);
 
     reusedRow.setField(0, StringData.fromString("a"));
-    sortKey.wrap(rowWrapper.wrap(reusedRow));
-    dataStatistics.add(sortKey);
+    Fixtures.SORT_KEY.wrap(ROW_WRAPPER.wrap(reusedRow));
+    dataStatistics.add(Fixtures.SORT_KEY);
 
     reusedRow.setField(0, StringData.fromString("b"));
-    sortKey.wrap(rowWrapper.wrap(reusedRow));
-    dataStatistics.add(sortKey);
+    Fixtures.SORT_KEY.wrap(ROW_WRAPPER.wrap(reusedRow));
+    dataStatistics.add(Fixtures.SORT_KEY);
 
-    Map<SortKey, Long> actual = dataStatistics.statistics();
-
-    rowWrapper.wrap(
-        GenericRowData.of(StringData.fromString("a"), 1, StringData.fromString("2023-06-20")));
-    sortKey.wrap(rowWrapper);
-    SortKey keyA = sortKey.copy();
-
-    rowWrapper.wrap(
-        GenericRowData.of(StringData.fromString("b"), 1, StringData.fromString("2023-06-20")));
-    sortKey.wrap(rowWrapper);
-    SortKey keyB = sortKey.copy();
-
-    rowWrapper.wrap(
-        GenericRowData.of(StringData.fromString("c"), 1, StringData.fromString("2023-06-20")));
-    sortKey.wrap(rowWrapper);
-    SortKey keyC = sortKey.copy();
-
-    Map<SortKey, Long> expected = ImmutableMap.of(keyA, 2L, keyB, 3L, keyC, 1L);
+    Map<SortKey, Long> actual = (Map<SortKey, Long>) dataStatistics.result();
+    Map<SortKey, Long> expected =
+        ImmutableMap.of(CHAR_KEYS.get("a"), 2L, CHAR_KEYS.get("b"), 3L, CHAR_KEYS.get("c"), 1L);
     assertThat(actual).isEqualTo(expected);
   }
 }

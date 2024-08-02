@@ -33,10 +33,10 @@ public class ScriptRunner {
 
   private static final String DEFAULT_DELIMITER = ";";
 
-  private Connection connection;
+  private final Connection connection;
 
-  private boolean stopOnError;
-  private boolean autoCommit;
+  private final boolean stopOnError;
+  private final boolean autoCommit;
 
   private PrintWriter logWriter = new PrintWriter(System.out);
   private PrintWriter errorLogWriter = new PrintWriter(System.err);
@@ -110,7 +110,7 @@ public class ScriptRunner {
     StringBuilder command = null;
     try {
       LineNumberReader lineReader = new LineNumberReader(reader);
-      String line = null;
+      String line;
       while ((line = lineReader.readLine()) != null) {
         if (command == null) {
           command = new StringBuilder();
@@ -118,13 +118,11 @@ public class ScriptRunner {
         String trimmedLine = line.trim();
         if (trimmedLine.startsWith("--")) {
           println(trimmedLine);
-        } else if (trimmedLine.length() < 1 || trimmedLine.startsWith("//")) {
-          // Do nothing
-        } else if (trimmedLine.length() < 1 || trimmedLine.startsWith("--")) {
+        } else if (trimmedLine.isEmpty() || trimmedLine.startsWith("//")) {
           // Do nothing
         } else if (!fullLineDelimiter && trimmedLine.endsWith(getDelimiter())
             || fullLineDelimiter && trimmedLine.equals(getDelimiter())) {
-          command.append(line.substring(0, line.lastIndexOf(getDelimiter())));
+          command.append(line, 0, line.lastIndexOf(getDelimiter()));
           command.append(" ");
           Statement statement = conn.createStatement();
 

@@ -26,7 +26,7 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'io.github.goooler.shadow:shadow-gradle-plugin:8.1.7'
+    classpath 'io.github.goooler.shadow:shadow-gradle-plugin:8.1.8'
     classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
     // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
     // in an old version of the errorprone, which doesn't work w/ Gradle 8, so bump errorpone as
@@ -38,7 +38,7 @@ buildscript {
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
     classpath "com.github.alisiikh:gradle-scalastyle-plugin:3.5.0"
-    classpath 'io.github.nastra.gradle.revapi:gradle-revapi:1.8.1'
+    classpath 'org.revapi:gradle-revapi:1.8.0'
     classpath 'com.gorylenko.gradle-git-properties:gradle-git-properties:2.4.2'
     classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.1.0'
     classpath 'org.openapitools:openapi-generator-gradle-plugin:6.6.0'
@@ -56,14 +56,11 @@ try {
   project.logger.error(e.getMessage())
 }
 
-if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
-  project.ext.jdkVersion = '8'
-  project.ext.extraJvmArgs = []
-} else if (JavaVersion.current() == JavaVersion.VERSION_11) {
+if (JavaVersion.current() == JavaVersion.VERSION_11) {
   project.ext.jdkVersion = '11'
   project.ext.extraJvmArgs = []
-} else if (JavaVersion.current() == JavaVersion.VERSION_17) {
-  project.ext.jdkVersion = '17'
+} else if (JavaVersion.current() == JavaVersion.VERSION_17 || JavaVersion.current() == JavaVersion.VERSION_21) {
+  project.ext.jdkVersion = JavaVersion.current().getMajorVersion().toString()
   project.ext.extraJvmArgs = ["--add-opens", "java.base/java.io=ALL-UNNAMED",
                               "--add-opens", "java.base/java.lang.invoke=ALL-UNNAMED",
                               "--add-opens", "java.base/java.lang.reflect=ALL-UNNAMED",
@@ -86,7 +83,7 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
                               "--add-opens", "java.base/sun.security.action=ALL-UNNAMED",
                               "--add-opens", "java.base/sun.util.calendar=ALL-UNNAMED"]
 } else {
-  throw new GradleException("This build must be run with JDK 8 or 11 or 17 but was executed with JDK " + JavaVersion.current())
+  throw new GradleException("This build must be run with JDK 11 or 17 or 21 but was executed with JDK " + JavaVersion.current())
 }
 
 tasks.withType(AbstractArchiveTask).configureEach {
@@ -139,11 +136,11 @@ subprojects {
   apply plugin: 'java-library'
 
   if (project.name in REVAPI_PROJECTS) {
-    apply plugin: 'io.github.nastra.revapi'
+    apply plugin: 'org.revapi.revapi-gradle-plugin'
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.5.0"
+      oldVersion = "1.6.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
@@ -212,7 +209,6 @@ subprojects {
   dependencies {
     implementation libs.slf4j.api
 
-    testImplementation libs.junit.vintage.engine
     testImplementation libs.junit.jupiter
     testImplementation libs.junit.jupiter.engine
     testImplementation libs.slf4j.simple
@@ -348,7 +344,7 @@ project(':iceberg-core') {
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
 
-    implementation(libs.avro.avro) {
+    api(libs.avro.avro) {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
@@ -413,6 +409,7 @@ project(':iceberg-data') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation libs.junit.vintage.engine
   }
 
   test {
@@ -887,23 +884,12 @@ project(':iceberg-pig') {
 }
 
 project(':iceberg-nessie') {
-  if (JavaVersion.current().isJava11Compatible()) {
-    test {
-      useJUnitPlatform()
-    }
-    compileTestJava {
-      sourceCompatibility = "11"
-      targetCompatibility = "11"
-    }
-  } else {
-    // Do not test Nessie against Java 8, because in-JVM testing requires Nessie server components,
-    // which require Java 11+.
-    test {
-      enabled = false
-    }
-    compileTestJava {
-      enabled = false
-    }
+  test {
+    useJUnitPlatform()
+  }
+  compileTestJava {
+    sourceCompatibility = "11"
+    targetCompatibility = "11"
   }
 
   dependencies {
@@ -922,21 +908,19 @@ project(':iceberg-nessie') {
     // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
     compileOnly libs.microprofile.openapi.api
 
-    if (JavaVersion.current().isJava11Compatible()) {
-      testImplementation libs.nessie.jaxrs.testextension
-      testImplementation libs.nessie.versioned.storage.inmemory.tests
-      testImplementation libs.nessie.versioned.storage.testextension
-      // Need to "pull in" el-api explicitly :(
-      testImplementation libs.jakarta.el.api
+    testImplementation libs.nessie.jaxrs.testextension
+    testImplementation libs.nessie.versioned.storage.inmemory.tests
+    testImplementation libs.nessie.versioned.storage.testextension
+    // Need to "pull in" el-api explicitly :(
+    testImplementation libs.jakarta.el.api
 
-      testImplementation libs.avro.avro
+    testImplementation libs.avro.avro
 
-      testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-      testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 
-      // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
-      testCompileOnly libs.microprofile.openapi.api
-    }
+    // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
+    testCompileOnly libs.microprofile.openapi.api
   }
 }
 

@@ -47,6 +47,10 @@ project(":iceberg-aws-bundle") {
       include 'NOTICE'
     }
 
+    dependencies {
+      exclude(dependency('org.slf4j:slf4j-api'))
+    }
+
     // relocate AWS-specific versions
     relocate 'org.apache.http', 'org.apache.iceberg.aws.shaded.org.apache.http'
     relocate 'io.netty', 'org.apache.iceberg.aws.shaded.io.netty'

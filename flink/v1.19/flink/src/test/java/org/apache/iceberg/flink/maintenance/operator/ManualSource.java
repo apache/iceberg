@@ -48,9 +48,9 @@ class ManualSource<T>
         ResultTypeQueryable<T> {
 
   private static final long serialVersionUID = 1L;
-  private static final List<ArrayDeque<Tuple2<?, Long>>> queues =
+  private static final List<ArrayDeque<Tuple2<?, Long>>> QUEUES =
       Collections.synchronizedList(Lists.newArrayList());
-  private static final List<CompletableFuture<Void>> availabilities =
+  private static final List<CompletableFuture<Void>> AVAILABILITIES =
       Collections.synchronizedList(Lists.newArrayList());
   private static int numSources = 0;
   private final TypeInformation<T> type;
@@ -68,8 +68,8 @@ class ManualSource<T>
     this.type = type;
     this.env = env;
     this.index = numSources++;
-    queues.add(Queues.newArrayDeque());
-    availabilities.add(new CompletableFuture<>());
+    QUEUES.add(Queues.newArrayDeque());
+    AVAILABILITIES.add(new CompletableFuture<>());
   }
 
   /**
@@ -123,8 +123,8 @@ class ManualSource<T>
   }
 
   private void sendInternal(Tuple2<?, Long> tuple) {
-    queues.get(index).offer(tuple);
-    availabilities.get(index).complete(null);
+    QUEUES.get(index).offer(tuple);
+    AVAILABILITIES.get(index).complete(null);
   }
 
   @Override
@@ -164,7 +164,7 @@ class ManualSource<T>
 
       @Override
       public InputStatus pollNext(ReaderOutput<T> output) {
-        Tuple2<T, Long> next = (Tuple2<T, Long>) queues.get(index).poll();
+        Tuple2<T, Long> next = (Tuple2<T, Long>) QUEUES.get(index).poll();
 
         if (next != null) {
           if (next.f0 == null) {
@@ -181,8 +181,8 @@ class ManualSource<T>
           }
         }
 
-        availabilities.set(index, new CompletableFuture<>());
-        return queues.get(index).isEmpty()
+        AVAILABILITIES.set(index, new CompletableFuture<>());
+        return QUEUES.get(index).isEmpty()
             ? InputStatus.NOTHING_AVAILABLE
             : InputStatus.MORE_AVAILABLE;
       }
@@ -194,7 +194,7 @@ class ManualSource<T>
 
       @Override
       public CompletableFuture<Void> isAvailable() {
-        return availabilities.get(index);
+        return AVAILABILITIES.get(index);
       }
 
       @Override
