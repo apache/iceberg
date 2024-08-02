@@ -139,4 +139,21 @@ class SketchUtil {
           }
         });
   }
+
+  static int partition(
+      SortKey key, int numPartitions, SortKey[] rangeBounds, Comparator<StructLike> comparator) {
+    int partition = Arrays.binarySearch(rangeBounds, key, comparator);
+
+    // binarySearch either returns the match location or -[insertion point]-1
+    if (partition < 0) {
+      partition = -partition - 1;
+    }
+
+    if (partition > rangeBounds.length) {
+      partition = rangeBounds.length;
+    }
+
+    return RangePartitioner.adjustPartitionWithRescale(
+        partition, rangeBounds.length + 1, numPartitions);
+  }
 }
