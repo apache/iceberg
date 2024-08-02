@@ -133,17 +133,17 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   @Test
   public void testBucketTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
     Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
+    PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
             .bucket("data", 10, "p1")
-            .bucket("category", 10, "P1");
+            .bucket("category", 10, "P1")
+            .build();
 
     StructType expectedType =
         StructType.of(
             NestedField.optional(1000, "p1", Types.IntegerType.get()),
             NestedField.optional(1001, "P1", Types.IntegerType.get()));
-    PartitionSpec spec = builder.build();
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -207,17 +207,17 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   @Test
   public void testTruncateTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
     Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
+    PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
             .truncate("data", 10, "p1")
-            .truncate("category", 10, "P1");
+            .truncate("category", 10, "P1")
+            .build();
 
     StructType expectedType =
         StructType.of(
             NestedField.optional(1000, "p1", Types.StringType.get()),
             NestedField.optional(1001, "P1", Types.StringType.get()));
-    PartitionSpec spec = builder.build();
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -281,17 +281,17 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   @Test
   public void testIdentityTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
     Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
+    PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
             .identity("data", "p1")
-            .identity("category", "P1");
+            .identity("category", "P1")
+            .build();
 
     StructType expectedType =
         StructType.of(
             NestedField.optional(1000, "p1", Types.StringType.get()),
             NestedField.optional(1001, "P1", Types.StringType.get()));
-    PartitionSpec spec = builder.build();
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -355,17 +355,17 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   @Test
   public void testAlwaysNullTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
     Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
+    PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
             .alwaysNull("data", "p1")
-            .alwaysNull("category", "P1");
+            .alwaysNull("category", "P1")
+            .build();
 
     StructType expectedType =
         StructType.of(
             NestedField.optional(1000, "p1", Types.StringType.get()),
             NestedField.optional(1001, "P1", Types.StringType.get()));
-    PartitionSpec spec = builder.build();
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -429,11 +429,12 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   @Test
   public void testYearTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
     Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
+    PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
             .year("order_date", "p1")
-            .year("ship_date", "P1");
+            .year("ship_date", "P1")
+            .build();
 
     StructType expectedType =
         StructType.of(
@@ -503,11 +504,12 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   @Test
   public void testMonthTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
     Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
+    PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
             .month("order_date", "p1")
-            .month("ship_date", "P1");
+            .month("ship_date", "P1")
+            .build();
 
     StructType expectedType =
         StructType.of(
@@ -577,17 +579,17 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   @Test
   public void testDayTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
     Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
+    PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
             .day("order_date", "p1")
-            .day("ship_date", "P1");
+            .day("ship_date", "P1")
+            .build();
 
     StructType expectedType =
         StructType.of(
             NestedField.optional(1000, "p1", Types.DateType.get()),
             NestedField.optional(1001, "P1", Types.DateType.get()));
-    PartitionSpec spec = builder.build();
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -651,11 +653,12 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   @Test
   public void testHourTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
     Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
+    PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
             .hour("order_time", "p1")
-            .hour("ship_time", "P1");
+            .hour("ship_time", "P1")
+            .build();
 
     StructType expectedType =
         StructType.of(
