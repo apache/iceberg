@@ -1015,6 +1015,11 @@ public class TableMetadata implements Serializable {
           "Cannot downgrade v%s table to v%s",
           formatVersion,
           newFormatVersion);
+      Preconditions.checkArgument(
+          newFormatVersion <= formatVersion + 1,
+          "Cannot skip format version(s) to upgrade v%s table to v%s",
+          formatVersion,
+          newFormatVersion);
 
       if (newFormatVersion == formatVersion) {
         return this;

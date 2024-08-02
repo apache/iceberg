@@ -185,7 +185,7 @@ public class TestUpdateRequirements {
   }
 
   @Test
-  public void upgradeFormatVersion() {
+  public void upgradeFormatVersionV2() {
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
             metadata, ImmutableList.of(new MetadataUpdate.UpgradeFormatVersion(2)));
@@ -199,10 +199,38 @@ public class TestUpdateRequirements {
   }
 
   @Test
-  public void upgradeFormatVersionForView() {
+  public void upgradeFormatVersionV3() {
+    List<UpdateRequirement> requirements =
+        UpdateRequirements.forUpdateTable(
+            metadata, ImmutableList.of(new MetadataUpdate.UpgradeFormatVersion(3)));
+    requirements.forEach(req -> req.validate(metadata));
+
+    assertThat(requirements)
+        .hasSize(1)
+        .hasOnlyElementsOfType(UpdateRequirement.AssertTableUUID.class);
+
+    assertTableUUID(requirements);
+  }
+
+  @Test
+  public void upgradeFormatVersionForViewV2() {
     List<UpdateRequirement> requirements =
         UpdateRequirements.forReplaceView(
             viewMetadata, ImmutableList.of(new MetadataUpdate.UpgradeFormatVersion(2)));
+    requirements.forEach(req -> req.validate(viewMetadata));
+
+    assertThat(requirements)
+        .hasSize(1)
+        .hasOnlyElementsOfType(UpdateRequirement.AssertViewUUID.class);
+
+    assertViewUUID(requirements);
+  }
+
+  @Test
+  public void upgradeFormatVersionForViewV3() {
+    List<UpdateRequirement> requirements =
+        UpdateRequirements.forReplaceView(
+            viewMetadata, ImmutableList.of(new MetadataUpdate.UpgradeFormatVersion(3)));
     requirements.forEach(req -> req.validate(viewMetadata));
 
     assertThat(requirements)

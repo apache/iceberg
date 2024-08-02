@@ -28,51 +28,79 @@ import org.junit.jupiter.api.TestTemplate;
 public class TestFormatVersions extends TestBase {
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
-    return Arrays.asList(1);
+    return Arrays.asList(1, 2);
   }
 
   @TestTemplate
   public void testDefaultFormatVersion() {
-    assertThat(table.ops().current().formatVersion()).isEqualTo(1);
+    assertThat(table.ops().current().formatVersion()).isBetween(1, 2);
   }
 
   @TestTemplate
   public void testFormatVersionUpgrade() {
     TableOperations ops = table.ops();
     TableMetadata base = ops.current();
-    ops.commit(base, base.upgradeToFormatVersion(2));
+    int baseTableVersion = base.formatVersion();
+    int newTableVersion = baseTableVersion + 1;
+    ops.commit(base, base.upgradeToFormatVersion(newTableVersion));
 
-    assertThat(ops.current().formatVersion()).isEqualTo(2);
+    assertThat(ops.current().formatVersion()).isEqualTo(newTableVersion);
   }
 
   @TestTemplate
   public void testFormatVersionDowngrade() {
     TableOperations ops = table.ops();
     TableMetadata base = ops.current();
-    ops.commit(base, base.upgradeToFormatVersion(2));
+    int baseTableVersion = base.formatVersion();
+    int newTableVersion = baseTableVersion + 1;
+    ops.commit(base, base.upgradeToFormatVersion(newTableVersion));
 
-    assertThat(ops.current().formatVersion()).isEqualTo(2);
+    assertThat(ops.current().formatVersion()).isEqualTo(newTableVersion);
 
-    assertThatThrownBy(() -> ops.current().upgradeToFormatVersion(1))
+    assertThatThrownBy(() -> ops.current().upgradeToFormatVersion(baseTableVersion))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot downgrade v2 table to v1");
+        .hasMessage(
+            String.format("Cannot downgrade v%d table to v%d", newTableVersion, baseTableVersion));
 
-    assertThat(ops.current().formatVersion()).isEqualTo(2);
+    assertThat(ops.current().formatVersion()).isEqualTo(newTableVersion);
   }
 
   @TestTemplate
   public void testFormatVersionUpgradeNotSupported() {
     TableOperations ops = table.ops();
     TableMetadata base = ops.current();
+    int baseTableVersion = base.formatVersion();
+    int unsupportedTableVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1;
 
-    assertThatThrownBy(
-            () ->
-                ops.commit(
-                    base,
-                    base.upgradeToFormatVersion(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1)))
+    assertThatThrownBy(() -> ops.commit(base, base.upgradeToFormatVersion(unsupportedTableVersion)))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot upgrade table to unsupported format version: v4 (supported: v3)");
+        .hasMessage(
+            String.format(
+                "Cannot upgrade table to unsupported format version: v%d (supported: v%d)",
+                unsupportedTableVersion, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION));
 
-    assertThat(ops.current().formatVersion()).isEqualTo(1);
+    assertThat(ops.current().formatVersion()).isEqualTo(baseTableVersion);
+  }
+
+  @TestTemplate
+  public void testFormatVersionUpgradeSkipVersion() {
+    TableOperations ops = table.ops();
+    TableMetadata base = ops.current();
+    int baseTableVersion = base.formatVersion();
+
+    // exhaustively test upgrading with skipped version(s) to all valid table versions
+    for (int tableVersion = baseTableVersion + 2;
+        tableVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
+        tableVersion++) {
+      final int newTableVersion = tableVersion;
+      assertThatThrownBy(() -> ops.commit(base, base.upgradeToFormatVersion(newTableVersion)))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage(
+              String.format(
+                  "Cannot skip format version(s) to upgrade v%d table to v%d",
+                  baseTableVersion, newTableVersion));
+
+      assertThat(ops.current().formatVersion()).isEqualTo(baseTableVersion);
+    }
   }
 }
