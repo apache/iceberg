@@ -319,10 +319,6 @@ public class TestIcebergConnector extends TestBase {
     return properties.getOrDefault("catalog-database", "default_database");
   }
 
-  private String toWithClause(Map<String, String> props) {
-    return CatalogTestBase.toWithClause(props);
-  }
-
   private String createWarehouse() {
     try {
       return String.format(
