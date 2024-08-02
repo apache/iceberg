@@ -53,7 +53,9 @@ public class TestIcebergSourceSql extends TestSqlBase {
   public void before() throws IOException {
     TableEnvironment tableEnvironment = getTableEnv();
     Configuration tableConf = tableEnvironment.getConfig().getConfiguration();
-    tableConf.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE.key(), true);
+    tableConf.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE, true);
+    // disable inferring parallelism to avoid interfering watermark tests
+    tableConf.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
 
     tableEnvironment.getConfig().set("table.exec.resource.default-parallelism", "1");
     SqlHelpers.sql(

@@ -32,9 +32,7 @@ public class MiniFlinkClusterExtension {
   public static final Configuration DISABLE_CLASSLOADER_CHECK_CONFIG =
       new Configuration()
           // disable classloader check as Avro may cache class/object in the serializers.
-          .set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false)
-          // disable inferring parallelism by default
-          .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
+          .set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false);
 
   private MiniFlinkClusterExtension() {}
 
