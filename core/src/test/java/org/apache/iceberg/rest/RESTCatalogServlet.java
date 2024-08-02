@@ -20,6 +20,9 @@ package org.apache.iceberg.rest;
 
 import static java.lang.String.format;
 
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -30,9 +33,6 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.exceptions.RESTException;

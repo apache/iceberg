@@ -57,9 +57,10 @@ jackson213 = { strictly = "2.13.4"}
 jackson214 = { strictly = "2.14.2"}
 jackson215 = { strictly = "2.15.2"}
 jakarta-el-api = "3.0.3"
+jakarta-servlet-api = "6.1.0"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
-jetty = "9.4.55.v20240627"
+jetty = "11.0.22"
 junit = "5.10.1"
 kafka = "3.7.1"
 kryo-shaded = "4.0.3"
@@ -196,6 +197,7 @@ flink119-test-utils = { module = "org.apache.flink:flink-test-utils", version.re
 flink119-test-utilsjunit = { module = "org.apache.flink:flink-test-utils-junit", version.ref = "flink119" }
 guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
 jakarta-el-api = { module = "jakarta.el:jakarta.el-api", version.ref = "jakarta-el-api" }
+jakarta-servlet = {module = "jakarta.servlet:jakarta.servlet-api", version.ref = "jakarta-servlet-api"}
 jetty-server = { module = "org.eclipse.jetty:jetty-server", version.ref = "jetty" }
 jetty-servlet = { module = "org.eclipse.jetty:jetty-servlet", version.ref = "jetty" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
