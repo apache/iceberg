@@ -87,6 +87,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
   // When there is nothing to trigger, we start from the beginning, as the order of the tasks might
   // be important (RewriteDataFiles first, and then RewriteManifestFiles later)
   private transient int startsFrom = 0;
+  private transient boolean triggered = false;
 
   TriggerManager(
       TableLoader tableLoader,
@@ -236,13 +237,16 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
         nextTrigger(evaluators, accumulatedChanges, lastTriggerTimes, current, startsFrom);
     if (taskToStart == null) {
       // Nothing to execute
-      if (startsFrom == 0) {
+      if (!triggered) {
         nothingToTriggerCounter.inc();
         LOG.debug("Nothing to execute at {} for collected: {}", current, accumulatedChanges);
+      } else {
+        LOG.debug("Execution check finished");
       }
 
       // Next time start from the beginning
       startsFrom = 0;
+      triggered = false;
       return;
     }
 
@@ -256,7 +260,8 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
       accumulatedChanges.set(taskToStart, TableChange.empty());
       lastTriggerTimes.set(taskToStart, current);
       schedule(timerService, current + minFireDelayMs);
-      startsFrom = taskToStart + 1;
+      startsFrom = (taskToStart + 1) % evaluators.size();
+      triggered = true;
     } else {
       // A task is already running, waiting for it to finish
       LOG.info("Failed to acquire lock. Delaying task to {}", current + lockCheckDelayMs);
@@ -280,8 +285,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
       List<Long> lastTriggerTimes,
       long currentTime,
       int startPos) {
-    int normalizedStartingPos = startPos % evaluators.size();
-    int current = normalizedStartingPos;
+    int current = startPos;
     do {
       if (evaluators
           .get(current)
@@ -290,7 +294,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
       }
 
       current = (current + 1) % evaluators.size();
-    } while (current != normalizedStartingPos);
+    } while (current != startPos);
 
     return null;
   }
