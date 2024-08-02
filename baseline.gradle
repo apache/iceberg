@@ -91,11 +91,17 @@ subprojects {
           '-Xep:CollectionUndefinedEquality:ERROR',
           // specific to Palantir - Uses name `log` but we use name `LOG`
           '-Xep:ConsistentLoggerName:OFF',
+          // TODO (https://github.com/apache/iceberg/issues/10853) this is a recently added check. Figure out whether we adjust the code or suppress for good
+          '-Xep:DangerousJavaDeserialization:WARN',
           '-Xep:DangerousThreadPoolExecutorUsage:OFF',
           // subclasses are not equal
           '-Xep:EqualsGetClass:OFF',
           // specific to Palantir
           '-Xep:FinalClass:OFF',
+          // TODO (https://github.com/apache/iceberg/issues/10854) this is a recently added check. Figure out whether we adjust the code or suppress for good
+          '-Xep:FormatStringAnnotation:WARN',
+          // TODO (https://github.com/apache/iceberg/issues/10855) this is a recently added check. Figure out whether we adjust the code or suppress for good
+          '-Xep:ImmutablesReferenceEquality:WARN',
           '-Xep:IntLongMath:ERROR',
           // prefer method references over lambdas
           '-Xep:LambdaMethodReference:ERROR',
@@ -108,6 +114,8 @@ subprojects {
           '-Xep:MissingSummary:ERROR',
           // Enforce hashCode over hash
           '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
+          // Triggers false-positives whenever relocated @VisibleForTesting is used
+          '-Xep:PreferCommonAnnotations:OFF',
           // specific to Palantir
           '-Xep:PreferSafeLoggableExceptions:OFF',
           '-Xep:PreferSafeLogger:OFF',
@@ -125,6 +133,8 @@ subprojects {
           '-Xep:StringSplitter:ERROR',
           '-Xep:TypeParameterShadowing:OFF',
           '-Xep:TypeParameterUnusedInFormals:OFF',
+          // Palantir's UnnecessarilyQualified may throw during analysis
+          '-Xep:UnnecessarilyQualified:OFF',
       )
     }
   }

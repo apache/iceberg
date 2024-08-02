@@ -93,6 +93,8 @@ class MapAssignment {
   }
 
   /**
+   * Returns assignment summary for every subtask.
+   *
    * @return assignment summary for every subtask. Key is subtaskId. Value pair is (weight assigned
    *     to the subtask, number of keys assigned to the subtask)
    */
