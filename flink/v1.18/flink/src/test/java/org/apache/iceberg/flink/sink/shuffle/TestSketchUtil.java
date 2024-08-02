@@ -19,10 +19,13 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import static org.apache.iceberg.flink.sink.shuffle.Fixtures.CHAR_KEYS;
+import static org.apache.iceberg.flink.sink.shuffle.Fixtures.SORT_ORDER_COMPARTOR;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.SortKey;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestSketchUtil {
   @Test
@@ -55,7 +58,7 @@ public class TestSketchUtil {
     assertThat(
             SketchUtil.rangeBounds(
                 1,
-                Fixtures.SORT_ORDER_COMPARTOR,
+                SORT_ORDER_COMPARTOR,
                 new SortKey[] {
                   CHAR_KEYS.get("a"),
                   CHAR_KEYS.get("b"),
@@ -72,7 +75,7 @@ public class TestSketchUtil {
     assertThat(
             SketchUtil.rangeBounds(
                 3,
-                Fixtures.SORT_ORDER_COMPARTOR,
+                SORT_ORDER_COMPARTOR,
                 new SortKey[] {
                   CHAR_KEYS.get("a"),
                   CHAR_KEYS.get("b"),
@@ -90,7 +93,7 @@ public class TestSketchUtil {
     assertThat(
             SketchUtil.rangeBounds(
                 4,
-                Fixtures.SORT_ORDER_COMPARTOR,
+                SORT_ORDER_COMPARTOR,
                 new SortKey[] {
                   CHAR_KEYS.get("a"),
                   CHAR_KEYS.get("b"),
@@ -113,7 +116,7 @@ public class TestSketchUtil {
     assertThat(
             SketchUtil.rangeBounds(
                 4,
-                Fixtures.SORT_ORDER_COMPARTOR,
+                SORT_ORDER_COMPARTOR,
                 new SortKey[] {
                   CHAR_KEYS.get("a"),
                   CHAR_KEYS.get("b"),
@@ -129,5 +132,58 @@ public class TestSketchUtil {
                 }))
         // skipped duplicate c's
         .containsExactly(CHAR_KEYS.get("c"), CHAR_KEYS.get("g"), CHAR_KEYS.get("j"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {4, 6})
+  public void testPartitioningAndScaleUp(int numPartitions) {
+    // Range bounds are calculated based on 4 partitions
+    SortKey[] rangeBounds =
+        new SortKey[] {CHAR_KEYS.get("c"), CHAR_KEYS.get("j"), CHAR_KEYS.get("m")};
+
+    // <= c
+    assertPartition(0, CHAR_KEYS.get("a"), numPartitions, rangeBounds);
+    assertPartition(0, CHAR_KEYS.get("c"), numPartitions, rangeBounds);
+    // > c && <= j
+    assertPartition(1, CHAR_KEYS.get("d"), numPartitions, rangeBounds);
+    assertPartition(1, CHAR_KEYS.get("i"), numPartitions, rangeBounds);
+    assertPartition(1, CHAR_KEYS.get("j"), numPartitions, rangeBounds);
+    // > j && <= m
+    assertPartition(2, CHAR_KEYS.get("k"), numPartitions, rangeBounds);
+    assertPartition(2, CHAR_KEYS.get("l"), numPartitions, rangeBounds);
+    assertPartition(2, CHAR_KEYS.get("m"), numPartitions, rangeBounds);
+    // > m
+    assertPartition(3, CHAR_KEYS.get("n"), numPartitions, rangeBounds);
+    assertPartition(3, CHAR_KEYS.get("z"), numPartitions, rangeBounds);
+  }
+
+  @Test
+  public void testPartitionScaleDown() {
+    // Range bounds are calculated based on 4 partitions
+    SortKey[] rangeBounds =
+        new SortKey[] {CHAR_KEYS.get("c"), CHAR_KEYS.get("j"), CHAR_KEYS.get("m")};
+    int numPartitions = 3;
+
+    // <= c
+    assertPartition(0, CHAR_KEYS.get("a"), numPartitions, rangeBounds);
+    assertPartition(0, CHAR_KEYS.get("c"), numPartitions, rangeBounds);
+    // > c && <= j
+    assertPartition(1, CHAR_KEYS.get("d"), numPartitions, rangeBounds);
+    assertPartition(1, CHAR_KEYS.get("i"), numPartitions, rangeBounds);
+    assertPartition(1, CHAR_KEYS.get("j"), numPartitions, rangeBounds);
+    // > j && <= m
+    assertPartition(2, CHAR_KEYS.get("k"), numPartitions, rangeBounds);
+    assertPartition(2, CHAR_KEYS.get("l"), numPartitions, rangeBounds);
+    assertPartition(2, CHAR_KEYS.get("m"), numPartitions, rangeBounds);
+    // > m
+    // reassigns out-of-range partitions via mod (% 3 in this case)
+    assertPartition(0, CHAR_KEYS.get("n"), numPartitions, rangeBounds);
+    assertPartition(0, CHAR_KEYS.get("z"), numPartitions, rangeBounds);
+  }
+
+  private static void assertPartition(
+      int expectedPartition, SortKey key, int numPartitions, SortKey[] rangeBounds) {
+    assertThat(SketchUtil.partition(key, numPartitions, rangeBounds, SORT_ORDER_COMPARTOR))
+        .isEqualTo(expectedPartition);
   }
 }
