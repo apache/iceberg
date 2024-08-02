@@ -191,20 +191,14 @@ subprojects {
     testArtifacts
   }
 
-  compileJava {
+  tasks.withType(JavaCompile.class).configureEach {
     options.encoding = "UTF-8"
-  }
-
-  compileTestJava {
-    options.encoding = "UTF-8"
+    options.release = 11
   }
 
   javadoc {
     options.encoding = 'UTF-8'
   }
-
-  sourceCompatibility = '1.8'
-  targetCompatibility = '1.8'
 
   dependencies {
     implementation libs.slf4j.api
@@ -886,10 +880,6 @@ project(':iceberg-pig') {
 project(':iceberg-nessie') {
   test {
     useJUnitPlatform()
-  }
-  compileTestJava {
-    sourceCompatibility = "11"
-    targetCompatibility = "11"
   }
 
   dependencies {
