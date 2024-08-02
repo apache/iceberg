@@ -36,6 +36,9 @@ public interface TriggerLockFactory extends Serializable, Closeable {
      * Tries to acquire a lock with a given key. Anyone already holding a lock would prevent
      * acquiring this lock. Not reentrant.
      *
+     * <p>Called by {@link TriggerManager}. Implementations could assume that are no concurrent
+     * calls for this method.
+     *
      * @return <code>true</code> if the lock is acquired by this job, <code>false</code> if the lock
      *     is already held by someone
      */
@@ -48,7 +51,13 @@ public interface TriggerLockFactory extends Serializable, Closeable {
      */
     boolean isHeld();
 
-    /** Releases the lock. Should not fail if the lock is not held by anyone. */
+    // TODO: Fix the link to the LockRemover when we have a final name and implementation
+    /**
+     * Releases the lock. Should not fail if the lock is not held by anyone.
+     *
+     * <p>Called by LockRemover. Implementations could assume that are no concurrent calls for this
+     * method.
+     */
     void unlock();
   }
 }

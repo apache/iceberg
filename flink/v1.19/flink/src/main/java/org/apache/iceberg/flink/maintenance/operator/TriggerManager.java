@@ -50,9 +50,8 @@ import org.slf4j.LoggerFactory;
  * result of the {@link TriggerEvaluator}.
  *
  * <p>The TriggerManager prevents overlapping Maintenance Task runs using {@link
- * org.apache.iceberg.flink.maintenance.operator.TriggerLockFactory.Lock}. The current
- * implementation only handles conflicts within a single job. Users should avoid scheduling
- * maintenance for the same table in different Flink jobs.
+ * TriggerLockFactory.Lock}. The current implementation only handles conflicts within a single job.
+ * Users should avoid scheduling maintenance for the same table in different Flink jobs.
  *
  * <p>The TriggerManager should run as a global operator. {@link KeyedProcessFunction} is used, so
  * the timer functions are available, but the key is not used.
@@ -166,6 +165,13 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
       nextEvaluationTimeState.update(nextEvaluationTime);
       accumulatedChangesState.update(accumulatedChanges);
       lastTriggerTimesState.update(lastTriggerTimes);
+      LOG.info(
+          "Storing state: nextEvaluationTime {}, accumulatedChanges {}, lastTriggerTimes {}",
+          nextEvaluationTime,
+          accumulatedChanges,
+          lastTriggerTimes);
+    } else {
+      LOG.info("Not initialized, state is not stored");
     }
   }
 
@@ -253,7 +259,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
       startsFrom = taskToStart + 1;
     } else {
       // A task is already running, waiting for it to finish
-      LOG.info("Delaying task on failed lock check: {}", current);
+      LOG.info("Failed to acquire lock. Delaying task to {}", current + lockCheckDelayMs);
 
       startsFrom = taskToStart;
       concurrentRunTriggeredCounter.inc();

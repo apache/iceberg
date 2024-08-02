@@ -239,7 +239,7 @@ class TestTriggerManager extends OperatorTestBase {
       testHarness.initializeState(state);
       testHarness.open();
 
-      // Arrives the first real change
+      // Arrives the first real change which triggers the recovery process
       testHarness.processElement(TableChange.builder().commitNum(1).build(), EVENT_TIME_2);
       assertTriggers(
           testHarness.extractOutputValues(),
@@ -248,6 +248,7 @@ class TestTriggerManager extends OperatorTestBase {
       // Remove the lock to allow the next trigger
       recoveringLock.unlock();
       testHarness.setProcessingTime(EVENT_TIME_2);
+      // At this point the output contains the recovery trigger and the real trigger
       assertThat(testHarness.extractOutputValues()).hasSize(2);
     }
   }
@@ -273,7 +274,7 @@ class TestTriggerManager extends OperatorTestBase {
   }
 
   @Test
-  void testLogCheckDelay() throws Exception {
+  void testLockCheckDelay() throws Exception {
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
     TriggerManager manager = manager(tableLoader, 1, DELAY);
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
@@ -301,12 +302,12 @@ class TestTriggerManager extends OperatorTestBase {
    * Simulating recovery scenarios where there is a leftover table lock, and ongoing maintenance
    * task.
    *
-   * @param tableLock left on the table on job recovery
+   * @param locked if a lock exists on the table on job recovery
    * @param runningTask is running and continues to run after job recovery
    */
   @ParameterizedTest
   @MethodSource("parametersForTestRecovery")
-  void testRecovery(boolean tableLock, boolean runningTask) throws Exception {
+  void testRecovery(boolean locked, boolean runningTask) throws Exception {
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
     TriggerManager manager = manager(tableLoader);
     OperatorSubtaskState state;
@@ -316,7 +317,7 @@ class TestTriggerManager extends OperatorTestBase {
       state = testHarness.snapshot(1, EVENT_TIME);
     }
 
-    if (tableLock) {
+    if (locked) {
       assertThat(lock.tryLock()).isTrue();
     }
 
@@ -339,6 +340,7 @@ class TestTriggerManager extends OperatorTestBase {
       assertTriggers(testHarness.extractOutputValues(), expected);
 
       if (runningTask) {
+        // Simulate the action of the recovered maintenance task lock removal when it finishes
         lock.unlock();
       }
 
@@ -348,14 +350,14 @@ class TestTriggerManager extends OperatorTestBase {
       testHarness.processElement(TableChange.builder().commitNum(2).build(), processingTime);
       assertTriggers(testHarness.extractOutputValues(), expected);
 
-      // All locks are removed when the recovery trigger is received by the lock cleaner
+      // Simulate the action of removing lock and recoveryLock by downstream lock cleaner when it
+      // received recovery trigger
       lock.unlock();
       recoveringLock.unlock();
 
       // Emit only a single trigger
       ++processingTime;
       testHarness.setProcessingTime(processingTime);
-      testHarness.processElement(TableChange.builder().commitNum(2).build(), processingTime);
       // Releasing lock will create a new snapshot, and we receive this in the trigger
       expected.add(
           Trigger.create(

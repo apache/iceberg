@@ -19,8 +19,10 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.ManageSnapshots;
 import org.apache.iceberg.Table;
@@ -173,7 +175,12 @@ public class TagBasedLockFactory implements TriggerLockFactory {
     }
 
     private Optional<String> findLock() {
-      return table.refs().keySet().stream().filter(tag -> tag.startsWith(lockPrefix)).findAny();
+      List<String> locks =
+          table.refs().keySet().stream()
+              .filter(tag -> tag.startsWith(lockPrefix))
+              .collect(Collectors.toList());
+      Preconditions.checkArgument(locks.size() < 2, "Invalid lock state: %s", locks);
+      return locks.stream().findAny();
     }
   }
 }
