@@ -35,6 +35,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
@@ -195,7 +196,7 @@ public class TestS3InputStream {
   private void createBucket(String bucketName) {
     try {
       s3.createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
-    } catch (BucketAlreadyExistsException e) {
+    } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException e) {
       // don't do anything
     }
   }
