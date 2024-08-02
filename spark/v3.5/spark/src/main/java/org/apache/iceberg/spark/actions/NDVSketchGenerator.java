@@ -39,11 +39,9 @@ import org.apache.iceberg.spark.SparkValueConverter;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.functions;
 import scala.Tuple2;
 
 public class NDVSketchGenerator {
@@ -67,7 +65,8 @@ public class NDVSketchGenerator {
     return columns.stream()
         .map(
             columnName -> {
-              Types.NestedField field = table.schema().findField(columnName);
+              Schema schema = table.schemas().get(snapshot.schemaId());
+              Types.NestedField field = schema.findField(columnName);
               Sketch sketch = sketchMap.get(field.fieldId()).getSketch();
               long ndv = (long) sketch.getEstimate();
               return new Blob(
@@ -87,14 +86,15 @@ public class NDVSketchGenerator {
     Map<Integer, ThetaSketchJavaSerializable> sketchMap = Maps.newHashMap();
     String tableName = table.name();
     List<String> columns = ImmutableList.copyOf(columnsToBeAnalyzed);
+
     Dataset<Row> data =
         spark
             .read()
             .format("iceberg")
             .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
-            .table(tableName)
-            .select(columns.stream().map(functions::col).toArray(Column[]::new));
-    Schema schema = table.schema();
+            .load(tableName)
+            .selectExpr(columns.toArray(new String[0]));
+    Schema schema = table.schemas().get(table.snapshot(snapshotId).schemaId());
     List<Types.NestedField> nestedFields =
         columns.stream().map(schema::findField).collect(Collectors.toList());
     Schema sketchSchema = new Schema(nestedFields);

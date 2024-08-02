@@ -157,7 +157,7 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
             IllegalArgumentException.class,
             () -> actions.computeTableStats(table).columns("id1").execute());
     String message = exception.getMessage();
-    assertTrue(message.contains("No column with id1 name in the table"));
+    assertTrue(message.contains("No column with name id1 in the table"));
   }
 
   @TestTemplate
