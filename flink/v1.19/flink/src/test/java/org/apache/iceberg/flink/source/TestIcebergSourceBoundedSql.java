@@ -46,8 +46,7 @@ public class TestIcebergSourceBoundedSql extends TestIcebergSourceBounded {
     getTableEnv()
         .getConfig()
         .getConfiguration()
-        .set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true)
-        .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
+        .set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
   }
 
   private TableEnvironment getTableEnv() {
