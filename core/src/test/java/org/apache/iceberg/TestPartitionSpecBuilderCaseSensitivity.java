@@ -104,44 +104,30 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testBucketSourceNameAllowsExactDuplicateWhenCaseSensitive() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema).bucket("data", 10, "p1").bucket("data", 10, "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.IntegerType.get()),
-            NestedField.optional(1001, "P1", Types.IntegerType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testBucketSourceNameDoesNotAllowExactDuplicateWhenCaseSensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                    .bucket("data", 10, "p1")
+                    .bucket("data", 10, "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: bucket[10](2) conflicts with 1001: P1: bucket[10](2)");
   }
 
   @Test
-  public void testBucketSourceNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema)
-            .caseSensitive(false)
-            .bucket("data", 10, "p1")
-            .bucket("DATA", 10, "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.IntegerType.get()),
-            NestedField.optional(1001, "P1", Types.IntegerType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testBucketSourceNameDoesNotAllowInexactDuplicateWhenCaseInsensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                    .caseSensitive(false)
+                    .bucket("data", 10, "p1")
+                    .bucket("DATA", 10, "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: bucket[10](2) conflicts with 1001: P1: bucket[10](2)");
   }
 
   @Test
@@ -192,44 +178,30 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testTruncateSourceNameAllowsExactDuplicateWhenCaseSensitive() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema).truncate("data", 10, "p1").truncate("data", 10, "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.StringType.get()),
-            NestedField.optional(1001, "P1", Types.StringType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testTruncateSourceNameDoesNotAllowExactDuplicateWhenCaseSensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                    .truncate("data", 10, "p1")
+                    .truncate("data", 10, "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: truncate[10](2) conflicts with 1001: P1: truncate[10](2)");
   }
 
   @Test
-  public void testTruncateSourceNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema)
-            .caseSensitive(false)
-            .truncate("data", 10, "p1")
-            .truncate("DATA", 10, "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.StringType.get()),
-            NestedField.optional(1001, "P1", Types.StringType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testTruncateSourceNameDoesNotAllowInexactDuplicateWhenCaseInsensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                    .caseSensitive(false)
+                    .truncate("data", 10, "p1")
+                    .truncate("DATA", 10, "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: truncate[10](2) conflicts with 1001: P1: truncate[10](2)");
   }
 
   @Test
@@ -280,44 +252,30 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testIdentitySourceNameAllowsExactDuplicateWhenCaseSensitive() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema).identity("data", "p1").identity("data", "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.StringType.get()),
-            NestedField.optional(1001, "P1", Types.StringType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testIdentitySourceNameDoesNotAllowExactDuplicateWhenCaseSensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                    .identity("data", "p1")
+                    .identity("data", "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: identity(2) conflicts with 1001: P1: identity(2)");
   }
 
   @Test
-  public void testIdentitySourceNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema)
-            .caseSensitive(false)
-            .identity("data", "p1")
-            .identity("DATA", "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.StringType.get()),
-            NestedField.optional(1001, "P1", Types.StringType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testIdentitySourceNameDoesNotAllowInexactDuplicateWhenCaseInsensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                    .caseSensitive(false)
+                    .identity("data", "p1")
+                    .identity("DATA", "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: identity(2) conflicts with 1001: P1: identity(2)");
   }
 
   @Test
@@ -368,44 +326,30 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testAlwaysNullSourceNameAllowsExactDuplicateWhenCaseSensitive() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema).alwaysNull("data", "p1").alwaysNull("data", "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.StringType.get()),
-            NestedField.optional(1001, "P1", Types.StringType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testAlwaysNullSourceNameDoesNotAllowExactDuplicateWhenCaseSensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                    .alwaysNull("data", "p1")
+                    .alwaysNull("data", "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: void(2) conflicts with 1001: P1: void(2)");
   }
 
   @Test
-  public void testAlwaysNullSourceNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema)
-            .caseSensitive(false)
-            .alwaysNull("data", "p1")
-            .alwaysNull("DATA", "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.StringType.get()),
-            NestedField.optional(1001, "P1", Types.StringType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testAlwaysNullSourceNameDoesNotAllowInexactDuplicateWhenCaseInsensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                    .caseSensitive(false)
+                    .alwaysNull("data", "p1")
+                    .alwaysNull("DATA", "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: void(2) conflicts with 1001: P1: void(2)");
   }
 
   @Test
@@ -456,44 +400,30 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testYearSourceNameAllowsExactDuplicateWhenCaseSensitive() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema).year("order_date", "p1").year("order_date", "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.DateType.get()),
-            NestedField.optional(1001, "P1", Types.DateType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testYearSourceNameDoesNotAllowExactDuplicateWhenCaseSensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                    .year("order_date", "p1")
+                    .year("order_date", "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: year(4) conflicts with 1001: P1: year(4)");
   }
 
   @Test
-  public void testYearSourceNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema)
-            .caseSensitive(false)
-            .year("order_date", "p1")
-            .year("ORDER_DATE", "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.DateType.get()),
-            NestedField.optional(1001, "P1", Types.DateType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testYearSourceNameDoesNotAllowInexactDuplicateWhenCaseInsensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                    .caseSensitive(false)
+                    .year("order_date", "p1")
+                    .year("ORDER_DATE", "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: year(4) conflicts with 1001: P1: year(4)");
   }
 
   @Test
@@ -544,44 +474,30 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testMonthSourceNameAllowsExactDuplicateWhenCaseSensitive() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema).month("order_date", "p1").month("order_date", "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.DateType.get()),
-            NestedField.optional(1001, "P1", Types.DateType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testMonthSourceNameDoesNotAllowExactDuplicateWhenCaseSensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                    .month("order_date", "p1")
+                    .month("order_date", "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: month(4) conflicts with 1001: P1: month(4)");
   }
 
   @Test
-  public void testMonthSourceNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema)
-            .caseSensitive(false)
-            .month("order_date", "p1")
-            .month("ORDER_DATE", "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.IntegerType.get()),
-            NestedField.optional(1001, "P1", Types.IntegerType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testMonthSourceNameDoesNotAllowInexactDuplicateWhenCaseInsensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                    .caseSensitive(false)
+                    .month("order_date", "p1")
+                    .month("ORDER_DATE", "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: month(4) conflicts with 1001: P1: month(4)");
   }
 
   @Test
@@ -632,44 +548,30 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testDaySourceNameAllowsExactDuplicateWhenCaseSensitive() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema).day("order_date", "p1").day("order_date", "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.DateType.get()),
-            NestedField.optional(1001, "P1", Types.DateType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testDaySourceNameDoesNotAllowExactDuplicateWhenCaseSensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                    .day("order_date", "p1")
+                    .day("order_date", "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: day(4) conflicts with 1001: P1: day(4)");
   }
 
   @Test
-  public void testDaySourceNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema)
-            .caseSensitive(false)
-            .day("order_date", "p1")
-            .day("ORDER_DATE", "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.DateType.get()),
-            NestedField.optional(1001, "P1", Types.DateType.get()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testDaySourceNameDoesNotAllowInexactDuplicateWhenCaseInsensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                    .caseSensitive(false)
+                    .day("order_date", "p1")
+                    .day("ORDER_DATE", "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: day(4) conflicts with 1001: P1: day(4)");
   }
 
   @Test
@@ -720,44 +622,30 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testHourSourceNameAllowsExactDuplicateWhenCaseSensitive() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema).hour("order_time", "p1").hour("order_time", "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.TimestampType.withoutZone()),
-            NestedField.optional(1001, "P1", Types.TimestampType.withoutZone()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testHourSourceNameDoesNotAllowExactDuplicateWhenCaseSensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                    .hour("order_time", "p1")
+                    .hour("order_time", "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: hour(6) conflicts with 1001: P1: hour(6)");
   }
 
   @Test
-  public void testHourSourceNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
-    PartitionSpec.Builder builder =
-        PartitionSpec.builderFor(schema)
-            .caseSensitive(false)
-            .hour("order_time", "p1")
-            .hour("ORDER_TIME", "P1");
-
-    StructType expectedType =
-        StructType.of(
-            NestedField.optional(1000, "p1", Types.TimestampType.withoutZone()),
-            NestedField.optional(1001, "P1", Types.TimestampType.withoutZone()));
-    PartitionSpec spec = builder.build();
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
+  public void testHourSourceNameDoesNotAllowInexactDuplicateWhenCaseInsensitive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                    .caseSensitive(false)
+                    .hour("order_time", "p1")
+                    .hour("ORDER_TIME", "P1")
+                    .build())
+        .withMessage(
+            "Cannot add redundant partition: 1000: p1: hour(5) conflicts with 1001: P1: hour(5)");
   }
 
   @Test

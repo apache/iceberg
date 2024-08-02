@@ -527,9 +527,11 @@ public class PartitionSpec implements Serializable {
     public Builder bucket(String sourceName, int numBuckets, String targetName) {
       checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      fields.add(
+      PartitionField field =
           new PartitionField(
-              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.bucket(numBuckets)));
+              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.bucket(numBuckets));
+      checkForRedundantPartitions(field);
+      fields.add(field);
       return this;
     }
 
@@ -540,9 +542,11 @@ public class PartitionSpec implements Serializable {
     public Builder truncate(String sourceName, int width, String targetName) {
       checkAndAddPartitionName(targetName);
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      fields.add(
+      PartitionField field =
           new PartitionField(
-              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.truncate(width)));
+              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.truncate(width));
+      checkForRedundantPartitions(field);
+      fields.add(field);
       return this;
     }
 
@@ -554,9 +558,11 @@ public class PartitionSpec implements Serializable {
       Types.NestedField sourceColumn = findSourceColumn(sourceName);
       checkAndAddPartitionName(
           targetName, sourceColumn.fieldId()); // can duplicate a source column name
-      fields.add(
+      PartitionField field =
           new PartitionField(
-              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.alwaysNull()));
+              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.alwaysNull());
+      checkForRedundantPartitions(field);
+      fields.add(field);
       return this;
     }
 
