@@ -40,7 +40,7 @@ import org.apache.iceberg.util.Tasks;
  * <p>This update is not exposed though the Table API. Instead, it is a package-private part of the
  * Transaction API intended for use in {@link ManageSnapshots}.
  */
-class SetSnapshotOperation implements PendingUpdate<Snapshot> {
+class SetSnapshotOperation extends BasePendingUpdate<Snapshot> implements PendingUpdate<Snapshot> {
 
   private final TableOperations ops;
   private TableMetadata base;
@@ -122,6 +122,8 @@ class SetSnapshotOperation implements PendingUpdate<Snapshot> {
                   TableMetadata.buildFrom(base)
                       .setBranchSnapshot(snapshot.snapshotId(), SnapshotRef.MAIN_BRANCH)
                       .build();
+
+              validate(base);
 
               // Do commit this operation even if the metadata has not changed, as we need to
               // advance the hasLastOpCommited for the transaction's commit to work properly.
