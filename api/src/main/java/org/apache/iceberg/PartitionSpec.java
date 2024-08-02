@@ -453,20 +453,23 @@ public class PartitionSpec implements Serializable {
       return sourceColumn;
     }
 
-    Builder identity(String sourceName, String targetName) {
-      Types.NestedField sourceColumn = findSourceColumn(sourceName);
+    private Builder identity(Types.NestedField sourceColumn, String targetName) {
       checkAndAddPartitionName(targetName, sourceColumn.fieldId());
-      String normalizedTargetName = caseSensitive ? targetName : targetName.toLowerCase();
       PartitionField field =
           new PartitionField(
-              sourceColumn.fieldId(), nextFieldId(), normalizedTargetName, Transforms.identity());
+              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.identity());
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
     }
 
+    Builder identity(String sourceName, String targetName) {
+      return identity(findSourceColumn(sourceName), targetName);
+    }
+
     public Builder identity(String sourceName) {
-      return identity(sourceName, sourceName);
+      Types.NestedField sourceColumn = findSourceColumn(sourceName);
+      return identity(sourceColumn, sourceColumn.name());
     }
 
     public Builder year(String sourceName, String targetName) {
