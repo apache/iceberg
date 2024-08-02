@@ -27,12 +27,7 @@ buildscript {
   }
   dependencies {
     classpath 'io.github.goooler.shadow:shadow-gradle-plugin:8.1.8'
-    classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
-    // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
-    // in an old version of the errorprone, which doesn't work w/ Gradle 8, so bump errorpone as
-    // well.
-    classpath "net.ltgt.gradle:gradle-errorprone-plugin:3.1.0"
-
+    classpath 'com.palantir.baseline:gradle-baseline-java:5.58.0'
     classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
@@ -191,20 +186,14 @@ subprojects {
     testArtifacts
   }
 
-  compileJava {
+  tasks.withType(JavaCompile.class).configureEach {
     options.encoding = "UTF-8"
-  }
-
-  compileTestJava {
-    options.encoding = "UTF-8"
+    options.release = 11
   }
 
   javadoc {
     options.encoding = 'UTF-8'
   }
-
-  sourceCompatibility = '1.8'
-  targetCompatibility = '1.8'
 
   dependencies {
     implementation libs.slf4j.api
@@ -361,6 +350,7 @@ project(':iceberg-core') {
     }
 
     testImplementation libs.jetty.servlet
+    testImplementation libs.jakarta.servlet
     testImplementation libs.jetty.server
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
@@ -886,10 +876,6 @@ project(':iceberg-pig') {
 project(':iceberg-nessie') {
   test {
     useJUnitPlatform()
-  }
-  compileTestJava {
-    sourceCompatibility = "11"
-    targetCompatibility = "11"
   }
 
   dependencies {

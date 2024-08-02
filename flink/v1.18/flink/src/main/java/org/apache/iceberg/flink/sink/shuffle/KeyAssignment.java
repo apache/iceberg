@@ -98,7 +98,11 @@ class KeyAssignment {
     return subtaskWeightsExcludingCloseCost;
   }
 
-  /** @return subtask id */
+  /**
+   * Select a subtask for the key.
+   *
+   * @return subtask id
+   */
   int select() {
     if (assignedSubtasks.size() == 1) {
       // only choice. no need to run random number generator.
