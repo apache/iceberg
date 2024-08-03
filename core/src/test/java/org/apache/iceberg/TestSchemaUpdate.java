@@ -876,7 +876,7 @@ public class TestSchemaUpdate {
               update.renameColumn("id", "col").deleteColumn("col");
             })
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot delete missing column: col");
+        .hasMessage("Cannot delete renaming column: col");
   }
 
   @Test
@@ -2191,6 +2191,38 @@ public class TestSchemaUpdate {
             .moveFirst("struct.data")
             .apply();
 
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testMoveAfterRename() {
+    Schema schema =
+        new Schema(
+            required(1, "b", Types.IntegerType.get()), required(2, "c", Types.IntegerType.get()));
+
+    Schema actual = new SchemaUpdate(schema, 4).renameColumn("c", "a").moveBefore("a", "b").apply();
+
+    Schema expected =
+        new Schema(
+            required(2, "a", Types.IntegerType.get()), required(1, "b", Types.IntegerType.get()));
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testUpdateAfterRename() {
+    Schema schema =
+        new Schema(
+            required(1, "b", Types.IntegerType.get()), required(2, "c", Types.IntegerType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, 4)
+            .renameColumn("c", "a")
+            .updateColumn("a", Types.LongType.get())
+            .apply();
+
+    Schema expected =
+        new Schema(
+            required(1, "b", Types.IntegerType.get()), required(2, "a", Types.LongType.get()));
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 }
