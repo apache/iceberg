@@ -122,7 +122,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   private String encryptionKeyId;
   private int encryptionDekLength;
 
-  /** Tests only */
+  @VisibleForTesting
   protected HiveTableOperations(
       Configuration conf,
       ClientPool<IMetaStoreClient, TException> metaClients,
