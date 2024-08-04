@@ -60,6 +60,7 @@ class ReadConf<T> {
   private final boolean reuseContainers;
   private final Integer batchSize;
   private final long[] startRowPositions;
+  private final ParquetIndexPageFilter pageFilter;
 
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
@@ -107,6 +108,9 @@ class ReadConf<T> {
       statsFilter = new ParquetMetricsRowGroupFilter(expectedSchema, filter, caseSensitive);
       dictFilter = new ParquetDictionaryRowGroupFilter(expectedSchema, filter, caseSensitive);
       bloomFilter = new ParquetBloomRowGroupFilter(expectedSchema, filter, caseSensitive);
+      this.pageFilter = new ParquetIndexPageFilter(expectedSchema, fileSchema, filter, caseSensitive);
+    } else {
+      this.pageFilter = null;
     }
 
     long computedTotalValues = 0L;
@@ -156,6 +160,7 @@ class ReadConf<T> {
     this.vectorizedModel = toCopy.vectorizedModel;
     this.columnChunkMetaDataForRowGroups = toCopy.columnChunkMetaDataForRowGroups;
     this.startRowPositions = toCopy.startRowPositions;
+    this.pageFilter = toCopy.pageFilter;
   }
 
   ParquetFileReader reader() {
@@ -211,6 +216,10 @@ class ReadConf<T> {
 
   long[] startRowPositions() {
     return startRowPositions;
+  }
+
+  public ParquetIndexPageFilter pageFilter() {
+    return pageFilter;
   }
 
   long totalValues() {
