@@ -93,12 +93,12 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   @Test
   public void testPartitionTypeWithIdentityTargetName() {
     PartitionSpec spec =
-        PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE).identity("data", "p1").build();
+        PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE).identity("data", "partition1").build();
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", SCHEMA_CASE_INSENSITIVE, spec, V2_FORMAT_VERSION);
 
     StructType expectedType =
-        StructType.of(NestedField.optional(1000, "p1", Types.StringType.get()));
+        StructType.of(NestedField.optional(1000, "partition1", Types.StringType.get()));
     StructType actualType = Partitioning.partitionType(table);
     assertThat(actualType).isEqualTo(expectedType);
   }
@@ -107,12 +107,15 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   public void testBucketSourceNameAllowsExactDuplicateWhenCaseSensitive() {
     Schema schema = SCHEMA_CASE_SENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema).bucket("data", 10, "p1").bucket("data", 10, "P1").build();
+        PartitionSpec.builderFor(schema)
+            .bucket("data", 10, "partition1")
+            .bucket("data", 10, "PARTITION1")
+            .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.IntegerType.get()),
-            NestedField.optional(1001, "P1", Types.IntegerType.get()));
+            NestedField.optional(1000, "partition1", Types.IntegerType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.IntegerType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -127,14 +130,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
-            .bucket("data", 10, "p1")
-            .bucket("DATA", 10, "P1")
+            .bucket("data", 10, "partition1")
+            .bucket("DATA", 10, "PARTITION1")
             .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.IntegerType.get()),
-            NestedField.optional(1001, "P1", Types.IntegerType.get()));
+            NestedField.optional(1000, "partition1", Types.IntegerType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.IntegerType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -149,14 +152,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
-            .bucket("data", 10, "p1")
-            .bucket("category", 10, "P1")
+            .bucket("data", 10, "partition1")
+            .bucket("category", 10, "PARTITION1")
             .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.IntegerType.get()),
-            NestedField.optional(1001, "P1", Types.IntegerType.get()));
+            NestedField.optional(1000, "partition1", Types.IntegerType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.IntegerType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -172,10 +175,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
                     .caseSensitive(false)
-                    .bucket("data", 10, "p1")
-                    .bucket("category", 10, "p1")
+                    .bucket("data", 10, "partition1")
+                    .bucket("category", 10, "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -184,10 +187,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         .isThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
-                    .bucket("data", 10, "p1")
-                    .bucket("DATA", 10, "p1")
+                    .bucket("data", 10, "partition1")
+                    .bucket("DATA", 10, "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -195,14 +198,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     Schema schema = SCHEMA_CASE_SENSITIVE;
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
-            .truncate("data", 10, "p1")
-            .truncate("data", 10, "P1")
+            .truncate("data", 10, "partition1")
+            .truncate("data", 10, "PARTITION1")
             .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.StringType.get()),
-            NestedField.optional(1001, "P1", Types.StringType.get()));
+            NestedField.optional(1000, "partition1", Types.StringType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -217,14 +220,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
-            .truncate("data", 10, "p1")
-            .truncate("DATA", 10, "P1")
+            .truncate("data", 10, "partition1")
+            .truncate("DATA", 10, "PARTITION1")
             .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.StringType.get()),
-            NestedField.optional(1001, "P1", Types.StringType.get()));
+            NestedField.optional(1000, "partition1", Types.StringType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -239,14 +242,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
-            .truncate("data", 10, "p1")
-            .truncate("category", 10, "P1")
+            .truncate("data", 10, "partition1")
+            .truncate("category", 10, "PARTITION1")
             .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.StringType.get()),
-            NestedField.optional(1001, "P1", Types.StringType.get()));
+            NestedField.optional(1000, "partition1", Types.StringType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -262,10 +265,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
                     .caseSensitive(false)
-                    .truncate("data", 10, "p1")
-                    .truncate("category", 10, "p1")
+                    .truncate("data", 10, "partition1")
+                    .truncate("category", 10, "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -274,10 +277,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         .isThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
-                    .truncate("data", 10, "p1")
-                    .truncate("DATA", 10, "p1")
+                    .truncate("data", 10, "partition1")
+                    .truncate("DATA", 10, "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -286,11 +289,11 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         .isThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
-                    .identity("data", "p1")
-                    .identity("data", "P1")
+                    .identity("data", "partition1")
+                    .identity("data", "PARTITION1")
                     .build())
         .withMessage(
-            "Cannot add redundant partition: 1000: p1: identity(2) conflicts with 1001: P1: identity(2)");
+            "Cannot add redundant partition: 1000: partition1: identity(2) conflicts with 1001: PARTITION1: identity(2)");
   }
 
   @Test
@@ -300,11 +303,11 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
                     .caseSensitive(false)
-                    .identity("data", "p1")
-                    .identity("DATA", "P1")
+                    .identity("data", "partition1")
+                    .identity("DATA", "PARTITION1")
                     .build())
         .withMessage(
-            "Cannot add redundant partition: 1000: p1: identity(2) conflicts with 1001: P1: identity(2)");
+            "Cannot add redundant partition: 1000: partition1: identity(2) conflicts with 1001: PARTITION1: identity(2)");
   }
 
   @Test
@@ -313,14 +316,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
-            .identity("data", "p1")
-            .identity("category", "P1")
+            .identity("data", "partition1")
+            .identity("category", "PARTITION1")
             .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.StringType.get()),
-            NestedField.optional(1001, "P1", Types.StringType.get()));
+            NestedField.optional(1000, "partition1", Types.StringType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -336,10 +339,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
                     .caseSensitive(false)
-                    .identity("data", "p1")
-                    .identity("category", "p1")
+                    .identity("data", "partition1")
+                    .identity("category", "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -348,22 +351,25 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         .isThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
-                    .identity("data", "p1")
-                    .identity("DATA", "p1")
+                    .identity("data", "partition1")
+                    .identity("DATA", "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
   public void testAlwaysNullSourceNameAllowsExactDuplicateWhenCaseSensitive() {
     Schema schema = SCHEMA_CASE_SENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema).alwaysNull("data", "p1").alwaysNull("data", "P1").build();
+        PartitionSpec.builderFor(schema)
+            .alwaysNull("data", "partition1")
+            .alwaysNull("data", "PARTITION1")
+            .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.StringType.get()),
-            NestedField.optional(1001, "P1", Types.StringType.get()));
+            NestedField.optional(1000, "partition1", Types.StringType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -378,14 +384,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
-            .alwaysNull("data", "p1")
-            .alwaysNull("DATA", "P1")
+            .alwaysNull("data", "partition1")
+            .alwaysNull("DATA", "PARTITION1")
             .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.StringType.get()),
-            NestedField.optional(1001, "P1", Types.StringType.get()));
+            NestedField.optional(1000, "partition1", Types.StringType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -400,14 +406,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
-            .alwaysNull("data", "p1")
-            .alwaysNull("category", "P1")
+            .alwaysNull("data", "partition1")
+            .alwaysNull("category", "PARTITION1")
             .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.StringType.get()),
-            NestedField.optional(1001, "P1", Types.StringType.get()));
+            NestedField.optional(1000, "partition1", Types.StringType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -423,10 +429,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
                     .caseSensitive(false)
-                    .alwaysNull("data", "p1")
-                    .alwaysNull("category", "p1")
+                    .alwaysNull("data", "partition1")
+                    .alwaysNull("category", "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -435,10 +441,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         .isThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
-                    .alwaysNull("data", "p1")
-                    .alwaysNull("DATA", "p1")
+                    .alwaysNull("data", "partition1")
+                    .alwaysNull("DATA", "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -447,11 +453,11 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         .isThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
-                    .year("order_date", "p1")
-                    .year("order_date", "P1")
+                    .year("order_date", "partition1")
+                    .year("order_date", "PARTITION1")
                     .build())
         .withMessage(
-            "Cannot add redundant partition: 1000: p1: year(4) conflicts with 1001: P1: year(4)");
+            "Cannot add redundant partition: 1000: partition1: year(4) conflicts with 1001: PARTITION1: year(4)");
   }
 
   @Test
@@ -461,11 +467,11 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
                     .caseSensitive(false)
-                    .year("order_date", "p1")
-                    .year("ORDER_DATE", "P1")
+                    .year("order_date", "partition1")
+                    .year("ORDER_DATE", "PARTITION1")
                     .build())
         .withMessage(
-            "Cannot add redundant partition: 1000: p1: year(4) conflicts with 1001: P1: year(4)");
+            "Cannot add redundant partition: 1000: partition1: year(4) conflicts with 1001: PARTITION1: year(4)");
   }
 
   @Test
@@ -474,14 +480,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
-            .year("order_date", "p1")
-            .year("ship_date", "P1")
+            .year("order_date", "partition1")
+            .year("ship_date", "PARTITION1")
             .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.IntegerType.get()),
-            NestedField.optional(1001, "P1", Types.IntegerType.get()));
+            NestedField.optional(1000, "partition1", Types.IntegerType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.IntegerType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -497,10 +503,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
                     .caseSensitive(false)
-                    .year("order_date", "p1")
-                    .year("ship_date", "p1")
+                    .year("order_date", "partition1")
+                    .year("ship_date", "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -509,10 +515,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         .isThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
-                    .year("order_date", "p1")
-                    .year("ORDER_DATE", "p1")
+                    .year("order_date", "partition1")
+                    .year("ORDER_DATE", "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -521,11 +527,11 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         .isThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
-                    .month("order_date", "p1")
-                    .month("order_date", "P1")
+                    .month("order_date", "partition1")
+                    .month("order_date", "PARTITION1")
                     .build())
         .withMessage(
-            "Cannot add redundant partition: 1000: p1: month(4) conflicts with 1001: P1: month(4)");
+            "Cannot add redundant partition: 1000: partition1: month(4) conflicts with 1001: PARTITION1: month(4)");
   }
 
   @Test
@@ -535,11 +541,11 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
                     .caseSensitive(false)
-                    .month("order_date", "p1")
-                    .month("ORDER_DATE", "P1")
+                    .month("order_date", "partition1")
+                    .month("ORDER_DATE", "PARTITION1")
                     .build())
         .withMessage(
-            "Cannot add redundant partition: 1000: p1: month(4) conflicts with 1001: P1: month(4)");
+            "Cannot add redundant partition: 1000: partition1: month(4) conflicts with 1001: PARTITION1: month(4)");
   }
 
   @Test
@@ -548,14 +554,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
-            .month("order_date", "p1")
-            .month("ship_date", "P1")
+            .month("order_date", "partition1")
+            .month("ship_date", "PARTITION1")
             .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.IntegerType.get()),
-            NestedField.optional(1001, "P1", Types.IntegerType.get()));
+            NestedField.optional(1000, "partition1", Types.IntegerType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.IntegerType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -571,10 +577,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
                     .caseSensitive(false)
-                    .month("order_date", "p1")
-                    .month("ship_date", "p1")
+                    .month("order_date", "partition1")
+                    .month("ship_date", "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -583,10 +589,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         .isThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
-                    .month("order_date", "p1")
-                    .month("ORDER_DATE", "p1")
+                    .month("order_date", "partition1")
+                    .month("ORDER_DATE", "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -595,11 +601,11 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         .isThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
-                    .day("order_date", "p1")
-                    .day("order_date", "P1")
+                    .day("order_date", "partition1")
+                    .day("order_date", "PARTITION1")
                     .build())
         .withMessage(
-            "Cannot add redundant partition: 1000: p1: day(4) conflicts with 1001: P1: day(4)");
+            "Cannot add redundant partition: 1000: partition1: day(4) conflicts with 1001: PARTITION1: day(4)");
   }
 
   @Test
@@ -609,11 +615,11 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
                     .caseSensitive(false)
-                    .day("order_date", "p1")
-                    .day("ORDER_DATE", "P1")
+                    .day("order_date", "partition1")
+                    .day("ORDER_DATE", "PARTITION1")
                     .build())
         .withMessage(
-            "Cannot add redundant partition: 1000: p1: day(4) conflicts with 1001: P1: day(4)");
+            "Cannot add redundant partition: 1000: partition1: day(4) conflicts with 1001: PARTITION1: day(4)");
   }
 
   @Test
@@ -622,14 +628,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
-            .day("order_date", "p1")
-            .day("ship_date", "P1")
+            .day("order_date", "partition1")
+            .day("ship_date", "PARTITION1")
             .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.DateType.get()),
-            NestedField.optional(1001, "P1", Types.DateType.get()));
+            NestedField.optional(1000, "partition1", Types.DateType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.DateType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -645,10 +651,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
                     .caseSensitive(false)
-                    .day("order_date", "p1")
-                    .day("ship_date", "p1")
+                    .day("order_date", "partition1")
+                    .day("ship_date", "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -657,10 +663,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         .isThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
-                    .day("order_date", "p1")
-                    .day("ORDER_DATE", "p1")
+                    .day("order_date", "partition1")
+                    .day("ORDER_DATE", "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -669,11 +675,11 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         .isThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
-                    .hour("order_time", "p1")
-                    .hour("order_time", "P1")
+                    .hour("order_time", "partition1")
+                    .hour("order_time", "PARTITION1")
                     .build())
         .withMessage(
-            "Cannot add redundant partition: 1000: p1: hour(6) conflicts with 1001: P1: hour(6)");
+            "Cannot add redundant partition: 1000: partition1: hour(6) conflicts with 1001: PARTITION1: hour(6)");
   }
 
   @Test
@@ -683,11 +689,11 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
                     .caseSensitive(false)
-                    .hour("order_time", "p1")
-                    .hour("ORDER_TIME", "P1")
+                    .hour("order_time", "partition1")
+                    .hour("ORDER_TIME", "PARTITION1")
                     .build())
         .withMessage(
-            "Cannot add redundant partition: 1000: p1: hour(5) conflicts with 1001: P1: hour(5)");
+            "Cannot add redundant partition: 1000: partition1: hour(5) conflicts with 1001: PARTITION1: hour(5)");
   }
 
   @Test
@@ -696,14 +702,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema)
             .caseSensitive(false)
-            .hour("order_time", "p1")
-            .hour("ship_time", "P1")
+            .hour("order_time", "partition1")
+            .hour("ship_time", "PARTITION1")
             .build();
 
     StructType expectedType =
         StructType.of(
-            NestedField.optional(1000, "p1", Types.IntegerType.get()),
-            NestedField.optional(1001, "P1", Types.IntegerType.get()));
+            NestedField.optional(1000, "partition1", Types.IntegerType.get()),
+            NestedField.optional(1001, "PARTITION1", Types.IntegerType.get()));
 
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
@@ -719,10 +725,10 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
                     .caseSensitive(false)
-                    .hour("order_time", "p1")
-                    .hour("ship_time", "p1")
+                    .hour("order_time", "partition1")
+                    .hour("ship_time", "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 
   @Test
@@ -731,9 +737,9 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         .isThrownBy(
             () ->
                 PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
-                    .hour("order_time", "p1")
-                    .hour("ORDER_TIME", "p1")
+                    .hour("order_time", "partition1")
+                    .hour("ORDER_TIME", "partition1")
                     .build())
-        .withMessage("Cannot use partition name more than once: p1");
+        .withMessage("Cannot use partition name more than once: partition1");
   }
 }
