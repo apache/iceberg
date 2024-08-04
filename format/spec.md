@@ -779,7 +779,7 @@ When two commits happen at the same time and are based on the same version, only
 
 #### File System Tables
 
-_Note: This file system based scheme to commit a metadata file is **deprecated** and will be removed in a future version of this spec. The scheme is **unsafe** in object stores and local file systems._
+_Note: This file system based scheme to commit a metadata file is **deprecated** and will be removed in version 4 of this spec. The scheme is **unsafe** in object stores and local file systems._
 
 An atomic swap can be implemented using atomic rename in file systems that support it, like HDFS [1].
 
