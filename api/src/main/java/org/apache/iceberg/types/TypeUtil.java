@@ -36,6 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class TypeUtil {
 
@@ -180,11 +181,35 @@ public class TypeUtil {
     return indexer.byId();
   }
 
+  /**
+   * Creates a mapping from lower-case field names to their corresponding field IDs.
+   *
+   * <p>This method iterates over the fields of the provided struct and maps each field's name
+   * (converted to lower-case) to its ID. If two fields have the same lower-case name, an
+   * `IllegalArgumentException` is thrown.
+   *
+   * @param struct the struct type whose fields are to be indexed
+   * @return a map where the keys are lower-case field names and the values are field IDs
+   * @throws IllegalArgumentException if two fields have the same lower-case name
+   */
   public static Map<String, Integer> indexByLowerCaseName(Types.StructType struct) {
-    ImmutableMap.Builder<String, Integer> builder = ImmutableMap.builder();
+    Map<String, Integer> indexByLowerCaseName = Maps.newHashMap();
     indexByName(struct)
-        .forEach((name, integer) -> builder.put(name.toLowerCase(Locale.ROOT), integer));
-    return builder.buildOrThrow();
+        .forEach(
+            (name, integer) -> {
+              String key = name.toLowerCase(Locale.ROOT);
+              Integer prevValue = indexByLowerCaseName.get(key);
+              if (prevValue != null) {
+                Types.NestedField field1 = struct.field(prevValue);
+                Types.NestedField field2 = struct.field(integer);
+                throw new IllegalArgumentException(
+                    String.format(
+                        "Unable to build field name to id mapping because two fields have the same lower case name: %s and %s",
+                        field1.name(), field2.name()));
+              }
+              indexByLowerCaseName.put(key, integer);
+            });
+    return indexByLowerCaseName;
   }
 
   public static Map<Integer, Types.NestedField> indexById(Types.StructType struct) {
