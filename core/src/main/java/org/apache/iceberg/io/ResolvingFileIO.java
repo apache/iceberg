@@ -153,7 +153,7 @@ public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
 
   @Override
   public Configuration getConf() {
-    return Optional.ofNullable(hadoopConf).map(Supplier::get).orElse(null);
+    return hadoopConf.get();
   }
 
   @VisibleForTesting
@@ -176,7 +176,7 @@ public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
     return ioInstances.computeIfAbsent(
         impl,
         key -> {
-          Configuration conf = getConf();
+          Configuration conf = Optional.ofNullable(hadoopConf).map(Supplier::get).orElse(null);
           FileIO fileIO;
 
           try {
