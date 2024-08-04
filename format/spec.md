@@ -251,7 +251,7 @@ Values for field ids which are not present in a data file must be resolved accor
 
 * Return the value from partition metadata if an [Identity Transform](#partition-transforms) exists for the field and the partition value is present in the `partition` struct on `data_file` object in the manifest. This allows for metadata only migrations of Hive tables.
 * Use `schema.name-mapping.default` metadata to map field id to columns without field id as described below and use the column if it is present.
-* Return the default value if it has a defined in `initial-default` (See [Default values](#default-values) section for more details). 
+* Return the default value if it has a defined `initial-default` (See [Default values](#default-values) section for more details). 
 * Return `null` in all other cases.
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
