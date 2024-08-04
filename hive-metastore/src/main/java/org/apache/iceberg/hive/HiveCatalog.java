@@ -83,7 +83,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
   private Map<String, String> catalogProperties;
-  private long kekCacheTimeout;
+  private long writerKekTimeout;
 
   public HiveCatalog() {}
 
@@ -117,11 +117,11 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
     if (catalogProperties.containsKey(CatalogProperties.ENCRYPTION_KMS_IMPL)) {
       this.keyManagementClient = EncryptionUtil.createKmsClient(properties);
-      this.kekCacheTimeout =
+      this.writerKekTimeout =
           PropertyUtil.propertyAsLong(
               properties,
-              CatalogProperties.KEK_CACHE_TIMEOUT_MS,
-              CatalogProperties.KEK_CACHE_TIMEOUT_MS_DEFAULT);
+              CatalogProperties.WRITER_KEK_TIMEOUT_MS,
+              CatalogProperties.WRITER_KEK_TIMEOUT_MS_DEFAULT);
     }
 
     this.clients = new CachedClientPool(conf, properties);
@@ -527,7 +527,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
     return new HiveTableOperations(
-        conf, clients, fileIO, keyManagementClient, name, dbName, tableName, kekCacheTimeout);
+        conf, clients, fileIO, keyManagementClient, name, dbName, tableName, writerKekTimeout);
   }
 
   @Override

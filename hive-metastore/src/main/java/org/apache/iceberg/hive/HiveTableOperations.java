@@ -114,7 +114,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
   private final FileIO fileIO;
   private final KeyManagementClient keyManagementClient;
   private final ClientPool<IMetaStoreClient, TException> metaClients;
-  private final long kekCacheTimeout;
+  private final long writerKekTimeout;
 
   private EncryptionManager encryptionManager;
   private EncryptingFileIO encryptingFileIO;
@@ -141,7 +141,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       String catalogName,
       String database,
       String table,
-      long kekCacheTimeout) {
+      long writerKekTimeout) {
     this.conf = conf;
     this.metaClients = metaClients;
     this.fileIO = fileIO;
@@ -157,7 +157,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     this.maxHiveTablePropertySize =
         conf.getLong(HIVE_TABLE_PROPERTY_MAX_SIZE, HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT);
     this.encryptedTable = false;
-    this.kekCacheTimeout = kekCacheTimeout;
+    this.writerKekTimeout = writerKekTimeout;
   }
 
   @Override
@@ -202,7 +202,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
       encryptedTable = true;
       encryptionManager =
           EncryptionUtil.createEncryptionManager(
-              encryptionKeyId, encryptionDekLength, keyManagementClient, kekCacheTimeout);
+              encryptionKeyId, encryptionDekLength, keyManagementClient, writerKekTimeout);
     } else {
       encryptionManager = PlaintextEncryptionManager.instance();
     }
@@ -244,9 +244,7 @@ public class HiveTableOperations extends BaseMetastoreTableOperations
     encryptionPropsFromMetadata(metadata.properties());
 
     if (encryption() instanceof StandardEncryptionManager) {
-      StandardEncryptionManager standardEncryptionManager =
-          (StandardEncryptionManager) encryptionManager;
-      metadata.setKekCache(standardEncryptionManager.kekCache());
+      metadata.setKekCache(EncryptionUtil.kekCache(encryptionManager));
     }
 
     String newMetadataLocation = writeNewMetadataIfRequired(newTable, metadata);
