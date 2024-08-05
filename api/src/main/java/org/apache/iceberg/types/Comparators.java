@@ -173,6 +173,10 @@ public class Comparators {
     return CharSeqComparator.INSTANCE;
   }
 
+  public static Comparator<CharSequence> filePath() {
+    return FilePathComparator.INSTANCE;
+  }
+
   private static class NullsFirst<T> implements Comparator<T> {
     private static final NullsFirst<?> INSTANCE = new NullsFirst<>();
 
@@ -349,6 +353,43 @@ public class Comparators {
 
       // if there are no differences, then the shorter seq is first
       return Integer.compare(s1.length(), s2.length());
+    }
+  }
+
+  private static class FilePathComparator implements Comparator<CharSequence> {
+    private static final FilePathComparator INSTANCE = new FilePathComparator();
+
+    private FilePathComparator() {}
+
+    @Override
+    public int compare(CharSequence s1, CharSequence s2) {
+      if (s1 == s2) {
+        return 0;
+      }
+      int count = s1.length();
+
+      int cmp = Integer.compare(count, s2.length());
+      if (cmp != 0) {
+        return cmp;
+      }
+
+      if (s1 instanceof String && s2 instanceof String) {
+        cmp = Integer.compare(s1.hashCode(), s2.hashCode());
+        if (cmp != 0) {
+          return cmp;
+        }
+      }
+      // File paths inside a delete file normally have more identical chars at the beginning. For
+      // example, a typical
+      // path is like "s3:/bucket/db/table/data/partition/00000-0-[uuid]-00001.parquet".
+      // The uuid is where the difference starts. So it's faster to find the first diff backward.
+      for (int i = count - 1; i >= 0; i--) {
+        cmp = Character.compare(s1.charAt(i), s2.charAt(i));
+        if (cmp != 0) {
+          return cmp;
+        }
+      }
+      return 0;
     }
   }
 }
