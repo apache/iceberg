@@ -26,16 +26,16 @@ def sparkVersions = (System.getProperty("sparkVersions") != null ? System.getPro
 def scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 def jmhProjects = [project(":iceberg-core"), project(":iceberg-data")]
 
-if (flinkVersions.contains("1.16")) {
-  jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.16"))
-}
-
-if (flinkVersions.contains("1.17")) {
-  jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.17"))
-}
-
 if (flinkVersions.contains("1.18")) {
   jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.18"))
+}
+
+if (flinkVersions.contains("1.19")) {
+  jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.19"))
+}
+
+if (flinkVersions.contains("1.20")) {
+  jmhProjects.add(project(":iceberg-flink:iceberg-flink-1.20"))
 }
 
 if (sparkVersions.contains("3.3")) {

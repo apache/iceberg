@@ -74,14 +74,7 @@ jobs:
     strategy:
       matrix:
         jvm: [11, 17, 21]
-        flink: ['1.17', '1.18', '1.19']
-        exclude:
-          # Flink 1.17 does not support Java 17.
-          - jvm: 17
-            flink: '1.17'
-          # Flink 1.17 does not support Java 21.
-          - jvm: 21
-            flink: '1.17'
+        flink: ['1.18', '1.19', '1.20']
     env:
       SPARK_LOCAL_IP: localhost
     steps:
