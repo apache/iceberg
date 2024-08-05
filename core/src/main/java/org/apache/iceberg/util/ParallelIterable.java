@@ -35,6 +35,7 @@ import java.util.function.Supplier;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.io.Closer;
@@ -77,7 +78,8 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     return iter;
   }
 
-  private static class ParallelIterator<T> implements CloseableIterator<T> {
+  @VisibleForTesting
+  static class ParallelIterator<T> implements CloseableIterator<T> {
     private final Iterator<Task<T>> tasks;
     private final Deque<Task<T>> yieldedTasks = new ArrayDeque<>();
     private final ExecutorService workerPool;
@@ -228,6 +230,11 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         throw new NoSuchElementException();
       }
       return queue.poll();
+    }
+
+    @VisibleForTesting
+    int queueSize() {
+      return queue.size();
     }
   }
 
