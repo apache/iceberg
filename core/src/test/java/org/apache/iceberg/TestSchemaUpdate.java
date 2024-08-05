@@ -876,7 +876,7 @@ public class TestSchemaUpdate {
               update.renameColumn("id", "col").deleteColumn("col");
             })
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot delete renaming column: col");
+        .hasMessage("Cannot delete renamed column: col");
   }
 
   @Test
