@@ -71,7 +71,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
       resolutionStrategy {
         force 'org.codehaus.jettison:jettison:1.5.4'
         force 'org.xerial.snappy:snappy-java:1.1.10.5'
-        force 'org.apache.commons:commons-compress:1.26.0'
+        force 'org.apache.commons:commons-compress:1.26.2'
         force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.2.0'
       }
     }
