@@ -1103,6 +1103,7 @@ class LoadTableResult(BaseModel):
     ## General Configurations
 
     - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
+    - `expires-at-ms`: if present, specifies timestamp in milliseconds when credentials for storage(AWS S3/Azure/), specified in config would expire
 
     ## AWS Configurations
 
@@ -1112,7 +1113,6 @@ class LoadTableResult(BaseModel):
      - `s3.secret-access-key`: secret for credentials that provide access to data in S3
      - `s3.session-token`: if present, this value should be used for as the session token
      - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
-     - `expires-at-ms`: if present, specifies timestamp in milliseconds when credentials would expire
 
     """
 
