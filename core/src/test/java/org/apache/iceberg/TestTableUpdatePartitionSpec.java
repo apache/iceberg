@@ -116,6 +116,7 @@ public class TestTableUpdatePartitionSpec extends TestBase {
         "Should soft delete data bucket",
         PartitionSpec.builderFor(table.schema())
             .withSpecId(2)
+            .alwaysNull("data", "data_bucket")
             .bucket("id", 8, "id_bucket_8")
             .build(),
         table.spec());
@@ -312,32 +313,83 @@ public class TestTableUpdatePartitionSpec extends TestBase {
   }
 
   @TestTemplate
-  public void testReAddFieldUsingFromUnpartitionedSpec() {
+  public void testReAddFieldUsingUnpartitioned() {
     table.updateSpec().removeField("data_bucket").commit();
     table
         .updateSpec()
         .fromSpec(PartitionSpec.builderFor(table.schema()).build())
-        .addField(bucket("data", 16))
+        .addField("id")
         .commit();
 
     V1Assert.assertEquals(
-        "Should remove and then add a bucket field",
+        "Should remove data field and add identity id field",
         PartitionSpec.builderFor(table.schema())
             .withSpecId(2)
-            .bucket("data", 16, "data_bucket_16")
+            .alwaysNull("data", "data_bucket")
+            .identity("id")
             .build(),
         table.spec());
-    V1Assert.assertEquals("Should assign a new field id", 1000, table.spec().lastAssignedFieldId());
+    V1Assert.assertEquals("Should assign a new field id", 1001, table.spec().lastAssignedFieldId());
 
     V2Assert.assertEquals(
-        "Should remove and then add a bucket field",
+        "Should remove data field and add identity id field",
         PartitionSpec.builderFor(table.schema())
-            .withSpecId(0)
-            .add(2, 1000, "data_bucket", Transforms.bucket(16))
+            .withSpecId(2)
+            .add(1, 1001, "id", Transforms.identity())
             .build(),
         table.spec());
     V2Assert.assertEquals(
-        "Should not assign a new field id", 1000, table.spec().lastAssignedFieldId());
+        "Should not assign a new field id", 1001, table.spec().lastAssignedFieldId());
+
+    table
+        .updateSpec()
+        .fromSpec(PartitionSpec.builderFor(table.schema()).build())
+        .commit();
+
+    V1Assert.assertEquals(
+        "Should remove data and id field",
+        PartitionSpec.builderFor(table.schema())
+            .withSpecId(3)
+            .alwaysNull("data", "data_bucket")
+            .alwaysNull("id", "id")
+            .build(),
+        table.spec());
+    V1Assert.assertEquals(
+        "Should not assign a new field id", 1001, table.spec().lastAssignedFieldId());
+
+    V2Assert.assertEquals(
+        "Should remove data and id field",
+        PartitionSpec.builderFor(table.schema()).withSpecId(1).build(),
+        table.spec());
+    V2Assert.assertEquals(
+        "Should not assign a new field id", 999, table.spec().lastAssignedFieldId());
+
+    table
+        .updateSpec()
+        .fromSpec(PartitionSpec.builderFor(table.schema()).build())
+        .addField("id")
+        .commit();
+
+    V1Assert.assertEquals(
+        "Should re-add id field",
+        PartitionSpec.builderFor(table.schema())
+            .withSpecId(4)
+            .alwaysNull("data", "data_bucket")
+            .alwaysNull("id", "id_1001")
+            .identity("id")
+            .build(),
+        table.spec());
+    V1Assert.assertEquals("Should assign a new field id", 1002, table.spec().lastAssignedFieldId());
+
+    V2Assert.assertEquals(
+        "Should re-add id field",
+        PartitionSpec.builderFor(table.schema())
+            .withSpecId(2)
+            .add(1, 1001, "id", Transforms.identity())
+            .build(),
+        table.spec());
+    V2Assert.assertEquals(
+        "Should not assign a new field id", 1001, table.spec().lastAssignedFieldId());
   }
 
   @TestTemplate
