@@ -39,6 +39,9 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
   private final FileIO io;
   private final EncryptionManager encryption;
   private final List<Expression> filters;
+  private final long limit;
+
+  private transient RecordLimiter recordLimiter = null;
 
   public RowDataReaderFunction(
       ReadableConfig config,
@@ -49,6 +52,28 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
       FileIO io,
       EncryptionManager encryption,
       List<Expression> filters) {
+    this(
+        config,
+        tableSchema,
+        projectedSchema,
+        nameMapping,
+        caseSensitive,
+        io,
+        encryption,
+        filters,
+        -1L);
+  }
+
+  public RowDataReaderFunction(
+      ReadableConfig config,
+      Schema tableSchema,
+      Schema projectedSchema,
+      String nameMapping,
+      boolean caseSensitive,
+      FileIO io,
+      EncryptionManager encryption,
+      List<Expression> filters,
+      long limit) {
     super(
         new ArrayPoolDataIteratorBatcher<>(
             config,
@@ -61,19 +86,30 @@ public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
     this.io = io;
     this.encryption = encryption;
     this.filters = filters;
+    this.limit = limit;
   }
 
   @Override
   public DataIterator<RowData> createDataIterator(IcebergSourceSplit split) {
-    return new DataIterator<>(
+    return new LimitableDataIterator<>(
         new RowDataFileScanTaskReader(tableSchema, readSchema, nameMapping, caseSensitive, filters),
         split.task(),
         io,
-        encryption);
+        encryption,
+        lazyLimiter());
   }
 
   private static Schema readSchema(Schema tableSchema, Schema projectedSchema) {
     Preconditions.checkNotNull(tableSchema, "Table schema can't be null");
     return projectedSchema == null ? tableSchema : projectedSchema;
+  }
+
+  /** Lazily create RecordLimiter to avoid the need to make it serializable */
+  private RecordLimiter lazyLimiter() {
+    if (recordLimiter == null) {
+      this.recordLimiter = RecordLimiter.create(limit);
+    }
+
+    return recordLimiter;
   }
 }

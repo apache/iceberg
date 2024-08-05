@@ -84,7 +84,7 @@ settle disagreements or to force a decision.
 
 ## Building the Project Locally
 
-Iceberg is built using Gradle with Java 8, 11, or 17.
+Iceberg is built using Gradle with Java 11, 17, or 21.
 
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
@@ -196,6 +196,8 @@ public interface ManageSnapshots extends PendingUpdate<Snapshot> {
   // existing code...
 
   // adding this method introduces an API-breaking change
+  // since existing classes implementing ManageSnapshots
+  // will no longer compile.
   ManageSnapshots createBranch(String name);
 }
 ```
@@ -207,8 +209,8 @@ public class SnapshotManager implements ManageSnapshots {
   // existing code...
 
   @Override
-  public ManageSnapshots createBranch(String name, long snapshotId) {
-    updateSnapshotReferencesOperation().createBranch(name, snapshotId);
+  public ManageSnapshots createBranch(String name) {
+    updateSnapshotReferencesOperation().createBranch(name);
     return this;
   }
 }

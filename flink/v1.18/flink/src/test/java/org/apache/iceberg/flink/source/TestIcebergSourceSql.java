@@ -40,7 +40,7 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /** Use the IcebergSource (FLIP-27) */
 public class TestIcebergSourceSql extends TestSqlBase {
@@ -59,7 +59,7 @@ public class TestIcebergSourceSql extends TestSqlBase {
     SqlHelpers.sql(
         tableEnvironment,
         "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
-        catalogResource.warehouse());
+        CATALOG_EXTENSION.warehouse());
     SqlHelpers.sql(tableEnvironment, "use catalog iceberg_catalog");
 
     tableConf.set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
@@ -74,11 +74,11 @@ public class TestIcebergSourceSql extends TestSqlBase {
 
   /** Generates the records in the expected order, with respect to their datafile */
   private List<Record> generateExpectedRecords(boolean ascending) throws Exception {
-    Table table = catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA_TS);
+    Table table = CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA_TS);
     long baseTime = 1702382109000L;
 
     GenericAppenderHelper helper =
-        new GenericAppenderHelper(table, FileFormat.PARQUET, TEMPORARY_FOLDER);
+        new GenericAppenderHelper(table, FileFormat.PARQUET, temporaryFolder);
 
     Record file1Record1 =
         generateRecord(Instant.ofEpochMilli(baseTime), baseTime + (1000 * 60 * 60 * 24 * 30L));

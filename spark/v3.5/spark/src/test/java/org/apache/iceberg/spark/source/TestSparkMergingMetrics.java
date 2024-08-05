@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
@@ -34,10 +35,6 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 public class TestSparkMergingMetrics extends TestMergingMetrics<InternalRow> {
-
-  public TestSparkMergingMetrics(FileFormat fileFormat) {
-    super(fileFormat);
-  }
 
   @Override
   protected FileAppender<InternalRow> writeAndGetAppender(List<Record> records) throws IOException {
@@ -59,10 +56,11 @@ public class TestSparkMergingMetrics extends TestMergingMetrics<InternalRow> {
           }
         };
 
+    File tempFile = File.createTempFile("junit", null, tempDir);
     FileAppender<InternalRow> appender =
         SparkAppenderFactory.builderFor(testTable, SCHEMA, SparkSchemaUtil.convert(SCHEMA))
             .build()
-            .newAppender(org.apache.iceberg.Files.localOutput(temp.newFile()), fileFormat);
+            .newAppender(Files.localOutput(tempFile), fileFormat);
     try (FileAppender<InternalRow> fileAppender = appender) {
       records.stream()
           .map(r -> new StructInternalRow(SCHEMA.asStruct()).setStruct(r))

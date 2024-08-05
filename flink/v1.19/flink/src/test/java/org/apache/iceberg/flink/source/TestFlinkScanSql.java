@@ -36,7 +36,7 @@ public class TestFlinkScanSql extends TestFlinkSource {
     SqlHelpers.sql(
         getTableEnv(),
         "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
-        catalogExtension.warehouse());
+        CATALOG_EXTENSION.warehouse());
     SqlHelpers.sql(getTableEnv(), "use catalog iceberg_catalog");
     getTableEnv()
         .getConfig()

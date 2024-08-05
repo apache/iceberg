@@ -277,7 +277,7 @@ public class TestCreateTable extends SparkCatalogTestBase {
     File tableLocation = temp.newFolder();
     Assert.assertTrue(tableLocation.delete());
 
-    String location = "file:" + tableLocation.toString();
+    String location = "file:" + tableLocation;
 
     sql(
         "CREATE TABLE %s "

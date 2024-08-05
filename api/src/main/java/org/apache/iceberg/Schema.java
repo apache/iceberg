@@ -67,8 +67,8 @@ public class Schema implements Serializable {
   private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
   private transient Map<Integer, String> idToName = null;
   private transient Set<Integer> identifierFieldIdSet = null;
-  private transient Map<Integer, Integer> idsToReassigned;
-  private transient Map<Integer, Integer> idsToOriginal;
+  private final transient Map<Integer, Integer> idsToReassigned;
+  private final transient Map<Integer, Integer> idsToOriginal;
 
   public Schema(List<NestedField> columns, Map<String, Integer> aliases) {
     this(columns, aliases, ImmutableSet.of());

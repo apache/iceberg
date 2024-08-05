@@ -59,11 +59,13 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   private final Map<String, String> renames = Maps.newHashMap();
 
   private boolean caseSensitive;
+  private boolean setAsDefault;
   private int lastAssignedPartitionId;
 
   BaseUpdatePartitionSpec(TableOperations ops) {
     this.ops = ops;
     this.caseSensitive = true;
+    this.setAsDefault = true;
     this.base = ops.current();
     this.formatVersion = base.formatVersion();
     this.spec = base.spec();
@@ -95,6 +97,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     this.base = null;
     this.formatVersion = formatVersion;
     this.caseSensitive = true;
+    this.setAsDefault = true;
     this.spec = spec;
     this.schema = spec.schema();
     this.nameToField = indexSpecByName(spec);
@@ -118,7 +121,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
    */
   private PartitionField recycleOrCreatePartitionField(
       Pair<Integer, Transform<?, ?>> sourceTransform, String name) {
-    if (formatVersion == 2 && base != null) {
+    if (formatVersion >= 2 && base != null) {
       int sourceId = sourceTransform.first();
       Transform<?, ?> transform = sourceTransform.second();
 
@@ -143,6 +146,12 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   @Override
   public UpdatePartitionSpec caseSensitive(boolean isCaseSensitive) {
     this.caseSensitive = isCaseSensitive;
+    return this;
+  }
+
+  @Override
+  public UpdatePartitionSpec addNonDefaultSpec() {
+    this.setAsDefault = false;
     return this;
   }
 
@@ -327,7 +336,12 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
   @Override
   public void commit() {
-    TableMetadata update = base.updatePartitionSpec(apply());
+    TableMetadata update;
+    if (setAsDefault) {
+      update = base.updatePartitionSpec(apply());
+    } else {
+      update = base.addPartitionSpec(apply());
+    }
     ops.commit(base, update);
   }
 

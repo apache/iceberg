@@ -90,7 +90,7 @@ public class ParquetTypeVisitor<T> {
   }
 
   private static <T> T visitListElement(Type listElement, ParquetTypeVisitor<T> visitor) {
-    T elementResult = null;
+    T elementResult;
 
     visitor.beforeElementField(listElement);
     try {

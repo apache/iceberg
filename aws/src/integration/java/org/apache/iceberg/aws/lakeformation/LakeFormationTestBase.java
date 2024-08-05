@@ -128,15 +128,12 @@ public class LakeFormationTestBase {
 
   @BeforeAll
   public static void beforeClass() throws Exception {
-    lfRegisterPathRoleName = LF_REGISTER_PATH_ROLE_PREFIX + UUID.randomUUID().toString();
-    lfPrivilegedRoleName = LF_PRIVILEGED_ROLE_PREFIX + UUID.randomUUID().toString();
-    lfRegisterPathRoleS3PolicyName =
-        LF_REGISTER_PATH_ROLE_S3_POLICY_PREFIX + UUID.randomUUID().toString();
-    lfRegisterPathRoleLfPolicyName =
-        LF_REGISTER_PATH_ROLE_LF_POLICY_PREFIX + UUID.randomUUID().toString();
-    lfRegisterPathRoleIamPolicyName =
-        LF_REGISTER_PATH_ROLE_IAM_POLICY_PREFIX + UUID.randomUUID().toString();
-    lfPrivilegedRolePolicyName = LF_PRIVILEGED_ROLE_POLICY_PREFIX + UUID.randomUUID().toString();
+    lfRegisterPathRoleName = LF_REGISTER_PATH_ROLE_PREFIX + UUID.randomUUID();
+    lfPrivilegedRoleName = LF_PRIVILEGED_ROLE_PREFIX + UUID.randomUUID();
+    lfRegisterPathRoleS3PolicyName = LF_REGISTER_PATH_ROLE_S3_POLICY_PREFIX + UUID.randomUUID();
+    lfRegisterPathRoleLfPolicyName = LF_REGISTER_PATH_ROLE_LF_POLICY_PREFIX + UUID.randomUUID();
+    lfRegisterPathRoleIamPolicyName = LF_REGISTER_PATH_ROLE_IAM_POLICY_PREFIX + UUID.randomUUID();
+    lfPrivilegedRolePolicyName = LF_PRIVILEGED_ROLE_POLICY_PREFIX + UUID.randomUUID();
 
     iam =
         IamClient.builder()

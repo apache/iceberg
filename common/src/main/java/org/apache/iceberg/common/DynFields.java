@@ -394,7 +394,9 @@ public class DynFields {
      * @return a {@link StaticField} with a valid implementation
      * @throws IllegalStateException if the method is not static
      * @throws NoSuchFieldException if no implementation was found
+     * @deprecated since 1.6.0, will be removed in 1.7.0
      */
+    @Deprecated
     public <T> StaticField<T> buildStaticChecked() throws NoSuchFieldException {
       return this.<T>buildChecked().asStatic();
     }
@@ -414,7 +416,7 @@ public class DynFields {
   }
 
   private static class MakeFieldAccessible implements PrivilegedAction<Void> {
-    private Field hidden;
+    private final Field hidden;
 
     MakeFieldAccessible(Field hidden) {
       this.hidden = hidden;

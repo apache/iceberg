@@ -60,16 +60,16 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
   private final int downstreamParallelism;
   private final StatisticsType statisticsType;
   private final TypeSerializer<DataStatistics> taskStatisticsSerializer;
-  private final TypeSerializer<AggregatedStatistics> aggregatedStatisticsSerializer;
+  private final TypeSerializer<GlobalStatistics> globalStatisticsSerializer;
 
   private transient int parallelism;
   private transient int subtaskIndex;
-  private transient ListState<AggregatedStatistics> globalStatisticsState;
+  private transient ListState<GlobalStatistics> globalStatisticsState;
   // current statistics type may be different from the config due to possible
   // migration from Map statistics to Sketch statistics when high cardinality detected
   private transient volatile StatisticsType taskStatisticsType;
   private transient volatile DataStatistics localStatistics;
-  private transient volatile AggregatedStatistics globalStatistics;
+  private transient volatile GlobalStatistics globalStatistics;
 
   DataStatisticsOperator(
       String operatorName,
@@ -87,31 +87,57 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
 
     SortKeySerializer sortKeySerializer = new SortKeySerializer(schema, sortOrder);
     this.taskStatisticsSerializer = new DataStatisticsSerializer(sortKeySerializer);
-    this.aggregatedStatisticsSerializer = new AggregatedStatisticsSerializer(sortKeySerializer);
+    this.globalStatisticsSerializer = new GlobalStatisticsSerializer(sortKeySerializer);
   }
 
   @Override
   public void initializeState(StateInitializationContext context) throws Exception {
     this.parallelism = getRuntimeContext().getTaskInfo().getNumberOfParallelSubtasks();
     this.subtaskIndex = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
+
+    // Use union state so that new subtasks can also restore global statistics during scale-up.
     this.globalStatisticsState =
         context
             .getOperatorStateStore()
             .getUnionListState(
-                new ListStateDescriptor<>("globalStatisticsState", aggregatedStatisticsSerializer));
+                new ListStateDescriptor<>("globalStatisticsState", globalStatisticsSerializer));
 
     if (context.isRestored()) {
       if (globalStatisticsState.get() == null
           || !globalStatisticsState.get().iterator().hasNext()) {
-        LOG.warn(
+        LOG.info(
             "Operator {} subtask {} doesn't have global statistics state to restore",
             operatorName,
             subtaskIndex);
+        // If Flink deprecates union state in the future, RequestGlobalStatisticsEvent can be
+        // leveraged to request global statistics from coordinator if new subtasks (scale-up case)
+        // has nothing to restore from.
       } else {
+        GlobalStatistics restoredStatistics = globalStatisticsState.get().iterator().next();
         LOG.info(
-            "Operator {} subtask {} restoring global statistics state", operatorName, subtaskIndex);
-        this.globalStatistics = globalStatisticsState.get().iterator().next();
+            "Operator {} subtask {} restored global statistics state", operatorName, subtaskIndex);
+        this.globalStatistics = restoredStatistics;
       }
+
+      // Always request for new statistics from coordinator upon task initialization.
+      // There are a few scenarios this is needed
+      // 1. downstream writer parallelism changed due to rescale.
+      // 2. coordinator failed to send the aggregated statistics to subtask
+      //    (e.g. due to subtask failure at the time).
+      // Records may flow before coordinator can respond. Range partitioner should be
+      // able to continue to operate with potentially suboptimal behavior (in sketch case).
+      LOG.info(
+          "Operator {} subtask {} requests new global statistics from coordinator ",
+          operatorName,
+          subtaskIndex);
+      // coordinator can use the hashCode (if available) in the request event to determine
+      // if operator already has the latest global statistics and respond can be skipped.
+      // This makes the handling cheap in most situations.
+      RequestGlobalStatisticsEvent event =
+          globalStatistics != null
+              ? new RequestGlobalStatisticsEvent(globalStatistics.hashCode())
+              : new RequestGlobalStatisticsEvent();
+      operatorEventGateway.sendEventToCoordinator(event);
     }
 
     this.taskStatisticsType = StatisticsUtil.collectType(statisticsType, globalStatistics);
@@ -139,14 +165,16 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
         operatorName,
         subtaskIndex,
         statisticsEvent.checkpointId());
-    globalStatistics =
-        StatisticsUtil.deserializeAggregatedStatistics(
-            statisticsEvent.statisticsBytes(), aggregatedStatisticsSerializer);
+    this.globalStatistics =
+        StatisticsUtil.deserializeGlobalStatistics(
+            statisticsEvent.statisticsBytes(), globalStatisticsSerializer);
     checkStatisticsTypeMigration();
-    output.collect(new StreamRecord<>(StatisticsOrRecord.fromStatistics(globalStatistics)));
+    // if applyImmediately not set, wait until the checkpoint time to switch
+    if (statisticsEvent.applyImmediately()) {
+      output.collect(new StreamRecord<>(StatisticsOrRecord.fromStatistics(globalStatistics)));
+    }
   }
 
-  @SuppressWarnings("unchecked")
   @Override
   public void processElement(StreamRecord<RowData> streamRecord) {
     // collect data statistics
@@ -204,6 +232,7 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
         StatisticsUtil.createTaskStatistics(taskStatisticsType, parallelism, downstreamParallelism);
   }
 
+  @SuppressWarnings("unchecked")
   private void checkStatisticsTypeMigration() {
     // only check if the statisticsType config is Auto and localStatistics is currently Map type
     if (statisticsType == StatisticsType.Auto && localStatistics.type() == StatisticsType.Map) {
@@ -231,7 +260,7 @@ public class DataStatisticsOperator extends AbstractStreamOperator<StatisticsOrR
   }
 
   @VisibleForTesting
-  AggregatedStatistics globalStatistics() {
+  GlobalStatistics globalStatistics() {
     return globalStatistics;
   }
 }

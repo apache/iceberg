@@ -24,7 +24,7 @@ class MockInputStream extends ByteArrayInputStream {
 
   static final byte[] TEST_ARRAY = new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
-  private int[] lengths;
+  private final int[] lengths;
   private int current = 0;
 
   MockInputStream(int... actualReadLengths) {
