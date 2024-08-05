@@ -148,7 +148,7 @@ SELECT * FROM db.table.branch_test_branch;
 Modify the table's schema by dropping the `col` column and adding a new column named `new_col`:
 
 ```sql
-ALTER TABLE db.table drop column float;
+ALTER TABLE db.table drop column col;
 
 ALTER TABLE db.table add column new_col date;
 
