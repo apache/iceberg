@@ -237,6 +237,10 @@ subprojects {
   plugins.withType(ScalaPlugin.class) {
     tasks.withType(ScalaCompile.class) {
       scalaCompileOptions.keepAliveMode.set(KeepAliveMode.DAEMON)
+      // `options.release` doesn't seem to work for ScalaCompile :(
+      sourceCompatibility = "11"
+      targetCompatibility = "11"
+      scalaCompileOptions.additionalParameters.add("-release:11")
     }
   }
 }
