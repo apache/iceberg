@@ -103,6 +103,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   private final SerializableRecordEmitter<T> emitter;
   private final String tableName;
 
+  private volatile List<IcebergSourceSplit> batchSplits;
+
   IcebergSource(
       TableLoader tableLoader,
       ScanContext scanContext,
@@ -138,16 +140,26 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     return tableName + "-" + UUID.randomUUID();
   }
 
+  /**
+   * Cache the enumerated splits for batch execution to avoid double planning as there are two code
+   * paths obtaining splits: (1) infer parallelism (2) enumerator creation.
+   */
   private List<IcebergSourceSplit> planSplitsForBatch(String threadName) {
+    if (batchSplits != null) {
+      return batchSplits;
+    }
+
     ExecutorService workerPool =
         ThreadPools.newWorkerPool(threadName, scanContext.planParallelism());
     try (TableLoader loader = tableLoader.clone()) {
       loader.open();
-      List<IcebergSourceSplit> splits =
+      this.batchSplits =
           FlinkSplitPlanner.planIcebergSourceSplits(loader.loadTable(), scanContext, workerPool);
       LOG.info(
-          "Discovered {} splits from table {} during job initialization", splits.size(), tableName);
-      return splits;
+          "Discovered {} splits from table {} during job initialization",
+          batchSplits.size(),
+          tableName);
+      return batchSplits;
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close table loader", e);
     } finally {
@@ -213,6 +225,8 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         // Only do scan planning if nothing is restored from checkpoint state
         List<IcebergSourceSplit> splits = planSplitsForBatch(planningThreadName());
         assigner.onDiscoveredSplits(splits);
+        // clear the cached splits after enumerator creation as they won't be needed anymore
+        this.batchSplits = null;
       }
 
       return new StaticIcebergEnumerator(enumContext, assigner);

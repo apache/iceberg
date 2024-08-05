@@ -54,7 +54,10 @@ public class TestIcebergSourceSql extends TestSqlBase {
     TableEnvironment tableEnvironment = getTableEnv();
     Configuration tableConf = tableEnvironment.getConfig().getConfiguration();
     tableConf.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE, true);
-    // disable inferring parallelism to avoid interfering watermark tests
+    // Disable inferring parallelism to avoid interfering watermark tests
+    // that check split assignment is ordered by the watermark column.
+    // The tests assumes default parallelism of 1 with single reader task
+    // in order to check the order of read records.
     tableConf.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
 
     tableEnvironment.getConfig().set("table.exec.resource.default-parallelism", "1");
