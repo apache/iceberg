@@ -187,7 +187,7 @@ class SchemaUpdate implements UpdateSchema {
   @Override
   public UpdateSchema deleteColumn(String name) {
     Preconditions.checkArgument(
-        !renamedNameToId.containsKey(name), "Cannot delete renaming column: %s", name);
+        !renamedNameToId.containsKey(name), "Cannot delete renamed column: %s", name);
     Types.NestedField field = findField(name);
     Preconditions.checkArgument(field != null, "Cannot delete missing column: %s", name);
     Preconditions.checkArgument(
