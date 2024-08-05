@@ -165,7 +165,7 @@ public class TestIcebergSpeculativeExecutionSupport extends TestBase {
     Configuration configuration = new Configuration();
     configuration.set(CoreOptions.CHECK_LEAKED_CLASSLOADER, false);
     configuration.set(RestOptions.BIND_PORT, "0");
-    configuration.set(JobManagerOptions.SLOT_REQUEST_TIMEOUT, 5000L);
+    configuration.set(JobManagerOptions.SLOT_REQUEST_TIMEOUT, Duration.ofSeconds(5));
 
     // Use FLIP-27 source
     configuration.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE, true);
