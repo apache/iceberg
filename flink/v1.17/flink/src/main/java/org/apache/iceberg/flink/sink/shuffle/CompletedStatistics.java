@@ -100,4 +100,12 @@ class CompletedStatistics {
   SortKey[] keySamples() {
     return keySamples;
   }
+
+  boolean isEmpty() {
+    if (type == StatisticsType.Sketch) {
+      return keySamples.length == 0;
+    } else {
+      return keyFrequency().isEmpty();
+    }
+  }
 }
