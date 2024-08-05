@@ -37,7 +37,8 @@ public class TestSchemaCaseSensitivity {
             required(3, "DATA", Types.StringType.get()));
     assertThatIllegalArgumentException()
         .isThrownBy(() -> schema.caseInsensitiveFindField("DATA"))
-        .withMessage("Multiple entries with same key: data=3 and data=2");
+        .withMessage(
+            "Unable to build field name to id mapping because two fields have the same lower case name: data and DATA");
   }
 
   @Test
