@@ -17,7 +17,7 @@
  * under the License.
  */
 
-def hiveVersions = (System.getProperty("hiveVersions") != null ? System.getProperty("hiveVersions") : System.getProperty("defaultHiveVersions")).split(",")
+def hiveVersions = (System.getProperty("hiveVersions") != null ? System.getProperty("hiveVersions") : System.getProperty("defaultHiveVersions")).split(",").findAll { !it.empty }
 
 project(':iceberg-hive-runtime') {
   apply plugin: 'io.github.goooler.shadow'

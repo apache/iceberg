@@ -70,41 +70,85 @@ project(':delta-lake').name = 'iceberg-delta-lake'
 project(':kafka-connect').name = 'iceberg-kafka-connect'
 project(':open-api').name = 'iceberg-open-api'
 
+if (System.getProperty("scalaVersion") != null) {
+  if (System.getProperty("scalaVersions") != null && !System.getProperty("scalaVersions").equals(System.getProperty("scalaVersion"))) {
+    throw new GradleException("Using the old 'scalaVersion' system property _and_ the new 'scalaVersions' with different values. Migrate to the 'scalaVersions' system property")
+  }
+  System.setProperty("scalaVersions", System.getProperty("scalaVersion"))
+  logger.warn("Using the old 'scalaVersion' system property, migrate to the 'scalaVersions' system property")
+}
+if (System.getProperty("defaultScalaVersion") != null) {
+  if (System.getProperty("defaultScalaVersions") != null && !System.getProperty("defaultScalaVersions").equals(System.getProperty("defaultScalaVersion"))) {
+    throw new GradleException("Using the old 'defaultScalaVersion' system property _and_ the new 'defaultScalaVersions' with different values. Migrate to the 'defaultScalaVersions' system property")
+  }
+  System.setProperty("defaultScalaVersions", System.getProperty("defaultScalaVersion"))
+  logger.warn("Using the old 'defaultScalaVersion' system property, migrate to the 'defaultScalaVersions' system property")
+}
+
+boolean ideSyncActive =
+        Boolean.getBoolean("idea.sync.active") || System.getProperty("eclipse.product") != null || gradle.startParameter.taskNames.any { it.startsWith("eclipse") }
+
 if (null != System.getProperty("allModules")) {
+  if (!["true", "false"].contains(System.getProperty("allModules"))) {
+    throw new GradleException("The 'allModules' system property is present, but does not represent a boolean, change to '-DallModules=true'")
+  }
+  if (Boolean.getBoolean("allModules")) {
+    System.setProperty("flinkVersions", System.getProperty("knownFlinkVersions"))
+    System.setProperty("sparkVersions", System.getProperty("knownSparkVersions"))
+    System.setProperty("hiveVersions", System.getProperty("knownHiveVersions"))
+  }
+}
+if (Boolean.getBoolean("allFlinkVersions")) {
   System.setProperty("flinkVersions", System.getProperty("knownFlinkVersions"))
+}
+if (Boolean.getBoolean("allSparkVersions")) {
   System.setProperty("sparkVersions", System.getProperty("knownSparkVersions"))
+}
+if (Boolean.getBoolean("allHiveVersions")) {
   System.setProperty("hiveVersions", System.getProperty("knownHiveVersions"))
 }
 
 List<String> knownFlinkVersions = System.getProperty("knownFlinkVersions").split(",")
-String flinkVersionsString = System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions")
-List<String> flinkVersions = flinkVersionsString != null && !flinkVersionsString.isEmpty() ? flinkVersionsString.split(",") : []
-
+List<String> flinkVersions = (System.getProperty("flinkVersions") != null ? System.getProperty("flinkVersions") : System.getProperty("defaultFlinkVersions", "")).split(",").findAll { !it.empty }
+System.setProperty("flinkVersions", flinkVersions.join(","))
 if (!knownFlinkVersions.containsAll(flinkVersions)) {
   throw new GradleException("Found unsupported Flink versions: " + (flinkVersions - knownFlinkVersions))
 }
 
 List<String> knownHiveVersions = System.getProperty("knownHiveVersions").split(",")
-String hiveVersionsString = System.getProperty("hiveVersions") != null ? System.getProperty("hiveVersions") : System.getProperty("defaultHiveVersions")
-List<String> hiveVersions = hiveVersionsString != null && !hiveVersionsString.isEmpty() ? hiveVersionsString.split(",") : []
-
+List<String> hiveVersions = (System.getProperty("hiveVersions") != null ? System.getProperty("hiveVersions") : System.getProperty("defaultHiveVersions", "")).split(",").findAll { !it.empty }
+System.setProperty("hiveVersions", hiveVersions.join(","))
 if (!knownHiveVersions.containsAll(hiveVersions)) {
   throw new GradleException("Found unsupported Hive versions: " + (hiveVersions - knownHiveVersions))
 }
-
 List<String> knownSparkVersions = System.getProperty("knownSparkVersions").split(",")
-String sparkVersionsString = System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions")
-List<String> sparkVersions = sparkVersionsString != null && !sparkVersionsString.isEmpty() ? sparkVersionsString.split(",") : []
-
+List<String> sparkVersions = (System.getProperty("sparkVersions") != null ? System.getProperty("sparkVersions") : System.getProperty("defaultSparkVersions", "")).split(",").findAll { !it.empty }
+System.setProperty("sparkVersions", sparkVersions.join(","))
 if (!knownSparkVersions.containsAll(sparkVersions)) {
   throw new GradleException("Found unsupported Spark versions: " + (sparkVersions - knownSparkVersions))
 }
 
-List<String> knownScalaVersions = System.getProperty("knownScalaVersions").split(",")
-String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+List<String> knownScalaVersions = System.getProperty("knownScalaVersions").split(",").toList().findAll { !it.empty}
+List<String> scalaVersions = (System.getProperty("scalaVersions") != null ? System.getProperty("scalaVersions") : System.getProperty("defaultScalaVersions", "")).split(",").findAll { !it.empty }
+System.setProperty("scalaVersions", scalaVersions.join(","))
+boolean allScalaVersions = Boolean.getBoolean("allScalaVersions")
+if (!ideSyncActive && allScalaVersions) {
+  System.setProperty("scalaVersions", System.getProperty("knownScalaVersions"))
+  scalaVersions = knownScalaVersions
+}
 
-if (!knownScalaVersions.contains(scalaVersion)) {
-  throw new GradleException("Found unsupported Scala version: " + scalaVersion)
+Map<String, List<String>> sparkScalaVersions = knownSparkVersions.collectEntries {
+  List<String> scalaVers = [] + scalaVersions
+  scalaVers.retainAll(System.getProperty("sparkScalaVersions_${it}").split(",").toList())
+  if (!knownScalaVersions.containsAll(scalaVers) || scalaVers.empty) {
+    throw new GradleException("Found unsupported Scala versions: " + (scalaVers - knownScalaVersions))
+  }
+  if (!allScalaVersions || ideSyncActive) {
+
+    scalaVers = [scalaVers[0]]
+  }
+  System.setProperty("sparkScalaVersions_${it}", scalaVers.join(","))
+  [it, scalaVers]
 }
 
 if (!flinkVersions.isEmpty()) {
@@ -112,67 +156,31 @@ if (!flinkVersions.isEmpty()) {
   project(':flink').name = 'iceberg-flink'
 }
 
-if (flinkVersions.contains("1.17")) {
-  include ":iceberg-flink:flink-1.17"
-  include ":iceberg-flink:flink-runtime-1.17"
-  project(":iceberg-flink:flink-1.17").projectDir = file('flink/v1.17/flink')
-  project(":iceberg-flink:flink-1.17").name = "iceberg-flink-1.17"
-  project(":iceberg-flink:flink-runtime-1.17").projectDir = file('flink/v1.17/flink-runtime')
-  project(":iceberg-flink:flink-runtime-1.17").name = "iceberg-flink-runtime-1.17"
+def flinkProject(String pattern, String ver) {
+  include ":iceberg-flink:iceberg-${pattern}-${ver}"
+  ProjectDescriptor prj = project(":iceberg-flink:iceberg-${pattern}-${ver}")
+  prj.projectDir = file("flink/v${ver}/${pattern}")
+  prj.name = "iceberg-${pattern}-${ver}".toString()
 }
 
-if (flinkVersions.contains("1.18")) {
-  include ":iceberg-flink:flink-1.18"
-  include ":iceberg-flink:flink-runtime-1.18"
-  project(":iceberg-flink:flink-1.18").projectDir = file('flink/v1.18/flink')
-  project(":iceberg-flink:flink-1.18").name = "iceberg-flink-1.18"
-  project(":iceberg-flink:flink-runtime-1.18").projectDir = file('flink/v1.18/flink-runtime')
-  project(":iceberg-flink:flink-runtime-1.18").name = "iceberg-flink-runtime-1.18"
+for (ver in flinkVersions) {
+  flinkProject("flink", ver)
+  flinkProject("flink-runtime", ver)
 }
 
-if (flinkVersions.contains("1.19")) {
-  include ":iceberg-flink:flink-1.19"
-  include ":iceberg-flink:flink-runtime-1.19"
-  project(":iceberg-flink:flink-1.19").projectDir = file('flink/v1.19/flink')
-  project(":iceberg-flink:flink-1.19").name = "iceberg-flink-1.19"
-  project(":iceberg-flink:flink-runtime-1.19").projectDir = file('flink/v1.19/flink-runtime')
-  project(":iceberg-flink:flink-runtime-1.19").name = "iceberg-flink-runtime-1.19"
+def sparkProject(String pattern, String ver, String scala) {
+  include ":iceberg-spark:iceberg-${pattern}-${ver}_${scala}"
+  ProjectDescriptor prj = project(":iceberg-spark:iceberg-${pattern}-${ver}_${scala}")
+  prj.projectDir = file("spark/v${ver}/${pattern}")
+  prj.name = "iceberg-${pattern}-${ver}_${scala}".toString()
 }
 
-if (sparkVersions.contains("3.3")) {
-  include ":iceberg-spark:spark-3.3_${scalaVersion}"
-  include ":iceberg-spark:spark-extensions-3.3_${scalaVersion}"
-  include ":iceberg-spark:spark-runtime-3.3_${scalaVersion}"
-  project(":iceberg-spark:spark-3.3_${scalaVersion}").projectDir = file('spark/v3.3/spark')
-  project(":iceberg-spark:spark-3.3_${scalaVersion}").name = "iceberg-spark-3.3_${scalaVersion}"
-  project(":iceberg-spark:spark-extensions-3.3_${scalaVersion}").projectDir = file('spark/v3.3/spark-extensions')
-  project(":iceberg-spark:spark-extensions-3.3_${scalaVersion}").name = "iceberg-spark-extensions-3.3_${scalaVersion}"
-  project(":iceberg-spark:spark-runtime-3.3_${scalaVersion}").projectDir = file('spark/v3.3/spark-runtime')
-  project(":iceberg-spark:spark-runtime-3.3_${scalaVersion}").name = "iceberg-spark-runtime-3.3_${scalaVersion}"
-}
-
-if (sparkVersions.contains("3.4")) {
-  include ":iceberg-spark:spark-3.4_${scalaVersion}"
-  include ":iceberg-spark:spark-extensions-3.4_${scalaVersion}"
-  include ":iceberg-spark:spark-runtime-3.4_${scalaVersion}"
-  project(":iceberg-spark:spark-3.4_${scalaVersion}").projectDir = file('spark/v3.4/spark')
-  project(":iceberg-spark:spark-3.4_${scalaVersion}").name = "iceberg-spark-3.4_${scalaVersion}"
-  project(":iceberg-spark:spark-extensions-3.4_${scalaVersion}").projectDir = file('spark/v3.4/spark-extensions')
-  project(":iceberg-spark:spark-extensions-3.4_${scalaVersion}").name = "iceberg-spark-extensions-3.4_${scalaVersion}"
-  project(":iceberg-spark:spark-runtime-3.4_${scalaVersion}").projectDir = file('spark/v3.4/spark-runtime')
-  project(":iceberg-spark:spark-runtime-3.4_${scalaVersion}").name = "iceberg-spark-runtime-3.4_${scalaVersion}"
-}
-
-if (sparkVersions.contains("3.5")) {
-  include ":iceberg-spark:spark-3.5_${scalaVersion}"
-  include ":iceberg-spark:spark-extensions-3.5_${scalaVersion}"
-  include ":iceberg-spark:spark-runtime-3.5_${scalaVersion}"
-  project(":iceberg-spark:spark-3.5_${scalaVersion}").projectDir = file('spark/v3.5/spark')
-  project(":iceberg-spark:spark-3.5_${scalaVersion}").name = "iceberg-spark-3.5_${scalaVersion}"
-  project(":iceberg-spark:spark-extensions-3.5_${scalaVersion}").projectDir = file('spark/v3.5/spark-extensions')
-  project(":iceberg-spark:spark-extensions-3.5_${scalaVersion}").name = "iceberg-spark-extensions-3.5_${scalaVersion}"
-  project(":iceberg-spark:spark-runtime-3.5_${scalaVersion}").projectDir = file('spark/v3.5/spark-runtime')
-  project(":iceberg-spark:spark-runtime-3.5_${scalaVersion}").name = "iceberg-spark-runtime-3.5_${scalaVersion}"
+for (ver in sparkVersions) {
+  for (scala in sparkScalaVersions[ver]) {
+    sparkProject("spark", ver, scala)
+    sparkProject("spark-extensions", ver, scala)
+    sparkProject("spark-runtime", ver, scala)
+  }
 }
 
 // hive 3 depends on hive 2, so always add hive 2 if hive3 is enabled

@@ -56,7 +56,7 @@ Iceberg is built using Gradle with Java 11, 17, or 21.
 * To invoke a build and run tests: `./gradlew build`
 * To skip tests: `./gradlew build -x test -x integrationTest`
 * To fix code style for default versions: `./gradlew spotlessApply`
-* To fix code style for all versions of Spark/Hive/Flink:`./gradlew spotlessApply -DallModules`
+* To fix code style for all versions of Spark/Hive/Flink:`./gradlew spotlessApply -DallModules=true`
 
 Iceberg table support is organized in library modules:
 
