@@ -287,4 +287,23 @@ public class TestTableUpdatePartitionSpec extends TestBase {
     assertThat(table.spec().lastAssignedFieldId()).isEqualTo(1001);
     assertThat(table.ops().current().lastAssignedPartitionId()).isEqualTo(1001);
   }
+
+  @TestTemplate
+  public void testCommitUpdatedSpecWithoutSettingNewDefault() {
+    PartitionSpec originalSpec = table.spec();
+    table.updateSpec().addField("id").addNonDefaultSpec().commit();
+
+    assertThat(table.spec())
+        .as("Should not set the default spec for the table")
+        .isSameAs(originalSpec);
+
+    assertThat(table.specs().get(1))
+        .as("The new spec created for the table")
+        .isEqualTo(
+            PartitionSpec.builderFor(table.schema())
+                .withSpecId(1)
+                .bucket("data", 16)
+                .identity("id")
+                .build());
+  }
 }

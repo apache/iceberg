@@ -122,4 +122,15 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
    *     change conflicts with other additions, removals, or renames.
    */
   UpdatePartitionSpec renameField(String name, String newName);
+
+  /**
+   * Sets that the new partition spec will be NOT set as the default partition spec for the table,
+   * the default behavior is to do so.
+   *
+   * @return this for method chaining
+   */
+  default UpdatePartitionSpec addNonDefaultSpec() {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement addNonDefaultSpec()");
+  };
 }
