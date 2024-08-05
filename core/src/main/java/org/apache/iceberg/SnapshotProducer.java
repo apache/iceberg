@@ -224,12 +224,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    */
   protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate, Snapshot snapshot);
 
+  protected long nextSnapshotSequenceNumber(TableMetadata metadataToUpdate) {
+    return metadataToUpdate.nextSequenceNumber();
+  }
+
   @Override
   public Snapshot apply() {
     refresh();
     Snapshot parentSnapshot = SnapshotUtil.latestSnapshot(base, targetBranch);
 
-    long sequenceNumber = base.nextSequenceNumber();
+    long sequenceNumber = nextSnapshotSequenceNumber(base);
     Long parentSnapshotId = parentSnapshot == null ? null : parentSnapshot.snapshotId();
 
     validate(base, parentSnapshot);
