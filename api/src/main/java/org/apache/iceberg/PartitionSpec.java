@@ -449,7 +449,8 @@ public class PartitionSpec implements Serializable {
       return sourceColumn;
     }
 
-    private Builder identity(Types.NestedField sourceColumn, String targetName) {
+    Builder identity(String sourceName, String targetName) {
+      Types.NestedField sourceColumn = findSourceColumn(sourceName);
       checkAndAddPartitionName(targetName, sourceColumn.fieldId());
       PartitionField field =
           new PartitionField(
@@ -459,13 +460,8 @@ public class PartitionSpec implements Serializable {
       return this;
     }
 
-    Builder identity(String sourceName, String targetName) {
-      return identity(findSourceColumn(sourceName), targetName);
-    }
-
     public Builder identity(String sourceName) {
-      Types.NestedField sourceColumn = findSourceColumn(sourceName);
-      return identity(sourceColumn, sourceColumn.name());
+      return identity(sourceName, sourceName);
     }
 
     public Builder year(String sourceName, String targetName) {
