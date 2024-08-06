@@ -29,6 +29,8 @@ import org.apache.iceberg.mapping.MappingUtil;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
+import org.apache.iceberg.relocated.com.google.common.collect.HashBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -59,6 +61,7 @@ class SchemaUpdate implements UpdateSchema {
       Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
   private final Map<String, Integer> addedNameToId = Maps.newHashMap();
   private final Map<String, Integer> renamedNameToId = Maps.newHashMap();
+  private final BiMap<String, String> renamedColumnNames = HashBiMap.create();
   private final Multimap<Integer, Move> moves =
       Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
   private int lastColumnId;
@@ -186,8 +189,6 @@ class SchemaUpdate implements UpdateSchema {
 
   @Override
   public UpdateSchema deleteColumn(String name) {
-    Preconditions.checkArgument(
-        !renamedNameToId.containsKey(name), "Cannot delete renamed column: %s", name);
     Types.NestedField field = findField(name);
     Preconditions.checkArgument(field != null, "Cannot delete missing column: %s", name);
     Preconditions.checkArgument(
@@ -205,7 +206,11 @@ class SchemaUpdate implements UpdateSchema {
     Preconditions.checkArgument(field != null, "Cannot rename missing column: %s", name);
     Preconditions.checkArgument(newName != null, "Cannot rename a column to null");
     Preconditions.checkArgument(
-        !renamedNameToId.containsKey(newName), "Cannot rename columns to same name: %s", newName);
+        !renamedColumnNames.containsKey(name), "Cannot rename column: %s twice", newName);
+    Preconditions.checkArgument(
+        !renamedColumnNames.inverse().containsKey(newName),
+        "Cannot rename columns to same name: %s",
+        newName);
     Preconditions.checkArgument(
         !deletes.contains(field.fieldId()),
         "Cannot rename a column that will be deleted: %s",
@@ -223,7 +228,7 @@ class SchemaUpdate implements UpdateSchema {
           fieldId,
           Types.NestedField.of(fieldId, field.isOptional(), newName, field.type(), field.doc()));
     }
-    renamedNameToId.put(newName, fieldId);
+    renamedColumnNames.put(name, newName);
 
     if (identifierFieldNames.contains(name)) {
       identifierFieldNames.remove(name);
@@ -847,15 +852,21 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private Types.NestedField findField(String fieldName) {
-    Types.NestedField field =
-        caseSensitive ? schema.findField(fieldName) : schema.caseInsensitiveFindField(fieldName);
-    if (field != null) {
-      return field;
+    Preconditions.checkArgument(
+        !renamedColumnNames.containsKey(fieldName),
+        "Column: %s is renamed to %s",
+        fieldName,
+        renamedColumnNames.get(fieldName));
+    String originalFieldName = findFieldNameBeforeRename(renamedColumnNames.inverse(), fieldName);
+    return caseSensitive
+        ? schema.findField(originalFieldName)
+        : schema.caseInsensitiveFindField(originalFieldName);
+  }
+
+  private String findFieldNameBeforeRename(BiMap<String, String> columnsMap, String fieldName) {
+    if (columnsMap.containsKey(fieldName)) {
+      return findFieldNameBeforeRename(columnsMap, columnsMap.get(fieldName));
     }
-    if (renamedNameToId.containsKey(fieldName)) {
-      Integer fieldId = renamedNameToId.get(fieldName);
-      return schema.findField(fieldId);
-    }
-    return null;
+    return fieldName;
   }
 }

@@ -705,13 +705,13 @@ public class TestSchemaUpdate {
             .renameColumn("points.x", "X")
             .renameColumn("points.y", "y.y") // has a '.' in the field name
             .updateColumn("id", Types.LongType.get(), "unique id")
-            .updateColumn("locations.lat", Types.DoubleType.get()) // use the original name
-            .updateColumnDoc("locations.lat", "latitude")
+            .updateColumn("latitude", Types.DoubleType.get()) // use the renamed name
+            .updateColumnDoc("latitude", "latitude")
             .deleteColumn("locations.long")
             .deleteColumn("properties")
-            .makeColumnOptional("points.x")
+            .makeColumnOptional("X")
             .allowIncompatibleChanges()
-            .requireColumn("data")
+            .requireColumn("json")
             .addRequiredColumn(
                 "locations", "description", Types.StringType.get(), "Location description")
             .apply();
@@ -868,7 +868,7 @@ public class TestSchemaUpdate {
               update.renameColumn("id", "col").deleteColumn("id");
             })
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot delete a column that has updates: id");
+        .hasMessage("Column: id is renamed to col");
 
     assertThatThrownBy(
             () -> {
@@ -876,7 +876,7 @@ public class TestSchemaUpdate {
               update.renameColumn("id", "col").deleteColumn("col");
             })
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot delete renamed column: col");
+        .hasMessage("Cannot delete a column that has updates: col");
   }
 
   @Test
@@ -2223,6 +2223,25 @@ public class TestSchemaUpdate {
     Schema expected =
         new Schema(
             required(1, "b", Types.IntegerType.get()), required(2, "a", Types.LongType.get()));
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testMultiRename() {
+    Schema schema =
+        new Schema(
+            required(1, "b", Types.IntegerType.get()), required(2, "c", Types.IntegerType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, 4)
+            .renameColumn("c", "a")
+            .renameColumn("a", "d")
+            .renameColumn("d", "e")
+            .apply();
+
+    Schema expected =
+        new Schema(
+            required(1, "b", Types.IntegerType.get()), required(2, "e", Types.IntegerType.get()));
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 }
