@@ -152,7 +152,7 @@ Readers may be more strict for metadata JSON files because the JSON files are no
 
 ##### Writing data files
 
-All columns must be written to data files even if they introduce redundancy with metadata stored in manifest file (e.g. columns with identity partition transforms). Writing all columns provides a backup in case of corruption or bugs in the metadata layer.
+All columns must be written to data files even if they introduce redundancy with metadata stored in manifest files (e.g. columns with identity partition transforms). Writing all columns provides a backup in case of corruption or bugs in the metadata layer.
 
 ### Schemas and Data Types
 
