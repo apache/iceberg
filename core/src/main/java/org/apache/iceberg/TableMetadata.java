@@ -1004,28 +1004,28 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
-    public Builder upgradeFormatVersion(int targetFormatVersion) {
+    public Builder upgradeFormatVersion(int newFormatVersion) {
       Preconditions.checkArgument(
-          targetFormatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
+          newFormatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
           "Cannot upgrade table to unsupported format version: v%s (supported: v%s)",
-          targetFormatVersion,
+          newFormatVersion,
           SUPPORTED_TABLE_FORMAT_VERSION);
       Preconditions.checkArgument(
-          targetFormatVersion >= formatVersion,
+          newFormatVersion >= formatVersion,
           "Cannot downgrade v%s table to v%s",
           formatVersion,
-          targetFormatVersion);
+          newFormatVersion);
 
-      if (targetFormatVersion == formatVersion) {
+      if (newFormatVersion == formatVersion) {
         return this;
       }
 
       // register incremental version changes separately to ensure all upgrade requirements are met
-      for (int version = formatVersion + 1; version <= targetFormatVersion; version++) {
+      for (int version = formatVersion + 1; version <= newFormatVersion; version++) {
         changes.add(new MetadataUpdate.UpgradeFormatVersion(version));
       }
 
-      this.formatVersion = targetFormatVersion;
+      this.formatVersion = newFormatVersion;
 
       return this;
     }
