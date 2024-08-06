@@ -24,7 +24,7 @@ Spark, Flink and<!--
 
 Iceberg is a high-performance format for huge analytic tables. Iceberg brings the reliability and simplicity of SQL tables to big data while making it possible for engines like Spark, Trino, Flink, Presto, Hive, and Impala to safely work with the same tables, at the same time.
 
-Background and documentation is available at <https://iceberg.apache.org>
+Background and documentation are available at <https://iceberg.apache.org>
 
 
 ## Status
