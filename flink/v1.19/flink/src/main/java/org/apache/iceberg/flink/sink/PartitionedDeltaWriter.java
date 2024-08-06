@@ -66,7 +66,7 @@ class PartitionedDeltaWriter extends BaseDeltaTaskWriter {
   }
 
   @Override
-  RowDataDeltaWriter route(RowData row) {
+  protected RowDataDeltaWriter route(RowData row) {
     partitionKey.partition(wrapper().wrap(row));
 
     RowDataDeltaWriter writer = writers.get(partitionKey);
