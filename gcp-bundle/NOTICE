@@ -12,7 +12,7 @@ NOTICE for Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.14.
 # Jackson JSON processor
 
 Jackson is a high-performance, Free/Open Source JSON processing library.
-It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
+It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi) and has
 been in development since 2007.
 It is currently developed by a community of developers.
 
@@ -23,7 +23,7 @@ To find the details that apply to this artifact see the accompanying LICENSE fil
 
 ## Credits
 
-A list of contributors may be found from CREDITS(-2.x) file, which is included
+A list of contributors may be found in CREDITS(-2.x) file, which is included
 in some artifacts (usually source distributions); but is always available
 from the source code management (SCM) system project uses.
 
@@ -50,7 +50,7 @@ NOTICE for Group: io.grpc  Name: grpc-netty-shaded  Version: 1.55.1
                           The Netty Project
                             =================
 
-Please visit the Netty web site for more information:
+Please visit the Netty website for more information:
 
   * http://netty.io/
 
@@ -77,14 +77,14 @@ This product contains a forked and modified version of Tomcat Native
     * http://tomcat.apache.org/native-doc/
     * https://svn.apache.org/repos/asf/tomcat/native/
 
-This product contains the Maven wrapper scripts from 'Maven Wrapper', that provides an easy way to ensure a user has everything necessary to run the Maven build.
+This product contains the Maven wrapper scripts from 'Maven Wrapper', which provides an easy way to ensure a user has everything necessary to run the Maven build.
 
   * LICENSE:
     * license/LICENSE.mvn-wrapper.txt (Apache License 2.0)
   * HOMEPAGE:
     * https://github.com/takari/maven-wrapper
 
-This product contains small piece of code to support AIX, taken from netbsd.
+This product contains a small piece of code to support AIX, taken from Netbsd.
 
   * LICENSE:
     * license/LICENSE.aix-netbsd.txt (OpenSSL License)
