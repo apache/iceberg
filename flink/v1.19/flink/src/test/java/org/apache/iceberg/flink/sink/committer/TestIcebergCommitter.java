@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.common.TaskInfo;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerSnapshot;
 import org.apache.flink.api.connector.sink2.Committer;
@@ -53,6 +54,7 @@ import org.apache.flink.streaming.api.connector.sink2.CommittableMessageSerializ
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
 import org.apache.flink.streaming.api.connector.sink2.SinkV2Assertions;
+import org.apache.flink.streaming.api.operators.StreamingRuntimeContext;
 import org.apache.flink.streaming.runtime.operators.sink.CommitterOperatorFactory;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
@@ -1164,6 +1166,8 @@ class TestIcebergCommitter extends TestBase {
     IcebergWriteAggregator icebergWriteAggregator = spy(new IcebergWriteAggregator(tableLoader));
     StreamTask ctx = mock(StreamTask.class);
     Environment env = mock(Environment.class);
+    StreamingRuntimeContext streamingRuntimeContext = mock(StreamingRuntimeContext.class);
+    TaskInfo taskInfo = mock(TaskInfo.class);
     JobID myJobID = mock(JobID.class);
     OperatorID operatorID = mock(OperatorID.class);
     doReturn(myJobId).when(myJobID).toString();
@@ -1172,6 +1176,9 @@ class TestIcebergCommitter extends TestBase {
     doReturn(ctx).when(icebergWriteAggregator).getContainingTask();
     doReturn(operatorId).when(operatorID).toString();
     doReturn(operatorID).when(icebergWriteAggregator).getOperatorID();
+    doReturn(0).when(taskInfo).getAttemptNumber();
+    doReturn(taskInfo).when(streamingRuntimeContext).getTaskInfo();
+    doReturn(streamingRuntimeContext).when(icebergWriteAggregator).getRuntimeContext();
     try {
       icebergWriteAggregator.open();
     } catch (Exception e) {
