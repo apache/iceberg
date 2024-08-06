@@ -18,17 +18,20 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-public class TableMaintenanceMetrics {
-  public static final String GROUP_KEY = "maintenanceTask";
-  public static final String GROUP_VALUE_DEFAULT = "maintenanceTask";
+import java.util.Map;
+import java.util.UUID;
+import org.apache.iceberg.jdbc.JdbcCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-  // TriggerManager metrics
-  public static final String RATE_LIMITER_TRIGGERED = "rateLimiterTriggered";
-  public static final String CONCURRENT_RUN_THROTTLED = "concurrentRunThrottled";
-  public static final String TRIGGERED = "triggered";
-  public static final String NOTHING_TO_TRIGGER = "nothingToTrigger";
+class TestJDBCLockFactory extends TestLockFactoryBase {
+  @Override
+  TriggerLockFactory lockFactory() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
+    properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
+    properties.put("maintenance.lock.jdbc.init-lock-tables", "true");
 
-  private TableMaintenanceMetrics() {
-    // do not instantiate
+    return new JDBCLockFactory(
+        "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""), properties);
   }
 }

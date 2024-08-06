@@ -68,7 +68,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
   private final long minFireDelayMs;
   private final long lockCheckDelayMs;
   private transient Counter rateLimiterTriggeredCounter;
-  private transient Counter concurrentRunTriggeredCounter;
+  private transient Counter concurrentRunThrottledCounter;
   private transient Counter nothingToTriggerCounter;
   private transient List<Counter> triggerCounters;
   private transient ValueState<Long> nextEvaluationTimeState;
@@ -122,12 +122,12 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
             .addGroup(
                 TableMaintenanceMetrics.GROUP_KEY, TableMaintenanceMetrics.GROUP_VALUE_DEFAULT)
             .counter(TableMaintenanceMetrics.RATE_LIMITER_TRIGGERED);
-    this.concurrentRunTriggeredCounter =
+    this.concurrentRunThrottledCounter =
         getRuntimeContext()
             .getMetricGroup()
             .addGroup(
                 TableMaintenanceMetrics.GROUP_KEY, TableMaintenanceMetrics.GROUP_VALUE_DEFAULT)
-            .counter(TableMaintenanceMetrics.CONCURRENT_RUN_TRIGGERED);
+            .counter(TableMaintenanceMetrics.CONCURRENT_RUN_THROTTLED);
     this.nothingToTriggerCounter =
         getRuntimeContext()
             .getMetricGroup()
@@ -267,7 +267,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
       LOG.info("Failed to acquire lock. Delaying task to {}", current + lockCheckDelayMs);
 
       startsFrom = taskToStart;
-      concurrentRunTriggeredCounter.inc();
+      concurrentRunThrottledCounter.inc();
       schedule(timerService, current + lockCheckDelayMs);
     }
 

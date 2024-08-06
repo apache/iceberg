@@ -21,7 +21,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 import static org.apache.iceberg.flink.maintenance.operator.ConstantsForTests.DUMMY_NAME;
 import static org.apache.iceberg.flink.maintenance.operator.ConstantsForTests.EVENT_TIME;
 import static org.apache.iceberg.flink.maintenance.operator.ConstantsForTests.EVENT_TIME_2;
-import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.CONCURRENT_RUN_TRIGGERED;
+import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.CONCURRENT_RUN_THROTTLED;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.GROUP_VALUE_DEFAULT;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.NOTHING_TO_TRIGGER;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.RATE_LIMITER_TRIGGERED;
@@ -438,7 +438,7 @@ class TestTriggerManager extends OperatorTestBase {
       MetricsReporterFactoryForTests.assertCounters(
           new ImmutableMap.Builder<String, Long>()
               .put(DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + RATE_LIMITER_TRIGGERED, -1L)
-              .put(DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + CONCURRENT_RUN_TRIGGERED, -1L)
+              .put(DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + CONCURRENT_RUN_THROTTLED, -1L)
               .put(DUMMY_NAME + "." + NAME_1 + "." + TRIGGERED, 2L)
               .put(DUMMY_NAME + "." + NAME_2 + "." + TRIGGERED, 1L)
               .put(DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + NOTHING_TO_TRIGGER, 1L)
@@ -527,7 +527,7 @@ class TestTriggerManager extends OperatorTestBase {
           .until(
               () ->
                   MetricsReporterFactoryForTests.counter(
-                          DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + CONCURRENT_RUN_TRIGGERED)
+                          DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + CONCURRENT_RUN_THROTTLED)
                       .equals(1L));
 
       // Final check all the counters
@@ -552,7 +552,7 @@ class TestTriggerManager extends OperatorTestBase {
                 DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + RATE_LIMITER_TRIGGERED,
                 rateLimiterTrigger)
             .put(
-                DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + CONCURRENT_RUN_TRIGGERED,
+                DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + CONCURRENT_RUN_THROTTLED,
                 concurrentRunTrigger)
             .put(DUMMY_NAME + "." + NAME_1 + "." + TRIGGERED, 1L)
             .put(DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + NOTHING_TO_TRIGGER, 0L)
