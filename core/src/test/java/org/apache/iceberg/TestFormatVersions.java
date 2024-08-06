@@ -65,8 +65,8 @@ public class TestFormatVersions extends TestBase {
     TableMetadata newTableMetadata = ops.current().upgradeToFormatVersion(newFormatVersion);
 
     // check that non-incremental updates are syntactic sugar for serial updates. E.g. upgrading
-    // from V1 to V3 will
-    // register changes in the table metadata for upgrading to V2 and V3 in order (V1->V2->V3)
+    // from V1 to V3 will register changes in the table metadata for upgrading to V2 and V3 in
+    // order (V1->V2->V3)
     assertThat(
             newTableMetadata.changes().stream()
                 .filter(MetadataUpdate.UpgradeFormatVersion.class::isInstance)
