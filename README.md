@@ -77,13 +77,15 @@ Iceberg also has modules for adding Iceberg support to processing engines:
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
 
 ---
-**NOTE**
-
-The tests require Docker to execute. On MacOS (with Docker Desktop), you might need to create a symbolic name to the docker socket in order to be detected by the tests:
-
-```
-sudo ln -s $HOME/.docker/run/docker.sock /var/run/docker.sock
-```
+---
+> [!NOTE]
+>
+> The tests require Docker to execute. On MacOS (with Docker Desktop), you might need to create a symbolic name to the docker socket in order to be detected by the tests:
+>
+> ```
+> sudo ln -s $HOME/.docker/run/docker.sock /var/run/docker.sock
+> ```
+---
 ---
 
 ### Engine Compatibility
