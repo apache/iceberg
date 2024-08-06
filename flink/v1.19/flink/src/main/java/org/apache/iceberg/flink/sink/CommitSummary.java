@@ -21,10 +21,12 @@ package org.apache.iceberg.flink.sink;
 import java.util.Arrays;
 import java.util.NavigableMap;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-class CommitSummary {
+@Internal
+public class CommitSummary {
 
   private final AtomicLong dataFilesCount = new AtomicLong();
   private final AtomicLong dataFilesRecordCount = new AtomicLong();
@@ -33,7 +35,7 @@ class CommitSummary {
   private final AtomicLong deleteFilesRecordCount = new AtomicLong();
   private final AtomicLong deleteFilesByteCount = new AtomicLong();
 
-  CommitSummary(NavigableMap<Long, WriteResult> pendingResults) {
+  public CommitSummary(NavigableMap<Long, WriteResult> pendingResults) {
     pendingResults
         .values()
         .forEach(
@@ -55,27 +57,27 @@ class CommitSummary {
             });
   }
 
-  long dataFilesCount() {
+  public long dataFilesCount() {
     return dataFilesCount.get();
   }
 
-  long dataFilesRecordCount() {
+  public long dataFilesRecordCount() {
     return dataFilesRecordCount.get();
   }
 
-  long dataFilesByteCount() {
+  public long dataFilesByteCount() {
     return dataFilesByteCount.get();
   }
 
-  long deleteFilesCount() {
+  public long deleteFilesCount() {
     return deleteFilesCount.get();
   }
 
-  long deleteFilesRecordCount() {
+  public long deleteFilesRecordCount() {
     return deleteFilesRecordCount.get();
   }
 
-  long deleteFilesByteCount() {
+  public long deleteFilesByteCount() {
     return deleteFilesByteCount.get();
   }
 

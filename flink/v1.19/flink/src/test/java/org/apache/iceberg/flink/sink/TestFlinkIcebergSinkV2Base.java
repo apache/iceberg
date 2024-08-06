@@ -362,7 +362,7 @@ public class TestFlinkIcebergSinkV2Base {
     return SimpleDataUtil.createRecord(id, data);
   }
 
-  private List<Snapshot> findValidSnapshots() {
+  protected List<Snapshot> findValidSnapshots() {
     List<Snapshot> validSnapshots = Lists.newArrayList();
     for (Snapshot snapshot : table.snapshots()) {
       if (snapshot.allManifests(table.io()).stream()
@@ -373,11 +373,11 @@ public class TestFlinkIcebergSinkV2Base {
     return validSnapshots;
   }
 
-  private StructLikeSet expectedRowSet(Record... records) {
+  protected StructLikeSet expectedRowSet(Record... records) {
     return SimpleDataUtil.expectedRowSet(table, records);
   }
 
-  private StructLikeSet actualRowSet(long snapshotId, String... columns) throws IOException {
+  protected StructLikeSet actualRowSet(long snapshotId, String... columns) throws IOException {
     table.refresh();
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     try (CloseableIterable<Record> reader =

@@ -20,11 +20,13 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.iceberg.flink.util.ElapsedTimeGauge;
 
-class IcebergFilesCommitterMetrics {
+@Internal
+public class IcebergFilesCommitterMetrics {
   private final AtomicLong lastCheckpointDurationMs = new AtomicLong();
   private final AtomicLong lastCommitDurationMs = new AtomicLong();
   private final ElapsedTimeGauge elapsedSecondsSinceLastSuccessfulCommit;
@@ -35,7 +37,7 @@ class IcebergFilesCommitterMetrics {
   private final Counter committedDeleteFilesRecordCount;
   private final Counter committedDeleteFilesByteCount;
 
-  IcebergFilesCommitterMetrics(MetricGroup metrics, String fullTableName) {
+  public IcebergFilesCommitterMetrics(MetricGroup metrics, String fullTableName) {
     MetricGroup committerMetrics =
         metrics.addGroup("IcebergFilesCommitter").addGroup("table", fullTableName);
     committerMetrics.gauge("lastCheckpointDurationMs", lastCheckpointDurationMs::get);
@@ -56,12 +58,12 @@ class IcebergFilesCommitterMetrics {
     lastCheckpointDurationMs.set(checkpointDurationMs);
   }
 
-  void commitDuration(long commitDurationMs) {
+  public void commitDuration(long commitDurationMs) {
     lastCommitDurationMs.set(commitDurationMs);
   }
 
   /** This is called upon a successful commit. */
-  void updateCommitSummary(CommitSummary stats) {
+  public void updateCommitSummary(CommitSummary stats) {
     elapsedSecondsSinceLastSuccessfulCommit.refreshLastRecordedTime();
     committedDataFilesCount.inc(stats.dataFilesCount());
     committedDataFilesRecordCount.inc(stats.dataFilesRecordCount());

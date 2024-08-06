@@ -62,7 +62,7 @@ class IcebergStreamWriterMetrics {
             new DropwizardHistogramWrapper(dropwizardDeleteFilesSizeHistogram));
   }
 
-  void updateFlushResult(WriteResult result) {
+  public void updateFlushResult(WriteResult result) {
     flushedDataFiles.inc(result.dataFiles().length);
     flushedDeleteFiles.inc(result.deleteFiles().length);
     flushedReferencedDataFiles.inc(result.referencedDataFiles().length);
@@ -83,7 +83,7 @@ class IcebergStreamWriterMetrics {
             });
   }
 
-  void flushDuration(long flushDurationMs) {
+  public void flushDuration(long flushDurationMs) {
     lastFlushDurationMs.set(flushDurationMs);
   }
 }

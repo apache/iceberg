@@ -19,11 +19,13 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
-class DeltaManifests {
+@Internal
+public class DeltaManifests {
 
   private static final CharSequence[] EMPTY_REF_DATA_FILES = new CharSequence[0];
 
@@ -31,11 +33,11 @@ class DeltaManifests {
   private final ManifestFile deleteManifest;
   private final CharSequence[] referencedDataFiles;
 
-  DeltaManifests(ManifestFile dataManifest, ManifestFile deleteManifest) {
+  public DeltaManifests(ManifestFile dataManifest, ManifestFile deleteManifest) {
     this(dataManifest, deleteManifest, EMPTY_REF_DATA_FILES);
   }
 
-  DeltaManifests(
+  public DeltaManifests(
       ManifestFile dataManifest, ManifestFile deleteManifest, CharSequence[] referencedDataFiles) {
     Preconditions.checkNotNull(referencedDataFiles, "Referenced data files shouldn't be null.");
 
@@ -44,19 +46,19 @@ class DeltaManifests {
     this.referencedDataFiles = referencedDataFiles;
   }
 
-  ManifestFile dataManifest() {
+  public ManifestFile dataManifest() {
     return dataManifest;
   }
 
-  ManifestFile deleteManifest() {
+  public ManifestFile deleteManifest() {
     return deleteManifest;
   }
 
-  CharSequence[] referencedDataFiles() {
+  public CharSequence[] referencedDataFiles() {
     return referencedDataFiles;
   }
 
-  List<ManifestFile> manifests() {
+  public List<ManifestFile> manifests() {
     List<ManifestFile> manifests = Lists.newArrayListWithCapacity(2);
     if (dataManifest != null) {
       manifests.add(dataManifest);

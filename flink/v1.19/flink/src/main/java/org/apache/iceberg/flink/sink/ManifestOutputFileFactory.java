@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.sink;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
@@ -28,11 +29,11 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
-class ManifestOutputFileFactory {
+@Internal
+public class ManifestOutputFileFactory {
   // Users could define their own flink manifests directory by setting this value in table
   // properties.
-  static final String FLINK_MANIFEST_LOCATION = "flink.manifests.location";
-
+  public static final String FLINK_MANIFEST_LOCATION = "flink.manifests.location";
   private final Supplier<Table> tableSupplier;
   private final Map<String, String> props;
   private final String flinkJobId;
@@ -40,6 +41,19 @@ class ManifestOutputFileFactory {
   private final int subTaskId;
   private final long attemptNumber;
   private final AtomicInteger fileCount = new AtomicInteger(0);
+
+  public ManifestOutputFileFactory(
+      Supplier<Table> tableSupplier,
+      Map<String, String> props,
+      String flinkJobId,
+      String operatorId) {
+    this.tableSupplier = tableSupplier;
+    this.props = props;
+    this.flinkJobId = flinkJobId;
+    this.operatorUniqueId = operatorId;
+    this.subTaskId = 0;
+    this.attemptNumber = 0;
+  }
 
   ManifestOutputFileFactory(
       Supplier<Table> tableSupplier,
@@ -68,7 +82,7 @@ class ManifestOutputFileFactory {
             fileCount.incrementAndGet()));
   }
 
-  OutputFile create(long checkpointId) {
+  public OutputFile create(long checkpointId) {
     String flinkManifestDir = props.get(FLINK_MANIFEST_LOCATION);
     TableOperations ops = ((HasTableOperations) tableSupplier.get()).operations();
 
