@@ -74,7 +74,11 @@ public class TestSerializableTypes {
   public void testStructs() throws Exception {
     Types.StructType struct =
         Types.StructType.of(
-            Types.NestedField.required(34, "Name!", Types.StringType.get()),
+            Types.NestedField.required(
+                34,
+                "Name!",
+                Types.StringType.get(),
+                "This column's string type has a max length of 10"),
             Types.NestedField.optional(35, "col", Types.DecimalType.of(38, 2)));
 
     Type copy = TestHelpers.roundTripSerialize(struct);
@@ -84,11 +88,17 @@ public class TestSerializableTypes {
     assertThat(stringType)
         .as("Struct serialization should preserve identity type")
         .isSameAs(Types.StringType.get());
+    String stringDoc = copy.asNestedType().asStructType().field("Name!").doc();
+    assertThat(stringDoc)
+        .as("Struct serialization should preserve field doc")
+        .isEqualTo("This column's string type has a max length of 10");
 
     Type decimalType = copy.asNestedType().asStructType().field(35).type();
     assertThat(decimalType)
         .as("Struct serialization should support id lookup")
         .isEqualTo(Types.DecimalType.of(38, 2));
+    String decimalDoc = copy.asNestedType().asStructType().field(35).doc();
+    assertThat(decimalDoc).as("Struct serialization should preserve field doc").isNull();
   }
 
   @Test
@@ -96,32 +106,97 @@ public class TestSerializableTypes {
     Type[] maps =
         new Type[] {
           Types.MapType.ofOptional(1, 2, Types.StringType.get(), Types.LongType.get()),
-          Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.LongType.get())
+          Types.MapType.ofRequired(4, 5, Types.StringType.get(), Types.LongType.get()),
+          Types.MapType.ofOptional(
+              6,
+              7,
+              Types.IntegerType.get(),
+              Types.StringType.get(),
+              "The key's integer type has a min value of 100",
+              "The value's string type has a max length of 10"),
+          Types.MapType.ofRequired(
+              8,
+              9,
+              Types.StringType.get(),
+              Types.IntegerType.get(),
+              null,
+              "The value's integer type has a max value of 4096")
+        };
+    Type[] valueTypes =
+        new Type[] {
+          Types.LongType.get(),
+          Types.LongType.get(),
+          Types.StringType.get(),
+          Types.IntegerType.get()
+        };
+    String[] keyDocs =
+        new String[] {null, null, "The key's integer type has a min value of 100", null};
+    String[] valueDocs =
+        new String[] {
+          null,
+          null,
+          "The value's string type has a max length of 10",
+          "The value's integer type has a max value of 4096"
         };
 
-    for (Type map : maps) {
+    for (int i = 0; i < maps.length; i++) {
+      Type map = maps[i];
       Type copy = TestHelpers.roundTripSerialize(map);
       assertThat(copy).as("Map serialization should be equal to starting type").isEqualTo(map);
       assertThat(map.asNestedType().asMapType().valueType())
           .as("Map serialization should preserve identity type")
-          .isSameAs(Types.LongType.get());
+          .isSameAs(valueTypes[i]);
+      String keyDoc = map.asNestedType().asMapType().keyDoc();
+      assertThat(keyDoc)
+          .as("Map serialization should preserve key field doc")
+          .isEqualTo(keyDocs[i]);
+      String valueDoc = map.asNestedType().asMapType().valueDoc();
+      assertThat(valueDoc)
+          .as("Map serialization should preserve value field doc")
+          .isEqualTo(valueDocs[i]);
     }
   }
 
   @Test
   public void testLists() throws Exception {
-    Type[] maps =
+    Type[] lists =
         new Type[] {
           Types.ListType.ofOptional(2, Types.DoubleType.get()),
-          Types.ListType.ofRequired(5, Types.DoubleType.get())
+          Types.ListType.ofRequired(5, Types.DoubleType.get()),
+          Types.ListType.ofOptional(
+              7, Types.IntegerType.get(), "The element's integer type should be positive"),
+          Types.ListType.ofRequired(
+              9,
+              Types.StringType.get(),
+              "The value's string type has a max length of 16 with padding")
+        };
+    Type[] elementTypes =
+        new Type[] {
+          Types.DoubleType.get(),
+          Types.DoubleType.get(),
+          Types.IntegerType.get(),
+          Types.StringType.get()
+        };
+    String[] elementDocs =
+        new String[] {
+          null,
+          null,
+          "The element's integer type should be positive",
+          "The value's string type has a max length of 16 with padding"
         };
 
-    for (Type list : maps) {
+    for (int i = 0; i < lists.length; i++) {
+      Type list = lists[i];
       Type copy = TestHelpers.roundTripSerialize(list);
       assertThat(copy).as("List serialization should be equal to starting type").isEqualTo(list);
       assertThat(list.asNestedType().asListType().elementType())
           .as("List serialization should preserve identity type")
-          .isSameAs(Types.DoubleType.get());
+          .isSameAs(elementTypes[i]);
+
+      String elementDoc = list.asNestedType().asListType().elementDoc();
+      assertThat(elementDoc)
+          .as("List serialization should preserve element field doc")
+          .isEqualTo(elementDocs[i]);
     }
   }
 
