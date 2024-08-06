@@ -1,4 +1,4 @@
-<!--
+Spark, Flink and<!--
   - Licensed to the Apache Software Foundation (ASF) under one
   - or more contributor license agreements.  See the NOTICE file
   - distributed with this work for additional information
@@ -90,7 +90,7 @@ Iceberg also has modules for adding Iceberg support to processing engines:
 
 ### Engine Compatibility
 
-See the [Multi-Engine Support](https://iceberg.apache.org/multi-engine-support/) page to learn about Iceberg compatibility with different Spark, Flink and Hive versions.
+See the [Multi-Engine Support](https://iceberg.apache.org/multi-engine-support/) page to learn about Iceberg compatibility with different Spark, Flink, and Hive versions.
 For other engines such as Presto or Trino, please visit their websites for Iceberg integration details.
 
 ### Implementations
