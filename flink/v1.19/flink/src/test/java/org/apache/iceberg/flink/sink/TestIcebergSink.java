@@ -19,7 +19,7 @@
 package org.apache.iceberg.flink.sink;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -50,7 +50,6 @@ import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -320,7 +319,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
         .setAll(newProps)
         .append();
 
-    Assertions.assertThatThrownBy(() -> env.execute("Test Iceberg DataStream"))
+    assertThatThrownBy(() -> env.execute("Test Iceberg DataStream"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid distribution mode: UNRECOGNIZED");
   }
@@ -339,7 +338,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
             .tableLoader(tableLoader)
             .writeParallelism(parallelism)
             .setAll(newProps);
-    Assertions.assertThatThrownBy(builder::append)
+    assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid file format: UNRECOGNIZED");
   }
