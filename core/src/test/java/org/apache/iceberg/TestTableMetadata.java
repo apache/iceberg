@@ -32,6 +32,7 @@ import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import java.io.File;
@@ -49,6 +50,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.UUID;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -63,6 +66,9 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTableMetadata {
   private static final String TEST_LOCATION = "s3://bucket/test/location";
@@ -1451,149 +1457,70 @@ public class TestTableMetadata {
         .doesNotContainKey(TableProperties.FORMAT_VERSION);
   }
 
-  @Test
-  public void testReplaceMetadataThroughTableProperty() {
+  private static Stream<Arguments> upgradeTableVersionProvider() {
+    // return a stream of all valid upgrade paths
+    return IntStream.range(1, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION)
+        .boxed()
+        .flatMap(
+            baseTableVersion ->
+                IntStream.rangeClosed(
+                        baseTableVersion + 1, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION)
+                    .mapToObj(newTableVersion -> arguments(baseTableVersion, newTableVersion)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("upgradeTableVersionProvider")
+  public void testReplaceMetadataThroughTableProperty(int baseTableVersion, int newTableVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
-    for (int baseTableVersion = 1;
-        baseTableVersion < TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
-        baseTableVersion++) {
-      TableMetadata meta =
-          TableMetadata.newTableMetadata(
-              schema,
-              PartitionSpec.unpartitioned(),
-              null,
-              ImmutableMap.of(
-                  TableProperties.FORMAT_VERSION, String.valueOf(baseTableVersion), "key", "val"));
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            schema,
+            PartitionSpec.unpartitioned(),
+            null,
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION, String.valueOf(baseTableVersion), "key", "val"));
 
-      int newTableVersion = baseTableVersion + 1;
-      meta =
-          meta.buildReplacement(
-              meta.schema(),
-              meta.spec(),
-              meta.sortOrder(),
-              meta.location(),
-              ImmutableMap.of(
-                  TableProperties.FORMAT_VERSION, String.valueOf(newTableVersion), "key2", "val2"));
+    meta =
+        meta.buildReplacement(
+            meta.schema(),
+            meta.spec(),
+            meta.sortOrder(),
+            meta.location(),
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION, String.valueOf(newTableVersion), "key2", "val2"));
 
-      assertThat(meta.formatVersion()).isEqualTo(newTableVersion);
-      assertThat(meta.properties())
-          .containsEntry("key", "val")
-          .containsEntry("key2", "val2")
-          .doesNotContainKey(TableProperties.FORMAT_VERSION);
-    }
+    assertThat(meta.formatVersion()).isEqualTo(newTableVersion);
+    assertThat(meta.properties())
+        .containsEntry("key", "val")
+        .containsEntry("key2", "val2")
+        .doesNotContainKey(TableProperties.FORMAT_VERSION);
   }
 
-  @Test
-  public void testReplaceMetadataThroughTablePropertySkipVersion() {
-    for (int baseTableVersion = 1;
-        baseTableVersion < TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
-        baseTableVersion++) {
-      for (int newTableVersion = baseTableVersion + 2;
-          newTableVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
-          newTableVersion++) {
-        Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
+  @ParameterizedTest
+  @MethodSource("upgradeTableVersionProvider")
+  public void testUpgradeMetadataThroughTableProperty(int baseTableVersion, int newTableVersion) {
+    Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
-        TableMetadata meta =
-            TableMetadata.newTableMetadata(
-                schema,
-                PartitionSpec.unpartitioned(),
-                null,
-                ImmutableMap.of(
-                    TableProperties.FORMAT_VERSION,
-                    String.valueOf(baseTableVersion),
-                    "key",
-                    "val"));
+    TableMetadata meta =
+        TableMetadata.newTableMetadata(
+            schema,
+            PartitionSpec.unpartitioned(),
+            null,
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION, String.valueOf(baseTableVersion), "key", "val"));
 
-        final int finalNewTableVersion = newTableVersion;
-        assertThatThrownBy(
-                () ->
-                    meta.buildReplacement(
-                        meta.schema(),
-                        meta.spec(),
-                        meta.sortOrder(),
-                        meta.location(),
-                        ImmutableMap.of(
-                            TableProperties.FORMAT_VERSION,
-                            String.valueOf(finalNewTableVersion),
-                            "key2",
-                            "val2")))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage(
-                String.format(
-                    "Cannot skip format version(s) to upgrade v%d table to v%d",
-                    baseTableVersion, newTableVersion));
-      }
-    }
-  }
+    meta =
+        meta.replaceProperties(
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION, String.valueOf(newTableVersion), "key2", "val2"));
 
-  @Test
-  public void testUpgradeMetadataThroughTableProperty() {
-    for (int baseTableVersion = 1;
-        baseTableVersion < TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
-        baseTableVersion++) {
-      Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
-
-      TableMetadata meta =
-          TableMetadata.newTableMetadata(
-              schema,
-              PartitionSpec.unpartitioned(),
-              null,
-              ImmutableMap.of(
-                  TableProperties.FORMAT_VERSION, String.valueOf(baseTableVersion), "key", "val"));
-
-      int newTableVersion = baseTableVersion + 1;
-      meta =
-          meta.replaceProperties(
-              ImmutableMap.of(
-                  TableProperties.FORMAT_VERSION, String.valueOf(newTableVersion), "key2", "val2"));
-
-      assertThat(meta.formatVersion())
-          .as("format version should be configured based on the format-version key")
-          .isEqualTo(newTableVersion);
-      assertThat(meta.properties())
-          .as("should not contain format-version but should contain new properties")
-          .containsExactly(entry("key2", "val2"));
-    }
-  }
-
-  @Test
-  public void testUpgradeMetadataThroughTablePropertySkipVersion() {
-    for (int baseTableVersion = 1;
-        baseTableVersion < TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
-        baseTableVersion++) {
-      for (int newTableVersion = baseTableVersion + 2;
-          newTableVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
-          newTableVersion++) {
-        Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
-
-        TableMetadata meta =
-            TableMetadata.newTableMetadata(
-                schema,
-                PartitionSpec.unpartitioned(),
-                null,
-                ImmutableMap.of(
-                    TableProperties.FORMAT_VERSION,
-                    String.valueOf(baseTableVersion),
-                    "key",
-                    "val"));
-
-        final int finalNewTableVersion = newTableVersion;
-        assertThatThrownBy(
-                () ->
-                    meta.replaceProperties(
-                        ImmutableMap.of(
-                            TableProperties.FORMAT_VERSION,
-                            String.valueOf(finalNewTableVersion),
-                            "key2",
-                            "val2")))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage(
-                String.format(
-                    "Cannot skip format version(s) to upgrade v%d table to v%d",
-                    baseTableVersion, newTableVersion));
-      }
-    }
+    assertThat(meta.formatVersion())
+        .as("format version should be configured based on the format-version key")
+        .isEqualTo(newTableVersion);
+    assertThat(meta.properties())
+        .as("should not contain format-version but should contain new properties")
+        .containsExactly(entry("key2", "val2"));
   }
 
   @Test

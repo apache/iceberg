@@ -23,6 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestFormatVersions extends TestBase {
@@ -32,17 +34,53 @@ public class TestFormatVersions extends TestBase {
   }
 
   @TestTemplate
-  public void testDefaultFormatVersion() {
-    assertThat(table.ops().current().formatVersion()).isBetween(1, 2);
-  }
-
-  @TestTemplate
   public void testFormatVersionUpgrade() {
     TableOperations ops = table.ops();
     TableMetadata base = ops.current();
     int baseTableVersion = base.formatVersion();
     int newTableVersion = baseTableVersion + 1;
-    ops.commit(base, base.upgradeToFormatVersion(newTableVersion));
+
+    TableMetadata newTableMetadata = base.upgradeToFormatVersion(newTableVersion);
+
+    assertThat(
+            newTableMetadata.changes().stream()
+                .filter(
+                    metadataUpdate -> metadataUpdate instanceof MetadataUpdate.UpgradeFormatVersion)
+                .map(
+                    metadataUpdate ->
+                        ((MetadataUpdate.UpgradeFormatVersion) metadataUpdate).formatVersion()))
+        .isEqualTo(List.of(newTableVersion));
+
+    ops.commit(base, newTableMetadata);
+
+    assertThat(ops.current().formatVersion()).isEqualTo(newTableVersion);
+  }
+
+  @TestTemplate
+  public void testFormatVersionUpgradeToLatest() {
+    TableOperations ops = table.ops();
+    TableMetadata base = ops.current();
+    int baseTableVersion = base.formatVersion();
+    int newTableVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
+
+    TableMetadata newTableMetadata = base.upgradeToFormatVersion(newTableVersion);
+
+    // check that non-incremental updates are syntactic sugar for serial updates. E.g. upgrading
+    // from V1 to V3 will
+    // register changes in the table metadata for upgrading to V2 and V3 in order (V1->V2->V3)
+    assertThat(
+            newTableMetadata.changes().stream()
+                .filter(
+                    metadataUpdate -> metadataUpdate instanceof MetadataUpdate.UpgradeFormatVersion)
+                .map(
+                    metadataUpdate ->
+                        ((MetadataUpdate.UpgradeFormatVersion) metadataUpdate).formatVersion()))
+        .isEqualTo(
+            IntStream.rangeClosed(baseTableVersion + 1, newTableVersion)
+                .boxed()
+                .collect(Collectors.toList()));
+
+    ops.commit(base, newTableMetadata);
 
     assertThat(ops.current().formatVersion()).isEqualTo(newTableVersion);
   }
@@ -80,27 +118,5 @@ public class TestFormatVersions extends TestBase {
                 unsupportedTableVersion, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION));
 
     assertThat(ops.current().formatVersion()).isEqualTo(baseTableVersion);
-  }
-
-  @TestTemplate
-  public void testFormatVersionUpgradeSkipVersion() {
-    TableOperations ops = table.ops();
-    TableMetadata base = ops.current();
-    int baseTableVersion = base.formatVersion();
-
-    // exhaustively test upgrading with skipped version(s) to all valid table versions
-    for (int tableVersion = baseTableVersion + 2;
-        tableVersion <= TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
-        tableVersion++) {
-      final int newTableVersion = tableVersion;
-      assertThatThrownBy(() -> ops.commit(base, base.upgradeToFormatVersion(newTableVersion)))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessage(
-              String.format(
-                  "Cannot skip format version(s) to upgrade v%d table to v%d",
-                  baseTableVersion, newTableVersion));
-
-      assertThat(ops.current().formatVersion()).isEqualTo(baseTableVersion);
-    }
   }
 }

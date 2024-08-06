@@ -37,6 +37,8 @@ import org.apache.iceberg.view.ViewMetadata;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestUpdateRequirements {
   private final TableMetadata metadata = mock(TableMetadata.class);
@@ -184,11 +186,12 @@ public class TestUpdateRequirements {
                 updatedViewMetadata.uuid(), viewMetadata.uuid()));
   }
 
-  @Test
-  public void upgradeFormatVersionV2() {
+  @ParameterizedTest
+  @ValueSource(ints = {2, 3})
+  public void upgradeFormatVersion(int formatVersion) {
     List<UpdateRequirement> requirements =
         UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.UpgradeFormatVersion(2)));
+            metadata, ImmutableList.of(new MetadataUpdate.UpgradeFormatVersion(formatVersion)));
     requirements.forEach(req -> req.validate(metadata));
 
     assertThat(requirements)
@@ -198,25 +201,12 @@ public class TestUpdateRequirements {
     assertTableUUID(requirements);
   }
 
-  @Test
-  public void upgradeFormatVersionV3() {
-    List<UpdateRequirement> requirements =
-        UpdateRequirements.forUpdateTable(
-            metadata, ImmutableList.of(new MetadataUpdate.UpgradeFormatVersion(3)));
-    requirements.forEach(req -> req.validate(metadata));
-
-    assertThat(requirements)
-        .hasSize(1)
-        .hasOnlyElementsOfType(UpdateRequirement.AssertTableUUID.class);
-
-    assertTableUUID(requirements);
-  }
-
-  @Test
-  public void upgradeFormatVersionForViewV2() {
+  @ParameterizedTest
+  @ValueSource(ints = {2, 3})
+  public void upgradeFormatVersionForView(int formatVersion) {
     List<UpdateRequirement> requirements =
         UpdateRequirements.forReplaceView(
-            viewMetadata, ImmutableList.of(new MetadataUpdate.UpgradeFormatVersion(2)));
+            viewMetadata, ImmutableList.of(new MetadataUpdate.UpgradeFormatVersion(formatVersion)));
     requirements.forEach(req -> req.validate(viewMetadata));
 
     assertThat(requirements)
