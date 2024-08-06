@@ -71,7 +71,7 @@ Iceberg table support is organized in library modules:
 
 Iceberg also has modules for adding Iceberg support to processing engines:
 
-* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark versions (use runtime jars for a shaded version)
+* `iceberg-spark` is an implementation of Spark's Datasource V2 API for Iceberg with submodules for each spark version (use runtime jars for a shaded version)
 * `iceberg-flink` contains classes for integrating with Apache Flink (use iceberg-flink-runtime for a shaded version)
 * `iceberg-mr` contains an InputFormat and other classes for integrating with Apache Hive
 * `iceberg-pig` is an implementation of Pig's LoadFunc API for Iceberg
