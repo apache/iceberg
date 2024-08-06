@@ -80,7 +80,7 @@ Iceberg also has modules for adding Iceberg support to processing engines:
 ---
 > [!NOTE]
 >
-> The tests require Docker to execute. On MacOS (with Docker Desktop), you might need to create a symbolic name to the docker socket in order to be detected by the tests:
+> The tests require Docker to execute. On MacOS (with Docker Desktop), you might need to create a symbolic name for the docker socket in order to be detected by the tests:
 >
 > ```
 > sudo ln -s $HOME/.docker/run/docker.sock /var/run/docker.sock
