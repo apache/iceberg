@@ -34,89 +34,84 @@ public class TestFormatVersions extends TestBase {
   }
 
   @TestTemplate
+  public void testDefaultFormatVersion() {
+    assertThat(table.ops().current().formatVersion()).isEqualTo(formatVersion);
+  }
+
+  @TestTemplate
   public void testFormatVersionUpgrade() {
     TableOperations ops = table.ops();
-    TableMetadata base = ops.current();
-    int baseTableVersion = base.formatVersion();
-    int newTableVersion = baseTableVersion + 1;
+    int newFormatVersion = formatVersion + 1;
 
-    TableMetadata newTableMetadata = base.upgradeToFormatVersion(newTableVersion);
+    TableMetadata newTableMetadata = ops.current().upgradeToFormatVersion(newFormatVersion);
 
     assertThat(
             newTableMetadata.changes().stream()
-                .filter(
-                    metadataUpdate -> metadataUpdate instanceof MetadataUpdate.UpgradeFormatVersion)
-                .map(
-                    metadataUpdate ->
-                        ((MetadataUpdate.UpgradeFormatVersion) metadataUpdate).formatVersion()))
-        .isEqualTo(List.of(newTableVersion));
+                .filter(MetadataUpdate.UpgradeFormatVersion.class::isInstance)
+                .map(MetadataUpdate.UpgradeFormatVersion.class::cast)
+                .map(MetadataUpdate.UpgradeFormatVersion::formatVersion))
+        .containsExactly(newFormatVersion);
 
-    ops.commit(base, newTableMetadata);
+    ops.commit(ops.current(), newTableMetadata);
 
-    assertThat(ops.current().formatVersion()).isEqualTo(newTableVersion);
+    assertThat(ops.current().formatVersion()).isEqualTo(newFormatVersion);
   }
 
   @TestTemplate
   public void testFormatVersionUpgradeToLatest() {
     TableOperations ops = table.ops();
-    TableMetadata base = ops.current();
-    int baseTableVersion = base.formatVersion();
-    int newTableVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
+    int newFormatVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
 
-    TableMetadata newTableMetadata = base.upgradeToFormatVersion(newTableVersion);
+    TableMetadata newTableMetadata = ops.current().upgradeToFormatVersion(newFormatVersion);
 
     // check that non-incremental updates are syntactic sugar for serial updates. E.g. upgrading
     // from V1 to V3 will
     // register changes in the table metadata for upgrading to V2 and V3 in order (V1->V2->V3)
     assertThat(
             newTableMetadata.changes().stream()
-                .filter(
-                    metadataUpdate -> metadataUpdate instanceof MetadataUpdate.UpgradeFormatVersion)
-                .map(
-                    metadataUpdate ->
-                        ((MetadataUpdate.UpgradeFormatVersion) metadataUpdate).formatVersion()))
+                .filter(MetadataUpdate.UpgradeFormatVersion.class::isInstance)
+                .map(MetadataUpdate.UpgradeFormatVersion.class::cast)
+                .map(MetadataUpdate.UpgradeFormatVersion::formatVersion))
         .isEqualTo(
-            IntStream.rangeClosed(baseTableVersion + 1, newTableVersion)
+            IntStream.rangeClosed(formatVersion + 1, newFormatVersion)
                 .boxed()
                 .collect(Collectors.toList()));
 
-    ops.commit(base, newTableMetadata);
+    ops.commit(ops.current(), newTableMetadata);
 
-    assertThat(ops.current().formatVersion()).isEqualTo(newTableVersion);
+    assertThat(ops.current().formatVersion()).isEqualTo(newFormatVersion);
   }
 
   @TestTemplate
   public void testFormatVersionDowngrade() {
     TableOperations ops = table.ops();
-    TableMetadata base = ops.current();
-    int baseTableVersion = base.formatVersion();
-    int newTableVersion = baseTableVersion + 1;
-    ops.commit(base, base.upgradeToFormatVersion(newTableVersion));
+    int newFormatVersion = formatVersion + 1;
+    ops.commit(ops.current(), ops.current().upgradeToFormatVersion(newFormatVersion));
 
-    assertThat(ops.current().formatVersion()).isEqualTo(newTableVersion);
+    assertThat(ops.current().formatVersion()).isEqualTo(newFormatVersion);
 
-    assertThatThrownBy(() -> ops.current().upgradeToFormatVersion(baseTableVersion))
+    assertThatThrownBy(() -> ops.current().upgradeToFormatVersion(formatVersion))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            String.format("Cannot downgrade v%d table to v%d", newTableVersion, baseTableVersion));
+            String.format("Cannot downgrade v%d table to v%d", newFormatVersion, formatVersion));
 
-    assertThat(ops.current().formatVersion()).isEqualTo(newTableVersion);
+    assertThat(ops.current().formatVersion()).isEqualTo(newFormatVersion);
   }
 
   @TestTemplate
   public void testFormatVersionUpgradeNotSupported() {
     TableOperations ops = table.ops();
     TableMetadata base = ops.current();
-    int baseTableVersion = base.formatVersion();
-    int unsupportedTableVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1;
+    int unsupportedFormatVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1;
 
-    assertThatThrownBy(() -> ops.commit(base, base.upgradeToFormatVersion(unsupportedTableVersion)))
+    assertThatThrownBy(
+            () -> ops.commit(base, base.upgradeToFormatVersion(unsupportedFormatVersion)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             String.format(
                 "Cannot upgrade table to unsupported format version: v%d (supported: v%d)",
-                unsupportedTableVersion, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION));
+                unsupportedFormatVersion, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION));
 
-    assertThat(ops.current().formatVersion()).isEqualTo(baseTableVersion);
+    assertThat(ops.current().formatVersion()).isEqualTo(formatVersion);
   }
 }

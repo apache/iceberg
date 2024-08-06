@@ -201,26 +201,11 @@ public class TestUpdateRequirements {
     assertTableUUID(requirements);
   }
 
-  @ParameterizedTest
-  @ValueSource(ints = {2, 3})
-  public void upgradeFormatVersionForView(int formatVersion) {
-    List<UpdateRequirement> requirements =
-        UpdateRequirements.forReplaceView(
-            viewMetadata, ImmutableList.of(new MetadataUpdate.UpgradeFormatVersion(formatVersion)));
-    requirements.forEach(req -> req.validate(viewMetadata));
-
-    assertThat(requirements)
-        .hasSize(1)
-        .hasOnlyElementsOfType(UpdateRequirement.AssertViewUUID.class);
-
-    assertViewUUID(requirements);
-  }
-
   @Test
-  public void upgradeFormatVersionForViewV3() {
+  public void upgradeFormatVersionForView() {
     List<UpdateRequirement> requirements =
         UpdateRequirements.forReplaceView(
-            viewMetadata, ImmutableList.of(new MetadataUpdate.UpgradeFormatVersion(3)));
+            viewMetadata, ImmutableList.of(new MetadataUpdate.UpgradeFormatVersion(2)));
     requirements.forEach(req -> req.validate(viewMetadata));
 
     assertThat(requirements)
