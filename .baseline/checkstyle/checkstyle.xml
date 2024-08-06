@@ -414,6 +414,9 @@
             <property name="format" value="@Test\(.*expected.*\)"/>
             <property name="message" value="Prefer using Assertions.assertThatThrownBy(...).isInstanceOf(...) instead."/>
         </module>
+        <module name="IllegalToken">
+            <property name="tokens" value="LITERAL_ASSERT"/>
+        </module>
         <module name="IllegalImport">
             <property name="id" value="BanExpectedExceptionUsage"/>
             <property name="illegalClasses" value="org.junit.rules.ExpectedException"/>
