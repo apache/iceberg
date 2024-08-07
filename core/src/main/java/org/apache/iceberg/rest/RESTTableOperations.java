@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.LocationProviders;
@@ -36,12 +37,18 @@ import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.util.Tasks;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class RESTTableOperations implements TableOperations {
+  private static final Logger LOG = LoggerFactory.getLogger(RESTTableOperations.class);
+
   private static final String METADATA_FOLDER_NAME = "metadata";
 
   enum UpdateType {
@@ -154,6 +161,7 @@ class RESTTableOperations implements TableOperations {
     // all future commits should be simple commits
     this.updateType = UpdateType.SIMPLE;
 
+    deleteRemovedMetadataFiles(base, metadata);
     updateCurrentMetadata(response);
   }
 
@@ -239,5 +247,41 @@ class RESTTableOperations implements TableOperations {
         return RESTTableOperations.this.newSnapshotId();
       }
     };
+  }
+
+  /**
+   * Deletes the oldest metadata files if {@link
+   * TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
+   *
+   * @param base table metadata on which previous versions were based
+   * @param metadata new table metadata with updated previous versions
+   */
+  private void deleteRemovedMetadataFiles(TableMetadata base, TableMetadata metadata) {
+    if (base == null) {
+      return;
+    }
+
+    boolean deleteAfterCommit =
+            metadata.propertyAsBoolean(
+                    TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+                    TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+
+    if (deleteAfterCommit) {
+      Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles =
+              Sets.newHashSet(base.previousFiles());
+      // TableMetadata#addPreviousFile builds up the metadata log and uses
+      // TableProperties.METADATA_PREVIOUS_VERSIONS_MAX to determine how many files should stay in
+      // the log, thus we don't include metadata.previousFiles() for deletion - everything else can
+      // be removed
+      removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
+      Tasks.foreach(removedPreviousMetadataFiles)
+              .noRetry()
+              .suppressFailureWhenFinished()
+              .onFailure(
+                      (previousMetadataFile, exc) ->
+                              LOG.warn(
+                                      "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
+              .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+    }
   }
 }
