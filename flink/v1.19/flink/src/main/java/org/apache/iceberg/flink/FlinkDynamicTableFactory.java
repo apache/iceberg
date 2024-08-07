@@ -163,7 +163,8 @@ public class FlinkDynamicTableFactory
     String catalogTable = flinkConf.getString(CATALOG_TABLE, tableName);
     Preconditions.checkNotNull(catalogTable, "The iceberg table name cannot be null");
 
-    org.apache.hadoop.conf.Configuration hadoopConf = FlinkCatalogFactory.clusterHadoopConf();
+    org.apache.hadoop.conf.Configuration hadoopConf =
+        (org.apache.hadoop.conf.Configuration) FlinkCatalogFactory.clusterHadoopConf();
     FlinkCatalogFactory factory = new FlinkCatalogFactory();
     FlinkCatalog flinkCatalog =
         (FlinkCatalog) factory.createCatalog(catalogName, tableProps, hadoopConf);

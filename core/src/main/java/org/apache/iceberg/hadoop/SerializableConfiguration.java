@@ -26,11 +26,16 @@ import org.apache.hadoop.conf.Configuration;
 
 /** Wraps a {@link Configuration} object in a {@link Serializable} layer. */
 public class SerializableConfiguration implements Serializable {
+  private static final long serialVersionUID = -8840976521081151175L;
 
   private transient Configuration hadoopConf;
 
   public SerializableConfiguration(Configuration hadoopConf) {
     this.hadoopConf = hadoopConf;
+  }
+
+  public SerializableConfiguration(Object hadoopConf) {
+    this.hadoopConf = (Configuration) hadoopConf;
   }
 
   private void writeObject(ObjectOutputStream out) throws IOException {
@@ -46,5 +51,9 @@ public class SerializableConfiguration implements Serializable {
 
   public Configuration get() {
     return hadoopConf;
+  }
+
+  public Configuration getClone() {
+    return new Configuration(hadoopConf);
   }
 }
