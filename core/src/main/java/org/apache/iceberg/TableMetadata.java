@@ -1025,8 +1025,6 @@ public class TableMetadata implements Serializable {
         changes.add(new MetadataUpdate.UpgradeFormatVersion(++formatVersion));
       } while (formatVersion < newFormatVersion);
 
-      this.formatVersion = newFormatVersion;
-
       return this;
     }
 
