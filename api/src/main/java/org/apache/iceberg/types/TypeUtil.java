@@ -194,20 +194,23 @@ public class TypeUtil {
    */
   public static Map<String, Integer> indexByLowerCaseName(Types.StructType struct) {
     Map<String, Integer> indexByLowerCaseName = Maps.newHashMap();
+
+    IndexByName indexer = new IndexByName();
+    visit(struct, indexer);
+    Map<String, Integer> byName = indexer.byName();
+    Map<Integer, String> byId = indexer.byId();
+
     indexByName(struct)
         .forEach(
-            (name, integer) -> {
+            (name, fieldId) -> {
               String key = name.toLowerCase(Locale.ROOT);
-              Integer prevValue = indexByLowerCaseName.get(key);
-              if (prevValue != null) {
-                Types.NestedField field1 = struct.field(prevValue);
-                Types.NestedField field2 = struct.field(integer);
-                throw new IllegalArgumentException(
-                    String.format(
-                        "Unable to build field name to id mapping because two fields have the same lower case name: %s and %s",
-                        field1.name(), field2.name()));
-              }
-              indexByLowerCaseName.put(key, integer);
+              Integer existingId = indexByLowerCaseName.put(key, fieldId);
+              Preconditions.checkArgument(
+                  existingId == null || existingId.equals(fieldId),
+                  "Cannot build lower case index: %s and %s collide",
+                  byId.get(existingId),
+                  byId.get(fieldId));
+              indexByLowerCaseName.put(key, fieldId);
             });
     return indexByLowerCaseName;
   }

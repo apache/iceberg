@@ -449,6 +449,10 @@ public class PartitionSpec implements Serializable {
       return sourceColumn;
     }
 
+    Builder identity(String sourceName, String targetName) {
+      return identity(findSourceColumn(sourceName), targetName);
+    }
+
     private Builder identity(Types.NestedField sourceColumn, String targetName) {
       checkAndAddPartitionName(targetName, sourceColumn.fieldId());
       PartitionField field =
@@ -457,10 +461,6 @@ public class PartitionSpec implements Serializable {
       checkForRedundantPartitions(field);
       fields.add(field);
       return this;
-    }
-
-    Builder identity(String sourceName, String targetName) {
-      return identity(findSourceColumn(sourceName), targetName);
     }
 
     public Builder identity(String sourceName) {

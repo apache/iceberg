@@ -37,7 +37,7 @@ import org.junit.jupiter.api.io.TempDir;
 public class TestPartitionSpecBuilderCaseSensitivity {
 
   private static final int V2_FORMAT_VERSION = 2;
-  private static final Schema SCHEMA_CASE_INSENSITIVE =
+  private static final Schema SCHEMA_WITHOUT_NAME_CONFLICTS =
       new Schema(
           required(1, "id", Types.IntegerType.get()),
           required(2, "data", Types.StringType.get()),
@@ -47,7 +47,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
           required(6, "ship_date", Types.DateType.get()),
           required(7, "ship_time", Types.TimestampType.withoutZone()));
 
-  private static final Schema SCHEMA_CASE_SENSITIVE =
+  private static final Schema SCHEMA_WITH_NAME_CONFLICTS =
       new Schema(
           required(1, "id", Types.IntegerType.get()),
           required(2, "data", Types.StringType.get()),
@@ -79,35 +79,32 @@ public class TestPartitionSpecBuilderCaseSensitivity {
             required(3, "DATA", Types.StringType.get()),
             required(4, "order_date", Types.DateType.get()));
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("data").identity("DATA").build();
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
 
     StructType expectedType =
         StructType.of(
             NestedField.optional(1000, "data", Types.StringType.get()),
             NestedField.optional(1001, "DATA", Types.StringType.get()));
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
   public void testPartitionTypeWithIdentityTargetName() {
     PartitionSpec spec =
-        PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE).identity("data", "partition1").build();
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", SCHEMA_CASE_INSENSITIVE, spec, V2_FORMAT_VERSION);
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
+            .identity("data", "partition1")
+            .build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "partition1", Types.StringType.get()));
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
   public void testBucketSourceNameAllowsExactDuplicateWhenCaseSensitive() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
             .bucket("data", 10, "partition1")
             .bucket("data", 10, "PARTITION1")
             .build();
@@ -116,50 +113,39 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.IntegerType.get()),
             NestedField.optional(1001, "PARTITION1", Types.IntegerType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
-  public void testBucketTargetNameDefaultValueUsingCaseSensitiveSchema() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 10).build();
-
-    StructType expectedType =
-        StructType.of(NestedField.optional(1000, "data_bucket", Types.IntegerType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
-    assertThat(actualType).isEqualTo(expectedType);
-  }
-
-  @Test
-  public void testBucketTargetNameDefaultValueUsingCaseInsensitiveSchema() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
+  public void testBucketTargetNameDefaultValue() {
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema).caseSensitive(false).bucket("DATA", 10).build();
+        PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS).bucket("data", 10).build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "data_bucket", Types.IntegerType.get()));
+    StructType actualType = spec.partitionType();
+    assertThat(actualType).isEqualTo(expectedType);
+  }
 
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
+  @Test
+  public void testBucketTargetNameDefaultValueCaseInsensitive() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
+            .caseSensitive(false)
+            .bucket("DATA", 10)
+            .build();
 
-    StructType actualType = Partitioning.partitionType(table);
+    StructType expectedType =
+        StructType.of(NestedField.optional(1000, "data_bucket", Types.IntegerType.get()));
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
   public void testBucketSourceNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
             .caseSensitive(false)
             .bucket("data", 10, "partition1")
             .bucket("DATA", 10, "PARTITION1")
@@ -169,19 +155,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.IntegerType.get()),
             NestedField.optional(1001, "PARTITION1", Types.IntegerType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
   public void testBucketTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
             .caseSensitive(false)
             .bucket("data", 10, "partition1")
             .bucket("category", 10, "PARTITION1")
@@ -191,11 +172,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.IntegerType.get()),
             NestedField.optional(1001, "PARTITION1", Types.IntegerType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
@@ -204,7 +181,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
                     .caseSensitive(false)
                     .bucket("data", 10, "partition1")
                     .bucket("category", 10, "partition1")
@@ -217,7 +194,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
                     .bucket("data", 10, "partition1")
                     .bucket("DATA", 10, "partition1")
                     .build())
@@ -225,41 +202,34 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testTruncateTargetNameDefaultValueUsingCaseSensitiveSchema() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec spec = PartitionSpec.builderFor(schema).truncate("data", 10).build();
+  public void testTruncateTargetNameDefaultValue() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS).truncate("data", 10).build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "data_trunc", Types.StringType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
-  public void testTruncateTargetNameDefaultValueUsingCaseInsensitiveSchema() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
+  public void testTruncateTargetNameDefaultValueCaseInsensitive() {
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema).caseSensitive(false).truncate("DATA", 10).build();
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
+            .caseSensitive(false)
+            .truncate("DATA", 10)
+            .build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "data_trunc", Types.StringType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
   public void testTruncateSourceNameAllowsExactDuplicateWhenCaseSensitive() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
             .truncate("data", 10, "partition1")
             .truncate("data", 10, "PARTITION1")
             .build();
@@ -268,19 +238,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.StringType.get()),
             NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
   public void testTruncateSourceNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
             .caseSensitive(false)
             .truncate("data", 10, "partition1")
             .truncate("DATA", 10, "PARTITION1")
@@ -290,19 +255,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.StringType.get()),
             NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
   public void testTruncateTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
             .caseSensitive(false)
             .truncate("data", 10, "partition1")
             .truncate("category", 10, "PARTITION1")
@@ -312,11 +272,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.StringType.get()),
             NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
@@ -325,7 +281,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
                     .caseSensitive(false)
                     .truncate("data", 10, "partition1")
                     .truncate("category", 10, "partition1")
@@ -338,7 +294,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
                     .truncate("data", 10, "partition1")
                     .truncate("DATA", 10, "partition1")
                     .build())
@@ -346,33 +302,27 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testIdentityTargetNameDefaultValueUsingCaseSensitiveSchema() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec spec = PartitionSpec.builderFor(schema).identity("data").build();
+  public void testIdentityTargetNameDefaultValue() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS).identity("data").build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "data", Types.StringType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
-  public void testIdentityTargetNameDefaultValueUsingCaseInsensitiveSchema() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
+  public void testIdentityTargetNameDefaultValueCaseInsensitive() {
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema).caseSensitive(false).identity("DATA").build();
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
+            .caseSensitive(false)
+            .identity("DATA")
+            .build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "data", Types.StringType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
@@ -381,7 +331,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
                     .identity("data", "partition1")
                     .identity("data", "PARTITION1")
                     .build())
@@ -394,7 +344,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
                     .caseSensitive(false)
                     .identity("data", "partition1")
                     .identity("DATA", "PARTITION1")
@@ -405,9 +355,8 @@ public class TestPartitionSpecBuilderCaseSensitivity {
 
   @Test
   public void testIdentityTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
             .caseSensitive(false)
             .identity("data", "partition1")
             .identity("category", "PARTITION1")
@@ -417,11 +366,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.StringType.get()),
             NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
@@ -430,7 +375,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
                     .caseSensitive(false)
                     .identity("data", "partition1")
                     .identity("category", "partition1")
@@ -443,7 +388,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
                     .identity("data", "partition1")
                     .identity("DATA", "partition1")
                     .build())
@@ -451,41 +396,34 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testAlwaysNullTargetNameDefaultValueUsingCaseSensitiveSchema() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec spec = PartitionSpec.builderFor(schema).alwaysNull("data").build();
+  public void testAlwaysNullTargetNameDefaultValue() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS).alwaysNull("data").build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "data_null", Types.StringType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
-  public void testAlwaysNullTargetNameDefaultValueUsingCaseInsensitiveSchema() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
+  public void testAlwaysNullTargetNameDefaultValueCaseInsensitive() {
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema).caseSensitive(false).alwaysNull("DATA").build();
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
+            .caseSensitive(false)
+            .alwaysNull("DATA")
+            .build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "data_null", Types.StringType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
   public void testAlwaysNullSourceNameAllowsExactDuplicateWhenCaseSensitive() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
             .alwaysNull("data", "partition1")
             .alwaysNull("data", "PARTITION1")
             .build();
@@ -494,19 +432,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.StringType.get()),
             NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
   public void testAlwaysNullSourceNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
             .caseSensitive(false)
             .alwaysNull("data", "partition1")
             .alwaysNull("DATA", "PARTITION1")
@@ -516,19 +449,14 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.StringType.get()),
             NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
   public void testAlwaysNullTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
             .caseSensitive(false)
             .alwaysNull("data", "partition1")
             .alwaysNull("category", "PARTITION1")
@@ -538,11 +466,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.StringType.get()),
             NestedField.optional(1001, "PARTITION1", Types.StringType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
@@ -551,7 +475,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
                     .caseSensitive(false)
                     .alwaysNull("data", "partition1")
                     .alwaysNull("category", "partition1")
@@ -564,7 +488,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
                     .alwaysNull("data", "partition1")
                     .alwaysNull("DATA", "partition1")
                     .build())
@@ -572,33 +496,27 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testYearTargetNameDefaultValueUsingCaseSensitiveSchema() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec spec = PartitionSpec.builderFor(schema).year("order_date").build();
+  public void testYearTargetNameDefaultValue() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS).year("order_date").build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "order_date_year", Types.IntegerType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
-  public void testYearTargetNameDefaultValueUsingCaseInsensitiveSchema() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
+  public void testYearTargetNameDefaultValueCaseInsensitive() {
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema).caseSensitive(false).year("ORDER_DATE").build();
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
+            .caseSensitive(false)
+            .year("ORDER_DATE")
+            .build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "order_date_year", Types.IntegerType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
@@ -607,7 +525,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
                     .year("order_date", "partition1")
                     .year("order_date", "PARTITION1")
                     .build())
@@ -620,7 +538,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
                     .caseSensitive(false)
                     .year("order_date", "partition1")
                     .year("ORDER_DATE", "PARTITION1")
@@ -631,9 +549,8 @@ public class TestPartitionSpecBuilderCaseSensitivity {
 
   @Test
   public void testYearTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
             .caseSensitive(false)
             .year("order_date", "partition1")
             .year("ship_date", "PARTITION1")
@@ -643,11 +560,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.IntegerType.get()),
             NestedField.optional(1001, "PARTITION1", Types.IntegerType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
@@ -656,7 +569,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
                     .caseSensitive(false)
                     .year("order_date", "partition1")
                     .year("ship_date", "partition1")
@@ -669,7 +582,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
                     .year("order_date", "partition1")
                     .year("ORDER_DATE", "partition1")
                     .build())
@@ -677,33 +590,27 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testMonthTargetNameDefaultValueUsingCaseSensitiveSchema() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec spec = PartitionSpec.builderFor(schema).month("order_date").build();
+  public void testMonthTargetNameDefaultValue() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS).month("order_date").build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "order_date_month", Types.IntegerType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
-  public void testMonthTargetNameDefaultValueUsingCaseInsensitiveSchema() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
+  public void testMonthTargetNameDefaultValueCaseInsensitive() {
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema).caseSensitive(false).month("ORDER_DATE").build();
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
+            .caseSensitive(false)
+            .month("ORDER_DATE")
+            .build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "order_date_month", Types.IntegerType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
@@ -712,7 +619,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
                     .month("order_date", "partition1")
                     .month("order_date", "PARTITION1")
                     .build())
@@ -725,7 +632,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
                     .caseSensitive(false)
                     .month("order_date", "partition1")
                     .month("ORDER_DATE", "PARTITION1")
@@ -736,9 +643,8 @@ public class TestPartitionSpecBuilderCaseSensitivity {
 
   @Test
   public void testMonthTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
             .caseSensitive(false)
             .month("order_date", "partition1")
             .month("ship_date", "PARTITION1")
@@ -748,11 +654,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.IntegerType.get()),
             NestedField.optional(1001, "PARTITION1", Types.IntegerType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
@@ -761,7 +663,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
                     .caseSensitive(false)
                     .month("order_date", "partition1")
                     .month("ship_date", "partition1")
@@ -774,7 +676,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
                     .month("order_date", "partition1")
                     .month("ORDER_DATE", "partition1")
                     .build())
@@ -782,33 +684,27 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testDayTargetNameDefaultValueUsingCaseSensitiveSchema() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec spec = PartitionSpec.builderFor(schema).day("order_date").build();
+  public void testDayTargetNameDefaultValue() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS).day("order_date").build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "order_date_day", Types.DateType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
-  public void testDayTargetNameDefaultValueUsingCaseInsensitiveSchema() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
+  public void testDayTargetNameDefaultValueCaseInsensitive() {
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema).caseSensitive(false).day("ORDER_DATE").build();
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
+            .caseSensitive(false)
+            .day("ORDER_DATE")
+            .build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "order_date_day", Types.DateType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
@@ -817,7 +713,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
                     .day("order_date", "partition1")
                     .day("order_date", "PARTITION1")
                     .build())
@@ -830,7 +726,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
                     .caseSensitive(false)
                     .day("order_date", "partition1")
                     .day("ORDER_DATE", "PARTITION1")
@@ -841,9 +737,8 @@ public class TestPartitionSpecBuilderCaseSensitivity {
 
   @Test
   public void testDayTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
             .caseSensitive(false)
             .day("order_date", "partition1")
             .day("ship_date", "PARTITION1")
@@ -853,11 +748,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.DateType.get()),
             NestedField.optional(1001, "PARTITION1", Types.DateType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
@@ -866,7 +757,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
                     .caseSensitive(false)
                     .day("order_date", "partition1")
                     .day("ship_date", "partition1")
@@ -879,7 +770,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
                     .day("order_date", "partition1")
                     .day("ORDER_DATE", "partition1")
                     .build())
@@ -887,33 +778,27 @@ public class TestPartitionSpecBuilderCaseSensitivity {
   }
 
   @Test
-  public void testHourTargetNameDefaultValueUsingCaseSensitiveSchema() {
-    Schema schema = SCHEMA_CASE_SENSITIVE;
-    PartitionSpec spec = PartitionSpec.builderFor(schema).hour("order_time").build();
+  public void testHourTargetNameDefaultValue() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS).hour("order_time").build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "order_time_hour", Types.IntegerType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
   @Test
-  public void testHourTargetNameDefaultValueUsingCaseInsensitiveSchema() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
+  public void testHourTargetNameDefaultValueCaseInsensitive() {
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema).caseSensitive(false).hour("ORDER_TIME").build();
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
+            .caseSensitive(false)
+            .hour("ORDER_TIME")
+            .build();
 
     StructType expectedType =
         StructType.of(NestedField.optional(1000, "order_time_hour", Types.IntegerType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
@@ -922,7 +807,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
                     .hour("order_time", "partition1")
                     .hour("order_time", "PARTITION1")
                     .build())
@@ -935,7 +820,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
                     .caseSensitive(false)
                     .hour("order_time", "partition1")
                     .hour("ORDER_TIME", "PARTITION1")
@@ -946,9 +831,8 @@ public class TestPartitionSpecBuilderCaseSensitivity {
 
   @Test
   public void testHourTargetNameAllowsInexactDuplicateWhenCaseInsensitive() {
-    Schema schema = SCHEMA_CASE_INSENSITIVE;
     PartitionSpec spec =
-        PartitionSpec.builderFor(schema)
+        PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
             .caseSensitive(false)
             .hour("order_time", "partition1")
             .hour("ship_time", "PARTITION1")
@@ -958,11 +842,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
         StructType.of(
             NestedField.optional(1000, "partition1", Types.IntegerType.get()),
             NestedField.optional(1001, "PARTITION1", Types.IntegerType.get()));
-
-    TestTables.TestTable table =
-        TestTables.create(tableDir, "test", schema, spec, V2_FORMAT_VERSION);
-
-    StructType actualType = Partitioning.partitionType(table);
+    StructType actualType = spec.partitionType();
     assertThat(actualType).isEqualTo(expectedType);
   }
 
@@ -971,7 +851,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_INSENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITHOUT_NAME_CONFLICTS)
                     .caseSensitive(false)
                     .hour("order_time", "partition1")
                     .hour("ship_time", "partition1")
@@ -984,7 +864,7 @@ public class TestPartitionSpecBuilderCaseSensitivity {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
-                PartitionSpec.builderFor(SCHEMA_CASE_SENSITIVE)
+                PartitionSpec.builderFor(SCHEMA_WITH_NAME_CONFLICTS)
                     .hour("order_time", "partition1")
                     .hour("ORDER_TIME", "partition1")
                     .build())

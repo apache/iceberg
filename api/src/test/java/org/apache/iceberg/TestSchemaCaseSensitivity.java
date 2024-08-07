@@ -28,8 +28,7 @@ import org.junit.jupiter.api.Test;
 public class TestSchemaCaseSensitivity {
 
   @Test
-  public void
-      testSchemaWithColumnNamesThatDifferOnlyInLetterCaseThrowsOnCaseInsensitiveFindField() {
+  public void testCaseInsensitiveFieldCollision() {
     Schema schema =
         new Schema(
             required(1, "id", Types.LongType.get()),
@@ -37,13 +36,11 @@ public class TestSchemaCaseSensitivity {
             required(3, "DATA", Types.StringType.get()));
     assertThatIllegalArgumentException()
         .isThrownBy(() -> schema.caseInsensitiveFindField("DATA"))
-        .withMessage(
-            "Unable to build field name to id mapping because two fields have the same lower case name: data and DATA");
+        .withMessage("Cannot build lower case index: data and DATA collide");
   }
 
   @Test
-  public void
-      testSchemaWithColumnNamesThatDifferOnlyInLetterCaseSucceedsOnCaseSensitiveFindField() {
+  public void testCaseSensitiveFindField() {
     Schema schema =
         new Schema(
             required(1, "id", Types.LongType.get()),
@@ -57,12 +54,12 @@ public class TestSchemaCaseSensitivity {
   }
 
   @Test
-  public void testCaseInsensitiveFindFieldSucceeds() {
+  public void testCaseInsensitiveField() {
     Schema schema =
         new Schema(
             required(1, "id", Types.LongType.get()), required(2, "data", Types.StringType.get()));
 
-    Types.NestedField actual1 = schema.caseInsensitiveFindField("Data");
+    Types.NestedField actual1 = schema.caseInsensitiveFindField("DATA");
     assertThat(actual1).isEqualTo(Types.NestedField.required(2, "data", Types.StringType.get()));
   }
 }
