@@ -126,7 +126,7 @@ public class DynMethods {
     private static final UnboundMethod NOOP =
         new UnboundMethod(null, "NOOP") {
           @Override
-          public <R> R invokeChecked(Object target, Object... args) {
+          <R> R invokeChecked(Object target, Object... args) {
             return null;
           }
 

@@ -1077,11 +1077,17 @@ acceptedBreaks:
         \ java.lang.Class<?>[])"
       justification: "Removing deprecated code"
     - code: "java.method.visibilityReduced"
+      old: "method <R> R org.apache.iceberg.common.DynConstructors.Ctor<C>::invokeChecked(java.lang.Object,\
+        \ java.lang.Object[]) throws java.lang.Exception"
+      new: "method <R> R org.apache.iceberg.common.DynConstructors.Ctor<C>::invokeChecked(java.lang.Object,\
+        \ java.lang.Object[]) throws java.lang.Exception"
+      justification: "Reduced visibility and scoped to package"
+    - code: "java.method.visibilityReduced"
       old: "method <R> R org.apache.iceberg.common.DynMethods.UnboundMethod::invokeChecked(java.lang.Object,\
         \ java.lang.Object[]) throws java.lang.Exception"
       new: "method <R> R org.apache.iceberg.common.DynMethods.UnboundMethod::invokeChecked(java.lang.Object,\
         \ java.lang.Object[]) throws java.lang.Exception"
-      justification: "Removing deprecated code"
+      justification: "Reduced visibility and scoped to package"
     org.apache.iceberg:iceberg-core:
     - code: "java.class.removed"
       old: "enum org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus"

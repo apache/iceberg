@@ -78,7 +78,7 @@ public class DynConstructors {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <R> R invokeChecked(Object target, Object... args) throws Exception {
+    <R> R invokeChecked(Object target, Object... args) throws Exception {
       Preconditions.checkArgument(
           target == null, "Invalid call to constructor: target must be null");
       return (R) newInstanceChecked(args);
