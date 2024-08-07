@@ -1021,9 +1021,9 @@ public class TableMetadata implements Serializable {
       }
 
       // register incremental version changes separately to ensure all upgrade requirements are met
-      for (int version = formatVersion + 1; version <= newFormatVersion; version++) {
-        changes.add(new MetadataUpdate.UpgradeFormatVersion(version));
-      }
+      do {
+        changes.add(new MetadataUpdate.UpgradeFormatVersion(++formatVersion));
+      } while (formatVersion < newFormatVersion);
 
       this.formatVersion = newFormatVersion;
 
