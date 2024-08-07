@@ -1457,20 +1457,20 @@ public class TestTableMetadata {
         .doesNotContainKey(TableProperties.FORMAT_VERSION);
   }
 
-  private static Stream<Arguments> upgradeTableVersionProvider() {
+  private static Stream<Arguments> upgradeFormatVersionProvider() {
     // return a stream of all valid upgrade paths
     return IntStream.range(1, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION)
         .boxed()
         .flatMap(
-            baseTableVersion ->
+            baseFormatVersion ->
                 IntStream.rangeClosed(
-                        baseTableVersion + 1, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION)
-                    .mapToObj(newTableVersion -> arguments(baseTableVersion, newTableVersion)));
+                        baseFormatVersion + 1, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION)
+                    .mapToObj(newFormatVersion -> arguments(baseFormatVersion, newFormatVersion)));
   }
 
   @ParameterizedTest
-  @MethodSource("upgradeTableVersionProvider")
-  public void testReplaceMetadataThroughTableProperty(int baseTableVersion, int newTableVersion) {
+  @MethodSource("upgradeFormatVersionProvider")
+  public void testReplaceMetadataThroughTableProperty(int baseFormatVersion, int newFormatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
@@ -1479,7 +1479,7 @@ public class TestTableMetadata {
             PartitionSpec.unpartitioned(),
             null,
             ImmutableMap.of(
-                TableProperties.FORMAT_VERSION, String.valueOf(baseTableVersion), "key", "val"));
+                TableProperties.FORMAT_VERSION, String.valueOf(baseFormatVersion), "key", "val"));
 
     meta =
         meta.buildReplacement(
@@ -1488,9 +1488,9 @@ public class TestTableMetadata {
             meta.sortOrder(),
             meta.location(),
             ImmutableMap.of(
-                TableProperties.FORMAT_VERSION, String.valueOf(newTableVersion), "key2", "val2"));
+                TableProperties.FORMAT_VERSION, String.valueOf(newFormatVersion), "key2", "val2"));
 
-    assertThat(meta.formatVersion()).isEqualTo(newTableVersion);
+    assertThat(meta.formatVersion()).isEqualTo(newFormatVersion);
     assertThat(meta.properties())
         .containsEntry("key", "val")
         .containsEntry("key2", "val2")
@@ -1498,8 +1498,8 @@ public class TestTableMetadata {
   }
 
   @ParameterizedTest
-  @MethodSource("upgradeTableVersionProvider")
-  public void testUpgradeMetadataThroughTableProperty(int baseTableVersion, int newTableVersion) {
+  @MethodSource("upgradeFormatVersionProvider")
+  public void testUpgradeMetadataThroughTableProperty(int baseFormatVersion, int newFormatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
@@ -1508,16 +1508,16 @@ public class TestTableMetadata {
             PartitionSpec.unpartitioned(),
             null,
             ImmutableMap.of(
-                TableProperties.FORMAT_VERSION, String.valueOf(baseTableVersion), "key", "val"));
+                TableProperties.FORMAT_VERSION, String.valueOf(baseFormatVersion), "key", "val"));
 
     meta =
         meta.replaceProperties(
             ImmutableMap.of(
-                TableProperties.FORMAT_VERSION, String.valueOf(newTableVersion), "key2", "val2"));
+                TableProperties.FORMAT_VERSION, String.valueOf(newFormatVersion), "key2", "val2"));
 
     assertThat(meta.formatVersion())
         .as("format version should be configured based on the format-version key")
-        .isEqualTo(newTableVersion);
+        .isEqualTo(newFormatVersion);
     assertThat(meta.properties())
         .as("should not contain format-version but should contain new properties")
         .containsExactly(entry("key2", "val2"));
