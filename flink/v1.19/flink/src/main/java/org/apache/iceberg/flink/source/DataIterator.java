@@ -85,6 +85,7 @@ public class DataIterator<T> implements CloseableIterator<T> {
         combinedTask);
     for (long i = 0L; i < startingFileOffset; ++i) {
       tasks.next();
+      fileOffset += 1;
     }
 
     updateCurrentIterator();
@@ -99,9 +100,6 @@ public class DataIterator<T> implements CloseableIterator<T> {
                 startingRecordOffset, startingFileOffset, combinedTask));
       }
     }
-
-    fileOffset = startingFileOffset;
-    recordOffset = startingRecordOffset;
   }
 
   @Override
