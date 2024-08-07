@@ -265,7 +265,7 @@ Check out all the options here: [write-options](flink-configuration.md#write-opt
 ## Distribution mode
 
 Flink streaming writer supports both `HASH` and `RANGE` distribution mode.
-You can enable it via `FlinkSink#Builder#distributionMode(DistributionMode )`
+You can enable it via `FlinkSink#Builder#distributionMode(DistributionMode)`
 or via [write-options](flink-configuration.md#write-options).
 
 ### Hash distribution
@@ -280,7 +280,7 @@ HASH distribution has a few limitations.
 <li>It can result in unbalanced traffic distribution if cardinality of the partition key or
 equality fields is low as demonstrated by [PR 4228](https://github.com/apache/iceberg/pull/4228).
 <li>Writer parallelism is limited to the cardinality of the hash key.
-if the cardinality is 10, only at most 10 writer tasks would get the traffic.
+If the cardinality is 10, only at most 10 writer tasks would get the traffic.
 Having higher writer parallelism (even if traffic volume requires) won't help.
 </ul>
 
@@ -307,7 +307,8 @@ a lot more traffic and smaller countries have a lot less data
 Range distribution can also cluster data on non-partition columns.
 E.g., table is partitioned hourly on ingestion time. Queries often include
 predicate on a non-partition column like `device_id` or `country_code`.
-Range partition would improve the query performance by clustering on the non-partition column.
+Range partition would improve the query performance by clustering on the non-partition column
+when table `SortOrder` is defined with the non-partition column.
 
 Range distribution only shuffle the data via range partitioner. Rows are *not* sorted within
 a data file, which Flink streaming writer doesn't support yet.
@@ -329,6 +330,9 @@ about the new key.
 uniform random sampling (reservoir sampling) is used to compute range bounds
 that split the sort key space evenly.
 It keeps the memory footprint and network exchange low.
+Reservoir sampling work well if key distribution is relatively even.
+If a single hot key has unbalanced large share of the traffic,
+range split by uniform sampling probably won't work very well.
 </ul>
 
 Here is how to enable hash distribution in Java. Statistics type and close
@@ -346,6 +350,17 @@ FlinkSink.forRowData(input)
     .closeFileCostWeightPercentage(0.02d)
     .append();
 ```
+
+### Overhead
+
+Data shuffling (hash or range) has computational overhead of serialization/deserialization 
+and network I/O. Expect some increase of CPU utilization.
+
+Range distribution also collect and aggregate data distribution statistics.
+That would also incur some CPU overhead. Memory overhead is typically
+small if using default statistics type of `Auto`. Don't use `Map` statistics
+type if key cardinality is high. That could result in significant memory footprint
+and large network exchange for statistics aggregation.
 
 ## Notes
 
