@@ -60,7 +60,6 @@ class SchemaUpdate implements UpdateSchema {
   private final Multimap<Integer, Types.NestedField> adds =
       Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
   private final Map<String, Integer> addedNameToId = Maps.newHashMap();
-  private final Map<String, Integer> renamedNameToId = Maps.newHashMap();
   private final BiMap<String, String> renamedColumnNames = HashBiMap.create();
   private final Multimap<Integer, Move> moves =
       Multimaps.newListMultimap(Maps.newHashMap(), Lists::newArrayList);
@@ -228,7 +227,9 @@ class SchemaUpdate implements UpdateSchema {
           fieldId,
           Types.NestedField.of(fieldId, field.isOptional(), newName, field.type(), field.doc()));
     }
-    renamedColumnNames.put(name, newName);
+    if (!name.equals(newName)) {
+      renamedColumnNames.put(name, newName);
+    }
 
     if (identifierFieldNames.contains(name)) {
       identifierFieldNames.remove(name);
@@ -864,8 +865,8 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private String findFieldNameBeforeRename(BiMap<String, String> columnsMap, String fieldName) {
-    if (columnsMap.containsKey(fieldName)) {
-      return findFieldNameBeforeRename(columnsMap, columnsMap.get(fieldName));
+    while (columnsMap.containsKey(fieldName)) {
+      fieldName = columnsMap.get(fieldName);
     }
     return fieldName;
   }

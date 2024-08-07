@@ -2227,7 +2227,7 @@ public class TestSchemaUpdate {
   }
 
   @Test
-  public void testMultiRename() {
+  public void testMultiRenames() {
     Schema schema =
         new Schema(
             required(1, "b", Types.IntegerType.get()), required(2, "c", Types.IntegerType.get()));
@@ -2242,6 +2242,24 @@ public class TestSchemaUpdate {
     Schema expected =
         new Schema(
             required(1, "b", Types.IntegerType.get()), required(2, "e", Types.IntegerType.get()));
+    assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
+  }
+
+  @Test
+  public void testRenameWithSameName() {
+    Schema schema =
+        new Schema(
+            required(1, "b", Types.IntegerType.get()), required(2, "c", Types.IntegerType.get()));
+
+    Schema actual =
+        new SchemaUpdate(schema, 4)
+            .renameColumn("c", "c")
+            .updateColumn("c", Types.LongType.get())
+            .apply();
+
+    Schema expected =
+        new Schema(
+            required(1, "b", Types.IntegerType.get()), required(2, "c", Types.LongType.get()));
     assertThat(actual.asStruct()).isEqualTo(expected.asStruct());
   }
 }
