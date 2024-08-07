@@ -52,7 +52,7 @@ public class DynMethods {
     }
 
     @SuppressWarnings("unchecked")
-    private <R> R invokeChecked(Object target, Object... args) throws Exception {
+    <R> R invokeChecked(Object target, Object... args) throws Exception {
       try {
         if (argLength < 0) {
           return (R) method.invoke(target, args);
@@ -126,7 +126,7 @@ public class DynMethods {
     private static final UnboundMethod NOOP =
         new UnboundMethod(null, "NOOP") {
           @Override
-          public <R> R invoke(Object target, Object... args) {
+          public <R> R invokeChecked(Object target, Object... args) {
             return null;
           }
 

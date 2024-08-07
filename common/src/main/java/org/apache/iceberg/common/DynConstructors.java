@@ -76,6 +76,7 @@ public class DynConstructors {
       return (R) newInstance(args);
     }
 
+    @Override
     @SuppressWarnings("unchecked")
     public <R> R invokeChecked(Object target, Object... args) throws Exception {
       Preconditions.checkArgument(

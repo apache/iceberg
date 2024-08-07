@@ -1058,12 +1058,6 @@ acceptedBreaks:
       justification: "Deprecations for 1.6.0 release"
   "1.6.0":
     org.apache.iceberg:iceberg-common:
-    - code: "java.element.noLongerDeprecated"
-      old: "method <R> R org.apache.iceberg.common.DynMethods.UnboundMethod::invokeChecked(java.lang.Object,\
-        \ java.lang.Object[]) throws java.lang.Exception"
-      new: "method <R> R org.apache.iceberg.common.DynMethods.UnboundMethod::invokeChecked(java.lang.Object,\
-        \ java.lang.Object[]) throws java.lang.Exception"
-      justification: "Removing deprecated code"
     - code: "java.method.removed"
       old: "method <T> org.apache.iceberg.common.DynFields.StaticField<T> org.apache.iceberg.common.DynFields.Builder::buildStaticChecked()\
         \ throws java.lang.NoSuchFieldException"
