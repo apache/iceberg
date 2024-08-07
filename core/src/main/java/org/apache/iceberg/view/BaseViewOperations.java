@@ -104,7 +104,7 @@ public abstract class BaseViewOperations extends BaseMetastoreOperations impleme
   @Override
   public void commit(ViewMetadata base, ViewMetadata metadata) {
     // if the metadata is already out of date, reject it
-    if (base != current()) {
+    if (!current().equals(base)) {
       if (base != null) {
         throw new CommitFailedException("Cannot commit: stale view metadata");
       } else {
@@ -115,7 +115,7 @@ public abstract class BaseViewOperations extends BaseMetastoreOperations impleme
     }
 
     // if the metadata is not changed, return early
-    if (base == metadata) {
+    if (metadata.equals(base)) {
       LOG.info("Nothing to commit.");
       return;
     }

@@ -229,7 +229,7 @@ public abstract class SizeBasedFileRewriter<T extends ContentScanTask<F>, F exte
       // the remainder file is of a valid size for this rewrite so keep it
       return numFilesWithRemainder;
 
-    } else if (avgFileSizeWithoutRemainder < Math.min(1.1 * targetFileSize, writeMaxFileSize())) {
+    } else if (avgFileSizeWithoutRemainder < Math.min(1.1 * targetFileSize, (double) writeMaxFileSize())) {
       // if the reminder is distributed amongst other files,
       // the average file size will be no more than 10% bigger than the target file size
       // so round down and distribute remainder amongst other files
