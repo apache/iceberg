@@ -66,8 +66,12 @@ public class FlinkWriteOptions {
           .stringType()
           .defaultValue(StatisticsType.Auto.name());
 
-  public static final ConfigOption<Double> CLOSE_FILE_COST_WEIGHT_PERCENTAGE =
-      ConfigOptions.key("close-file-cost-weight-percentage").doubleType().defaultValue(0.02d);
+  public static final ConfigOption<Double> CLOSE_FILE_COST_WEIGHT =
+      ConfigOptions.key("close-file-cost-weight")
+          .doubleType()
+          .defaultValue(0.02d)
+          .withDescription(
+              "Close file cost in terms of target weight per writer task. 0.02d means 2%.");
 
   // Branch to write to
   public static final ConfigOption<String> BRANCH =

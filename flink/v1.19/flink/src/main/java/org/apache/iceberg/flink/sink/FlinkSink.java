@@ -252,8 +252,9 @@ public class FlinkSink {
      * {@link StatisticsType} Javadoc for more details.
      *
      * <p>Default is {@link StatisticsType#Auto} where initially Map statistics is used. But if
-     * cardinality is higher than some threshold (like 10K), statistics collection automatically
-     * switches to the sketch reservoir sampling.
+     * cardinality is higher than the threshold (currently 10K) as defined in {@code
+     * SketchUtil#OPERATOR_SKETCH_SWITCH_THRESHOLD}, statistics collection automatically switches to
+     * the sketch reservoir sampling.
      *
      * <p>Explicit set the statistics type if the default behavior doesn't work.
      *
@@ -284,8 +285,7 @@ public class FlinkSink {
      * <p>Default is {@code 0.0%}.
      */
     public Builder closeFileCostWeightPercentage(double percentage) {
-      writeOptions.put(
-          FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT_PERCENTAGE.key(), Double.toString(percentage));
+      writeOptions.put(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT.key(), Double.toString(percentage));
       return this;
     }
 
@@ -623,18 +623,24 @@ public class FlinkSink {
 
           LOG.info("Range distribute rows by sort order: {}", sortOrder);
           StatisticsType statisticsType = flinkWriteConf.rangeDistributionStatisticsType();
-          return input
-              .transform(
-                  operatorName("range-shuffle"),
-                  TypeInformation.of(StatisticsOrRecord.class),
-                  new DataStatisticsOperatorFactory(
-                      iSchema,
-                      sortOrder,
-                      writerParallelism,
-                      statisticsType,
-                      flinkWriteConf.closeFileCostWeightPercentage()))
-              // Set the parallelism same as input operator to encourage chaining
-              .setParallelism(input.getParallelism())
+          SingleOutputStreamOperator<StatisticsOrRecord> shuffleStream =
+              input
+                  .transform(
+                      operatorName("range-shuffle"),
+                      TypeInformation.of(StatisticsOrRecord.class),
+                      new DataStatisticsOperatorFactory(
+                          iSchema,
+                          sortOrder,
+                          writerParallelism,
+                          statisticsType,
+                          flinkWriteConf.closeFileCostWeightPercentage()))
+                  // Set the parallelism same as input operator to encourage chaining
+                  .setParallelism(input.getParallelism());
+          if (uidPrefix != null) {
+            shuffleStream = shuffleStream.uid(uidPrefix + "-shuffle");
+          }
+
+          return shuffleStream
               .partitionCustom(new RangePartitioner(iSchema, sortOrder), r -> r)
               .filter(StatisticsOrRecord::hasRecord)
               .map(StatisticsOrRecord::record);

@@ -182,9 +182,9 @@ public class FlinkWriteConf {
   public double closeFileCostWeightPercentage() {
     return confParser
         .doubleConf()
-        .option(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT_PERCENTAGE.key())
-        .flinkConfig(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT_PERCENTAGE)
-        .defaultValue(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT_PERCENTAGE.defaultValue())
+        .option(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT.key())
+        .flinkConfig(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT)
+        .defaultValue(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT.defaultValue())
         .parse();
   }
 
