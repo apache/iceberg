@@ -865,9 +865,10 @@ class SchemaUpdate implements UpdateSchema {
   }
 
   private String findFieldNameBeforeRename(BiMap<String, String> columnsMap, String fieldName) {
-    while (columnsMap.containsKey(fieldName)) {
-      fieldName = columnsMap.get(fieldName);
+    String currentFieldName = fieldName;
+    while (columnsMap.containsKey(currentFieldName)) {
+      currentFieldName = columnsMap.get(currentFieldName);
     }
-    return fieldName;
+    return currentFieldName;
   }
 }
