@@ -102,22 +102,4 @@ public class RowDataUtil {
 
     return ret;
   }
-
-  /**
-   * @deprecated will be removed in 1.7.0; Not reusing FieldGetter in this method could lead to
-   *     performance degradation, use {@link #clone(RowData, RowData, RowType, TypeSerializer[],
-   *     RowData.FieldGetter[])} instead.
-   */
-  @Deprecated
-  public static RowData clone(
-      RowData from, RowData reuse, RowType rowType, TypeSerializer[] fieldSerializers) {
-    RowData.FieldGetter[] fieldGetters = new RowData.FieldGetter[rowType.getFieldCount()];
-    for (int i = 0; i < rowType.getFieldCount(); ++i) {
-      if (!from.isNullAt(i)) {
-        fieldGetters[i] = RowData.createFieldGetter(rowType.getTypeAt(i), i);
-      }
-    }
-
-    return clone(from, reuse, rowType, fieldSerializers, fieldGetters);
-  }
 }
