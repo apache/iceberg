@@ -759,13 +759,13 @@ The unified partition type is a struct containing all fields that have ever been
 and sorted by the field ids in ascending order.  
 In other words, the struct fields represent a union of all known partition fields sorted in ascending order by the field ids.
 For example,
-1) spec#0 has two fields {field#1, field#2}
-and then the table has evolved into spec#1 which has three fields {field#1, field#2, field#3}.
-The unified partition type looks like Struct<field#1, field#2, field#3>.
+1) `spec#0` has two fields `{field#1, field#2}`
+and then the table has evolved into `spec#1` which has three fields `{field#1, field#2, field#3}`.
+The unified partition type looks like `Struct<field#1, field#2, field#3>`.
 
-2) spec#0 has two fields {field#1, field#2}
-and then the table has evolved into spec#1 which has just one field {field#2}.
-The unified partition type looks like Struct<field#1, field#2>.
+2) `spec#0` has two fields `{field#1, field#2}`
+and then the table has evolved into `spec#1` which has just one field `{field#2}`.
+The unified partition type looks like `Struct<field#1, field#2>`.
 
 #### Commit Conflict Resolution and Retry
 
