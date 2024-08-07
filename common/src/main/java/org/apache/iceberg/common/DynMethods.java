@@ -69,7 +69,7 @@ public class DynMethods {
 
     public <R> R invoke(Object target, Object... args) {
       try {
-        return invokeChecked(target, args);
+        return this.invokeChecked(target, args);
       } catch (Exception e) {
         Throwables.propagateIfInstanceOf(e, RuntimeException.class);
         throw Throwables.propagate(e);
@@ -125,7 +125,6 @@ public class DynMethods {
     /** Singleton {@link UnboundMethod}, performs no operation and returns null. */
     private static final UnboundMethod NOOP =
         new UnboundMethod(null, "NOOP") {
-
           @Override
           public <R> R invoke(Object target, Object... args) {
             return null;
