@@ -859,6 +859,107 @@ public class RecordConverterTest {
     assertThat(updateMap.get("st.ff").type()).isInstanceOf(DoubleType.class);
   }
 
+  @Test
+  public void testDeletedColumnDetectionStruct() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "i", IntegerType.get()),
+            NestedField.required(2, "j", IntegerType.get()),
+            NestedField.optional(3, "k", IntegerType.get()));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema connectSchema = SchemaBuilder.struct().field("i", Schema.INT32_SCHEMA);
+    Struct data = new Struct(connectSchema).put("i", 1);
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+    Collection<SchemaUpdate.MakeOptional> makeOptionals = consumer.makeOptionals();
+
+    assertThat(makeOptionals).hasSize(1);
+    assertThat(makeOptionals.iterator().next().name()).isEqualTo("j");
+  }
+
+  @Test
+  public void testDeletedColumnDetectionStructNested() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(
+                1,
+                "a",
+                StructType.of(
+                    NestedField.required(2, "i", IntegerType.get()),
+                    NestedField.required(3, "j", IntegerType.get()),
+                    NestedField.optional(4, "k", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Schema aSchema = SchemaBuilder.struct().field("i", Schema.INT32_SCHEMA);
+    Schema connectSchema = SchemaBuilder.struct().field("a", aSchema);
+    Struct data = new Struct(connectSchema).put("a", new Struct(aSchema).put("i", 1));
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+    Collection<SchemaUpdate.MakeOptional> makeOptionals = consumer.makeOptionals();
+
+    assertThat(makeOptionals).hasSize(1);
+    assertThat(makeOptionals.iterator().next().name()).isEqualTo("a.j");
+  }
+
+  @Test
+  public void testDeletedColumnDetectionMap() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(1, "i", IntegerType.get()),
+            NestedField.required(2, "j", IntegerType.get()),
+            NestedField.optional(3, "k", IntegerType.get()));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> data = Maps.newHashMap();
+    data.put("i", 1);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+    Collection<SchemaUpdate.MakeOptional> makeOptionals = consumer.makeOptionals();
+
+    assertThat(makeOptionals).hasSize(1);
+    assertThat(makeOptionals.iterator().next().name()).isEqualTo("j");
+  }
+
+  @Test
+  public void testDeletedColumnDetectionMapNested() {
+    org.apache.iceberg.Schema tableSchema =
+        new org.apache.iceberg.Schema(
+            NestedField.required(
+                1,
+                "a",
+                StructType.of(
+                    NestedField.required(2, "i", IntegerType.get()),
+                    NestedField.required(3, "j", IntegerType.get()),
+                    NestedField.optional(4, "k", IntegerType.get()))));
+
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(tableSchema);
+    RecordConverter converter = new RecordConverter(table, config);
+
+    Map<String, Object> nestedData = Maps.newHashMap();
+    nestedData.put("i", 1);
+    Map<String, Object> data = Maps.newHashMap();
+    data.put("a", nestedData);
+
+    SchemaUpdate.Consumer consumer = new SchemaUpdate.Consumer();
+    converter.convert(data, consumer);
+    Collection<SchemaUpdate.MakeOptional> makeOptionals = consumer.makeOptionals();
+
+    assertThat(makeOptionals).hasSize(1);
+    assertThat(makeOptionals.iterator().next().name()).isEqualTo("a.j");
+  }
+
   private Map<String, Object> createMapData() {
     return ImmutableMap.<String, Object>builder()
         .put("i", 1)
