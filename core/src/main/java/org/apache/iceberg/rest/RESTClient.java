@@ -143,6 +143,30 @@ public interface RESTClient extends Closeable {
       Map<String, String> headers,
       Consumer<ErrorResponse> errorHandler);
 
+  default <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    if (null != queryParams && !queryParams.isEmpty()) {
+      throw new UnsupportedOperationException("Query params are not supported");
+    }
+
+    return post(path, body, responseType, headers, errorHandler);
+  }
+
+  default <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Supplier<Map<String, String>> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    return post(path, body, queryParams, responseType, headers.get(), errorHandler);
+  }
+
   default <T extends RESTResponse> T postForm(
       String path,
       Map<String, String> formData,
