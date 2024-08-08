@@ -36,12 +36,17 @@ class RESTMetricsReporter implements MetricsReporter {
   private final RESTClient client;
   private final String metricsEndpoint;
   private final Supplier<Map<String, String>> headers;
+  private final Map<String, String> queryParams;
 
   RESTMetricsReporter(
-      RESTClient client, String metricsEndpoint, Supplier<Map<String, String>> headers) {
+      RESTClient client,
+      String metricsEndpoint,
+      Supplier<Map<String, String>> headers,
+      Map<String, String> queryParams) {
     this.client = client;
     this.metricsEndpoint = metricsEndpoint;
     this.headers = headers;
+    this.queryParams = queryParams;
   }
 
   @Override
@@ -55,6 +60,7 @@ class RESTMetricsReporter implements MetricsReporter {
       client.post(
           metricsEndpoint,
           ReportMetricsRequest.of(report),
+          queryParams,
           null,
           headers,
           ErrorHandlers.defaultErrorHandler());

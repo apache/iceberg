@@ -286,7 +286,7 @@ public class RESTCatalogAdapter implements RESTClient {
         return castResponse(
             responseType,
             ConfigResponse.builder()
-                .withOverride(RESTSessionCatalog.NAMESPACE_SEPARATOR, NAMESPACE_SEPARATOR)
+                .withDefault(RESTSessionCatalog.NAMESPACE_SEPARATOR, NAMESPACE_SEPARATOR)
                 .build());
 
       case LIST_NAMESPACES:
@@ -600,6 +600,17 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   @Override
+  public <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(HTTPMethod.POST, path, queryParams, body, responseType, headers, errorHandler);
+  }
+
+  @Override
   public <T extends RESTResponse> T get(
       String path,
       Map<String, String> queryParams,
@@ -670,7 +681,9 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {
-    return RESTUtil.decodeNamespace(pathVars.get("namespace"), NAMESPACE_SEPARATOR);
+    String namespaceSeparator =
+        PropertyUtil.propertyAsString(pathVars, "separator", NAMESPACE_SEPARATOR);
+    return RESTUtil.decodeNamespace(pathVars.get("namespace"), namespaceSeparator);
   }
 
   private static TableIdentifier identFromPathVars(Map<String, String> pathVars) {

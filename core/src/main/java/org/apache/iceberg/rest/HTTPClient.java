@@ -381,6 +381,17 @@ public class HTTPClient implements RESTClient {
   }
 
   @Override
+  public <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(Method.POST, path, queryParams, body, responseType, headers, errorHandler);
+  }
+
+  @Override
   public <T extends RESTResponse> T delete(
       String path,
       Class<T> responseType,

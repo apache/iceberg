@@ -52,6 +52,7 @@ class RESTTableOperations implements TableOperations {
 
   private final RESTClient client;
   private final String path;
+  private final Map<String, String> queryParams;
   private final Supplier<Map<String, String>> headers;
   private final FileIO io;
   private final List<MetadataUpdate> createChanges;
@@ -62,15 +63,17 @@ class RESTTableOperations implements TableOperations {
   RESTTableOperations(
       RESTClient client,
       String path,
+      Map<String, String> queryParams,
       Supplier<Map<String, String>> headers,
       FileIO io,
       TableMetadata current) {
-    this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current);
+    this(client, path, queryParams, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current);
   }
 
   RESTTableOperations(
       RESTClient client,
       String path,
+      Map<String, String> queryParams,
       Supplier<Map<String, String>> headers,
       FileIO io,
       UpdateType updateType,
@@ -78,6 +81,7 @@ class RESTTableOperations implements TableOperations {
       TableMetadata current) {
     this.client = client;
     this.path = path;
+    this.queryParams = queryParams;
     this.headers = headers;
     this.io = io;
     this.updateType = updateType;
@@ -149,7 +153,7 @@ class RESTTableOperations implements TableOperations {
     // UnknownCommitStateException
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
     LoadTableResponse response =
-        client.post(path, request, LoadTableResponse.class, headers, errorHandler);
+        client.post(path, request, queryParams, LoadTableResponse.class, headers, errorHandler);
 
     // all future commits should be simple commits
     this.updateType = UpdateType.SIMPLE;
