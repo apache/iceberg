@@ -50,6 +50,7 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HiddenPathFilter;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.io.SupportsPrefixOperations;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -299,7 +300,21 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     }
   }
 
-  private Dataset<String> listedFileDS() {
+  private Dataset<String> listWithPrefix() {
+    List<String> matchingFiles = Lists.newArrayList();
+    Iterator<org.apache.iceberg.io.FileInfo> iterator =
+        ((SupportsPrefixOperations) table.io()).listPrefix(location).iterator();
+    while (iterator.hasNext()) {
+      org.apache.iceberg.io.FileInfo fileInfo = iterator.next();
+      if (fileInfo.createdAtMillis() < olderThanTimestamp) {
+        matchingFiles.add(fileInfo.location());
+      }
+    }
+    JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
+    return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
+  }
+
+  private Dataset<String> listWithoutPrefix() {
     List<String> subDirs = Lists.newArrayList();
     List<String> matchingFiles = Lists.newArrayList();
 
@@ -330,9 +345,16 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
     ListDirsRecursively listDirs = new ListDirsRecursively(conf, olderThanTimestamp, pathFilter);
     JavaRDD<String> matchingLeafFileRDD = subDirRDD.mapPartitions(listDirs);
-
     JavaRDD<String> completeMatchingFileRDD = matchingFileRDD.union(matchingLeafFileRDD);
     return spark().createDataset(completeMatchingFileRDD.rdd(), Encoders.STRING());
+  }
+
+  private Dataset<String> listedFileDS() {
+    if (table.io() instanceof SupportsPrefixOperations) {
+      return listWithPrefix();
+    } else {
+      return listWithoutPrefix();
+    }
   }
 
   private static void listDirRecursively(
