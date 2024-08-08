@@ -40,7 +40,6 @@ import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.types.Types;
@@ -71,52 +70,6 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
   }
 
   @Override
-  public Result execute() {
-    String desc = String.format("Computing stats for %s", table.name());
-    JobGroupInfo info = newJobGroupInfo("COMPUTE-TABLE-STATS", desc);
-    return withJobGroupInfo(info, this::doExecute);
-  }
-
-  private Result doExecute() {
-    if (snapshot == null) {
-      return EMPTY_RESULT;
-    }
-    LOG.info("Computing stats of {} for snapshot {}", table.name(), snapshot.snapshotId());
-    List<Blob> blobs = generateNDVBlobs();
-    StatisticsFile statisticsFile;
-    try {
-      statisticsFile = writeStatsFile(blobs);
-    } catch (IOException e) {
-      throw new RuntimeIOException(e);
-    }
-    table.updateStatistics().setStatistics(snapshot.snapshotId(), statisticsFile).commit();
-    return ImmutableComputeTableStats.Result.builder().statisticsFile(statisticsFile).build();
-  }
-
-  private StatisticsFile writeStatsFile(List<Blob> blobs) throws IOException {
-    LOG.info("Writing stats for table {} for snapshot {}", table.name(), snapshot.snapshotId());
-    TableOperations operations = ((HasTableOperations) table).operations();
-    String path = operations.metadataFileLocation(String.format("%s.stats", UUID.randomUUID()));
-    OutputFile outputFile = operations.io().newOutputFile(path);
-    try (PuffinWriter writer = Puffin.write(outputFile).createdBy(appIdentifier()).build()) {
-      blobs.forEach(writer::add);
-      writer.finish();
-      return new GenericStatisticsFile(
-          snapshot.snapshotId(),
-          path,
-          writer.fileSize(),
-          writer.footerSize(),
-          writer.writtenBlobsMetadata().stream()
-              .map(GenericBlobMetadata::from)
-              .collect(ImmutableList.toImmutableList()));
-    }
-  }
-
-  private List<Blob> generateNDVBlobs() {
-    return NDVSketchGenerator.generateNDVSketchesAndBlobs(spark(), table, snapshot, columns());
-  }
-
-  @Override
   public ComputeTableStats columns(String... newColumns) {
     Preconditions.checkArgument(
         newColumns != null && newColumns.length > 0, "Columns cannot be null/empty");
@@ -132,27 +85,70 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
     return this;
   }
 
+  @Override
+  public Result execute() {
+    JobGroupInfo info = newJobGroupInfo("COMPUTE-TABLE-STATS", jobDesc());
+    return withJobGroupInfo(info, this::doExecute);
+  }
+
+  private Result doExecute() {
+    if (snapshot == null) {
+      return EMPTY_RESULT;
+    }
+    validateColumns();
+    LOG.info(
+        "Computing stats for columns {} in {} (snapshot {})",
+        columns(),
+        table.name(),
+        snapshotId());
+    List<Blob> blobs = generateNDVBlobs();
+    StatisticsFile statisticsFile;
+    statisticsFile = writeStatsFile(blobs);
+
+    table.updateStatistics().setStatistics(snapshot.snapshotId(), statisticsFile).commit();
+    return ImmutableComputeTableStats.Result.builder().statisticsFile(statisticsFile).build();
+  }
+
+  private StatisticsFile writeStatsFile(List<Blob> blobs) {
+    LOG.info("Writing stats for table {} for snapshot {}", table.name(), snapshot.snapshotId());
+    TableOperations operations = ((HasTableOperations) table).operations();
+    OutputFile outputFile = operations.io().newOutputFile(outputPath());
+    try (PuffinWriter writer = Puffin.write(outputFile).createdBy(appIdentifier()).build()) {
+      blobs.forEach(writer::add);
+      writer.finish();
+      return new GenericStatisticsFile(
+          snapshot.snapshotId(),
+          outputFile.location(),
+          writer.fileSize(),
+          writer.footerSize(),
+          GenericBlobMetadata.from(writer.writtenBlobsMetadata()));
+    } catch (IOException e) {
+      throw new RuntimeIOException(e);
+    }
+  }
+
+  private List<Blob> generateNDVBlobs() {
+    return NDVSketchGenerator.generateNDVSketchesAndBlobs(spark(), table, snapshot, columns());
+  }
+
   private Set<String> columns() {
-    Schema schema = table.schemas().get(snapshot.schemaId());
+    Schema schema = snapshot == null ? table.schema() : table.schemas().get(snapshot.schemaId());
     if (columns == null) {
       columns = schema.columns().stream().map(Types.NestedField::name).collect(Collectors.toSet());
     }
-    validateColumns(schema);
     return columns;
   }
 
-  private void validateColumns(Schema schema) {
+  private void validateColumns() {
+    Schema schema = table.schemas().get(snapshot.schemaId());
     for (String columnName : columns) {
       Types.NestedField field = schema.findField(columnName);
-      if (field == null) {
-        throw new IllegalArgumentException(
-            String.format("No column with name %s in the table", columnName));
-      }
-      if (!field.type().isPrimitiveType()) {
-        throw new IllegalArgumentException(
-            String.format(
-                "Stats computation not supported on non-primitive type column: %s", columnName));
-      }
+      Preconditions.checkArgument(field != null, "Can't find column %s in %s", columnName, schema);
+      Preconditions.checkArgument(
+          field.type().isPrimitiveType(),
+          "Can't compute stats on non-primitive type column: %s (%s)",
+          columnName,
+          field.type());
     }
   }
 
@@ -160,5 +156,21 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
     String icebergVersion = IcebergBuild.fullVersion();
     String sparkVersion = spark().version();
     return String.format("Iceberg %s Spark %s", icebergVersion, sparkVersion);
+  }
+
+  private Long snapshotId() {
+    return snapshot != null ? snapshot.snapshotId() : null;
+  }
+
+  private String jobDesc() {
+    return String.format(
+        "Computing table stats for %s (snapshot_id=%s, columns=%s)",
+        table.name(), snapshotId(), columns());
+  }
+
+  private String outputPath() {
+    TableOperations operations = ((HasTableOperations) table).operations();
+    String fileName = String.format("%s-%s.stats", snapshotId(), UUID.randomUUID());
+    return operations.metadataFileLocation(fileName);
   }
 }

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
+import static org.apache.iceberg.spark.actions.NDVSketchGenerator.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -98,7 +99,7 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
 
     BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
     Assertions.assertEquals(
-        blobMetadata.properties().get(NDVSketchGenerator.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY),
+        blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY),
         String.valueOf(4));
   }
 
@@ -134,14 +135,14 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
             .blobMetadata()
             .get(0)
             .properties()
-            .get(NDVSketchGenerator.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY));
+            .get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY));
     assertNotEquals(
         4,
         statisticsFile
             .blobMetadata()
             .get(1)
             .properties()
-            .get(NDVSketchGenerator.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY));
+            .get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY));
   }
 
   @TestTemplate
@@ -157,7 +158,7 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
             IllegalArgumentException.class,
             () -> actions.computeTableStats(table).columns("id1").execute());
     String message = exception.getMessage();
-    assertTrue(message.contains("No column with name id1 in the table"));
+    assertTrue(message.contains("Can't find column id1 in table"));
   }
 
   @TestTemplate
@@ -171,6 +172,40 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
   }
 
   @TestTemplate
+  public void testComputeTableStatsWithNullValues() throws NoSuchTableException, ParseException {
+    assumeTrue(catalogName.equals("spark_catalog"));
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, null),
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "c"),
+            new SimpleRecord(4, "d"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    SparkActions actions = SparkActions.get();
+    ComputeTableStats.Result results = actions.computeTableStats(table).columns("data").execute();
+    assertNotNull(results);
+
+    List<StatisticsFile> statisticsFiles = table.statisticsFiles();
+    Assertions.assertEquals(statisticsFiles.size(), 1);
+
+    StatisticsFile statisticsFile = statisticsFiles.get(0);
+    assertNotEquals(statisticsFile.fileSizeInBytes(), 0);
+    Assertions.assertEquals(statisticsFile.blobMetadata().size(), 1);
+
+    BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
+    Assertions.assertEquals(
+        blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY),
+        String.valueOf(4));
+  }
+
+  @TestTemplate
   public void testComputeTableStatsWithSnapshotHavingDifferentSchemas()
       throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
@@ -181,6 +216,7 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
     long snapshotId1 = Spark3Util.loadIcebergTable(spark, tableName).currentSnapshot().snapshotId();
     // Snapshot id not specified
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
+
     assertDoesNotThrow(() -> actions.computeTableStats(table).columns("data").execute());
 
     sql("ALTER TABLE %s DROP COLUMN %s", tableName, "data");
@@ -198,7 +234,7 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
             IllegalArgumentException.class,
             () -> actions.computeTableStats(table).snapshot(snapshotId2).columns("data").execute());
     String message = exception.getMessage();
-    assertTrue(message.contains("No column with name data in the table"));
+    assertTrue(message.contains("Can't find column data in table"));
   }
 
   @TestTemplate
@@ -208,20 +244,23 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     // Append data to create snapshot
     sql("INSERT into %s values(1, 'abcd')", tableName);
-
-    sql("ALTER TABLE %s DROP COLUMN %s", tableName, "data");
-    // Append data to create snapshot
-    sql("INSERT into %s values(1)", tableName);
-    long snapshotId2 = Spark3Util.loadIcebergTable(spark, tableName).currentSnapshot().snapshotId();
-
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
-    IllegalArgumentException exception =
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> actions.computeTableStats(table).snapshot(snapshotId2).columns("data").execute());
-    String message = exception.getMessage();
-    assertTrue(message.contains("No column with name data in the table"));
+    ComputeTableStats.Result results = actions.computeTableStats(table).columns("data").execute();
+
+    assertNotNull(results);
+
+    List<StatisticsFile> statisticsFiles = table.statisticsFiles();
+    Assertions.assertEquals(statisticsFiles.size(), 1);
+
+    StatisticsFile statisticsFile = statisticsFiles.get(0);
+    assertNotEquals(statisticsFile.fileSizeInBytes(), 0);
+    Assertions.assertEquals(statisticsFile.blobMetadata().size(), 1);
+
+    BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
+    Assertions.assertEquals(
+        blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY),
+        String.valueOf(1));
   }
 
   @TestTemplate
@@ -240,11 +279,7 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
     IllegalArgumentException exception =
         assertThrows(
             IllegalArgumentException.class, () -> actions.computeTableStats(tbl).execute());
-    assertTrue(
-        exception
-            .getMessage()
-            .contains(
-                "Stats computation not supported on non-primitive type column: nestedStructCol"));
+    assertTrue(exception.getMessage().contains("Can't compute stats on non-primitive type column"));
   }
 
   private GenericRecord createNestedRecord(Long longCol, Double doubleCol) {
