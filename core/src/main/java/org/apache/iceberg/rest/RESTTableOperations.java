@@ -34,8 +34,10 @@ import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
@@ -274,14 +276,21 @@ class RESTTableOperations implements TableOperations {
       // the log, thus we don't include metadata.previousFiles() for deletion - everything else can
       // be removed
       removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
-      Tasks.foreach(removedPreviousMetadataFiles)
-          .noRetry()
-          .suppressFailureWhenFinished()
-          .onFailure(
-              (previousMetadataFile, exc) ->
-                  LOG.warn(
-                      "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
-          .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+      if (io() instanceof SupportsBulkOperations) {
+        ((SupportsBulkOperations) io())
+            .deleteFiles(
+                Iterables.transform(
+                    removedPreviousMetadataFiles, TableMetadata.MetadataLogEntry::file));
+      } else {
+        Tasks.foreach(removedPreviousMetadataFiles)
+            .noRetry()
+            .suppressFailureWhenFinished()
+            .onFailure(
+                (previousMetadataFile, exc) ->
+                    LOG.warn(
+                        "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
+            .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+      }
     }
   }
 }
