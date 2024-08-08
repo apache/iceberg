@@ -107,6 +107,19 @@ public interface RewriteDataFiles
   boolean USE_STARTING_SEQUENCE_NUMBER_DEFAULT = true;
 
   /**
+   * Remove dangling delete files from the current snapshot after compaction. A delete file is
+   * considered dangling if it does not apply to any non-expired data file.
+   *
+   * <p>Dangling delete files will be pruned from iceberg metadata. Pruning apply to both position
+   * delete and equality delete based on data sequence number
+   *
+   * <p>Defaults to false.
+   */
+  String REMOVE_DANGLING_DELETES = "remove-dangling-deletes";
+
+  boolean REMOVE_DANGLING_DELETES_DEFAULT = false;
+
+  /**
    * Forces the rewrite job order based on the value.
    *
    * <p>
@@ -215,6 +228,10 @@ public interface RewriteDataFiles
 
     default int failedDataFilesCount() {
       return rewriteFailures().stream().mapToInt(FileGroupFailureResult::dataFilesCount).sum();
+    }
+
+    default int removedDeleteFilesCount() {
+      return 0;
     }
   }
 
