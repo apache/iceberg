@@ -168,6 +168,8 @@ A **`list`** is a collection of values with some element type. The element field
 
 A **`map`** is a collection of key-value pairs with a key type and a value type. Both the key field and value field each have an integer id that is unique in the table schema. Map keys are required and map values can be either optional or required. Both map keys and map values may be any type, including nested types.
 
+A **`variant`** is a type to represent semi-structured data. A variant value can store a value of any other type, including any primitive, struct, list or map values. The variant value is encoded in its own binary [encoding](https://docs.google.com/document/d/1gY_rdcfqlO0PAnYbRoOKsHz9NhUJSUYLaWvvVQpnKSI/). Variant type is added in [v3](#version-3).
+
 #### Primitive Types
 
 Supported primitive types are defined in the table below. Primitive types added after v1 have an "added by" version that is the first spec version in which the type is allowed. For example, nanosecond-precision timestamps are part of the v3 spec; using v3 types in v1 or v2 tables can break forward compatibility.
@@ -1301,6 +1303,7 @@ This serialization scheme is for storing single values as individual binary valu
 ## Appendix E: Format version changes
 
 ### Version 3
+New type `variant` is added in V3.
 
 Default values are added to struct fields in v3.
 * The `write-default` is a forward-compatible change because it is only used at write time. Old writers will fail because the field is missing.
