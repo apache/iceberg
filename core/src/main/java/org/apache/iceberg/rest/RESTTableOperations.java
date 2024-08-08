@@ -262,26 +262,26 @@ class RESTTableOperations implements TableOperations {
     }
 
     boolean deleteAfterCommit =
-            metadata.propertyAsBoolean(
-                    TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
-                    TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
+        metadata.propertyAsBoolean(
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
+            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
 
     if (deleteAfterCommit) {
       Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles =
-              Sets.newHashSet(base.previousFiles());
+          Sets.newHashSet(base.previousFiles());
       // TableMetadata#addPreviousFile builds up the metadata log and uses
       // TableProperties.METADATA_PREVIOUS_VERSIONS_MAX to determine how many files should stay in
       // the log, thus we don't include metadata.previousFiles() for deletion - everything else can
       // be removed
       removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
       Tasks.foreach(removedPreviousMetadataFiles)
-              .noRetry()
-              .suppressFailureWhenFinished()
-              .onFailure(
-                      (previousMetadataFile, exc) ->
-                              LOG.warn(
-                                      "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
-              .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+          .noRetry()
+          .suppressFailureWhenFinished()
+          .onFailure(
+              (previousMetadataFile, exc) ->
+                  LOG.warn(
+                      "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
+          .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
     }
   }
 }
