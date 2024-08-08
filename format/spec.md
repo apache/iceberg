@@ -457,7 +457,8 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | _optional_ |            | ~~**`107  sort_columns`**~~       | `list<112: int>`             | **Deprecated. Do not write.** |
 | _optional_ | _optional_ | **`108  column_sizes`**           | `map<117: int, 118: long>`   | Map from column id to the total size on disk of all regions that store the column. Does not include bytes necessary to read other columns, like footers. Leave null for row-oriented formats (Avro) |
 | _optional_ | _optional_ | **`109  value_counts`**           | `map<119: int, 120: long>`   | Map from column id to number of values in the column (including null and NaN values) |
-| _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`   | Map from column id to number of null values in the column |
+| _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`   | Map from column id to number of null values in the column. If the 
+null value cannot be correctly determined for a column, the field can remain unpopulated. |
 | _optional_ | _optional_ | **`137  nan_value_counts`**       | `map<138: int, 139: long>`   | Map from column id to number of NaN values in the column |
 | _optional_ | _optional_ | **`111  distinct_counts`**        | `map<123: int, 124: long>`   | Map from column id to number of distinct values in the column; distinct counts must be derived using values in the file by counting or using sketches, but not using methods like merging existing distinct counts |
 | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>` | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2] |
@@ -473,6 +474,48 @@ Notes:
 2. For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
 3. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files should be written with a non-null order id. [Position deletes](#position-delete-files) are required to be sorted by file and position, not a table order, and should set sort order id to null. Readers must ignore sort order id for position delete files.
 4. The following field ids are reserved on `data_file`: 141.
+5. For nested structures, the null counts are as following:
+   ##### Struct
+   Counts are only for explicit nulls in a field. A nested field which is not counted as null if the parent is null.
+   ```
+   schema {
+     1: nested_struct<2: int, 3: boolean>
+   }
+   ```
+   The following holds true:
+   ```
+   null               null_value_counts={1: 1, 2: 0, 3: 0}
+   struct<1, True>    null_value_counts={1: 0, 2: 0, 3: 0}
+   struct<1, null>    null_value_counts={1: 0, 2: 0, 3: 1}
+   ```
+   ##### List
+   For list types, the number of null elements in the list is counted. If the elements are not counted if the parent is null.
+   ```
+   schema {
+     1: list[2: int]
+   }
+   ```
+   The following holds true:
+   ```
+   null               null_value_counts={1: 1, 2: 0}
+   [1, 2, 3]          null_value_counts={1: 0, 2: 0}
+   [1, null, 3]       null_value_counts={1: 0, 2: 1}
+   [null, null, 3]    null_value_counts={1: 0, 2: 2}
+   ```
+   ##### Maps
+   For map-elements the number of null values is counted within the map. The values are not counted if the parent is null. Keep in mind that map keys can't be null, so the number of null values will always be zero.
+   ```
+   schema {
+     1: map<2: int, 3: bytes>
+   }
+   ```
+   The following holds true:
+   ```
+   null               null_value_counts={1: 1, 2: 0, 3: 0}
+   {1: b'', 2: b''}   null_value_counts={1: 0, 2: 0, 3: 0}
+   {1: b'', 2: null}  null_value_counts={1: 0, 2: 0, 3: 1}
+   {1: null, 2: null} null_value_counts={1: 0, 2: 0, 3: 2}
+   ```
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
