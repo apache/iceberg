@@ -148,6 +148,7 @@ class RESTTableOperations implements TableOperations {
     // the error handler will throw necessary exceptions like CommitFailedException and
     // UnknownCommitStateException
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
+    // TODO: make sure UPDATE_TABLE is allowed
     LoadTableResponse response =
         client.post(path, request, LoadTableResponse.class, headers, errorHandler);
 

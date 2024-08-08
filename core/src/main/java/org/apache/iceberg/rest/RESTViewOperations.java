@@ -63,6 +63,7 @@ class RESTViewOperations implements ViewOperations {
         UpdateTableRequest.create(
             null, UpdateRequirements.forReplaceView(base, metadata.changes()), metadata.changes());
 
+    // TODO: make sure UPDATE_VIEW is allowed
     LoadViewResponse response =
         client.post(
             path, request, LoadViewResponse.class, headers, ErrorHandlers.viewCommitHandler());
