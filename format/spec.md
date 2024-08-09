@@ -265,6 +265,7 @@ Tables may also define a property `schema.name-mapping.default` with a JSON name
 Field mapping fields are constrained by the following rules:
 
 * A name may contain `.` but this refers to a literal name, not a nested field. For example, `a.b` refers to a field named `a.b`, not child field `b` of field `a`. 
+* Within a given schema, a field's full name is defined as the concatenation of parent field names with nested fields using `.` as a delimiter. These full names must be unique within a schema. For example, you can have a field `a` with a nested field `b` under it, or a root field named `a.b`, but not both simultaneously.
 * Each child field should be defined with their own field mapping under `fields`. 
 * Multiple values for `names` may be mapped to a single field ID to support cases where a field may have different names in different data files. For example, all Avro field aliases should be listed in `names`.
 * Fields which exist only in the Iceberg schema and not in imported data files may use an empty `names` list.
