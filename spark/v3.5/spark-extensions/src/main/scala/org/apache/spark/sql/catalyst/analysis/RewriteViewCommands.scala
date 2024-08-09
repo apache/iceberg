@@ -128,12 +128,13 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
   }
 
   private def invalidRefToTempObject(ident: ResolvedIdentifier, tempObjectNames: String, tempObjectType: String) = {
-    new AnalysisException(String.format("Cannot create view %s.%s that references temporary %s: %s",
+    new IcebergAnalysisException(String.format("Cannot create view %s.%s that references temporary %s: %s",
       ident.catalog.name(), ident.identifier, tempObjectType, tempObjectNames))
   }
 
   /**
    * Collect all temporary views and return the identifiers separately
+
    */
   private def collectTemporaryViews(child: LogicalPlan): Seq[Seq[String]] = {
     def collectTempViews(child: LogicalPlan): Seq[Seq[String]] = {
