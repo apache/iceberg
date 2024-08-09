@@ -450,7 +450,9 @@ public class Tasks {
           }
 
           int delayMs =
-              (int) Math.min(minSleepTimeMs * Math.pow(scaleFactor, attempt - 1), maxSleepTimeMs);
+              (int)
+                  Math.min(
+                      minSleepTimeMs * Math.pow(scaleFactor, attempt - 1), (double) maxSleepTimeMs);
           int jitter = ThreadLocalRandom.current().nextInt(Math.max(1, (int) (delayMs * 0.1)));
 
           LOG.warn("Retrying task after failure: {}", e.getMessage(), e);

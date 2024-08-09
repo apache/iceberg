@@ -21,6 +21,7 @@ package org.apache.iceberg.aws;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
@@ -30,9 +31,10 @@ import software.amazon.awssdk.services.glue.model.DeleteDatabaseRequest;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.Delete;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
-import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
-import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.ListObjectVersionsRequest;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
+import software.amazon.awssdk.services.s3.model.ObjectVersion;
+import software.amazon.awssdk.services.s3.paginators.ListObjectVersionsIterable;
 import software.amazon.awssdk.services.s3control.S3ControlClient;
 import software.amazon.awssdk.services.s3control.model.CreateAccessPointRequest;
 import software.amazon.awssdk.services.s3control.model.DeleteAccessPointRequest;
@@ -94,26 +96,44 @@ public class AwsIntegTestUtil {
   }
 
   public static void cleanS3Bucket(S3Client s3, String bucketName, String prefix) {
-    boolean hasContent = true;
-    while (hasContent) {
-      ListObjectsV2Response response =
-          s3.listObjectsV2(
-              ListObjectsV2Request.builder().bucket(bucketName).prefix(prefix).build());
-      hasContent = response.hasContents();
-      if (hasContent) {
-        s3.deleteObjects(
-            DeleteObjectsRequest.builder()
-                .bucket(bucketName)
-                .delete(
-                    Delete.builder()
-                        .objects(
-                            response.contents().stream()
-                                .map(obj -> ObjectIdentifier.builder().key(obj.key()).build())
-                                .collect(Collectors.toList()))
-                        .build())
-                .build());
-      }
+    ListObjectVersionsIterable response =
+        s3.listObjectVersionsPaginator(
+            ListObjectVersionsRequest.builder().bucket(bucketName).prefix(prefix).build());
+    List<ObjectVersion> versionsToDelete = Lists.newArrayList();
+    int batchDeletionSize = 1000;
+    response.versions().stream()
+        .forEach(
+            version -> {
+              versionsToDelete.add(version);
+              if (versionsToDelete.size() == batchDeletionSize) {
+                deleteObjectVersions(s3, bucketName, versionsToDelete);
+                versionsToDelete.clear();
+              }
+            });
+
+    if (!versionsToDelete.isEmpty()) {
+      deleteObjectVersions(s3, bucketName, versionsToDelete);
     }
+  }
+
+  private static void deleteObjectVersions(
+      S3Client s3, String bucket, List<ObjectVersion> objectVersions) {
+    s3.deleteObjects(
+        DeleteObjectsRequest.builder()
+            .bucket(bucket)
+            .delete(
+                Delete.builder()
+                    .objects(
+                        objectVersions.stream()
+                            .map(
+                                obj ->
+                                    ObjectIdentifier.builder()
+                                        .key(obj.key())
+                                        .versionId(obj.versionId())
+                                        .build())
+                            .collect(Collectors.toList()))
+                    .build())
+            .build());
   }
 
   public static void cleanGlueCatalog(GlueClient glue, List<String> namespaces) {
