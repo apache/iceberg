@@ -180,6 +180,16 @@ public class TestConversions {
         .isEqualTo(new byte[] {11});
   }
 
+  @Test
+  public void testFromPartitionStringConversions() {
+    Object timestamp =
+        Conversions.fromPartitionString(TimestampType.withZone(), "2024-06-16T05:00:00.123456Z");
+    assertThat(timestamp).isInstanceOf(Long.class);
+    assertThat((long) timestamp)
+        .as("Timestamp should have expected microseconds since epoch")
+        .isEqualTo(1718514000123456L);
+  }
+
   private <T> void assertConversion(T value, Type type, byte[] expectedBinary) {
     ByteBuffer byteBuffer = Conversions.toByteBuffer(type, value);
     assertThat(byteBuffer.array()).isEqualTo(expectedBinary);
