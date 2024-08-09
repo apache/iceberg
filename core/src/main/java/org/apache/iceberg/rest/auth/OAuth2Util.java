@@ -523,7 +523,7 @@ public class OAuth2Util {
     }
 
     @Override
-    public void authenticate(HttpRequestFacade request) {
+    public void authenticate(HTTPRequest request) {
       this.headers.forEach(request::setHeader);
     }
 

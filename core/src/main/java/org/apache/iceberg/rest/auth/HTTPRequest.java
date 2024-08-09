@@ -27,26 +27,26 @@ import java.util.Map;
  * A facade for an HTTP request that allows reading and modifying the request. This is used by
  * {@link AuthManager} implementations, e.g. to set authentication headers on the request.
  */
-public interface HttpRequestFacade {
+public interface HTTPRequest {
 
   /** Returns the full request URI of this request. */
-  URI getUri();
+  URI uri();
 
   /** Returns the HTTP method of this request. */
-  String getMethod();
+  String method();
 
   /** Returns the request body. Currently only String bodies are supported. */
-  Object getBody();
+  Object body();
 
   /** Returns all the headers of this request. */
-  Map<String, List<String>> getHeaders();
+  Map<String, List<String>> headers();
 
   /** Returns all the headers with given name. */
-  List<String> getHeaders(String name);
+  List<String> headers(String name);
 
   /** Checks if a certain header is present in this request. */
   default boolean containsHeader(String name) {
-    return getHeaders().containsKey(name);
+    return headers().containsKey(name);
   }
 
   /**
