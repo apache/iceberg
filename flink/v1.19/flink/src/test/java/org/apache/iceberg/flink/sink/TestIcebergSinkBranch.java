@@ -18,11 +18,15 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
+import java.util.List;
+import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.TableSchema;
+import org.apache.flink.types.Row;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -30,21 +34,17 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.RegisterExtension;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
-  @RegisterExtension
-  protected static final HadoopCatalogExtension CATALOG_EXTENSION =
-      new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
+public class TestIcebergSinkBranch extends TestFlinkIcebergSinkBase {
 
   @Parameter(index = 0)
   private String branch;
@@ -67,7 +67,7 @@ public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
                     TableProperties.DEFAULT_FILE_FORMAT,
                     FileFormat.AVRO.name(),
                     TableProperties.FORMAT_VERSION,
-                    "2"));
+                    "1"));
 
     env =
         StreamExecutionEnvironment.getExecutionEnvironment(
@@ -78,38 +78,33 @@ public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
   }
 
   @TestTemplate
-  public void testChangeLogOnIdKey() throws Exception {
-    testChangeLogOnIdKey(branch);
+  public void testWriteRowWithTableSchema() throws Exception {
+    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE);
     verifyOtherBranchUnmodified();
   }
 
-  @TestTemplate
-  public void testChangeLogOnDataKey() throws Exception {
-    testChangeLogOnDataKey(branch);
-    verifyOtherBranchUnmodified();
-  }
+  private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)
+      throws Exception {
+    List<Row> rows = createRows("");
+    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-  @TestTemplate
-  public void testChangeLogOnIdDataKey() throws Exception {
-    testChangeLogOnIdDataKey(branch);
-    verifyOtherBranchUnmodified();
-  }
+    IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+        .table(table)
+        .tableLoader(tableLoader)
+        .tableSchema(tableSchema)
+        .toBranch(branch)
+        .distributionMode(distributionMode)
+        .append();
 
-  @TestTemplate
-  public void testUpsertOnIdKey() throws Exception {
-    testUpsertOnIdKey(branch);
-    verifyOtherBranchUnmodified();
-  }
+    // Execute the program.
+    env.execute("Test Iceberg DataStream.");
 
-  @TestTemplate
-  public void testUpsertOnDataKey() throws Exception {
-    testUpsertOnDataKey(branch);
-    verifyOtherBranchUnmodified();
-  }
+    SimpleDataUtil.assertTableRows(table, convertToRowData(rows), branch);
+    SimpleDataUtil.assertTableRows(
+        table,
+        ImmutableList.of(),
+        branch.equals(SnapshotRef.MAIN_BRANCH) ? "test-branch" : SnapshotRef.MAIN_BRANCH);
 
-  @TestTemplate
-  public void testUpsertOnIdDataKey() throws Exception {
-    testUpsertOnIdDataKey(branch);
     verifyOtherBranchUnmodified();
   }
 

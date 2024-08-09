@@ -347,7 +347,8 @@ public class FlinkSink {
       flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
 
       // Find out the equality field id list based on the user-provided equality field column names.
-      List<Integer> equalityFieldIds = checkAndGetEqualityFieldIds();
+      List<Integer> equalityFieldIds =
+          SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
       // Convert the requested flink table schema to flink row type.
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
