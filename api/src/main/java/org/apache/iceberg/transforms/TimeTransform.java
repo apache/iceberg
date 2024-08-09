@@ -39,7 +39,9 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
 
   @Override
   public boolean canTransform(Type type) {
-    return type.typeId() == Type.TypeID.DATE || type.typeId() == Type.TypeID.TIMESTAMP;
+    return type.typeId() == Type.TypeID.DATE
+        || type.typeId() == Type.TypeID.TIMESTAMP
+        || type.typeId() == Type.TypeID.TIMESTAMP_NANO;
   }
 
   @Override

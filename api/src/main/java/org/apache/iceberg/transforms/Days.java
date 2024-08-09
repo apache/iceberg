@@ -37,7 +37,9 @@ public class Days<T> extends TimeTransform<T> {
       case DATE:
         return (Transform<T, Integer>) Dates.DAY;
       case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.DAY;
+        return (Transform<T, Integer>) Timestamps.DAY_FROM_MICROS;
+      case TIMESTAMP_NANO:
+        return (Transform<T, Integer>) Timestamps.DAY_FROM_NANOS;
       default:
         throw new IllegalArgumentException("Unsupported type: " + type);
     }
@@ -55,7 +57,16 @@ public class Days<T> extends TimeTransform<T> {
     }
 
     if (other instanceof Timestamps) {
-      return Timestamps.DAY.satisfiesOrderOf(other);
+      Timestamps.ResultTypeUnit otherResultTypeUnit = ((Timestamps) other).resultTypeUnit();
+      switch (otherResultTypeUnit) {
+        case MICROS:
+          return Timestamps.DAY_FROM_MICROS.satisfiesOrderOf(other);
+        case NANOS:
+          return Timestamps.DAY_FROM_NANOS.satisfiesOrderOf(other);
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported timestamp unit: " + otherResultTypeUnit);
+      }
     } else if (other instanceof Dates) {
       return Dates.DAY.satisfiesOrderOf(other);
     } else if (other instanceof Days || other instanceof Months || other instanceof Years) {

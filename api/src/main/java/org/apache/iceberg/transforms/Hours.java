@@ -33,16 +33,19 @@ public class Hours<T> extends TimeTransform<T> {
   @Override
   @SuppressWarnings("unchecked")
   protected Transform<T, Integer> toEnum(Type type) {
-    if (type.typeId() == Type.TypeID.TIMESTAMP) {
-      return (Transform<T, Integer>) Timestamps.HOUR;
+    switch (type.typeId()) {
+      case TIMESTAMP:
+        return (Transform<T, Integer>) Timestamps.HOUR_FROM_MICROS;
+      case TIMESTAMP_NANO:
+        return (Transform<T, Integer>) Timestamps.HOUR_FROM_NANOS;
+      default:
+        throw new IllegalArgumentException("Unsupported type: " + type);
     }
-
-    throw new IllegalArgumentException("Unsupported type: " + type);
   }
 
   @Override
   public boolean canTransform(Type type) {
-    return type.typeId() == Type.TypeID.TIMESTAMP;
+    return type.typeId() == Type.TypeID.TIMESTAMP || type.typeId() == Type.TypeID.TIMESTAMP_NANO;
   }
 
   @Override
@@ -57,7 +60,7 @@ public class Hours<T> extends TimeTransform<T> {
     }
 
     if (other instanceof Timestamps) {
-      return other == Timestamps.HOUR;
+      return other == Timestamps.HOUR_FROM_MICROS || other == Timestamps.HOUR_FROM_NANOS;
     } else if (other instanceof Hours
         || other instanceof Days
         || other instanceof Months

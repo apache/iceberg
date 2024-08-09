@@ -31,6 +31,7 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
           Type.TypeID.LONG,
           Type.TypeID.DATE,
           Type.TypeID.TIME,
+          Type.TypeID.TIMESTAMP_NANO,
           Type.TypeID.TIMESTAMP);
 
   private static long toLong(Literal<?> lit) {

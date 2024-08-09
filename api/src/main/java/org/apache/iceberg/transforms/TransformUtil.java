@@ -62,6 +62,14 @@ class TransformUtil {
     return ChronoUnit.MICROS.addTo(EPOCH, timestampMicros).toLocalDateTime().toString();
   }
 
+  static String humanTimestampNanoWithZone(Long timestampNanos) {
+    return ChronoUnit.NANOS.addTo(EPOCH, timestampNanos).toString();
+  }
+
+  static String humanTimestampNanoWithoutZone(Long timestampMicros) {
+    return ChronoUnit.NANOS.addTo(EPOCH, timestampMicros).toLocalDateTime().toString();
+  }
+
   static String humanHour(int hourOrdinal) {
     OffsetDateTime time = EPOCH.plusHours(hourOrdinal);
     return String.format(

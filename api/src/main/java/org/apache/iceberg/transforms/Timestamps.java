@@ -19,7 +19,9 @@
 package org.apache.iceberg.transforms;
 
 import com.google.errorprone.annotations.Immutable;
+import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.Locale;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.Expression;
@@ -31,54 +33,159 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.SerializableFunction;
 
-enum Timestamps implements Transform<Long, Integer> {
-  YEAR(ChronoUnit.YEARS, "year"),
-  MONTH(ChronoUnit.MONTHS, "month"),
-  DAY(ChronoUnit.DAYS, "day"),
-  HOUR(ChronoUnit.HOURS, "hour");
+class Timestamps implements Transform<Long, Integer> {
+
+  static final Timestamps YEAR_FROM_MICROS =
+      new Timestamps(ChronoUnit.MICROS, ResultTypeUnit.YEARS, "year");
+  static final Timestamps MONTH_FROM_MICROS =
+      new Timestamps(ChronoUnit.MICROS, ResultTypeUnit.MONTHS, "month");
+  static final Timestamps DAY_FROM_MICROS =
+      new Timestamps(ChronoUnit.MICROS, ResultTypeUnit.DAYS, "day");
+  static final Timestamps HOUR_FROM_MICROS =
+      new Timestamps(ChronoUnit.MICROS, ResultTypeUnit.HOURS, "hour");
+  static final Timestamps YEAR_FROM_NANOS =
+      new Timestamps(ChronoUnit.NANOS, ResultTypeUnit.YEARS, "year");
+  static final Timestamps MONTH_FROM_NANOS =
+      new Timestamps(ChronoUnit.NANOS, ResultTypeUnit.MONTHS, "month");
+  static final Timestamps DAY_FROM_NANOS =
+      new Timestamps(ChronoUnit.NANOS, ResultTypeUnit.DAYS, "day");
+  static final Timestamps HOUR_FROM_NANOS =
+      new Timestamps(ChronoUnit.NANOS, ResultTypeUnit.HOURS, "hour");
+
+  static Timestamps get(Types.TimestampType type, String resultTypeUnit) {
+    switch (resultTypeUnit.toLowerCase(Locale.ENGLISH)) {
+      case "year":
+        return get(type, ChronoUnit.YEARS);
+      case "month":
+        return get(type, ChronoUnit.MONTHS);
+      case "day":
+        return get(type, ChronoUnit.DAYS);
+      case "hour":
+        return get(type, ChronoUnit.HOURS);
+      default:
+        throw new IllegalArgumentException(
+            "Unsupported source/result type units: " + type + " -> " + resultTypeUnit);
+    }
+  }
+
+  static Timestamps get(Types.TimestampNanoType type, String resultTypeUnit) {
+    switch (resultTypeUnit.toLowerCase(Locale.ENGLISH)) {
+      case "year":
+        return get(type, ChronoUnit.YEARS);
+      case "month":
+        return get(type, ChronoUnit.MONTHS);
+      case "day":
+        return get(type, ChronoUnit.DAYS);
+      case "hour":
+        return get(type, ChronoUnit.HOURS);
+      default:
+        throw new IllegalArgumentException(
+            "Unsupported source/result type units: " + type + " -> " + resultTypeUnit);
+    }
+  }
+
+  static Timestamps get(Types.TimestampType type, ChronoUnit resultTypeUnit) {
+    switch (resultTypeUnit) {
+      case YEARS:
+        return YEAR_FROM_MICROS;
+      case MONTHS:
+        return MONTH_FROM_MICROS;
+      case DAYS:
+        return DAY_FROM_MICROS;
+      case HOURS:
+        return HOUR_FROM_MICROS;
+      default:
+        throw new IllegalArgumentException(
+            "Unsupported source/result type units: " + type + " -> " + resultTypeUnit);
+    }
+  }
+
+  static Timestamps get(Types.TimestampNanoType type, ChronoUnit resultTypeUnit) {
+    switch (resultTypeUnit) {
+      case YEARS:
+        return YEAR_FROM_NANOS;
+      case MONTHS:
+        return MONTH_FROM_NANOS;
+      case DAYS:
+        return DAY_FROM_NANOS;
+      case HOURS:
+        return HOUR_FROM_NANOS;
+      default:
+        throw new IllegalArgumentException(
+            "Unsupported source/result type units: " + type + " -> " + resultTypeUnit);
+    }
+  }
+
+  enum ResultTypeUnit {
+    YEARS(ChronoUnit.YEARS),
+    MONTHS(ChronoUnit.MONTHS),
+    DAYS(ChronoUnit.DAYS),
+    HOURS(ChronoUnit.HOURS),
+    MICROS(ChronoUnit.MICROS),
+    NANOS(ChronoUnit.NANOS);
+
+    private final ChronoUnit unit;
+
+    ResultTypeUnit(final ChronoUnit unit) {
+      this.unit = unit;
+    }
+
+    Duration duration() {
+      return unit.getDuration();
+    }
+  }
 
   @Immutable
   static class Apply implements SerializableFunction<Long, Integer> {
-    private final ChronoUnit granularity;
+    private final ChronoUnit sourceTypeUnit;
+    private final ResultTypeUnit resultTypeUnit;
 
-    Apply(ChronoUnit granularity) {
-      this.granularity = granularity;
+    Apply(ChronoUnit sourceTypeUnit, ResultTypeUnit resultTypeUnit) {
+      this.sourceTypeUnit = sourceTypeUnit;
+      this.resultTypeUnit = resultTypeUnit;
     }
 
     @Override
-    public Integer apply(Long timestampMicros) {
-      if (timestampMicros == null) {
+    public Integer apply(Long timestamp) {
+      if (timestamp == null) {
         return null;
       }
 
-      switch (granularity) {
-        case YEARS:
-          return DateTimeUtil.microsToYears(timestampMicros);
-        case MONTHS:
-          return DateTimeUtil.microsToMonths(timestampMicros);
-        case DAYS:
-          return DateTimeUtil.microsToDays(timestampMicros);
-        case HOURS:
-          return DateTimeUtil.microsToHours(timestampMicros);
+      switch (sourceTypeUnit) {
+        case MICROS:
+          switch (resultTypeUnit) {
+            case YEARS:
+              return DateTimeUtil.microsToYears(timestamp);
+            case MONTHS:
+              return DateTimeUtil.microsToMonths(timestamp);
+            case DAYS:
+              return DateTimeUtil.microsToDays(timestamp);
+            case HOURS:
+              return DateTimeUtil.microsToHours(timestamp);
+            default:
+              throw new UnsupportedOperationException(
+                  "Unsupported result type unit: " + resultTypeUnit);
+          }
+        case NANOS:
+          return Math.toIntExact(DateTimeUtil.convertNanos(timestamp, resultTypeUnit.unit));
         default:
-          throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+          throw new UnsupportedOperationException(
+              "Unsupported source type unit: " + sourceTypeUnit);
       }
     }
   }
 
-  private final ChronoUnit granularity;
   private final String name;
   private final Apply apply;
 
-  Timestamps(ChronoUnit granularity, String name) {
-    this.granularity = granularity;
+  Timestamps(ChronoUnit sourceTypeUnit, ResultTypeUnit resultTypeUnit, String name) {
     this.name = name;
-    this.apply = new Apply(granularity);
+    this.apply = new Apply(sourceTypeUnit, resultTypeUnit);
   }
 
   @Override
-  public Integer apply(Long timestampMicros) {
-    return apply.apply(timestampMicros);
+  public Integer apply(Long timestamp) {
+    return apply.apply(timestamp);
   }
 
   @Override
@@ -89,15 +196,19 @@ enum Timestamps implements Transform<Long, Integer> {
 
   @Override
   public boolean canTransform(Type type) {
-    return type.typeId() == Type.TypeID.TIMESTAMP;
+    return type.typeId() == Type.TypeID.TIMESTAMP || type.typeId() == Type.TypeID.TIMESTAMP_NANO;
   }
 
   @Override
   public Type getResultType(Type sourceType) {
-    if (granularity == ChronoUnit.DAYS) {
+    if (apply.resultTypeUnit == ResultTypeUnit.DAYS) {
       return Types.DateType.get();
     }
     return Types.IntegerType.get();
+  }
+
+  ResultTypeUnit resultTypeUnit() {
+    return apply.resultTypeUnit;
   }
 
   @Override
@@ -115,8 +226,8 @@ enum Timestamps implements Transform<Long, Integer> {
       // test the granularity, in hours. hour(ts) => 1 hour, day(ts) => 24 hours, and hour satisfies
       // the order of day
       Timestamps otherTransform = (Timestamps) other;
-      return granularity.getDuration().toHours()
-          <= otherTransform.granularity.getDuration().toHours();
+      return apply.resultTypeUnit.duration().toHours()
+          <= otherTransform.apply.resultTypeUnit.duration().toHours();
     }
 
     return false;
@@ -174,7 +285,7 @@ enum Timestamps implements Transform<Long, Integer> {
       return "null";
     }
 
-    switch (granularity) {
+    switch (apply.resultTypeUnit) {
       case YEARS:
         return TransformUtil.humanYear(value);
       case MONTHS:
@@ -184,7 +295,7 @@ enum Timestamps implements Transform<Long, Integer> {
       case HOURS:
         return TransformUtil.humanHour(value);
       default:
-        throw new UnsupportedOperationException("Unsupported time unit: " + granularity);
+        throw new UnsupportedOperationException("Unsupported time unit: " + apply.resultTypeUnit);
     }
   }
 
