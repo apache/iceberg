@@ -30,7 +30,10 @@ public class ScanTaskParser {
 
   private enum TaskType {
     FILE_SCAN_TASK("file-scan-task"),
-    DATA_TASK("data-task");
+    DATA_TASK("data-task"),
+    FILES_TABLE_TASK("files-table-task"),
+    ALL_MANIFESTS_TABLE_TASK("all-manifests-table-task"),
+    MANIFEST_ENTRIES_TABLE_TASK("manifest-entries-task");
 
     private final String value;
 
@@ -45,6 +48,12 @@ public class ScanTaskParser {
         return FILE_SCAN_TASK;
       } else if (DATA_TASK.typeName().equalsIgnoreCase(value)) {
         return DATA_TASK;
+      } else if (FILES_TABLE_TASK.typeName().equalsIgnoreCase(value)) {
+        return FILES_TABLE_TASK;
+      } else if (ALL_MANIFESTS_TABLE_TASK.typeName().equalsIgnoreCase(value)) {
+        return ALL_MANIFESTS_TABLE_TASK;
+      } else if (MANIFEST_ENTRIES_TABLE_TASK.typeName().equalsIgnoreCase(value)) {
+        return MANIFEST_ENTRIES_TABLE_TASK;
       } else {
         throw new IllegalArgumentException("Unknown task type: " + value);
       }
@@ -74,6 +83,17 @@ public class ScanTaskParser {
     if (fileScanTask instanceof StaticDataTask) {
       generator.writeStringField(TASK_TYPE, TaskType.DATA_TASK.typeName());
       DataTaskParser.toJson((StaticDataTask) fileScanTask, generator);
+    } else if (fileScanTask instanceof BaseFilesTable.ManifestReadTask) {
+      generator.writeStringField(TASK_TYPE, TaskType.FILES_TABLE_TASK.typeName());
+      FilesTableTaskParser.toJson((BaseFilesTable.ManifestReadTask) fileScanTask, generator);
+    } else if (fileScanTask instanceof AllManifestsTable.ManifestListReadTask) {
+      generator.writeStringField(TASK_TYPE, TaskType.ALL_MANIFESTS_TABLE_TASK.typeName());
+      AllManifestsTableTaskParser.toJson(
+          (AllManifestsTable.ManifestListReadTask) fileScanTask, generator);
+    } else if (fileScanTask instanceof BaseEntriesTable.ManifestReadTask) {
+      generator.writeStringField(TASK_TYPE, TaskType.MANIFEST_ENTRIES_TABLE_TASK.typeName());
+      ManifestEntriesTableTaskParser.toJson(
+          (BaseEntriesTable.ManifestReadTask) fileScanTask, generator);
     } else if (fileScanTask instanceof BaseFileScanTask
         || fileScanTask instanceof BaseFileScanTask.SplitScanTask) {
       generator.writeStringField(TASK_TYPE, TaskType.FILE_SCAN_TASK.typeName());
@@ -98,6 +118,12 @@ public class ScanTaskParser {
         return FileScanTaskParser.fromJson(jsonNode, caseSensitive);
       case DATA_TASK:
         return DataTaskParser.fromJson(jsonNode);
+      case FILES_TABLE_TASK:
+        return FilesTableTaskParser.fromJson(jsonNode);
+      case ALL_MANIFESTS_TABLE_TASK:
+        return AllManifestsTableTaskParser.fromJson(jsonNode);
+      case MANIFEST_ENTRIES_TABLE_TASK:
+        return ManifestEntriesTableTaskParser.fromJson(jsonNode);
       default:
         throw new UnsupportedOperationException("Unsupported task type: " + taskType.typeName());
     }
