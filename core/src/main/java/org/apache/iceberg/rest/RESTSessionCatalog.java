@@ -116,6 +116,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
+  static final String NAMESPACE_SEPARATOR = "namespace-separator";
   public static final String REST_PAGE_SIZE = "rest-page-size";
   private static final List<String> TOKEN_PREFERENCE_ORDER =
       ImmutableList.of(
@@ -148,6 +149,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private boolean reportingViaRestEnabled;
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
+  private String namespaceSeparator = null;
 
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
@@ -284,6 +286,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
+    this.namespaceSeparator =
+        PropertyUtil.propertyAsString(
+            mergedProps, NAMESPACE_SEPARATOR, RESTUtil.NAMESPACE_ESCAPED_SEPARATOR);
     super.initialize(name, mergedProps);
   }
 
@@ -328,7 +333,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       ListTablesResponse response =
           client.get(
               paths.tables(ns),
-              queryParams,
+              queryParams(queryParams),
               ListTablesResponse.class,
               headers(context),
               ErrorHandlers.namespaceErrorHandler());
@@ -345,7 +350,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     try {
       client.delete(
-          paths.table(identifier), null, headers(context), ErrorHandlers.tableErrorHandler());
+          paths.table(identifier),
+          queryParams(),
+          null,
+          headers(context),
+          ErrorHandlers.tableErrorHandler());
       return true;
     } catch (NoSuchTableException e) {
       return false;
@@ -359,7 +368,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     try {
       client.delete(
           paths.table(identifier),
-          ImmutableMap.of("purgeRequested", "true"),
+          queryParams(ImmutableMap.of("purgeRequested", "true")),
           null,
           headers(context),
           ErrorHandlers.tableErrorHandler());
@@ -385,7 +394,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
     return client.get(
         paths.table(identifier),
-        mode.params(),
+        queryParams(mode.params()),
         LoadTableResponse.class,
         headers(context),
         ErrorHandlers.tableErrorHandler());
@@ -445,6 +454,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         new RESTTableOperations(
             client,
             paths.table(finalIdentifier),
+            queryParams(),
             session::headers,
             tableFileIO(context, response.config()),
             tableMetadata);
@@ -473,7 +483,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       String metricsEndpoint, Supplier<Map<String, String>> headers) {
     if (reportingViaRestEnabled) {
       RESTMetricsReporter restMetricsReporter =
-          new RESTMetricsReporter(client, metricsEndpoint, headers);
+          new RESTMetricsReporter(client, metricsEndpoint, headers, queryParams());
       return MetricsReporters.combine(reporter, restMetricsReporter);
     } else {
       return this.reporter;
@@ -505,10 +515,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             .metadataLocation(metadataFileLocation)
             .build();
 
+    Map<String, String> queryParams = queryParams();
     LoadTableResponse response =
         client.post(
             paths.register(ident.namespace()),
             request,
+            queryParams,
             LoadTableResponse.class,
             headers(context),
             ErrorHandlers.tableErrorHandler());
@@ -518,6 +530,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         new RESTTableOperations(
             client,
             paths.table(ident),
+            queryParams,
             session::headers,
             tableFileIO(context, response.config()),
             response.tableMetadata());
@@ -547,7 +560,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   public List<Namespace> listNamespaces(SessionContext context, Namespace namespace) {
     Map<String, String> queryParams = Maps.newHashMap();
     if (!namespace.isEmpty()) {
-      queryParams.put("parent", RESTUtil.encodeNamespace(namespace));
+      queryParams.put("parent", RESTUtil.encodeNamespace(namespace, namespaceSeparator));
     }
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
@@ -561,7 +574,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       ListNamespacesResponse response =
           client.get(
               paths.namespaces(),
-              queryParams,
+              queryParams(queryParams),
               ListNamespacesResponse.class,
               headers(context),
               ErrorHandlers.namespaceErrorHandler());
@@ -580,6 +593,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     GetNamespaceResponse response =
         client.get(
             paths.namespace(ns),
+            queryParams(),
             GetNamespaceResponse.class,
             headers(context),
             ErrorHandlers.namespaceErrorHandler());
@@ -592,7 +606,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     try {
       client.delete(
-          paths.namespace(ns), null, headers(context), ErrorHandlers.namespaceErrorHandler());
+          paths.namespace(ns),
+          queryParams(),
+          null,
+          headers(context),
+          ErrorHandlers.namespaceErrorHandler());
       return true;
     } catch (NoSuchNamespaceException e) {
       return false;
@@ -611,6 +629,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
         client.post(
             paths.namespaceProperties(ns),
             request,
+            queryParams(),
             UpdateNamespacePropertiesResponse.class,
             headers(context),
             ErrorHandlers.namespaceErrorHandler());
@@ -733,10 +752,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .setProperties(propertiesBuilder.build())
               .build();
 
+      Map<String, String> queryParams = queryParams();
       LoadTableResponse response =
           client.post(
               paths.tables(ident.namespace()),
               request,
+              queryParams,
               LoadTableResponse.class,
               headers(context),
               ErrorHandlers.tableErrorHandler());
@@ -746,6 +767,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           new RESTTableOperations(
               client,
               paths.table(ident),
+              queryParams,
               session::headers,
               tableFileIO(context, response.config()),
               response.tableMetadata());
@@ -768,6 +790,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           new RESTTableOperations(
               client,
               paths.table(ident),
+              queryParams(),
               session::headers,
               tableFileIO(context, response.config()),
               RESTTableOperations.UpdateType.CREATE,
@@ -832,6 +855,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           new RESTTableOperations(
               client,
               paths.table(ident),
+              queryParams(),
               session::headers,
               tableFileIO(context, response.config()),
               RESTTableOperations.UpdateType.REPLACE,
@@ -876,10 +900,22 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       return client.post(
           paths.tables(ident.namespace()),
           request,
+          queryParams(),
           LoadTableResponse.class,
           headers(context),
           ErrorHandlers.tableErrorHandler());
     }
+  }
+
+  private Map<String, String> queryParams() {
+    return ImmutableMap.of("delim", namespaceSeparator);
+  }
+
+  private Map<String, String> queryParams(Map<String, String> params) {
+    return ImmutableMap.<String, String>builder()
+        .putAll(params)
+        .put("delim", namespaceSeparator)
+        .build();
   }
 
   private static List<MetadataUpdate> createChanges(TableMetadata meta) {
@@ -1132,7 +1168,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       ListTablesResponse response =
           client.get(
               paths.views(namespace),
-              queryParams,
+              queryParams(queryParams),
               ListTablesResponse.class,
               headers(context),
               ErrorHandlers.namespaceErrorHandler());
@@ -1147,11 +1183,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   public View loadView(SessionContext context, TableIdentifier identifier) {
     checkViewIdentifierIsValid(identifier);
 
+    Map<String, String> queryParams = queryParams();
     LoadViewResponse response;
     try {
       response =
           client.get(
               paths.view(identifier),
+              queryParams,
               LoadViewResponse.class,
               headers(context),
               ErrorHandlers.viewErrorHandler());
@@ -1168,7 +1206,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     ViewMetadata metadata = response.metadata();
 
     RESTViewOperations ops =
-        new RESTViewOperations(client, paths.view(identifier), session::headers, metadata);
+        new RESTViewOperations(
+            client, paths.view(identifier), queryParams, session::headers, metadata);
 
     return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
   }
@@ -1184,7 +1223,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     try {
       client.delete(
-          paths.view(identifier), null, headers(context), ErrorHandlers.viewErrorHandler());
+          paths.view(identifier),
+          queryParams(),
+          null,
+          headers(context),
+          ErrorHandlers.viewErrorHandler());
       return true;
     } catch (NoSuchViewException e) {
       return false;
@@ -1290,10 +1333,12 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
               .properties(properties)
               .build();
 
+      Map<String, String> queryParams = queryParams();
       LoadViewResponse response =
           client.post(
               paths.views(identifier.namespace()),
               request,
+              queryParams,
               LoadViewResponse.class,
               headers(context),
               ErrorHandlers.viewErrorHandler());
@@ -1301,7 +1346,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       AuthSession session = tableSession(response.config(), session(context));
       RESTViewOperations ops =
           new RESTViewOperations(
-              client, paths.view(identifier), session::headers, response.metadata());
+              client, paths.view(identifier), queryParams, session::headers, response.metadata());
 
       return new BaseView(ops, ViewUtil.fullViewName(name(), identifier));
     }
@@ -1327,6 +1372,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     private LoadViewResponse loadView() {
       return client.get(
           paths.view(identifier),
+          queryParams(),
           LoadViewResponse.class,
           headers(context),
           ErrorHandlers.viewErrorHandler());
@@ -1371,7 +1417,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
       AuthSession session = tableSession(response.config(), session(context));
       RESTViewOperations ops =
-          new RESTViewOperations(client, paths.view(identifier), session::headers, metadata);
+          new RESTViewOperations(
+              client, paths.view(identifier), queryParams(), session::headers, metadata);
 
       ops.commit(metadata, replacement);
 

@@ -73,6 +73,7 @@ import org.apache.iceberg.util.PropertyUtil;
 /** Adaptor class to translate REST requests into {@link Catalog} API calls. */
 public class RESTCatalogAdapter implements RESTClient {
   private static final Splitter SLASH = Splitter.on('/');
+  private static final String NAMESPACE_SEPARATOR = "%2E";
 
   private static final Map<Class<? extends Exception>, Integer> EXCEPTION_ERROR_CODES =
       ImmutableMap.<Class<? extends Exception>, Integer>builder()
@@ -282,7 +283,11 @@ public class RESTCatalogAdapter implements RESTClient {
         return castResponse(responseType, handleOAuthRequest(body));
 
       case CONFIG:
-        return castResponse(responseType, ConfigResponse.builder().build());
+        return castResponse(
+            responseType,
+            ConfigResponse.builder()
+                .withDefault(RESTSessionCatalog.NAMESPACE_SEPARATOR, NAMESPACE_SEPARATOR)
+                .build());
 
       case LIST_NAMESPACES:
         if (asNamespaceCatalog != null) {
@@ -595,6 +600,17 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   @Override
+  public <T extends RESTResponse> T post(
+      String path,
+      RESTRequest body,
+      Map<String, String> queryParams,
+      Class<T> responseType,
+      Map<String, String> headers,
+      Consumer<ErrorResponse> errorHandler) {
+    return execute(HTTPMethod.POST, path, queryParams, body, responseType, headers, errorHandler);
+  }
+
+  @Override
   public <T extends RESTResponse> T get(
       String path,
       Map<String, String> queryParams,
@@ -665,7 +681,9 @@ public class RESTCatalogAdapter implements RESTClient {
   }
 
   private static Namespace namespaceFromPathVars(Map<String, String> pathVars) {
-    return RESTUtil.decodeNamespace(pathVars.get("namespace"));
+    String namespaceSeparator =
+        PropertyUtil.propertyAsString(pathVars, "delim", NAMESPACE_SEPARATOR);
+    return RESTUtil.decodeNamespace(pathVars.get("namespace"), namespaceSeparator);
   }
 
   private static TableIdentifier identFromPathVars(Map<String, String> pathVars) {
