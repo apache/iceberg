@@ -201,23 +201,12 @@ public class PartitionsTable extends BaseMetadataTable {
     return CloseableIterable.transform(
         ManifestFiles.open(manifest, table.io(), table.specs())
             .caseSensitive(scan.isCaseSensitive())
-            .select(scanColumns(manifest.content())) // don't select stats columns
+            .select(BaseScan.scanColumns(manifest.content())) // don't select stats columns
             .liveEntries(),
         t ->
             (ManifestEntry<? extends ContentFile<?>>)
                 // defensive copy of manifest entry without stats columns
                 t.copyWithoutStats());
-  }
-
-  private static List<String> scanColumns(ManifestContent content) {
-    switch (content) {
-      case DATA:
-        return BaseScan.SCAN_COLUMNS;
-      case DELETES:
-        return BaseScan.DELETE_SCAN_COLUMNS;
-      default:
-        throw new UnsupportedOperationException("Cannot read unknown manifest type: " + content);
-    }
   }
 
   private static CloseableIterable<ManifestFile> filteredManifests(
