@@ -53,7 +53,6 @@ Requesting changes on a PR indicates a reviewer believes the PR has merit but st
 
 There are several exceptions to this process:
 
-* Changes that effect more than 20 files (e.g. a large refactoring or changing to format rules) must be discussed on the developer mailing list before merging. Often these changes should go through an [Iceberg Improvement Proposal](#apache-iceberg-improvement-proposals).
 * Behavioral and functional changes to a specification must go through the [Iceberg improvement proposal](#apache-iceberg-improvement-proposals) before any code can be merged.
 * Changes to files under the `format` directory and `open-api/rest-catalog*` are considered specification changes. Unless already covered under an Iceberg improvement proposal, specification changes require their own vote (e.g. bug fixes or specification clarifications). The vote follows the ASF [code modification](https://www.apache.org/foundation/voting.html#votes-on-code-modification) model and no lazy consensus modifier. Grammar, spelling and minor formatting fixes are exempted from this rule. Draft specification (new independent specifications that are going through the Iceberg improvement process) do not require a vote but authors should provide notice on the developer mailing list about substantive changes (the final draft will be subject to a vote).
 
