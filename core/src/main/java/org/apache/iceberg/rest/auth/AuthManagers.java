@@ -61,16 +61,16 @@ public class AuthManagers {
     String impl;
     switch (authType.toLowerCase(Locale.ROOT)) {
       case AuthProperties.AUTH_TYPE_NONE:
-        impl = AuthProperties.AUTHENTICATION_IMPL_NONE;
+        impl = AuthProperties.AUTH_MANAGER_IMPL_NONE;
         break;
       case AuthProperties.AUTH_TYPE_BASIC:
-        impl = AuthProperties.AUTHENTICATION_IMPL_BASIC;
+        impl = AuthProperties.AUTH_MANAGER_IMPL_BASIC;
         break;
       case AuthProperties.AUTH_TYPE_SIGV4:
-        impl = AuthProperties.AUTHENTICATION_IMPL_SIGV4;
+        impl = AuthProperties.AUTH_MANAGER_IMPL_SIGV4;
         break;
       case AuthProperties.AUTH_TYPE_OAUTH2:
-        impl = AuthProperties.AUTHENTICATION_IMPL_OAUTH2;
+        impl = AuthProperties.AUTH_MANAGER_IMPL_OAUTH2;
         break;
       default:
         impl = authType;
