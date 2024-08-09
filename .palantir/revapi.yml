@@ -1024,15 +1024,181 @@ acceptedBreaks:
       old: "class org.apache.iceberg.types.Types.NestedField"
       new: "class org.apache.iceberg.types.Types.NestedField"
       justification: "new Constructor added"
+    - code: "java.class.noLongerImplementsInterface"
+      old: "interface org.apache.iceberg.IncrementalScan<ThisT extends java.lang.Object,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      new: "interface org.apache.iceberg.IncrementalScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.class.nowImplementsInterface"
+      old: "interface org.apache.iceberg.IncrementalScan<ThisT extends java.lang.Object,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      new: "interface org.apache.iceberg.IncrementalScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.class.superTypeTypeParametersChanged"
+      old: "interface org.apache.iceberg.IncrementalScan<ThisT extends java.lang.Object,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      new: "interface org.apache.iceberg.IncrementalScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.generics.formalTypeParameterChanged"
+      old: "interface org.apache.iceberg.IncrementalScan<ThisT extends java.lang.Object,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      new: "interface org.apache.iceberg.IncrementalScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.generics.formalTypeParameterChanged"
+      old: "interface org.apache.iceberg.Scan<ThisT extends java.lang.Object, T extends\
+        \ org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      new: "interface org.apache.iceberg.Scan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.IncrementalScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::fromSnapshotExclusive(java.lang.String)"
+      new: "method ThisT org.apache.iceberg.IncrementalScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::fromSnapshotExclusive(java.lang.String)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.IncrementalScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::fromSnapshotExclusive(long)"
+      new: "method ThisT org.apache.iceberg.IncrementalScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::fromSnapshotExclusive(long)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.IncrementalScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::fromSnapshotInclusive(java.lang.String)"
+      new: "method ThisT org.apache.iceberg.IncrementalScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::fromSnapshotInclusive(java.lang.String)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.IncrementalScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::fromSnapshotInclusive(long)"
+      new: "method ThisT org.apache.iceberg.IncrementalScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::fromSnapshotInclusive(long)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.IncrementalScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::toSnapshot(java.lang.String)"
+      new: "method ThisT org.apache.iceberg.IncrementalScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::toSnapshot(java.lang.String)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.IncrementalScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::toSnapshot(long)"
+      new: "method ThisT org.apache.iceberg.IncrementalScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::toSnapshot(long)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.IncrementalScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::useBranch(java.lang.String)"
+      new: "method ThisT org.apache.iceberg.IncrementalScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::useBranch(java.lang.String)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::caseSensitive(boolean)"
+      new: "method ThisT org.apache.iceberg.Scan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::caseSensitive(boolean)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::filter(org.apache.iceberg.expressions.Expression)"
+      new: "method ThisT org.apache.iceberg.Scan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::filter(org.apache.iceberg.expressions.Expression)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::ignoreResiduals()"
+      new: "method ThisT org.apache.iceberg.Scan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::ignoreResiduals()"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::includeColumnStats()"
+      new: "method ThisT org.apache.iceberg.Scan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::includeColumnStats()"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::includeColumnStats(java.util.Collection<java.lang.String>)"
+      new: "method ThisT org.apache.iceberg.Scan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::includeColumnStats(java.util.Collection<java.lang.String>)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::metricsReporter(org.apache.iceberg.metrics.MetricsReporter)"
+      new: "method ThisT org.apache.iceberg.Scan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::metricsReporter(org.apache.iceberg.metrics.MetricsReporter)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::option(java.lang.String,\
+        \ java.lang.String)"
+      new: "method ThisT org.apache.iceberg.Scan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::option(java.lang.String, java.lang.String)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::planWith(java.util.concurrent.ExecutorService)"
+      new: "method ThisT org.apache.iceberg.Scan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::planWith(java.util.concurrent.ExecutorService)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::project(org.apache.iceberg.Schema)"
+      new: "method ThisT org.apache.iceberg.Scan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::project(org.apache.iceberg.Schema)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::select(java.lang.String[])"
+      new: "method ThisT org.apache.iceberg.Scan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::select(java.lang.String[])"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::select(java.util.Collection<java.lang.String>)"
+      new: "method ThisT org.apache.iceberg.Scan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::select(java.util.Collection<java.lang.String>)"
+      justification: "{Set the upper boundary of the type parameter}"
     org.apache.iceberg:iceberg-core:
-    - code: "java.method.visibilityReduced"
-      old: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
-      new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
-      justification: "Deprecations for 1.6.0 release"
+    - code: "java.class.noLongerImplementsInterface"
+      old: "class org.apache.iceberg.SnapshotScan<ThisT extends java.lang.Object,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      new: "class org.apache.iceberg.SnapshotScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.class.superTypeTypeParametersChanged"
+      old: "class org.apache.iceberg.SnapshotScan<ThisT extends java.lang.Object,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      new: "class org.apache.iceberg.SnapshotScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      justification: "{Set the upper boundary of the type parameter}"
     - code: "java.element.noLongerDeprecated"
       old: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
       new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
-      justification: "Constructor became private as part of deprecations cleanup for 1.6.0 release"
+      justification: "Constructor became private as part of deprecations cleanup for\
+        \ 1.6.0 release"
     - code: "java.element.noLongerDeprecated"
       old: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
         \ java.lang.String>, java.lang.String, java.lang.String, java.lang.String,\
@@ -1041,6 +1207,12 @@ acceptedBreaks:
         \ java.lang.String>, org.apache.iceberg.rest.auth.AuthConfig)"
       justification: "This is actually a removal of a deprecated constructor as part\
         \ of deprecations for 1.6.0 release, apparently mis-reported by rev-api"
+    - code: "java.generics.formalTypeParameterChanged"
+      old: "class org.apache.iceberg.SnapshotScan<ThisT extends java.lang.Object,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      new: "class org.apache.iceberg.SnapshotScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T>>"
+      justification: "{Set the upper boundary of the type parameter}"
     - code: "java.method.numberOfParametersChanged"
       old: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
         \ java.lang.String>, java.lang.String, java.lang.String, java.lang.String,\
@@ -1055,6 +1227,172 @@ acceptedBreaks:
       justification: "Deprecations for 1.6.0 release"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.DataFiles.Builder org.apache.iceberg.DataFiles.Builder::withEqualityFieldIds(java.util.List<java.lang.Integer>)"
+      justification: "Deprecations for 1.6.0 release"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.BaseScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::caseSensitive(boolean)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      new: "method ThisT org.apache.iceberg.BaseScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::caseSensitive(boolean) @ org.apache.iceberg.SnapshotScan<ThisT\
+        \ extends org.apache.iceberg.Scan, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.BaseScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::filter(org.apache.iceberg.expressions.Expression)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      new: "method ThisT org.apache.iceberg.BaseScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::filter(org.apache.iceberg.expressions.Expression)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.BaseScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::ignoreResiduals()\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      new: "method ThisT org.apache.iceberg.BaseScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::ignoreResiduals() @ org.apache.iceberg.SnapshotScan<ThisT\
+        \ extends org.apache.iceberg.Scan, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.BaseScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::includeColumnStats()\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      new: "method ThisT org.apache.iceberg.BaseScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::includeColumnStats() @ org.apache.iceberg.SnapshotScan<ThisT\
+        \ extends org.apache.iceberg.Scan, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.BaseScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::includeColumnStats(java.util.Collection<java.lang.String>)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      new: "method ThisT org.apache.iceberg.BaseScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::includeColumnStats(java.util.Collection<java.lang.String>)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.BaseScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::metricsReporter(org.apache.iceberg.metrics.MetricsReporter)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      new: "method ThisT org.apache.iceberg.BaseScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::metricsReporter(org.apache.iceberg.metrics.MetricsReporter)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.BaseScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::newRefinedScan(org.apache.iceberg.Table,\
+        \ org.apache.iceberg.Schema, org.apache.iceberg.TableScanContext) @ org.apache.iceberg.SnapshotScan<ThisT,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>"
+      new: "method ThisT org.apache.iceberg.BaseScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::newRefinedScan(org.apache.iceberg.Table,\
+        \ org.apache.iceberg.Schema, org.apache.iceberg.TableScanContext) @ org.apache.iceberg.SnapshotScan<ThisT\
+        \ extends org.apache.iceberg.Scan, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.BaseScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::option(java.lang.String,\
+        \ java.lang.String) @ org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      new: "method ThisT org.apache.iceberg.BaseScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::option(java.lang.String, java.lang.String)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.BaseScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::planWith(java.util.concurrent.ExecutorService)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      new: "method ThisT org.apache.iceberg.BaseScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::planWith(java.util.concurrent.ExecutorService)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.BaseScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::project(org.apache.iceberg.Schema)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      new: "method ThisT org.apache.iceberg.BaseScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::project(org.apache.iceberg.Schema)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.BaseScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::select(java.util.Collection<java.lang.String>)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      new: "method ThisT org.apache.iceberg.BaseScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::select(java.util.Collection<java.lang.String>)\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.Scan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::select(java.lang.String[])\
+        \ @ org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      new: "method ThisT org.apache.iceberg.Scan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::select(java.lang.String[]) @ org.apache.iceberg.SnapshotScan<ThisT\
+        \ extends org.apache.iceberg.Scan, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::asOfTime(long)"
+      new: "method ThisT org.apache.iceberg.SnapshotScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::asOfTime(long)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::useRef(java.lang.String)"
+      new: "method ThisT org.apache.iceberg.SnapshotScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::useRef(java.lang.String)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.returnTypeChangedCovariantly"
+      old: "method ThisT org.apache.iceberg.SnapshotScan<ThisT, T extends org.apache.iceberg.ScanTask,\
+        \ G extends org.apache.iceberg.ScanTaskGroup<T extends org.apache.iceberg.ScanTask>>::useSnapshot(long)"
+      new: "method ThisT org.apache.iceberg.SnapshotScan<ThisT extends org.apache.iceberg.Scan,\
+        \ T extends org.apache.iceberg.ScanTask, G extends org.apache.iceberg.ScanTaskGroup<T\
+        \ extends org.apache.iceberg.ScanTask>>::useSnapshot(long)"
+      justification: "{Set the upper boundary of the type parameter}"
+    - code: "java.method.visibilityReduced"
+      old: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
+      new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
       justification: "Deprecations for 1.6.0 release"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
