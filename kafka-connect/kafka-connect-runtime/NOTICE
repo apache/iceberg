@@ -1,0 +1,1722 @@
+
+Apache Iceberg
+Copyright 2017-2024 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+--------------------------------------------------------------------------------
+
+This project includes code from Kite, developed at Cloudera, Inc. with
+the following copyright notice:
+
+| Copyright 2013 Cloudera Inc.
+|
+| Licensed under the Apache License, Version 2.0 (the "License");
+| you may not use this file except in compliance with the License.
+| You may obtain a copy of the License at
+|
+|   http://www.apache.org/licenses/LICENSE-2.0
+|
+| Unless required by applicable law or agreed to in writing, software
+| distributed under the License is distributed on an "AS IS" BASIS,
+| WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+| See the License for the specific language governing permissions and
+| limitations under the License.
+
+--------------------------------------------------------------------------------
+
+This binary artifact contains code from the following projects:
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.commons  Name: commons-math3  Version: 3.1.1
+
+Notice: Apache Commons Math
+Copyright 2001-2012 The Apache Software Foundation
+
+This product includes software developed by
+The Apache Software Foundation (http://www.apache.org/).
+
+===============================================================================
+
+The BracketFinder (package org.apache.commons.math3.optimization.univariate)
+and PowellOptimizer (package org.apache.commons.math3.optimization.general)
+classes are based on the Python code in module "optimize.py" (version 0.5)
+developed by Travis E. Oliphant for the SciPy library (http://www.scipy.org/)
+Copyright © 2003-2009 SciPy Developers.
+===============================================================================
+
+The LinearConstraint, LinearObjectiveFunction, LinearOptimizer,
+RelationShip, SimplexSolver and SimplexTableau classes in package
+org.apache.commons.math3.optimization.linear include software developed by
+Benjamin McCann (http://www.benmccann.com) and distributed with
+the following copyright: Copyright 2009 Google Inc.
+===============================================================================
+
+This product includes software developed by the
+University of Chicago, as Operator of Argonne National
+Laboratory.
+The LevenbergMarquardtOptimizer class in package
+org.apache.commons.math3.optimization.general includes software
+translated from the lmder, lmpar and qrsolv Fortran routines
+from the Minpack package
+Minpack Copyright Notice (1999) University of Chicago.  All rights reserved
+===============================================================================
+
+The GraggBulirschStoerIntegrator class in package
+org.apache.commons.math3.ode.nonstiff includes software translated
+from the odex Fortran routine developed by E. Hairer and G. Wanner.
+Original source copyright:
+Copyright (c) 2004, Ernst Hairer
+===============================================================================
+
+The EigenDecompositionImpl class in package
+org.apache.commons.math3.linear includes software translated
+from some LAPACK Fortran routines.  Original source copyright:
+Copyright (c) 1992-2008 The University of Tennessee.  All rights reserved.
+===============================================================================
+
+The MersenneTwister class in package org.apache.commons.math3.random
+includes software translated from the 2002-01-26 version of
+the Mersenne-Twister generator written in C by Makoto Matsumoto and Takuji
+Nishimura. Original source copyright:
+Copyright (C) 1997 - 2002, Makoto Matsumoto and Takuji Nishimura,
+All rights reserved
+===============================================================================
+
+The LocalizedFormatsTest class in the unit tests is an adapted version of
+the OrekitMessagesTest class from the orekit library distributed under the
+terms of the Apache 2 licence. Original source copyright:
+Copyright 2010 CS Systèmes d'Information
+===============================================================================
+
+The HermiteInterpolator class and its corresponding test have been imported from
+the orekit library distributed under the terms of the Apache 2 licence. Original
+source copyright:
+Copyright 2010-2012 CS Systèmes d'Information
+===============================================================================
+
+The creation of the package "o.a.c.m.analysis.integration.gauss" was inspired
+by an original code donated by Sébastien Brisard.
+===============================================================================
+
+
+The complete text of licenses and disclaimers associated with the the original
+sources enumerated above at the time of code translation are in the LICENSE.txt
+file.
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.httpcomponents.core5  Name: httpcore5-h2  Version: 5.2.4
+
+Notice: Apache HttpComponents Core HTTP/2
+Copyright 2005-2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerb-admin  Version: 1.0.1
+
+Notice: Kerby-kerb Admin
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerb-crypto  Version: 1.0.1
+
+Notice: Kerby-kerb Crypto
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.orc  Name: orc-core  Version: 1.9.4
+
+Notice: ORC Core
+Copyright 2013-2024 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.hive  Name: hive-shims  Version: 2.3.9
+
+Notice: Hive Shims
+Copyright 2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerby-pkix  Version: 1.0.1
+
+Notice: Kerby PKIX Project
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.hive.shims  Name: hive-shims-scheduler  Version: 2.3.9
+
+Notice: Hive Shims Scheduler
+Copyright 2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.ant  Name: ant  Version: 1.9.1
+Group: org.apache.ant  Name: ant-launcher  Version: 1.9.1
+
+Notice: Apache Ant
+   Copyright 1999-2013 The Apache Software Foundation
+
+   The <sync> task is based on code Copyright (c) 2002, Landmark
+   Graphics Corp that has been kindly donated to the Apache Software
+   Foundation.
+
+
+--------------------------------------------------------------------------------
+
+Group: commons-lang  Name: commons-lang  Version: 2.6
+
+Notice: Apache Commons Lang
+Copyright 2001-2011 The Apache Software Foundation
+
+This product includes software developed by
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.commons  Name: commons-configuration2  Version: 2.8.0
+
+Notice: Apache Commons Configuration
+Copyright 2001-2022 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerby-config  Version: 1.0.1
+
+Notice: Kerby Config
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.parquet  Name: parquet-avro  Version: 1.13.1
+
+Notice: Apache Parquet MR (Incubating)
+Copyright 2014-2015 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+--------------------------------------------------------------------------------
+
+This product includes code from Apache Avro, which includes the following in
+its NOTICE file:
+
+  Apache Avro
+  Copyright 2010-2015 The Apache Software Foundation
+
+  This product includes software developed at
+  The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: io.grpc  Name: grpc-netty-shaded  Version: 1.62.2
+
+Notice: The Netty Project
+                            =================
+
+Please visit the Netty web site for more information:
+
+  * http://netty.io/
+
+Copyright 2016 The Netty Project
+
+The Netty Project licenses this file to you under the Apache License,
+version 2.0 (the "License"); you may not use this file except in compliance
+with the License. You may obtain a copy of the License at:
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations
+under the License.
+
+-------------------------------------------------------------------------------
+This product contains a forked and modified version of Tomcat Native
+
+  * LICENSE:
+    * license/LICENSE.tomcat-native.txt (Apache License 2.0)
+  * HOMEPAGE:
+    * http://tomcat.apache.org/native-doc/
+    * https://svn.apache.org/repos/asf/tomcat/native/
+
+This product contains the Maven wrapper scripts from 'Maven Wrapper', that provides an easy way to ensure a user has everything necessary to run the Maven build.
+
+  * LICENSE:
+    * license/LICENSE.mvn-wrapper.txt (Apache License 2.0)
+  * HOMEPAGE:
+    * https://github.com/takari/maven-wrapper
+
+This product contains small piece of code to support AIX, taken from netbsd.
+
+  * LICENSE:
+    * license/LICENSE.aix-netbsd.txt (OpenSSL License)
+  * HOMEPAGE:
+    * https://ftp.netbsd.org/pub/NetBSD/NetBSD-current/src/crypto/external/bsd/openssl/dist
+
+
+This product contains code from boringssl.
+
+  * LICENSE (Combination ISC and OpenSSL license)
+    * license/LICENSE.boringssl.txt (Combination ISC and OpenSSL license)
+  * HOMEPAGE:
+    * https://boringssl.googlesource.com/boringssl/
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.curator  Name: curator-recipes  Version: 5.2.0
+
+Notice: Curator Recipes
+Copyright 2011-2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.hive  Name: hive-storage-api  Version: 2.4.0
+
+Notice: Hive Storage API
+Copyright 2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.hadoop  Name: hadoop-annotations  Version: 3.3.6
+Group: org.apache.hadoop  Name: hadoop-auth  Version: 3.3.6
+Group: org.apache.hadoop  Name: hadoop-client  Version: 3.3.6
+Group: org.apache.hadoop  Name: hadoop-common  Version: 3.3.6
+Group: org.apache.hadoop  Name: hadoop-hdfs-client  Version: 3.3.6
+Group: org.apache.hadoop  Name: hadoop-mapreduce-client-common  Version: 3.3.6
+Group: org.apache.hadoop  Name: hadoop-mapreduce-client-core  Version: 3.3.6
+Group: org.apache.hadoop  Name: hadoop-mapreduce-client-jobclient  Version: 3.3.6
+Group: org.apache.hadoop  Name: hadoop-yarn-api  Version: 3.3.6
+Group: org.apache.hadoop  Name: hadoop-yarn-client  Version: 3.3.6
+Group: org.apache.hadoop  Name: hadoop-yarn-common  Version: 3.3.6
+
+Notice: Apache Hadoop
+Copyright 2006 and onwards The Apache Software Foundation.
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+Export Control Notice
+---------------------
+
+This distribution includes cryptographic software.  The country in
+which you currently reside may have restrictions on the import,
+possession, use, and/or re-export to another country, of
+encryption software.  BEFORE using any encryption software, please
+check your country's laws, regulations and policies concerning the
+import, possession, or use, and re-export of encryption software, to
+see if this is permitted.  See <http://www.wassenaar.org/> for more
+information.
+
+The U.S. Government Department of Commerce, Bureau of Industry and
+Security (BIS), has classified this software as Export Commodity
+Control Number (ECCN) 5D002.C.1, which includes information security
+software using or performing cryptographic functions with asymmetric
+algorithms.  The form and manner of this Apache Software Foundation
+distribution makes it eligible for export under the License Exception
+ENC Technology Software Unrestricted (TSU) exception (see the BIS
+Export Administration Regulations, Section 740.13) for both object
+code and source code.
+
+The following provides more details on the included cryptographic software:
+
+This software uses the SSL libraries from the Jetty project written
+by mortbay.org.
+Hadoop Yarn Server Web Proxy uses the BouncyCastle Java
+cryptography APIs written by the Legion of the Bouncy Castle Inc.
+
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.dataformat  Name: jackson-dataformat-xml  Version: 2.17.1
+
+Notice: # Jackson JSON processor
+
+Jackson is a high-performance, Free/Open Source JSON processing library.
+It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
+been in development since 2007.
+It is currently developed by a community of developers.
+
+## Copyright
+
+Copyright 2007-, Tatu Saloranta (tatu.saloranta@iki.fi)
+
+## Licensing
+
+Jackson components are licensed under Apache (Software) License, version 2.0,
+as per accompanying LICENSE file.
+
+## Credits
+
+A list of contributors may be found from CREDITS file, which is included
+in some artifacts (usually source distributions); but is always available
+from the source code management (SCM) system project uses.
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.hive  Name: hive-common  Version: 2.3.9
+
+Notice: Hive Common
+Copyright 2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerb-common  Version: 1.0.1
+
+Notice: Kerby-kerb Common
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerby-xdr  Version: 1.0.1
+
+Notice: Kerby XDR Project
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.parquet  Name: parquet-jackson  Version: 1.13.1
+
+Notice: # Jackson JSON processor
+
+Jackson is a high-performance, Free/Open Source JSON processing library.
+It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
+been in development since 2007.
+It is currently developed by a community of developers.
+
+## Licensing
+
+Jackson 2.x core and extension components are licensed under Apache License 2.0
+To find the details that apply to this artifact see the accompanying LICENSE file.
+
+## Credits
+
+A list of contributors may be found from CREDITS(-2.x) file, which is included
+in some artifacts (usually source distributions); but is always available
+from the source code management (SCM) system project uses.
+
+
+--------------------------------------------------------------------------------
+
+Group: jakarta.activation  Name: jakarta.activation-api  Version: 1.2.2
+
+Notice: # Notices for Jakarta Activation
+
+This content is produced and maintained by Jakarta Activation project.
+
+* Project home: https://projects.eclipse.org/projects/ee4j.jaf
+
+## Copyright
+
+All content is the property of the respective authors or their employers. For
+more information regarding authorship of content, please consult the listed
+source code repository logs.
+
+## Declared Project Licenses
+
+This program and the accompanying materials are made available under the terms
+of the Eclipse Distribution License v. 1.0,
+which is available at http://www.eclipse.org/org/documents/edl-v10.php.
+
+SPDX-License-Identifier: BSD-3-Clause
+
+## Source Code
+
+The project maintains the following source code repositories:
+
+* https://github.com/eclipse-ee4j/jaf
+
+## Third-party Content
+
+This project leverages the following third party content.
+
+JUnit (4.12)
+
+* License: Eclipse Public License
+
+
+--------------------------------------------------------------------------------
+
+Group: jakarta.xml.bind  Name: jakarta.xml.bind-api  Version: 2.3.3
+
+Notice: [//]: # " Copyright (c) 2018, 2019 Oracle and/or its affiliates. All rights reserved. "
+[//]: # "  "
+[//]: # " This program and the accompanying materials are made available under the "
+[//]: # " terms of the Eclipse Distribution License v. 1.0, which is available at "
+[//]: # " http://www.eclipse.org/org/documents/edl-v10.php. "
+[//]: # "  "
+[//]: # " SPDX-License-Identifier: BSD-3-Clause "
+
+# Notices for Jakarta XML Binding
+
+This content is produced and maintained by the Jakarta XML Binding
+project.
+
+* Project home: https://projects.eclipse.org/projects/ee4j.jaxb
+
+## Trademarks
+
+Jakarta XML Binding is a trademark of the Eclipse Foundation.
+
+## Copyright
+
+All content is the property of the respective authors or their employers. For
+more information regarding authorship of content, please consult the listed
+source code repository logs.
+
+## Declared Project Licenses
+
+This program and the accompanying materials are made available under the terms
+of the Eclipse Distribution License v. 1.0 which is available at
+http://www.eclipse.org/org/documents/edl-v10.php.
+
+SPDX-License-Identifier: BSD-3-Clause
+
+## Source Code
+
+The project maintains the following source code repositories:
+
+* https://github.com/eclipse-ee4j/jaxb-api
+* https://github.com/eclipse-ee4j/jaxb-tck
+
+## Third-party Content
+
+This project leverages the following third party content.
+
+Apache River (3.0.0)
+
+* License: Apache-2.0 AND BSD-3-Clause
+
+ASM 7 (n/a)
+
+* License: BSD-3-Clause
+* Project: https://asm.ow2.io/
+* Source:
+   https://repository.ow2.org/nexus/#nexus-search;gav~org.ow2.asm~asm-commons~~~~kw,versionexpand
+
+JTHarness (5.0)
+
+* License: (GPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0)	
+* Project: https://wiki.openjdk.java.net/display/CodeTools/JT+Harness
+* Source: http://hg.openjdk.java.net/code-tools/jtharness/
+
+normalize.css (3.0.2)
+
+* License: MIT
+
+SigTest (n/a)
+
+* License: GPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
+
+## Cryptography
+
+Content may contain encryption software. The country in which you are currently
+may have restrictions on the import, possession, and use, and/or re-export to
+another country, of encryption software. BEFORE using any encryption software,
+please check the country's laws, regulations and policies concerning the import,
+possession, or use, and re-export of encryption software, to see if this is
+permitted.
+
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.module  Name: jackson-module-jaxb-annotations  Version: 2.17.1
+
+Notice: # Jackson JSON processor
+
+Jackson is a high-performance, Free/Open Source JSON processing library.
+It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
+been in development since 2007.
+It is currently developed by a community of developers, as well as supported
+commercially by FasterXML.com.
+
+## Licensing
+
+Jackson core and extension components may licensed under different licenses.
+To find the details that apply to this artifact see the accompanying LICENSE file.
+For more information, including possible other licensing options, contact
+FasterXML.com (http://fasterxml.com).
+
+## Credits
+
+A list of contributors may be found from CREDITS file, which is included
+in some artifacts (usually source distributions); but is always available
+from the source code management (SCM) system project uses.
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.commons  Name: commons-compress  Version: 1.26.0
+
+Notice: Apache Commons Compress
+Copyright 2002-2024 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerb-client  Version: 1.0.1
+
+Notice: Kerby-kerb Client
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.datanucleus  Name: datanucleus-core  Version: 4.1.17
+
+Notice: =========================================================================
+==  NOTICE file corresponding to section 4(d) of the Apache License,   ==
+==  Version 2.0, in this case for the DataNucleus distribution.        ==
+=========================================================================
+
+===================================================================
+This product includes software developed by many individuals,
+including the following:
+===================================================================
+Erik Bengtson
+Andy Jefferson
+
+
+===================================================================
+This product has included contributions from some individuals,
+including the following:
+===================================================================
+Joerg von Frantzius
+Thomas Marti
+Barry Haddow
+Marco Schulze
+Ralph Ullrich
+David Ezzio
+Brendan de Beer
+David Eaves
+Martin Taal
+Tony Lai
+Roland Szabo
+Marcus Mennemeier
+Xuan Baldauf
+Eric Sultan
+
+
+===================================================================
+This product also includes software developed by the TJDO project
+(http://tjdo.sourceforge.net/).
+===================================================================
+
+
+--------------------------------------------------------------------------------
+
+Group: software.amazon.awssdk  Name: annotations  Version: 2.26.25
+Group: software.amazon.awssdk  Name: apache-client  Version: 2.26.25
+Group: software.amazon.awssdk  Name: arns  Version: 2.26.25
+Group: software.amazon.awssdk  Name: auth  Version: 2.26.25
+Group: software.amazon.awssdk  Name: aws-core  Version: 2.26.25
+Group: software.amazon.awssdk  Name: aws-json-protocol  Version: 2.26.25
+Group: software.amazon.awssdk  Name: aws-query-protocol  Version: 2.26.25
+Group: software.amazon.awssdk  Name: aws-xml-protocol  Version: 2.26.25
+Group: software.amazon.awssdk  Name: checksums  Version: 2.26.25
+Group: software.amazon.awssdk  Name: checksums-spi  Version: 2.26.25
+Group: software.amazon.awssdk  Name: crt-core  Version: 2.26.25
+Group: software.amazon.awssdk  Name: dynamodb  Version: 2.26.25
+Group: software.amazon.awssdk  Name: endpoints-spi  Version: 2.26.25
+Group: software.amazon.awssdk  Name: glue  Version: 2.26.25
+Group: software.amazon.awssdk  Name: http-auth  Version: 2.26.25
+Group: software.amazon.awssdk  Name: http-auth-aws  Version: 2.26.25
+Group: software.amazon.awssdk  Name: http-auth-aws-eventstream  Version: 2.26.25
+Group: software.amazon.awssdk  Name: http-auth-spi  Version: 2.26.25
+Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.26.25
+Group: software.amazon.awssdk  Name: iam  Version: 2.26.25
+Group: software.amazon.awssdk  Name: identity-spi  Version: 2.26.25
+Group: software.amazon.awssdk  Name: json-utils  Version: 2.26.25
+Group: software.amazon.awssdk  Name: kms  Version: 2.26.25
+Group: software.amazon.awssdk  Name: lakeformation  Version: 2.26.25
+Group: software.amazon.awssdk  Name: metrics-spi  Version: 2.26.25
+Group: software.amazon.awssdk  Name: netty-nio-client  Version: 2.26.25
+Group: software.amazon.awssdk  Name: profiles  Version: 2.26.25
+Group: software.amazon.awssdk  Name: protocol-core  Version: 2.26.25
+Group: software.amazon.awssdk  Name: regions  Version: 2.26.25
+Group: software.amazon.awssdk  Name: retries  Version: 2.26.25
+Group: software.amazon.awssdk  Name: retries-spi  Version: 2.26.25
+Group: software.amazon.awssdk  Name: s3  Version: 2.26.25
+Group: software.amazon.awssdk  Name: sdk-core  Version: 2.26.25
+Group: software.amazon.awssdk  Name: sso  Version: 2.26.25
+Group: software.amazon.awssdk  Name: sts  Version: 2.26.25
+Group: software.amazon.awssdk  Name: utils  Version: 2.26.25
+
+Notice: AWS SDK for Java 2.0
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+This product includes software developed by
+Amazon Technologies, Inc (http://www.amazon.com/).
+
+**********************
+THIRD PARTY COMPONENTS
+**********************
+This software includes third party software subject to the following copyrights:
+- XML parsing and utility functions from JetS3t - Copyright 2006-2009 James Murty.
+- PKCS#1 PEM encoded private key parsing and utility functions from oauth.googlecode.com - Copyright 1998-2010 AOL Inc.
+- Apache Commons Lang - https://github.com/apache/commons-lang
+- Netty Reactive Streams - https://github.com/playframework/netty-reactive-streams
+- Jackson-core - https://github.com/FasterXML/jackson-core
+- Jackson-dataformat-cbor - https://github.com/FasterXML/jackson-dataformats-binary
+
+The licenses for these third party components are included in LICENSE.txt
+
+- For Apache Commons Lang see also this required NOTICE:
+  Apache Commons Lang
+  Copyright 2001-2020 The Apache Software Foundation
+  
+  This product includes software developed at
+  The Apache Software Foundation (https://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.httpcomponents.client5  Name: httpclient5  Version: 5.3.1
+
+Notice: Apache HttpClient
+Copyright 1999-2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.hive.shims  Name: hive-shims-common  Version: 2.3.9
+
+Notice: Hive Shims Common
+Copyright 2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: commons-logging  Name: commons-logging  Version: 1.2
+
+Notice: Apache Commons Logging
+Copyright 2003-2014 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: commons-dbcp  Name: commons-dbcp  Version: 1.4
+
+Notice: Apache Commons DBCP
+Copyright 2001-2010 The Apache Software Foundation
+
+This product includes software developed by
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: commons-net  Name: commons-net  Version: 3.9.0
+
+Notice: Apache Commons Net
+Copyright 2001-2022 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: com.squareup.okhttp3  Name: okhttp  Version: 4.9.3
+
+Notice: Note that publicsuffixes.gz is compiled from The Public Suffix List:
+https://publicsuffix.org/list/public_suffix_list.dat
+
+It is subject to the terms of the Mozilla Public License, v. 2.0:
+https://mozilla.org/MPL/2.0/
+
+
+--------------------------------------------------------------------------------
+
+Group: commons-collections  Name: commons-collections  Version: 3.2.2
+
+Notice: Apache Commons Collections
+Copyright 2001-2015 The Apache Software Foundation
+
+This product includes software developed by
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: jakarta.activation  Name: jakarta.activation-api  Version: 1.2.1
+
+Notice: # Notices for Eclipse Project for JAF
+
+This content is produced and maintained by the Eclipse Project for JAF project.
+
+* Project home: https://projects.eclipse.org/projects/ee4j.jaf
+
+## Copyright
+
+All content is the property of the respective authors or their employers. For
+more information regarding authorship of content, please consult the listed
+source code repository logs.
+
+## Declared Project Licenses
+
+This program and the accompanying materials are made available under the terms
+of the Eclipse Distribution License v. 1.0,
+which is available at http://www.eclipse.org/org/documents/edl-v10.php.
+
+SPDX-License-Identifier: BSD-3-Clause
+
+## Source Code
+
+The project maintains the following source code repositories:
+
+* https://github.com/eclipse-ee4j/jaf
+
+## Third-party Content
+
+This project leverages the following third party content.
+
+JUnit (4.12)
+
+* License: Eclipse Public License
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.derby  Name: derby  Version: 10.10.2.0
+
+Notice: =========================================================================
+==  NOTICE file corresponding to section 4(d) of the Apache License,
+==  Version 2.0, in this case for the Apache Derby distribution.
+==
+==  DO NOT EDIT THIS FILE DIRECTLY. IT IS GENERATED
+==  BY THE buildnotice TARGET IN THE TOP LEVEL build.xml FILE.
+==
+=========================================================================
+
+Apache Derby
+Copyright 2004-2014 The Apache Software Foundation
+
+This product includes software developed by
+The Apache Software Foundation (http://www.apache.org/).
+
+
+=========================================================================
+
+Portions of Derby were originally developed by
+International Business Machines Corporation and are
+licensed to the Apache Software Foundation under the
+"Software Grant and Corporate Contribution License Agreement",
+informally known as the "Derby CLA".
+The following copyright notice(s) were affixed to portions of the code
+with which this file is now or was at one time distributed
+and are placed here unaltered.
+
+(C) Copyright 1997,2004 International Business Machines Corporation.  All rights reserved.
+
+(C) Copyright IBM Corp. 2003. 
+
+
+=========================================================================
+
+
+The portion of the functionTests under 'nist' was originally 
+developed by the National Institute of Standards and Technology (NIST), 
+an agency of the United States Department of Commerce, and adapted by
+International Business Machines Corporation in accordance with the NIST
+Software Acknowledgment and Redistribution document at
+http://www.itl.nist.gov/div897/ctg/sql_form.htm
+
+
+
+=========================================================================
+
+
+The JDBC apis for small devices and JDBC3 (under java/stubs/jsr169 and
+java/stubs/jdbc3) were produced by trimming sources supplied by the
+Apache Harmony project. In addition, the Harmony SerialBlob and
+SerialClob implementations are used. The following notice covers the Harmony sources:
+
+Portions of Harmony were originally developed by
+Intel Corporation and are licensed to the Apache Software
+Foundation under the "Software Grant and Corporate Contribution
+License Agreement", informally known as the "Intel Harmony CLA".
+
+
+=========================================================================
+
+
+The Derby build relies on source files supplied by the Apache Felix
+project. The following notice covers the Felix files:
+
+  Apache Felix Main
+  Copyright 2008 The Apache Software Foundation
+
+
+  I. Included Software
+
+  This product includes software developed at
+  The Apache Software Foundation (http://www.apache.org/).
+  Licensed under the Apache License 2.0.
+
+  This product includes software developed at
+  The OSGi Alliance (http://www.osgi.org/).
+  Copyright (c) OSGi Alliance (2000, 2007).
+  Licensed under the Apache License 2.0.
+
+  This product includes software from http://kxml.sourceforge.net.
+  Copyright (c) 2002,2003, Stefan Haustein, Oberhausen, Rhld., Germany.
+  Licensed under BSD License.
+
+  II. Used Software
+
+  This product uses software developed at
+  The OSGi Alliance (http://www.osgi.org/).
+  Copyright (c) OSGi Alliance (2000, 2007).
+  Licensed under the Apache License 2.0.
+
+
+  III. License Summary
+  - Apache License 2.0
+  - BSD License
+
+
+=========================================================================
+
+
+The Derby build relies on jar files supplied by the Apache Xalan
+project. The following notice covers the Xalan jar files:
+
+   =========================================================================
+   ==  NOTICE file corresponding to section 4(d) of the Apache License,   ==
+   ==  Version 2.0, in this case for the Apache Xalan Java distribution.  ==
+   =========================================================================
+
+   Apache Xalan (Xalan XSLT processor)
+   Copyright 1999-2006 The Apache Software Foundation
+
+   Apache Xalan (Xalan serializer)
+   Copyright 1999-2006 The Apache Software Foundation
+
+   This product includes software developed at
+   The Apache Software Foundation (http://www.apache.org/).
+
+   =========================================================================
+   Portions of this software was originally based on the following:
+     - software copyright (c) 1999-2002, Lotus Development Corporation.,
+       http://www.lotus.com.
+     - software copyright (c) 2001-2002, Sun Microsystems.,
+       http://www.sun.com.
+     - software copyright (c) 2003, IBM Corporation., 
+       http://www.ibm.com.
+       
+   =========================================================================
+   The binary distribution package (ie. jars, samples and documentation) of
+   this product includes software developed by the following:
+       
+     - The Apache Software Foundation 
+         - Xerces Java - see LICENSE.txt 
+         - JAXP 1.3 APIs - see LICENSE.txt
+         - Bytecode Engineering Library - see LICENSE.txt
+         - Regular Expression - see LICENSE.txt
+       
+     - Scott Hudson, Frank Flannery, C. Scott Ananian 
+         - CUP Parser Generator runtime (javacup\runtime) - see LICENSE.txt 
+ 
+   ========================================================================= 
+   The source distribution package (ie. all source and tools required to build
+   Xalan Java) of this product includes software developed by the following:
+       
+     - The Apache Software Foundation
+         - Xerces Java - see LICENSE.txt 
+         - JAXP 1.3 APIs - see LICENSE.txt
+         - Bytecode Engineering Library - see LICENSE.txt
+         - Regular Expression - see LICENSE.txt
+         - Ant - see LICENSE.txt
+         - Stylebook doc tool - see LICENSE.txt    
+       
+     - Elliot Joel Berk and C. Scott Ananian 
+         - Lexical Analyzer Generator (JLex) - see LICENSE.txt
+
+   =========================================================================       
+   Apache Xerces Java
+   Copyright 1999-2006 The Apache Software Foundation
+
+   This product includes software developed at
+   The Apache Software Foundation (http://www.apache.org/).
+
+   Portions of Apache Xerces Java in xercesImpl.jar and xml-apis.jar
+   were originally based on the following:
+     - software copyright (c) 1999, IBM Corporation., http://www.ibm.com.
+     - software copyright (c) 1999, Sun Microsystems., http://www.sun.com.
+     - voluntary contributions made by Paul Eng on behalf of the 
+       Apache Software Foundation that were originally developed at iClick, Inc.,
+       software copyright (c) 1999.    
+
+   =========================================================================   
+   Apache xml-commons xml-apis (redistribution of xml-apis.jar)
+
+   Apache XML Commons
+   Copyright 2001-2003,2006 The Apache Software Foundation.
+
+   This product includes software developed at
+   The Apache Software Foundation (http://www.apache.org/).
+
+   Portions of this software were originally based on the following:
+     - software copyright (c) 1999, IBM Corporation., http://www.ibm.com.
+     - software copyright (c) 1999, Sun Microsystems., http://www.sun.com.
+     - software copyright (c) 2000 World Wide Web Consortium, http://www.w3.org
+
+
+--------------------------------------------------------------------------------
+
+Group: commons-io  Name: commons-io  Version: 2.15.1
+
+Notice: Apache Commons IO
+Copyright 2002-2023 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: com.google.inject  Name: guice  Version: 4.0
+
+Notice: Google Guice - Core Library
+Copyright 2006-2015 Google, Inc.
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: ch.qos.reload4j  Name: reload4j  Version: 1.2.22
+Group: log4j  Name: log4j  Version: 1.2.17
+
+Notice: Apache log4j
+Copyright 2007 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: commons-codec  Name: commons-codec  Version: 1.17.1
+
+Notice: Apache Commons Codec
+Copyright 2002-2024 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: joda-time  Name: joda-time  Version: 2.8.1
+
+Notice: =============================================================================
+= NOTICE file corresponding to section 4d of the Apache License Version 2.0 =
+=============================================================================
+This product includes software developed by
+Joda.org (http://www.joda.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.commons  Name: commons-text  Version: 1.10.0
+
+Notice: Apache Commons Text
+Copyright 2014-2022 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerb-identity  Version: 1.0.1
+
+Notice: Kerby-kerb Identity
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.curator  Name: curator-client  Version: 5.2.0
+
+Notice: Curator Client
+Copyright 2011-2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.thrift  Name: libthrift  Version: 0.9.3
+
+Notice: Apache Thrift
+Copyright 2006-2010 The Apache Software Foundation.
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.17.1
+Group: software.amazon.awssdk  Name: third-party-jackson-core  Version: 2.26.25
+
+Notice: # Jackson JSON processor
+
+Jackson is a high-performance, Free/Open Source JSON processing library.
+It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
+been in development since 2007.
+It is currently developed by a community of developers.
+
+## Copyright
+
+Copyright 2007-, Tatu Saloranta (tatu.saloranta@iki.fi)
+
+## Licensing
+
+Jackson 2.x core and extension components are licensed under Apache License 2.0
+To find the details that apply to this artifact see the accompanying LICENSE file.
+
+## Credits
+
+A list of contributors may be found from CREDITS(-2.x) file, which is included
+in some artifacts (usually source distributions); but is always available
+from the source code management (SCM) system project uses.
+
+## FastDoubleParser
+
+jackson-core bundles a shaded copy of FastDoubleParser <https://github.com/wrandelshofer/FastDoubleParser>.
+That code is available under an MIT license <https://github.com/wrandelshofer/FastDoubleParser/blob/main/LICENSE>
+under the following copyright.
+
+Copyright © 2023 Werner Randelshofer, Switzerland. MIT License.
+
+See FastDoubleParser-NOTICE for details of other source code included in FastDoubleParser
+and the licenses and copyrights that apply to that code.
+
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.17.1
+
+Notice: # Jackson JSON processor
+
+Jackson is a high-performance, Free/Open Source JSON processing library.
+It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
+been in development since 2007.
+It is currently developed by a community of developers.
+
+## Licensing
+
+Jackson components are licensed under Apache (Software) License, version 2.0,
+as per accompanying LICENSE file.
+
+## Credits
+
+A list of contributors may be found from CREDITS file, which is included
+in some artifacts (usually source distributions); but is always available
+from the source code management (SCM) system project uses.
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.curator  Name: curator-framework  Version: 5.2.0
+
+Notice: Curator Framework
+Copyright 2011-2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.httpcomponents  Name: httpclient  Version: 4.5.13
+
+Notice: Apache HttpClient
+Copyright 1999-2020 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerby-util  Version: 1.0.1
+
+Notice: Kerby Util
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.hive  Name: hive-serde  Version: 2.3.9
+
+Notice: Hive Serde
+Copyright 2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.httpcomponents.core5  Name: httpcore5  Version: 5.2.4
+
+Notice: Apache HttpComponents Core HTTP/1.1
+Copyright 2005-2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerb-core  Version: 1.0.1
+
+Notice: Kerby-kerb core
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.datanucleus  Name: datanucleus-api-jdo  Version: 4.2.4
+
+Notice: =========================================================================
+==  NOTICE file corresponding to section 4(d) of the Apache License,   ==
+==  Version 2.0, in this case for the DataNucleus distribution.        ==
+=========================================================================
+
+===================================================================
+This product includes software developed by many individuals,
+including the following:
+===================================================================
+Erik Bengtson
+Andy Jefferson
+
+
+===================================================================
+This product has included contributions from some individuals,
+including the following:
+===================================================================
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerb-util  Version: 1.0.1
+
+Notice: Kerby-kerb Util
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.avro  Name: avro  Version: 1.11.3
+
+Notice: Apache Avro
+Copyright 2009-2023 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.datanucleus  Name: datanucleus-rdbms  Version: 4.1.19
+
+Notice: =========================================================================
+==  NOTICE file corresponding to section 4(d) of the Apache License,   ==
+==  Version 2.0, in this case for the DataNucleus distribution.        ==
+=========================================================================
+
+===================================================================
+This product includes software developed by many individuals,
+including the following:
+===================================================================
+Andy Jefferson
+Erik Bengtson
+Joerg von Frantzius
+Marco Schulze
+
+
+===================================================================
+This product has included contributions from some individuals,
+including the following:
+===================================================================
+Barry Haddow
+Ralph Ullrich
+David Ezzio
+Brendan de Beer
+David Eaves
+Martin Taal
+Tony Lai
+Roland Szabo
+Anton Troshin (Timesten)
+
+
+===================================================================
+This product also includes software developed by the TJDO project
+(http://tjdo.sourceforge.net/).
+===================================================================
+
+===================================================================
+This product also includes software developed by the Apache Commons project
+(http://commons.apache.org/).
+===================================================================
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.hive  Name: hive-metastore  Version: 2.3.9
+
+Notice: Hive Metastore
+Copyright 2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: commons-cli  Name: commons-cli  Version: 1.2
+
+Notice: Apache Commons CLI
+Copyright 2001-2009 The Apache Software Foundation
+
+This product includes software developed by
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: commons-pool  Name: commons-pool  Version: 1.6
+
+Notice: Apache Commons Pool
+Copyright 2001-2012 The Apache Software Foundation
+
+This product includes software developed by
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: javax.jdo  Name: jdo-api  Version: 3.0.1
+
+Notice: Apache Java Data Objects (JDO)
+Copyright 2005-2006 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.orc  Name: orc-shims  Version: 1.9.4
+
+Notice: ORC Shims
+Copyright 2013-2024 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.hadoop.thirdparty  Name: hadoop-shaded-guava  Version: 1.2.0
+Group: org.apache.hadoop.thirdparty  Name: hadoop-shaded-protobuf_3_7  Version: 1.1.1
+
+Notice: Apache Hadoop Third-party Libs
+Copyright 2020 and onwards The Apache Software Foundation.
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.httpcomponents  Name: httpcore  Version: 4.4.16
+
+Notice: Apache HttpCore
+Copyright 2005-2022 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: commons-beanutils  Name: commons-beanutils  Version: 1.9.4
+
+Notice: Apache Commons BeanUtils
+Copyright 2000-2019 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.17.1
+Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.17.1
+
+Notice: # Jackson JSON processor
+
+Jackson is a high-performance, Free/Open Source JSON processing library.
+It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
+been in development since 2007.
+It is currently developed by a community of developers.
+
+## Copyright
+
+Copyright 2007-, Tatu Saloranta (tatu.saloranta@iki.fi)
+
+## Licensing
+
+Jackson 2.x core and extension components are licensed under Apache License 2.0
+To find the details that apply to this artifact see the accompanying LICENSE file.
+
+## Credits
+
+A list of contributors may be found from CREDITS(-2.x) file, which is included
+in some artifacts (usually source distributions); but is always available
+from the source code management (SCM) system project uses.
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerb-simplekdc  Version: 1.0.1
+
+Notice: Kerb Simple Kdc
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerb-server  Version: 1.0.1
+
+Notice: Kerby-kerb Server
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.hive.shims  Name: hive-shims-0.23  Version: 2.3.9
+
+Notice: Hive Shims 0.23
+Copyright 2021 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: kerby-asn1  Version: 1.0.1
+
+Notice: Kerby ASN1 Project
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.kerby  Name: token-provider  Version: 1.0.1
+
+Notice: Token provider
+Copyright 2014-2017 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-json-provider  Version: 2.17.1
+
+Notice: # Jackson JSON processor
+
+Jackson is a high-performance, Free/Open Source JSON processing library.
+It was originally written by Tatu Saloranta (tatu.saloranta@iki.fi), and has
+been in development since 2007.
+It is currently developed by a community of developers, as well as supported
+commercially by FasterXML.com.
+
+## Licensing
+
+Jackson core and extension components may be licensed under different licenses.
+To find the details that apply to this artifact see the accompanying LICENSE file.
+For more information, including possible other licensing options, contact
+FasterXML.com (http://fasterxml.com).
+
+## Credits
+
+A list of contributors may be found from CREDITS file, which is included
+in some artifacts (usually source distributions); but is always available
+from the source code management (SCM) system project uses.
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.yetus  Name: audience-annotations  Version: 0.13.0
+
+Notice: Apache Yetus - Audience Annotations
+Copyright 2015-2020 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.commons  Name: commons-lang3  Version: 3.14.0
+
+Notice: Apache Commons Lang
+Copyright 2001-2023 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: org.eclipse.jetty  Name: jetty-client  Version: 9.4.51.v20230217
+Group: org.eclipse.jetty  Name: jetty-http  Version: 9.4.51.v20230217
+Group: org.eclipse.jetty  Name: jetty-io  Version: 9.4.51.v20230217
+Group: org.eclipse.jetty  Name: jetty-security  Version: 9.4.51.v20230217
+Group: org.eclipse.jetty  Name: jetty-servlet  Version: 9.4.51.v20230217
+Group: org.eclipse.jetty  Name: jetty-util  Version: 9.4.51.v20230217
+Group: org.eclipse.jetty  Name: jetty-util-ajax  Version: 9.4.51.v20230217
+Group: org.eclipse.jetty  Name: jetty-webapp  Version: 9.4.51.v20230217
+Group: org.eclipse.jetty  Name: jetty-xml  Version: 9.4.51.v20230217
+Group: org.eclipse.jetty.websocket  Name: websocket-api  Version: 9.4.51.v20230217
+Group: org.eclipse.jetty.websocket  Name: websocket-client  Version: 9.4.51.v20230217
+Group: org.eclipse.jetty.websocket  Name: websocket-common  Version: 9.4.51.v20230217
+
+Notice: ==============================================================
+ Jetty Web Container
+ Copyright 1995-2018 Mort Bay Consulting Pty Ltd.
+==============================================================
+
+The Jetty Web Container is Copyright Mort Bay Consulting Pty Ltd
+unless otherwise noted.
+
+Jetty is dual licensed under both
+
+  * The Apache 2.0 License
+    http://www.apache.org/licenses/LICENSE-2.0.html
+
+      and
+
+  * The Eclipse Public 1.0 License
+    http://www.eclipse.org/legal/epl-v10.html
+
+Jetty may be distributed under either license.
+
+------
+Eclipse
+
+The following artifacts are EPL.
+ * org.eclipse.jetty.orbit:org.eclipse.jdt.core
+
+The following artifacts are EPL and ASL2.
+ * org.eclipse.jetty.orbit:javax.security.auth.message
+
+
+The following artifacts are EPL and CDDL 1.0.
+ * org.eclipse.jetty.orbit:javax.mail.glassfish
+
+
+------
+Oracle
+
+The following artifacts are CDDL + GPLv2 with classpath exception.
+https://glassfish.dev.java.net/nonav/public/CDDL+GPL.html
+
+ * javax.servlet:javax.servlet-api
+ * javax.annotation:javax.annotation-api
+ * javax.transaction:javax.transaction-api
+ * javax.websocket:javax.websocket-api
+
+------
+Oracle OpenJDK
+
+If ALPN is used to negotiate HTTP/2 connections, then the following
+artifacts may be included in the distribution or downloaded when ALPN 
+module is selected. 
+
+ * java.sun.security.ssl
+
+These artifacts replace/modify OpenJDK classes.  The modififications
+are hosted at github and both modified and original are under GPL v2 with 
+classpath exceptions.
+http://openjdk.java.net/legal/gplv2+ce.html
+
+
+------
+OW2
+
+The following artifacts are licensed by the OW2 Foundation according to the
+terms of http://asm.ow2.org/license.html
+
+org.ow2.asm:asm-commons
+org.ow2.asm:asm
+
+
+------
+Apache
+
+The following artifacts are ASL2 licensed.
+
+org.apache.taglibs:taglibs-standard-spec
+org.apache.taglibs:taglibs-standard-impl
+
+
+------
+MortBay
+
+The following artifacts are ASL2 licensed.  Based on selected classes from 
+following Apache Tomcat jars, all ASL2 licensed.
+
+org.mortbay.jasper:apache-jsp
+  org.apache.tomcat:tomcat-jasper
+  org.apache.tomcat:tomcat-juli
+  org.apache.tomcat:tomcat-jsp-api
+  org.apache.tomcat:tomcat-el-api
+  org.apache.tomcat:tomcat-jasper-el
+  org.apache.tomcat:tomcat-api
+  org.apache.tomcat:tomcat-util-scan
+  org.apache.tomcat:tomcat-util
+
+org.mortbay.jasper:apache-el
+  org.apache.tomcat:tomcat-jasper-el
+  org.apache.tomcat:tomcat-el-api
+
+
+------
+Mortbay
+
+The following artifacts are CDDL + GPLv2 with classpath exception.
+
+https://glassfish.dev.java.net/nonav/public/CDDL+GPL.html
+
+org.eclipse.jetty.toolchain:jetty-schemas
+
+------
+Assorted
+
+The UnixCrypt.java code implements the one way cryptography used by
+Unix systems for simple password protection.  Copyright 1996 Aki Yoshida,
+modified April 2001  by Iris Van den Broeke, Daniel Deville.
+Permission to use, copy, modify and distribute UnixCrypt
+for non-commercial or commercial purposes and without fee is
+granted provided that the copyright notice appears in all copies.
+
+
+--------------------------------------------------------------------------------
