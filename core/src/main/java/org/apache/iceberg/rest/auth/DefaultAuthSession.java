@@ -37,7 +37,7 @@ public interface DefaultAuthSession extends AuthSession {
   Map<String, String> headers();
 
   @Override
-  default void authenticate(HttpRequestFacade request) {
+  default void authenticate(HTTPRequest request) {
     headers().forEach(request::setHeader);
   }
 

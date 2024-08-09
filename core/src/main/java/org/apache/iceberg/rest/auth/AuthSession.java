@@ -28,7 +28,7 @@ package org.apache.iceberg.rest.auth;
 public interface AuthSession extends AutoCloseable {
 
   /** Applies authentication data to the outgoing HTTP request. */
-  void authenticate(HttpRequestFacade request);
+  void authenticate(HTTPRequest request);
 
   /**
    * Closes the session and releases any resources. This method is called when the session is no

@@ -59,7 +59,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.auth.DefaultAuthSession;
-import org.apache.iceberg.rest.auth.HttpRequestFacade;
+import org.apache.iceberg.rest.auth.HTTPRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -397,7 +397,7 @@ public class HTTPClient implements RESTClient {
   private static void applyAuth(
       AuthSession authSession, HttpUriRequestBase request, String entity) {
     if (authSession != null) {
-      authSession.authenticate(new ApacheHttpRequestFacade(request, entity));
+      authSession.authenticate(new ApacheHTTPRequest(request, entity));
     }
   }
 
@@ -693,23 +693,23 @@ public class HTTPClient implements RESTClient {
     return RESTUtil.encodeFormData(formData);
   }
 
-  private static class ApacheHttpRequestFacade implements HttpRequestFacade {
+  private static class ApacheHTTPRequest implements HTTPRequest {
 
     private final HttpUriRequestBase request;
     private final Object body;
 
-    private ApacheHttpRequestFacade(HttpUriRequestBase request, Object body) {
+    private ApacheHTTPRequest(HttpUriRequestBase request, Object body) {
       this.request = request;
       this.body = body;
     }
 
     @Override
-    public Object getBody() {
+    public Object body() {
       return body;
     }
 
     @Override
-    public Map<String, List<String>> getHeaders() {
+    public Map<String, List<String>> headers() {
       Header[] requestHeaders = request.getHeaders();
       Map<String, List<String>> headers = Maps.newHashMapWithExpectedSize(requestHeaders.length);
       for (Header header : requestHeaders) {
@@ -725,7 +725,7 @@ public class HTTPClient implements RESTClient {
     }
 
     @Override
-    public List<String> getHeaders(String name) {
+    public List<String> headers(String name) {
       Header[] requestHeaders = request.getHeaders(name);
       List<String> headers = Lists.newArrayListWithExpectedSize(requestHeaders.length);
       for (Header header : requestHeaders) {
@@ -755,12 +755,12 @@ public class HTTPClient implements RESTClient {
     }
 
     @Override
-    public String getMethod() {
+    public String method() {
       return request.getMethod();
     }
 
     @Override
-    public URI getUri() {
+    public URI uri() {
       try {
         return request.getUri();
       } catch (URISyntaxException e) {

@@ -26,7 +26,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.auth.AuthSession;
-import org.apache.iceberg.rest.auth.HttpRequestFacade;
+import org.apache.iceberg.rest.auth.HTTPRequest;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.signer.Aws4Signer;
 import software.amazon.awssdk.auth.signer.internal.SignerConstant;
@@ -65,7 +65,7 @@ public class RESTSigV4Signer implements AuthSession {
   }
 
   @Override
-  public void authenticate(HttpRequestFacade request) {
+  public void authenticate(HTTPRequest request) {
     Aws4SignerParams params =
         Aws4SignerParams.builder()
             .signingName(signingName)
@@ -82,21 +82,21 @@ public class RESTSigV4Signer implements AuthSession {
     SdkHttpFullRequest.Builder sdkRequestBuilder = SdkHttpFullRequest.builder();
 
     sdkRequestBuilder
-        .method(SdkHttpMethod.fromValue(request.getMethod()))
-        .protocol(request.getUri().getScheme())
-        .uri(request.getUri())
-        .headers(convertHeaders(request.getHeaders()));
+        .method(SdkHttpMethod.fromValue(request.method()))
+        .protocol(request.uri().getScheme())
+        .uri(request.uri())
+        .headers(convertHeaders(request.headers()));
 
-    if (request.getBody() == null) {
+    if (request.body() == null) {
       // This is a workaround for the signer implementation incorrectly producing
       // an invalid content checksum for empty body requests.
       sdkRequestBuilder.putHeader(SignerConstant.X_AMZ_CONTENT_SHA256, EMPTY_BODY_SHA256);
-    } else if (request.getBody() instanceof String) {
+    } else if (request.body() instanceof String) {
       sdkRequestBuilder.contentStreamProvider(
-          () -> IOUtils.toInputStream((String) request.getBody(), StandardCharsets.UTF_8));
+          () -> IOUtils.toInputStream((String) request.body(), StandardCharsets.UTF_8));
     } else {
       throw new UnsupportedOperationException(
-          "Unsupported entity type: " + request.getBody().getClass());
+          "Unsupported entity type: " + request.body().getClass());
     }
 
     SdkHttpFullRequest signedSdkRequest = signer.sign(sdkRequestBuilder.build(), params);
@@ -121,11 +121,11 @@ public class RESTSigV4Signer implements AuthSession {
                     })));
   }
 
-  private void updateRequestHeaders(HttpRequestFacade request, Map<String, List<String>> headers) {
+  private void updateRequestHeaders(HTTPRequest request, Map<String, List<String>> headers) {
     headers.forEach(
         (name, values) -> {
           if (request.containsHeader(name)) {
-            List<String> original = request.getHeaders(name);
+            List<String> original = request.headers(name);
             request.removeHeaders(name);
             original.forEach(
                 header -> {
