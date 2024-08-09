@@ -133,4 +133,16 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement addNonDefaultSpec()");
   };
+
+  /**
+   * Sets this update partition spec to evolve the given partition spec instead of the default
+   * partition spec of the table.
+   *
+   * @param partitionSpec The partition spec to evolve
+   * @return this method for chaining
+   */
+  default UpdatePartitionSpec fromSpec(PartitionSpec partitionSpec) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement fromSpec(PartitionSpec)");
+  }
 }
