@@ -51,6 +51,11 @@ The zip archive will be found under `./kafka-connect/kafka-connect-runtime/build
 one distribution that bundles the Hive Metastore client and related dependencies, and one that does not.
 Copy the distribution archive into the Kafka Connect plugins directory on all nodes.
 
+## Requirements
+
+The sink relies on [KIP-447](https://cwiki.apache.org/confluence/display/KAFKA/KIP-447%3A+Producer+scalability+for+exactly+once+semantics)
+for exactly-once semantics. This requires Kafka 2.5 or later.
+
 ## Configuration
 
 | Property                                   | Description                                                                                                      |
