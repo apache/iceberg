@@ -18,24 +18,34 @@
  */
 package org.apache.iceberg.encryption;
 
-import java.util.Map;
-import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import java.io.Serializable;
 
-public class EncryptionTestHelpers {
+public class KeyEncryptionKey implements Serializable {
+  private final String keyID;
+  private final String wrappedKey;
+  private final byte[] key;
+  private final long timestamp;
 
-  private EncryptionTestHelpers() {}
+  public KeyEncryptionKey(String kekID, byte[] newKek, String wrappedNewKek, long timestamp) {
+    this.keyID = kekID;
+    this.key = newKek;
+    this.wrappedKey = wrappedNewKek;
+    this.timestamp = timestamp;
+  }
 
-  public static EncryptionManager createEncryptionManager() {
-    Map<String, String> catalogProperties = Maps.newHashMap();
-    catalogProperties.put(
-        CatalogProperties.ENCRYPTION_KMS_IMPL, UnitestKMS.class.getCanonicalName());
+  public String id() {
+    return keyID;
+  }
 
-    return EncryptionUtil.createEncryptionManager(
-        UnitestKMS.MASTER_KEY_NAME1,
-        TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT,
-        EncryptionUtil.createKmsClient(catalogProperties),
-        CatalogProperties.WRITER_KEK_TIMEOUT_MS_DEFAULT);
+  public byte[] key() {
+    return key;
+  }
+
+  public String wrappedKey() {
+    return wrappedKey;
+  }
+
+  public long timestamp() {
+    return timestamp;
   }
 }

@@ -23,9 +23,12 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -38,11 +41,11 @@ class BaseSnapshot implements Snapshot {
   private final Long parentId;
   private final long sequenceNumber;
   private final long timestampMillis;
-  private final String manifestListLocation;
   private final String operation;
   private final Map<String, String> summary;
   private final Integer schemaId;
   private final String[] v1ManifestLocations;
+  private ManifestListFile manifestListFile;
 
   // lazily initialized
   private transient List<ManifestFile> allManifests = null;
@@ -53,6 +56,7 @@ class BaseSnapshot implements Snapshot {
   private transient List<DeleteFile> addedDeleteFiles = null;
   private transient List<DeleteFile> removedDeleteFiles = null;
 
+  @VisibleForTesting
   BaseSnapshot(
       long sequenceNumber,
       long snapshotId,
@@ -62,6 +66,26 @@ class BaseSnapshot implements Snapshot {
       Map<String, String> summary,
       Integer schemaId,
       String manifestList) {
+    this(
+        sequenceNumber,
+        snapshotId,
+        parentId,
+        timestampMillis,
+        operation,
+        summary,
+        schemaId,
+        new BaseManifestListFile(manifestList, null, null, null));
+  }
+
+  BaseSnapshot(
+      long sequenceNumber,
+      long snapshotId,
+      Long parentId,
+      long timestampMillis,
+      String operation,
+      Map<String, String> summary,
+      Integer schemaId,
+      ManifestListFile manifestListFile) {
     this.sequenceNumber = sequenceNumber;
     this.snapshotId = snapshotId;
     this.parentId = parentId;
@@ -69,7 +93,7 @@ class BaseSnapshot implements Snapshot {
     this.operation = operation;
     this.summary = summary;
     this.schemaId = schemaId;
-    this.manifestListLocation = manifestList;
+    this.manifestListFile = manifestListFile;
     this.v1ManifestLocations = null;
   }
 
@@ -89,7 +113,7 @@ class BaseSnapshot implements Snapshot {
     this.operation = operation;
     this.summary = summary;
     this.schemaId = schemaId;
-    this.manifestListLocation = null;
+    this.manifestListFile = new BaseManifestListFile(null, null, null, null);
     this.v1ManifestLocations = v1ManifestLocations;
   }
 
@@ -128,6 +152,11 @@ class BaseSnapshot implements Snapshot {
     return schemaId;
   }
 
+  @Override
+  public ManifestListFile manifestListFile() {
+    return manifestListFile;
+  }
+
   private void cacheManifests(FileIO fileIO) {
     if (fileIO == null) {
       throw new IllegalArgumentException("Cannot cache changes: FileIO is null");
@@ -143,7 +172,13 @@ class BaseSnapshot implements Snapshot {
 
     if (allManifests == null) {
       // if manifests isn't set, then the snapshotFile is set and should be read to get the list
-      this.allManifests = ManifestLists.read(fileIO.newInputFile(manifestListLocation));
+      InputFile manifestListInputFile = fileIO.newInputFile(manifestListFile.location());
+
+      if (manifestListFile.encryptedKeyMetadata() != null) { // encrypted manifest list file
+        manifestListInputFile = EncryptionUtil.decryptManifestListFile(manifestListFile, fileIO);
+      }
+
+      this.allManifests = ManifestLists.read(manifestListInputFile);
     }
 
     if (dataManifests == null || deleteManifests == null) {
@@ -216,7 +251,7 @@ class BaseSnapshot implements Snapshot {
 
   @Override
   public String manifestListLocation() {
-    return manifestListLocation;
+    return manifestListFile.location();
   }
 
   private void cacheDeleteFileChanges(FileIO fileIO) {
@@ -317,7 +352,7 @@ class BaseSnapshot implements Snapshot {
         .add("timestamp_ms", timestampMillis)
         .add("operation", operation)
         .add("summary", summary)
-        .add("manifest-list", manifestListLocation)
+        .add("manifest-list", manifestListFile.location())
         .add("schema-id", schemaId)
         .toString();
   }

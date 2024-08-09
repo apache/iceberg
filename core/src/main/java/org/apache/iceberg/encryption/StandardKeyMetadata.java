@@ -36,7 +36,8 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
   private static final Schema SCHEMA_V1 =
       new Schema(
           required(0, "encryption_key", Types.BinaryType.get()),
-          optional(1, "aad_prefix", Types.BinaryType.get()));
+          optional(1, "aad_prefix", Types.BinaryType.get()),
+          optional(2, "file_length", Types.LongType.get()));
   private static final org.apache.avro.Schema AVRO_SCHEMA_V1 =
       AvroSchemaUtil.convert(SCHEMA_V1, StandardKeyMetadata.class.getCanonicalName());
 
@@ -49,6 +50,7 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
 
   private ByteBuffer encryptionKey;
   private ByteBuffer aadPrefix;
+  private Long fileLength;
   private org.apache.avro.Schema avroSchema;
 
   /** Used by Avro reflection to instantiate this class * */
@@ -63,6 +65,10 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
     this.encryptionKey = encryptionKey;
     this.aadPrefix = aadPrefix;
     this.avroSchema = AVRO_SCHEMA_V1;
+  }
+
+  void setFileLength(long fileLength) {
+    this.fileLength = fileLength;
   }
 
   static Map<Byte, Schema> supportedSchemaVersions() {
@@ -81,6 +87,10 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
   @Override
   public ByteBuffer aadPrefix() {
     return aadPrefix;
+  }
+
+  Long fileLength() {
+    return fileLength;
   }
 
   static StandardKeyMetadata castOrParse(EncryptionKeyMetadata keyMetadata) {
@@ -128,6 +138,9 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
       case 1:
         this.aadPrefix = (ByteBuffer) v;
         return;
+      case 2:
+        this.fileLength = (Long) v;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -140,6 +153,8 @@ class StandardKeyMetadata implements NativeEncryptionKeyMetadata, IndexedRecord 
         return encryptionKey;
       case 1:
         return aadPrefix;
+      case 2:
+        return fileLength;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
     }

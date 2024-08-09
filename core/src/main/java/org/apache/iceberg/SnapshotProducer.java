@@ -45,6 +45,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -237,13 +239,18 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     OutputFile manifestList = manifestListPath();
 
-    try (ManifestListWriter writer =
-        ManifestLists.write(
-            ops.current().formatVersion(),
-            manifestList,
-            snapshotId(),
-            parentSnapshotId,
-            sequenceNumber)) {
+    EncryptionManager encryptionManager = ops.encryption();
+    EncryptedOutputFile encryptedManifestList = encryptionManager.encrypt(manifestList);
+
+    ManifestListWriter writer = null;
+    try {
+      writer =
+          ManifestLists.write(
+              ops.current().formatVersion(),
+              encryptedManifestList.encryptingOutputFile(),
+              snapshotId(),
+              parentSnapshotId,
+              sequenceNumber);
 
       // keep track of the manifest lists created
       manifestLists.add(manifestList.location());
@@ -257,9 +264,23 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 
       writer.addAll(Arrays.asList(manifestFiles));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write manifest list file");
+
+    } finally {
+      if (writer != null) {
+        try {
+          writer.close(); // must close before getting file length
+        } catch (IOException e) {
+          throw new RuntimeIOException(e, "Failed to close manifest list file writer");
+        }
+      }
     }
+
+    ManifestListFile manifestListFile =
+        EncryptionUtil.createManifestListFile(
+            manifestList.location(),
+            encryptionManager,
+            encryptedManifestList.keyMetadata(),
+            writer.length());
 
     return new BaseSnapshot(
         sequenceNumber,
@@ -269,7 +290,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         operation(),
         summary(base),
         base.currentSchemaId(),
-        manifestList.location());
+        manifestListFile);
   }
 
   protected abstract Map<String, String> summary();
