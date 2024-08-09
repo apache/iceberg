@@ -29,14 +29,13 @@ public final class AuthProperties {
   public static final String AUTH_TYPE_OAUTH2 = "oauth2";
   public static final String AUTH_TYPE_SIGV4 = "sigv4";
 
-  public static final String AUTHENTICATION_IMPL_NONE =
+  public static final String AUTH_MANAGER_IMPL_NONE =
       "org.apache.iceberg.rest.auth.NoopAuthManager";
-  public static final String AUTHENTICATION_IMPL_BASIC =
+  public static final String AUTH_MANAGER_IMPL_BASIC =
       "org.apache.iceberg.rest.auth.BasicAuthManager";
-  public static final String AUTHENTICATION_IMPL_OAUTH2 =
+  public static final String AUTH_MANAGER_IMPL_OAUTH2 =
       "org.apache.iceberg.rest.auth.OAuth2Manager";
-  public static final String AUTHENTICATION_IMPL_SIGV4 =
-      "org.apache.iceberg.aws.RESTSigV4AuthManager";
+  public static final String AUTH_MANAGER_IMPL_SIGV4 = "org.apache.iceberg.aws.RESTSigV4Signer";
 
   public static final String BASIC_USERNAME = "rest.auth.basic.username";
   public static final String BASIC_PASSWORD = "rest.auth.basic.password";

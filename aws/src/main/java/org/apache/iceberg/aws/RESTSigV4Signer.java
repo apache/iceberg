@@ -26,6 +26,8 @@ import org.apache.commons.io.IOUtils;
 import org.apache.hc.core5.http.HttpHeaders;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.HTTPRequest;
+import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.auth.AuthManager;
 import org.apache.iceberg.rest.auth.AuthSession;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.signer.Aws4Signer;
@@ -45,7 +47,7 @@ import software.amazon.awssdk.regions.Region;
  * href="https://docs.aws.amazon.com/general/latest/gr/signing-aws-api-requests.html">Signing AWS
  * API requests</a> for details about the protocol.
  */
-public class RESTSigV4Signer implements AuthSession {
+public class RESTSigV4Signer implements AuthManager, AuthSession {
   static final String EMPTY_BODY_SHA256 =
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   static final String RELOCATED_HEADER_PREFIX = "Original-";
@@ -62,6 +64,21 @@ public class RESTSigV4Signer implements AuthSession {
     this.signingRegion = awsProperties.restSigningRegion();
     this.signingName = awsProperties.restSigningName();
     this.credentialsProvider = awsProperties.restCredentialsProvider();
+  }
+
+  @Override
+  public void initialize(String owner, RESTClient client, Map<String, String> properties) {
+    initialize(properties);
+  }
+
+  @Override
+  public AuthSession catalogSession() {
+    return this;
+  }
+
+  @Override
+  public void close() {
+    // no-op
   }
 
   @Override
