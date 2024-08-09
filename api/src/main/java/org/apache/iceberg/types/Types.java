@@ -681,9 +681,19 @@ public class Types {
       return new ListType(NestedField.optional(elementId, "element", elementType));
     }
 
+    public static ListType ofOptional(int elementId, Type elementType, String doc) {
+      Preconditions.checkNotNull(elementType, "Element type cannot be null");
+      return new ListType(NestedField.optional(elementId, "element", elementType, doc));
+    }
+
     public static ListType ofRequired(int elementId, Type elementType) {
       Preconditions.checkNotNull(elementType, "Element type cannot be null");
       return new ListType(NestedField.required(elementId, "element", elementType));
+    }
+
+    public static ListType ofRequired(int elementId, Type elementType, String doc) {
+      Preconditions.checkNotNull(elementType, "Element type cannot be null");
+      return new ListType(NestedField.required(elementId, "element", elementType, doc));
     }
 
     private final NestedField elementField;
@@ -695,6 +705,10 @@ public class Types {
 
     public Type elementType() {
       return elementField.type();
+    }
+
+    public String elementDoc() {
+      return elementField.doc();
     }
 
     @Override
@@ -783,11 +797,27 @@ public class Types {
           NestedField.optional(valueId, "value", valueType));
     }
 
+    public static MapType ofOptional(
+        int keyId, int valueId, Type keyType, Type valueType, String keyDoc, String valueDoc) {
+      Preconditions.checkNotNull(valueType, "Value type cannot be null");
+      return new MapType(
+          NestedField.required(keyId, "key", keyType, keyDoc),
+          NestedField.optional(valueId, "value", valueType, valueDoc));
+    }
+
     public static MapType ofRequired(int keyId, int valueId, Type keyType, Type valueType) {
       Preconditions.checkNotNull(valueType, "Value type cannot be null");
       return new MapType(
           NestedField.required(keyId, "key", keyType),
           NestedField.required(valueId, "value", valueType));
+    }
+
+    public static MapType ofRequired(
+        int keyId, int valueId, Type keyType, Type valueType, String keyDoc, String valueDoc) {
+      Preconditions.checkNotNull(valueType, "Value type cannot be null");
+      return new MapType(
+          NestedField.required(keyId, "key", keyType, keyDoc),
+          NestedField.required(valueId, "value", valueType, valueDoc));
     }
 
     private final NestedField keyField;
@@ -803,8 +833,16 @@ public class Types {
       return keyField.type();
     }
 
+    public String keyDoc() {
+      return keyField.doc();
+    }
+
     public Type valueType() {
       return valueField.type();
+    }
+
+    public String valueDoc() {
+      return valueField.doc();
     }
 
     @Override
