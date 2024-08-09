@@ -500,18 +500,6 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
                         "snap-%d-%d-%s", snapshotId(), attempt.incrementAndGet(), commitUUID))));
   }
 
-  /**
-   * @deprecated will be removed in 1.7.0; Use {@link SnapshotProducer#newManifestOutputFile}
-   *     instead
-   */
-  @Deprecated
-  protected OutputFile newManifestOutput() {
-    return ops.io()
-        .newOutputFile(
-            ops.metadataFileLocation(
-                FileFormat.AVRO.addExtension(commitUUID + "-m" + manifestCount.getAndIncrement())));
-  }
-
   protected EncryptedOutputFile newManifestOutputFile() {
     String manifestFileLocation =
         ops.metadataFileLocation(

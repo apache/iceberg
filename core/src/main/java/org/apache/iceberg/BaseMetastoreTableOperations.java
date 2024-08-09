@@ -285,17 +285,6 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   }
 
   /**
-   * @deprecated since 1.6.0, will be removed in 1.7.0; Use {@link
-   *     BaseMetastoreOperations.CommitStatus} instead
-   */
-  @Deprecated
-  protected enum CommitStatus {
-    FAILURE,
-    SUCCESS,
-    UNKNOWN
-  }
-
-  /**
    * Attempt to load the table and see if any current or past metadata location matches the one we
    * were attempting to set. This is used as a last resort when we are dealing with exceptions that
    * may indicate the commit has failed but are not proof that this is the case. Past locations must
