@@ -25,11 +25,13 @@ import java.util.function.Supplier;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.common.DynClasses;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -47,16 +49,16 @@ public class GenericAvroReader<T>
   private Schema fileSchema = null;
   private ValueReader<T> reader = null;
 
-  public static <D> GenericAvroReader<D> create(org.apache.iceberg.Schema schema) {
-    return new GenericAvroReader<>(schema);
+  public static <D> GenericAvroReader<D> create(org.apache.iceberg.Schema expectedSchema) {
+    return new GenericAvroReader<>(expectedSchema);
   }
 
-  public static <D> GenericAvroReader<D> create(Schema schema) {
-    return new GenericAvroReader<>(schema);
+  public static <D> GenericAvroReader<D> create(Schema readSchema) {
+    return new GenericAvroReader<>(readSchema);
   }
 
-  GenericAvroReader(org.apache.iceberg.Schema readSchema) {
-    this.expectedType = readSchema.asStruct();
+  GenericAvroReader(org.apache.iceberg.Schema expectedSchema) {
+    this.expectedType = expectedSchema.asStruct();
   }
 
   GenericAvroReader(Schema readSchema) {
@@ -140,6 +142,11 @@ public class GenericAvroReader<T>
         Types.NestedField field = expected.field(fieldId);
         if (constant != null) {
           readPlan.add(Pair.of(pos, ValueReaders.constant(constant)));
+        } else if (field.initialDefault() != null) {
+          readPlan.add(
+              Pair.of(
+                  pos,
+                  ValueReaders.constant(toGenericRecord(field.type(), field.initialDefault()))));
         } else if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
           readPlan.add(Pair.of(pos, ValueReaders.constant(false)));
         } else if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
@@ -153,6 +160,41 @@ public class GenericAvroReader<T>
       }
 
       return recordReader(readPlan, avroSchemas.get(partner), record.getFullName());
+    }
+
+    Object toGenericRecord(Type type, Object data) {
+      // Recursively convert data to GenericRecord if type is a StructType.
+      // TODO: Rewrite this as a visitor.
+      if (type instanceof Types.StructType) {
+        Types.StructType structType = (Types.StructType) type;
+        GenericData.Record genericRecord = new GenericData.Record(AvroSchemaUtil.convert(type));
+        int index = 0;
+        for (Types.NestedField field : structType.fields()) {
+          genericRecord.put(
+              field.name(), toGenericRecord(field.type(), ((GenericRecord) data).get(index)));
+          index++;
+        }
+        return genericRecord;
+      } else if (type instanceof Types.MapType) {
+        Types.MapType mapType = (Types.MapType) type;
+        Map<Object, Object> genericMap =
+            Maps.newHashMapWithExpectedSize(((Map<Object, Object>) data).size());
+        for (Map.Entry<Object, Object> entry : ((Map<Object, Object>) data).entrySet()) {
+          genericMap.put(
+              toGenericRecord(mapType.keyType(), entry.getKey()),
+              toGenericRecord(mapType.valueType(), entry.getValue()));
+        }
+        return genericMap;
+      } else if (type instanceof Types.ListType) {
+        Types.ListType listType = (Types.ListType) type;
+        List<Object> genericList = Lists.newArrayListWithExpectedSize(((List<Object>) data).size());
+        for (Object element : (List<Object>) data) {
+          genericList.add(toGenericRecord(listType.elementType(), element));
+        }
+        return genericList;
+      } else {
+        return data;
+      }
     }
 
     @SuppressWarnings("unchecked")
