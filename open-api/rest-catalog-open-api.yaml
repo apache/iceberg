@@ -134,9 +134,22 @@ paths:
     post:
       tags:
         - OAuth2 API
-      summary: Get a token using an OAuth2 flow
+      summary: Get a token using an OAuth2 flow (DEPRECATED for REMOVAL)
+      deprecated: true
       operationId: getToken
       description:
+        The `oauth/tokens` endpoint is **DEPRECATED for REMOVAL**. It is _not_ recommended to
+        implement this endpoint, unless you are fully aware of the potential security implications.
+
+        All clients are encouraged to explicitly set the configuration property `oauth2-server-uri`
+        to the correct OAuth endpoint.
+
+        Deprecated since Iceberg (Java) 1.6.0. The endpoint and related types will be removed from
+        this spec in Iceberg (Java) 2.0.
+
+        See [Security improvements in the Iceberg REST specification](https://github.com/apache/iceberg/issues/10537)
+
+
         Exchange credentials for a token using the OAuth2 client credentials flow or token exchange.
 
 
@@ -2119,11 +2132,11 @@ components:
         metadata-log:
           $ref: '#/components/schemas/MetadataLog'
         # statistics
-        statistics-files:
+        statistics:
           type: array
           items:
             $ref: '#/components/schemas/StatisticsFile'
-        partition-statistics-files:
+        partition-statistics:
           type: array
           items:
             $ref: '#/components/schemas/PartitionStatisticsFile'
@@ -2586,6 +2599,7 @@ components:
         - $ref: '#/components/schemas/SetCurrentViewVersionUpdate'
 
     TableRequirement:
+      type: object
       discriminator:
         propertyName: type
         mapping:
@@ -2597,16 +2611,17 @@ components:
           assert-last-assigned-partition-id: '#/components/schemas/AssertLastAssignedPartitionId'
           assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
           assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
-      type: object
-      required:
-        - type
-      properties:
-        type:
-          type: "string"
+      oneOf:
+        - $ref: '#/components/schemas/AssertCreate'
+        - $ref: '#/components/schemas/AssertTableUUID'
+        - $ref: '#/components/schemas/AssertRefSnapshotId'
+        - $ref: '#/components/schemas/AssertLastAssignedFieldId'
+        - $ref: '#/components/schemas/AssertCurrentSchemaId'
+        - $ref: '#/components/schemas/AssertLastAssignedPartitionId'
+        - $ref: '#/components/schemas/AssertDefaultSpecId'
+        - $ref: '#/components/schemas/AssertDefaultSortOrderId'
 
     AssertCreate:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       type: object
       description: The table must not already exist; used for create transactions
       required:
@@ -2617,8 +2632,6 @@ components:
           enum: ["assert-create"]
 
     AssertTableUUID:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description: The table UUID must match the requirement's `uuid`
       required:
         - type
@@ -2631,8 +2644,6 @@ components:
           type: string
 
     AssertRefSnapshotId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; 
         if `snapshot-id` is `null` or missing, the ref must not already exist
@@ -2651,8 +2662,6 @@ components:
           format: int64
 
     AssertLastAssignedFieldId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's last assigned column id must match the requirement's `last-assigned-field-id`
       required:
@@ -2666,8 +2675,6 @@ components:
           type: integer
 
     AssertCurrentSchemaId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's current schema id must match the requirement's `current-schema-id`
       required:
@@ -2681,8 +2688,6 @@ components:
           type: integer
 
     AssertLastAssignedPartitionId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
       required:
@@ -2696,8 +2701,6 @@ components:
           type: integer
 
     AssertDefaultSpecId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's default spec id must match the requirement's `default-spec-id`
       required:
@@ -2711,8 +2714,6 @@ components:
           type: integer
 
     AssertDefaultSortOrderId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's default sort order id must match the requirement's `default-sort-order-id`
       required:
@@ -2726,20 +2727,15 @@ components:
           type: integer
 
     ViewRequirement:
+      type: object
       discriminator:
         propertyName: type
         mapping:
           assert-view-uuid: '#/components/schemas/AssertViewUUID'
-      type: object
-      required:
-        - type
-      properties:
-        type:
-          type: "string"
+      oneOf:
+        - $ref: '#/components/schemas/AssertViewUUID'
 
     AssertViewUUID:
-      allOf:
-        - $ref: "#/components/schemas/ViewRequirement"
       description: The view UUID must match the requirement's `uuid`
       required:
         - type
@@ -2939,7 +2935,12 @@ components:
         See https://datatracker.ietf.org/doc/html/rfc8693#section-3
 
     OAuthClientCredentialsRequest:
-      description:
+      deprecated: true
+      description: 
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
+
+
         OAuth2 client credentials request
 
 
@@ -2974,7 +2975,12 @@ components:
             a Basic Authorization header.
 
     OAuthTokenExchangeRequest:
+      deprecated: true
       description:
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
+
+
         OAuth2 token exchange request
 
 
@@ -3005,6 +3011,10 @@ components:
           $ref: '#/components/schemas/TokenType'
 
     OAuthTokenRequest:
+      deprecated: true
+      description:
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
       anyOf:
         - $ref: '#/components/schemas/OAuthClientCredentialsRequest'
         - $ref: '#/components/schemas/OAuthTokenExchangeRequest'
@@ -3159,6 +3169,10 @@ components:
             type: string
 
     OAuthError:
+      deprecated: true
+      description:
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
       type: object
       required:
         - error
@@ -3178,6 +3192,10 @@ components:
           type: string
 
     OAuthTokenResponse:
+      deprecated: true
+      description:
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
       type: object
       required:
         - access_token
@@ -3371,6 +3389,8 @@ components:
             type: integer
         properties:
           type: object
+          additionalProperties:
+            type: string
 
     PartitionStatisticsFile:
       type: object

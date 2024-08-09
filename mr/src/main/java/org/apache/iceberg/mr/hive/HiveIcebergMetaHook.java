@@ -19,6 +19,7 @@
 package org.apache.iceberg.mr.hive;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
@@ -84,7 +85,7 @@ public class HiveIcebergMetaHook implements HiveMetaHook {
         .getParameters()
         .put(
             BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-            BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase());
+            BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ROOT));
 
     if (!Catalogs.hiveCatalog(conf, catalogProperties)) {
       // For non-HiveCatalog tables too, we should set the input and output format

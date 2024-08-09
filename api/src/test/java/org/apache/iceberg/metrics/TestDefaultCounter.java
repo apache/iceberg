@@ -18,24 +18,26 @@
  */
 package org.apache.iceberg.metrics;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.metrics.MetricsContext.Unit;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestDefaultCounter {
 
   @Test
   public void nullCheck() {
-    Assertions.assertThatThrownBy(() -> new DefaultMetricsContext().counter("test", null))
+    assertThatThrownBy(() -> new DefaultMetricsContext().counter("test", null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid count unit: null");
   }
 
   @Test
   public void noop() {
-    Assertions.assertThat(DefaultCounter.NOOP.unit()).isEqualTo(Unit.UNDEFINED);
-    Assertions.assertThat(DefaultCounter.NOOP.isNoop()).isTrue();
-    Assertions.assertThatThrownBy(DefaultCounter.NOOP::value)
+    assertThat(DefaultCounter.NOOP.unit()).isEqualTo(Unit.UNDEFINED);
+    assertThat(DefaultCounter.NOOP.isNoop()).isTrue();
+    assertThatThrownBy(DefaultCounter.NOOP::value)
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("NOOP counter has no value");
   }
@@ -45,8 +47,8 @@ public class TestDefaultCounter {
     Counter counter = new DefaultCounter(Unit.BYTES);
     counter.increment();
     counter.increment(5L);
-    Assertions.assertThat(counter.value()).isEqualTo(6L);
-    Assertions.assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.BYTES);
-    Assertions.assertThat(counter.isNoop()).isFalse();
+    assertThat(counter.value()).isEqualTo(6L);
+    assertThat(counter.unit()).isEqualTo(MetricsContext.Unit.BYTES);
+    assertThat(counter.isNoop()).isFalse();
   }
 }

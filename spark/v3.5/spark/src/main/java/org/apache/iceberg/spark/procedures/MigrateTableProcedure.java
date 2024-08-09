@@ -40,7 +40,8 @@ class MigrateTableProcedure extends BaseProcedure {
         ProcedureParameter.required("table", DataTypes.StringType),
         ProcedureParameter.optional("properties", STRING_MAP),
         ProcedureParameter.optional("drop_backup", DataTypes.BooleanType),
-        ProcedureParameter.optional("backup_table_name", DataTypes.StringType)
+        ProcedureParameter.optional("backup_table_name", DataTypes.StringType),
+        ProcedureParameter.optional("parallelism", DataTypes.IntegerType)
       };
 
   private static final StructType OUTPUT_TYPE =
@@ -103,6 +104,13 @@ class MigrateTableProcedure extends BaseProcedure {
 
     if (backupTableName != null) {
       migrateTableSparkAction = migrateTableSparkAction.backupTableName(backupTableName);
+    }
+
+    if (!args.isNullAt(4)) {
+      int parallelism = args.getInt(4);
+      Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
+      migrateTableSparkAction =
+          migrateTableSparkAction.executeWith(executorService(parallelism, "table-migration"));
     }
 
     MigrateTable.Result result = migrateTableSparkAction.execute();

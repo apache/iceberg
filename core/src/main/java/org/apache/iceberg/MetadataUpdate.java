@@ -336,9 +336,9 @@ public interface MetadataUpdate extends Serializable {
     private final String refName;
     private final Long snapshotId;
     private final SnapshotRefType type;
-    private Integer minSnapshotsToKeep;
-    private Long maxSnapshotAgeMs;
-    private Long maxRefAgeMs;
+    private final Integer minSnapshotsToKeep;
+    private final Long maxSnapshotAgeMs;
+    private final Long maxRefAgeMs;
 
     public SetSnapshotRef(
         String refName,

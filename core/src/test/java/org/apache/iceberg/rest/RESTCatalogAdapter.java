@@ -254,7 +254,6 @@ public class RESTCatalogAdapter implements RESTClient {
       case "client_credentials":
         return OAuthTokenResponse.builder()
             .withToken("client-credentials-token:sub=" + request.get("client_id"))
-            .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
             .withTokenType("Bearer")
             .build();
 
@@ -289,11 +288,7 @@ public class RESTCatalogAdapter implements RESTClient {
         if (asNamespaceCatalog != null) {
           Namespace ns;
           if (vars.containsKey("parent")) {
-            ns =
-                Namespace.of(
-                    RESTUtil.NAMESPACE_SPLITTER
-                        .splitToStream(vars.get("parent"))
-                        .toArray(String[]::new));
+            ns = RESTUtil.decodeNamespace(vars.get("parent"));
           } else {
             ns = Namespace.empty();
           }

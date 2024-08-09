@@ -19,7 +19,7 @@
 
 project(":iceberg-azure-bundle") {
 
-  apply plugin: 'com.github.johnrengelman.shadow'
+  apply plugin: 'io.github.goooler.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 
@@ -37,6 +37,10 @@ project(":iceberg-azure-bundle") {
     from(projectDir) {
       include 'LICENSE'
       include 'NOTICE'
+    }
+
+    dependencies {
+      exclude(dependency('org.slf4j:slf4j-api'))
     }
 
     // relocate Azure-specific versions

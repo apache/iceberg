@@ -44,8 +44,8 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
   @Test
   public void testCreateNamespace() {
     String namespace = getRandomName();
-    namespaces.add(namespace);
-    assertThatThrownBy(() -> glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()))
+    NAMESPACES.add(namespace);
+    assertThatThrownBy(() -> GLUE.getDatabase(GetDatabaseRequest.builder().name(namespace).build()))
         .as("namespace does not exist before create")
         .isInstanceOf(EntityNotFoundException.class)
         .hasMessageContaining("not found");
@@ -60,7 +60,7 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
     Namespace ns = Namespace.of(namespace);
     glueCatalog.createNamespace(ns, properties);
     Database database =
-        glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
+        GLUE.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
     assertThat(database.name()).isEqualTo(namespace);
     assertThat(database.description()).isEqualTo("description");
     assertThat(database.locationUri()).isEqualTo("s3://location");
@@ -117,7 +117,7 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
     properties.put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, "description");
     glueCatalog.setProperties(Namespace.of(namespace), properties);
     Database database =
-        glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
+        GLUE.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
     assertThat(database.parameters()).containsEntry("key", "val").containsEntry("key2", "val2");
     assertThat(database.locationUri()).isEqualTo("s3://test");
     assertThat(database.description()).isEqualTo("description");
@@ -128,7 +128,7 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
             "key",
             IcebergToGlueConverter.GLUE_DB_LOCATION_KEY,
             IcebergToGlueConverter.GLUE_DESCRIPTION_KEY));
-    database = glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
+    database = GLUE.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
     assertThat(database.parameters()).doesNotContainKey("key").containsEntry("key2", "val2");
     assertThat(database.locationUri()).isNull();
     assertThat(database.description()).isNull();
@@ -138,7 +138,7 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
     properties.put(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://test2");
     properties.put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, "description2");
     glueCatalog.setProperties(Namespace.of(namespace), properties);
-    database = glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
+    database = GLUE.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
     assertThat(database.parameters()).containsEntry("key", "val").containsEntry("key2", "val2");
     assertThat(database.locationUri()).isEqualTo("s3://test2");
     assertThat(database.description()).isEqualTo("description2");
@@ -148,7 +148,7 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
   public void testDropNamespace() {
     String namespace = createNamespace();
     glueCatalog.dropNamespace(Namespace.of(namespace));
-    assertThatThrownBy(() -> glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()))
+    assertThatThrownBy(() -> GLUE.getDatabase(GetDatabaseRequest.builder().name(namespace).build()))
         .as("namespace should not exist after deletion")
         .isInstanceOf(EntityNotFoundException.class)
         .hasMessageContaining("not found");
@@ -167,7 +167,7 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
   @Test
   public void testDropNamespaceThatContainsNonIcebergTable() {
     String namespace = createNamespace();
-    glue.createTable(
+    GLUE.createTable(
         CreateTableRequest.builder()
             .databaseName(namespace)
             .tableInput(TableInput.builder().name(UUID.randomUUID().toString()).build())

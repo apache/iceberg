@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.nessie;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
@@ -28,7 +30,6 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.CatalogTests;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.LocationUtil;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -161,7 +162,7 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
 
   @Test
   public void testWarehouseLocationWithTrailingSlash() {
-    Assertions.assertThat(catalog.defaultWarehouseLocation(TABLE))
+    assertThat(catalog.defaultWarehouseLocation(TABLE))
         .startsWith(
             LocationUtil.stripTrailingSlash(temp.toUri().toString())
                 + "/"

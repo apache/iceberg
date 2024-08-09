@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
@@ -106,7 +107,13 @@ public class TestS3RestSigner {
 
     ScheduledThreadPoolExecutor executor =
         ((ScheduledThreadPoolExecutor) validatingSigner.icebergSigner.tokenRefreshExecutor());
-    // token expiration is set to 100s so there should be exactly one token scheduled for refresh
+    // token expiration is set to 10000s by the S3SignerServlet so there should be exactly one token
+    // scheduled for refresh. Such a high token expiration value is explicitly selected to be much
+    // larger than TestS3RestSigner would need to execute all tests.
+    // The reason why this check is done here with a high token expiration is to make sure that
+    // there aren't other token refreshes being scheduled after every sign request and after
+    // TestS3RestSigner completes all tests, there should be only this single token in the queue
+    // that is scheduled for refresh
     assertThat(executor.getPoolSize()).isEqualTo(1);
     assertThat(executor.getQueue())
         .as("should only have a single token scheduled for refresh")
@@ -327,7 +334,10 @@ public class TestS3RestSigner {
       // back after signing
       Map<String, List<String>> unsignedHeaders =
           request.headers().entrySet().stream()
-              .filter(e -> S3SignerServlet.UNSIGNED_HEADERS.contains(e.getKey().toLowerCase()))
+              .filter(
+                  e ->
+                      S3SignerServlet.UNSIGNED_HEADERS.contains(
+                          e.getKey().toLowerCase(Locale.ROOT)))
               .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
       SdkHttpFullRequest.Builder builder = request.toBuilder();

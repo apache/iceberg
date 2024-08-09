@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.expressions.Expressions.bucket;
+import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Map;
 import org.apache.iceberg.NullOrder;
@@ -27,7 +29,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -75,14 +76,14 @@ public class TestSetWriteDistributionAndOrdering extends SparkExtensionsTestBase
     Table table = validationCatalog.loadTable(tableIdent);
     Assert.assertTrue("Table should start unsorted", table.sortOrder().isUnsorted());
     sql("SET %s=true", SQLConf.CASE_SENSITIVE().key());
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
             })
         .isInstanceOf(ValidationException.class);
 
     sql("SET %s=false", SQLConf.CASE_SENSITIVE().key());
-    Assertions.assertThatNoException()
+    assertThatNoException()
         .isThrownBy(
             () -> {
               sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);

@@ -21,6 +21,8 @@ package org.apache.iceberg.aws.glue;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableProperties;
@@ -39,6 +41,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
+import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
 import software.amazon.awssdk.services.glue.model.GetTableResponse;
 import software.amazon.awssdk.services.glue.model.Table;
@@ -52,16 +55,16 @@ public class GlueTestBase {
   private static final Logger LOG = LoggerFactory.getLogger(GlueTestBase.class);
 
   // the integration test requires the following env variables
-  static final String testBucketName = AwsIntegTestUtil.testBucketName();
+  static final String TEST_BUCKET_NAME = AwsIntegTestUtil.testBucketName();
 
-  static final String catalogName = "glue";
-  static final String testPathPrefix = getRandomName();
-  static final List<String> namespaces = Lists.newArrayList();
+  static final String CATALOG_NAME = "glue";
+  static final String TEST_PATH_PREFIX = getRandomName();
+  static final List<String> NAMESPACES = Lists.newArrayList();
 
   // aws clients
-  static final AwsClientFactory clientFactory = AwsClientFactories.defaultFactory();
-  static final GlueClient glue = clientFactory.glue();
-  static final S3Client s3 = clientFactory.s3();
+  static final AwsClientFactory CLIENT_FACTORY = AwsClientFactories.defaultFactory();
+  static final GlueClient GLUE = CLIENT_FACTORY.glue();
+  static final S3Client S3 = CLIENT_FACTORY.s3();
 
   // iceberg
   static GlueCatalog glueCatalog;
@@ -71,14 +74,14 @@ public class GlueTestBase {
       new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
   static PartitionSpec partitionSpec = PartitionSpec.builderFor(schema).build();
   // table location properties
-  static final Map<String, String> tableLocationProperties =
+  static final Map<String, String> TABLE_LOCATION_PROPERTIES =
       ImmutableMap.of(
-          TableProperties.WRITE_DATA_LOCATION, "s3://" + testBucketName + "/writeDataLoc",
-          TableProperties.WRITE_METADATA_LOCATION, "s3://" + testBucketName + "/writeMetaDataLoc",
+          TableProperties.WRITE_DATA_LOCATION, "s3://" + TEST_BUCKET_NAME + "/writeDataLoc",
+          TableProperties.WRITE_METADATA_LOCATION, "s3://" + TEST_BUCKET_NAME + "/writeMetaDataLoc",
           TableProperties.WRITE_FOLDER_STORAGE_LOCATION,
-              "s3://" + testBucketName + "/writeFolderStorageLoc");
+              "s3://" + TEST_BUCKET_NAME + "/writeFolderStorageLoc");
 
-  static final String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
+  static final String TEST_BUCKET_PATH = "s3://" + TEST_BUCKET_NAME + "/" + TEST_PATH_PREFIX;
 
   @BeforeAll
   public static void beforeClass() {
@@ -87,11 +90,11 @@ public class GlueTestBase {
     S3FileIOProperties s3FileIOProperties = new S3FileIOProperties();
     s3FileIOProperties.setDeleteBatchSize(10);
     glueCatalog.initialize(
-        catalogName,
-        testBucketPath,
+        CATALOG_NAME,
+        TEST_BUCKET_PATH,
         awsProperties,
         s3FileIOProperties,
-        glue,
+        GLUE,
         null,
         ImmutableMap.of());
 
@@ -99,19 +102,19 @@ public class GlueTestBase {
     AwsProperties propertiesSkipNameValidation = new AwsProperties();
     propertiesSkipNameValidation.setGlueCatalogSkipNameValidation(true);
     glueCatalogWithSkipNameValidation.initialize(
-        catalogName,
-        testBucketPath,
+        CATALOG_NAME,
+        TEST_BUCKET_PATH,
         propertiesSkipNameValidation,
         new S3FileIOProperties(),
-        glue,
+        GLUE,
         null,
         ImmutableMap.of());
   }
 
   @AfterAll
   public static void afterClass() {
-    AwsIntegTestUtil.cleanGlueCatalog(glue, namespaces);
-    AwsIntegTestUtil.cleanS3Bucket(s3, testBucketName, testPathPrefix);
+    AwsIntegTestUtil.cleanGlueCatalog(GLUE, NAMESPACES);
+    AwsIntegTestUtil.cleanS3Bucket(S3, TEST_BUCKET_NAME, TEST_PATH_PREFIX);
   }
 
   public static String getRandomName() {
@@ -120,7 +123,7 @@ public class GlueTestBase {
 
   public static String createNamespace() {
     String namespace = getRandomName();
-    namespaces.add(namespace);
+    NAMESPACES.add(namespace);
     glueCatalog.createNamespace(Namespace.of(namespace));
     return namespace;
   }
@@ -139,7 +142,7 @@ public class GlueTestBase {
   public static void updateTableDescription(
       String namespace, String tableName, String description) {
     GetTableResponse response =
-        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+        GLUE.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
     Table table = response.table();
     UpdateTableRequest request =
         UpdateTableRequest.builder()
@@ -156,6 +159,39 @@ public class GlueTestBase {
                     .storageDescriptor(table.storageDescriptor())
                     .build())
             .build();
-    glue.updateTable(request);
+    GLUE.updateTable(request);
+  }
+
+  public static void updateTableColumns(
+      String namespace, String tableName, Function<Column, Column> columnUpdater) {
+    GetTableResponse response =
+        GLUE.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    Table existingTable = response.table();
+    List<Column> updatedColumns =
+        existingTable.storageDescriptor().columns().stream()
+            .map(columnUpdater)
+            .collect(Collectors.toList());
+
+    UpdateTableRequest request =
+        UpdateTableRequest.builder()
+            .catalogId(existingTable.catalogId())
+            .databaseName(existingTable.databaseName())
+            .tableInput(
+                TableInput.builder()
+                    .description(existingTable.description())
+                    .name(existingTable.name())
+                    .partitionKeys(existingTable.partitionKeys())
+                    .tableType(existingTable.tableType())
+                    .owner(existingTable.owner())
+                    .parameters(existingTable.parameters())
+                    .storageDescriptor(
+                        existingTable
+                            .storageDescriptor()
+                            .toBuilder()
+                            .columns(updatedColumns)
+                            .build())
+                    .build())
+            .build();
+    GLUE.updateTable(request);
   }
 }

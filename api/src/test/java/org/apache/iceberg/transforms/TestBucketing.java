@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -34,7 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BucketUtil;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -356,7 +356,7 @@ public class TestBucketing {
 
   @Test
   public void testVerifiedIllegalNumBuckets() {
-    Assertions.assertThatThrownBy(() -> Bucket.get(0))
+    assertThatThrownBy(() -> Bucket.get(0))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid number of buckets: 0 (must be > 0)");
   }
@@ -383,7 +383,7 @@ public class TestBucketing {
    */
   private static UUID newUUID(byte[] bytes) {
     try {
-      return uuidBytesConstructor.newInstance((Object) bytes);
+      return uuidBytesConstructor.newInstance(bytes);
     } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
       throw new RuntimeException(e);
     }

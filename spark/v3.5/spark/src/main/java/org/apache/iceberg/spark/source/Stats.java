@@ -18,16 +18,21 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.Map;
 import java.util.OptionalLong;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.read.Statistics;
+import org.apache.spark.sql.connector.read.colstats.ColumnStatistics;
 
 class Stats implements Statistics {
   private final OptionalLong sizeInBytes;
   private final OptionalLong numRows;
+  private final Map<NamedReference, ColumnStatistics> colstats;
 
-  Stats(long sizeInBytes, long numRows) {
+  Stats(long sizeInBytes, long numRows, Map<NamedReference, ColumnStatistics> colstats) {
     this.sizeInBytes = OptionalLong.of(sizeInBytes);
     this.numRows = OptionalLong.of(numRows);
+    this.colstats = colstats;
   }
 
   @Override
@@ -38,5 +43,10 @@ class Stats implements Statistics {
   @Override
   public OptionalLong numRows() {
     return numRows;
+  }
+
+  @Override
+  public Map<NamedReference, ColumnStatistics> columnStats() {
+    return colstats;
   }
 }

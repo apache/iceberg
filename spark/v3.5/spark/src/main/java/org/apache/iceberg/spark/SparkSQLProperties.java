@@ -93,4 +93,8 @@ public class SparkSQLProperties {
 
   public static final String SET_FIELD_NULLABLE = "spark.sql.iceberg.set-field-nullable";
   public static final boolean SET_FIELD_NULLABLE_DEFAULT = false;
+  
+  // Controls whether to report available column statistics to Spark for query optimization.
+  public static final String REPORT_COLUMN_STATS = "spark.sql.iceberg.report-column-stats";
+  public static final boolean REPORT_COLUMN_STATS_DEFAULT = true;
 }

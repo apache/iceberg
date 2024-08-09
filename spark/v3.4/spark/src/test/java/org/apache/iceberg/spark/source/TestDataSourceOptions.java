@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.math.RoundingMode;
@@ -54,7 +56,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
+import org.apache.spark.sql.functions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -245,7 +247,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<Long> snapshotIds = SnapshotUtil.currentAncestorIds(table);
 
     // start-snapshot-id and snapshot-id are both configured.
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -259,7 +261,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             "Cannot set start-snapshot-id and end-snapshot-id for incremental scans when either snapshot-id or as-of-timestamp is set");
 
     // end-snapshot-id and as-of-timestamp are both configured.
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -275,7 +277,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             "Cannot set start-snapshot-id and end-snapshot-id for incremental scans when either snapshot-id or as-of-timestamp is set");
 
     // only end-snapshot-id is configured.
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 spark
                     .read()
@@ -288,29 +290,44 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
             "Cannot set only end-snapshot-id for incremental scans. Please, set start-snapshot-id too.");
 
     // test (1st snapshot, current snapshot] incremental scan.
-    List<SimpleRecord> result =
+    Dataset<Row> unboundedIncrementalResult =
         spark
             .read()
             .format("iceberg")
             .option("start-snapshot-id", snapshotIds.get(3).toString())
-            .load(tableLocation)
+            .load(tableLocation);
+    List<SimpleRecord> result1 =
+        unboundedIncrementalResult
             .orderBy("id")
             .as(Encoders.bean(SimpleRecord.class))
             .collectAsList();
-    Assert.assertEquals("Records should match", expectedRecords.subList(1, 4), result);
+    assertThat(result1).as("Records should match").isEqualTo(expectedRecords.subList(1, 4));
+    assertThat(unboundedIncrementalResult.count())
+        .as("Unprocessed count should match record count")
+        .isEqualTo(3);
+
+    Row row1 = unboundedIncrementalResult.agg(functions.min("id"), functions.max("id")).head();
+    assertThat(row1.getInt(0)).as("min value should match").isEqualTo(2);
+    assertThat(row1.getInt(1)).as("max value should match").isEqualTo(4);
 
     // test (2nd snapshot, 3rd snapshot] incremental scan.
-    Dataset<Row> resultDf =
+    Dataset<Row> incrementalResult =
         spark
             .read()
             .format("iceberg")
             .option("start-snapshot-id", snapshotIds.get(2).toString())
             .option("end-snapshot-id", snapshotIds.get(1).toString())
             .load(tableLocation);
-    List<SimpleRecord> result1 =
-        resultDf.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
-    Assert.assertEquals("Records should match", expectedRecords.subList(2, 3), result1);
-    Assert.assertEquals("Unprocessed count should match record count", 1, resultDf.count());
+    List<SimpleRecord> result2 =
+        incrementalResult.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
+    assertThat(result2).as("Records should match").isEqualTo(expectedRecords.subList(2, 3));
+    assertThat(incrementalResult.count())
+        .as("Unprocessed count should match record count")
+        .isEqualTo(1);
+
+    Row row2 = incrementalResult.agg(functions.min("id"), functions.max("id")).head();
+    assertThat(row2.getInt(0)).as("min value should match").isEqualTo(3);
+    assertThat(row2.getInt(1)).as("max value should match").isEqualTo(3);
   }
 
   @Test
@@ -450,7 +467,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
     Assert.assertEquals(2, snapshots.size());
     Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
-    Assertions.assertThat(snapshots.get(1).summary())
+    assertThat(snapshots.get(1).summary())
         .containsEntry("writer-thread", "test-extra-commit-message-writer-thread")
         .containsEntry("extra-key", "someValue")
         .containsEntry("another-key", "anotherValue");
@@ -493,7 +510,7 @@ public class TestDataSourceOptions extends SparkTestBaseWithCatalog {
     List<Snapshot> snapshots = Lists.newArrayList(table.snapshots());
     Assert.assertEquals(2, snapshots.size());
     Assert.assertNull(snapshots.get(0).summary().get("writer-thread"));
-    Assertions.assertThat(snapshots.get(1).summary())
+    assertThat(snapshots.get(1).summary())
         .containsEntry("writer-thread", "test-extra-commit-message-delete-thread")
         .containsEntry("extra-key", "someValue")
         .containsEntry("another-key", "anotherValue");

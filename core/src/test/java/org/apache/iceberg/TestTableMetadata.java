@@ -537,7 +537,7 @@ public class TestTableMetadata {
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp, "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp, "/tmp/000001-" + UUID.randomUUID() + ".metadata.json"));
 
     TableMetadata base =
         new TableMetadata(
@@ -606,17 +606,14 @@ public class TestTableMetadata {
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 100,
-            "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 100, "/tmp/000001-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 90,
-            "/tmp/000002-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 90, "/tmp/000002-" + UUID.randomUUID() + ".metadata.json"));
 
     MetadataLogEntry latestPreviousMetadata =
         new MetadataLogEntry(
-            currentTimestamp - 80,
-            "/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json");
+            currentTimestamp - 80, "/tmp/000003-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
         new TableMetadata(
@@ -691,29 +688,23 @@ public class TestTableMetadata {
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 100,
-            "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 100, "/tmp/000001-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 90,
-            "/tmp/000002-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 90, "/tmp/000002-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 80,
-            "/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 80, "/tmp/000003-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 70,
-            "/tmp/000004-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 70, "/tmp/000004-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 60,
-            "/tmp/000005-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 60, "/tmp/000005-" + UUID.randomUUID() + ".metadata.json"));
 
     MetadataLogEntry latestPreviousMetadata =
         new MetadataLogEntry(
-            currentTimestamp - 50,
-            "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
+            currentTimestamp - 50, "/tmp/000006-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
         new TableMetadata(
@@ -792,29 +783,23 @@ public class TestTableMetadata {
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 100,
-            "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 100, "/tmp/000001-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 90,
-            "/tmp/000002-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 90, "/tmp/000002-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 80,
-            "/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 80, "/tmp/000003-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 70,
-            "/tmp/000004-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 70, "/tmp/000004-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 60,
-            "/tmp/000005-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 60, "/tmp/000005-" + UUID.randomUUID() + ".metadata.json"));
 
     MetadataLogEntry latestPreviousMetadata =
         new MetadataLogEntry(
-            currentTimestamp - 50,
-            "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
+            currentTimestamp - 50, "/tmp/000006-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
         new TableMetadata(

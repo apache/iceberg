@@ -19,6 +19,7 @@
 package org.apache.iceberg.catalog;
 
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -80,7 +81,7 @@ public class TableIdentifier {
   public TableIdentifier toLowerCase() {
     String[] newLevels =
         Arrays.stream(namespace().levels()).map(String::toLowerCase).toArray(String[]::new);
-    String newName = name().toLowerCase();
+    String newName = name().toLowerCase(Locale.ROOT);
     return TableIdentifier.of(Namespace.of(newLevels), newName);
   }
 

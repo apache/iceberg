@@ -194,9 +194,9 @@ public class TestRewriteFiles extends TestBase {
 
     validateManifestEntries(
         pending.allManifests(table.io()).get(1),
-        ids(pendingId, pendingId, baseSnapshotId),
-        files(FILE_A, FILE_A, FILE_B),
-        statuses(DELETED, DELETED, EXISTING));
+        ids(pendingId, baseSnapshotId),
+        files(FILE_A, FILE_B),
+        statuses(DELETED, EXISTING));
 
     // We should only get the 3 manifests that this test is expected to add.
     assertThat(listManifestFiles()).hasSize(3);

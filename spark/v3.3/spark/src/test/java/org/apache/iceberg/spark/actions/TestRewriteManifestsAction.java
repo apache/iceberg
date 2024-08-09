@@ -25,6 +25,7 @@ import static org.apache.iceberg.ValidationHelpers.snapshotIds;
 import static org.apache.iceberg.ValidationHelpers.validateDataManifest;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -35,7 +36,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
@@ -231,11 +231,12 @@ public class TestRewriteManifestsAction extends SparkTestBase {
     Table spyTable = spy(table);
     when(spyTable.rewriteManifests()).thenReturn(spyNewRewriteManifests);
 
-    AssertHelpers.assertThrowsCause(
-        "Should throw a Commit State Unknown Exception",
-        RuntimeException.class,
-        "Datacenter on Fire",
-        () -> actions.rewriteManifests(spyTable).rewriteIf(manifest -> true).execute());
+    assertThatThrownBy(
+            () -> actions.rewriteManifests(spyTable).rewriteIf(manifest -> true).execute())
+        .as("Should throw a Commit State Unknown Exception")
+        .cause()
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Datacenter on Fire");
 
     table.refresh();
 

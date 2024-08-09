@@ -18,6 +18,7 @@
  */
 package org.apache.hadoop.hive.ql.exec.vector;
 
+import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -30,9 +31,10 @@ public class VectorizedSupport {
     final String lowerCaseName;
 
     Support() {
-      this.lowerCaseName = name().toLowerCase();
+      this.lowerCaseName = name().toLowerCase(Locale.ROOT);
     }
 
+    @SuppressWarnings("checkstyle:ConstantName")
     public static final Map<String, Support> nameToSupportMap = Maps.newHashMap();
 
     static {

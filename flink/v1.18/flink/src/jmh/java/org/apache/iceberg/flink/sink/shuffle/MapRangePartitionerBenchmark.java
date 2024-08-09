@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -27,6 +29,8 @@ import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.SortOrderComparators;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -66,6 +70,8 @@ public class MapRangePartitionerBenchmark {
           Types.NestedField.required(9, "name9", Types.StringType.get()));
 
   private static final SortOrder SORT_ORDER = SortOrder.builderFor(SCHEMA).asc("id").build();
+  private static final Comparator<StructLike> SORT_ORDER_COMPARTOR =
+      SortOrderComparators.forSchema(SCHEMA, SORT_ORDER);
   private static final SortKey SORT_KEY = new SortKey(SCHEMA, SORT_ORDER);
 
   private MapRangePartitioner partitioner;
@@ -82,10 +88,11 @@ public class MapRangePartitionerBenchmark {
           mapStatistics.put(sortKey, weight);
         });
 
-    MapDataStatistics dataStatistics = new MapDataStatistics(mapStatistics);
+    MapAssignment mapAssignment =
+        MapAssignment.fromKeyFrequency(2, mapStatistics, 0.0, SORT_ORDER_COMPARTOR);
     this.partitioner =
         new MapRangePartitioner(
-            SCHEMA, SortOrder.builderFor(SCHEMA).asc("id").build(), dataStatistics, 2);
+            SCHEMA, SortOrder.builderFor(SCHEMA).asc("id").build(), mapAssignment);
 
     List<Integer> keys = Lists.newArrayList(weights.keySet().iterator());
     long[] weightsCDF = new long[keys.size()];
@@ -133,7 +140,8 @@ public class MapRangePartitionerBenchmark {
       buffer[i] = (byte) CHARS.charAt(ThreadLocalRandom.current().nextInt(CHARS.length()));
     }
 
-    return prefix + new String(buffer);
+    // CHARS is all ASCII
+    return prefix + new String(buffer, StandardCharsets.US_ASCII);
   }
 
   /** find the index where weightsUDF[index] < weight && weightsUDF[index+1] >= weight */

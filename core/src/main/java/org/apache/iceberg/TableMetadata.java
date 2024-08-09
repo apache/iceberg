@@ -51,7 +51,7 @@ public class TableMetadata implements Serializable {
   static final long INITIAL_SEQUENCE_NUMBER = 0;
   static final long INVALID_SEQUENCE_NUMBER = -1;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 2;
-  static final int SUPPORTED_TABLE_FORMAT_VERSION = 2;
+  static final int SUPPORTED_TABLE_FORMAT_VERSION = 3;
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
@@ -73,12 +73,7 @@ public class TableMetadata implements Serializable {
 
   public static TableMetadata newTableMetadata(
       Schema schema, PartitionSpec spec, String location, Map<String, String> properties) {
-    SortOrder sortOrder = SortOrder.unsorted();
-    int formatVersion =
-        PropertyUtil.propertyAsInt(
-            properties, TableProperties.FORMAT_VERSION, DEFAULT_TABLE_FORMAT_VERSION);
-    return newTableMetadata(
-        schema, spec, sortOrder, location, persistedProperties(properties), formatVersion);
+    return newTableMetadata(schema, spec, SortOrder.unsorted(), location, properties);
   }
 
   private static Map<String, String> unreservedProperties(Map<String, String> rawProperties) {
@@ -569,6 +564,10 @@ public class TableMetadata implements Serializable {
     return new Builder(this).setDefaultPartitionSpec(newPartitionSpec).build();
   }
 
+  public TableMetadata addPartitionSpec(PartitionSpec newPartitionSpec) {
+    return new Builder(this).addPartitionSpec(newPartitionSpec).build();
+  }
+
   public TableMetadata replaceSortOrder(SortOrder newOrder) {
     return new Builder(this).setDefaultSortOrder(newOrder).build();
   }
@@ -858,7 +857,11 @@ public class TableMetadata implements Serializable {
   }
 
   public static Builder buildFromEmpty() {
-    return new Builder();
+    return new Builder(DEFAULT_TABLE_FORMAT_VERSION);
+  }
+
+  public static Builder buildFromEmpty(int formatVersion) {
+    return new Builder(formatVersion);
   }
 
   public static class Builder {
@@ -908,8 +911,12 @@ public class TableMetadata implements Serializable {
     private final Map<Integer, SortOrder> sortOrdersById;
 
     private Builder() {
+      this(DEFAULT_TABLE_FORMAT_VERSION);
+    }
+
+    private Builder(int formatVersion) {
       this.base = null;
-      this.formatVersion = DEFAULT_TABLE_FORMAT_VERSION;
+      this.formatVersion = formatVersion;
       this.lastSequenceNumber = INITIAL_SEQUENCE_NUMBER;
       this.uuid = UUID.randomUUID().toString();
       this.schemas = Lists.newArrayList();
@@ -1439,7 +1446,7 @@ public class TableMetadata implements Serializable {
       // what is in the metadata file, which does not store changes. metadata location with changes
       // is inconsistent.
       Preconditions.checkArgument(
-          changes.size() == 0 || discardChanges || metadataLocation == null,
+          changes.isEmpty() || discardChanges || metadataLocation == null,
           "Cannot set metadata location with changes to table metadata: %s changes",
           changes.size());
 
