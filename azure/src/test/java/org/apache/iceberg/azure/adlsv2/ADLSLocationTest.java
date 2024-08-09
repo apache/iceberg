@@ -36,6 +36,7 @@ public class ADLSLocationTest {
     assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path/to/file");
+    assertThat(location.root()).isEqualTo(scheme + "://container@account.dfs.core.windows.net/");
   }
 
   @Test
@@ -46,6 +47,7 @@ public class ADLSLocationTest {
     assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path%20to%20file");
+    assertThat(location.root()).isEqualTo("abfs://container@account.dfs.core.windows.net/");
   }
 
   @Test
