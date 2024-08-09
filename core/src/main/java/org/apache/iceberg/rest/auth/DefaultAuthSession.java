@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest.auth;
 
 import java.util.Map;
+import org.apache.iceberg.rest.HTTPRequest;
 import org.immutables.value.Value;
 
 /**

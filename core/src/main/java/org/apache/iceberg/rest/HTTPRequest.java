@@ -16,12 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.auth;
+package org.apache.iceberg.rest;
 
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.rest.auth.AuthManager;
 
 /**
  * A facade for an HTTP request that allows reading and modifying the request. This is used by
