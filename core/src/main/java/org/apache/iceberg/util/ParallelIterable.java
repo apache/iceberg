@@ -101,6 +101,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     }
 
     @Override
+    @SuppressWarnings("FutureReturnValueIgnored")
     public void close() {
       // close first, avoid new task submit
       this.closed.set(true);
