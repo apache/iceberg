@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest.auth;
 
+import org.apache.iceberg.rest.HTTPRequest;
+
 /**
  * An authentication session that can be used to authenticate outgoing HTTP requests.
  *
