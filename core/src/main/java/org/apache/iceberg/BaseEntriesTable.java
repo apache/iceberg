@@ -262,7 +262,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
         return ref.fieldId() == DataFile.CONTENT.fieldId();
       }
 
-      private <T> boolean contentMatch(Integer fileContentId) {
+      private boolean contentMatch(Integer fileContentId) {
         if (FileContent.DATA.id() == fileContentId) {
           return ManifestContent.DATA.id() == manifestContentId;
         } else if (FileContent.EQUALITY_DELETES.id() == fileContentId

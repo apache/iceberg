@@ -58,11 +58,6 @@ public class Pair<X, Y> implements IndexedRecord, SpecificData.SchemaConstructab
   private X first;
   private Y second;
 
-  /** Constructor used by Avro */
-  private Pair(Schema schema) {
-    this.schema = schema;
-  }
-
   private Pair(X first, Y second) {
     this.first = first;
     this.second = second;
