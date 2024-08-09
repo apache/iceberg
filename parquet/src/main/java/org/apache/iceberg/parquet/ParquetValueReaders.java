@@ -27,6 +27,8 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.PrimitiveIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -113,6 +115,9 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {}
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {}
   }
 
   static class ConstantReader<C> implements ParquetValueReader<C> {
@@ -176,16 +181,24 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {}
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {}
   }
 
   static class PositionReader implements ParquetValueReader<Long> {
     private long rowOffset = -1;
     private long rowGroupStart;
+    private PrimitiveIterator.OfLong rowIndexes;
 
     @Override
     public Long read(Long reuse) {
-      rowOffset = rowOffset + 1;
-      return rowGroupStart + rowOffset;
+      if (rowIndexes != null) {
+        return rowIndexes.nextLong();
+      } else {
+        rowOffset = rowOffset + 1;
+        return rowGroupStart + rowOffset;
+      }
     }
 
     @Override
@@ -200,8 +213,17 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      this.rowGroupStart = rowPosition;
+      setPageSource(pageStore);
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      this.rowGroupStart = pageStore.getRowIndexOffset().orElse(0L);
       this.rowOffset = -1;
+      Optional<PrimitiveIterator.OfLong> optionalRowIndexes = pageStore.getRowIndexes();
+      if (optionalRowIndexes.isPresent()) {
+        this.rowIndexes = optionalRowIndexes.get();
+      }
     }
   }
 
@@ -221,7 +243,12 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      column.setPageSource(pageStore.getPageReader(desc));
+      setPageSource(pageStore);
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      column.setPageSource(pageStore.getPageReader(desc), pageStore.getRowIndexes());
     }
 
     @Override
@@ -405,7 +432,12 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      reader.setPageSource(pageStore, rowPosition);
+      setPageSource(pageStore);
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      reader.setPageSource(pageStore);
     }
 
     @Override
@@ -450,7 +482,12 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      reader.setPageSource(pageStore, rowPosition);
+      setPageSource(pageStore);
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      reader.setPageSource(pageStore);
     }
 
     @Override
@@ -569,8 +606,13 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      keyReader.setPageSource(pageStore, rowPosition);
-      valueReader.setPageSource(pageStore, rowPosition);
+      setPageSource(pageStore);
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore) {
+      keyReader.setPageSource(pageStore);
+      valueReader.setPageSource(pageStore);
     }
 
     @Override
@@ -699,6 +741,7 @@ public class ParquetValueReaders {
     private final ParquetValueReader<?>[] readers;
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
+    private boolean topLevel = false;
 
     protected StructReader(List<Type> types, List<ParquetValueReader<?>> readers) {
       this.readers =
@@ -718,10 +761,19 @@ public class ParquetValueReaders {
       this.column = firstNonNullColumn(children);
     }
 
+    public final void topLevel() {
+      this.topLevel = true;
+    }
+
     @Override
     public final void setPageSource(PageReadStore pageStore, long rowPosition) {
+      setPageSource(pageStore);
+    }
+
+    @Override
+    public final void setPageSource(PageReadStore pageStore) {
       for (ParquetValueReader<?> reader : readers) {
-        reader.setPageSource(pageStore, rowPosition);
+        reader.setPageSource(pageStore);
       }
     }
 
@@ -732,6 +784,12 @@ public class ParquetValueReaders {
 
     @Override
     public final T read(T reuse) {
+      if (topLevel && column.needsSynchronizing()) {
+        for (TripleIterator<?> child : children) {
+          child.synchronize();
+        }
+      }
+
       I intermediate = newStructData(reuse);
 
       for (int i = 0; i < readers.length; i += 1) {
