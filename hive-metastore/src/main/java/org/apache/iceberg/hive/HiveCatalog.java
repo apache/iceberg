@@ -138,6 +138,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         isValidateNamespace(namespace), "Missing database in namespace: %s", namespace);
     String database = namespace.level(0);
 
+    if (!namespaceExists(namespace)) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+    }
+
     try {
       List<String> tableNames = clients.run(client -> client.getAllTables(database));
       List<TableIdentifier> tableIdentifiers;
