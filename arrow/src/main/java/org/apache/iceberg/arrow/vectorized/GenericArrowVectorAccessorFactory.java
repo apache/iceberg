@@ -35,6 +35,7 @@ import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.NullVector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
@@ -220,6 +221,8 @@ public class GenericArrowVectorAccessorFactory<
       }
       return new FixedSizeBinaryAccessor<>(
           (FixedSizeBinaryVector) vector, stringFactorySupplier.get());
+    } else if (vector instanceof NullVector) {
+      return new NullAccessor<>((NullVector) vector);
     }
     String vectorName = (vector == null) ? "null" : vector.getClass().toString();
     throw new UnsupportedOperationException("Unsupported vector: " + vectorName);
@@ -243,6 +246,19 @@ public class GenericArrowVectorAccessorFactory<
     public final boolean getBoolean(int rowId) {
       return vector.get(rowId) == 1;
     }
+  }
+
+  private static class NullAccessor<
+          DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
+          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+
+    private final NullVector vector;
+
+    NullAccessor(NullVector vector) {
+      super(vector);
+      this.vector = vector;
+    }
+
   }
 
   private static class IntAccessor<

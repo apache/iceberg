@@ -30,6 +30,7 @@ import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.NullVector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
@@ -44,6 +45,7 @@ import org.apache.iceberg.arrow.vectorized.parquet.VectorizedColumnIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -468,7 +470,11 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      return VectorHolder.dummyHolder(numValsToRead);
+      ColumnDescriptor descriptor = new ColumnDescriptor(null, PrimitiveType.PrimitiveTypeName.INT64, 0, 0);
+      NullabilityHolder holder = new NullabilityHolder(0);
+      Types.NestedField field = Types.NestedField.optional(3, "z", Types.IntegerType.get());
+      NullVector vector = new NullVector(field.name(), 1);
+      return new VectorHolder(descriptor, vector, false, null, holder, field);
     }
 
     @Override
