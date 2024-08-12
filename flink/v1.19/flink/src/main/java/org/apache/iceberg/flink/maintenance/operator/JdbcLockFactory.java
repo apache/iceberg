@@ -36,8 +36,8 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class JDBCLockFactory implements TriggerLockFactory {
-  private static final Logger LOG = LoggerFactory.getLogger(JDBCLockFactory.class);
+public class JdbcLockFactory implements TriggerLockFactory {
+  private static final Logger LOG = LoggerFactory.getLogger(JdbcLockFactory.class);
   private static final String INIT_LOCK_TABLES_PROPERTY = "maintenance.lock.jdbc.init-lock-tables";
   private static final String LOCK_TABLE_NAME = "maintenance_lock";
   private static final String MAINTENANCE_LOCK = "m";
@@ -57,7 +57,7 @@ public class JDBCLockFactory implements TriggerLockFactory {
   private final Map<String, String> properties;
   private transient JdbcClientPool pool;
 
-  public JDBCLockFactory(String uri, Map<String, String> properties) {
+  public JdbcLockFactory(String uri, Map<String, String> properties) {
     Preconditions.checkNotNull(uri, "JDBC connection URI is required");
     this.uri = uri;
     this.properties = properties;

@@ -66,7 +66,7 @@ class TestTriggerManager extends OperatorTestBase {
   @BeforeEach
   void before() {
     sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    this.lockFactory = new TagBasedLockFactory(sql.tableLoader(TABLE_NAME));
+    this.lockFactory = lockFactory();
     lockFactory.open();
     this.lock = lockFactory.createLock();
     this.recoveringLock = lockFactory.createRecoveryLock();

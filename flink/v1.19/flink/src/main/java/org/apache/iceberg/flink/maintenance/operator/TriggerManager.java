@@ -99,6 +99,8 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
     Preconditions.checkNotNull(lockFactory, "Lock factory should no be null");
     Preconditions.checkArgument(
+        taskNames != null && !taskNames.isEmpty(), "Invalid task names: null or empty");
+    Preconditions.checkArgument(
         evaluators != null && !evaluators.isEmpty(), "Invalid evaluators: null or empty");
     Preconditions.checkArgument(
         taskNames.size() == evaluators.size(), "Provide a name and evaluator for all of the tasks");

@@ -36,6 +36,8 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 class OperatorTestBase {
   private static final int NUMBER_TASK_MANAGERS = 1;
   private static final int SLOTS_PER_TASK_MANAGER = 8;
+  private static final TriggerLockFactory.Lock MAINTENANCE_LOCK = new MemoryLock();
+  private static final TriggerLockFactory.Lock RECOVERY_LOCK = new MemoryLock();
 
   static final String TABLE_NAME = "test_table";
 
@@ -60,6 +62,31 @@ class OperatorTestBase {
     MetricOptions.forReporter(config, "test_reporter")
         .set(MetricOptions.REPORTER_FACTORY_CLASS, MetricsReporterFactoryForTests.class.getName());
     return config;
+  }
+
+  protected static TriggerLockFactory lockFactory() {
+    return new TriggerLockFactory() {
+      @Override
+      public void open() {
+        MAINTENANCE_LOCK.unlock();
+        RECOVERY_LOCK.unlock();
+      }
+
+      @Override
+      public Lock createLock() {
+        return MAINTENANCE_LOCK;
+      }
+
+      @Override
+      public Lock createRecoveryLock() {
+        return RECOVERY_LOCK;
+      }
+
+      @Override
+      public void close() {
+        // do nothing
+      }
+    };
   }
 
   /**
@@ -101,5 +128,29 @@ class OperatorTestBase {
    */
   public static void closeJobClient(JobClient jobClient) {
     closeJobClient(jobClient, null);
+  }
+
+  private static class MemoryLock implements TriggerLockFactory.Lock {
+    boolean locked = false;
+
+    @Override
+    public boolean tryLock() {
+      if (locked) {
+        return false;
+      } else {
+        locked = true;
+        return true;
+      }
+    }
+
+    @Override
+    public boolean isHeld() {
+      return locked;
+    }
+
+    @Override
+    public void unlock() {
+      locked = false;
+    }
   }
 }

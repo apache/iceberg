@@ -23,7 +23,7 @@ import java.util.UUID;
 import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
-class TestJDBCLockFactory extends TestLockFactoryBase {
+class TestJdbcLockFactory extends TestLockFactoryBase {
   @Override
   TriggerLockFactory lockFactory() {
     Map<String, String> properties = Maps.newHashMap();
@@ -31,7 +31,7 @@ class TestJDBCLockFactory extends TestLockFactoryBase {
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
     properties.put("maintenance.lock.jdbc.init-lock-tables", "true");
 
-    return new JDBCLockFactory(
+    return new JdbcLockFactory(
         "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""), properties);
   }
 }
