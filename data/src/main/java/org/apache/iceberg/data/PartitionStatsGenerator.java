@@ -50,6 +50,8 @@ public class PartitionStatsGenerator {
 
   private final Table table;
   private String branch;
+  private Types.StructType partitionType;
+  private Map<Record, Record> partitionEntryMap;
 
   public PartitionStatsGenerator(Table table) {
     this.table = table;
@@ -74,9 +76,9 @@ public class PartitionStatsGenerator {
       return null;
     }
 
-    Types.StructType partitionType = Partitioning.partitionType(table);
+    partitionType = Partitioning.partitionType(table);
     // Map of partitionData, partition-stats-entry per partitionData.
-    Map<Record, Record> partitionEntryMap = Maps.newConcurrentMap();
+    partitionEntryMap = Maps.newConcurrentMap();
 
     Schema dataSchema = PartitionStatsUtil.schema(partitionType);
     List<ManifestFile> manifestFiles = currentSnapshot.allManifests(table.io());
@@ -94,17 +96,17 @@ public class PartitionStatsGenerator {
               try (CloseableIterable<Record> entries =
                   PartitionStatsUtil.fromManifest(table, manifest, dataSchema)) {
                 entries.forEach(
-                    entry ->
-                        partitionEntryMap.compute(
-                            (Record) entry.get(PartitionStatsUtil.Column.PARTITION.ordinal()),
-                            (key, existingEntry) -> {
-                              if (existingEntry != null) {
-                                PartitionStatsUtil.appendStatsFromRecord(existingEntry, entry);
-                                return existingEntry;
-                              } else {
-                                return entry;
-                              }
-                            }));
+                    entry -> {
+                      Record partitionKey =
+                          (Record) entry.get(PartitionStatsUtil.Column.PARTITION.ordinal());
+                      partitionEntryMap.merge(
+                          partitionKey,
+                          entry,
+                          (existingEntry, newEntry) -> {
+                            PartitionStatsUtil.appendStats(existingEntry, newEntry);
+                            return existingEntry;
+                          });
+                    });
               } catch (IOException e) {
                 throw new UncheckedIOException(e);
               }
@@ -113,16 +115,34 @@ public class PartitionStatsGenerator {
     // Sorting the records based on partition as per spec.
     List<Record> sortedKeys = Lists.newArrayList(partitionEntryMap.keySet());
     sortedKeys.sort(Comparators.forType(partitionType));
-    Iterator<Record> sortedEntries =
-        Iterators.transform(sortedKeys.iterator(), partitionEntryMap::get);
+    Iterator<Record> entriesForWriter =
+        Iterators.transform(sortedKeys.iterator(), this::convertPartitionRecords);
 
     OutputFile outputFile =
         PartitionStatsWriterUtil.newPartitionStatsFile(table, currentSnapshot.snapshotId());
-    PartitionStatsWriterUtil.writePartitionStatsFile(table, sortedEntries, outputFile);
+    PartitionStatsWriterUtil.writePartitionStatsFile(table, entriesForWriter, outputFile);
     return ImmutableGenericPartitionStatisticsFile.builder()
         .snapshotId(currentSnapshot.snapshotId())
         .path(outputFile.location())
         .fileSizeInBytes(outputFile.toInputFile().getLength())
         .build();
+  }
+
+  private Record convertPartitionRecords(Record key) {
+    Record record = partitionEntryMap.get(key);
+    Record partitionRecord = (Record) record.get(PartitionStatsUtil.Column.PARTITION.ordinal());
+    if (partitionRecord != null) {
+      for (int index = 0; index < partitionType.fields().size(); index++) {
+        Object val = partitionRecord.get(index);
+        if (val != null) {
+          partitionRecord.set(
+              index,
+              IdentityPartitionConverters.convertConstant(
+                  partitionType.fields().get(index).type(), val));
+        }
+      }
+    }
+
+    return record;
   }
 }

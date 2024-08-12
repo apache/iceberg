@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import java.util.Map;
 import org.apache.iceberg.data.GenericRecord;
-import org.apache.iceberg.data.IdentityPartitionConverters;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -102,7 +101,7 @@ public class PartitionStatsUtil {
    * @param toRecord the Record to which statistics will be appended.
    * @param fromRecord the Record from which statistics will be sourced.
    */
-  public static void appendStatsFromRecord(Record toRecord, Record fromRecord) {
+  public static void appendStats(Record toRecord, Record fromRecord) {
     Preconditions.checkState(toRecord != null, "Record to update cannot be null");
     Preconditions.checkState(fromRecord != null, "Record to update from cannot be null");
 
@@ -132,34 +131,13 @@ public class PartitionStatsUtil {
     }
   }
 
-  /**
-   * Converts the given {@link PartitionData} into a {@link Record} based on the specified partition
-   * schema.
-   *
-   * @param partitionSchema the schema defining the structure of the partition data.
-   * @param partitionData the data to be converted into a Record.
-   * @return a Record that represents the partition data as per the given schema.
-   */
-  public static Record partitionDataToRecord(
-      Types.StructType partitionSchema, PartitionData partitionData) {
-    GenericRecord genericRecord = GenericRecord.create(partitionSchema);
-    for (int index = 0; index < partitionData.size(); index++) {
-      genericRecord.set(
-          index,
-          IdentityPartitionConverters.convertConstant(
-              partitionSchema.fields().get(index).type(), partitionData.get(index)));
-    }
-
-    return genericRecord;
-  }
-
   private static Record fromManifestEntry(
       ManifestEntry<?> entry, Table table, Schema recordSchema) {
     GenericRecord record = GenericRecord.create(recordSchema);
     Types.StructType partitionType =
         recordSchema.findField(Column.PARTITION.name()).type().asStructType();
-    PartitionData partitionData = coercedPartitionData(entry.file(), table.specs(), partitionType);
-    record.set(Column.PARTITION.ordinal(), partitionDataToRecord(partitionType, partitionData));
+    Record partitionData = coercedPartitionData(entry.file(), table.specs(), partitionType);
+    record.set(Column.PARTITION.ordinal(), partitionData);
     record.set(Column.SPEC_ID.ordinal(), entry.file().specId());
 
     Snapshot snapshot = table.snapshot(entry.snapshotId());
@@ -197,19 +175,19 @@ public class PartitionStatsUtil {
     return record;
   }
 
-  private static PartitionData coercedPartitionData(
+  private static Record coercedPartitionData(
       ContentFile<?> file, Map<Integer, PartitionSpec> specs, Types.StructType partitionType) {
     // keep the partition data as per the unified spec by coercing
     StructLike partition =
         PartitionUtil.coercePartition(partitionType, specs.get(file.specId()), file.partition());
-    PartitionData data = new PartitionData(partitionType);
-    for (int i = 0; i < partitionType.fields().size(); i++) {
-      Object val = partition.get(i, partitionType.fields().get(i).type().typeId().javaClass());
-      if (val != null) {
-        data.set(i, val);
-      }
+    GenericRecord genericRecord = GenericRecord.create(partitionType);
+    for (int index = 0; index < partitionType.fields().size(); index++) {
+      genericRecord.set(
+          index,
+          partition.get(index, partitionType.fields().get(index).type().typeId().javaClass()));
     }
-    return data;
+
+    return genericRecord;
   }
 
   private static void checkAndIncrementLong(Record toUpdate, Record fromRecord, Column column) {

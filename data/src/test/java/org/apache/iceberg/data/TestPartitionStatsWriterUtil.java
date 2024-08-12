@@ -85,9 +85,7 @@ public class TestPartitionStatsWriterUtil {
       partitionData.set(0, RANDOM.nextLong());
 
       Record record = GenericRecord.create(dataSchema);
-      record.set(
-          Column.PARTITION.ordinal(),
-          PartitionStatsUtil.partitionDataToRecord(partitionSchema, partitionData));
+      record.set(Column.PARTITION.ordinal(), partitionDataToRecord(partitionSchema, partitionData));
       record.set(Column.SPEC_ID.ordinal(), RANDOM.nextInt(10));
       record.set(Column.DATA_RECORD_COUNT.ordinal(), RANDOM.nextLong());
       record.set(Column.DATA_FILE_COUNT.ordinal(), RANDOM.nextInt());
@@ -129,9 +127,7 @@ public class TestPartitionStatsWriterUtil {
       partitionData.set(0, RANDOM.nextLong());
 
       Record record = GenericRecord.create(dataSchema);
-      record.set(
-          Column.PARTITION.ordinal(),
-          PartitionStatsUtil.partitionDataToRecord(partitionSchema, partitionData));
+      record.set(Column.PARTITION.ordinal(), partitionDataToRecord(partitionSchema, partitionData));
       record.set(Column.SPEC_ID.ordinal(), RANDOM.nextInt(10));
       record.set(Column.DATA_RECORD_COUNT.ordinal(), RANDOM.nextLong());
       record.set(Column.DATA_FILE_COUNT.ordinal(), RANDOM.nextInt());
@@ -223,9 +219,7 @@ public class TestPartitionStatsWriterUtil {
     partitionData.set(14, Literal.of("10:10:10").to(Types.TimeType.get()).value());
 
     Record record = GenericRecord.create(dataSchema);
-    record.set(
-        Column.PARTITION.ordinal(),
-        PartitionStatsUtil.partitionDataToRecord(partitionSchema, partitionData));
+    record.set(Column.PARTITION.ordinal(), partitionDataToRecord(partitionSchema, partitionData));
     record.set(Column.SPEC_ID.ordinal(), RANDOM.nextInt(10));
     record.set(Column.DATA_RECORD_COUNT.ordinal(), RANDOM.nextLong());
     record.set(Column.DATA_FILE_COUNT.ordinal(), RANDOM.nextInt());
@@ -248,5 +242,18 @@ public class TestPartitionStatsWriterUtil {
       writtenRecords = Lists.newArrayList(recordIterator);
     }
     assertThatIterable(writtenRecords).isEqualTo(expectedRecords);
+  }
+
+  private static Record partitionDataToRecord(
+      Types.StructType partitionSchema, PartitionData partitionData) {
+    GenericRecord genericRecord = GenericRecord.create(partitionSchema);
+    for (int index = 0; index < partitionData.size(); index++) {
+      genericRecord.set(
+          index,
+          IdentityPartitionConverters.convertConstant(
+              partitionSchema.fields().get(index).type(), partitionData.get(index)));
+    }
+
+    return genericRecord;
   }
 }
