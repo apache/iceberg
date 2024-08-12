@@ -70,4 +70,10 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement rewritePositionDeletes");
   }
+
+  /** Instantiates an action to copy table. */
+  default CopyTable copyTable(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement copyTable");
+  }
 }
