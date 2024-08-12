@@ -17,7 +17,7 @@
 
 INHERIT: ./nav.yml
 
-site_name: Apache Iceberg
+site_name: "Apache Iceberg™"
 
 theme:
   custom_dir: overrides

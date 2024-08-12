@@ -18,9 +18,7 @@ title: "Spark and Iceberg Quickstart"
  - limitations under the License.
  -->
 
-## Spark and Iceberg Quickstart
-
-This guide will get you up and running with an Iceberg and Spark environment, including sample code to
+This guide will get you up and running with Apache Iceberg™ using Apache Spark™, including sample code to
 highlight some powerful features. You can learn more about Iceberg's Spark runtime by checking out the [Spark](docs/latest/spark-ddl.md) section.
 
 - [Docker-Compose](#docker-compose)
