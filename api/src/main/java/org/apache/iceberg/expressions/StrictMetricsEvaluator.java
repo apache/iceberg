@@ -218,6 +218,11 @@ public class StrictMetricsEvaluator {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
+    //    @Override
+    //    public <T> Boolean lt(BoundReference<T> ref, BoundReference<T> ref2) { // TODO
+    //      return ROWS_MIGHT_MATCH;
+    //    }
+
     @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <----------Min----Max---X------->

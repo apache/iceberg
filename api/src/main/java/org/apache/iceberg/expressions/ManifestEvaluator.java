@@ -189,6 +189,28 @@ public class ManifestEvaluator {
     }
 
     @Override
+    public <T> Boolean lt(BoundReference<T> ref, BoundReference<T> ref2) {
+      int pos = Accessors.toPosition(ref.accessor());
+      int pos2 = Accessors.toPosition(ref2.accessor());
+      ByteBuffer lowerBound = stats.get(pos).lowerBound();
+      ByteBuffer lowerBound2 = stats.get(pos2).lowerBound();
+      if (lowerBound == null || lowerBound2 == null) {
+        return ROWS_CANNOT_MATCH; // values are all null
+      }
+
+      T lower = Conversions.fromByteBuffer(ref.type(), lowerBound);
+      T lower2 = Conversions.fromByteBuffer(ref2.type(), lowerBound2);
+
+      Comparator<Object> comparator = Comparators.forType(ref.type().asPrimitiveType());
+      int cmp = comparator.compare(lower, lower2);
+      if (cmp >= 0) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       int pos = Accessors.toPosition(ref.accessor());
       ByteBuffer lowerBound = stats.get(pos).lowerBound();
@@ -199,6 +221,28 @@ public class ManifestEvaluator {
       T lower = Conversions.fromByteBuffer(ref.type(), lowerBound);
 
       int cmp = lit.comparator().compare(lower, lit.value());
+      if (cmp > 0) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean ltEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      int pos = Accessors.toPosition(ref.accessor());
+      int pos2 = Accessors.toPosition(ref2.accessor());
+      ByteBuffer lowerBound = stats.get(pos).lowerBound();
+      ByteBuffer lowerBound2 = stats.get(pos2).lowerBound();
+      if (lowerBound == null || lowerBound2 == null) {
+        return ROWS_CANNOT_MATCH; // values are all null
+      }
+
+      T lower = Conversions.fromByteBuffer(ref.type(), lowerBound);
+      T lower2 = Conversions.fromByteBuffer(ref2.type(), lowerBound2);
+
+      Comparator<Object> comparator = Comparators.forType(ref.type().asPrimitiveType());
+      int cmp = comparator.compare(lower, lower2);
       if (cmp > 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -225,6 +269,28 @@ public class ManifestEvaluator {
     }
 
     @Override
+    public <T> Boolean gt(BoundReference<T> ref, BoundReference<T> ref2) {
+      int pos = Accessors.toPosition(ref.accessor());
+      int pos2 = Accessors.toPosition(ref2.accessor());
+      ByteBuffer upperBound = stats.get(pos).upperBound();
+      ByteBuffer upperBound2 = stats.get(pos2).upperBound();
+      if (upperBound == null || upperBound2 == null) {
+        return ROWS_CANNOT_MATCH; // values are all null
+      }
+
+      T upper = Conversions.fromByteBuffer(ref.type(), upperBound);
+      T upper2 = Conversions.fromByteBuffer(ref2.type(), upperBound2);
+
+      Comparator<Object> comparator = Comparators.forType(ref.type().asPrimitiveType());
+      int cmp = comparator.compare(upper, upper2);
+      if (cmp <= 0) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       int pos = Accessors.toPosition(ref.accessor());
       ByteBuffer upperBound = stats.get(pos).upperBound();
@@ -235,6 +301,28 @@ public class ManifestEvaluator {
       T upper = Conversions.fromByteBuffer(ref.type(), upperBound);
 
       int cmp = lit.comparator().compare(upper, lit.value());
+      if (cmp < 0) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean gtEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      int pos = Accessors.toPosition(ref.accessor());
+      int pos2 = Accessors.toPosition(ref2.accessor());
+      ByteBuffer upperBound = stats.get(pos).upperBound();
+      ByteBuffer upperBound2 = stats.get(pos2).upperBound();
+      if (upperBound == null || upperBound2 == null) {
+        return ROWS_CANNOT_MATCH; // values are all null
+      }
+
+      T upper = Conversions.fromByteBuffer(ref.type(), upperBound);
+      T upper2 = Conversions.fromByteBuffer(ref2.type(), upperBound2);
+
+      Comparator<Object> comparator = Comparators.forType(ref.type().asPrimitiveType());
+      int cmp = comparator.compare(upper, upper2);
       if (cmp < 0) {
         return ROWS_CANNOT_MATCH;
       }
@@ -258,6 +346,36 @@ public class ManifestEvaluator {
 
       T upper = Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
       cmp = lit.comparator().compare(upper, lit.value());
+      if (cmp < 0) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean eq(BoundReference<T> ref, BoundReference<T> ref2) {
+      int pos = Accessors.toPosition(ref.accessor());
+      int pos2 = Accessors.toPosition(ref2.accessor());
+      PartitionFieldSummary fieldStats = stats.get(pos);
+      PartitionFieldSummary fieldStats2 = stats.get(pos2);
+      if (fieldStats.lowerBound() == null || fieldStats2.lowerBound() == null) {
+        return ROWS_CANNOT_MATCH; // values are all null and literal cannot contain null
+      }
+
+      T lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
+      T lower2 = Conversions.fromByteBuffer(ref2.type(), fieldStats2.lowerBound());
+
+      Comparator<Object> comparator = Comparators.forType(ref.type().asPrimitiveType());
+      int cmp = comparator.compare(lower, lower2);
+      if (cmp > 0) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      T upper = Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
+      T upper2 = Conversions.fromByteBuffer(ref2.type(), fieldStats2.upperBound());
+
+      cmp = comparator.compare(upper, upper2);
       if (cmp < 0) {
         return ROWS_CANNOT_MATCH;
       }

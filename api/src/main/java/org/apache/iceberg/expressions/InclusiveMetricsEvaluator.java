@@ -225,6 +225,25 @@ public class InclusiveMetricsEvaluator {
     }
 
     @Override
+    public <T> Boolean lt(BoundReference<T> ref, BoundReference<T> ref2) {
+      Integer id = ref.fieldId();
+      Integer id2 = ref2.fieldId();
+
+      if (containsNullsOnly(id)
+          || containsNaNsOnly(id)
+          || containsNullsOnly(id2)
+          || containsNaNsOnly(id2)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      if (checkLowerBounds(ref, ref2, id, id2, cmp -> cmp >= 0)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
@@ -244,6 +263,25 @@ public class InclusiveMetricsEvaluator {
         if (cmp > 0) {
           return ROWS_CANNOT_MATCH;
         }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean ltEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      Integer id = ref.fieldId();
+      Integer id2 = ref2.fieldId();
+
+      if (containsNullsOnly(id)
+          || containsNaNsOnly(id)
+          || containsNullsOnly(id2)
+          || containsNaNsOnly(id2)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      if (checkLowerBounds(ref, ref2, id, id2, cmp -> cmp > 0)) {
+        return ROWS_CANNOT_MATCH;
       }
 
       return ROWS_MIGHT_MATCH;
@@ -270,6 +308,25 @@ public class InclusiveMetricsEvaluator {
     }
 
     @Override
+    public <T> Boolean gt(BoundReference<T> ref, BoundReference<T> ref2) {
+      Integer id = ref.fieldId();
+      Integer id2 = ref2.fieldId();
+
+      if (containsNullsOnly(id)
+          || containsNaNsOnly(id)
+          || containsNullsOnly(id2)
+          || containsNaNsOnly(id2)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      if (checkUpperBounds(ref, ref2, id, id2, cmp -> cmp <= 0)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       Integer id = ref.fieldId();
 
@@ -284,6 +341,25 @@ public class InclusiveMetricsEvaluator {
         if (cmp < 0) {
           return ROWS_CANNOT_MATCH;
         }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean gtEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      Integer id = ref.fieldId();
+      Integer id2 = ref2.fieldId();
+
+      if (containsNullsOnly(id)
+          || containsNaNsOnly(id)
+          || containsNullsOnly(id2)
+          || containsNaNsOnly(id2)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      if (checkUpperBounds(ref, ref2, id, id2, cmp -> cmp < 0)) {
+        return ROWS_CANNOT_MATCH;
       }
 
       return ROWS_MIGHT_MATCH;
@@ -321,6 +397,73 @@ public class InclusiveMetricsEvaluator {
       }
 
       return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean eq(BoundReference<T> ref, BoundReference<T> ref2) {
+      Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Integer id2 = ref2.fieldId();
+      if (containsNullsOnly(id2) || containsNaNsOnly(id2)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      if (checkLowerBounds(ref, ref2, id, id2, cmp -> cmp > 0)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      if (checkUpperBounds(ref, ref2, id, id2, cmp -> cmp < 0)) {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    private <T> boolean checkUpperBounds(
+        BoundReference<T> ref,
+        BoundReference<T> ref2,
+        Integer id,
+        Integer id2,
+        java.util.function.Predicate<Integer> compare) {
+      if (upperBounds != null && upperBounds.containsKey(id) && upperBounds.containsKey(id2)) {
+        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+        T upper2 = Conversions.fromByteBuffer(ref2.type(), upperBounds.get(id2));
+
+        Comparator<Object> comparator = Comparators.forType(ref.type().asPrimitiveType());
+        int cmp = comparator.compare(upper, upper2);
+        if (compare.test(cmp)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    private <T> boolean checkLowerBounds(
+        BoundReference<T> ref,
+        BoundReference<T> ref2,
+        Integer id,
+        Integer id2,
+        java.util.function.Predicate<Integer> compare) {
+      if (lowerBounds != null && lowerBounds.containsKey(id) && lowerBounds.containsKey(id2)) {
+        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+        T lower2 = Conversions.fromByteBuffer(ref2.type(), lowerBounds.get(id2));
+
+        if (NaNUtil.isNaN(lower) || NaNUtil.isNaN(lower2)) {
+          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
+          return false;
+        }
+
+        Comparator<Object> comparator = Comparators.forType(ref.type().asPrimitiveType());
+        int cmp = comparator.compare(lower, lower2);
+        if (compare.test(cmp)) {
+          return true;
+        }
+      }
+      return false;
     }
 
     @Override

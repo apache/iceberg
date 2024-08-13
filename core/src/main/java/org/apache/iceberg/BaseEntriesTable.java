@@ -192,7 +192,17 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       }
 
       @Override
+      public <T> Boolean lt(BoundReference<T> ref, BoundReference<T> ref2) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
       public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean ltEq(BoundReference<T> ref, BoundReference<T> ref2) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -202,7 +212,17 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       }
 
       @Override
+      public <T> Boolean gt(BoundReference<T> ref, BoundReference<T> ref2) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
       public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean gtEq(BoundReference<T> ref, BoundReference<T> ref2) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -214,6 +234,11 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
             return ROWS_CANNOT_MATCH;
           }
         }
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean eq(BoundReference<T> ref, BoundReference<T> ref2) { // TODO
         return ROWS_MIGHT_MATCH;
       }
 

@@ -23,11 +23,22 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 public abstract class Predicate<T, C extends Term> implements Expression {
   private final Operation op;
   private final C term;
+  private final C rightTerm;
 
   Predicate(Operation op, C term) {
     Preconditions.checkNotNull(term, "Term cannot be null");
     this.op = op;
     this.term = term;
+    this.rightTerm = null;
+  }
+
+  Predicate(Operation op, C term, C rightTerm) {
+    Preconditions.checkNotNull(op, "Operation cannot be null");
+    Preconditions.checkNotNull(term, "Left Term cannot be null");
+    Preconditions.checkNotNull(rightTerm, "Right Term cannot be null");
+    this.op = op;
+    this.term = term;
+    this.rightTerm = rightTerm;
   }
 
   @Override
@@ -37,5 +48,9 @@ public abstract class Predicate<T, C extends Term> implements Expression {
 
   public C term() {
     return term;
+  }
+
+  public C rightTerm() {
+    return rightTerm;
   }
 }
