@@ -351,8 +351,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
         // submitted closure.
         Collection<Path> paths = Sets.newHashSet(pathsForFilesystem);
         // submit the batch deletion task.
-        deletionTasks.add(executorService().submit(() ->
-                deleteBatch(fs, fsRoot, paths)));
+        deletionTasks.add(executorService().submit(() -> deleteBatch(fs, fsRoot, paths)));
         // remove all paths for this fs from the map.
         fsMap.removeAll(fsRoot);
       }
@@ -432,9 +431,9 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   }
 
   /**
-   * This class is a simple adaptor to allow for using Hadoop's RemoteIterator as an Iterator.
-   * Also forwards {@link #close()} to the delegate if it is a Closeable, and also
-   * {@link #toString()} as some implementations report statistics there.
+   * This class is a simple adaptor to allow for using Hadoop's RemoteIterator as an Iterator. Also
+   * forwards {@link #close()} to the delegate if it is a Closeable, and also {@link #toString()} as
+   * some implementations report statistics there.
    *
    * @param <E> element type
    */
@@ -464,13 +463,12 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     }
 
     /**
-     * If the delegate is a Closeable, this method will close it.
-     * Cloud stores with async fetching may implement the operation
-     * As an example: S3A list calls will update the thread-level
-     * {@code IOStatisticsContext} with the number and performance
-     * of list operations.
-     * <p>
-     * No-op if the iterator doesn't implement the API.
+     * If the delegate is a Closeable, this method will close it. Cloud stores with async fetching
+     * may implement the operation As an example: S3A list calls will update the thread-level {@code
+     * IOStatisticsContext} with the number and performance of list operations.
+     *
+     * <p>No-op if the iterator doesn't implement the API.
+     *
      * @throws IOException exception if closed.
      */
     @Override

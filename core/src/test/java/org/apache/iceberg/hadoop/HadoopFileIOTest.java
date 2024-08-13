@@ -155,11 +155,11 @@ public class HadoopFileIOTest {
     // having gone to the effort of creating a few thousand files, delete them
     // this stresses the bulk delete memory/execution path and if profiled,
     // can highlight performance mismatches across the implementations.
-      final Iterator<String> locations = files.stream().map(FileInfo::location).iterator();
-      hadoopFileIO.deleteFiles(() -> locations);
-      if (locations instanceof Closeable) {
-        ((Closeable) locations).close();
-      }
+    final Iterator<String> locations = files.stream().map(FileInfo::location).iterator();
+    hadoopFileIO.deleteFiles(() -> locations);
+    if (locations instanceof Closeable) {
+      ((Closeable) locations).close();
+    }
     // now there are no files, but the parent directory still exists as it was not
     // deleted.
     assertThat(Streams.stream(hadoopFileIO.listPrefix(parentString)).count())
@@ -219,8 +219,9 @@ public class HadoopFileIOTest {
     hadoopFileIO.deleteFiles(
         filesCreated.stream().map(Path::toString).collect(Collectors.toList()));
     filesCreated.forEach(
-        file -> assertThatThrownBy(() -> hadoopFileIO.newInputFile(file.toString()).getLength())
-            .isInstanceOf(NotFoundException.class));
+        file ->
+            assertThatThrownBy(() -> hadoopFileIO.newInputFile(file.toString()).getLength())
+                .isInstanceOf(NotFoundException.class));
   }
 
   @TestTemplate
@@ -282,7 +283,8 @@ public class HadoopFileIOTest {
   @TestTemplate
   public void testBulkDeleteAPIAvailablility() throws Throwable {
     Assertions.assertThat(hadoopFileIO.isBulkDeleteApiUsed())
-        .describedAs("Bulk Delete API use where useBulkIOApi=%s, bulkDeleteAvailable=%s",
+        .describedAs(
+            "Bulk Delete API use where useBulkIOApi=%s, bulkDeleteAvailable=%s",
             useBulkIOApi, bulkDeleteAvailable)
         .isEqualTo(useBulkIOApi && bulkDeleteAvailable);
   }
