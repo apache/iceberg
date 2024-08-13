@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
-import org.apache.directory.api.util.Hex;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
@@ -92,7 +91,22 @@ public class AliyunOSSMockLocalStore {
     while ((numBytes = is.read(bytes)) != -1) {
       md.update(bytes, 0, numBytes);
     }
-    return new String(Hex.encodeHex(md.digest())).toUpperCase(Locale.ROOT);
+    return encodeHex(md.digest());
+  }
+
+  /**
+   * Encode byte array to hex string; this avoid having to use an external library, though it is
+   * less efficient than {@code org.apache.directory.api.util.Hex}
+   *
+   * @param bytes bytes to encode
+   * @return hext encoded string
+   */
+  private static String encodeHex(byte[] bytes) {
+    StringBuilder sb = new StringBuilder();
+    for (byte b : bytes) {
+      sb.append(String.format(Locale.ROOT, "%02X ", b));
+    }
+    return sb.toString();
   }
 
   private static void inputStreamToFile(InputStream inputStream, File targetFile)
