@@ -52,7 +52,7 @@ public interface Transaction {
   UpdateProperties updateProperties();
 
   /**
-   * Create a new {@link ReplaceSortOrder} to set a table sort order and commit the change.
+   * Create a new {@link ReplaceSortOrder} to set a table sort order.
    *
    * @return a new {@link ReplaceSortOrder}
    */
@@ -131,7 +131,7 @@ public interface Transaction {
   ReplacePartitions newReplacePartitions();
 
   /**
-   * Create a new {@link DeleteFiles delete API} to replace files in this table.
+   * Create a new {@link DeleteFiles delete API} to delete files in this table.
    *
    * @return a new {@link DeleteFiles}
    */
@@ -160,7 +160,7 @@ public interface Transaction {
   }
 
   /**
-   * Create a new {@link ExpireSnapshots expire API} to manage snapshots in this table.
+   * Create a new {@link ExpireSnapshots expire API} to expire snapshots in this table.
    *
    * @return a new {@link ExpireSnapshots}
    */
