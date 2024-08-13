@@ -197,9 +197,12 @@ pull_versioned_docs () {
   # Ensure the remote repository for documentation exists and is up-to-date
   create_or_update_docs_remote  
 
-  # Add local worktrees for documentation and javadoc from the remote repository
-  git worktree add -f docs/docs "${REMOTE}/docs"
-  git worktree add -f docs/javadoc "${REMOTE}/javadoc"
+  # Add local worktrees for documentation and javadoc either from the remote repository
+  # or from a local branch.
+  local docs_branch="${ICEBERG_VERSIONED_DOCS_BRANCH:-${REMOTE}/docs}"
+  local javadoc_branch="${ICEBERG_VERSIONED_JAVADOC_BRANCH:-${REMOTE}/javadoc}"
+  git worktree add -f docs/docs "${docs_branch}"
+  git worktree add -f docs/javadoc "${javadoc_branch}"
   
   # Retrieve the latest version of documentation for processing
   local latest_version=$(get_latest_version)  
