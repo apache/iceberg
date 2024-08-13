@@ -79,14 +79,24 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
     if (expected.fields().size() > fields.size()) {
       // Add missing fields to the end of the list
       Stream.of(expected.fields().toArray())
-              .filter(field -> !readersById.containsKey(((Types.NestedField) field).fieldId()))
-              .forEach(iField -> {
-
+          .filter(field -> !readersById.containsKey(((Types.NestedField) field).fieldId()))
+          .forEach(
+              iField -> {
                 Types.NestedField nestedField = (Types.NestedField) iField;
 
-                PrimitiveType primitiveType = new PrimitiveType(Type.Repetition.OPTIONAL, PrimitiveType.PrimitiveTypeName.INT32, nestedField.name());
+                PrimitiveType primitiveType =
+                    new PrimitiveType(
+                        Type.Repetition.OPTIONAL,
+                        PrimitiveType.PrimitiveTypeName.INT32,
+                        nestedField.name());
 
-                VectorizedArrowReader reader = new VectorizedArrowReader(new ColumnDescriptor(new String[]{nestedField.name()}, primitiveType, 0, 0), nestedField, rootAllocator, setArrowValidityVector);
+                VectorizedArrowReader reader =
+                    new VectorizedArrowReader(
+                        new ColumnDescriptor(
+                            new String[] {nestedField.name()}, primitiveType, 0, 0),
+                        nestedField,
+                        rootAllocator,
+                        setArrowValidityVector);
                 fieldReaders.add(reader);
                 readersById.put(nestedField.fieldId(), reader);
               });

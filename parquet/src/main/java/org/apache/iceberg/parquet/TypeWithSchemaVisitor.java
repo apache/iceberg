@@ -198,7 +198,8 @@ public class TypeWithSchemaVisitor<T> {
       results.add(visitField(iField, field, visitor));
     }
 
-    // TODO it might be possible to get the fields in struct.fields that are not in group.field and create readers for those fields
+    // TODO it might be possible to get the fields in struct.fields that are not in group.field and
+    // create readers for those fields
 
     return results;
   }
