@@ -37,7 +37,6 @@ import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.util.SerializableMap;
 import org.apache.iceberg.util.SerializableSupplier;
@@ -72,13 +71,6 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   public HadoopFileIO(SerializableSupplier<Configuration> hadoopConf) {
     this.hadoopConf = hadoopConf;
-    Map<String, String> props = Maps.newHashMapWithExpectedSize(hadoopConf.get().size());
-    Iterator<Map.Entry<String, String>> iter = hadoopConf.get().iterator();
-    while (iter.hasNext()) {
-      Map.Entry<String, String> entry = iter.next();
-      props.put(entry.getKey(), entry.getValue());
-    }
-    this.properties = SerializableMap.copyOf(props);
   }
 
   public Configuration conf() {
@@ -87,17 +79,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   @Override
   public void initialize(Map<String, String> props) {
-    Map<String, String> mergedMap =
-        Maps.newHashMapWithExpectedSize(props.size() + properties.size());
-    mergedMap.putAll(properties.immutableMap());
-    mergedMap.putAll(props);
-    this.properties = SerializableMap.copyOf(mergedMap);
-
-    if (hadoopConf == null) {
-      this.hadoopConf = new SerializableConfiguration(new Configuration())::get;
-    }
-
-    props.forEach(hadoopConf.get()::set);
+    this.properties = SerializableMap.copyOf(props);
   }
 
   @Override
