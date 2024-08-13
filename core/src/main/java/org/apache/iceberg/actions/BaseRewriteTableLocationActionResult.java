@@ -18,13 +18,13 @@
  */
 package org.apache.iceberg.actions;
 
-public class BaseCopyTableActionResult implements CopyTable.Result {
+public class BaseRewriteTableLocationActionResult implements RewriteTableLocation.Result {
   private final String stagingDirPath;
   private final String dataFileListPath;
   private final String metadataFileListPath;
   private final String latestVersion;
 
-  public BaseCopyTableActionResult(
+  public BaseRewriteTableLocationActionResult(
       String stagingDirPath,
       String dataFileListPath,
       String metadataFileListPath,
