@@ -18,10 +18,7 @@ title: "Hive and Iceberg Quickstart"
  - limitations under the License.
  -->
 
-
-## Hive and Iceberg Quickstart
-
-This guide will get you up and running with an Iceberg and Hive environment, including sample code to
+This guide will get you up and running with Apache Iceberg™ using Apache Hive™, including sample code to
 highlight some powerful features. You can learn more about Iceberg's Hive runtime by checking out the [Hive](docs/latest/hive.md) section.
 
 - [Docker Images](#docker-images)
