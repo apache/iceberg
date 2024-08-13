@@ -250,7 +250,7 @@ public class GenericArrowVectorAccessorFactory<
 
   private static class NullAccessor<
           DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
-          extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
+      extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final NullVector vector;
 
@@ -258,7 +258,6 @@ public class GenericArrowVectorAccessorFactory<
       super(vector);
       this.vector = vector;
     }
-
   }
 
   private static class IntAccessor<

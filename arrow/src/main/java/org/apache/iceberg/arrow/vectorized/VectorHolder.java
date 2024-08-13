@@ -131,6 +131,20 @@ public class VectorHolder {
     return vector == null;
   }
 
+  public static class NullVectorHolder extends VectorHolder {
+    private final int numRows;
+
+    public NullVectorHolder(FieldVector vec, Types.NestedField field, int numRows) {
+      super(vec, field, null);
+      this.numRows = numRows;
+    }
+
+    @Override
+    public int numValues() {
+      return this.numRows;
+    }
+  }
+
   /**
    * A Vector Holder which does not actually produce values, consumers of this class should use the
    * constantValue to populate their ColumnVector implementation.

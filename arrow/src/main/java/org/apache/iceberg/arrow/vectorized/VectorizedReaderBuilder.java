@@ -28,6 +28,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.ConstantVectorReader;
 import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.DeletedVectorReader;
+import org.apache.iceberg.arrow.vectorized.VectorizedArrowReader.NullVectorReader;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -97,7 +98,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       } else if (reader != null) {
         reorderedFields.add(reader);
       } else {
-        reorderedFields.add(VectorizedArrowReader.nulls());
+        reorderedFields.add(new NullVectorReader(field));
       }
     }
     return vectorizedReader(reorderedFields);
