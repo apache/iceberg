@@ -939,7 +939,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             .withPartition(data10Key)
             .build();
     PartitionKey data11Key = new PartitionKey(newSpec, table.schema());
-    data11Key.set(0, 1); // data=0
+    data11Key.set(0, 1); // data=1
     data11Key.set(1, 11); // id=11
     DataFile data11 =
         DataFiles.builder(newSpec)
