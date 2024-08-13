@@ -45,7 +45,6 @@ import org.apache.iceberg.arrow.vectorized.parquet.VectorizedColumnIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -470,7 +469,8 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      ColumnDescriptor descriptor = new ColumnDescriptor(null, PrimitiveType.PrimitiveTypeName.INT64, 0, 0);
+      ColumnDescriptor descriptor =
+          new ColumnDescriptor(null, PrimitiveType.PrimitiveTypeName.INT64, 0, 0);
       NullabilityHolder holder = new NullabilityHolder(0);
       Types.NestedField field = Types.NestedField.optional(3, "z", Types.IntegerType.get());
       NullVector vector = new NullVector(field.name(), 1);
