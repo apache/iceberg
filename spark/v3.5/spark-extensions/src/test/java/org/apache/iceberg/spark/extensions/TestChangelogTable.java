@@ -18,9 +18,12 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.apache.iceberg.RowLevelOperationMode.MERGE_ON_READ;
+import static org.apache.iceberg.TableProperties.DELETE_MODE;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
+import static org.apache.iceberg.TableProperties.UPDATE_MODE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -72,25 +75,24 @@ public class TestChangelogTable extends ExtensionsTestBase {
 
   @TestTemplate
   public void testDataFilters() {
-    createTableWithDefaultRows();
-
-    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+    createTable();
+    sql("INSERT INTO %s VALUES (1, 'c'), (2, 'c'), (3, 'c')", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
 
-    Snapshot snap3 = table.currentSnapshot();
+    Snapshot snap1 = table.currentSnapshot();
 
     sql("DELETE FROM %s WHERE id = 3", tableName);
 
     table.refresh();
 
-    Snapshot snap4 = table.currentSnapshot();
+    Snapshot snap2 = table.currentSnapshot();
 
     assertEquals(
         "Should have expected rows",
         ImmutableList.of(
-            row(3, "c", "INSERT", 2, snap3.snapshotId()),
-            row(3, "c", "DELETE", 3, snap4.snapshotId())),
+            row(3, "c", "INSERT", 0, snap1.snapshotId()),
+            row(3, "c", "DELETE", 1, snap2.snapshotId())),
         sql("SELECT * FROM %s.changes WHERE id = 3 ORDER BY _change_ordinal, id", tableName));
   }
 
@@ -103,6 +105,28 @@ public class TestChangelogTable extends ExtensionsTestBase {
     Snapshot snap2 = table.currentSnapshot();
 
     sql("INSERT OVERWRITE %s VALUES (-2, 'b')", tableName);
+
+    table.refresh();
+
+    Snapshot snap3 = table.currentSnapshot();
+
+    assertEquals(
+        "Rows should match",
+        ImmutableList.of(
+            row(2, "b", "DELETE", 0, snap3.snapshotId()),
+            row(-2, "b", "INSERT", 0, snap3.snapshotId())),
+        changelogRecords(snap2, snap3));
+  }
+
+  @TestTemplate
+  public void testUpdates() {
+    createTableWithDefaultRows();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    Snapshot snap2 = table.currentSnapshot();
+
+    sql("UPDATE %s SET id = -2 WHERE data = 'b'", tableName);
 
     table.refresh();
 
@@ -367,6 +391,12 @@ public class TestChangelogTable extends ExtensionsTestBase {
             + " '%s' = '%d' "
             + ")",
         tableName, FORMAT_VERSION, formatVersion);
+
+    if (formatVersion == 2) {
+      sql(
+          "ALTER TABLE %s SET TBLPROPERTIES ('%s' = '%s', '%s' = '%s')",
+          tableName, DELETE_MODE, MERGE_ON_READ.modeName(), UPDATE_MODE, MERGE_ON_READ.modeName());
+    }
   }
 
   private void insertDefaultRows() {
