@@ -74,7 +74,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   }
 
   public Configuration conf() {
-    return hadoopConf.get();
+    return getConf();
   }
 
   @Override
@@ -120,6 +120,12 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   @Override
   public Configuration getConf() {
+    // Create a default hadoopConf as it is required for the object to be valid.
+    // E.g. newInputFile would throw NPE with hadoopConf.get() otherwise.
+    if (hadoopConf == null) {
+      this.hadoopConf = new SerializableConfiguration(new Configuration())::get;
+    }
+
     return hadoopConf.get();
   }
 
