@@ -20,8 +20,8 @@ package org.apache.iceberg.hadoop;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -50,8 +50,6 @@ import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestTemplate;
@@ -112,7 +110,7 @@ public class HadoopFileIOTest {
    * the {@code WrappedIO} class.
    */
   private void assumeHadoopBulkDeleteAvailable() {
-    Assumptions.assumeThat(bulkDeleteAvailable)
+    assumeThat(bulkDeleteAvailable)
         .describedAs("Bulk Delete methods available")
         .isTrue();
   }
@@ -157,9 +155,7 @@ public class HadoopFileIOTest {
     // can highlight performance mismatches across the implementations.
     final Iterator<String> locations = files.stream().map(FileInfo::location).iterator();
     hadoopFileIO.deleteFiles(() -> locations);
-    if (locations instanceof Closeable) {
-      ((Closeable) locations).close();
-    }
+
     // now there are no files, but the parent directory still exists as it was not
     // deleted.
     assertThat(Streams.stream(hadoopFileIO.listPrefix(parentString)).count())
@@ -281,8 +277,8 @@ public class HadoopFileIOTest {
    * Verify that when bulk delete is available and enabled in the configuration, it will be used.
    */
   @TestTemplate
-  public void testBulkDeleteAPIAvailablility() throws Throwable {
-    Assertions.assertThat(hadoopFileIO.isBulkDeleteApiUsed())
+  public void testBulkDeleteAPIAvailablility() {
+    assertThat(hadoopFileIO.isBulkDeleteApiUsed())
         .describedAs(
             "Bulk Delete API use where useBulkIOApi=%s, bulkDeleteAvailable=%s",
             useBulkIOApi, bulkDeleteAvailable)

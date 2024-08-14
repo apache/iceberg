@@ -18,10 +18,6 @@
  */
 package org.apache.iceberg.hadoop.wrappedio;
 
-import static org.apache.iceberg.hadoop.wrappedio.BindingUtils.checkAvailable;
-import static org.apache.iceberg.hadoop.wrappedio.BindingUtils.loadClass;
-import static org.apache.iceberg.hadoop.wrappedio.BindingUtils.loadStaticMethod;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -69,13 +65,13 @@ public final class DynamicWrappedIO {
     // load the class
 
     // Wrapped IO class.
-    Class<?> wrappedIO = loadClass(loader, WRAPPED_IO_CLASSNAME);
+    Class<?> wrappedIO = BindingUtils.loadClass(loader, WRAPPED_IO_CLASSNAME);
 
     loaded = wrappedIO != null;
 
     // bulk delete APIs
     bulkDeleteDeleteMethod =
-        loadStaticMethod(
+        BindingUtils.loadStaticMethod(
             wrappedIO,
             List.class,
             BULKDELETE_DELETE,
@@ -84,7 +80,7 @@ public final class DynamicWrappedIO {
             Collection.class);
 
     bulkDeletePageSizeMethod =
-        loadStaticMethod(
+        BindingUtils.loadStaticMethod(
             wrappedIO, Integer.class, BULKDELETE_PAGESIZE, FileSystem.class, Path.class);
   }
 
@@ -117,7 +113,7 @@ public final class DynamicWrappedIO {
    * @throws RuntimeException invocation failure.
    */
   public int bulkDelete_pageSize(final FileSystem fileSystem, final Path path) {
-    checkAvailable(bulkDeletePageSizeMethod);
+    BindingUtils.checkAvailable(bulkDeletePageSizeMethod);
     return bulkDeletePageSizeMethod.invoke(null, fileSystem, path);
   }
 
@@ -146,7 +142,7 @@ public final class DynamicWrappedIO {
    */
   public List<Map.Entry<Path, String>> bulkDelete_delete(
       FileSystem fs, Path base, Collection<Path> paths) {
-    checkAvailable(bulkDeleteDeleteMethod);
+    BindingUtils.checkAvailable(bulkDeleteDeleteMethod);
     return bulkDeleteDeleteMethod.invoke(null, fs, base, paths);
   }
 }

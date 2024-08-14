@@ -229,7 +229,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
    * @return true if bulk delete is enabled.
    */
   @VisibleForTesting
-  public boolean isBulkDeleteApiUsed() {
+  boolean isBulkDeleteApiUsed() {
     return maybeUseBulkDeleteApi();
   }
 

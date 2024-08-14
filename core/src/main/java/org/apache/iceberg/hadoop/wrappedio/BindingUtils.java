@@ -18,12 +18,11 @@
  */
 package org.apache.iceberg.hadoop.wrappedio;
 
-import static org.apache.iceberg.relocated.com.google.common.base.Preconditions.checkState;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.function.Supplier;
 import org.apache.iceberg.common.DynMethods;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -133,7 +132,7 @@ final class BindingUtils {
 
     final DynMethods.UnboundMethod method =
         loadInvocation(source, returnType, name, parameterTypes);
-    checkState(method.isStatic(), "Method is not static %s", method);
+    Preconditions.checkState(method.isStatic(), "Method is not static %s", method);
     return method;
   }
 
@@ -188,9 +187,9 @@ final class BindingUtils {
    * Invoke the supplier, catching any {@code UncheckedIOException} raised, extracting the inner
    * IOException and rethrowing it.
    *
+   * @param <T> type of result
    * @param call call to invoke
    * @return result
-   * @param <T> type of result
    * @throws IOException if the call raised an IOException wrapped by an UncheckedIOException.
    */
   static <T> T extractIOEs(Supplier<T> call) throws IOException {
