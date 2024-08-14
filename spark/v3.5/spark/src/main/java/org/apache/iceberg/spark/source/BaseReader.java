@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.util.Utf8;
+import org.apache.iceberg.Accessor;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.ContentScanTask;
 import org.apache.iceberg.DeleteFile;
@@ -286,11 +287,16 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
      */
     public CloseableIterable<InternalRow> filterDeleted(CloseableIterable<InternalRow> rows) {
       PositionDeleteIndex deletedRowPositions = deletedRowPositions();
+      Accessor<StructLike> posAccessor = posAccessor();
+
       Filter<InternalRow> deletedFilter =
           new Filter<InternalRow>() {
             @Override
             protected boolean shouldKeep(InternalRow row) {
-              boolean isPosDeleted = deletedRowPositions.isDeleted(pos(row));
+              boolean isPosDeleted =
+                  (deletedRowPositions != null && posAccessor != null)
+                      ? deletedRowPositions.isDeleted(pos(row))
+                      : false;
               boolean isEqDeleted = isEqDeleted().test(row);
               return isPosDeleted || isEqDeleted;
             }
