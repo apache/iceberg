@@ -310,6 +310,9 @@ public class ExpressionUtil {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(UnboundPredicate<T> pred) {
+      if (pred.rightTerm() != null) {
+        return new UnboundPredicate<>(pred.op(), pred.term(), pred.rightTerm());
+      }
       switch (pred.op()) {
         case IS_NULL:
         case NOT_NULL:
