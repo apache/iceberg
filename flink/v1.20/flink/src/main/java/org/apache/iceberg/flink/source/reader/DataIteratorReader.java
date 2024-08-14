@@ -23,23 +23,18 @@ import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterator;
 
-/**
- * A {@link ReaderFunction} implementation that uses {@link DataIterator}.
- *
- * @deprecated since 1.7.0. Will be removed in 2.0.0; use {@link DataIteratorReader} instead
- */
-@Deprecated
-public abstract class DataIteratorReaderFunction<T> implements ReaderFunction<T> {
+/** A {@link Reader} implementation that uses {@link DataIterator}. */
+abstract class DataIteratorReader<T> implements Reader<T> {
   private final DataIteratorBatcher<T> batcher;
 
-  public DataIteratorReaderFunction(DataIteratorBatcher<T> batcher) {
+  DataIteratorReader(DataIteratorBatcher<T> batcher) {
     this.batcher = batcher;
   }
 
   protected abstract DataIterator<T> createDataIterator(IcebergSourceSplit split);
 
   @Override
-  public CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> apply(
+  public CloseableIterator<RecordsWithSplitIds<RecordAndPosition<T>>> open(
       IcebergSourceSplit split) {
     DataIterator<T> inputIterator = createDataIterator(split);
     inputIterator.seek(split.fileOffset(), split.recordOffset());

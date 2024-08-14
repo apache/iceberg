@@ -20,10 +20,11 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.util.List;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.flink.configuration.Configuration;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.formats.avro.typeutils.GenericRecordAvroTypeInfo;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.AvroGenericRecordFileScanTaskReader;
@@ -34,38 +35,17 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * Read Iceberg rows as {@link GenericRecord}.
- *
- * @deprecated since 1.7.0. Will be removed in 2.0.0; use {@link AvroGenericRecordReader} instead
- */
-@Deprecated
-public class AvroGenericRecordReaderFunction extends DataIteratorReaderFunction<GenericRecord> {
+public class AvroGenericRecordReader extends DataIteratorReader<GenericRecord> {
   private final String tableName;
   private final Schema readSchema;
   private final FileIO io;
   private final EncryptionManager encryption;
   private final RowDataFileScanTaskReader rowDataReader;
+  private final TypeInformation<GenericRecord> outputTypeInfo;
 
   private transient RowDataToAvroGenericRecordConverter converter;
 
-  /**
-   * Create a reader function without projection and name mapping. Column name is case-insensitive.
-   */
-  public static AvroGenericRecordReaderFunction fromTable(Table table) {
-    return new AvroGenericRecordReaderFunction(
-        table.name(),
-        new Configuration(),
-        table.schema(),
-        null,
-        null,
-        false,
-        table.io(),
-        table.encryption(),
-        null);
-  }
-
-  public AvroGenericRecordReaderFunction(
+  public AvroGenericRecordReader(
       String tableName,
       ReadableConfig config,
       Schema tableSchema,
@@ -82,15 +62,23 @@ public class AvroGenericRecordReaderFunction extends DataIteratorReaderFunction<
     this.encryption = encryption;
     this.rowDataReader =
         new RowDataFileScanTaskReader(tableSchema, readSchema, nameMapping, caseSensitive, filters);
+
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(readSchema, tableName);
+    this.outputTypeInfo = new GenericRecordAvroTypeInfo(avroSchema);
   }
 
   @Override
-  protected DataIterator<GenericRecord> createDataIterator(IcebergSourceSplit split) {
+  public DataIterator<GenericRecord> createDataIterator(IcebergSourceSplit split) {
     return new DataIterator<>(
         new AvroGenericRecordFileScanTaskReader(rowDataReader, lazyConverter()),
         split.task(),
         io,
         encryption);
+  }
+
+  @Override
+  public TypeInformation<GenericRecord> outputTypeInfo() {
+    return outputTypeInfo;
   }
 
   private RowDataToAvroGenericRecordConverter lazyConverter() {

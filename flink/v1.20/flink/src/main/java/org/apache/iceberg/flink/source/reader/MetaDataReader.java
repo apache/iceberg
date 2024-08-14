@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source.reader;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
@@ -30,19 +31,14 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * Reading metadata tables (like snapshots, manifests, etc.)
- *
- * @deprecated since 1.7.0. Will be removed in 2.0.0; use {@link MetaDataReader} instead
- */
-@Deprecated
+/** Reading metadata tables (like snapshots, manifests, etc.) */
 @Internal
-public class MetaDataReaderFunction extends DataIteratorReaderFunction<RowData> {
+public class MetaDataReader extends DataIteratorReader<RowData> {
   private final Schema readSchema;
   private final FileIO io;
   private final EncryptionManager encryption;
 
-  public MetaDataReaderFunction(
+  public MetaDataReader(
       ReadableConfig config,
       Schema tableSchema,
       Schema projectedSchema,
@@ -66,5 +62,10 @@ public class MetaDataReaderFunction extends DataIteratorReaderFunction<RowData> 
   private static Schema readSchema(Schema tableSchema, Schema projectedSchema) {
     Preconditions.checkNotNull(tableSchema, "Table schema can't be null");
     return projectedSchema == null ? tableSchema : projectedSchema;
+  }
+
+  @Override
+  public TypeInformation<RowData> outputTypeInfo() {
+    return TypeInformation.of(RowData.class);
   }
 }

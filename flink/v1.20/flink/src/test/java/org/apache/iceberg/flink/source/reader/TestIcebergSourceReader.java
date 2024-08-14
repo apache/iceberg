@@ -154,8 +154,8 @@ public class TestIcebergSourceReader {
       SerializableComparator<IcebergSourceSplit> splitComparator) {
     IcebergSourceReaderMetrics readerMetrics =
         new IcebergSourceReaderMetrics(metricGroup, "db.tbl");
-    RowDataReaderFunction readerFunction =
-        new RowDataReaderFunction(
+    RowDataReader reader =
+        new RowDataReader(
             new Configuration(),
             TestFixtures.SCHEMA,
             TestFixtures.SCHEMA,
@@ -167,7 +167,7 @@ public class TestIcebergSourceReader {
     return new IcebergSourceReader<>(
         SerializableRecordEmitter.defaultEmitter(),
         readerMetrics,
-        readerFunction,
+        reader,
         splitComparator,
         readerContext);
   }

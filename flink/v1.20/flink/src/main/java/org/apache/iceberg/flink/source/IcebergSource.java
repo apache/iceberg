@@ -60,12 +60,15 @@ import org.apache.iceberg.flink.source.enumerator.ContinuousSplitPlannerImpl;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorState;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializer;
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
+import org.apache.iceberg.flink.source.reader.AvroGenericRecordReader;
 import org.apache.iceberg.flink.source.reader.ColumnStatsWatermarkExtractor;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
-import org.apache.iceberg.flink.source.reader.MetaDataReaderFunction;
+import org.apache.iceberg.flink.source.reader.MetaDataReader;
+import org.apache.iceberg.flink.source.reader.Reader;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
-import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
+import org.apache.iceberg.flink.source.reader.ReaderFunctionAdaptor;
+import org.apache.iceberg.flink.source.reader.RowDataReader;
 import org.apache.iceberg.flink.source.reader.SerializableRecordEmitter;
 import org.apache.iceberg.flink.source.reader.SplitWatermarkExtractor;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
@@ -89,7 +92,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   // complete.
   private final TableLoader tableLoader;
   private final ScanContext scanContext;
-  private final ReaderFunction<T> readerFunction;
+  private final Reader<T> reader;
   private final SplitAssignerFactory assignerFactory;
   private final SerializableComparator<IcebergSourceSplit> splitComparator;
   private final SerializableRecordEmitter<T> emitter;
@@ -98,18 +101,18 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   IcebergSource(
       TableLoader tableLoader,
       ScanContext scanContext,
-      ReaderFunction<T> readerFunction,
+      Reader<T> reader,
       SplitAssignerFactory assignerFactory,
       SerializableComparator<IcebergSourceSplit> splitComparator,
       Table table,
       SerializableRecordEmitter<T> emitter) {
     Preconditions.checkNotNull(tableLoader, "tableLoader is required.");
-    Preconditions.checkNotNull(readerFunction, "readerFunction is required.");
+    Preconditions.checkNotNull(reader, "reader is required.");
     Preconditions.checkNotNull(assignerFactory, "assignerFactory is required.");
     Preconditions.checkNotNull(table, "table is required.");
     this.tableLoader = tableLoader;
     this.scanContext = scanContext;
-    this.readerFunction = readerFunction;
+    this.reader = reader;
     this.assignerFactory = assignerFactory;
     this.splitComparator = splitComparator;
     this.emitter = emitter;
@@ -156,8 +159,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   public SourceReader<T, IcebergSourceSplit> createReader(SourceReaderContext readerContext) {
     IcebergSourceReaderMetrics metrics =
         new IcebergSourceReaderMetrics(readerContext.metricGroup(), tableName);
-    return new IcebergSourceReader<>(
-        emitter, metrics, readerFunction, splitComparator, readerContext);
+    return new IcebergSourceReader<>(emitter, metrics, reader, splitComparator, readerContext);
   }
 
   @Override
@@ -225,6 +227,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private SplitAssignerFactory splitAssignerFactory;
     private SerializableComparator<IcebergSourceSplit> splitComparator;
     private ReaderFunction<T> readerFunction;
+    private Reader<T> reader;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
     private TableSchema projectedFlinkSchema;
@@ -255,8 +258,21 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    /**
+     * @deprecated since 1.7.0. Will be removed in 2.0.0; use{@link Builder#reader(Reader)} instead
+     */
+    @Deprecated
     public Builder<T> readerFunction(ReaderFunction<T> newReaderFunction) {
       this.readerFunction = newReaderFunction;
+      return this;
+    }
+
+    /**
+     * Optional. Default is {@link RowDataReader}. {@link AvroGenericRecordReader} can be used to
+     * produce Avro GenericRecord as output.
+     */
+    public Builder<T> reader(Reader<T> newReader) {
+      this.reader = newReader;
       return this;
     }
 
@@ -505,26 +521,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
       ScanContext context = contextBuilder.build();
       context.validate();
-      if (readerFunction == null) {
-        if (table instanceof BaseMetadataTable) {
-          MetaDataReaderFunction rowDataReaderFunction =
-              new MetaDataReaderFunction(
-                  flinkConfig, table.schema(), context.project(), table.io(), table.encryption());
-          this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
-        } else {
-          RowDataReaderFunction rowDataReaderFunction =
-              new RowDataReaderFunction(
-                  flinkConfig,
-                  table.schema(),
-                  context.project(),
-                  context.nameMapping(),
-                  context.caseSensitive(),
-                  table.io(),
-                  table.encryption(),
-                  context.filters(),
-                  context.limit());
-          this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
-        }
+
+      if (reader == null) {
+        this.reader = reader(context);
       }
 
       if (splitAssignerFactory == null) {
@@ -537,13 +536,33 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
 
       // Since builder already load the table, pass it to the source to avoid double loading
       return new IcebergSource<>(
-          tableLoader,
-          context,
-          readerFunction,
-          splitAssignerFactory,
-          splitComparator,
-          table,
-          emitter);
+          tableLoader, context, reader, splitAssignerFactory, splitComparator, table, emitter);
+    }
+
+    private Reader<T> reader(ScanContext context) {
+      if (readerFunction != null) {
+        return new ReaderFunctionAdaptor(readerFunction, null);
+      } else {
+        if (table instanceof BaseMetadataTable) {
+          MetaDataReader rowDataReader =
+              new MetaDataReader(
+                  flinkConfig, table.schema(), context.project(), table.io(), table.encryption());
+          return (Reader<T>) rowDataReader;
+        } else {
+          RowDataReader rowDataReader =
+              new RowDataReader(
+                  flinkConfig,
+                  table.schema(),
+                  context.project(),
+                  context.nameMapping(),
+                  context.caseSensitive(),
+                  table.io(),
+                  table.encryption(),
+                  context.filters(),
+                  context.limit());
+          return (Reader<T>) rowDataReader;
+        }
+      }
     }
   }
 }

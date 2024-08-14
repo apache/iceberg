@@ -52,7 +52,7 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.data.RowDataToRowMapper;
 import org.apache.iceberg.flink.sink.AvroGenericRecordToRowDataMapper;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
-import org.apache.iceberg.flink.source.reader.AvroGenericRecordReaderFunction;
+import org.apache.iceberg.flink.source.reader.AvroGenericRecordReader;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -147,8 +147,8 @@ public class TestIcebergSourceBoundedGenericRecord {
       table = tableLoader.loadTable();
     }
 
-    AvroGenericRecordReaderFunction readerFunction =
-        new AvroGenericRecordReaderFunction(
+    AvroGenericRecordReader reader =
+        new AvroGenericRecordReader(
             TestFixtures.TABLE_IDENTIFIER.name(),
             new Configuration(),
             table.schema(),
@@ -162,7 +162,7 @@ public class TestIcebergSourceBoundedGenericRecord {
     IcebergSource.Builder<GenericRecord> sourceBuilder =
         IcebergSource.<GenericRecord>builder()
             .tableLoader(CATALOG_EXTENSION.tableLoader())
-            .readerFunction(readerFunction)
+            .reader(reader)
             .assignerFactory(new SimpleSplitAssignerFactory())
             .flinkConfig(config);
     if (projectedSchema != null) {

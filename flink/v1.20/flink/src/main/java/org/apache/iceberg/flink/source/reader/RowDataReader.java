@@ -19,54 +19,32 @@
 package org.apache.iceberg.flink.source.reader;
 
 import java.util.List;
-import org.apache.avro.generic.GenericRecord;
-import org.apache.flink.configuration.Configuration;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.ReadableConfig;
+import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.flink.source.AvroGenericRecordFileScanTaskReader;
+import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.source.DataIterator;
 import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
-import org.apache.iceberg.flink.source.RowDataToAvroGenericRecordConverter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/**
- * Read Iceberg rows as {@link GenericRecord}.
- *
- * @deprecated since 1.7.0. Will be removed in 2.0.0; use {@link AvroGenericRecordReader} instead
- */
-@Deprecated
-public class AvroGenericRecordReaderFunction extends DataIteratorReaderFunction<GenericRecord> {
-  private final String tableName;
+public class RowDataReader extends DataIteratorReader<RowData> {
+  private final Schema tableSchema;
   private final Schema readSchema;
+  private final String nameMapping;
+  private final boolean caseSensitive;
   private final FileIO io;
   private final EncryptionManager encryption;
-  private final RowDataFileScanTaskReader rowDataReader;
+  private final List<Expression> filters;
+  private final long limit;
 
-  private transient RowDataToAvroGenericRecordConverter converter;
+  private transient RecordLimiter recordLimiter = null;
 
-  /**
-   * Create a reader function without projection and name mapping. Column name is case-insensitive.
-   */
-  public static AvroGenericRecordReaderFunction fromTable(Table table) {
-    return new AvroGenericRecordReaderFunction(
-        table.name(),
-        new Configuration(),
-        table.schema(),
-        null,
-        null,
-        false,
-        table.io(),
-        table.encryption(),
-        null);
-  }
-
-  public AvroGenericRecordReaderFunction(
-      String tableName,
+  public RowDataReader(
       ReadableConfig config,
       Schema tableSchema,
       Schema projectedSchema,
@@ -75,33 +53,69 @@ public class AvroGenericRecordReaderFunction extends DataIteratorReaderFunction<
       FileIO io,
       EncryptionManager encryption,
       List<Expression> filters) {
-    super(new ListDataIteratorBatcher<>(config));
-    this.tableName = tableName;
+    this(
+        config,
+        tableSchema,
+        projectedSchema,
+        nameMapping,
+        caseSensitive,
+        io,
+        encryption,
+        filters,
+        -1L);
+  }
+
+  public RowDataReader(
+      ReadableConfig config,
+      Schema tableSchema,
+      Schema projectedSchema,
+      String nameMapping,
+      boolean caseSensitive,
+      FileIO io,
+      EncryptionManager encryption,
+      List<Expression> filters,
+      long limit) {
+    super(
+        new ArrayPoolDataIteratorBatcher<>(
+            config,
+            new RowDataRecordFactory(
+                FlinkSchemaUtil.convert(readSchema(tableSchema, projectedSchema)))));
+    this.tableSchema = tableSchema;
     this.readSchema = readSchema(tableSchema, projectedSchema);
+    this.nameMapping = nameMapping;
+    this.caseSensitive = caseSensitive;
     this.io = io;
     this.encryption = encryption;
-    this.rowDataReader =
-        new RowDataFileScanTaskReader(tableSchema, readSchema, nameMapping, caseSensitive, filters);
+    this.filters = filters;
+    this.limit = limit;
   }
 
   @Override
-  protected DataIterator<GenericRecord> createDataIterator(IcebergSourceSplit split) {
-    return new DataIterator<>(
-        new AvroGenericRecordFileScanTaskReader(rowDataReader, lazyConverter()),
-        split.task(),
-        io,
-        encryption);
+  public TypeInformation<RowData> outputTypeInfo() {
+    return TypeInformation.of(RowData.class);
   }
 
-  private RowDataToAvroGenericRecordConverter lazyConverter() {
-    if (converter == null) {
-      this.converter = RowDataToAvroGenericRecordConverter.fromIcebergSchema(tableName, readSchema);
-    }
-    return converter;
+  @Override
+  public DataIterator<RowData> createDataIterator(IcebergSourceSplit split) {
+    return new LimitableDataIterator<>(
+        new RowDataFileScanTaskReader(tableSchema, readSchema, nameMapping, caseSensitive, filters),
+        split.task(),
+        io,
+        encryption,
+        lazyLimiter());
   }
 
   private static Schema readSchema(Schema tableSchema, Schema projectedSchema) {
     Preconditions.checkNotNull(tableSchema, "Table schema can't be null");
     return projectedSchema == null ? tableSchema : projectedSchema;
+  }
+
+  /** Lazily create RecordLimiter to avoid the need to make it serializable */
+  private RecordLimiter lazyLimiter() {
+    if (recordLimiter == null) {
+      this.recordLimiter = RecordLimiter.create(limit);
+    }
+
+    return recordLimiter;
   }
 }

@@ -37,11 +37,11 @@ public class IcebergSourceReader<T>
   public IcebergSourceReader(
       SerializableRecordEmitter<T> emitter,
       IcebergSourceReaderMetrics metrics,
-      ReaderFunction<T> readerFunction,
+      Reader<T> reader,
       SerializableComparator<IcebergSourceSplit> splitComparator,
       SourceReaderContext context) {
     super(
-        () -> new IcebergSourceSplitReader<>(metrics, readerFunction, splitComparator, context),
+        () -> new IcebergSourceSplitReader<>(metrics, reader, splitComparator, context),
         emitter,
         context.getConfiguration(),
         context);

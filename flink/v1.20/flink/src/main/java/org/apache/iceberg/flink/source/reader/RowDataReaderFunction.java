@@ -31,6 +31,8 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
+/** @deprecated since 1.7.0. Will be removed in 2.0.0; use {@link RowDataReader} instead */
+@Deprecated
 public class RowDataReaderFunction extends DataIteratorReaderFunction<RowData> {
   private final Schema tableSchema;
   private final Schema readSchema;

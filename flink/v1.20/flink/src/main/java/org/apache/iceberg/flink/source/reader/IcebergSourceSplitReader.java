@@ -43,7 +43,7 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSourceSplitReader.class);
 
   private final IcebergSourceReaderMetrics metrics;
-  private final ReaderFunction<T> openSplitFunction;
+  private final Reader<T> reader;
   private final SerializableComparator<IcebergSourceSplit> splitComparator;
   private final int indexOfSubtask;
   private final Queue<IcebergSourceSplit> splits;
@@ -54,11 +54,11 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
 
   IcebergSourceSplitReader(
       IcebergSourceReaderMetrics metrics,
-      ReaderFunction<T> openSplitFunction,
+      Reader<T> reader,
       SerializableComparator<IcebergSourceSplit> splitComparator,
       SourceReaderContext context) {
     this.metrics = metrics;
-    this.openSplitFunction = openSplitFunction;
+    this.reader = reader;
     this.splitComparator = splitComparator;
     this.indexOfSubtask = context.getIndexOfSubtask();
     this.splits = Queues.newArrayDeque();
@@ -81,7 +81,7 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
       if (nextSplit != null) {
         currentSplit = nextSplit;
         currentSplitId = nextSplit.splitId();
-        currentReader = openSplitFunction.apply(currentSplit);
+        currentReader = reader.open(currentSplit);
       } else {
         // return an empty result, which will lead to split fetch to be idle.
         // SplitFetcherManager will then close idle fetcher.

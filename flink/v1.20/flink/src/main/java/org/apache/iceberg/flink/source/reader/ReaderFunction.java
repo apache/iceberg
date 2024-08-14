@@ -24,6 +24,12 @@ import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.CloseableIterator;
 
+/**
+ * Reader interface that returns an iterator of record batch.
+ *
+ * @deprecated since 1.7.0. Will be removed in 2.0.0; use {@link Reader} instead
+ */
+@Deprecated
 @FunctionalInterface
 public interface ReaderFunction<T>
     extends Serializable,
