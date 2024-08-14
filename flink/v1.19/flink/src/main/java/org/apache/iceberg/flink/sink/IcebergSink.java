@@ -487,18 +487,29 @@ public class IcebergSink
       // Set the table if it is not yet set in the builder, so we can do the equalityId checks
       this.table = checkAndGetTable(tableLoader(), table);
 
+      // Init the `flinkWriteConf` here, so we can do the checks
+      FlinkWriteConf flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
+
+      Duration tableRefreshInterval = flinkWriteConf.tableRefreshInterval();
+      SerializableSupplier<Table> tableSupplier;
+      if (tableRefreshInterval != null) {
+        tableSupplier =
+            new CachingTableSupplier(
+                (SerializableTable) table, tableLoader(), tableRefreshInterval);
+      } else {
+        SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
+        tableSupplier = () -> serializableTable;
+      }
+
+      boolean overwriteMode = flinkWriteConf.overwriteMode();
+
       // Validate the equality fields and partition fields if we enable the upsert mode.
       List<Integer> equalityFieldIds =
           SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
-      // Init the `flinkWriteConf` here, so we can do the checks
-      FlinkWriteConf flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
-      String branch = flinkWriteConf.branch();
-      boolean overwriteMode = flinkWriteConf.overwriteMode();
-
       if (flinkWriteConf.upsertMode()) {
         Preconditions.checkState(
-            !flinkWriteConf.overwriteMode(),
+            !overwriteMode,
             "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
         Preconditions.checkState(
             !equalityFieldIds.isEmpty(),
@@ -514,40 +525,20 @@ public class IcebergSink
         }
       }
 
-      Map<String, String> writeProperties =
-          writeProperties(table, flinkWriteConf.dataFileFormat(), flinkWriteConf);
-      RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
-
-      Duration tableRefreshInterval = flinkWriteConf.tableRefreshInterval();
-      SerializableSupplier<Table> tableSerializableSupplier;
-
-      if (tableRefreshInterval != null) {
-        tableSerializableSupplier =
-            new CachingTableSupplier(
-                (SerializableTable) table, tableLoader(), tableRefreshInterval);
-      } else {
-        SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
-        tableSerializableSupplier = () -> serializableTable;
-      }
-
-      uidPrefix = Optional.ofNullable(uidPrefix).orElse("");
-
-      // FlinkWriteConf properties needed to be set separately, so we do not have to serialize the
-      // full conf
       return new IcebergSink(
           tableLoader,
           table,
           snapshotSummary,
-          uidPrefix,
-          writeProperties,
-          flinkRowType,
-          tableSerializableSupplier,
+          Optional.ofNullable(uidPrefix).orElse(""),
+          writeProperties(table, flinkWriteConf.dataFileFormat(), flinkWriteConf),
+          toFlinkRowType(table.schema(), tableSchema),
+          tableSupplier,
           flinkWriteConf,
           equalityFieldIds,
           flinkWriteConf.upsertMode(),
           flinkWriteConf.dataFileFormat(),
           flinkWriteConf.targetDataFileSize(),
-          branch,
+          flinkWriteConf.branch(),
           overwriteMode,
           flinkWriteConf.workerPoolSize());
     }
@@ -569,21 +560,21 @@ public class IcebergSink
     }
   }
 
-  private static Table checkAndGetTable(TableLoader tableLoader, Table table) {
+  private static SerializableTable checkAndGetTable(TableLoader tableLoader, Table table) {
     if (table == null) {
       if (!tableLoader.isOpen()) {
         tableLoader.open();
       }
 
       try (TableLoader loader = tableLoader) {
-        return SerializableTable.copyOf(loader.loadTable());
+        return (SerializableTable) SerializableTable.copyOf(loader.loadTable());
       } catch (IOException e) {
         throw new UncheckedIOException(
             "Failed to load iceberg table from table loader: " + tableLoader, e);
       }
     }
 
-    return SerializableTable.copyOf(table);
+    return (SerializableTable) SerializableTable.copyOf(table);
   }
 
   private static RowType toFlinkRowType(Schema schema, TableSchema requestedSchema) {

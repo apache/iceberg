@@ -139,7 +139,8 @@ public class TestIcebergFilesCommitter extends TestBase {
       assertSnapshotSize(0);
       assertMaxCommittedCheckpointId(jobId, operatorId, -1L);
 
-      // It's better to advance the max-committed-checkpoint-id in iceberg snapshot, so that the
+      // It's better to a
+      // dvance the max-committed-checkpoint-id in iceberg snapshot, so that the
       // future flink job
       // failover won't fail.
       for (int i = 1; i <= 3; i++) {
@@ -397,7 +398,7 @@ public class TestIcebergFilesCommitter extends TestBase {
     // flink job will restore from a checkpoint with only step#1 finished.
     long checkpointId = 0;
     long timestamp = 0;
-    OperatorSubtaskState snapshot;
+    OperatorSubtaskState snapshot = null;
     List<RowData> expectedRows = Lists.newArrayList();
     JobID jobId = new JobID();
     OperatorID operatorId;

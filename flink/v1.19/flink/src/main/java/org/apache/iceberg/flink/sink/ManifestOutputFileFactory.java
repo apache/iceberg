@@ -42,19 +42,6 @@ public class ManifestOutputFileFactory {
   private final long attemptNumber;
   private final AtomicInteger fileCount = new AtomicInteger(0);
 
-  public ManifestOutputFileFactory(
-      Supplier<Table> tableSupplier,
-      Map<String, String> props,
-      String flinkJobId,
-      String operatorId) {
-    this.tableSupplier = tableSupplier;
-    this.props = props;
-    this.flinkJobId = flinkJobId;
-    this.operatorUniqueId = operatorId;
-    this.subTaskId = 0;
-    this.attemptNumber = 0;
-  }
-
   ManifestOutputFileFactory(
       Supplier<Table> tableSupplier,
       Map<String, String> props,

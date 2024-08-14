@@ -62,9 +62,8 @@ class IcebergSinkWriter implements CommittingSinkWriter<RowData, WriteResult> {
     this.metrics = metrics;
     this.subTaskId = subTaskId;
     this.attemptId = attemptId;
-
     LOG.debug(
-        "StreamWriter created for table {} subtask {} attemptId {}",
+        "Created Stream Writer for table {} subtask {} attemptId {}",
         fullTableName,
         subTaskId,
         attemptId);

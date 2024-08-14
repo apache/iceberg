@@ -27,13 +27,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SinkUtil {
+class SinkUtil {
   private SinkUtil() {}
 
   private static final Logger LOG = LoggerFactory.getLogger(SinkUtil.class);
 
-  public static List<Integer> checkAndGetEqualityFieldIds(
-      Table table, List<String> equalityFieldColumns) {
+  static List<Integer> checkAndGetEqualityFieldIds(Table table, List<String> equalityFieldColumns) {
     List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
     if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
       Set<Integer> equalityFieldSet = Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());

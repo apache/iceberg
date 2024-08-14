@@ -19,7 +19,8 @@
 package org.apache.iceberg.flink.sink.committer;
 
 import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
-import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommitableSummary;
+import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommittableSummary;
+import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommittableWithLineage;
 import static org.apache.iceberg.flink.sink.SinkTestUtil.transformsToStreamElement;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
@@ -104,19 +105,26 @@ import org.slf4j.LoggerFactory;
 @ExtendWith(ParameterizedTestExtension.class)
 class TestIcebergCommitter extends TestBase {
   private static final Logger LOG = LoggerFactory.getLogger(TestIcebergCommitter.class);
+  public static final String OPERATOR_ID = "flink-sink";
   @TempDir File temporaryFolder;
+
   @TempDir File flinkManifestFolder;
+
   private Table table;
+
   private TableLoader tableLoader;
 
   @Parameter(index = 1)
-  private Boolean isBatchMode;
+  private Boolean isStreamingMode;
 
   @Parameter(index = 2)
   private String branch;
 
   private final String jobId = "jobId";
   private final long dataFIleRowCount = 5L;
+
+  private final TestCommittableMessageTypeSerializer committableMessageTypeSerializer =
+      new TestCommittableMessageTypeSerializer();
 
   private final DataFile dataFileTest1 =
       DataFiles.builder(PartitionSpec.unpartitioned())
@@ -154,10 +162,10 @@ class TestIcebergCommitter extends TestBase {
   @Parameters(name = "formatVersion={0} isStreaming={1}, branch={2}")
   protected static List<Object> parameters() {
     List<Object> parameters = Lists.newArrayList();
-    for (Boolean isBatchMode : new Boolean[] {true, false}) {
+    for (Boolean isStreamingMode : new Boolean[] {true, false}) {
       for (int formatVersion : new int[] {1, 2}) {
-        parameters.add(new Object[] {formatVersion, isBatchMode, SnapshotRef.MAIN_BRANCH});
-        parameters.add(new Object[] {formatVersion, isBatchMode, "test-branch"});
+        parameters.add(new Object[] {formatVersion, isStreamingMode, SnapshotRef.MAIN_BRANCH});
+        parameters.add(new Object[] {formatVersion, isStreamingMode, "test-branch"});
       }
     }
     return parameters;
@@ -190,7 +198,7 @@ class TestIcebergCommitter extends TestBase {
     assertMaxCommittedCheckpointId(jobId, -1);
 
     for (long i = 1; i <= 3; i++) {
-      final Committer.CommitRequest<IcebergCommittable> commitRequest =
+      Committer.CommitRequest<IcebergCommittable> commitRequest =
           buildCommitRequestFor(jobId, i, Lists.newArrayList());
       committer.commit(Lists.newArrayList(commitRequest));
       assertMaxCommittedCheckpointId(jobId, i);
@@ -203,7 +211,7 @@ class TestIcebergCommitter extends TestBase {
     table.updateProperties().set(IcebergCommitter.MAX_CONTINUOUS_EMPTY_COMMITS, "3").commit();
     IcebergCommitter committer = getCommitter();
     for (int i = 1; i <= 9; i++) {
-      final Committer.CommitRequest<IcebergCommittable> commitRequest =
+      Committer.CommitRequest<IcebergCommittable> commitRequest =
           buildCommitRequestFor(jobId, i, Lists.newArrayList());
       committer.commit(Lists.newArrayList(commitRequest));
       assertFlinkManifests(0);
@@ -221,7 +229,7 @@ class TestIcebergCommitter extends TestBase {
       DataFile dataFile = writeDataFile("data-" + i, ImmutableList.of(rowData));
       rows.add(rowData);
       WriteResult writeResult = of(dataFile);
-      final Committer.CommitRequest<IcebergCommittable> commitRequest =
+      Committer.CommitRequest<IcebergCommittable> commitRequest =
           buildCommitRequestFor(jobId, i, Lists.newArrayList(writeResult));
       committer.commit(Lists.newArrayList(commitRequest));
       assertFlinkManifests(0);
@@ -233,7 +241,7 @@ class TestIcebergCommitter extends TestBase {
           .containsEntry(
               "flink.test", "org.apache.iceberg.flink.sink.committer.TestIcebergCommitter")
           .containsEntry("added-data-files", "1")
-          .containsEntry("flink.operator-id", "flink-sink")
+          .containsEntry("flink.operator-id", OPERATOR_ID)
           .containsEntry("flink.job-id", "jobId");
     }
   }
@@ -245,46 +253,49 @@ class TestIcebergCommitter extends TestBase {
     //   2. snapshotState for checkpoint#2;
     //   3. notifyCheckpointComplete for checkpoint#1;
     //   4. notifyCheckpointComplete for checkpoint#2;
+
     long timestamp = 0;
-
-    final OneInputStreamOperatorTestHarness<
+    try (OneInputStreamOperatorTestHarness<
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-        harness = getTestHarness();
-    harness.open();
-    assertMaxCommittedCheckpointId(jobId, -1L);
+        harness = getTestHarness()) {
 
-    RowData row1 = SimpleDataUtil.createRowData(1, "hello");
-    DataFile dataFile1 = writeDataFile("data-1", ImmutableList.of(row1));
+      harness.open();
 
-    processElement(jobId, 1, harness, 1, "flink-sink", dataFile1);
-    assertMaxCommittedCheckpointId(jobId, -1L);
+      assertMaxCommittedCheckpointId(jobId, -1L);
 
-    // 1. snapshotState for checkpoint#1
-    long firstCheckpointId = 1;
-    harness.snapshot(firstCheckpointId, ++timestamp);
-    assertFlinkManifests(1);
+      RowData row1 = SimpleDataUtil.createRowData(1, "hello");
+      DataFile dataFile1 = writeDataFile("data-1", ImmutableList.of(row1));
 
-    RowData row2 = SimpleDataUtil.createRowData(2, "world");
-    DataFile dataFile2 = writeDataFile("data-2", ImmutableList.of(row2));
-    processElement(jobId, 2, harness, 1, "flink-sink", dataFile2);
-    assertMaxCommittedCheckpointId(jobId, -1L);
+      processElement(jobId, 1, harness, 1, OPERATOR_ID, dataFile1);
+      assertMaxCommittedCheckpointId(jobId, -1L);
 
-    // 2. snapshotState for checkpoint#2
-    long secondCheckpointId = 2;
-    harness.snapshot(secondCheckpointId, ++timestamp);
-    assertFlinkManifests(2);
+      // 1. snapshotState for checkpoint#1
+      long firstCheckpointId = 1;
+      harness.snapshot(firstCheckpointId, ++timestamp);
+      assertFlinkManifests(1);
 
-    // 3. notifyCheckpointComplete for checkpoint#1
-    harness.notifyOfCompletedCheckpoint(firstCheckpointId);
-    SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
-    assertMaxCommittedCheckpointId(jobId, firstCheckpointId);
-    assertFlinkManifests(1);
+      RowData row2 = SimpleDataUtil.createRowData(2, "world");
+      DataFile dataFile2 = writeDataFile("data-2", ImmutableList.of(row2));
+      processElement(jobId, 2, harness, 1, OPERATOR_ID, dataFile2);
+      assertMaxCommittedCheckpointId(jobId, -1L);
 
-    // 4. notifyCheckpointComplete for checkpoint#2
-    harness.notifyOfCompletedCheckpoint(secondCheckpointId);
-    SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2), branch);
-    assertMaxCommittedCheckpointId(jobId, secondCheckpointId);
-    assertFlinkManifests(0);
+      // 2. snapshotState for checkpoint#2
+      long secondCheckpointId = 2;
+      OperatorSubtaskState snapshot = harness.snapshot(secondCheckpointId, ++timestamp);
+      assertFlinkManifests(2);
+
+      // 3. notifyCheckpointComplete for checkpoint#1
+      harness.notifyOfCompletedCheckpoint(firstCheckpointId);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
+      assertMaxCommittedCheckpointId(jobId, firstCheckpointId);
+      assertFlinkManifests(1);
+
+      // 4. notifyCheckpointComplete for checkpoint#2
+      harness.notifyOfCompletedCheckpoint(secondCheckpointId);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2), branch);
+      assertMaxCommittedCheckpointId(jobId, secondCheckpointId);
+      assertFlinkManifests(0);
+    }
   }
 
   @TestTemplate
@@ -292,189 +303,221 @@ class TestIcebergCommitter extends TestBase {
     // It's possible that two checkpoints happen in the following orders:
     //   1. snapshotState for checkpoint#1;
     //   2. snapshotState for checkpoint#2;
-    //   3. notifyCheckpointComplete for checkpoint#1;
-    //   4. notifyCheckpointComplete for checkpoint#2;
+    //   3. notifyCheckpointComplete for checkpoint#2;
+    //   4. notifyCheckpointComplete for checkpoint#1;
+
     long timestamp = 0;
-
-    final OneInputStreamOperatorTestHarness<
+    try (OneInputStreamOperatorTestHarness<
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-        harness = getTestHarness();
-    harness.open();
-    assertMaxCommittedCheckpointId(jobId, -1L);
+        harness = getTestHarness()) {
 
-    RowData row1 = SimpleDataUtil.createRowData(1, "hello");
-    DataFile dataFile1 = writeDataFile("data-1", ImmutableList.of(row1));
+      harness.open();
+      assertMaxCommittedCheckpointId(jobId, -1L);
 
-    processElement(jobId, 1, harness, 1, "flink-sink", dataFile1);
-    assertMaxCommittedCheckpointId(jobId, -1L);
+      RowData row1 = SimpleDataUtil.createRowData(1, "hello");
+      DataFile dataFile1 = writeDataFile("data-1", ImmutableList.of(row1));
 
-    // 1. snapshotState for checkpoint#1
-    long firstCheckpointId = 1;
-    harness.snapshot(firstCheckpointId, ++timestamp);
-    assertFlinkManifests(1);
+      processElement(jobId, 1, harness, 1, OPERATOR_ID, dataFile1);
+      assertMaxCommittedCheckpointId(jobId, -1L);
 
-    RowData row2 = SimpleDataUtil.createRowData(2, "world");
-    DataFile dataFile2 = writeDataFile("data-2", ImmutableList.of(row2));
-    processElement(jobId, 2, harness, 1, "flink-sink", dataFile2);
-    assertMaxCommittedCheckpointId(jobId, -1L);
+      // 1. snapshotState for checkpoint#1
+      long firstCheckpointId = 1;
+      harness.snapshot(firstCheckpointId, ++timestamp);
+      assertFlinkManifests(1);
 
-    // 2. snapshotState for checkpoint#2
-    long secondCheckpointId = 2;
-    harness.snapshot(secondCheckpointId, ++timestamp);
-    assertFlinkManifests(2);
+      RowData row2 = SimpleDataUtil.createRowData(2, "world");
+      DataFile dataFile2 = writeDataFile("data-2", ImmutableList.of(row2));
+      processElement(jobId, 2, harness, 1, OPERATOR_ID, dataFile2);
+      assertMaxCommittedCheckpointId(jobId, -1L);
 
-    // 3. notifyCheckpointComplete for checkpoint#2
-    harness.notifyOfCompletedCheckpoint(secondCheckpointId);
-    SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2), branch);
-    assertMaxCommittedCheckpointId(jobId, secondCheckpointId);
-    assertFlinkManifests(0);
+      // 2. snapshotState for checkpoint#2
+      long secondCheckpointId = 2;
+      harness.snapshot(secondCheckpointId, ++timestamp);
+      assertFlinkManifests(2);
 
-    // 4. notifyCheckpointComplete for checkpoint#1
-    harness.notifyOfCompletedCheckpoint(firstCheckpointId);
-    SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2), branch);
-    assertMaxCommittedCheckpointId(jobId, secondCheckpointId);
-    assertFlinkManifests(0);
-  }
+      // 3. notifyCheckpointComplete for checkpoint#2
+      harness.notifyOfCompletedCheckpoint(secondCheckpointId);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2), branch);
+      assertMaxCommittedCheckpointId(jobId, secondCheckpointId);
+      assertFlinkManifests(0);
 
-  @TestTemplate
-  public void testEmitCommittablesMock() throws Exception {
-    final ForwardingCommitter committer = new ForwardingCommitter(tableLoader);
-    IcebergSink sink =
-        spy(IcebergSink.forRowData(null).table(table).tableLoader(tableLoader).build());
-    doReturn(committer).when(sink).createCommitter(any());
-    String jobId1 = "jobId1";
-    final OneInputStreamOperatorTestHarness<
-            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-        testHarness =
-            new OneInputStreamOperatorTestHarness<>(
-                new CommitterOperatorFactory<>(sink, false, true));
-    testHarness.open();
-
-    WriteResult writeResult = WriteResult.builder().build();
-
-    IcebergCommittable commit =
-        new IcebergCommittable(
-            buildIcebergWriteAggregator(jobId1, "flink-sink")
-                .writeToManifest(Lists.newArrayList(writeResult), 1L),
-            jobId1,
-            "flink-sink",
-            1L);
-
-    final CommittableSummary<IcebergCommittable> committableSummary =
-        new CommittableSummary<>(1, 1, 1L, 1, 1, 0);
-    testHarness.processElement(new StreamRecord<>(committableSummary));
-    final CommittableWithLineage<IcebergCommittable> committableWithLineage =
-        new CommittableWithLineage<>(commit, 1L, 1);
-    testHarness.processElement(new StreamRecord<>(committableWithLineage));
-
-    // Trigger commit
-    testHarness.notifyOfCompletedCheckpoint(1);
-
-    assertThat(committer.getSuccessfulCommits()).isEqualTo(1);
-    final List<StreamElement> output = transformsToStreamElement(testHarness.getOutput());
-    SinkV2Assertions.assertThat(extractAndAssertCommitableSummary(output.get(0)))
-        .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
-        .hasOverallCommittables(committableSummary.getNumberOfCommittables())
-        .hasPendingCommittables(0);
-    testHarness.close();
+      // 4. notifyCheckpointComplete for checkpoint#1
+      harness.notifyOfCompletedCheckpoint(firstCheckpointId);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2), branch);
+      assertMaxCommittedCheckpointId(jobId, secondCheckpointId);
+      assertFlinkManifests(0);
+    }
   }
 
   @TestTemplate
   public void testEmitCommittables() throws Exception {
-    final OneInputStreamOperatorTestHarness<
+    TestCommitter committer = new TestCommitter(tableLoader);
+    IcebergSink sink =
+        spy(IcebergSink.forRowData(null).table(table).tableLoader(tableLoader).build());
+    doReturn(committer).when(sink).createCommitter(any());
+
+    try (OneInputStreamOperatorTestHarness<
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-        testHarness = getTestHarness();
-    testHarness.open();
+        testHarness =
+            new OneInputStreamOperatorTestHarness<>(
+                new CommitterOperatorFactory<>(sink, false, true))) {
+      testHarness.open();
 
-    String jobId1 = "jobId1";
-    long checkpointId = 0;
-    CommittableSummary<IcebergCommittable> committableSummary =
-        processElement(jobId1, checkpointId, testHarness, 1, "flink-sink", dataFileTest1);
+      WriteResult writeResult = WriteResult.builder().build();
 
-    // Trigger commit
-    testHarness.notifyOfCompletedCheckpoint(1);
+      IcebergCommittable commit =
+          new IcebergCommittable(
+              buildIcebergWriteAggregator(jobId, OPERATOR_ID)
+                  .writeToManifest(Lists.newArrayList(writeResult), 1L),
+              jobId,
+              OPERATOR_ID,
+              1L);
 
-    assertSnapshotSize(1);
-    assertMaxCommittedCheckpointId(jobId1, 0L);
+      CommittableSummary<IcebergCommittable> committableSummary =
+          new CommittableSummary<>(1, 1, 1L, 1, 1, 0);
+      testHarness.processElement(new StreamRecord<>(committableSummary));
+      CommittableWithLineage<IcebergCommittable> committableWithLineage =
+          new CommittableWithLineage<>(commit, 1L, 1);
+      testHarness.processElement(new StreamRecord<>(committableWithLineage));
 
-    final List<StreamElement> output = transformsToStreamElement(testHarness.getOutput());
-    SinkV2Assertions.assertThat(extractAndAssertCommitableSummary(output.get(0)))
-        .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
-        .hasOverallCommittables(committableSummary.getNumberOfCommittables())
-        .hasPendingCommittables(0);
-    testHarness.close();
+      // Trigger commit
+      testHarness.notifyOfCompletedCheckpoint(1);
+
+      assertThat(committer.getSuccessfulCommits()).isEqualTo(1);
+      List<StreamElement> output = transformsToStreamElement(testHarness.getOutput());
+      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
+          .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
+          .hasOverallCommittables(committableSummary.getNumberOfCommittables())
+          .hasPendingCommittables(0);
+
+      SinkV2Assertions.assertThat(extractAndAssertCommittableWithLineage(output.get(1)))
+          .hasCheckpointId(1L)
+          .hasSubtaskId(0)
+          .hasCommittable(commit);
+    }
+  }
+
+  @TestTemplate
+  public void testSingleCommit() throws Exception {
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        testHarness = getTestHarness()) {
+      testHarness.open();
+
+      long checkpointId = 1;
+
+      RowData row1 = SimpleDataUtil.createRowData(1, "hello1");
+      DataFile dataFile1 = writeDataFile("data-1-1", ImmutableList.of(row1));
+      CommittableSummary<IcebergCommittable> committableSummary =
+          processElement(jobId, checkpointId, testHarness, 1, OPERATOR_ID, dataFile1);
+
+      // Trigger commit
+      testHarness.notifyOfCompletedCheckpoint(checkpointId);
+
+      assertSnapshotSize(1);
+      assertMaxCommittedCheckpointId(jobId, 1L);
+
+      List<StreamElement> output = transformsToStreamElement(testHarness.getOutput());
+
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
+      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
+          .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
+          .hasOverallCommittables(committableSummary.getNumberOfCommittables())
+          .hasPendingCommittables(0);
+
+      SinkV2Assertions.assertThat(extractAndAssertCommittableWithLineage(output.get(1)))
+          .hasSubtaskId(0)
+          .hasCheckpointId(checkpointId);
+    }
 
     table.refresh();
     Snapshot currentSnapshot = table.snapshot(branch);
 
     assertThat(currentSnapshot.summary())
-        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, String.valueOf(dataFIleRowCount))
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "1")
         .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1");
   }
 
   /** The data was not committed in the previous job. */
   @TestTemplate
   public void testStateRestoreFromPreJob() throws Exception {
-    final OneInputStreamOperatorTestHarness<
-            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-        preJobTestHarness = getTestHarness();
-    preJobTestHarness.open();
-    preJobTestHarness.setup();
-
     String jobId1 = "jobId1";
+    OperatorSubtaskState snapshot;
+
+    // We cannot test a different checkpoint thant 0 because when using the OperatorTestHarness
+    // for recovery the lastCompleted checkpoint is always reset to 0.
+    // see: https://github.com/apache/iceberg/issues/10942
     long checkpointId = 0;
-    CommittableSummary<IcebergCommittable> committableSummary =
-        processElement(jobId1, checkpointId, preJobTestHarness, 1, "flink-sink", dataFileTest1);
+    long timestamp = 0;
+    CommittableSummary<IcebergCommittable> committableSummary;
 
-    final OperatorSubtaskState snapshot = preJobTestHarness.snapshot(checkpointId, 2L);
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        preJobTestHarness = getTestHarness()) {
 
-    assertThat(preJobTestHarness.getOutput()).isEmpty();
-    preJobTestHarness.close();
+      preJobTestHarness.open();
+
+      committableSummary =
+          processElement(jobId1, checkpointId, preJobTestHarness, 1, OPERATOR_ID, dataFileTest1);
+
+      snapshot = preJobTestHarness.snapshot(checkpointId, ++timestamp);
+
+      assertThat(preJobTestHarness.getOutput()).isEmpty();
+    }
 
     assertSnapshotSize(0);
     assertMaxCommittedCheckpointId(jobId1, -1L);
 
-    final OneInputStreamOperatorTestHarness<
-            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-        restored = getTestHarness();
-    restored.setup(committableMessageTypeSerializer);
-    restored.initializeState(snapshot);
-    restored.open();
-
-    // Previous committables are immediately committed if possible
-    final List<StreamElement> output = transformsToStreamElement(restored.getOutput());
-    assertThat(output).hasSize(2);
-
-    SinkV2Assertions.assertThat(extractAndAssertCommitableSummary(output.get(0)))
-        .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
-        .hasOverallCommittables(committableSummary.getNumberOfCommittables())
-        .hasPendingCommittables(0);
-
-    table.refresh();
-
-    Snapshot currentSnapshot = table.snapshot(branch);
-
-    assertThat(currentSnapshot.summary())
-        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, String.valueOf(dataFIleRowCount))
-        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1")
-        .containsEntry("flink.job-id", jobId1);
-
     String jobId2 = "jobId2";
-    CommittableSummary<IcebergCommittable> committableSummary2 =
-        processElement(jobId2, checkpointId, restored, 1, "flink-sink", dataFileTest2);
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        restored = getTestHarness()) {
+      restored.setup(committableMessageTypeSerializer);
+      restored.initializeState(snapshot);
+      restored.open();
 
-    // Trigger commit
-    restored.notifyOfCompletedCheckpoint(0);
+      // Previous committables are immediately committed if possible
+      List<StreamElement> output = transformsToStreamElement(restored.getOutput());
+      assertThat(output).hasSize(2);
 
-    final List<StreamElement> output2 = transformsToStreamElement(restored.getOutput());
-    SinkV2Assertions.assertThat(extractAndAssertCommitableSummary(output2.get(0)))
-        .hasFailedCommittables(committableSummary2.getNumberOfFailedCommittables())
-        .hasOverallCommittables(committableSummary2.getNumberOfCommittables())
-        .hasPendingCommittables(0);
-    restored.close();
+      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
+          .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
+          .hasOverallCommittables(committableSummary.getNumberOfCommittables())
+          .hasPendingCommittables(0);
+
+      SinkV2Assertions.assertThat(extractAndAssertCommittableWithLineage(output.get(1)))
+          .hasCheckpointId(0L)
+          .hasSubtaskId(0);
+
+      table.refresh();
+
+      Snapshot currentSnapshot = table.snapshot(branch);
+
+      assertThat(currentSnapshot.summary())
+          .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, String.valueOf(dataFIleRowCount))
+          .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1")
+          .containsEntry("flink.job-id", jobId1);
+
+      checkpointId++;
+      CommittableSummary<IcebergCommittable> committableSummary2 =
+          processElement(jobId2, checkpointId, restored, 1, OPERATOR_ID, dataFileTest2);
+
+      // Trigger commit
+      restored.notifyOfCompletedCheckpoint(checkpointId);
+
+      List<StreamElement> output2 = transformsToStreamElement(restored.getOutput());
+      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output2.get(0)))
+          .hasFailedCommittables(committableSummary2.getNumberOfFailedCommittables())
+          .hasOverallCommittables(committableSummary2.getNumberOfCommittables())
+          .hasPendingCommittables(0);
+
+      SinkV2Assertions.assertThat(extractAndAssertCommittableWithLineage(output2.get(1)))
+          .hasCheckpointId(0L)
+          .hasSubtaskId(0);
+    }
 
     assertSnapshotSize(2);
-    assertMaxCommittedCheckpointId(jobId2, 0);
+    assertMaxCommittedCheckpointId(jobId2, 1);
 
     table.refresh();
     Snapshot currentSnapshot2 = table.snapshot(branch);
@@ -488,75 +531,82 @@ class TestIcebergCommitter extends TestBase {
   /** The data was committed in the previous job. */
   @TestTemplate
   public void testStateRestoreFromPreJob2() throws Exception {
-    final OneInputStreamOperatorTestHarness<
-            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-        preJobTestHarness = getTestHarness();
-
-    preJobTestHarness.open();
-
     String jobId1 = "jobId1";
+    OperatorSubtaskState snapshot;
+
+    // We cannot test a different checkpoint thant 0 because when using the OperatorTestHarness
+    // for recovery the lastCompleted checkpoint is always reset to 0.
+    // see: https://github.com/apache/iceberg/issues/10942
     long checkpointId = 0;
-    CommittableSummary<IcebergCommittable> committableSummary =
-        processElement(jobId1, checkpointId, preJobTestHarness, 1, "flink-sink", dataFileTest1);
 
-    final OperatorSubtaskState snapshot = preJobTestHarness.snapshot(checkpointId, 2L);
-    // commit snapshot
-    preJobTestHarness.notifyOfCompletedCheckpoint(checkpointId);
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        preJobTestHarness = getTestHarness()) {
 
-    final List<StreamElement> output = transformsToStreamElement(preJobTestHarness.getOutput());
-    assertThat(output).hasSize(2);
+      preJobTestHarness.open();
 
-    SinkV2Assertions.assertThat(extractAndAssertCommitableSummary(output.get(0)))
-        .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
-        .hasOverallCommittables(committableSummary.getNumberOfCommittables())
-        .hasPendingCommittables(0);
+      CommittableSummary<IcebergCommittable> committableSummary =
+          processElement(jobId1, checkpointId, preJobTestHarness, 1, OPERATOR_ID, dataFileTest1);
 
-    preJobTestHarness.close();
+      assertFlinkManifests(1);
+      snapshot = preJobTestHarness.snapshot(checkpointId, 2L);
+      // commit snapshot
+      preJobTestHarness.notifyOfCompletedCheckpoint(checkpointId);
 
-    assertSnapshotSize(1);
-    assertMaxCommittedCheckpointId(jobId1, 0L);
+      List<StreamElement> output = transformsToStreamElement(preJobTestHarness.getOutput());
+      assertThat(output).hasSize(2);
+
+      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
+          .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
+          .hasOverallCommittables(committableSummary.getNumberOfCommittables())
+          .hasPendingCommittables(0);
+
+      assertSnapshotSize(1);
+      assertMaxCommittedCheckpointId(jobId1, checkpointId);
+    }
+
     table.refresh();
-    long proJobSnapshotId = table.snapshot(branch).snapshotId();
+    long preJobSnapshotId = table.snapshot(branch).snapshotId();
 
     String jobId2 = "jobId2";
-    final OneInputStreamOperatorTestHarness<
+    try (OneInputStreamOperatorTestHarness<
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-        restored = getTestHarness();
+        restored = getTestHarness()) {
+      restored.setup();
+      restored.initializeState(snapshot);
+      restored.open();
 
-    restored.initializeState(snapshot);
-    restored.open();
+      // Makes sure that data committed in the previous job is available in this job
+      List<StreamElement> output2 = transformsToStreamElement(restored.getOutput());
+      assertThat(output2).hasSize(2);
 
-    // The committed data will not be recommitted, but the commit records are emitted
-    final List<StreamElement> output2 = transformsToStreamElement(restored.getOutput());
-    assertThat(output2).hasSize(2);
+      table.refresh();
+      long restoredSnapshotId = table.snapshot(branch).snapshotId();
 
-    table.refresh();
-    long restoredSnapshotId = table.snapshot(branch).snapshotId();
+      assertThat(restoredSnapshotId)
+          .as("The table does not generate a new snapshot without data being committed.")
+          .isEqualTo(preJobSnapshotId);
 
-    assertThat(restoredSnapshotId)
-        .as("The table does not generate a new snapshot without data being committed.")
-        .isEqualTo(proJobSnapshotId);
+      assertThat(table.snapshot(branch).summary())
+          .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, String.valueOf(dataFIleRowCount))
+          .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1")
+          .containsEntry("flink.job-id", jobId1);
 
-    assertThat(table.snapshot(branch).summary())
-        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, String.valueOf(dataFIleRowCount))
-        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1")
-        .containsEntry("flink.job-id", jobId1);
+      // Commit new data file
+      checkpointId = 1;
+      CommittableSummary<IcebergCommittable> committableSummary2 =
+          processElement(jobId2, checkpointId, restored, 1, OPERATOR_ID, dataFileTest2);
 
-    // Commit new data file
-    checkpointId = 1;
-    CommittableSummary<IcebergCommittable> committableSummary2 =
-        processElement(jobId2, checkpointId, restored, 1, "flink-sink", dataFileTest2);
+      // Trigger commit
+      restored.notifyOfCompletedCheckpoint(checkpointId);
 
-    // Trigger commit
-    restored.notifyOfCompletedCheckpoint(checkpointId);
-
-    final List<StreamElement> output3 = transformsToStreamElement(restored.getOutput());
-    assertThat(output3).hasSize(4);
-    SinkV2Assertions.assertThat(extractAndAssertCommitableSummary(output3.get(0)))
-        .hasFailedCommittables(committableSummary2.getNumberOfFailedCommittables())
-        .hasOverallCommittables(committableSummary2.getNumberOfCommittables())
-        .hasPendingCommittables(0);
-    restored.close();
+      List<StreamElement> output3 = transformsToStreamElement(restored.getOutput());
+      assertThat(output3).hasSize(4);
+      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output3.get(0)))
+          .hasFailedCommittables(committableSummary2.getNumberOfFailedCommittables())
+          .hasOverallCommittables(committableSummary2.getNumberOfCommittables())
+          .hasPendingCommittables(0);
+    }
 
     assertSnapshotSize(2);
     assertMaxCommittedCheckpointId(jobId2, 1L);
@@ -574,82 +624,92 @@ class TestIcebergCommitter extends TestBase {
 
   @TestTemplate
   public void testStateRestoreFromCurrJob() throws Exception {
-    final OneInputStreamOperatorTestHarness<
-            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-        testHarness = getTestHarness();
-
-    testHarness.open();
-
     String jobId1 = "jobId1";
+    CommittableSummary<IcebergCommittable> committableSummary;
+    OperatorSubtaskState snapshot;
+
+    // We cannot test a different checkpoint thant 0 because when using the OperatorTestHarness
+    // for recovery the lastCompleted checkpoint is always reset to 0.
+    // see: https://github.com/apache/iceberg/issues/10942
     long checkpointId = 0;
-    CommittableSummary<IcebergCommittable> committableSummary =
-        processElement(jobId1, checkpointId, testHarness, 1, "flink-sink", dataFileTest1);
 
-    final OperatorSubtaskState snapshot = testHarness.snapshot(checkpointId, 2L);
+    try (OneInputStreamOperatorTestHarness<
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        testHarness = getTestHarness()) {
 
-    assertThat(testHarness.getOutput()).isEmpty();
-    testHarness.close();
+      testHarness.open();
+
+      committableSummary =
+          processElement(jobId1, checkpointId, testHarness, 1, OPERATOR_ID, dataFileTest1);
+      snapshot = testHarness.snapshot(checkpointId, 2L);
+
+      assertThat(testHarness.getOutput()).isEmpty();
+    }
 
     assertSnapshotSize(0);
     assertMaxCommittedCheckpointId(jobId1, -1L);
 
-    final OneInputStreamOperatorTestHarness<
+    try (OneInputStreamOperatorTestHarness<
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-        restored = getTestHarness();
+        restored = getTestHarness()) {
 
-    restored.setup(committableMessageTypeSerializer);
+      restored.setup(committableMessageTypeSerializer);
 
-    restored.initializeState(snapshot);
-    restored.open();
+      restored.initializeState(snapshot);
+      restored.open();
 
-    // Previous committables are immediately committed if possible
-    final List<StreamElement> output = transformsToStreamElement(restored.getOutput());
-    assertThat(output).hasSize(2);
+      // Previous committables are immediately committed if possible
+      List<StreamElement> output = transformsToStreamElement(restored.getOutput());
+      assertThat(output).hasSize(2);
 
-    SinkV2Assertions.assertThat(extractAndAssertCommitableSummary(output.get(0)))
-        .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
-        .hasOverallCommittables(committableSummary.getNumberOfCommittables())
-        .hasPendingCommittables(0);
+      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
+          .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
+          .hasOverallCommittables(committableSummary.getNumberOfCommittables())
+          .hasPendingCommittables(0);
 
-    table.refresh();
-    Snapshot currentSnapshot = table.snapshot(branch);
+      table.refresh();
+      Snapshot currentSnapshot = table.snapshot(branch);
 
-    assertThat(currentSnapshot.summary())
-        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, String.valueOf(dataFIleRowCount))
-        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1")
-        .containsEntry("flink.job-id", jobId1);
+      assertThat(currentSnapshot.summary())
+          .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, String.valueOf(dataFIleRowCount))
+          .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "1")
+          .containsEntry("flink.job-id", jobId1);
 
-    String jobId2 = "jobId2";
-    checkpointId = 1;
-    CommittableSummary<IcebergCommittable> committableSummary2 =
-        processElement(jobId2, checkpointId, restored, 1, "flink-sink", dataFileTest2);
+      String jobId2 = "jobId2";
+      checkpointId = 1;
+      CommittableSummary<IcebergCommittable> committableSummary2 =
+          processElement(jobId2, checkpointId, restored, 1, OPERATOR_ID, dataFileTest2);
 
-    // Trigger commit
-    restored.notifyOfCompletedCheckpoint(checkpointId);
+      // Trigger commit
+      restored.notifyOfCompletedCheckpoint(checkpointId);
 
-    final List<StreamElement> output2 = transformsToStreamElement(restored.getOutput());
-    SinkV2Assertions.assertThat(extractAndAssertCommitableSummary(output2.get(0)))
-        .hasFailedCommittables(committableSummary2.getNumberOfFailedCommittables())
-        .hasOverallCommittables(committableSummary2.getNumberOfCommittables())
-        .hasPendingCommittables(0);
-    restored.close();
+      List<StreamElement> output2 = transformsToStreamElement(restored.getOutput());
+      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output2.get(0)))
+          .hasFailedCommittables(committableSummary2.getNumberOfFailedCommittables())
+          .hasOverallCommittables(committableSummary2.getNumberOfCommittables())
+          .hasPendingCommittables(0);
+      restored.close();
 
-    assertSnapshotSize(2);
-    assertMaxCommittedCheckpointId(jobId2, 1L);
+      assertSnapshotSize(2);
+      assertMaxCommittedCheckpointId(jobId2, 1L);
 
-    table.refresh();
-    Snapshot currentSnapshot2 = table.snapshot(branch);
-    assertThat(currentSnapshot2.summary())
-        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, String.valueOf(dataFIleRowCount * 2))
-        .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "2")
-        .containsEntry("flink.job-id", jobId2);
+      table.refresh();
+      Snapshot currentSnapshot2 = table.snapshot(branch);
+      assertThat(currentSnapshot2.summary())
+          .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, String.valueOf(dataFIleRowCount * 2))
+          .containsEntry(SnapshotSummary.TOTAL_DATA_FILES_PROP, "2")
+          .containsEntry("flink.job-id", jobId2);
+    }
   }
 
   @TestTemplate
   public void testRecoveryFromSnapshotWithoutCompletedNotification() throws Exception {
-    // We've two steps in checkpoint: 1. snapshotState(ckp); 2. notifyCheckpointComplete(ckp). It's
-    // possible that we
-    // flink job will restore from a checkpoint with only step#1 finished.
+    // We've two steps in checkpoint: 1. snapshotState(ckp); 2. notifyCheckpointComplete(ckp).
+    // The Flink job should be able to restore from a checkpoint with only step#1 finished.
+
+    // We cannot test a different checkpoint thant 0 because when using the OperatorTestHarness
+    // for recovery the lastCompleted checkpoint is always reset to 0.
+    // see: https://github.com/apache/iceberg/issues/10942
     long checkpointId = 0;
     long timestamp = 0;
     OperatorSubtaskState snapshot;
@@ -659,6 +719,7 @@ class TestIcebergCommitter extends TestBase {
     try (OneInputStreamOperatorTestHarness<
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
         harness = getTestHarness()) {
+
       harness.open();
       operatorId = harness.getOperator().getOperatorID();
 
@@ -679,6 +740,7 @@ class TestIcebergCommitter extends TestBase {
     try (OneInputStreamOperatorTestHarness<
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
         harness = getTestHarness()) {
+
       harness.getStreamConfig().setOperatorID(operatorId);
       harness.initializeState(snapshot);
       harness.open();
@@ -749,7 +811,8 @@ class TestIcebergCommitter extends TestBase {
 
   @TestTemplate
   public void testStartAnotherJobToWriteSameTable() throws Exception {
-    long checkpointId = 0;
+    long checkpointId = 1;
+    long timestamp = 0;
 
     List<RowData> rows = Lists.newArrayList();
     List<RowData> tableRows = Lists.newArrayList();
@@ -759,7 +822,7 @@ class TestIcebergCommitter extends TestBase {
     try (OneInputStreamOperatorTestHarness<
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
         harness = getTestHarness()) {
-      harness.setup();
+
       harness.open();
       oldOperatorId = harness.getOperator().getOperatorID();
 
@@ -772,8 +835,8 @@ class TestIcebergCommitter extends TestBase {
 
         DataFile dataFile = writeDataFile(String.format("data-%d", i), rows);
         processElement(
-            oldJobId.toString(), checkpointId, harness, 1, oldOperatorId.toString(), dataFile);
-
+            oldJobId.toString(), ++checkpointId, harness, 1, oldOperatorId.toString(), dataFile);
+        harness.snapshot(checkpointId, ++timestamp);
         assertFlinkManifests(1);
 
         harness.notifyOfCompletedCheckpoint(checkpointId);
@@ -783,12 +846,11 @@ class TestIcebergCommitter extends TestBase {
         SimpleDataUtil.assertTableRows(table, tableRows, branch);
         assertSnapshotSize(i);
         assertMaxCommittedCheckpointId(oldJobId.toString(), oldOperatorId.toString(), checkpointId);
-        checkpointId++;
       }
     }
 
     // The new started job will start with checkpoint = 1 again.
-    checkpointId = 0;
+    checkpointId = 1;
     JobID newJobId = new JobID();
     OperatorID newOperatorId;
     try (OneInputStreamOperatorTestHarness<
@@ -798,15 +860,16 @@ class TestIcebergCommitter extends TestBase {
       newOperatorId = harness.getOperator().getOperatorID();
 
       assertSnapshotSize(3);
-      assertMaxCommittedCheckpointId(oldJobId.toString(), oldOperatorId.toString(), 2);
+      assertMaxCommittedCheckpointId(oldJobId.toString(), oldOperatorId.toString(), 4);
       assertMaxCommittedCheckpointId(newJobId.toString(), newOperatorId.toString(), -1);
 
       rows.add(SimpleDataUtil.createRowData(2, "world"));
       tableRows.addAll(rows);
 
       DataFile dataFile = writeDataFile("data-new-1", rows);
-
-      processElement(newJobId.toString(), 0, harness, 1, newOperatorId.toString(), dataFile);
+      processElement(
+          newJobId.toString(), checkpointId, harness, 1, newOperatorId.toString(), dataFile);
+      harness.snapshot(checkpointId, ++timestamp);
       assertFlinkManifests(1);
 
       harness.notifyOfCompletedCheckpoint(checkpointId);
@@ -834,7 +897,7 @@ class TestIcebergCommitter extends TestBase {
               CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
           harness = getTestHarness()) {
         harness.getStreamConfig().setOperatorID(operatorId);
-        harness.setup();
+
         harness.open();
 
         assertSnapshotSize(i);
@@ -862,6 +925,10 @@ class TestIcebergCommitter extends TestBase {
 
   @TestTemplate
   public void testMultipleSinksRecoveryFromValidSnapshot() throws Exception {
+
+    // We cannot test a different checkpoint thant 0 because when using the OperatorTestHarness
+    // for recovery the lastCompleted checkpoint is always reset to 0.
+    // see: https://github.com/apache/iceberg/issues/10942
     long checkpointId = 0;
     long timestamp = 0;
     List<RowData> expectedRows = Lists.newArrayList();
@@ -873,48 +940,49 @@ class TestIcebergCommitter extends TestBase {
     OperatorID operatorId2 = new OperatorID();
 
     try (OneInputStreamOperatorTestHarness<
-                CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-            harness1 = getTestHarness();
-        OneInputStreamOperatorTestHarness<
-                CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-            harness2 = getTestHarness()) {
-      harness1.getStreamConfig().setOperatorID(operatorId1);
-      harness1.setup();
-      harness1.open();
-      harness2.getStreamConfig().setOperatorID(operatorId2);
-      harness2.setup();
-      harness2.open();
+            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+        harness1 = getTestHarness()) {
+      try (OneInputStreamOperatorTestHarness<
+              CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
+          harness2 = getTestHarness()) {
+        harness1.getStreamConfig().setOperatorID(operatorId1);
+        harness1.setup();
+        harness1.open();
+        harness2.getStreamConfig().setOperatorID(operatorId2);
+        harness2.setup();
+        harness2.open();
 
-      assertSnapshotSize(0);
-      assertMaxCommittedCheckpointId(jobID.toString(), operatorId1.toString(), -1L);
-      assertMaxCommittedCheckpointId(jobID.toString(), operatorId2.toString(), -1L);
+        assertSnapshotSize(0);
+        assertMaxCommittedCheckpointId(jobID.toString(), operatorId1.toString(), -1L);
+        assertMaxCommittedCheckpointId(jobID.toString(), operatorId2.toString(), -1L);
 
-      RowData row1 = SimpleDataUtil.createRowData(1, "hello1");
-      expectedRows.add(row1);
-      DataFile dataFile1 = writeDataFile("data-1-1", ImmutableList.of(row1));
-      processElement(
-          jobID.toString(), checkpointId, harness1, 1, operatorId1.toString(), dataFile1);
+        RowData row1 = SimpleDataUtil.createRowData(1, "hello1");
+        expectedRows.add(row1);
+        DataFile dataFile1 = writeDataFile("data-1-1", ImmutableList.of(row1));
+        processElement(
+            jobID.toString(), checkpointId, harness1, 1, operatorId1.toString(), dataFile1);
 
-      snapshot1 = harness1.snapshot(checkpointId, ++timestamp);
+        snapshot1 = harness1.snapshot(checkpointId, ++timestamp);
 
-      RowData row2 = SimpleDataUtil.createRowData(1, "hello2");
-      expectedRows.add(row2);
-      DataFile dataFile2 = writeDataFile("data-1-2", ImmutableList.of(row2));
-      processElement(
-          jobID.toString(), checkpointId, harness2, 1, operatorId2.toString(), dataFile2);
+        RowData row2 = SimpleDataUtil.createRowData(1, "hello2");
+        expectedRows.add(row2);
+        DataFile dataFile2 = writeDataFile("data-1-2", ImmutableList.of(row2));
+        processElement(
+            jobID.toString(), checkpointId, harness2, 1, operatorId2.toString(), dataFile2);
 
-      snapshot2 = harness2.snapshot(checkpointId, ++timestamp);
-      assertFlinkManifests(2);
+        snapshot2 = harness2.snapshot(checkpointId, ++timestamp);
+        assertFlinkManifests(2);
 
-      // Only notify one of the committers
-      harness1.notifyOfCompletedCheckpoint(checkpointId);
-      assertFlinkManifests(1);
+        // Only notify one of the committers
+        harness1.notifyOfCompletedCheckpoint(checkpointId);
+        assertFlinkManifests(1);
 
-      // Only the first row is committed at this point
-      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
-      assertSnapshotSize(1);
-      assertMaxCommittedCheckpointId(jobID.toString(), operatorId1.toString(), checkpointId);
-      assertMaxCommittedCheckpointId(jobID.toString(), operatorId2.toString(), -1);
+        // Only the first row is committed at this point
+        SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
+        assertSnapshotSize(1);
+        assertMaxCommittedCheckpointId(jobID.toString(), operatorId1.toString(), checkpointId);
+        assertMaxCommittedCheckpointId(jobID.toString(), operatorId2.toString(), -1);
+      }
     }
 
     // Restore from the given snapshot
@@ -977,14 +1045,14 @@ class TestIcebergCommitter extends TestBase {
   @TestTemplate
   public void testFlinkManifests() throws Exception {
     long timestamp = 0;
-    final long checkpoint = 10;
+    long checkpoint = 1;
 
     JobID jobID = new JobID();
     OperatorID operatorId;
     try (OneInputStreamOperatorTestHarness<
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
         harness = getTestHarness()) {
-      harness.setup();
+
       harness.open();
       operatorId = harness.getOperator().getOperatorID();
 
@@ -1024,123 +1092,126 @@ class TestIcebergCommitter extends TestBase {
 
   @TestTemplate
   public void testHandleEndInput() throws Exception {
-    final OneInputStreamOperatorTestHarness<
+    assumeThat(isStreamingMode).as("Only support batch mode").isFalse();
+
+    try (OneInputStreamOperatorTestHarness<
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-        testHarness = getTestHarness();
+        testHarness = getTestHarness()) {
 
-    testHarness.open();
+      testHarness.open();
 
-    String jobId1 = "jobId1";
-    long checkpointId = 0;
-    processElement(jobId1, checkpointId, testHarness, 1, "flink-sink", dataFileTest1);
+      long checkpointId = Long.MAX_VALUE;
+      processElement(jobId, checkpointId, testHarness, 1, OPERATOR_ID, dataFileTest1);
 
-    testHarness.endInput();
+      testHarness.endInput();
 
-    testHarness.notifyOfCompletedCheckpoint(checkpointId);
+      assertMaxCommittedCheckpointId(jobId, OPERATOR_ID, Long.MAX_VALUE);
 
-    final List<StreamElement> output = transformsToStreamElement(testHarness.getOutput());
-    assertThat(output).hasSize(2);
-    SinkV2Assertions.assertThat(extractAndAssertCommitableSummary(output.get(0)))
-        .hasCheckpointId(checkpointId)
-        .hasPendingCommittables(0)
-        .hasOverallCommittables(1)
-        .hasFailedCommittables(0);
+      List<StreamElement> output = transformsToStreamElement(testHarness.getOutput());
+      assertThat(output).hasSize(2);
 
-    // Future emission calls should change the output
-    testHarness.notifyOfCompletedCheckpoint(2);
-    testHarness.endInput();
+      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
+          .hasCheckpointId(checkpointId)
+          .hasPendingCommittables(0)
+          .hasOverallCommittables(1)
+          .hasFailedCommittables(0);
 
-    assertThat(testHarness.getOutput()).hasSize(2);
+      // endInput is idempotent
+      testHarness.endInput();
+      assertThat(testHarness.getOutput()).hasSize(2);
+    }
   }
 
   @TestTemplate
   public void testDeleteFiles() throws Exception {
 
     assumeThat(formatVersion).as("Only support delete in format v2").isGreaterThanOrEqualTo(2);
+
     FileAppenderFactory<RowData> appenderFactory = createDeletableAppenderFactory();
 
-    final OneInputStreamOperatorTestHarness<
+    try (OneInputStreamOperatorTestHarness<
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-        testHarness = getTestHarness();
+        testHarness = getTestHarness()) {
 
-    testHarness.open();
+      testHarness.open();
 
-    long checkpointId = 0;
-    RowData row1 = SimpleDataUtil.createInsert(1, "aaa");
-    DataFile dataFile1 = writeDataFile("data-file-1", ImmutableList.of(row1));
-    processElement(jobId, checkpointId, testHarness, 1, "flink-sink", dataFile1);
+      long checkpointId = 1;
+      RowData row1 = SimpleDataUtil.createInsert(1, "aaa");
+      DataFile dataFile1 = writeDataFile("data-file-1", ImmutableList.of(row1));
+      processElement(jobId, checkpointId, testHarness, 1, OPERATOR_ID, dataFile1);
 
-    testHarness.snapshot(checkpointId, 0);
-    testHarness.notifyOfCompletedCheckpoint(checkpointId);
+      //  testHarness.snapshot(checkpointId, 0);
+      testHarness.notifyOfCompletedCheckpoint(checkpointId);
 
-    assertSnapshotSize(1);
-    assertMaxCommittedCheckpointId(jobId, checkpointId);
-    SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
+      assertSnapshotSize(1);
+      assertMaxCommittedCheckpointId(jobId, checkpointId);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
 
-    final List<StreamElement> output = transformsToStreamElement(testHarness.getOutput());
-    assertThat(output).hasSize(2);
-    SinkV2Assertions.assertThat(extractAndAssertCommitableSummary(output.get(0)))
-        .hasCheckpointId(checkpointId)
-        .hasPendingCommittables(0)
-        .hasOverallCommittables(1)
-        .hasFailedCommittables(0);
-    SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
+      List<StreamElement> output = transformsToStreamElement(testHarness.getOutput());
+      assertThat(output).hasSize(2);
+      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
+          .hasCheckpointId(checkpointId)
+          .hasPendingCommittables(0)
+          .hasOverallCommittables(1)
+          .hasFailedCommittables(0);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1), branch);
 
-    // The 2. commit
-    checkpointId = 1;
-    RowData row2 = SimpleDataUtil.createInsert(2, "bbb");
-    DataFile dataFile2 = writeDataFile("data-file-2", ImmutableList.of(row2));
+      // The 2. commit
+      checkpointId = 2;
+      RowData row2 = SimpleDataUtil.createInsert(2, "bbb");
+      DataFile dataFile2 = writeDataFile("data-file-2", ImmutableList.of(row2));
 
-    RowData row3 = SimpleDataUtil.createInsert(3, "ccc");
-    DataFile dataFile3 = writeDataFile("data-file-3", ImmutableList.of(row3));
-    processElement(jobId, checkpointId, testHarness, 2, "flink-sink", dataFile2, dataFile3);
+      RowData row3 = SimpleDataUtil.createInsert(3, "ccc");
+      DataFile dataFile3 = writeDataFile("data-file-3", ImmutableList.of(row3));
+      processElement(jobId, checkpointId, testHarness, 2, OPERATOR_ID, dataFile2, dataFile3);
 
-    testHarness.snapshot(checkpointId, 1);
-    testHarness.notifyOfCompletedCheckpoint(checkpointId);
+      // testHarness.snapshot(checkpointId, 1);
+      testHarness.notifyOfCompletedCheckpoint(checkpointId);
 
-    assertSnapshotSize(2);
-    assertMaxCommittedCheckpointId(jobId, checkpointId);
-    SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2, row3), branch);
+      assertSnapshotSize(2);
+      assertMaxCommittedCheckpointId(jobId, checkpointId);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2, row3), branch);
 
-    final List<StreamElement> output2 = transformsToStreamElement(testHarness.getOutput());
-    assertThat(output2).hasSize(2 + 2);
-    SinkV2Assertions.assertThat(extractAndAssertCommitableSummary(output2.get(2)))
-        .hasCheckpointId(checkpointId)
-        .hasPendingCommittables(0)
-        .hasOverallCommittables(1)
-        .hasFailedCommittables(0);
+      List<StreamElement> output2 = transformsToStreamElement(testHarness.getOutput());
+      assertThat(output2).hasSize(2 + 2);
+      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output2.get(2)))
+          .hasCheckpointId(checkpointId)
+          .hasPendingCommittables(0)
+          .hasOverallCommittables(1)
+          .hasFailedCommittables(0);
 
-    // The 3. commit
-    checkpointId = 2;
-    RowData delete1 = SimpleDataUtil.createDelete(1, "aaa");
-    DeleteFile deleteFile1 =
-        writeEqDeleteFile(appenderFactory, "delete-file-1", ImmutableList.of(delete1));
-    RowData row4 = SimpleDataUtil.createInsert(4, "ddd");
-    DataFile dataFile4 = writeDataFile("data-file-4", ImmutableList.of(row4));
+      // The 3. commit
+      checkpointId = 3;
+      RowData delete1 = SimpleDataUtil.createDelete(1, "aaa");
+      DeleteFile deleteFile1 =
+          writeEqDeleteFile(appenderFactory, "delete-file-1", ImmutableList.of(delete1));
+      RowData row4 = SimpleDataUtil.createInsert(4, "ddd");
+      DataFile dataFile4 = writeDataFile("data-file-4", ImmutableList.of(row4));
 
-    RowData row5 = SimpleDataUtil.createInsert(5, "eee");
-    DataFile dataFile5 = writeDataFile("data-file-5", ImmutableList.of(row5));
-    WriteResult withRecord4 =
-        WriteResult.builder()
-            .addDataFiles(dataFile4, dataFile5)
-            .addDeleteFiles(deleteFile1)
-            .build();
-    processElement(withRecord4, jobId, checkpointId, testHarness, 2, "flink-sink");
+      RowData row5 = SimpleDataUtil.createInsert(5, "eee");
+      DataFile dataFile5 = writeDataFile("data-file-5", ImmutableList.of(row5));
+      WriteResult withRecord4 =
+          WriteResult.builder()
+              .addDataFiles(dataFile4, dataFile5)
+              .addDeleteFiles(deleteFile1)
+              .build();
+      processElement(withRecord4, jobId, checkpointId, testHarness, 2, OPERATOR_ID);
 
-    testHarness.snapshot(checkpointId, 3);
-    testHarness.notifyOfCompletedCheckpoint(checkpointId);
+      // testHarness.snapshot(checkpointId, 3);
+      testHarness.notifyOfCompletedCheckpoint(checkpointId);
 
-    assertSnapshotSize(3);
-    assertMaxCommittedCheckpointId(jobId, checkpointId);
-    SimpleDataUtil.assertTableRows(table, ImmutableList.of(row2, row3, row4, row5), branch);
+      assertSnapshotSize(3);
+      assertMaxCommittedCheckpointId(jobId, checkpointId);
+      SimpleDataUtil.assertTableRows(table, ImmutableList.of(row2, row3, row4, row5), branch);
 
-    final List<StreamElement> output3 = transformsToStreamElement(testHarness.getOutput());
-    assertThat(output3).hasSize(2 + 2 + 2);
-    SinkV2Assertions.assertThat(extractAndAssertCommitableSummary(output3.get(4)))
-        .hasCheckpointId(checkpointId)
-        .hasPendingCommittables(0)
-        .hasOverallCommittables(1)
-        .hasFailedCommittables(0);
+      List<StreamElement> output3 = transformsToStreamElement(testHarness.getOutput());
+      assertThat(output3).hasSize(2 + 2 + 2);
+      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output3.get(4)))
+          .hasCheckpointId(checkpointId)
+          .hasPendingCommittables(0)
+          .hasOverallCommittables(1)
+          .hasFailedCommittables(0);
+    }
   }
 
   private ManifestFile createTestingManifestFile(Path manifestPath) {
@@ -1179,6 +1250,7 @@ class TestIcebergCommitter extends TestBase {
     doReturn(0).when(taskInfo).getAttemptNumber();
     doReturn(taskInfo).when(streamingRuntimeContext).getTaskInfo();
     doReturn(streamingRuntimeContext).when(icebergWriteAggregator).getRuntimeContext();
+
     try {
       icebergWriteAggregator.open();
     } catch (Exception e) {
@@ -1204,12 +1276,14 @@ class TestIcebergCommitter extends TestBase {
             operatorId,
             checkpointId);
 
-    final CommittableSummary<IcebergCommittable> committableSummary =
+    CommittableSummary<IcebergCommittable> committableSummary =
         new CommittableSummary<>(subTaskId, 1, checkpointId, 1, 1, 0);
     testHarness.processElement(new StreamRecord<>(committableSummary));
-    final CommittableWithLineage<IcebergCommittable> committable =
+
+    CommittableWithLineage<IcebergCommittable> committable =
         new CommittableWithLineage<>(commit, checkpointId, subTaskId);
     testHarness.processElement(new StreamRecord<>(committable));
+
     return committableSummary;
   }
 
@@ -1276,22 +1350,21 @@ class TestIcebergCommitter extends TestBase {
     IcebergSink sink =
         IcebergSink.forRowData(null).table(table).toBranch(branch).tableLoader(tableLoader).build();
 
-    final OneInputStreamOperatorTestHarness<
+    OneInputStreamOperatorTestHarness<
             CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
         testHarness =
             new OneInputStreamOperatorTestHarness<>(
-                new CommitterOperatorFactory<>(sink, isBatchMode, true));
+                new CommitterOperatorFactory<>(sink, !isStreamingMode, true));
     testHarness.setup(committableMessageTypeSerializer);
-
     return testHarness;
   }
 
   // ------------------------------- Mock Classes --------------------------------
 
-  private static class ForwardingCommitter extends IcebergCommitter {
+  private static class TestCommitter extends IcebergCommitter {
     private int successfulCommits = 0;
 
-    ForwardingCommitter(TableLoader tableLoader) {
+    TestCommitter(TableLoader tableLoader) {
       super(tableLoader, null, Maps.newHashMap(), false, 2, "test-sink-prefix", null);
     }
 
@@ -1329,15 +1402,18 @@ class TestIcebergCommitter extends TestBase {
       String myJobID, long checkpoint, Collection<WriteResult> writeResults) throws IOException {
     IcebergCommittable commit =
         new IcebergCommittable(
-            buildIcebergWriteAggregator(myJobID, "flink-sink")
+            buildIcebergWriteAggregator(myJobID, OPERATOR_ID)
                 .writeToManifest(writeResults, checkpoint),
             myJobID,
-            "flink-sink",
+            OPERATOR_ID,
             checkpoint);
+
     CommittableWithLineage committableWithLineage =
         new CommittableWithLineage(commit, checkpoint, 1);
     Committer.CommitRequest<IcebergCommittable> commitRequest = mock(Committer.CommitRequest.class);
+
     doReturn(committableWithLineage.getCommittable()).when(commitRequest).getCommittable();
+
     return commitRequest;
   }
 
@@ -1353,7 +1429,7 @@ class TestIcebergCommitter extends TestBase {
   }
 
   private void assertMaxCommittedCheckpointId(String myJobID, long expectedId) {
-    assertMaxCommittedCheckpointId(myJobID, "flink-sink", expectedId);
+    assertMaxCommittedCheckpointId(myJobID, OPERATOR_ID, expectedId);
   }
 
   private void assertSnapshotSize(int expectedSnapshotSize) {
@@ -1365,88 +1441,86 @@ class TestIcebergCommitter extends TestBase {
     return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, value);
   }
 
-  final TypeSerializer<CommittableMessage<IcebergCommittable>> committableMessageTypeSerializer =
-      new TypeSerializer<CommittableMessage<IcebergCommittable>>() {
+  private static class TestCommittableMessageTypeSerializer
+      extends TypeSerializer<CommittableMessage<IcebergCommittable>> {
 
-        final CommittableMessageSerializer<IcebergCommittable> serializer =
-            new CommittableMessageSerializer<>(new IcebergCommittableSerializer());
+    CommittableMessageSerializer<IcebergCommittable> serializer =
+        new CommittableMessageSerializer<>(new IcebergCommittableSerializer());
 
-        @Override
-        public boolean isImmutableType() {
-          return false;
-        }
+    @Override
+    public boolean isImmutableType() {
+      return false;
+    }
 
-        @Override
-        public TypeSerializer<CommittableMessage<IcebergCommittable>> duplicate() {
-          return null;
-        }
+    @Override
+    public TypeSerializer<CommittableMessage<IcebergCommittable>> duplicate() {
+      return null;
+    }
 
-        @Override
-        public CommittableMessage<IcebergCommittable> createInstance() {
-          return null;
-        }
+    @Override
+    public CommittableMessage<IcebergCommittable> createInstance() {
+      return null;
+    }
 
-        @Override
-        public CommittableMessage<IcebergCommittable> copy(
-            CommittableMessage<IcebergCommittable> from) {
-          return from;
-        }
+    @Override
+    public CommittableMessage<IcebergCommittable> copy(
+        CommittableMessage<IcebergCommittable> from) {
+      return from;
+    }
 
-        @Override
-        public CommittableMessage<IcebergCommittable> copy(
-            CommittableMessage<IcebergCommittable> from,
-            CommittableMessage<IcebergCommittable> reuse) {
-          return from;
-        }
+    @Override
+    public CommittableMessage<IcebergCommittable> copy(
+        CommittableMessage<IcebergCommittable> from, CommittableMessage<IcebergCommittable> reuse) {
+      return from;
+    }
 
-        @Override
-        public int getLength() {
-          return 0;
-        }
+    @Override
+    public int getLength() {
+      return 0;
+    }
 
-        @Override
-        public void serialize(CommittableMessage<IcebergCommittable> record, DataOutputView target)
-            throws IOException {
-          byte[] serialize = serializer.serialize(record);
-          target.writeInt(serialize.length);
-          target.write(serialize);
-        }
+    @Override
+    public void serialize(CommittableMessage<IcebergCommittable> record, DataOutputView target)
+        throws IOException {
+      byte[] serialize = serializer.serialize(record);
+      target.writeInt(serialize.length);
+      target.write(serialize);
+    }
 
-        @Override
-        public CommittableMessage<IcebergCommittable> deserialize(DataInputView source)
-            throws IOException {
-          int length = source.readInt();
-          byte[] bytes = new byte[length];
-          source.read(bytes);
-          return serializer.deserialize(1, bytes);
-        }
+    @Override
+    public CommittableMessage<IcebergCommittable> deserialize(DataInputView source)
+        throws IOException {
+      int length = source.readInt();
+      byte[] bytes = new byte[length];
+      source.read(bytes);
+      return serializer.deserialize(1, bytes);
+    }
 
-        @Override
-        public CommittableMessage<IcebergCommittable> deserialize(
-            CommittableMessage<IcebergCommittable> reuse, DataInputView source) throws IOException {
-          return deserialize(source);
-        }
+    @Override
+    public CommittableMessage<IcebergCommittable> deserialize(
+        CommittableMessage<IcebergCommittable> reuse, DataInputView source) throws IOException {
+      return deserialize(source);
+    }
 
-        @Override
-        public void copy(DataInputView source, DataOutputView target) throws IOException {
-          CommittableMessage<IcebergCommittable> deserialize = deserialize(source);
-          serialize(deserialize, target);
-        }
+    @Override
+    public void copy(DataInputView source, DataOutputView target) throws IOException {
+      CommittableMessage<IcebergCommittable> deserialize = deserialize(source);
+      serialize(deserialize, target);
+    }
 
-        @Override
-        public boolean equals(Object obj) {
-          return false;
-        }
+    @Override
+    public boolean equals(Object obj) {
+      return false;
+    }
 
-        @Override
-        public int hashCode() {
-          return 0;
-        }
+    @Override
+    public int hashCode() {
+      return 0;
+    }
 
-        @Override
-        public TypeSerializerSnapshot<CommittableMessage<IcebergCommittable>>
-            snapshotConfiguration() {
-          return null;
-        }
-      };
+    @Override
+    public TypeSerializerSnapshot<CommittableMessage<IcebergCommittable>> snapshotConfiguration() {
+      return null;
+    }
+  };
 }

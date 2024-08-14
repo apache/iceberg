@@ -19,6 +19,8 @@
 package org.apache.iceberg.flink.sink.committer;
 
 import java.io.Serializable;
+import java.util.Arrays;
+import java.util.Objects;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
@@ -67,5 +69,23 @@ public class IcebergCommittable implements Serializable {
         .add("checkpointId", checkpointId)
         .add("operatorId", operatorId)
         .toString();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (o == null || getClass() != o.getClass()) return false;
+    IcebergCommittable that = (IcebergCommittable) o;
+    return checkpointId == that.checkpointId
+        && Arrays.equals(manifest, that.manifest)
+        && Objects.equals(jobId, that.jobId)
+        && Objects.equals(operatorId, that.operatorId);
+  }
+
+  @Override
+  public int hashCode() {
+    int result = Objects.hash(jobId, operatorId, checkpointId);
+    result = 31 * result + Arrays.hashCode(manifest);
+    return result;
   }
 }

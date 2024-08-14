@@ -133,6 +133,7 @@ public class IcebergCommitter implements Committer<IcebergCommittable>, Serializ
     for (CommitRequest<IcebergCommittable> request : commitRequests) {
       commitRequestMap.put(request.getCommittable().checkpointId(), request);
     }
+
     IcebergCommittable last = commitRequestMap.lastEntry().getValue().getCommittable();
     long maxCommittedCheckpointId =
         getMaxCommittedCheckpointId(table, last.jobId(), last.operatorId(), branch);
