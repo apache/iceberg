@@ -224,9 +224,9 @@ public class TestLimitPushDown {
             .selectExpr("*");
 
     testLimit(df, 2, new Object[][] {{29, "a"}, {43, "b"}});
-    //    testLimit(df, 4, new Object[][] {{29, "a"}, {43, "b"}, {61, "c"}, {89, "d"}});
-    //    testLimit(df, 6, new Object[][] {{29, "a"}, {43, "b"}, {61, "c"}, {89, "d"}, {100, "e"},
-    // {121, "f"}});
+    testLimit(df, 4, new Object[][] {{29, "a"}, {43, "b"}, {61, "c"}, {89, "d"}});
+    testLimit(
+        df, 6, new Object[][] {{29, "a"}, {43, "b"}, {61, "c"}, {89, "d"}, {100, "e"}, {121, "f"}});
   }
 
   private void testLimit(
