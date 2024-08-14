@@ -32,9 +32,8 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestTemplate;
 
-public class TestManifestFileParser extends TestBase {
+public class TestManifestFileParser {
   @Test
   public void nullCheck() throws Exception {
     StringWriter writer = new StringWriter();
@@ -68,7 +67,7 @@ public class TestManifestFileParser extends TestBase {
         .hasMessageContaining("Invalid JSON node for manifest file: non-object ");
   }
 
-  @TestTemplate
+  @Test
   public void testParser() throws Exception {
     ManifestFile manifest = createManifestFile();
     String jsonStr = JsonUtil.generate(gen -> ManifestFileParser.toJson(manifest, gen), false);
