@@ -44,10 +44,10 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.view.ViewCatalogTests;
+import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
+import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -100,7 +100,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     servletHolder.setInitParameter("javax.ws.rs.Application", "ServiceListPublic");
     servletContext.addServlet(servletHolder, "/*");
     servletContext.setVirtualHosts(null);
-    servletContext.setGzipHandler(new GzipHandler());
+    servletContext.setHandler(new GzipHandler());
 
     this.httpServer = new Server(0);
     httpServer.setHandler(servletContext);
