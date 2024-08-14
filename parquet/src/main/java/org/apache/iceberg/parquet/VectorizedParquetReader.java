@@ -49,6 +49,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private final boolean caseSensitive;
   private final int batchSize;
   private final NameMapping nameMapping;
+  private final int pushedLimit;
 
   public VectorizedParquetReader(
       InputFile input,
@@ -59,7 +60,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       Expression filter,
       boolean reuseContainers,
       boolean caseSensitive,
-      int maxRecordsPerBatch) {
+      int maxRecordsPerBatch,
+      int pushedLimit) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -70,6 +72,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     this.caseSensitive = caseSensitive;
     this.batchSize = maxRecordsPerBatch;
     this.nameMapping = nameMapping;
+    this.pushedLimit = pushedLimit;
   }
 
   private ReadConf conf = null;
@@ -97,6 +100,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   @Override
   public CloseableIterator<T> iterator() {
     FileIterator<T> iter = new FileIterator<>(init());
+    iter.pushedLimit = pushedLimit;
     addCloseable(iter);
     return iter;
   }
@@ -114,6 +118,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     private long valuesRead = 0;
     private T last = null;
     private final long[] rowGroupsStartRowPos;
+    private int pushedLimit = -1;
 
     FileIterator(ReadConf conf) {
       this.reader = conf.reader();
@@ -129,7 +134,12 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
     @Override
     public boolean hasNext() {
-      return valuesRead < totalValues;
+      long numToRead = totalValues;
+      if (pushedLimit > 0 && pushedLimit < numToRead) {
+        numToRead = pushedLimit;
+      }
+
+      return valuesRead < numToRead;
     }
 
     @Override
@@ -141,8 +151,15 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
         advance();
       }
 
+      long remainingValues = nextRowGroupStart - valuesRead;
+      int remainingLimit = (int) (pushedLimit - valuesRead);
       // batchSize is an integer, so casting to integer is safe
-      int numValuesToRead = (int) Math.min(nextRowGroupStart - valuesRead, batchSize);
+      int numValuesToRead =
+          (int)
+              Math.min(
+                  remainingValues,
+                  (remainingLimit > 0 ? Math.min(batchSize, remainingLimit) : batchSize));
+
       if (reuseContainers) {
         this.last = model.read(last, numValuesToRead);
       } else {

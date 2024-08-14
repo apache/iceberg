@@ -45,14 +45,15 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   private final long numSplits;
 
-  BatchDataReader(SparkInputPartition partition, int batchSize) {
+  BatchDataReader(SparkInputPartition partition, int batchSize, int pushedLimit) {
     this(
         partition.table(),
         partition.taskGroup(),
         SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
         partition.isCaseSensitive(),
-        batchSize);
+        batchSize,
+        pushedLimit);
   }
 
   BatchDataReader(
@@ -61,8 +62,9 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive,
-      int size) {
-    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive, size);
+      int size,
+      int pushedLimit) {
+    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive, size, pushedLimit);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());

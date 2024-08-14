@@ -29,8 +29,11 @@ import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 class SparkRowReaderFactory implements PartitionReaderFactory {
+  private final int pushedLimit;
 
-  SparkRowReaderFactory() {}
+  SparkRowReaderFactory(int pushedLimit) {
+    this.pushedLimit = pushedLimit;
+  }
 
   @Override
   public PartitionReader<InternalRow> createReader(InputPartition inputPartition) {
@@ -42,7 +45,7 @@ class SparkRowReaderFactory implements PartitionReaderFactory {
     SparkInputPartition partition = (SparkInputPartition) inputPartition;
 
     if (partition.allTasksOfType(FileScanTask.class)) {
-      return new RowDataReader(partition);
+      return new RowDataReader(partition, pushedLimit);
 
     } else if (partition.allTasksOfType(ChangelogScanTask.class)) {
       return new ChangelogRowReader(partition);

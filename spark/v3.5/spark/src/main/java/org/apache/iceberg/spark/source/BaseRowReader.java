@@ -39,13 +39,17 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
+  private final int pushedLimit;
+
   BaseRowReader(
       Table table,
       ScanTaskGroup<T> taskGroup,
       Schema tableSchema,
       Schema expectedSchema,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      int pushedLimit) {
     super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
+    this.pushedLimit = pushedLimit;
   }
 
   protected CloseableIterable<InternalRow> newIterable(
@@ -58,7 +62,8 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Map<Integer, ?> idToConstant) {
     switch (format) {
       case PARQUET:
-        return newParquetIterable(file, start, length, residual, projection, idToConstant);
+        return newParquetIterable(
+            file, start, length, residual, projection, idToConstant, pushedLimit);
 
       case AVRO:
         return newAvroIterable(file, start, length, projection, idToConstant);
@@ -88,7 +93,8 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       long length,
       Expression residual,
       Schema readSchema,
-      Map<Integer, ?> idToConstant) {
+      Map<Integer, ?> idToConstant,
+      int limit) {
     return Parquet.read(file)
         .reuseContainers()
         .split(start, length)
@@ -98,6 +104,7 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
         .filter(residual)
         .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())
+        .pushedlimit(limit)
         .build();
   }
 

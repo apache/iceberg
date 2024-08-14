@@ -69,12 +69,14 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
   }
 
   public abstract class BatchReader {
-    public void nextBatch(FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
+    public void nextBatch(
+        int numValsToRead, FieldVector fieldVector, int typeWidth, NullabilityHolder holder) {
       int rowsReadSoFar = 0;
-      while (rowsReadSoFar < batchSize && hasNext()) {
+      while (rowsReadSoFar < batchSize && hasNext() && rowsReadSoFar < numValsToRead) {
         advance();
+        int expectedBatchSize = Math.min(batchSize - rowsReadSoFar, numValsToRead - rowsReadSoFar);
         int rowsInThisBatch =
-            nextBatchOf(fieldVector, batchSize - rowsReadSoFar, rowsReadSoFar, typeWidth, holder);
+            nextBatchOf(fieldVector, expectedBatchSize, rowsReadSoFar, typeWidth, holder);
         rowsReadSoFar += rowsInThisBatch;
         triplesRead += rowsInThisBatch;
         fieldVector.setValueCount(rowsReadSoFar);

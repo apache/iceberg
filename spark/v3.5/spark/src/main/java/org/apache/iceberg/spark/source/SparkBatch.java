@@ -50,6 +50,7 @@ class SparkBatch implements Batch {
   private final boolean localityEnabled;
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
+  private final int pushedLimit;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -58,7 +59,8 @@ class SparkBatch implements Batch {
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema expectedSchema,
-      int scanHashCode) {
+      int scanHashCode,
+      int pushedLimit) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.branch = readConf.branch();
@@ -70,6 +72,7 @@ class SparkBatch implements Batch {
     this.localityEnabled = readConf.localityEnabled();
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
+    this.pushedLimit = pushedLimit;
   }
 
   @Override
@@ -115,14 +118,14 @@ class SparkBatch implements Batch {
   public PartitionReaderFactory createReaderFactory() {
     if (useParquetBatchReads()) {
       int batchSize = readConf.parquetBatchSize();
-      return new SparkColumnarReaderFactory(batchSize);
+      return new SparkColumnarReaderFactory(batchSize, pushedLimit);
 
     } else if (useOrcBatchReads()) {
       int batchSize = readConf.orcBatchSize();
-      return new SparkColumnarReaderFactory(batchSize);
+      return new SparkColumnarReaderFactory(batchSize, pushedLimit);
 
     } else {
-      return new SparkRowReaderFactory();
+      return new SparkRowReaderFactory(pushedLimit);
     }
   }
 

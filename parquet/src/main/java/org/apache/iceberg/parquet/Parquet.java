@@ -1048,6 +1048,7 @@ public class Parquet {
     private NameMapping nameMapping = null;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
+    private int pushedLimit = -1;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -1155,6 +1156,11 @@ public class Parquet {
       return this;
     }
 
+    public ReadBuilder pushedlimit(int limit) {
+      this.pushedLimit = limit;
+      return this;
+    }
+
     @SuppressWarnings({"unchecked", "checkstyle:CyclomaticComplexity"})
     public <D> CloseableIterable<D> build() {
       FileDecryptionProperties fileDecryptionProperties = null;
@@ -1216,10 +1222,19 @@ public class Parquet {
               filter,
               reuseContainers,
               caseSensitive,
-              maxRecordsPerBatch);
+              maxRecordsPerBatch,
+              pushedLimit);
         } else {
           return new org.apache.iceberg.parquet.ParquetReader<>(
-              file, schema, options, readerFunc, mapping, filter, reuseContainers, caseSensitive);
+              file,
+              schema,
+              options,
+              readerFunc,
+              mapping,
+              filter,
+              reuseContainers,
+              caseSensitive,
+              pushedLimit);
         }
       }
 

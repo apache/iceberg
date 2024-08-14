@@ -28,10 +28,12 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 class SparkColumnarReaderFactory implements PartitionReaderFactory {
   private final int batchSize;
+  private final int pushedLimit;
 
-  SparkColumnarReaderFactory(int batchSize) {
+  SparkColumnarReaderFactory(int batchSize, int pushedLimit) {
     Preconditions.checkArgument(batchSize > 1, "Batch size must be > 1");
     this.batchSize = batchSize;
+    this.pushedLimit = pushedLimit;
   }
 
   @Override
@@ -49,7 +51,7 @@ class SparkColumnarReaderFactory implements PartitionReaderFactory {
     SparkInputPartition partition = (SparkInputPartition) inputPartition;
 
     if (partition.allTasksOfType(FileScanTask.class)) {
-      return new BatchDataReader(partition, batchSize);
+      return new BatchDataReader(partition, batchSize, pushedLimit);
 
     } else {
       throw new UnsupportedOperationException(

@@ -109,7 +109,8 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
         EMPTY_GROUPING_KEY_TYPE,
         taskGroups(),
         expectedSchema,
-        hashCode());
+        hashCode(),
+        -1);
   }
 
   private List<ScanTaskGroup<ChangelogScanTask>> taskGroups() {

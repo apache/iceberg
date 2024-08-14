@@ -45,6 +45,10 @@ public class SparkSQLProperties {
       "spark.sql.iceberg.aggregate-push-down.enabled";
   public static final boolean AGGREGATE_PUSH_DOWN_ENABLED_DEFAULT = true;
 
+  // Controls whether to push down limit to Iceberg
+  public static final String LIMIT_PUSH_DOWN_ENABLED = "spark.sql.iceberg.limit-push-down.enabled";
+  public static final boolean LIMIT_PUSH_DOWN_ENABLED_DEFAULT = true;
+
   // Controls write distribution mode
   public static final String DISTRIBUTION_MODE = "spark.sql.iceberg.distribution-mode";
 

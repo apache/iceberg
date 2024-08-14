@@ -43,6 +43,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final boolean reuseContainers;
   private final boolean caseSensitive;
   private final NameMapping nameMapping;
+  private final int pushedLimit;
 
   public ParquetReader(
       InputFile input,
@@ -52,7 +53,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
       NameMapping nameMapping,
       Expression filter,
       boolean reuseContainers,
-      boolean caseSensitive) {
+      boolean caseSensitive,
+      int pushedLimit) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -62,6 +64,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     this.reuseContainers = reuseContainers;
     this.caseSensitive = caseSensitive;
     this.nameMapping = nameMapping;
+    this.pushedLimit = pushedLimit;
   }
 
   private ReadConf<T> conf = null;
@@ -89,6 +92,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   @Override
   public CloseableIterator<T> iterator() {
     FileIterator<T> iter = new FileIterator<>(init());
+    iter.pushedLimit = pushedLimit;
     addCloseable(iter);
     return iter;
   }
@@ -105,6 +109,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
     private T last = null;
+    private int pushedLimit = -1;
 
     FileIterator(ReadConf<T> conf) {
       this.reader = conf.reader();
@@ -117,7 +122,12 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @Override
     public boolean hasNext() {
-      return valuesRead < totalValues;
+      long numToRead = totalValues;
+      if (pushedLimit > 0 && pushedLimit < numToRead) {
+        numToRead = pushedLimit;
+      }
+
+      return valuesRead < numToRead;
     }
 
     @Override
