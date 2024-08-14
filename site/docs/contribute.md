@@ -44,6 +44,7 @@ The Iceberg community prefers to receive contributions as [Github pull requests]
 * It's helpful to include a prefix in the summary that provides context to PR reviewers, such as `Build:`, `Docs:`, `Spark:`, `Flink:`, `Core:`, `API:`
 * If a PR is related to an issue, adding `Closes #1234` in the PR description will automatically close the issue and helps keep the project clean
 * If a PR is posted for visibility and isn't necessarily ready for review or merging, be sure to convert the PR to a draft
+* If a PR is already under review, please avoid force-pushing to the branch as it can make it difficult for reviewers to track changes. If you need to keep the PR up-to-date with the main branch, consider merge rather than rebase 
 
 
 ## Apache Iceberg Improvement Proposals
