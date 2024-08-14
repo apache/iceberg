@@ -190,6 +190,7 @@ public class Metrics implements Serializable {
     upperBounds = readByteBufferMap(in);
   }
 
+  @SuppressWarnings("DangerousJavaDeserialization")
   private static Map<Integer, ByteBuffer> readByteBufferMap(ObjectInputStream in)
       throws IOException, ClassNotFoundException {
     int size = in.readInt();
