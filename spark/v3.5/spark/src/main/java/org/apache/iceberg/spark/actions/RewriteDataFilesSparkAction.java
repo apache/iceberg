@@ -33,7 +33,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.SortOrder;
@@ -41,6 +40,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.FileRewriter;
 import org.apache.iceberg.actions.ImmutableRewriteDataFiles;
+import org.apache.iceberg.actions.ImmutableRewriteDataFiles.Result.Builder;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
@@ -54,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
@@ -84,8 +85,8 @@ public class RewriteDataFilesSparkAction
           TARGET_FILE_SIZE_BYTES,
           USE_STARTING_SEQUENCE_NUMBER,
           OUTPUT_SPEC_ID,
-          REMOVE_DANGLING_DELETES,
-          REWRITE_JOB_ORDER);
+          REWRITE_JOB_ORDER,
+          REMOVE_DANGLING_DELETES);
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
       ImmutableRewriteDataFiles.Result.builder().rewriteResults(ImmutableList.of()).build();
@@ -178,7 +179,7 @@ public class RewriteDataFilesSparkAction
 
     Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
 
-    ImmutableRewriteDataFiles.Result.Builder resultBuilder;
+    Builder resultBuilder;
     if (partialProgressEnabled) {
       resultBuilder =
           doExecuteWithPartialProgress(ctx, groupStream, commitManager(startingSnapshotId));
@@ -189,8 +190,8 @@ public class RewriteDataFilesSparkAction
     if (removeDanglingDeletes) {
       RemoveDanglingDeletesSparkAction action =
           new RemoveDanglingDeletesSparkAction(spark(), table);
-      List<DeleteFile> removed = action.execute().removedDeleteFiles();
-      resultBuilder.removedDeleteFilesCount(removed.size());
+      int removedCount = Iterables.size(action.execute().removedDeleteFiles());
+      resultBuilder.removedDeleteFilesCount(removedCount);
     }
     return resultBuilder.build();
   }
@@ -277,7 +278,7 @@ public class RewriteDataFilesSparkAction
         table, startingSnapshotId, useStartingSequenceNumber, commitSummary());
   }
 
-  private ImmutableRewriteDataFiles.Result.Builder doExecute(
+  private Builder doExecute(
       RewriteExecutionContext ctx,
       Stream<RewriteFileGroup> groupStream,
       RewriteDataFilesCommitManager commitManager) {
@@ -342,7 +343,7 @@ public class RewriteDataFilesSparkAction
     return ImmutableRewriteDataFiles.Result.builder().rewriteResults(rewriteResults);
   }
 
-  private ImmutableRewriteDataFiles.Result.Builder doExecuteWithPartialProgress(
+  private Builder doExecuteWithPartialProgress(
       RewriteExecutionContext ctx,
       Stream<RewriteFileGroup> groupStream,
       RewriteDataFilesCommitManager commitManager) {

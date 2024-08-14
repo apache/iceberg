@@ -108,10 +108,9 @@ public interface RewriteDataFiles
 
   /**
    * Remove dangling delete files from the current snapshot after compaction. A delete file is
-   * considered dangling if it does not apply to any non-expired data file.
+   * considered dangling if it does not apply to any live data files.
    *
-   * <p>Dangling delete files will be pruned from iceberg metadata. Pruning apply to both position
-   * delete and equality delete based on data sequence number
+   * <p>Both equality and position dangling delete files will be removed.
    *
    * <p>Defaults to false.
    */

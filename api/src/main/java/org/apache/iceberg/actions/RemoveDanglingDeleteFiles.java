@@ -18,13 +18,18 @@
  */
 package org.apache.iceberg.actions;
 
-import java.util.List;
 import org.apache.iceberg.DeleteFile;
 
+/**
+ * An action that removes dangling delete files from the current snapshot. A delete file is dangling
+ * if its deletes no longer applies to any live data files.
+ */
 public interface RemoveDanglingDeleteFiles
     extends Action<RemoveDanglingDeleteFiles, RemoveDanglingDeleteFiles.Result> {
 
+  /** An action that remove dangling deletes. */
   interface Result {
-    List<DeleteFile> removedDeleteFiles();
+    /** Return removed deletes. */
+    Iterable<DeleteFile> removedDeleteFiles();
   }
 }

@@ -18,19 +18,16 @@
  */
 package org.apache.iceberg.actions;
 
-import java.util.List;
-import org.apache.iceberg.DeleteFile;
+import org.immutables.value.Value;
 
-public class RemoveDanglingDeleteFilesActionResult implements RemoveDanglingDeleteFiles.Result {
+@Value.Enclosing
+@SuppressWarnings("ImmutablesStyle")
+@Value.Style(
+    typeImmutableEnclosing = "ImmutableRemoveDanglingDeleteFiles",
+    visibilityString = "PUBLIC",
+    builderVisibilityString = "PUBLIC")
+interface BaseRemoveDanglingDeleteFiles extends RemoveDanglingDeleteFiles {
 
-  private final List<DeleteFile> removedDeleteFiles;
-
-  public RemoveDanglingDeleteFilesActionResult(List<DeleteFile> removeDeleteFiles) {
-    this.removedDeleteFiles = removeDeleteFiles;
-  }
-
-  @Override
-  public List<DeleteFile> removedDeleteFiles() {
-    return removedDeleteFiles;
-  }
+  @Value.Immutable
+  interface Result extends RemoveDanglingDeleteFiles.Result {}
 }

@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -294,8 +295,11 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
 
     // All Delete files of the FILE A partition should be removed
     // because there are no data files in partition with a lesser sequence number
+
     Set<CharSequence> removedDeleteFiles =
-        result.removedDeleteFiles().stream().map(DeleteFile::path).collect(Collectors.toSet());
+        StreamSupport.stream(result.removedDeleteFiles().spliterator(), false)
+            .map(DeleteFile::path)
+            .collect(Collectors.toSet());
     assertThat(removedDeleteFiles)
         .as("Expected 4 delete files removed")
         .hasSize(4)
@@ -389,7 +393,9 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
     // Eq Delete files of the FILE B partition should be removed
     // because there are no data files in partition with a lesser sequence number
     Set<CharSequence> removedDeleteFiles =
-        result.removedDeleteFiles().stream().map(DeleteFile::path).collect(Collectors.toSet());
+        StreamSupport.stream(result.removedDeleteFiles().spliterator(), false)
+            .map(DeleteFile::path)
+            .collect(Collectors.toSet());
     assertThat(removedDeleteFiles)
         .as("Expected two delete files removed")
         .hasSize(2)
