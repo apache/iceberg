@@ -276,7 +276,8 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     private final ManifestFile manifest;
     private final Map<Integer, PartitionSpec> specsById;
 
-    ManifestReadTask(Table table, ManifestFile manifest, Schema projection, Expression filter) {
+    private ManifestReadTask(
+        Table table, ManifestFile manifest, Schema projection, Expression filter) {
       this(table.schema(), table.io(), table.specs(), manifest, projection, filter);
     }
 

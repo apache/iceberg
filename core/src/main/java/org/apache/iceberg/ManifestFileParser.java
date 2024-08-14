@@ -25,8 +25,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
-import org.apache.iceberg.util.ByteBuffers;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 
 class ManifestFileParser {
@@ -103,9 +102,8 @@ class ManifestFileParser {
     }
 
     if (manifestFile.keyMetadata() != null) {
-      generator.writeStringField(
-          KEY_METADATA,
-          BaseEncoding.base16().encode(ByteBuffers.toByteArray(manifestFile.keyMetadata())));
+      generator.writeFieldName(KEY_METADATA);
+      SingleValueParser.toJson(DataFile.KEY_METADATA.type(), manifestFile.keyMetadata(), generator);
     }
 
     generator.writeEndObject();
@@ -165,7 +163,7 @@ class ManifestFileParser {
 
     List<ManifestFile.PartitionFieldSummary> partitionFieldSummaries = null;
     if (jsonNode.has(PARTITION_FIELD_SUMMARY)) {
-      JsonNode summaryArray = jsonNode.get(PARTITION_FIELD_SUMMARY);
+      JsonNode summaryArray = JsonUtil.get(PARTITION_FIELD_SUMMARY, jsonNode);
       Preconditions.checkArgument(
           summaryArray.isArray(),
           "Invalid JSON node for partition field summaries: non-array (%s)",
@@ -181,11 +179,7 @@ class ManifestFileParser {
       partitionFieldSummaries = builder.build();
     }
 
-    ByteBuffer keyMetadata = null;
-    if (jsonNode.has(KEY_METADATA)) {
-      String hexStr = JsonUtil.getString(KEY_METADATA, jsonNode);
-      keyMetadata = ByteBuffer.wrap(BaseEncoding.base16().decode(hexStr));
-    }
+    ByteBuffer keyMetadata = JsonUtil.getByteBufferOrNull(KEY_METADATA, jsonNode);
 
     return new GenericManifestFile(
         path,
@@ -227,15 +221,13 @@ class ManifestFileParser {
       }
 
       if (summary.lowerBound() != null) {
-        generator.writeStringField(
-            LOWER_BOUND,
-            BaseEncoding.base16().encode(ByteBuffers.toByteArray(summary.lowerBound())));
+        generator.writeFieldName(LOWER_BOUND);
+        SingleValueParser.toJson(Types.BinaryType.get(), summary.lowerBound(), generator);
       }
 
       if (summary.upperBound() != null) {
-        generator.writeStringField(
-            UPPER_BOUND,
-            BaseEncoding.base16().encode(ByteBuffers.toByteArray(summary.upperBound())));
+        generator.writeFieldName(UPPER_BOUND);
+        SingleValueParser.toJson(Types.BinaryType.get(), summary.upperBound(), generator);
       }
 
       generator.writeEndObject();
@@ -257,14 +249,16 @@ class ManifestFileParser {
 
       ByteBuffer lowerBound = null;
       if (jsonNode.has(LOWER_BOUND)) {
-        String hexStr = JsonUtil.getString(LOWER_BOUND, jsonNode);
-        lowerBound = ByteBuffer.wrap(BaseEncoding.base16().decode(hexStr));
+        lowerBound =
+            (ByteBuffer)
+                SingleValueParser.fromJson(Types.BinaryType.get(), jsonNode.get(LOWER_BOUND));
       }
 
       ByteBuffer upperBound = null;
       if (jsonNode.has(UPPER_BOUND)) {
-        String hexStr = JsonUtil.getString(UPPER_BOUND, jsonNode);
-        upperBound = ByteBuffer.wrap(BaseEncoding.base16().decode(hexStr));
+        upperBound =
+            (ByteBuffer)
+                SingleValueParser.fromJson(Types.BinaryType.get(), jsonNode.get(UPPER_BOUND));
       }
 
       if (containsNaN != null) {

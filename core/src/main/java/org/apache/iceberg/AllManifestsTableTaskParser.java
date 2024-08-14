@@ -80,7 +80,7 @@ class AllManifestsTableTaskParser {
     FileIO fileIO = FileIOParser.fromJson(JsonUtil.get(FILE_IO, jsonNode), null);
     Schema schema = SchemaParser.fromJson(JsonUtil.get(SCHEMA, jsonNode));
 
-    JsonNode specsArray = jsonNode.get(SPECS);
+    JsonNode specsArray = JsonUtil.get(SPECS, jsonNode);
     Preconditions.checkArgument(
         specsArray.isArray(), "Invalid JSON node for partition specs: non-array (%s)", specsArray);
 

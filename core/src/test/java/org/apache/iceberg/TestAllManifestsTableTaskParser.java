@@ -19,16 +19,55 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.Map;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.util.PartitionUtil;
 import org.junit.jupiter.api.Test;
 
 public class TestAllManifestsTableTaskParser {
+  @Test
+  public void nullCheck() throws Exception {
+    StringWriter writer = new StringWriter();
+    JsonGenerator generator = JsonUtil.factory().createGenerator(writer);
+
+    assertThatThrownBy(() -> AllManifestsTableTaskParser.toJson(null, generator))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid manifest task: null");
+
+    assertThatThrownBy(() -> AllManifestsTableTaskParser.toJson(createTask(), null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid JSON generator: null");
+
+    assertThatThrownBy(() -> AllManifestsTableTaskParser.fromJson(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid JSON node for manifest task: null");
+  }
+
+  @Test
+  public void invalidJsonNode() throws Exception {
+    String jsonStr = "{\"str\":\"1\", \"arr\":[]}";
+    ObjectMapper mapper = new ObjectMapper();
+    JsonNode rootNode = mapper.reader().readTree(jsonStr);
+
+    assertThatThrownBy(() -> AllManifestsTableTaskParser.fromJson(rootNode.get("str")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid JSON node for manifest task: non-object ");
+
+    assertThatThrownBy(() -> AllManifestsTableTaskParser.fromJson(rootNode.get("arr")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid JSON node for manifest task: non-object ");
+  }
+
   @Test
   public void testParser() {
     AllManifestsTable.ManifestListReadTask task = createTask();

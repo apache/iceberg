@@ -134,7 +134,8 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     private final Schema dataTableSchema;
     private final Schema projection;
 
-    ManifestReadTask(Table table, ManifestFile manifest, Schema projection, Expression filter) {
+    private ManifestReadTask(
+        Table table, ManifestFile manifest, Schema projection, Expression filter) {
       this(table.schema(), table.io(), table.specs(), manifest, projection, filter);
     }
 

@@ -77,7 +77,7 @@ class ManifestEntriesTableTaskParser {
     Schema dataTableSchema = SchemaParser.fromJson(JsonUtil.get(SCHEMA, jsonNode));
     FileIO fileIO = FileIOParser.fromJson(JsonUtil.get(FILE_IO, jsonNode), null);
 
-    JsonNode specsArray = jsonNode.get(SPECS);
+    JsonNode specsArray = JsonUtil.get(SPECS, jsonNode);
     Preconditions.checkArgument(
         specsArray.isArray(), "Invalid JSON node for partition specs: non-array (%s)", specsArray);
     ImmutableList.Builder<PartitionSpec> specsBuilder = ImmutableList.builder();

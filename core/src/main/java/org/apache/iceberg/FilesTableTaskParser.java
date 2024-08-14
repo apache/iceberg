@@ -43,7 +43,7 @@ class FilesTableTaskParser {
 
   static void toJson(BaseFilesTable.ManifestReadTask task, JsonGenerator generator)
       throws IOException {
-    Preconditions.checkArgument(task != null, "Invalid manifest task: null");
+    Preconditions.checkArgument(task != null, "Invalid files task: null");
     Preconditions.checkArgument(generator != null, "Invalid JSON generator: null");
 
     generator.writeFieldName(SCHEMA);
@@ -70,16 +70,16 @@ class FilesTableTaskParser {
   }
 
   static BaseFilesTable.ManifestReadTask fromJson(JsonNode jsonNode) {
-    Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for manifest task: null");
+    Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for files task: null");
     Preconditions.checkArgument(
-        jsonNode.isObject(), "Invalid JSON node for manifest task: non-object (%s)", jsonNode);
+        jsonNode.isObject(), "Invalid JSON node for files task: non-object (%s)", jsonNode);
 
     Schema dataTableSchema = SchemaParser.fromJson(JsonUtil.get(SCHEMA, jsonNode));
     Schema projection = SchemaParser.fromJson(JsonUtil.get(PROJECTION, jsonNode));
 
     FileIO fileIO = FileIOParser.fromJson(JsonUtil.get(FILE_IO, jsonNode), null);
 
-    JsonNode specsArray = jsonNode.get(SPECS);
+    JsonNode specsArray = JsonUtil.get(SPECS, jsonNode);
     Preconditions.checkArgument(
         specsArray.isArray(), "Invalid JSON node for partition specs: non-array (%s)", specsArray);
 
