@@ -147,12 +147,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
           .add(ResourcePaths.V1_RENAME_TABLE)
           .add(ResourcePaths.V1_REGISTER_TABLE)
           .add(ResourcePaths.V1_REPORT_METRICS)
-          .add(ResourcePaths.V1_LIST_VIEWS)
-          .add(ResourcePaths.V1_LOAD_VIEW)
-          .add(ResourcePaths.V1_CREATE_VIEW)
-          .add(ResourcePaths.V1_UPDATE_VIEW)
-          .add(ResourcePaths.V1_DELETE_VIEW)
-          .add(ResourcePaths.V1_RENAME_VIEW)
           .build();
 
   private final Function<Map<String, String>, RESTClient> clientBuilder;
@@ -253,11 +247,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     // build the final configuration and set up the catalog's auth
     Map<String, String> mergedProps = config.merge(props);
     Map<String, String> baseHeaders = configHeaders(mergedProps);
-    this.endpoints = ImmutableSet.copyOf(config.endpoints());
-    if (endpoints.isEmpty()) {
-      // older servers don't send the "endpoints" field, so assume a default set of endpoints
-      this.endpoints = DEFAULT_ENDPOINTS;
-    }
+    this.endpoints =
+        config.endpoints().isEmpty() ? DEFAULT_ENDPOINTS : ImmutableSet.copyOf(config.endpoints());
 
     this.sessions = newSessionCache(mergedProps);
     this.tableSessions = newSessionCache(mergedProps);
@@ -388,11 +379,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   private void checkEndpointSupported(Endpoint endpoint) {
-    Preconditions.checkState(
-        endpoints.contains(endpoint),
-        "Server does not support endpoint: %s %s",
-        endpoint.httpVerb(),
-        endpoint.resourcePath());
+    if (!endpoints.contains(endpoint)) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Server does not support endpoint: %s %s", endpoint.httpMethod(), endpoint.path()));
+    }
   }
 
   @Override
@@ -440,12 +431,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public Table loadTable(SessionContext context, TableIdentifier identifier) {
     if (!endpoints.contains(ResourcePaths.V1_LOAD_TABLE)) {
-      throw new NoSuchViewException(
-          "Unable to load view %s.%s: Server does not support endpoint %s %s",
-          name(),
-          identifier,
-          ResourcePaths.V1_LOAD_TABLE.httpVerb(),
-          ResourcePaths.V1_LOAD_TABLE.resourcePath());
+      throw new NoSuchTableException("Unable to load table %s.%s", name(), identifier);
     }
 
     checkIdentifierIsValid(identifier);
@@ -1203,12 +1189,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public View loadView(SessionContext context, TableIdentifier identifier) {
     if (!endpoints.contains(ResourcePaths.V1_LOAD_VIEW)) {
-      throw new NoSuchViewException(
-          "Unable to load view %s.%s: Server does not support endpoint %s %s",
-          name(),
-          identifier,
-          ResourcePaths.V1_LOAD_VIEW.httpVerb(),
-          ResourcePaths.V1_LOAD_VIEW.resourcePath());
+      throw new NoSuchViewException("Unable to load view %s.%s", name(), identifier);
     }
 
     checkViewIdentifierIsValid(identifier);

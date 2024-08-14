@@ -19,28 +19,46 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
+import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
-import org.immutables.value.Value;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
-@Value.Immutable
-public abstract class Endpoint {
-
+/**
+ * Holds an endpoint definition that consists of the HTTP method (GET, POST, DELETE, ...) and the
+ * resource path as defined in the Iceberg OpenAPI REST specification without parameter
+ * substitution, such as <b>/v1/{prefix}/namespaces/{namespace}</b>.
+ */
+public class Endpoint {
   private static final Splitter ENDPOINT_SPLITTER = Splitter.on(" ");
   private static final Joiner ENDPOINT_JOINER = Joiner.on(" ");
+  private final String httpMethod;
+  private final String path;
 
-  public abstract String httpVerb();
+  private Endpoint(String httpMethod, String path) {
+    Preconditions.checkArgument(
+        !Strings.isNullOrEmpty(httpMethod), "Invalid HTTP method: null or empty");
+    Preconditions.checkArgument(!Strings.isNullOrEmpty(path), "Invalid path: null or empty");
+    this.httpMethod = httpMethod;
+    this.path = path;
+  }
 
-  public abstract String resourcePath();
+  public String httpMethod() {
+    return httpMethod;
+  }
 
-  public static Endpoint create(String httpVerb, String resourcePath) {
-    return ImmutableEndpoint.builder().httpVerb(httpVerb).resourcePath(resourcePath).build();
+  public String path() {
+    return path;
+  }
+
+  public static Endpoint create(String httpMethod, String path) {
+    return new Endpoint(httpMethod, path);
   }
 
   @Override
   public String toString() {
-    return ENDPOINT_JOINER.join(httpVerb(), resourcePath());
+    return ENDPOINT_JOINER.join(httpMethod(), path());
   }
 
   public static Endpoint fromString(String endpoint) {
@@ -50,5 +68,22 @@ public abstract class Endpoint {
         "Invalid endpoint (must consist of two elements separated by space): %s",
         endpoint);
     return create(elements.get(0), elements.get(1));
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (!(o instanceof Endpoint)) {
+      return false;
+    }
+    Endpoint endpoint = (Endpoint) o;
+    return Objects.equals(httpMethod, endpoint.httpMethod) && Objects.equals(path, endpoint.path);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(httpMethod, path);
   }
 }
