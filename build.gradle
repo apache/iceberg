@@ -952,6 +952,51 @@ project(':iceberg-snowflake') {
 }
 
 project(':iceberg-open-api') {
+  apply plugin: 'java-test-fixtures'
+
+  dependencies {
+    testImplementation project(':iceberg-api')
+    testImplementation project(':iceberg-core')
+    testImplementation project(':iceberg-core').sourceSets.test.runtimeClasspath
+    testImplementation(testFixtures(project(':iceberg-open-api')))
+
+    testImplementation libs.junit.jupiter
+    testImplementation libs.junit.suite.api
+    testImplementation libs.junit.suite.engine
+    testImplementation libs.assertj.core
+
+    testImplementation project(':iceberg-aws-bundle')
+    testImplementation project(':iceberg-gcp-bundle')
+    testImplementation project(':iceberg-azure-bundle')
+
+    testFixturesImplementation project(':iceberg-api')
+    testFixturesImplementation project(':iceberg-core')
+    testFixturesImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testFixturesImplementation project(':iceberg-core').sourceSets.test.runtimeClasspath
+    testFixturesImplementation project(':iceberg-aws')
+    testFixturesImplementation project(':iceberg-gcp')
+    testFixturesImplementation project(':iceberg-azure')
+
+    testFixturesImplementation libs.jetty.servlet
+    testFixturesImplementation libs.jetty.server
+    testFixturesImplementation libs.sqlite.jdbc
+  }
+
+  test {
+    useJUnitPlatform()
+
+    // Always rerun the compatibility tests
+    outputs.upToDateWhen {false}
+    maxParallelForks = 1
+
+    // Pass through any system properties that start with "rck" (REST Compatibility Kit)
+    // Note: only pass through specific properties so they do not affect other build/test
+    //       configurations
+    systemProperties System.properties
+            .findAll { k, v -> k.startsWith("rck") }
+            .collectEntries { k, v -> { [(k):v, (k.replaceFirst("rck.", "")):v] }} // strip prefix
+  }
+
   def restCatalogSpec = "$projectDir/rest-catalog-open-api.yaml"
   tasks.register('validateRESTCatalogSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
     inputSpec.set(restCatalogSpec)

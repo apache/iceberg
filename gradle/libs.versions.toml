@@ -62,6 +62,7 @@ jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
 jetty = "11.0.22"
 junit = "5.10.1"
+junit-platform = "1.10.3"
 kafka = "3.8.0"
 kryo-shaded = "4.0.3"
 microprofile-openapi-api = "3.1.1"
@@ -202,6 +203,8 @@ jetty-server = { module = "org.eclipse.jetty:jetty-server", version.ref = "jetty
 jetty-servlet = { module = "org.eclipse.jetty:jetty-servlet", version.ref = "jetty" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
+junit-suite-api = { module = "org.junit.platform:junit-platform-suite-api", version.ref = "junit-platform" }
+junit-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine", version.ref = "junit-platform" }
 junit-vintage-engine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit" }
 kryo-shaded = { module = "com.esotericsoftware:kryo-shaded", version.ref = "kryo-shaded" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
