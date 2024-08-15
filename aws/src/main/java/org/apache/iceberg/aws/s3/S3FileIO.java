@@ -412,7 +412,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
     }
   }
 
-  @SuppressWarnings("checkstyle:NoFinalizer")
+  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
   @Override
   protected void finalize() throws Throwable {
     super.finalize();

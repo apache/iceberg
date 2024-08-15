@@ -69,7 +69,7 @@ public class SerializationUtil {
     }
   }
 
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings({"DangerousJavaDeserialization", "unchecked"})
   public static <T> T deserializeFromBytes(byte[] bytes) {
     if (bytes == null) {
       return null;

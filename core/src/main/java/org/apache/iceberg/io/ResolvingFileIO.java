@@ -240,7 +240,7 @@ public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
     return null;
   }
 
-  @SuppressWarnings("checkstyle:NoFinalizer")
+  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
   @Override
   protected void finalize() throws Throwable {
     super.finalize();
