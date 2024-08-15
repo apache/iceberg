@@ -179,6 +179,7 @@ public class Metrics implements Serializable {
    * @throws IOException On serialization error
    * @throws ClassNotFoundException If the class is not found
    */
+  @SuppressWarnings("DangerousJavaDeserialization")
   private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
     rowCount = (Long) in.readObject();
     columnSizes = (Map<Integer, Long>) in.readObject();
