@@ -113,9 +113,9 @@ Tables do not require random-access writes. Once written, data and metadata file
 Tables do not require rename, except for tables that use atomic rename to implement the commit operation for new metadata files.
 
 
-## Specification
+# Specification
 
-#### Terms
+### Terms
 
 * **Schema** -- Names and types of fields in a table.
 * **Partition spec** -- A definition of how partition values are derived from data fields.
@@ -125,7 +125,7 @@ Tables do not require rename, except for tables that use atomic rename to implem
 * **Data file** -- A file that contains rows of a table.
 * **Delete file** -- A file that encodes rows of a table that are deleted by position or data values.
 
-#### Writer requirements
+### Writer requirements
 
 Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata files (including manifests files and manifest lists) to a table with the given version.
 
@@ -150,17 +150,17 @@ Readers should be more permissive because v1 metadata files are allowed in v2 ta
 
 Readers may be more strict for metadata JSON files because the JSON files are not reused and will always match the table version. Required v2 fields that were not present in v1 or optional in v1 may be handled as required fields. For example, a v2 table that is missing `last-sequence-number` can throw an exception.
 
-##### Writing data files
+### Writing data files
 
 All columns must be written to data files even if they introduce redundancy with metadata stored in manifest files (e.g. columns with identity partition transforms). Writing all columns provides a backup in case of corruption or bugs in the metadata layer.
 
-### Schemas and Data Types
+## Schemas and Data Types
 
 A table's **schema** is a list of named columns. All data types are either primitives or nested types, which are maps, lists, or structs. A table schema is also a struct type.
 
 For the representations of these types in Avro, ORC, and Parquet file formats, see Appendix A.
 
-#### Nested Types
+### Nested Types
 
 A **`struct`** is a tuple of typed values. Each field in the tuple is named and has an integer id that is unique in the table schema. Each field can be either optional or required, meaning that values can (or cannot) be null. Fields may be any type. Fields may have an optional comment or doc string. Fields can have [default values](#default-values).
 
@@ -168,7 +168,7 @@ A **`list`** is a collection of values with some element type. The element field
 
 A **`map`** is a collection of key-value pairs with a key type and a value type. Both the key field and value field each have an integer id that is unique in the table schema. Map keys are required and map values can be either optional or required. Both map keys and map values may be any type, including nested types.
 
-#### Primitive Types
+### Primitive Types
 
 Supported primitive types are defined in the table below. Primitive types added after v1 have an "added by" version that is the first spec version in which the type is allowed. For example, nanosecond-precision timestamps are part of the v3 spec; using v3 types in v1 or v2 tables can break forward compatibility.
 
@@ -202,7 +202,7 @@ Notes:
 For details on how to serialize a schema to JSON, see Appendix C.
 
 
-#### Default values
+### Default values
 
 Default values can be tracked for struct fields (both nested structs and the top-level schema's struct). There can be two defaults with a field:
 
@@ -216,7 +216,7 @@ The `initial-default` and `write-default` produce SQL default value behavior, wi
 Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
 
 
-#### Schema Evolution
+### Schema Evolution
 
 Schemas may be evolved by type promotion or adding, deleting, renaming, or reordering fields in structs (both nested structs and the top-level schema’s struct).
 
@@ -275,7 +275,7 @@ Field mapping fields are constrained by the following rules:
 
 For details on serialization, see [Appendix C](#name-mapping-serialization).
 
-#### Identifier Field IDs
+### Identifier Field IDs
 
 A schema can optionally track the set of primitive fields that identify rows in a table, using the property `identifier-field-ids` (see JSON encoding in Appendix C).
 
@@ -284,7 +284,7 @@ Two rows are the "same"---that is, the rows represent the same entity---if the i
 Identifier fields may be nested in structs but cannot be nested within maps or lists. Float, double, and optional fields cannot be used as identifier fields and a nested field cannot be used as an identifier field if it is nested in an optional struct, to avoid null values in identifiers.
 
 
-#### Reserved Field IDs
+### Reserved Field IDs
 
 Iceberg tables must not use field ids greater than 2147483447 (`Integer.MAX_VALUE - 200`). This id range is reserved for metadata columns that can be used in user data schemas, like the `_file` column that holds the file path in which a row was stored.
 
@@ -302,7 +302,7 @@ The set of metadata columns is:
 | **`2147483544  row`**       | `struct<...>` | Deleted row values, used in position-based delete files |
 
 
-### Partitioning
+## Partitioning
 
 Data files are stored in manifests with a tuple of partition values that are used in scans to filter out files that cannot contain records that match the scan’s filter predicate. Partition values for a data file must be the same for all records stored in the data file. (Manifests store data files from any partition, as long as the partition spec is the same for the data files.)
 
@@ -321,7 +321,7 @@ Two partition specs are considered equivalent with each other if they have the s
 
 Partition field IDs must be reused if an existing partition spec contains an equivalent field.
 
-#### Partition Transforms
+### Partition Transforms
 
 | Transform name    | Description                                                  | Source types                                                                                              | Result type |
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
@@ -339,7 +339,7 @@ All transforms must return `null` for a `null` input value.
 The `void` transform may be used to replace the transform in an existing partition field so that the field is effectively dropped in v1 tables. See partition evolution below.
 
 
-#### Bucket Transform Details
+### Bucket Transform Details
 
 Bucket partition transforms use a 32-bit hash of the source value. The 32-bit hash implementation is the 32-bit Murmur3 hash, x86 variant, seeded with 0.
 
@@ -356,7 +356,7 @@ Notes:
 For hash function details by type, see Appendix B.
 
 
-#### Truncate Transform Details
+### Truncate Transform Details
 
 | **Type**      | **Config**            | **Truncate specification**                                       | **Examples**                     |
 |---------------|-----------------------|------------------------------------------------------------------|----------------------------------|
@@ -374,7 +374,7 @@ Notes:
 4. In contrast to strings, binary values do not have an assumed encoding and are truncated to `L` bytes.
 
 
-#### Partition Evolution
+### Partition Evolution
 
 Table partitioning can be evolved by adding, removing, renaming, or reordering partition spec fields.
 
@@ -391,7 +391,7 @@ In v1, partition field IDs were not tracked, but were assigned sequentially star
 3. Only add partition fields at the end of the previous partition spec
 
 
-### Sorting
+## Sorting
 
 Users can sort their data within partitions by columns to gain performance. The information on how the data is sorted can be declared per data or delete file, by a **sort order**.
 
@@ -411,7 +411,7 @@ Sorting floating-point numbers should produce the following behavior: `-NaN` < `
 A data or delete file is associated with a sort order by the sort order's id within [a manifest](#manifests). Therefore, the table must declare all the sort orders for lookup. A table could also be configured with a default sort order id, indicating how the new data should be sorted by default. Writers should use this default sort order to sort the data on write, but are not required to if the default order is prohibitively expensive, as it would be for streaming writes.
 
 
-### Manifests
+## Manifests
 
 A manifest is an immutable Avro file that lists data files or delete files, along with each file’s partition data tuple, metrics, and tracking information. One or more manifest files are used to store a [snapshot](#snapshots), which tracks all of the files in a table at some point in time. Manifests are tracked by a [manifest list](#manifest-lists) for each table snapshot.
 
@@ -479,7 +479,7 @@ The `partition` struct stores the tuple of partition values for each file. Its t
 The column metrics maps are used when filtering to select both data and delete files. For delete files, the metrics must store bounds and counts for all deleted rows, or must be omitted. Storing metrics for deleted rows ensures that the values can be used during job planning to find delete files that must be merged during a scan.
 
 
-#### Manifest Entry Fields
+### Manifest Entry Fields
 
 The manifest entry fields are used to keep track of the snapshot in which files were added or logically deleted. The `data_file` struct is nested inside of the manifest entry so that it can be easily passed to job planning without the manifest entry fields.
 
@@ -497,7 +497,7 @@ Notes:
 1. Technically, data files can be deleted when the last snapshot that contains the file as “live” data is garbage collected. But this is harder to detect and requires finding the diff of multiple snapshots. It is easier to track what files are deleted in a snapshot and delete them when that snapshot expires.  It is not recommended to add a deleted file back to a table. Adding a deleted file can lead to edge cases where incremental deletes can break table snapshots.
 2. Manifest list files are required in v2, so that the `sequence_number` and `snapshot_id` to inherit are always available.
 
-#### Sequence Number Inheritance
+### Sequence Number Inheritance
 
 Manifests track the sequence number when a data or delete file was added to the table.
 
@@ -511,7 +511,7 @@ Inheriting sequence numbers through the metadata tree allows writing a new manif
 When reading v1 manifests with no sequence number column, sequence numbers for all files must default to 0.
 
 
-### Snapshots
+## Snapshots
 
 A snapshot consists of the following fields:
 
@@ -544,7 +544,7 @@ Manifests for a snapshot are tracked by a manifest list.
 Valid snapshots are stored as a list in table metadata. For serialization, see Appendix C.
 
 
-#### Manifest Lists
+### Manifest Lists
 
 Snapshots are embedded in table metadata, but the list of manifests for a snapshot are stored in a separate manifest list file.
 
@@ -588,7 +588,7 @@ Notes:
 1. Lower and upper bounds are serialized to bytes using the single-object serialization in Appendix D. The type of used to encode the value is the type of the partition field data.
 2. If -0.0 is a value of the partition field, the `lower_bound` must not be +0.0, and if +0.0 is a value of the partition field, the `upper_bound` must not be -0.0.
 
-#### Scan Planning
+### Scan Planning
 
 Scans are planned by reading the manifest files for the current snapshot. Deleted entries in data and delete manifests (those marked with status "DELETED") are not used in a scan.
 
@@ -628,7 +628,7 @@ Notes:
 2. For example, if `file_a` has rows with `id` between 1 and 10 and a delete file contains rows with `id` between 1 and 4, a scan for `id = 9` may ignore the delete file because none of the deletes can match a row that will be selected.
 3. Floating point partition values are considered equal if their IEEE 754 floating-point "single format" bit layout are equal with NaNs normalized to have only the the most significant mantissa bit set (the equivelant of calling `Float.floatToIntBits` or `Double.doubleToLongBits` in Java). The Avro specification requires all floating point values to be encoded in this format.
 
-#### Snapshot Reference
+### Snapshot References
 
 Iceberg tables keep track of branches and tags using snapshot references. 
 Tags are labels for individual snapshots. Branches are mutable named references that can be updated by committing a new snapshot as the branch's referenced snapshot using the [Commit Conflict Resolution and Retry](#commit-conflict-resolution-and-retry) procedures.
@@ -645,7 +645,7 @@ The snapshot reference object records all the information of a reference includi
 
 Valid snapshot references are stored as the values of the `refs` map in table metadata. For serialization, see Appendix C.
 
-#### Snapshot Retention Policy
+### Snapshot Retention Policy
 
 Table snapshots expire and are removed from metadata to allow removed or replaced data files to be physically deleted.
 The snapshot expiration procedure removes snapshots from table metadata and applies the table's retention policy.
@@ -661,13 +661,13 @@ When expiring snapshots, retention policies in table and snapshot references are
     2. The snapshot is not one of the first `min-snapshots-to-keep` in the branch (including the branch's referenced snapshot)
 5. Expire any snapshot not in the set of snapshots to retain.
 
-### Table Metadata
+## Table Metadata
 
 Table metadata is stored as JSON. Each table metadata change creates a new table metadata file that is committed by an atomic operation. This operation is used to ensure that a new version of table metadata replaces the version on which it was based. This produces a linear history of table versions and ensures that concurrent writes are not lost.
 
 The atomic operation used to commit metadata depends on how tables are tracked and is not standardized by this spec. See the sections below for examples.
 
-#### Table Metadata Fields
+### Table Metadata Fields
 
 Table metadata consists of the following fields:
 
@@ -699,7 +699,7 @@ Table metadata consists of the following fields:
 
 For serialization details, see Appendix C.
 
-#### Table Statistics
+### Table Statistics
 
 Table statistics files are valid [Puffin files](puffin-spec.md). Statistics are informational. A reader can choose to
 ignore statistics information. Statistics support is not required to read the table correctly. A table can contain
@@ -727,7 +727,7 @@ Blob metadata is a struct with the following fields:
 | _optional_ | _optional_ | **`properties`** | `map<string, string>` | Additional properties associated with the statistic. Subset of Blob properties in the Puffin file. |
 
 
-#### Partition Statistics
+### Partition Statistics
 
 Partition statistics files are based on [partition statistics file spec](#partition-statistics-file). 
 Partition statistics are not required for reading or planning and readers may ignore them.
@@ -778,7 +778,7 @@ The unified partition type looks like `Struct<field#1, field#2, field#3>`.
 and then the table has evolved into `spec#1` which has just one field `{field#2}`.
 The unified partition type looks like `Struct<field#1, field#2>`.
 
-#### Commit Conflict Resolution and Retry
+## Commit Conflict Resolution and Retry
 
 When two commits happen at the same time and are based on the same version, only one commit will succeed. In most cases, the failed commit can be applied to the new current version of table metadata and retried. Updates verify the conditions under which they can be applied to a new version and retry if those conditions are met.
 
@@ -788,7 +788,7 @@ When two commits happen at the same time and are based on the same version, only
 *   Table schema updates and partition spec changes must validate that the schema has not changed between the base version and the current version.
 
 
-#### File System Tables
+### File System Tables
 
 _Note: This file system based scheme to commit a metadata file is **deprecated** and will be removed in version 4 of this spec. The scheme is **unsafe** in object stores and local file systems._
 
@@ -807,7 +807,7 @@ Notes:
 
 1. The file system table scheme is implemented in [HadoopTableOperations](../javadoc/{{ icebergVersion }}/index.html?org/apache/iceberg/hadoop/HadoopTableOperations.html).
 
-#### Metastore Tables
+### Metastore Tables
 
 The atomic swap needed to commit new versions of table metadata can be implemented by storing a pointer in a metastore or database that is updated with a check-and-put operation [1]. The check-and-put validates that the version of the table that a write is based on is still current and then makes the new metadata from the write the current version.
 
@@ -824,7 +824,7 @@ Notes:
 1. The metastore table scheme is partly implemented in [BaseMetastoreTableOperations](../javadoc/{{ icebergVersion }}/index.html?org/apache/iceberg/BaseMetastoreTableOperations.html).
 
 
-### Delete Formats
+## Delete Formats
 
 This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are not supported in v1.
 
@@ -835,7 +835,7 @@ Row-level delete files are tracked by manifests, like data files. A separate set
 Both position and equality deletes allow encoding deleted row values with a delete. This can be used to reconstruct a stream of changes to a table.
 
 
-#### Position Delete Files
+### Position Delete Files
 
 Position-based delete files identify deleted rows by file and position in one or more data files, and may optionally contain the deleted row.
 
@@ -860,7 +860,7 @@ The rows in the delete file must be sorted by `file_path` then `pos` to optimize
 *  Sorting by `file_path` allows filter pushdown by file in columnar storage formats.
 *  Sorting by `pos` allows filtering rows while scanning, to avoid keeping deletes in memory.
 
-#### Equality Delete Files
+### Equality Delete Files
 
 Equality delete files identify deleted rows in a collection of data files by one or more column values, and may optionally contain additional columns of the deleted row.
 
@@ -912,7 +912,7 @@ equality_ids=[1, 2]
 If a delete column in an equality delete file is later dropped from the table, it must still be used when applying the equality deletes. If a column was added to a table and later used as a delete column in an equality delete file, the column value is read for older data files using normal projection rules (defaults to `null`).
 
 
-#### Delete File Stats
+### Delete File Stats
 
 Manifests hold the same statistics for delete files and data files. For delete files, the metrics describe the values that were deleted.
 
