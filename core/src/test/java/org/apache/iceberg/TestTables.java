@@ -216,6 +216,7 @@ public class TestTables {
 
     private final String tableName;
     private final File metadata;
+    private final FileIO fileIO;
     private TableMetadata current = null;
     private long lastSnapshotId = 0;
     private int failCommits = 0;
@@ -223,6 +224,22 @@ public class TestTables {
     public TestTableOperations(String tableName, File location) {
       this.tableName = tableName;
       this.metadata = new File(location, "metadata");
+      this.fileIO = new LocalFileIO();
+      metadata.mkdirs();
+      refresh();
+      if (current != null) {
+        for (Snapshot snap : current.snapshots()) {
+          this.lastSnapshotId = Math.max(lastSnapshotId, snap.snapshotId());
+        }
+      } else {
+        this.lastSnapshotId = 0;
+      }
+    }
+
+    public TestTableOperations(String tableName, File location, FileIO fileIO) {
+      this.tableName = tableName;
+      this.metadata = new File(location, "metadata");
+      this.fileIO = fileIO;
       metadata.mkdirs();
       refresh();
       if (current != null) {
@@ -277,7 +294,7 @@ public class TestTables {
 
     @Override
     public FileIO io() {
-      return new LocalFileIO();
+      return fileIO;
     }
 
     @Override
@@ -300,7 +317,7 @@ public class TestTables {
     }
   }
 
-  static class LocalFileIO implements FileIO {
+  public static class LocalFileIO implements FileIO {
 
     @Override
     public InputFile newInputFile(String path) {

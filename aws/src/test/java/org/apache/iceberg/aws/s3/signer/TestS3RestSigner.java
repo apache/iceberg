@@ -107,7 +107,13 @@ public class TestS3RestSigner {
 
     ScheduledThreadPoolExecutor executor =
         ((ScheduledThreadPoolExecutor) validatingSigner.icebergSigner.tokenRefreshExecutor());
-    // token expiration is set to 100s so there should be exactly one token scheduled for refresh
+    // token expiration is set to 10000s by the S3SignerServlet so there should be exactly one token
+    // scheduled for refresh. Such a high token expiration value is explicitly selected to be much
+    // larger than TestS3RestSigner would need to execute all tests.
+    // The reason why this check is done here with a high token expiration is to make sure that
+    // there aren't other token refreshes being scheduled after every sign request and after
+    // TestS3RestSigner completes all tests, there should be only this single token in the queue
+    // that is scheduled for refresh
     assertThat(executor.getPoolSize()).isEqualTo(1);
     assertThat(executor.getQueue())
         .as("should only have a single token scheduled for refresh")
