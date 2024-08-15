@@ -69,7 +69,6 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.TestTableLoader;
-import org.apache.iceberg.flink.sink.committer.IcebergCommitter;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -139,10 +138,8 @@ public class TestIcebergFilesCommitter extends TestBase {
       assertSnapshotSize(0);
       assertMaxCommittedCheckpointId(jobId, operatorId, -1L);
 
-      // It's better to a
-      // dvance the max-committed-checkpoint-id in iceberg snapshot, so that the
-      // future flink job
-      // failover won't fail.
+      // It's better to advance the max-committed-checkpoint-id in iceberg snapshot, so that the
+      // future flink job failover won't fail.
       for (int i = 1; i <= 3; i++) {
         harness.snapshot(++checkpointId, ++timestamp);
         assertFlinkManifests(0);
@@ -398,7 +395,7 @@ public class TestIcebergFilesCommitter extends TestBase {
     // flink job will restore from a checkpoint with only step#1 finished.
     long checkpointId = 0;
     long timestamp = 0;
-    OperatorSubtaskState snapshot = null;
+    OperatorSubtaskState snapshot;
     List<RowData> expectedRows = Lists.newArrayList();
     JobID jobId = new JobID();
     OperatorID operatorId;
@@ -1081,7 +1078,7 @@ public class TestIcebergFilesCommitter extends TestBase {
   private void assertMaxCommittedCheckpointId(JobID jobID, OperatorID operatorID, long expectedId) {
     table.refresh();
     long actualId =
-        IcebergCommitter.getMaxCommittedCheckpointId(
+        SinkUtil.getMaxCommittedCheckpointId(
             table, jobID.toString(), operatorID.toString(), branch);
     assertThat(actualId).isEqualTo(expectedId);
   }

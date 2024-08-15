@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.flink.sink.committer;
 
+import static org.apache.iceberg.flink.sink.SinkUtil.FLINK_JOB_ID;
+import static org.apache.iceberg.flink.sink.SinkUtil.MAX_COMMITTED_CHECKPOINT_ID;
+import static org.apache.iceberg.flink.sink.SinkUtil.OPERATOR_ID;
+
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -34,7 +37,6 @@ import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
@@ -43,6 +45,7 @@ import org.apache.iceberg.flink.sink.DeltaManifests;
 import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
 import org.apache.iceberg.flink.sink.FlinkManifestUtil;
 import org.apache.iceberg.flink.sink.IcebergFilesCommitterMetrics;
+import org.apache.iceberg.flink.sink.SinkUtil;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -66,9 +69,7 @@ import org.slf4j.LoggerFactory;
  * </ul>
  */
 @Internal
-public class IcebergCommitter implements Committer<IcebergCommittable>, Serializable {
-  private static final long serialVersionUID = 1L;
-  private static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
+public class IcebergCommitter implements Committer<IcebergCommittable> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergCommitter.class);
   private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
   public static final WriteResult EMPTY_WRITE_RESULT =
@@ -77,22 +78,18 @@ public class IcebergCommitter implements Committer<IcebergCommittable>, Serializ
           .addDeleteFiles(Lists.newArrayList())
           .build();
 
-  private static final long INITIAL_CHECKPOINT_ID = -1L;
-
   @VisibleForTesting
   static final String MAX_CONTINUOUS_EMPTY_COMMITS = "flink.max-continuous-empty-commits";
 
-  public static final String FLINK_JOB_ID = "flink.job-id";
-  public static final String OPERATOR_ID = "flink.operator-id";
   private final String branch;
   private final Map<String, String> snapshotProperties;
   private final boolean replacePartitions;
-  private transient IcebergFilesCommitterMetrics committerMetrics;
-  private transient Table table;
+  private IcebergFilesCommitterMetrics committerMetrics;
+  private Table table;
   private final TableLoader tableLoader;
-  private transient int maxContinuousEmptyCommits;
-  private transient ExecutorService workerPool;
-  private transient int continuousEmptyCheckpoints = 0;
+  private int maxContinuousEmptyCommits;
+  private ExecutorService workerPool;
+  private int continuousEmptyCheckpoints = 0;
 
   public IcebergCommitter(
       TableLoader tableLoader,
@@ -136,7 +133,7 @@ public class IcebergCommitter implements Committer<IcebergCommittable>, Serializ
 
     IcebergCommittable last = commitRequestMap.lastEntry().getValue().getCommittable();
     long maxCommittedCheckpointId =
-        getMaxCommittedCheckpointId(table, last.jobId(), last.operatorId(), branch);
+        SinkUtil.getMaxCommittedCheckpointId(table, last.jobId(), last.operatorId(), branch);
     // Mark the already committed FilesCommittable(s) as finished
     commitRequestMap
         .headMap(maxCommittedCheckpointId, true)
@@ -147,30 +144,6 @@ public class IcebergCommitter implements Committer<IcebergCommittable>, Serializ
     if (!uncommitted.isEmpty()) {
       commitPendingRequests(uncommitted, last.jobId(), last.operatorId());
     }
-  }
-
-  public static long getMaxCommittedCheckpointId(
-      Table table, String flinkJobId, String operatorId, String branch) {
-    Snapshot snapshot = table.snapshot(branch);
-    long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
-
-    while (snapshot != null) {
-      Map<String, String> summary = snapshot.summary();
-      String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
-      String snapshotOperatorId = summary.get(OPERATOR_ID);
-      if (flinkJobId.equals(snapshotFlinkJobId)
-          && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
-        String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
-        if (value != null) {
-          lastCommittedCheckpointId = Long.parseLong(value);
-          break;
-        }
-      }
-      Long parentSnapshotId = snapshot.parentId();
-      snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
-    }
-
-    return lastCommittedCheckpointId;
   }
 
   /**

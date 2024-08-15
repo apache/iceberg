@@ -143,6 +143,7 @@ public class FlinkManifestUtil {
         // The flink manifests cleaning failure shouldn't abort the completed checkpoint.
         String details =
             MoreObjects.toStringHelper(FlinkManifestUtil.class)
+                .add("tableName", table.name())
                 .add("flinkJobId", newFlinkJobId)
                 .add("checkpointId", checkpointId)
                 .add("manifestPath", manifest.path())

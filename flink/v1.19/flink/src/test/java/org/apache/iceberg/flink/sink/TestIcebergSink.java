@@ -270,7 +270,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
         .tableLoader(leftTableLoader)
         .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
         .distributionMode(DistributionMode.NONE)
-        .uidPrefix("leftIcebergSink")
+        .uidSuffix("leftIcebergSink")
         .append();
 
     List<Row> rightRows = createRows("right-");
@@ -284,7 +284,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
         .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)
         .distributionMode(DistributionMode.HASH)
-        .uidPrefix("rightIcebergSink")
+        .uidSuffix("rightIcebergSink")
         .setSnapshotProperty("flink.test", TestIcebergSink.class.getName())
         .snapshotProperties(Collections.singletonMap("direction", "rightTable"))
         .append();

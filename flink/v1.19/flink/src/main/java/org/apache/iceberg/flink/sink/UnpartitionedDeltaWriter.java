@@ -58,7 +58,7 @@ class UnpartitionedDeltaWriter extends BaseDeltaTaskWriter {
   }
 
   @Override
-  protected RowDataDeltaWriter route(RowData row) {
+  RowDataDeltaWriter route(RowData row) {
     return writer;
   }
 

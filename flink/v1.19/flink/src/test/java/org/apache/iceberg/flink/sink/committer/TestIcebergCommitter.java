@@ -55,6 +55,7 @@ import org.apache.flink.streaming.api.connector.sink2.CommittableMessageSerializ
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
 import org.apache.flink.streaming.api.connector.sink2.SinkV2Assertions;
+import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.operators.StreamingRuntimeContext;
 import org.apache.flink.streaming.runtime.operators.sink.CommitterOperatorFactory;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
@@ -89,6 +90,7 @@ import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
 import org.apache.iceberg.flink.sink.FlinkManifestUtil;
 import org.apache.iceberg.flink.sink.IcebergFilesCommitterMetrics;
 import org.apache.iceberg.flink.sink.IcebergSink;
+import org.apache.iceberg.flink.sink.SinkUtil;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -352,8 +354,8 @@ class TestIcebergCommitter extends TestBase {
   @TestTemplate
   public void testEmitCommittables() throws Exception {
     TestCommitter committer = new TestCommitter(tableLoader);
-    IcebergSink sink =
-        spy(IcebergSink.forRowData(null).table(table).tableLoader(tableLoader).build());
+    DataStreamSink<RowData> sink =
+        spy(IcebergSink.forRowData(null).table(table).tableLoader(tableLoader).append());
     doReturn(committer).when(sink).createCommitter(any());
 
     try (OneInputStreamOperatorTestHarness<
@@ -1423,8 +1425,7 @@ class TestIcebergCommitter extends TestBase {
 
   private void assertMaxCommittedCheckpointId(String myJobID, String operatorId, long expectedId) {
     table.refresh();
-    long actualId =
-        IcebergCommitter.getMaxCommittedCheckpointId(table, myJobID, operatorId, branch);
+    long actualId = SinkUtil.getMaxCommittedCheckpointId(table, myJobID, operatorId, branch);
     assertThat(actualId).isEqualTo(expectedId);
   }
 

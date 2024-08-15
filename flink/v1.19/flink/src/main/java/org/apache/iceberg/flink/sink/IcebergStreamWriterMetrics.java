@@ -21,12 +21,14 @@ package org.apache.iceberg.flink.sink;
 import com.codahale.metrics.SlidingWindowReservoir;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.dropwizard.metrics.DropwizardHistogramWrapper;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Histogram;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.iceberg.io.WriteResult;
 
+@Internal
 class IcebergStreamWriterMetrics {
   // 1,024 reservoir size should cost about 8KB, which is quite small.
   // It should also produce good accuracy for histogram distribution (like percentiles).
@@ -62,7 +64,7 @@ class IcebergStreamWriterMetrics {
             new DropwizardHistogramWrapper(dropwizardDeleteFilesSizeHistogram));
   }
 
-  public void updateFlushResult(WriteResult result) {
+  void updateFlushResult(WriteResult result) {
     flushedDataFiles.inc(result.dataFiles().length);
     flushedDeleteFiles.inc(result.deleteFiles().length);
     flushedReferencedDataFiles.inc(result.referencedDataFiles().length);

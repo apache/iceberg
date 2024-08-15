@@ -19,15 +19,27 @@
 package org.apache.iceberg.flink.sink;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.util.Preconditions;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class SinkUtil {
+@Internal
+public class SinkUtil {
+
+  private static final long INITIAL_CHECKPOINT_ID = -1L;
+
+  public static final String FLINK_JOB_ID = "flink.job-id";
+
+  public static final String OPERATOR_ID = "flink.operator-id";
+  public static final String MAX_COMMITTED_CHECKPOINT_ID = "flink.max-committed-checkpoint-id";
+
   private SinkUtil() {}
 
   private static final Logger LOG = LoggerFactory.getLogger(SinkUtil.class);
@@ -56,5 +68,29 @@ class SinkUtil {
       equalityFieldIds = Lists.newArrayList(equalityFieldSet);
     }
     return equalityFieldIds;
+  }
+
+  public static long getMaxCommittedCheckpointId(
+      Table table, String flinkJobId, String operatorId, String branch) {
+    Snapshot snapshot = table.snapshot(branch);
+    long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
+
+    while (snapshot != null) {
+      Map<String, String> summary = snapshot.summary();
+      String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
+      String snapshotOperatorId = summary.get(OPERATOR_ID);
+      if (flinkJobId.equals(snapshotFlinkJobId)
+          && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
+        String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
+        if (value != null) {
+          lastCommittedCheckpointId = Long.parseLong(value);
+          break;
+        }
+      }
+      Long parentSnapshotId = snapshot.parentId();
+      snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
+    }
+
+    return lastCommittedCheckpointId;
   }
 }

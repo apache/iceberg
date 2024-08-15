@@ -35,6 +35,7 @@ import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
 import org.apache.iceberg.flink.sink.FlinkManifestUtil;
 import org.apache.iceberg.flink.sink.ManifestOutputFileFactory;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,9 +67,12 @@ public class IcebergWriteAggregator
     if (!tableLoader.isOpen()) {
       tableLoader.open();
     }
+
     String flinkJobId = getContainingTask().getEnvironment().getJobID().toString();
     String operatorId = getOperatorID().toString();
-    int subTaskId = 0;
+    int subTaskId = getRuntimeContext().getTaskInfo().getIndexOfThisSubtask();
+    Preconditions.checkArgument(
+        subTaskId == 0, "The subTaskId must be zero in the IcebergWriteAggregator");
     int attemptId = getRuntimeContext().getTaskInfo().getAttemptNumber();
     this.table = tableLoader.loadTable();
 

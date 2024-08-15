@@ -48,30 +48,30 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.StructLikeSet;
 
-public class TestFlinkIcebergSinkV2Base {
+class TestFlinkIcebergSinkV2Base {
 
-  protected static final int FORMAT_V2 = 2;
-  protected static final TypeInformation<Row> ROW_TYPE_INFO =
+  static final int FORMAT_V2 = 2;
+  static final TypeInformation<Row> ROW_TYPE_INFO =
       new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
 
-  protected static final int ROW_ID_POS = 0;
-  protected static final int ROW_DATA_POS = 1;
+  static final int ROW_ID_POS = 0;
+  static final int ROW_DATA_POS = 1;
 
-  protected TableLoader tableLoader;
-  protected Table table;
-  protected StreamExecutionEnvironment env;
+  TableLoader tableLoader;
+  Table table;
+  StreamExecutionEnvironment env;
 
   @Parameter(index = 0)
-  protected FileFormat format;
+  FileFormat format;
 
   @Parameter(index = 1)
-  protected int parallelism = 1;
+  int parallelism = 1;
 
   @Parameter(index = 2)
-  protected boolean partitioned;
+  boolean partitioned;
 
   @Parameter(index = 3)
-  protected String writeDistributionMode;
+  String writeDistributionMode;
 
   @Parameters(name = "FileFormat={0}, Parallelism={1}, Partitioned={2}, WriteDistributionMode={3}")
   public static Object[][] parameters() {
@@ -91,14 +91,14 @@ public class TestFlinkIcebergSinkV2Base {
     };
   }
 
-  protected static final Map<String, RowKind> ROW_KIND_MAP =
+  static final Map<String, RowKind> ROW_KIND_MAP =
       ImmutableMap.of(
           "+I", RowKind.INSERT,
           "-D", RowKind.DELETE,
           "-U", RowKind.UPDATE_BEFORE,
           "+U", RowKind.UPDATE_AFTER);
 
-  protected Row row(String rowKind, int id, String data) {
+  Row row(String rowKind, int id, String data) {
     RowKind kind = ROW_KIND_MAP.get(rowKind);
     if (kind == null) {
       throw new IllegalArgumentException("Unknown row kind: " + rowKind);
@@ -107,7 +107,7 @@ public class TestFlinkIcebergSinkV2Base {
     return Row.ofKind(kind, id, data);
   }
 
-  protected void testUpsertOnIdDataKey(String branch) throws Exception {
+  void testUpsertOnIdDataKey(String branch) throws Exception {
     List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
             ImmutableList.of(row("+I", 1, "aaa"), row("+U", 1, "aaa"), row("+I", 2, "bbb")),
@@ -128,7 +128,7 @@ public class TestFlinkIcebergSinkV2Base {
         branch);
   }
 
-  protected void testChangeLogOnIdDataKey(String branch) throws Exception {
+  void testChangeLogOnIdDataKey(String branch) throws Exception {
     List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
             ImmutableList.of(
@@ -157,7 +157,7 @@ public class TestFlinkIcebergSinkV2Base {
         branch);
   }
 
-  protected void testChangeLogOnSameKey(String branch) throws Exception {
+  void testChangeLogOnSameKey(String branch) throws Exception {
     List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
             // Checkpoint #1
@@ -185,7 +185,7 @@ public class TestFlinkIcebergSinkV2Base {
         branch);
   }
 
-  protected void testChangeLogOnDataKey(String branch) throws Exception {
+  void testChangeLogOnDataKey(String branch) throws Exception {
     List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
             ImmutableList.of(
@@ -213,7 +213,7 @@ public class TestFlinkIcebergSinkV2Base {
         branch);
   }
 
-  protected void testUpsertOnDataKey(String branch) throws Exception {
+  void testUpsertOnDataKey(String branch) throws Exception {
     List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
             ImmutableList.of(row("+I", 1, "aaa"), row("+I", 2, "aaa"), row("+I", 3, "bbb")),
@@ -235,7 +235,7 @@ public class TestFlinkIcebergSinkV2Base {
         branch);
   }
 
-  protected void testChangeLogOnIdKey(String branch) throws Exception {
+  void testChangeLogOnIdKey(String branch) throws Exception {
     List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
             ImmutableList.of(
@@ -285,7 +285,7 @@ public class TestFlinkIcebergSinkV2Base {
     }
   }
 
-  protected void testUpsertOnIdKey(String branch) throws Exception {
+  void testUpsertOnIdKey(String branch) throws Exception {
     List<List<Row>> elementsPerCheckpoint =
         ImmutableList.of(
             ImmutableList.of(row("+I", 1, "aaa"), row("+U", 1, "bbb")),
@@ -321,7 +321,7 @@ public class TestFlinkIcebergSinkV2Base {
     }
   }
 
-  protected void testChangeLogs(
+  void testChangeLogs(
       List<String> equalityFieldColumns,
       KeySelector<Row, Object> keySelector,
       boolean insertAsUpsert,
@@ -358,11 +358,11 @@ public class TestFlinkIcebergSinkV2Base {
     }
   }
 
-  protected Record record(int id, String data) {
+  Record record(int id, String data) {
     return SimpleDataUtil.createRecord(id, data);
   }
 
-  protected List<Snapshot> findValidSnapshots() {
+  List<Snapshot> findValidSnapshots() {
     List<Snapshot> validSnapshots = Lists.newArrayList();
     for (Snapshot snapshot : table.snapshots()) {
       if (snapshot.allManifests(table.io()).stream()
@@ -373,11 +373,11 @@ public class TestFlinkIcebergSinkV2Base {
     return validSnapshots;
   }
 
-  protected StructLikeSet expectedRowSet(Record... records) {
+  StructLikeSet expectedRowSet(Record... records) {
     return SimpleDataUtil.expectedRowSet(table, records);
   }
 
-  protected StructLikeSet actualRowSet(long snapshotId, String... columns) throws IOException {
+  StructLikeSet actualRowSet(long snapshotId, String... columns) throws IOException {
     table.refresh();
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     try (CloseableIterable<Record> reader =
