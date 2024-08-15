@@ -241,10 +241,10 @@ public class IcebergSink
     return writeResults
         .global()
         .transform(
-            prefixIfNotNull(uidPrefix, table.name() + "-" + sinkId + "-pre-commit-topology"),
+            suffixIfNotNull(uidPrefix, table.name() + "-" + sinkId + "-pre-commit-topology"),
             typeInformation,
             new IcebergWriteAggregator(tableLoader))
-        .uid(prefixIfNotNull(uidPrefix, "pre-commit-topology"))
+        .uid(suffixIfNotNull(uidPrefix, "pre-commit-topology"))
         .setParallelism(1)
         .setMaxParallelism(1)
         // global forces all output records send to subtask 0 of the downstream committer operator.
@@ -291,14 +291,14 @@ public class IcebergSink
     private <T> Builder forMapperOutputType(
         DataStream<T> input, MapFunction<T, RowData> mapper, TypeInformation<RowData> outputType) {
       this.inputCreator =
-          newUidPrefix -> {
+          newUidSuffix -> {
             // Input stream order is crucial for some situation(e.g. in cdc case). Therefore, we
             // need to set the parallelism of map operator same as its input to keep map operator
             // chaining its input, and avoid rebalanced by default.
             SingleOutputStreamOperator<RowData> inputStream =
                 input.map(mapper, outputType).setParallelism(input.getParallelism());
-            if (newUidPrefix != null) {
-              inputStream.name(operatorName(newUidPrefix)).uid(newUidPrefix + "-mapper");
+            if (newUidSuffix != null) {
+              inputStream.name(operatorName(newUidSuffix)).uid(newUidSuffix + "-mapper");
             }
             return inputStream;
           };
@@ -620,7 +620,7 @@ public class IcebergSink
     return writeProperties;
   }
 
-  DataStream<RowData> distributeDataStream(DataStream<RowData> input) {
+  private DataStream<RowData> distributeDataStream(DataStream<RowData> input) {
     DistributionMode mode = flinkWriteConf.distributionMode();
     Schema schema = table.schema();
     PartitionSpec spec = table.spec();
@@ -731,7 +731,7 @@ public class IcebergSink
     return new Builder().forRowData(input);
   }
 
-  private static String prefixIfNotNull(String uidPrefix, String suffix) {
-    return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
+  private static String suffixIfNotNull(String uidSuffix, String suffix) {
+    return uidSuffix != null ? uidSuffix + "-" + suffix : suffix;
   }
 }

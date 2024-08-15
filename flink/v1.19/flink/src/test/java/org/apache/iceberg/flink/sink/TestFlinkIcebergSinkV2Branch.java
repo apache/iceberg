@@ -43,7 +43,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
   @RegisterExtension
-  protected static final HadoopCatalogExtension CATALOG_EXTENSION =
+  static final HadoopCatalogExtension CATALOG_EXTENSION =
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   @Parameter(index = 0)

@@ -85,7 +85,7 @@ class IcebergStreamWriterMetrics {
             });
   }
 
-  public void flushDuration(long flushDurationMs) {
+  void flushDuration(long flushDurationMs) {
     lastFlushDurationMs.set(flushDurationMs);
   }
 }

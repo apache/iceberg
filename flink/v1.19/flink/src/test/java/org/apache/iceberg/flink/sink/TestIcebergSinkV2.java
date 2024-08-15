@@ -245,6 +245,7 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         .equalityFieldColumns(equalityFieldColumns)
         .upsert(insertAsUpsert)
         .toBranch(branch)
+        .uidSuffix("sink")
         .append();
 
     // Execute the program.
