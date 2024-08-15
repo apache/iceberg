@@ -55,7 +55,6 @@ import org.apache.flink.streaming.api.connector.sink2.CommittableMessageSerializ
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
 import org.apache.flink.streaming.api.connector.sink2.SinkV2Assertions;
-import org.apache.flink.streaming.api.datastream.DataStreamSink;
 import org.apache.flink.streaming.api.operators.StreamingRuntimeContext;
 import org.apache.flink.streaming.runtime.operators.sink.CommitterOperatorFactory;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
@@ -354,8 +353,8 @@ class TestIcebergCommitter extends TestBase {
   @TestTemplate
   public void testEmitCommittables() throws Exception {
     TestCommitter committer = new TestCommitter(tableLoader);
-    DataStreamSink<RowData> sink =
-        spy(IcebergSink.forRowData(null).table(table).tableLoader(tableLoader).append());
+    IcebergSink sink =
+        spy(IcebergSink.forRowData(null).table(table).tableLoader(tableLoader).build());
     doReturn(committer).when(sink).createCommitter(any());
 
     try (OneInputStreamOperatorTestHarness<
