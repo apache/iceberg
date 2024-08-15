@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.stats
 
+import org.apache.datasketches.common.Family
 import org.apache.datasketches.memory.Memory
 import org.apache.datasketches.theta.SetOperationBuilder
 import org.apache.datasketches.theta.Sketch
@@ -44,7 +45,7 @@ case class ThetaSketchAggregator(
   def this(child: Expression) = this(child, 0, 0)
 
   override def createAggregationBuffer(): Sketch = {
-    UpdateSketch.builder.build
+    UpdateSketch.builder.setFamily(Family.ALPHA).build
   }
 
   override def update(buffer: Sketch, input: InternalRow): Sketch = {
@@ -72,7 +73,7 @@ case class ThetaSketchAggregator(
   }
 
   override def serialize(buffer: Sketch): Array[Byte] = {
-    buffer.toByteArray
+    buffer.compact().toByteArray
   }
 
   override def deserialize(storageFormat: Array[Byte]): Sketch = {
