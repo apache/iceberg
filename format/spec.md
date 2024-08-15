@@ -163,6 +163,8 @@ Readers may be more strict for metadata JSON files because the JSON files are no
 
 All columns must be written to data files even if they introduce redundancy with metadata stored in manifest files (e.g. columns with identity partition transforms). Writing all columns provides a backup in case of corruption or bugs in the metadata layer.
 
+Writers are not allowed to commit files with a partition spec that contains a field with an unknown transform.
+
 ## Schemas and Data Types
 
 A table's **schema** is a list of named columns. All data types are either primitives or nested types, which are maps, lists, or structs. A table schema is also a struct type.
@@ -324,7 +326,9 @@ The source columns, selected by ids, must be a primitive type and cannot be cont
 
 Partition specs capture the transform from table data to partition values. This is used to transform predicates to partition predicates, in addition to transforming data values. Deriving partition predicates from column predicates on the table data is used to separate the logical queries from physical storage: the partitioning can change and the correct partition filters are always derived from column predicates. This simplifies queries because users don’t have to supply both logical predicates and partition predicates. For more information, see Scan Planning below.
 
-Two partition specs are considered equivalent with each other if they have the same number of fields and for each corresponding field, the fields have the same source column ID, transform definition and partition name. Writers must not create a new parition spec if there already exists a compatible partition spec defined in the table.
+Partition fields that use an unknown transform can be read by ignoring the partition field during scan planning. In v1 and v2, readers should ignore fields with unknown transforms while reading; this behavior is required in v3. Writers are not allowed to commit data using a partition spec that contains a field with an unknown transform.
+
+Two partition specs are considered equivalent with each other if they have the same number of fields and for each corresponding field, the fields have the same source column IDs, transform definition and partition name. Writers must not create a new parition spec if there already exists a compatible partition spec defined in the table.
 
 Partition field IDs must be reused if an existing partition spec contains an equivalent field.
 
@@ -606,6 +610,8 @@ For each manifest, scan predicates, which filter data rows, are converted to par
 Scan predicates are converted to partition predicates using an _inclusive projection_: if a scan predicate matches a row, then the partition predicate must match that row’s partition. This is called _inclusive_ [1] because rows that do not match the scan predicate may be included in the scan by the partition predicate.
 
 For example, an `events` table with a timestamp column named `ts` that is partitioned by `ts_day=day(ts)` is queried by users with ranges over the timestamp column: `ts > X`. The inclusive projection is `ts_day >= day(X)`, which is used to select files that may have matching rows. Note that, in most cases, timestamps just before `X` will be included in the scan because the file contains rows that match the predicate and rows that do not match the predicate.
+
+The inclusive projection for an unknown partition transform is _true_ because the partition field is ignored and not used in filtering.
 
 Scan predicates are also used to filter data and delete files using column bounds and counts that are stored by field id in manifests. The same filter logic can be used for both data and delete files because both store metrics of the rows either inserted or deleted. If metrics show that a delete file has no rows that match a scan predicate, it may be ignored just as a data file would be ignored [2].
 
@@ -1315,7 +1321,7 @@ Default values are added to struct fields in v3.
 
 Types `timestamp_ns` and `timestamptz_ns` are added in v3.
 
-All readers are required to read tables with unknown partition transforms, ignoring them.
+All readers are required to read tables with unknown partition transforms, ignoring the unsupported partition fields.
 
 Writing v3 metadata:
 
