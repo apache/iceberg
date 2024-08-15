@@ -26,6 +26,7 @@ import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -97,5 +98,14 @@ public class PartitionUtil {
         StructProjection.createAllowMissing(spec.partitionType(), partitionType);
     projection.wrap(partition);
     return projection;
+  }
+
+  public static Map<Integer, PartitionSpec> indexSpecs(List<PartitionSpec> specs) {
+    ImmutableMap.Builder<Integer, PartitionSpec> builder = ImmutableMap.builder();
+    for (PartitionSpec spec : specs) {
+      builder.put(spec.specId(), spec);
+    }
+
+    return builder.build();
   }
 }
