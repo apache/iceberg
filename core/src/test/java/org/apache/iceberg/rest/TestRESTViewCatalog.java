@@ -92,15 +92,11 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
           }
         };
 
-    RESTCatalogServlet servlet = new RESTCatalogServlet(adaptor);
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
     servletContext.setContextPath("/");
-    ServletHolder servletHolder = new ServletHolder(servlet);
-    servletHolder.setInitParameter("javax.ws.rs.Application", "ServiceListPublic");
-    servletContext.addServlet(servletHolder, "/*");
-    servletContext.setVirtualHosts(null);
-    servletContext.setGzipHandler(new GzipHandler());
+    servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
+    servletContext.setHandler(new GzipHandler());
 
     this.httpServer = new Server(0);
     httpServer.setHandler(servletContext);
