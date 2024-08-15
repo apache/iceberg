@@ -44,6 +44,15 @@ The primary change in version 2 adds delete files to encode rows that are delete
 
 In addition to row-level deletes, version 2 makes some requirements stricter for writers. The full set of changes are listed in [Appendix E](#version-2).
 
+#### Version 3: Extended Types and Capabilities
+
+Version 3 of the Iceberg spec extends data types and existing metadata structures to add new capabilities, including:
+
+* Adding new data types, like nanosecond timestamps, variant, and unknown.
+* Adding new supported type promotion cases, integer and long to string
+* Adding default value support to struct fields
+* Adding multi-argument transforms for partitioning and sorting
+
 
 ## Goals
 
@@ -127,7 +136,7 @@ Tables do not require rename, except for tables that use atomic rename to implem
 
 ### Writer requirements
 
-Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata files (including manifests files and manifest lists) to a table with the given version.
+Some tables in this spec have columns that specify requirements for tables by version. These requirements are intended for writers when adding metadata files (including manifests files and manifest lists) to a table with the given version.
 
 | Requirement | Write behavior |
 |-------------|----------------|
@@ -135,10 +144,10 @@ Some tables in this spec have columns that specify requirements for v1 and v2 ta
 | _optional_  | The field can be written or omitted |
 | _required_  | The field must be written |
 
-Readers should be more permissive because v1 metadata files are allowed in v2 tables so that tables can be upgraded to v2 without rewriting the metadata tree. For manifest list and manifest files, this table shows the expected v2 read behavior:
+Readers should be more permissive because v1 metadata files are allowed in v2 tables (or later) so that tables can be upgraded to without rewriting the metadata tree. For manifest list and manifest files, this table shows the expected read behavior for later versions:
 
-| v1         | v2         | v2 read behavior |
-|------------|------------|------------------|
+| v1         | v2         | v2+ read behavior |
+|------------|------------|-------------------|
 |            | _optional_ | Read the field as _optional_ |
 |            | _required_ | Read the field as _optional_; it may be missing in v1 files |
 | _optional_ |            | Ignore the field |
@@ -148,7 +157,7 @@ Readers should be more permissive because v1 metadata files are allowed in v2 ta
 | _required_ | _optional_ | Read the field as _optional_ |
 | _required_ | _required_ | Fill in a default or throw an exception if the field is missing |
 
-Readers may be more strict for metadata JSON files because the JSON files are not reused and will always match the table version. Required v2 fields that were not present in v1 or optional in v1 may be handled as required fields. For example, a v2 table that is missing `last-sequence-number` can throw an exception.
+Readers may be more strict for metadata JSON files because the JSON files are not reused and will always match the table version. Required fields that were not present in or were optional in prior versions may be handled as required fields. For example, a v2 table that is missing `last-sequence-number` can throw an exception.
 
 ### Writing data files
 
@@ -179,12 +188,12 @@ Supported primitive types are defined in the table below. Primitive types added 
 |                  | **`long`**         | 64-bit signed integers                                                   |                                                  |
 |                  | **`float`**        | [32-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point | Can promote to double                            |
 |                  | **`double`**       | [64-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point |                                                  |
-|                  | **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed [1], precision must be 38 or less |
+|                  | **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed, precision must be 38 or less     |
 |                  | **`date`**         | Calendar date without timezone or time                                   |                                                  |
-|                  | **`time`**         | Time of day without date, timezone                                       | Microsecond precision [2]                        |
-|                  | **`timestamp`**    | Timestamp, microsecond precision, without timezone                       | [2]                                              |
+|                  | **`time`**         | Time of day, microsecond precision, without date, timezone               |                                                  |
+|                  | **`timestamp`**    | Timestamp, microsecond precision, without timezone                       | [1]                                              |
 |                  | **`timestamptz`**  | Timestamp, microsecond precision, with timezone                          | [2]                                              |
-| [v3](#version-3) | **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [2]                                              |
+| [v3](#version-3) | **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [1]                                              |
 | [v3](#version-3) | **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | [2]                                              |
 |                  | **`string`**       | Arbitrary-length character sequences                                     | Encoded with UTF-8 [3]                           |
 |                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
@@ -193,10 +202,8 @@ Supported primitive types are defined in the table below. Primitive types added 
 
 Notes:
 
-1. Decimal scale is fixed and cannot be changed by schema evolution. Precision can only be widened.
-2. `time`, `timestamp`, and `timestamptz` values are represented with _microsecond precision_. `timestamp_ns` and `timstamptz_ns` values are represented with _nanosecond precision_.
-    - Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
-    - Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
+1. Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
+2. Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
 3. Character strings must be stored as UTF-8 encoded byte arrays.
 
 For details on how to serialize a schema to JSON, see Appendix C.
