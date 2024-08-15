@@ -78,7 +78,7 @@ public class TestAllManifestsTableTaskParser {
     assertTaskEquals(task, deserializedTask);
   }
 
-  static AllManifestsTable.ManifestListReadTask createTask() {
+  private AllManifestsTable.ManifestListReadTask createTask() {
     Schema dataTableSchema = TestBase.SCHEMA;
     HadoopFileIO fileIO = new HadoopFileIO();
     fileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
@@ -137,7 +137,12 @@ public class TestAllManifestsTableTaskParser {
     HadoopFileIO actualIO = (HadoopFileIO) expected.io();
     assertThat(actualIO.properties()).isEqualTo(expectedIO.properties());
 
-    assertThat(expected.schema().sameSchema(actual.schema())).as("Schema should match").isTrue();
+    assertThat(actual.dataTableSchema().asStruct())
+        .as("Data table schema should match")
+        .isEqualTo(expected.dataTableSchema().asStruct());
+    assertThat(actual.schema().asStruct())
+        .as("Schema should match")
+        .isEqualTo(expected.schema().asStruct());
 
     assertThat(actual.specsById()).isEqualTo(expected.specsById());
     assertThat(actual.manifestListLocation()).isEqualTo(expected.manifestListLocation());

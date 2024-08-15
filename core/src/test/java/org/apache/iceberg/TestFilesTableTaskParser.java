@@ -78,7 +78,7 @@ public class TestFilesTableTaskParser {
     assertTaskEquals(task, deserializedTask);
   }
 
-  static BaseFilesTable.ManifestReadTask createTask() {
+  private BaseFilesTable.ManifestReadTask createTask() {
     Schema schema = TestBase.SCHEMA;
     HadoopFileIO fileIO = new HadoopFileIO();
     fileIO.initialize(ImmutableMap.of("k1", "v1", "k2", "v2"));
@@ -114,11 +114,12 @@ public class TestFilesTableTaskParser {
 
   private void assertTaskEquals(
       BaseFilesTable.ManifestReadTask expected, BaseFilesTable.ManifestReadTask actual) {
-    assertThat(expected.schema().sameSchema(actual.schema())).as("Schema should match").isTrue();
-
-    assertThat(expected.projection().sameSchema(actual.projection()))
+    assertThat(actual.schema().asStruct())
+        .as("Schema should match")
+        .isEqualTo(expected.schema().asStruct());
+    assertThat(actual.projection().asStruct())
         .as("Projected schema should match")
-        .isTrue();
+        .isEqualTo(expected.projection().asStruct());
 
     HadoopFileIO expectedIO = (HadoopFileIO) expected.io();
     HadoopFileIO actualIO = (HadoopFileIO) expected.io();
