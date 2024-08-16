@@ -64,14 +64,15 @@ public class FlinkWriteOptions {
   public static final ConfigOption<String> RANGE_DISTRIBUTION_STATISTICS_TYPE =
       ConfigOptions.key("range-distribution-statistics-type")
           .stringType()
-          .defaultValue(StatisticsType.Auto.name());
+          .defaultValue(StatisticsType.Auto.name())
+          .withDescription("Type of statistics collection: Auto, Map, Sketch");
 
-  public static final ConfigOption<Double> CLOSE_FILE_COST_WEIGHT =
-      ConfigOptions.key("close-file-cost-weight")
+  public static final ConfigOption<Double> RANGE_DISTRIBUTION_SORT_KEY_BASE_WEIGHT =
+      ConfigOptions.key("ange-distribution-sort-key-base-weight")
           .doubleType()
-          .defaultValue(0.02d)
+          .defaultValue(0.0d)
           .withDescription(
-              "Close file cost in terms of target weight per writer task. 0.02d means 2%.");
+              "Base weight for every sort key relative to target weight per writer task");
 
   // Branch to write to
   public static final ConfigOption<String> BRANCH =

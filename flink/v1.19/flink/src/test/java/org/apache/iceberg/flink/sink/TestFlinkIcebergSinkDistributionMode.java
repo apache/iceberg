@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.sink;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.List;
@@ -187,7 +188,9 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
   }
 
   @TestTemplate
-  public void testRangeDistributionWithoutSortOrder() throws Exception {
+  public void testRangeDistributionWithoutSortOrderUnpartitioned() throws Exception {
+    assumeThat(partitioned).isFalse();
+
     table
         .updateProperties()
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName())
@@ -204,30 +207,49 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
             .tableLoader(tableLoader)
             .writeParallelism(parallelism);
 
-    if (partitioned) {
-      // sort based on partition columns
-      builder.append();
-      env.execute(getClass().getSimpleName());
+    // Range distribution requires either sort order or partition spec defined
+    assertThatThrownBy(builder::append)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "Invalid write distribution mode: range. Need to define sort order and partition spec.");
+  }
 
-      table.refresh();
-      // ordered in reverse timeline from the newest snapshot to the oldest snapshot
-      List<Snapshot> snapshots = Lists.newArrayList(table.snapshots().iterator());
-      // only keep the snapshots with added data files
-      snapshots =
-          snapshots.stream()
-              .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
-              .collect(Collectors.toList());
+  @TestTemplate
+  public void testRangeDistributionWithoutSortOrderPartitioned() throws Exception {
+    assumeThat(partitioned).isTrue();
 
-      // Sometimes we will have more checkpoints than the bounded source if we pass the
-      // auto checkpoint interval. Thus producing multiple snapshots.
-      assertThat(snapshots).hasSizeGreaterThanOrEqualTo(numOfCheckpoints);
-    } else {
-      // Range distribution requires either sort order or partition spec defined
-      assertThatThrownBy(builder::append)
-          .isInstanceOf(IllegalStateException.class)
-          .hasMessage(
-              "Invalid write distribution mode: range. Need to define sort order and partition spec.");
-    }
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.RANGE.modeName())
+        .commit();
+
+    int numOfCheckpoints = 6;
+    DataStream<Row> dataStream =
+        env.addSource(
+            createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
+            ROW_TYPE_INFO);
+    FlinkSink.Builder builder =
+        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+            .table(table)
+            .tableLoader(tableLoader)
+            .writeParallelism(parallelism);
+
+    // sort based on partition columns
+    builder.append();
+    env.execute(getClass().getSimpleName());
+
+    table.refresh();
+    // ordered in reverse timeline from the newest snapshot to the oldest snapshot
+    List<Snapshot> snapshots = Lists.newArrayList(table.snapshots().iterator());
+    // only keep the snapshots with added data files
+    snapshots =
+        snapshots.stream()
+            .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+            .collect(Collectors.toList());
+
+    // Sometimes we will have more checkpoints than the bounded source if we pass the
+    // auto checkpoint interval. Thus producing multiple snapshots.
+    assertThat(snapshots).hasSizeGreaterThanOrEqualTo(numOfCheckpoints);
   }
 
   @TestTemplate

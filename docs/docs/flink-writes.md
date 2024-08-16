@@ -290,9 +290,14 @@ RANGE distribution shuffle data by partition key or sort order via a custom rang
 Range distribution collects traffic statistics to guide the range partitioner to
 evenly distribute traffic to writer tasks.
 
+Range distribution only shuffle the data via range partitioner. Rows are *not* sorted within
+a data file, which Flink streaming writer doesn't support yet.
+
+#### Use cases
+
 RANGE distribution can be applied an Iceberg table that either is partitioned or
 has SortOrder defined. For a partitioned table without SortOrder, partition columns
-are used as sort columns. If SortOrder is defined for the table, it is used by
+are used as sort order. If SortOrder is explicitly defined for the table, it is used by
 the range partitioner.
 
 Range distribution can handle skewed data. E.g.
@@ -310,8 +315,7 @@ predicate on a non-partition column like `device_id` or `country_code`.
 Range partition would improve the query performance by clustering on the non-partition column
 when table `SortOrder` is defined with the non-partition column.
 
-Range distribution only shuffle the data via range partitioner. Rows are *not* sorted within
-a data file, which Flink streaming writer doesn't support yet.
+#### Traffic statistics
 
 Statistics are collected by every shuffle operator subtask and aggregated by the coordinator
 for every checkpoint cycle. Aggregated statistics are broadcast to all subtasks and
@@ -335,19 +339,16 @@ If a single hot key has unbalanced large share of the traffic,
 range split by uniform sampling probably won't work very well.
 </ul>
 
-Here is how to enable hash distribution in Java. Statistics type and close
-file cost are two advanced configs. Default should work well for most cases.
+#### Usage
+
+Here is how to enable hash distribution in Java. There are two optional advanced configs. Default should
+work well for most cases. See [write-options](flink-configuration.md#write-options) for details.
 ```java
 FlinkSink.forRowData(input)
     ...
     .distributionMode(DistributionMode.RANGE)
-    // Auto type tracks traffic distribution via HashMap first. If cardinality is detected
-    // high. Data statistics collection automatically switch to reservoir sampling.
     .rangeDistributionStatisticsType(StatisticsType.Auto)
-    // Close file cost avoids placing too many small files in a single writer task.
-    // 0.02 means each file has close cost of 2% of target weight for each writer task.
-    // That avoids place more than 50 data files (no matter how small) in one task.
-    .closeFileCostWeightPercentage(0.02d)
+    .rangeDistributionSortKeyBaseWeight(0.0d)
     .append();
 ```
 

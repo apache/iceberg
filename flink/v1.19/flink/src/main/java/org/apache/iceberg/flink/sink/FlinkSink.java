@@ -269,13 +269,22 @@ public class FlinkSink {
     }
 
     /**
-     * If sort order is on partition column, each sort key would map to one partition and data file.
-     * This relative weight ratio can avoid placing too many small files for sort keys with very low
-     * traffic. E.g., statistics collection determines target weight for every subtask is 100, 2.0
-     * indicates every key (data file) carries a weight of 2.0% of the target weight of 100 (even if
-     * it has only one record). That essentially limits the number of data files per subtask to 50,
-     * no matter how small those data files are. It is conceptually similar to open file cost during
-     * scan planning for combining smaller filers into a split task.
+     * If sort order contains partition columns, each sort key would map to one partition and data
+     * file. This relative weight can avoid placing too many small files for sort keys with low
+     * traffic. It is a double value that defines the minimal weight for each sort key. `0.02` means
+     * each key has a base weight of `2%` of the targeted traffic weight per writer task.
+     *
+     * <p>E.g. the sink Iceberg table is partitioned daily by event time. Assume the data stream
+     * contain events from now up to 180 days ago. With even time, traffic weight distribution
+     * across different days typically has a long tail pattern. Current day contains the most
+     * traffic. The older days (long tail) contain less and less traffic. Assume writer parallelism
+     * is `10`. The total weight across all 180 days is `10,000`. Target traffic weight per writer
+     * task would be `1,000`. Assume the weight sum for the oldest 150 days is `1,000`. Normally,
+     * the range partitioner would put all the oldest 150 days in one writer task. That writer task
+     * would write to 150 small files (one per day). If this config is set to `0.02`. It means every
+     * sort key has a base weight of `2%` of targeted weight of `1,000` for every write task. It
+     * would essentially avoid placing more than `50` data files (one per day) on one writer task no
+     * matter how small they are.
      *
      * <p>This is only applicable to {@link StatisticsType#Map} for low-cardinality scenario. For
      * {@link StatisticsType#Sketch} high-cardinality sort columns, they are usually not used as
@@ -284,8 +293,9 @@ public class FlinkSink {
      *
      * <p>Default is {@code 0.0%}.
      */
-    public Builder closeFileCostWeightPercentage(double percentage) {
-      writeOptions.put(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT.key(), Double.toString(percentage));
+    public Builder rangeDistributionSortKeyBaseWeight(double weight) {
+      writeOptions.put(
+          FlinkWriteOptions.RANGE_DISTRIBUTION_SORT_KEY_BASE_WEIGHT.key(), Double.toString(weight));
       return this;
     }
 
@@ -633,7 +643,7 @@ public class FlinkSink {
                           sortOrder,
                           writerParallelism,
                           statisticsType,
-                          flinkWriteConf.closeFileCostWeightPercentage()))
+                          flinkWriteConf.rangeDistributionSortKeyBaseWeight()))
                   // Set the parallelism same as input operator to encourage chaining
                   .setParallelism(input.getParallelism());
           if (uidPrefix != null) {

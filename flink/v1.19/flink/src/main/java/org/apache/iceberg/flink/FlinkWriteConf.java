@@ -179,12 +179,12 @@ public class FlinkWriteConf {
     return StatisticsType.valueOf(name);
   }
 
-  public double closeFileCostWeightPercentage() {
+  public double rangeDistributionSortKeyBaseWeight() {
     return confParser
         .doubleConf()
-        .option(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT.key())
-        .flinkConfig(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT)
-        .defaultValue(FlinkWriteOptions.CLOSE_FILE_COST_WEIGHT.defaultValue())
+        .option(FlinkWriteOptions.RANGE_DISTRIBUTION_SORT_KEY_BASE_WEIGHT.key())
+        .flinkConfig(FlinkWriteOptions.RANGE_DISTRIBUTION_SORT_KEY_BASE_WEIGHT)
+        .defaultValue(FlinkWriteOptions.RANGE_DISTRIBUTION_SORT_KEY_BASE_WEIGHT.defaultValue())
         .parse();
   }
 
