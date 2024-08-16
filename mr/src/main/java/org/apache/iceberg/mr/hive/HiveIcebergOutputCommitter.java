@@ -508,6 +508,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
     LOG.debug("Iceberg committed file is created {}", fileForCommit);
   }
 
+  @SuppressWarnings("DangerousJavaDeserialization")
   private static DataFile[] readFileForCommit(String fileForCommitLocation, FileIO io) {
     try (ObjectInputStream ois =
         new ObjectInputStream(io.newInputFile(fileForCommitLocation).newStream())) {
