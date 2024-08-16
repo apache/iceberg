@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.FileFormat;
@@ -32,12 +31,10 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
@@ -89,36 +86,30 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       int limit) {
     // get required schema if there are deletes
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
-    boolean hasPositionDelete = deleteFilter != null ? deleteFilter.hasPosDeletes() : false;
-    Schema projectedSchema = requiredSchema;
-    if (hasPositionDelete) {
-      // We need to add MetadataColumns.ROW_POSITION in the schema for
-      // ReadConf.generateOffsetToStartPos(Schema schema). This is not needed any
-      // more after #10107 is merged.
-      List<Types.NestedField> columns = Lists.newArrayList(requiredSchema.columns());
-      if (!columns.contains(MetadataColumns.ROW_POSITION)) {
-        columns.add(MetadataColumns.ROW_POSITION);
-        projectedSchema = new Schema(columns);
-      }
+
+    Parquet.ReadBuilder readerBuilder =
+        Parquet.read(inputFile)
+            .project(requiredSchema)
+            .split(start, length)
+            .createBatchedReaderFunc(
+                fileSchema ->
+                    VectorizedSparkParquetReaders.buildReader(
+                        requiredSchema, fileSchema, idToConstant, deleteFilter))
+            .recordsPerBatch(batchSize)
+            .filter(residual)
+            .caseSensitive(caseSensitive())
+            // Spark eagerly consumes the batches. So the underlying memory allocated could be
+            // reused
+            // without worrying about subsequent reads clobbering over each other. This improves
+            // read performance as every batch read doesn't have to pay the cost of allocating
+            // memory.
+            .reuseContainers()
+            .withNameMapping(nameMapping());
+    if (limit > 0) {
+      readerBuilder = readerBuilder.pushedlimit(limit);
     }
 
-    return Parquet.read(inputFile)
-        .project(projectedSchema)
-        .split(start, length)
-        .createBatchedReaderFunc(
-            fileSchema ->
-                VectorizedSparkParquetReaders.buildReader(
-                    requiredSchema, fileSchema, idToConstant, deleteFilter))
-        .recordsPerBatch(batchSize)
-        .filter(residual)
-        .caseSensitive(caseSensitive())
-        // Spark eagerly consumes the batches. So the underlying memory allocated could be reused
-        // without worrying about subsequent reads clobbering over each other. This improves
-        // read performance as every batch read doesn't have to pay the cost of allocating memory.
-        .reuseContainers()
-        .withNameMapping(nameMapping())
-        .pushedlimit(limit)
-        .build();
+    return readerBuilder.build();
   }
 
   private CloseableIterable<ColumnarBatch> newOrcIterable(

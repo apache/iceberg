@@ -95,17 +95,21 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Schema readSchema,
       Map<Integer, ?> idToConstant,
       int limit) {
-    return Parquet.read(file)
-        .reuseContainers()
-        .split(start, length)
-        .project(readSchema)
-        .createReaderFunc(
-            fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
-        .filter(residual)
-        .caseSensitive(caseSensitive())
-        .withNameMapping(nameMapping())
-        .pushedlimit(limit)
-        .build();
+    Parquet.ReadBuilder readerBuilder =
+        Parquet.read(file)
+            .reuseContainers()
+            .split(start, length)
+            .project(readSchema)
+            .createReaderFunc(
+                fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
+            .filter(residual)
+            .caseSensitive(caseSensitive())
+            .withNameMapping(nameMapping());
+    if (limit > 0) {
+      readerBuilder = readerBuilder.pushedlimit(limit);
+    }
+
+    return readerBuilder.build();
   }
 
   private CloseableIterable<InternalRow> newOrcIterable(
