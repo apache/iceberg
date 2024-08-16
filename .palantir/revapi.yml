@@ -1025,14 +1025,11 @@ acceptedBreaks:
       new: "class org.apache.iceberg.types.Types.NestedField"
       justification: "new Constructor added"
     org.apache.iceberg:iceberg-core:
-    - code: "java.method.visibilityReduced"
-      old: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
-      new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
-      justification: "Deprecations for 1.6.0 release"
     - code: "java.element.noLongerDeprecated"
       old: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
       new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
-      justification: "Constructor became private as part of deprecations cleanup for 1.6.0 release"
+      justification: "Constructor became private as part of deprecations cleanup for\
+        \ 1.6.0 release"
     - code: "java.element.noLongerDeprecated"
       old: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
         \ java.lang.String>, java.lang.String, java.lang.String, java.lang.String,\
@@ -1055,6 +1052,10 @@ acceptedBreaks:
       justification: "Deprecations for 1.6.0 release"
     - code: "java.method.removed"
       old: "method org.apache.iceberg.DataFiles.Builder org.apache.iceberg.DataFiles.Builder::withEqualityFieldIds(java.util.List<java.lang.Integer>)"
+      justification: "Deprecations for 1.6.0 release"
+    - code: "java.method.visibilityReduced"
+      old: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
+      new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
       justification: "Deprecations for 1.6.0 release"
   "1.6.0":
     org.apache.iceberg:iceberg-common:
@@ -1083,6 +1084,10 @@ acceptedBreaks:
         \ java.lang.Object[]) throws java.lang.Exception"
       justification: "Reduced visibility and scoped to package"
     org.apache.iceberg:iceberg-core:
+    - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.GenericManifestFile"
+      new: "class org.apache.iceberg.GenericManifestFile"
+      justification: "Serialization across versions is not supported"
     - code: "java.class.removed"
       old: "enum org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus"
       justification: "Removing deprecated code"
