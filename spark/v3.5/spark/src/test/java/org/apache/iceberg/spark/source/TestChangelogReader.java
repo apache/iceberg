@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
 import org.apache.iceberg.ChangelogScanTask;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.IncrementalChangelogScan;
 import org.apache.iceberg.PartitionSpec;
@@ -46,6 +47,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.Pair;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +63,7 @@ public class TestChangelogReader extends TestBase {
       PartitionSpec.builderFor(SCHEMA).bucket("data", 16).build();
   private final List<Record> records1 = Lists.newArrayList();
   private final List<Record> records2 = Lists.newArrayList();
+  private final List<Record> records3 = Lists.newArrayList();
 
   private Table table;
   private DataFile dataFile1;
@@ -84,6 +88,11 @@ public class TestChangelogReader extends TestBase {
     // write data to files
     dataFile1 = writeDataFile(records1);
     dataFile2 = writeDataFile(records2);
+
+    // records to be deleted
+    records3.add(record.copy("id", 29, "data", "a"));
+    records3.add(record.copy("id", 89, "data", "d"));
+    records3.add(record.copy("id", 122, "data", "g"));
   }
 
   @AfterEach
@@ -191,6 +200,199 @@ public class TestChangelogReader extends TestBase {
     table.newAppend().appendFile(dataFile2).commit();
     long snapshotId3 = table.currentSnapshot().snapshotId();
 
+    List<InternalRow> rows = getChangelogRows();
+
+    List<Object[]> expectedRows = Lists.newArrayList();
+    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId1, 0, records1);
+    addExpectedRows(expectedRows, ChangelogOperation.DELETE, snapshotId2, 1, records1);
+    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId3, 2, records2);
+
+    assertEquals("Should have expected rows", expectedRows, internalRowsToJava(rows));
+  }
+
+  @Test
+  public void testPositionDeletes() throws IOException {
+    table.newAppend().appendFile(dataFile1).commit();
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+
+    table.newAppend().appendFile(dataFile2).commit();
+    long snapshotId2 = table.currentSnapshot().snapshotId();
+
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile1.path(), 0L), // id = 29
+            Pair.of(dataFile1.path(), 3L), // id = 89
+            Pair.of(dataFile2.path(), 2L) // id = 122
+            );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(0),
+            deletes);
+
+    table
+        .newRowDelta()
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+    long snapshotId3 = table.currentSnapshot().snapshotId();
+
+    List<InternalRow> rows = getChangelogRows();
+
+    List<Object[]> expectedRows = Lists.newArrayList();
+    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId1, 0, records1);
+    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId2, 1, records2);
+    addExpectedRows(expectedRows, ChangelogOperation.DELETE, snapshotId3, 2, records3);
+
+    assertEquals("Should have expected rows", expectedRows, internalRowsToJava(rows));
+  }
+
+  @Test
+  public void testEqualityDeletes() throws IOException {
+    table.newAppend().appendFile(dataFile1).commit();
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+
+    table.newAppend().appendFile(dataFile2).commit();
+    long snapshotId2 = table.currentSnapshot().snapshotId();
+
+    Schema deleteRowSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("data", "a"), // id = 29
+            dataDelete.copy("data", "d"), // id = 89
+            dataDelete.copy("data", "g") // id = 122
+            );
+
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(0),
+            dataDeletes,
+            deleteRowSchema);
+
+    table.newRowDelta().addDeletes(eqDeletes).commit();
+    long snapshotId3 = table.currentSnapshot().snapshotId();
+
+    List<InternalRow> rows = getChangelogRows();
+
+    List<Object[]> expectedRows = Lists.newArrayList();
+    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId1, 0, records1);
+    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId2, 1, records2);
+    addExpectedRows(expectedRows, ChangelogOperation.DELETE, snapshotId3, 2, records3);
+
+    assertEquals("Should have expected rows", expectedRows, internalRowsToJava(rows));
+  }
+
+  @Test
+  public void testMixOfPositionAndEqualityDeletes() throws IOException {
+    table.newAppend().appendFile(dataFile1).commit();
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+
+    table.newAppend().appendFile(dataFile2).commit();
+    long snapshotId2 = table.currentSnapshot().snapshotId();
+
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile1.path(), 0L), // id = 29
+            Pair.of(dataFile1.path(), 3L) // id = 89
+            );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(0),
+            deletes);
+
+    Schema deleteRowSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("data", "a"), // id = 29
+            dataDelete.copy("data", "g") // id = 122
+            );
+
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(0),
+            dataDeletes,
+            deleteRowSchema);
+
+    table
+        .newRowDelta()
+        .addDeletes(eqDeletes)
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+    long snapshotId3 = table.currentSnapshot().snapshotId();
+
+    List<InternalRow> rows = getChangelogRows();
+
+    List<Object[]> expectedRows = Lists.newArrayList();
+    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId1, 0, records1);
+    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId2, 1, records2);
+    addExpectedRows(expectedRows, ChangelogOperation.DELETE, snapshotId3, 2, records3);
+
+    assertEquals("Should have expected rows", expectedRows, internalRowsToJava(rows));
+  }
+
+  @Test
+  public void testAddingAndDeletingInSameCommit() throws IOException {
+    GenericRecord record = GenericRecord.create(table.schema());
+    List<Record> records1b = Lists.newArrayList();
+    records1b.add(record.copy("id", 28, "data", "a"));
+    records1b.add(record.copy("id", 29, "data", "a"));
+    records1b.add(record.copy("id", 43, "data", "b"));
+    records1b.add(record.copy("id", 44, "data", "b"));
+    records1b.add(record.copy("id", 61, "data", "c"));
+    records1b.add(record.copy("id", 89, "data", "d"));
+    DataFile dataFile1b = writeDataFile(records1b);
+
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile1b.path(), 0L), // id = 28
+            Pair.of(dataFile1b.path(), 3L) // id = 44
+            );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(0),
+            deletes);
+
+    table
+        .newRowDelta()
+        .addRows(dataFile1b)
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+    // the resulting records in the table are the same as records1
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+
+    table.newAppend().appendFile(dataFile2).commit();
+    long snapshotId2 = table.currentSnapshot().snapshotId();
+
+    List<InternalRow> rows = getChangelogRows();
+
+    List<Object[]> expectedRows = Lists.newArrayList();
+    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId1, 0, records1);
+    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId2, 1, records2);
+
+    assertEquals("Should have expected rows", expectedRows, internalRowsToJava(rows));
+  }
+
+  private IncrementalChangelogScan newScan() {
+    return table.newIncrementalChangelogScan();
+  }
+
+  private List<InternalRow> getChangelogRows() throws IOException {
     CloseableIterable<ScanTaskGroup<ChangelogScanTask>> taskGroups = newScan().planTasks();
 
     List<InternalRow> rows = Lists.newArrayList();
@@ -214,16 +416,7 @@ public class TestChangelogReader extends TestBase {
           }
         });
 
-    List<Object[]> expectedRows = Lists.newArrayList();
-    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId1, 0, records1);
-    addExpectedRows(expectedRows, ChangelogOperation.DELETE, snapshotId2, 1, records1);
-    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId3, 2, records2);
-
-    assertEquals("Should have expected rows", expectedRows, internalRowsToJava(rows));
-  }
-
-  private IncrementalChangelogScan newScan() {
-    return table.newIncrementalChangelogScan();
+    return rows;
   }
 
   private List<Object[]> addExpectedRows(

@@ -125,7 +125,7 @@ public abstract class DeleteFilter<T> {
     counter.increment();
   }
 
-  Accessor<StructLike> posAccessor() {
+  protected Accessor<StructLike> posAccessor() {
     return posAccessor;
   }
 
@@ -197,16 +197,11 @@ public abstract class DeleteFilter<T> {
   }
 
   public CloseableIterable<T> findEqualityDeleteRows(CloseableIterable<T> records) {
-    // Predicate to test whether a row has been deleted by equality deletions.
-    Predicate<T> deletedRows = applyEqDeletes().stream().reduce(Predicate::or).orElse(t -> false);
-
-    return CloseableIterable.filter(records, deletedRows);
+    return CloseableIterable.filter(records, isEqDeleted());
   }
 
   private CloseableIterable<T> applyEqDeletes(CloseableIterable<T> records) {
-    Predicate<T> isEqDeleted = applyEqDeletes().stream().reduce(Predicate::or).orElse(t -> false);
-
-    return createDeleteIterable(records, isEqDeleted);
+    return createDeleteIterable(records, isEqDeleted());
   }
 
   protected void markRowDeleted(T item) {
@@ -214,12 +209,17 @@ public abstract class DeleteFilter<T> {
         this.getClass().getName() + " does not implement markRowDeleted");
   }
 
-  public Predicate<T> eqDeletedRowFilter() {
+  // Predicate to test whether a row has been deleted by equality deletes
+  public Predicate<T> isEqDeleted() {
     if (eqDeleteRows == null) {
-      eqDeleteRows =
-          applyEqDeletes().stream().map(Predicate::negate).reduce(Predicate::and).orElse(t -> true);
+      eqDeleteRows = applyEqDeletes().stream().reduce(Predicate::or).orElse(t -> false);
     }
     return eqDeleteRows;
+  }
+
+  // Predicate to test whether a row has not been deleted by equality deletes
+  public Predicate<T> eqDeletedRowFilter() {
+    return isEqDeleted().negate();
   }
 
   public PositionDeleteIndex deletedRowPositions() {

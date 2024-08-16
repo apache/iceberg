@@ -21,8 +21,6 @@ package org.apache.iceberg;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -245,19 +243,6 @@ public class TestBaseIncrementalChangelogScan
     assertThat(t2.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
     assertThat(t2.file().path()).as("Data file must match").isEqualTo(FILE_B.path());
     assertThat(t2.deletes()).as("Must be no deletes").isEmpty();
-  }
-
-  @TestTemplate
-  public void testDeleteFilesAreNotSupported() {
-    assumeThat(formatVersion).isEqualTo(2);
-
-    table.newFastAppend().appendFile(FILE_A2).appendFile(FILE_B).commit();
-
-    table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
-
-    assertThatThrownBy(() -> plan(newScan()))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Delete files are currently not supported in changelog scans");
   }
 
   // plans tasks and reorders them to have deterministic order
