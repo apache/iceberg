@@ -122,9 +122,11 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @Override
     public boolean hasNext() {
-      long numToRead =
-          (pushedLimit == -1 || pushedLimit >= totalValues) ? totalValues : pushedLimit;
-      return valuesRead < numToRead;
+      if (pushedLimit > 0) {
+        return valuesRead < Math.min(totalValues, pushedLimit);
+      } else {
+        return valuesRead < totalValues;
+      }
     }
 
     @Override

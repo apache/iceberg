@@ -134,9 +134,11 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
     @Override
     public boolean hasNext() {
-      long numToRead =
-          (pushedLimit == -1 || pushedLimit >= totalValues) ? totalValues : pushedLimit;
-      return valuesRead < numToRead;
+      if (pushedLimit > 0) {
+        return valuesRead < Math.min(totalValues, pushedLimit);
+      } else {
+        return valuesRead < totalValues;
+      }
     }
 
     @Override
@@ -149,13 +151,16 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       }
 
       long remainingValues = nextRowGroupStart - valuesRead;
-      int remainingLimit = (int) (pushedLimit - valuesRead);
-      // batchSize is an integer, so casting to integer is safe
-      int numValuesToRead =
-          (int)
-              Math.min(
-                  remainingValues,
-                  (remainingLimit > 0 ? Math.min(batchSize, remainingLimit) : batchSize));
+      long remainingLimit = pushedLimit - valuesRead;
+
+      int numValuesToRead;
+      if (remainingLimit > 0) {
+        // batchSize is an integer, so casting to integer is safe
+        numValuesToRead = (int) Math.min(remainingValues, Math.min(batchSize, remainingLimit));
+      } else {
+        // batchSize is an integer, so casting to integer is safe
+        numValuesToRead = (int) Math.min(remainingValues, batchSize);
+      }
 
       if (reuseContainers) {
         this.last = model.read(last, numValuesToRead);
