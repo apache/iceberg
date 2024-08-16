@@ -191,7 +191,7 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
               () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
           .isInstanceOf(IllegalStateException.class)
           .hasMessage(
-              "Invalid write distribution mode: range. Need to define sort order and partition spec.");
+              "Invalid write distribution mode: range. Need to define sort order or partition spec.");
     } else {
       // validation error thrown from appendWriter
       assertThatThrownBy(

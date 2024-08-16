@@ -182,16 +182,18 @@ traffic. It is a double value that defines the minimal weight for each sort key.
 each key has a base weight of `2%` of the targeted traffic weight per writer task.
 
 E.g. the sink Iceberg table is partitioned daily by event time. Assume the data stream
-contain events from now up to 180 days ago. With even time, traffic weight distribution
+contains events from now up to 180 days ago. With event time, traffic weight distribution
 across different days typically has a long tail pattern. Current day contains the most
 traffic. The older days (long tail) contain less and less traffic. Assume writer parallelism
 is `10`. The total weight across all 180 days is `10,000`. Target traffic weight per writer
 task would be `1,000`. Assume the weight sum for the oldest 150 days is `1,000`. Normally,
 the range partitioner would put all the oldest 150 days in one writer task. That writer task
-would write to 150 small files (one per day). If this config is set to `0.02`. It means every
-sort key has a base weight of `2%` of targeted weight of `1,000` for every write task. It
-would essentially avoid placing more than `50` data files (one per day) on one writer task no
-matter how small they are.
+would write to 150 small files (one per day). Keeping 150 open files can potentially consume
+large amount of memory. Flushing and uploading 150 files (however small) at checkpoint time
+can also be potentially slow. If this config is set to `0.02`. It means every sort key has a
+base weight of `2%` of targeted weight of `1,000` for every write task. It would essentially
+avoid placing more than `50` data files (one per day) on one writer task no matter how small
+they are.
 
 This is only applicable to {@link StatisticsType#Map} for low-cardinality scenario. For
 {@link StatisticsType#Sketch} high-cardinality sort columns, they are usually not used as

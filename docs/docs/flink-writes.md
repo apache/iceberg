@@ -341,7 +341,7 @@ range split by uniform sampling probably won't work very well.
 
 #### Usage
 
-Here is how to enable hash distribution in Java. There are two optional advanced configs. Default should
+Here is how to enable range distribution in Java. There are two optional advanced configs. Default should
 work well for most cases. See [write-options](flink-configuration.md#write-options) for details.
 ```java
 FlinkSink.forRowData(input)

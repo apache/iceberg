@@ -211,7 +211,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
-            "Invalid write distribution mode: range. Need to define sort order and partition spec.");
+            "Invalid write distribution mode: range. Need to define sort order or partition spec.");
   }
 
   @TestTemplate
