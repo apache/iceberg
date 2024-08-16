@@ -171,12 +171,8 @@ public class TestS3RestSigner {
         new S3SignerServlet(S3ObjectMapper.mapper(), ImmutableList.of(deleteObjectsWithBody));
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
-    servletContext.setContextPath("/");
-    ServletHolder servletHolder = new ServletHolder(servlet);
-    servletHolder.setInitParameter("javax.ws.rs.Application", "ServiceListPublic");
-    servletContext.addServlet(servletHolder, "/*");
-    servletContext.setVirtualHosts(null);
-    servletContext.setGzipHandler(new GzipHandler());
+    servletContext.addServlet(new ServletHolder(servlet), "/*");
+    servletContext.setHandler(new GzipHandler());
 
     Server server = new Server(0);
     server.setHandler(servletContext);

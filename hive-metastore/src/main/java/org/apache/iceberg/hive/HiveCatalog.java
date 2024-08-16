@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.hive;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +50,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -83,7 +81,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
   private Map<String, String> catalogProperties;
-  private Cache<TableOperations, FileIO> fileIOCloser;
+  private FileIOTracker fileIOTracker;
 
   public HiveCatalog() {}
 
@@ -116,20 +114,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.clients = new CachedClientPool(conf, properties);
-    this.fileIOCloser = newFileIOCloser();
-  }
-
-  private Cache<TableOperations, FileIO> newFileIOCloser() {
-    return Caffeine.newBuilder()
-        .weakKeys()
-        .removalListener(
-            (RemovalListener<TableOperations, FileIO>)
-                (ops, fileIOInstance, cause) -> {
-                  if (null != fileIOInstance) {
-                    fileIOInstance.close();
-                  }
-                })
-        .build();
+    this.fileIOTracker = new FileIOTracker();
   }
 
   @Override
@@ -533,7 +518,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     String tableName = tableIdentifier.name();
     HiveTableOperations ops =
         new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
-    fileIOCloser.put(ops, ops.io());
+    fileIOTracker.track(ops);
     return ops;
   }
 
@@ -661,9 +646,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   @Override
   public void close() throws IOException {
     super.close();
-    if (fileIOCloser != null) {
-      fileIOCloser.invalidateAll();
-      fileIOCloser.cleanUp();
+    if (fileIOTracker != null) {
+      fileIOTracker.close();
     }
   }
 
