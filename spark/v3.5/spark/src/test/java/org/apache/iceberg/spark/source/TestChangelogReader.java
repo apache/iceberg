@@ -342,6 +342,52 @@ public class TestChangelogReader extends TestBase {
     assertEquals("Should have expected rows", expectedRows, internalRowsToJava(rows));
   }
 
+  @Test
+  public void testAddingAndDeletingInSameCommit() throws IOException {
+    GenericRecord record = GenericRecord.create(table.schema());
+    List<Record> records1b = Lists.newArrayList();
+    records1b.add(record.copy("id", 28, "data", "a"));
+    records1b.add(record.copy("id", 29, "data", "a"));
+    records1b.add(record.copy("id", 43, "data", "b"));
+    records1b.add(record.copy("id", 44, "data", "b"));
+    records1b.add(record.copy("id", 61, "data", "c"));
+    records1b.add(record.copy("id", 89, "data", "d"));
+    DataFile dataFile1b = writeDataFile(records1b);
+
+    List<Pair<CharSequence, Long>> deletes =
+        Lists.newArrayList(
+            Pair.of(dataFile1b.path(), 0L), // id = 28
+            Pair.of(dataFile1b.path(), 3L) // id = 44
+            );
+
+    Pair<DeleteFile, CharSequenceSet> posDeletes =
+        FileHelpers.writeDeleteFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(0),
+            deletes);
+
+    table
+        .newRowDelta()
+        .addRows(dataFile1b)
+        .addDeletes(posDeletes.first())
+        .validateDataFilesExist(posDeletes.second())
+        .commit();
+    // the resulting records in the table are the same as records1
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+
+    table.newAppend().appendFile(dataFile2).commit();
+    long snapshotId2 = table.currentSnapshot().snapshotId();
+
+    List<InternalRow> rows = getChangelogRows();
+
+    List<Object[]> expectedRows = Lists.newArrayList();
+    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId1, 0, records1);
+    addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId2, 1, records2);
+
+    assertEquals("Should have expected rows", expectedRows, internalRowsToJava(rows));
+  }
+
   private IncrementalChangelogScan newScan() {
     return table.newIncrementalChangelogScan();
   }
