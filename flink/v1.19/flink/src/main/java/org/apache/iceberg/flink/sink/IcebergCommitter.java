@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink.committer;
+package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.iceberg.AppendFiles;
@@ -36,12 +35,6 @@ import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.sink.CommitSummary;
-import org.apache.iceberg.flink.sink.DeltaManifests;
-import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
-import org.apache.iceberg.flink.sink.FlinkManifestUtil;
-import org.apache.iceberg.flink.sink.IcebergFilesCommitterMetrics;
-import org.apache.iceberg.flink.sink.SinkUtil;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -64,8 +57,7 @@ import org.slf4j.LoggerFactory;
  *       same jobId-operatorId-checkpointId triplet
  * </ul>
  */
-@Internal
-public class IcebergCommitter implements Committer<IcebergCommittable> {
+class IcebergCommitter implements Committer<IcebergCommittable> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergCommitter.class);
   private static final byte[] EMPTY_MANIFEST_DATA = new byte[0];
   public static final WriteResult EMPTY_WRITE_RESULT =
@@ -87,7 +79,7 @@ public class IcebergCommitter implements Committer<IcebergCommittable> {
   private ExecutorService workerPool;
   private int continuousEmptyCheckpoints = 0;
 
-  public IcebergCommitter(
+  IcebergCommitter(
       TableLoader tableLoader,
       String branch,
       Map<String, String> snapshotProperties,
@@ -143,11 +135,11 @@ public class IcebergCommitter implements Committer<IcebergCommittable> {
   }
 
   /**
-   * Commits the data to the Iceberg table by reading the file data from the {@link DeltaManifests}
-   * ordered by the checkpointId, and writing the new snapshot to the Iceberg table. The {@link
-   * org.apache.iceberg.SnapshotSummary} will contain the jobId, snapshotId, checkpointId so in case
-   * of job restart we can identify which changes are committed, and which are still waiting for the
-   * commit.
+   * Commits the data to the Iceberg table by reading the file data from the {@link
+   * org.apache.iceberg.flink.sink.DeltaManifests} ordered by the checkpointId, and writing the new
+   * snapshot to the Iceberg table. The {@link org.apache.iceberg.SnapshotSummary} will contain the
+   * jobId, snapshotId, checkpointId so in case of job restart we can identify which changes are
+   * committed, and which are still waiting for the commit.
    *
    * @param commitRequestMap The checkpointId to {@link CommitRequest} map of the changes to commit
    * @param newFlinkJobId The jobId to store in the {@link org.apache.iceberg.SnapshotSummary}

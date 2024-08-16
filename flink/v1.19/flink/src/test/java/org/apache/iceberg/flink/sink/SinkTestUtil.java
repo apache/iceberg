@@ -28,7 +28,6 @@ import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
 import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.iceberg.flink.sink.committer.IcebergCommittable;
 
 public class SinkTestUtil {
 

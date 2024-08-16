@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink.committer;
+package org.apache.iceberg.flink.sink;
 
 import java.io.IOException;
 import java.util.Collection;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.core.io.SimpleVersionedSerialization;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
@@ -30,10 +29,6 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.sink.DeltaManifests;
-import org.apache.iceberg.flink.sink.DeltaManifestsSerializer;
-import org.apache.iceberg.flink.sink.FlinkManifestUtil;
-import org.apache.iceberg.flink.sink.ManifestOutputFileFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -42,12 +37,10 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Operator which aggregates the individual {@link WriteResult} objects) to a single {@link
- * IcebergCommittable} per checkpoint (storing the serialized {@link DeltaManifests}, jobId,
- * operatorId, checkpointId)
+ * IcebergCommittable} per checkpoint (storing the serialized {@link
+ * org.apache.iceberg.flink.sink.DeltaManifests}, jobId, operatorId, checkpointId)
  */
-@Internal
-public class IcebergWriteAggregator
-    extends AbstractStreamOperator<CommittableMessage<IcebergCommittable>>
+class IcebergWriteAggregator extends AbstractStreamOperator<CommittableMessage<IcebergCommittable>>
     implements OneInputStreamOperator<
         CommittableMessage<WriteResult>, CommittableMessage<IcebergCommittable>> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergWriteAggregator.class);
@@ -57,7 +50,7 @@ public class IcebergWriteAggregator
   private transient Table table;
   private final TableLoader tableLoader;
 
-  public IcebergWriteAggregator(TableLoader tableLoader) {
+  IcebergWriteAggregator(TableLoader tableLoader) {
     this.results = Sets.newHashSet();
     this.tableLoader = tableLoader;
   }

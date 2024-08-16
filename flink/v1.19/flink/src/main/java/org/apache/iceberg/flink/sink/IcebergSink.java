@@ -72,11 +72,6 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.FlinkWriteConf;
 import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.sink.committer.IcebergCommittable;
-import org.apache.iceberg.flink.sink.committer.IcebergCommittableSerializer;
-import org.apache.iceberg.flink.sink.committer.IcebergCommitter;
-import org.apache.iceberg.flink.sink.committer.IcebergWriteAggregator;
-import org.apache.iceberg.flink.sink.committer.WriteResultSerializer;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -94,11 +89,13 @@ import org.slf4j.LoggerFactory;
  *       {@link DistributionMode}
  *   <li>{@link org.apache.flink.api.connector.sink2.SinkWriter} which writes data/delete files, and
  *       generates the {@link org.apache.iceberg.io.WriteResult} objects for the files
- *   <li>{@link SupportsPreCommitTopology} which we use to place the {@link IcebergWriteAggregator}
- *       which merges the individual {@link org.apache.flink.api.connector.sink2.SinkWriter}'s
- *       {@link org.apache.iceberg.io.WriteResult}s to a single {@link IcebergCommittable}
- *   <li>{@link IcebergCommitter} which commits the incoming{@link IcebergCommittable}s to the
- *       Iceberg table
+ *   <li>{@link SupportsPreCommitTopology} which we use to place the {@link
+ *       org.apache.iceberg.flink.sink.IcebergWriteAggregator} which merges the individual {@link
+ *       org.apache.flink.api.connector.sink2.SinkWriter}'s {@link
+ *       org.apache.iceberg.io.WriteResult}s to a single {@link
+ *       org.apache.iceberg.flink.sink.IcebergCommittable}
+ *   <li>{@link org.apache.iceberg.flink.sink.IcebergCommitter} which commits the incoming{@link
+ *       org.apache.iceberg.flink.sink.IcebergCommittable}s to the Iceberg table
  *   <li>{@link SupportsPostCommitTopology} we could use for incremental compaction later. This is
  *       not implemented yet.
  * </ul>
@@ -320,9 +317,10 @@ public class IcebergSink
     }
 
     /**
-     * The table loader is used for loading tables in {@link IcebergCommitter} lazily, we need this
-     * loader because {@link Table} is not serializable and could not just use the loaded table from
-     * Builder#table in the remote task manager.
+     * The table loader is used for loading tables in {@link
+     * org.apache.iceberg.flink.sink.IcebergCommitter} lazily, we need this loader because {@link
+     * Table} is not serializable and could not just use the loaded table from Builder#table in the
+     * remote task manager.
      *
      * @param newTableLoader to load iceberg table inside tasks.
      * @return {@link Builder} to connect the iceberg table.
