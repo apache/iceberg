@@ -39,9 +39,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class FlinkManifestUtil {
+
+  private static final Logger LOG = LoggerFactory.getLogger(FlinkManifestUtil.class);
   private static final int FORMAT_V2 = 2;
   private static final Long DUMMY_SNAPSHOT_ID = 0L;
-  private static final Logger LOG = LoggerFactory.getLogger(FlinkManifestUtil.class);
 
   private FlinkManifestUtil() {}
 

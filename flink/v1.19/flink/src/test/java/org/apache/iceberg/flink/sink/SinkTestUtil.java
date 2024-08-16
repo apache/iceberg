@@ -29,12 +29,12 @@ import org.apache.flink.streaming.api.connector.sink2.CommittableWithLineage;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
-public class SinkTestUtil {
+class SinkTestUtil {
 
   private SinkTestUtil() {}
 
   @SuppressWarnings("unchecked")
-  public static List<StreamElement> transformsToStreamElement(Collection<Object> elements) {
+  static List<StreamElement> transformsToStreamElement(Collection<Object> elements) {
     return elements.stream()
         .map(
             element -> {
@@ -47,13 +47,13 @@ public class SinkTestUtil {
         .collect(Collectors.toList());
   }
 
-  public static CommittableSummary<?> extractAndAssertCommittableSummary(StreamElement element) {
+  static CommittableSummary<?> extractAndAssertCommittableSummary(StreamElement element) {
     final Object value = element.asRecord().getValue();
     assertThat(value).isInstanceOf(CommittableSummary.class);
     return (CommittableSummary<?>) value;
   }
 
-  public static CommittableWithLineage<IcebergCommittable> extractAndAssertCommittableWithLineage(
+  static CommittableWithLineage<IcebergCommittable> extractAndAssertCommittableWithLineage(
       StreamElement element) {
     final Object value = element.asRecord().getValue();
     assertThat(value).isInstanceOf(CommittableWithLineage.class);

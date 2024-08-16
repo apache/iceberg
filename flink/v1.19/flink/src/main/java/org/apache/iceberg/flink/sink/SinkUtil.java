@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.sink;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.apache.flink.annotation.Internal;
 import org.apache.flink.util.Preconditions;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -30,8 +29,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Internal
-public class SinkUtil {
+class SinkUtil {
 
   private static final long INITIAL_CHECKPOINT_ID = -1L;
 
@@ -70,7 +68,7 @@ public class SinkUtil {
     return equalityFieldIds;
   }
 
-  public static long getMaxCommittedCheckpointId(
+  static long getMaxCommittedCheckpointId(
       Table table, String flinkJobId, String operatorId, String branch) {
     Snapshot snapshot = table.snapshot(branch);
     long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
