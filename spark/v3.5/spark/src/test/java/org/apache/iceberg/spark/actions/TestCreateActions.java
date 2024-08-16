@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.TrueFileFilter;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.CachingCatalog;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
@@ -42,6 +43,9 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.actions.SnapshotTable;
+import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -50,6 +54,7 @@ import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalog;
 import org.apache.iceberg.spark.SparkSessionCatalog;
+import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.types.Types;
@@ -161,6 +166,12 @@ public class TestCreateActions extends CatalogTestBase {
     }
     this.tableLocation = tableDir.toURI().toString();
     this.catalog = (TableCatalog) spark.sessionState().catalogManager().catalog(catalogName);
+    Catalog icebergCatalog = ((HasIcebergCatalog) catalog).icebergCatalog();
+    if (type.equals("hadoop")) {
+      assertThat(icebergCatalog).isInstanceOf(HadoopCatalog.class);
+    } else {
+      assertThat(icebergCatalog).isInstanceOf(HiveCatalog.class);
+    }
 
     spark.conf().set("hive.exec.dynamic.partition", "true");
     spark.conf().set("hive.exec.dynamic.partition.mode", "nonstrict");
@@ -186,6 +197,7 @@ public class TestCreateActions extends CatalogTestBase {
   public void after() throws IOException {
     // Drop the hive table.
     spark.sql(String.format("DROP TABLE IF EXISTS %s", baseTableName));
+    spark.sessionState().catalogManager().reset();
   }
 
   @TestTemplate
