@@ -23,8 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestFormatVersions extends TestBase {
@@ -60,26 +58,21 @@ public class TestFormatVersions extends TestBase {
   @TestTemplate
   public void testFormatVersionUpgradeToLatest() {
     TableOperations ops = table.ops();
-    int newFormatVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION;
 
-    TableMetadata newTableMetadata = ops.current().upgradeToFormatVersion(newFormatVersion);
+    TableMetadata newTableMetadata =
+        ops.current().upgradeToFormatVersion(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION);
 
-    // check that non-incremental updates are syntactic sugar for serial updates. E.g. upgrading
-    // from V1 to V3 will register changes in the table metadata for upgrading to V2 and V3 in
-    // order (V1->V2->V3)
     assertThat(
             newTableMetadata.changes().stream()
                 .filter(MetadataUpdate.UpgradeFormatVersion.class::isInstance)
                 .map(MetadataUpdate.UpgradeFormatVersion.class::cast)
                 .map(MetadataUpdate.UpgradeFormatVersion::formatVersion))
-        .isEqualTo(
-            IntStream.rangeClosed(formatVersion + 1, newFormatVersion)
-                .boxed()
-                .collect(Collectors.toList()));
+        .isEqualTo(List.of(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION));
 
     ops.commit(ops.current(), newTableMetadata);
 
-    assertThat(ops.current().formatVersion()).isEqualTo(newFormatVersion);
+    assertThat(ops.current().formatVersion())
+        .isEqualTo(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION);
   }
 
   @TestTemplate
