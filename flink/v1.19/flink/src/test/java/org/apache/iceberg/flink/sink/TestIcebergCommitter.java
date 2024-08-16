@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.sink.committer;
+package org.apache.iceberg.flink.sink;
 
 import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
 import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommittableSummary;
@@ -24,7 +24,6 @@ import static org.apache.iceberg.flink.sink.SinkTestUtil.extractAndAssertCommitt
 import static org.apache.iceberg.flink.sink.SinkTestUtil.transformsToStreamElement;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -85,17 +84,15 @@ import org.apache.iceberg.flink.FlinkSchemaUtil;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestHelpers;
-import org.apache.iceberg.flink.sink.FlinkAppenderFactory;
-import org.apache.iceberg.flink.sink.FlinkManifestUtil;
-import org.apache.iceberg.flink.sink.IcebergFilesCommitterMetrics;
-import org.apache.iceberg.flink.sink.IcebergSink;
-import org.apache.iceberg.flink.sink.SinkUtil;
+import org.apache.iceberg.flink.sink.committer.IcebergCommittable;
+import org.apache.iceberg.flink.sink.committer.IcebergCommittableSerializer;
+import org.apache.iceberg.flink.sink.committer.IcebergCommitter;
+import org.apache.iceberg.flink.sink.committer.IcebergWriteAggregator;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -239,8 +236,7 @@ class TestIcebergCommitter extends TestBase {
       assertMaxCommittedCheckpointId(jobId, i);
       Map<String, String> summary = SimpleDataUtil.latestSnapshot(table, branch).summary();
       assertThat(summary)
-          .containsEntry(
-              "flink.test", "org.apache.iceberg.flink.sink.committer.TestIcebergCommitter")
+          .containsEntry("flink.test", "org.apache.iceberg.flink.sink.TestIcebergCommitter")
           .containsEntry("added-data-files", "1")
           .containsEntry("flink.operator-id", OPERATOR_ID)
           .containsEntry("flink.job-id", "jobId");
@@ -347,54 +343,6 @@ class TestIcebergCommitter extends TestBase {
       SimpleDataUtil.assertTableRows(table, ImmutableList.of(row1, row2), branch);
       assertMaxCommittedCheckpointId(jobId, secondCheckpointId);
       assertFlinkManifests(0);
-    }
-  }
-
-  @TestTemplate
-  public void testEmitCommittables() throws Exception {
-    TestCommitter committer = new TestCommitter(tableLoader);
-    IcebergSink sink =
-        spy(IcebergSink.forRowData(null).table(table).tableLoader(tableLoader).build());
-    doReturn(committer).when(sink).createCommitter(any());
-
-    try (OneInputStreamOperatorTestHarness<
-            CommittableMessage<IcebergCommittable>, CommittableMessage<IcebergCommittable>>
-        testHarness =
-            new OneInputStreamOperatorTestHarness<>(
-                new CommitterOperatorFactory<>(sink, false, true))) {
-      testHarness.open();
-
-      WriteResult writeResult = WriteResult.builder().build();
-
-      IcebergCommittable commit =
-          new IcebergCommittable(
-              buildIcebergWriteAggregator(jobId, OPERATOR_ID)
-                  .writeToManifest(Lists.newArrayList(writeResult), 1L),
-              jobId,
-              OPERATOR_ID,
-              1L);
-
-      CommittableSummary<IcebergCommittable> committableSummary =
-          new CommittableSummary<>(1, 1, 1L, 1, 1, 0);
-      testHarness.processElement(new StreamRecord<>(committableSummary));
-      CommittableWithLineage<IcebergCommittable> committableWithLineage =
-          new CommittableWithLineage<>(commit, 1L, 1);
-      testHarness.processElement(new StreamRecord<>(committableWithLineage));
-
-      // Trigger commit
-      testHarness.notifyOfCompletedCheckpoint(1);
-
-      assertThat(committer.getSuccessfulCommits()).isEqualTo(1);
-      List<StreamElement> output = transformsToStreamElement(testHarness.getOutput());
-      SinkV2Assertions.assertThat(extractAndAssertCommittableSummary(output.get(0)))
-          .hasFailedCommittables(committableSummary.getNumberOfFailedCommittables())
-          .hasOverallCommittables(committableSummary.getNumberOfCommittables())
-          .hasPendingCommittables(0);
-
-      SinkV2Assertions.assertThat(extractAndAssertCommittableWithLineage(output.get(1)))
-          .hasCheckpointId(1L)
-          .hasSubtaskId(0)
-          .hasCommittable(commit);
     }
   }
 
@@ -1358,31 +1306,6 @@ class TestIcebergCommitter extends TestBase {
                 new CommitterOperatorFactory<>(sink, !isStreamingMode, true));
     testHarness.setup(committableMessageTypeSerializer);
     return testHarness;
-  }
-
-  // ------------------------------- Mock Classes --------------------------------
-
-  private static class TestCommitter extends IcebergCommitter {
-    private int successfulCommits = 0;
-
-    TestCommitter(TableLoader tableLoader) {
-      super(tableLoader, null, Maps.newHashMap(), false, 2, "test-sink-prefix", null);
-    }
-
-    @Override
-    public void commit(Collection<CommitRequest<IcebergCommittable>> commitRequests)
-        throws IOException, InterruptedException {
-      commitRequests.forEach(
-          one -> LOG.info("Committed with numberOfRetries: {}", one.getNumberOfRetries()));
-      successfulCommits += commitRequests.size();
-    }
-
-    @Override
-    public void close() {}
-
-    public int getSuccessfulCommits() {
-      return successfulCommits;
-    }
   }
 
   // ------------------------------- Utility Methods --------------------------------

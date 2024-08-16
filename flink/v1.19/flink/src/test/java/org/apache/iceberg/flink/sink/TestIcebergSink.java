@@ -337,7 +337,8 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
             .table(table)
             .tableLoader(tableLoader)
             .writeParallelism(parallelism)
-            .setAll(newProps);
+            .setAll(newProps)
+            .uidSuffix("ingestion");
     assertThatThrownBy(builder::append)
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid file format: UNRECOGNIZED");

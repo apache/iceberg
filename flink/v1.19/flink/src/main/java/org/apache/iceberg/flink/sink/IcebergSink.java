@@ -469,7 +469,7 @@ public class IcebergSink
       return uidSuffix != null ? uidSuffix + "-" + suffix : suffix;
     }
 
-    public IcebergSink build() {
+    IcebergSink build() {
 
       Preconditions.checkArgument(
           inputCreator != null,
@@ -537,7 +537,8 @@ public class IcebergSink
     public DataStreamSink<RowData> append() {
       IcebergSink sink = build();
       DataStream<RowData> rowDataInput = inputCreator.apply(uidSuffix);
-      DataStreamSink<RowData> rowDataDataStreamSink = rowDataInput.sinkTo(sink).uid(uidSuffix);
+      DataStreamSink<RowData> rowDataDataStreamSink =
+          rowDataInput.sinkTo(sink).uid(uidSuffix == null ? "sink" : uidSuffix);
       if (sink.flinkWriteConf.writeParallelism() != null) {
         rowDataDataStreamSink.setParallelism(sink.flinkWriteConf.writeParallelism());
       }

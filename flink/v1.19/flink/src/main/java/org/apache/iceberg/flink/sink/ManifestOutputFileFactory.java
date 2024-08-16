@@ -27,16 +27,13 @@ import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 
 @Internal
 public class ManifestOutputFileFactory {
   // Users could define their own flink manifests directory by setting this value in table
   // properties.
-  @VisibleForTesting
   public static final String FLINK_MANIFEST_LOCATION = "flink.manifests.location";
-
   private final Supplier<Table> tableSupplier;
   private final Map<String, String> props;
   private final String flinkJobId;

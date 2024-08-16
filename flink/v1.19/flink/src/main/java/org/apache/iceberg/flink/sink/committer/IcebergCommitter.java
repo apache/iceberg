@@ -18,10 +18,6 @@
  */
 package org.apache.iceberg.flink.sink.committer;
 
-import static org.apache.iceberg.flink.sink.SinkUtil.FLINK_JOB_ID;
-import static org.apache.iceberg.flink.sink.SinkUtil.MAX_COMMITTED_CHECKPOINT_ID;
-import static org.apache.iceberg.flink.sink.SinkUtil.OPERATOR_ID;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -294,9 +290,9 @@ public class IcebergCommitter implements Committer<IcebergCommittable> {
     snapshotProperties.forEach(operation::set);
     // custom snapshot metadata properties will be overridden if they conflict with internal ones
     // used by the sink.
-    operation.set(MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
-    operation.set(FLINK_JOB_ID, newFlinkJobId);
-    operation.set(OPERATOR_ID, operatorId);
+    operation.set(SinkUtil.MAX_COMMITTED_CHECKPOINT_ID, Long.toString(checkpointId));
+    operation.set(SinkUtil.FLINK_JOB_ID, newFlinkJobId);
+    operation.set(SinkUtil.OPERATOR_ID, operatorId);
     operation.toBranch(branch);
 
     long startNano = System.nanoTime();
