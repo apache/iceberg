@@ -26,6 +26,7 @@ import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.apache.iceberg.TableProperties.UPDATE_MODE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
 import org.apache.iceberg.DataOperations;
@@ -79,13 +80,11 @@ public class TestChangelogTable extends ExtensionsTestBase {
     sql("INSERT INTO %s VALUES (1, 'c'), (2, 'c'), (3, 'c')", tableName);
 
     Table table = validationCatalog.loadTable(tableIdent);
-
     Snapshot snap1 = table.currentSnapshot();
 
     sql("DELETE FROM %s WHERE id = 3", tableName);
 
     table.refresh();
-
     Snapshot snap2 = table.currentSnapshot();
 
     assertEquals(
@@ -123,13 +122,11 @@ public class TestChangelogTable extends ExtensionsTestBase {
     createTableWithDefaultRows();
 
     Table table = validationCatalog.loadTable(tableIdent);
-
     Snapshot snap2 = table.currentSnapshot();
 
     sql("UPDATE %s SET id = -2 WHERE data = 'b'", tableName);
 
     table.refresh();
-
     Snapshot snap3 = table.currentSnapshot();
 
     assertEquals(
@@ -293,6 +290,42 @@ public class TestChangelogTable extends ExtensionsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(1, "INSERT"), row(2, "INSERT")),
         sql("SELECT id, _change_type FROM %s.changes ORDER BY id", tableName));
+  }
+
+  @TestTemplate
+  public void testDataRewritesAreIgnored() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    createTable();
+    sql("INSERT INTO %s VALUES (1, 'c'), (2, 'c'), (3, 'c')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+
+    sql("DELETE FROM %s WHERE id = 3", tableName);
+
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+
+    sql(
+        "CALL %s.system.rewrite_data_files(table => '%s', "
+            + "options => map('delete-file-threshold','1'))",
+        catalogName, tableIdent);
+
+    sql("DELETE FROM %s WHERE id = 1", tableName);
+
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(
+            row(1, "c", "INSERT", 0, snap1.snapshotId()),
+            row(2, "c", "INSERT", 0, snap1.snapshotId()),
+            row(3, "c", "INSERT", 0, snap1.snapshotId()),
+            row(3, "c", "DELETE", 1, snap2.snapshotId()),
+            row(1, "c", "DELETE", 2, snap3.snapshotId())),
+        sql("SELECT * FROM %s.changes ORDER BY _change_ordinal, id, _change_type", tableName));
   }
 
   @TestTemplate
