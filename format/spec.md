@@ -46,12 +46,12 @@ In addition to row-level deletes, version 2 makes some requirements stricter for
 
 #### Version 3: Extended Types and Capabilities
 
-Version 3 of the Iceberg spec extends data types and existing metadata structures to add new capabilities, including:
+Version 3 of the Iceberg spec extends data types and existing metadata structures to add new capabilities:
 
-* Adding new data types, like nanosecond timestamps, variant, and unknown.
-* Adding new supported type promotion cases, integer and long to string
-* Adding default value support to struct fields
-* Adding multi-argument transforms for partitioning and sorting
+* New data types: nanosecond timestamp(tz)
+* New supported type promotion cases
+* Default value support to struct fields
+* Multi-argument transforms for partitioning and sorting
 
 
 ## Goals
@@ -326,7 +326,7 @@ The source columns, selected by ids, must be a primitive type and cannot be cont
 
 Partition specs capture the transform from table data to partition values. This is used to transform predicates to partition predicates, in addition to transforming data values. Deriving partition predicates from column predicates on the table data is used to separate the logical queries from physical storage: the partitioning can change and the correct partition filters are always derived from column predicates. This simplifies queries because users don’t have to supply both logical predicates and partition predicates. For more information, see Scan Planning below.
 
-Partition fields that use an unknown transform can be read by ignoring the partition field during scan planning. In v1 and v2, readers should ignore fields with unknown transforms while reading; this behavior is required in v3. Writers are not allowed to commit data using a partition spec that contains a field with an unknown transform.
+Partition fields that use an unknown transform can be read by ignoring the partition field for the purpose of filtering data files during scan planning. In v1 and v2, readers should ignore fields with unknown transforms while reading; this behavior is required in v3. Writers are not allowed to commit data using a partition spec that contains a field with an unknown transform.
 
 Two partition specs are considered equivalent with each other if they have the same number of fields and for each corresponding field, the fields have the same source column IDs, transform definition and partition name. Writers must not create a new parition spec if there already exists a compatible partition spec defined in the table.
 
@@ -624,10 +624,10 @@ Delete files that match the query filter must be applied to data files at read t
 
 * A _position_ delete file must be applied to a data file when all of the following are true:
     - The data file's data sequence number is _less than or equal to_ the delete file's data sequence number
-    - The data file's partition (both spec and partition values) is equal to the delete file's partition
+    - The data file's partition (both spec and partition values) is equal [4] to the delete file's partition
 * An _equality_ delete file must be applied to a data file when all of the following are true:
     - The data file's data sequence number is _strictly less than_ the delete's data sequence number
-    - The data file's partition (both spec id and partition values) is equal to the delete file's partition _or_ the delete file's partition spec is unpartitioned
+    - The data file's partition (both spec id and partition values) is equal [4] to the delete file's partition _or_ the delete file's partition spec is unpartitioned
 
 In general, deletes are applied only to data files that are older and in the same partition, except for two special cases:
 
@@ -640,6 +640,7 @@ Notes:
 1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
 2. For example, if `file_a` has rows with `id` between 1 and 10 and a delete file contains rows with `id` between 1 and 4, a scan for `id = 9` may ignore the delete file because none of the deletes can match a row that will be selected.
 3. Floating point partition values are considered equal if their IEEE 754 floating-point "single format" bit layout are equal with NaNs normalized to have only the the most significant mantissa bit set (the equivelant of calling `Float.floatToIntBits` or `Double.doubleToLongBits` in Java). The Avro specification requires all floating point values to be encoded in this format.
+4. Unknown partition transforms do not affect partition equality. Although partition fields with unknown transforms are ignored for filtering, the result of an unknown transform is still used when testing whether partition values are equal.
 
 ### Snapshot References
 
@@ -1321,7 +1322,7 @@ Default values are added to struct fields in v3.
 
 Types `timestamp_ns` and `timestamptz_ns` are added in v3.
 
-All readers are required to read tables with unknown partition transforms, ignoring the unsupported partition fields.
+All readers are required to read tables with unknown partition transforms, ignoring the unsupported partition fields when filtering.
 
 Writing v3 metadata:
 
