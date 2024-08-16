@@ -33,7 +33,7 @@ class DeltaManifestsSerializer implements SimpleVersionedSerializer<DeltaManifes
   private static final int VERSION_2 = 2;
   private static final byte[] EMPTY_BINARY = new byte[0];
 
-  public static final DeltaManifestsSerializer INSTANCE = new DeltaManifestsSerializer();
+  static final DeltaManifestsSerializer INSTANCE = new DeltaManifestsSerializer();
 
   @Override
   public int getVersion() {
