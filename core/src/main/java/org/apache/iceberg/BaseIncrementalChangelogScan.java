@@ -147,13 +147,9 @@ class BaseIncrementalChangelogScan
   }
 
   private static class DummyChangelogScanTask implements ChangelogScanTask {
-    private int changeOrdinal;
-    private long commitSnapshotId;
+    public static final DummyChangelogScanTask INSTANCE = new DummyChangelogScanTask();
 
-    DummyChangelogScanTask(int changeOrdinal, long commitSnapshotId) {
-      this.changeOrdinal = changeOrdinal;
-      this.commitSnapshotId = commitSnapshotId;
-    }
+    private DummyChangelogScanTask() {}
 
     @Override
     public ChangelogOperation operation() {
@@ -162,12 +158,12 @@ class BaseIncrementalChangelogScan
 
     @Override
     public int changeOrdinal() {
-      return changeOrdinal;
+      return 0;
     }
 
     @Override
     public long commitSnapshotId() {
-      return commitSnapshotId;
+      return 0L;
     }
   }
 
@@ -229,7 +225,7 @@ class BaseIncrementalChangelogScan
                     } else {
                       // the data file is added before the snapshot we're processing
                       if (addedDeleteFiles.length == 0) {
-                        return new DummyChangelogScanTask(changeOrdinal, snapshotId);
+                        return DummyChangelogScanTask.INSTANCE;
                       } else {
                         return new BaseDeletedRowsScanTask(
                             changeOrdinal,
@@ -255,12 +251,12 @@ class BaseIncrementalChangelogScan
                           context.specAsString(),
                           context.residuals());
                     } else {
-                      return new DummyChangelogScanTask(changeOrdinal, snapshotId);
+                      return DummyChangelogScanTask.INSTANCE;
                     }
 
                   case EXISTING:
                     if (addedDeleteFiles.length == 0) {
-                      return new DummyChangelogScanTask(changeOrdinal, snapshotId);
+                      return DummyChangelogScanTask.INSTANCE;
                     } else {
                       return new BaseDeletedRowsScanTask(
                           changeOrdinal,
