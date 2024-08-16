@@ -264,7 +264,7 @@ public class ArrowReaderTest {
   }
 
   @Test
-  public void testThrowsUOEWhenNewColumnHasNoValue() throws Exception {
+  public void testReadColumnThatDoesNotExistInParquetSchema() throws Exception {
     setMaxStackTraceElementsDisplayed(15);
     rowsWritten = Lists.newArrayList();
     tables = new HadoopTables();
@@ -296,18 +296,54 @@ public class ArrowReaderTest {
     // Select all columns, all rows from the table
     TableScan scan = table.newScan().select("*");
 
-    assertThatThrownBy(
-            () -> {
-              // Read the data.
-              try (VectorizedTableScanIterable itr =
-                  new VectorizedTableScanIterable(scan, 1000, false)) {
-                for (ColumnarBatch batch : itr) {
-                  // no-op
-                }
-              }
-            })
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Unsupported vector: null");
+    List<String> columns = ImmutableList.of("a", "b", "z");
+    // Read the data and verify that the returned ColumnarBatches match expected rows.
+    int rowIndex = 0;
+    try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, 1, false)) {
+      for (ColumnarBatch batch : itr) {
+        List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + 1);
+
+        Map<String, Integer> columnNameToIndex = Maps.newHashMap();
+        for (int i = 0; i < columns.size(); i++) {
+          columnNameToIndex.put(columns.get(i), i);
+        }
+        Set<String> columnSet = columnNameToIndex.keySet();
+
+        assertThat(batch.numRows()).isEqualTo(1);
+        assertThat(batch.numCols()).isEqualTo(columns.size());
+
+        checkColumnarArrayValues(
+            1,
+            expectedRows,
+            batch,
+            0,
+            columnSet,
+            "a",
+            (records, i) -> records.get(i).getField("a"),
+            ColumnVector::getInt);
+        checkColumnarArrayValues(
+            1,
+            expectedRows,
+            batch,
+            1,
+            columnSet,
+            "b",
+            (records, i) -> records.get(i).getField("b"),
+            (array, i) -> array.isNullAt(i) ? null : array.getInt(i));
+        checkColumnarArrayValues(
+            1,
+            expectedRows,
+            batch,
+            2,
+            columnSet,
+            "z",
+            (records, i) -> records.get(i).getField("z"),
+            (array, i) -> array.isNullAt(i) ? null : array.getInt(i));
+        rowIndex += 1;
+      }
+    }
+    // Read the data and verify that the returned Arrow VectorSchemaRoots match expected rows.
+    readAndCheckArrowResult(scan, 1, 1, columns);
   }
 
   /**

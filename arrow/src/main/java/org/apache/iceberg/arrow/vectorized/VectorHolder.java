@@ -135,7 +135,7 @@ public class VectorHolder {
     private final int numRows;
 
     public NullVectorHolder(FieldVector vec, Types.NestedField field, int numRows) {
-      super(vec, field, null);
+      super(vec, field, new NullabilityHolder(numRows));
       this.numRows = numRows;
     }
 

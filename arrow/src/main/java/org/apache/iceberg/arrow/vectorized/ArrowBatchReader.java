@@ -50,7 +50,6 @@ class ArrowBatchReader extends BaseBatchReader<ColumnarBatch> {
           "Number of rows in the vector %s didn't match expected %s ",
           numRowsInVector,
           numRowsToRead);
-      // TODO: Handle null vector for constant case
       columnVectors[i] = new ColumnVector(vectorHolders[i]);
     }
     return new ColumnarBatch(numRowsToRead, columnVectors);
