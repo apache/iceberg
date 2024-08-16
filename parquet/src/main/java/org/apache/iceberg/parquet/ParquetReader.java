@@ -43,7 +43,7 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
   private final boolean reuseContainers;
   private final boolean caseSensitive;
   private final NameMapping nameMapping;
-  private final int pushedLimit;
+  private int pushedLimit = -1;
 
   public ParquetReader(
       InputFile input,
@@ -122,11 +122,8 @@ public class ParquetReader<T> extends CloseableGroup implements CloseableIterabl
 
     @Override
     public boolean hasNext() {
-      long numToRead = totalValues;
-      if (pushedLimit > 0 && pushedLimit < numToRead) {
-        numToRead = pushedLimit;
-      }
-
+      long numToRead =
+          (pushedLimit == -1 || pushedLimit >= totalValues) ? totalValues : pushedLimit;
       return valuesRead < numToRead;
     }
 

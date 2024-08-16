@@ -49,7 +49,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private final boolean caseSensitive;
   private final int batchSize;
   private final NameMapping nameMapping;
-  private final int pushedLimit;
+  private int pushedLimit = -1;
 
   public VectorizedParquetReader(
       InputFile input,
@@ -134,11 +134,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
     @Override
     public boolean hasNext() {
-      long numToRead = totalValues;
-      if (pushedLimit > 0 && pushedLimit < numToRead) {
-        numToRead = pushedLimit;
-      }
-
+      long numToRead =
+          (pushedLimit == -1 || pushedLimit >= totalValues) ? totalValues : pushedLimit;
       return valuesRead < numToRead;
     }
 

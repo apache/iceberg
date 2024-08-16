@@ -74,7 +74,13 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
       int rowsReadSoFar = 0;
       while (rowsReadSoFar < batchSize && hasNext() && rowsReadSoFar < numValsToRead) {
         advance();
-        int expectedBatchSize = Math.min(batchSize - rowsReadSoFar, numValsToRead - rowsReadSoFar);
+        int expectedBatchSize;
+        if (numValsToRead < 0) {
+          expectedBatchSize = batchSize - rowsReadSoFar;
+        } else {
+          expectedBatchSize = Math.min(batchSize - rowsReadSoFar, numValsToRead - rowsReadSoFar);
+        }
+
         int rowsInThisBatch =
             nextBatchOf(fieldVector, expectedBatchSize, rowsReadSoFar, typeWidth, holder);
         rowsReadSoFar += rowsInThisBatch;

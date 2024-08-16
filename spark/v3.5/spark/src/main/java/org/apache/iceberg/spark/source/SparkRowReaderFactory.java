@@ -29,7 +29,7 @@ import org.apache.spark.sql.connector.read.PartitionReaderFactory;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 class SparkRowReaderFactory implements PartitionReaderFactory {
-  private final int pushedLimit;
+  private int pushedLimit = -1;
 
   SparkRowReaderFactory(int pushedLimit) {
     this.pushedLimit = pushedLimit;

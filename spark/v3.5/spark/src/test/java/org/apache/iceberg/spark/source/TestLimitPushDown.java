@@ -223,6 +223,7 @@ public class TestLimitPushDown {
             .load(TableIdentifier.of("default", tableName).toString())
             .selectExpr("*");
 
+    testLimit(df, 0, new Object[][] {});
     testLimit(df, 2, new Object[][] {{29, "a"}, {43, "b"}});
     testLimit(df, 4, new Object[][] {{29, "a"}, {43, "b"}, {61, "c"}, {89, "d"}});
     testLimit(
@@ -236,8 +237,18 @@ public class TestLimitPushDown {
     int pushedLimit = collectPushDownLimit(optimizedPlan);
     assertThat(pushedLimit).as("Pushed down limit should be " + limit).isEqualTo(limit);
 
+    if (limit == 0) {
+      assertThat(limitedDf.isEmpty()).as("Dataset should be empty when limit is 0").isTrue();
+      return;
+    }
+
+    List<org.apache.spark.sql.Row> collectedRows = limitedDf.collectAsList();
+    assertThat(collectedRows.size())
+        .as("Number of collected rows should match expected values length")
+        .isEqualTo(expectedValues.length);
+
     for (int i = 0; i < expectedValues.length; i++) {
-      Record record = SparkValueConverter.convert(table.schema(), limitedDf.collectAsList().get(i));
+      Record record = SparkValueConverter.convert(table.schema(), collectedRows.get(i));
       assertThat(record.get(0))
           .as("Table should contain expected rows")
           .isEqualTo(expectedValues[i][0]);

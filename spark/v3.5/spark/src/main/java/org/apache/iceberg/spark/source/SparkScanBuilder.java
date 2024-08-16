@@ -327,12 +327,14 @@ public class SparkScanBuilder
 
   @Override
   public boolean pushLimit(int limit) {
-    if (readConf.limitPushDownEnabled()) {
+    // If the limit is 0, Spark converts it to an empty table scan,
+    // and this section will not be reached.
+    if (readConf.limitPushDownEnabled() && limit > 0) {
       pushedLimit = limit;
       return true;
     }
 
-    return true;
+    return false;
   }
 
   @Override

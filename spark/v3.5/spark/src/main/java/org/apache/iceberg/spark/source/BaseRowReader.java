@@ -39,7 +39,7 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
-  private final int pushedLimit;
+  private int pushedLimit = -1;
 
   BaseRowReader(
       Table table,

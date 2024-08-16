@@ -50,7 +50,7 @@ class SparkBatch implements Batch {
   private final boolean localityEnabled;
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
-  private final int pushedLimit;
+  private int pushedLimit = -1;
 
   SparkBatch(
       JavaSparkContext sparkContext,

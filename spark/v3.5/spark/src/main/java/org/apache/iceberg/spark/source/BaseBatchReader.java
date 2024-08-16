@@ -42,7 +42,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
   private final int batchSize;
-  private final int pushedLimit;
+  private int pushedLimit = -1;
 
   BaseBatchReader(
       Table table,
