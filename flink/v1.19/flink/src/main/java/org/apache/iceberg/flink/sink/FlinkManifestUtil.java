@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.ManifestFile;
@@ -39,15 +38,14 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@Internal
-public class FlinkManifestUtil {
+class FlinkManifestUtil {
   private static final int FORMAT_V2 = 2;
   private static final Long DUMMY_SNAPSHOT_ID = 0L;
   private static final Logger LOG = LoggerFactory.getLogger(FlinkManifestUtil.class);
 
   private FlinkManifestUtil() {}
 
-  public static ManifestFile writeDataFiles(
+  static ManifestFile writeDataFiles(
       OutputFile outputFile, PartitionSpec spec, List<DataFile> dataFiles) throws IOException {
     ManifestWriter<DataFile> writer =
         ManifestFiles.write(FORMAT_V2, spec, outputFile, DUMMY_SNAPSHOT_ID);
@@ -59,7 +57,7 @@ public class FlinkManifestUtil {
     return writer.toManifestFile();
   }
 
-  public static List<DataFile> readDataFiles(
+  static List<DataFile> readDataFiles(
       ManifestFile manifestFile, FileIO io, Map<Integer, PartitionSpec> specsById)
       throws IOException {
     try (CloseableIterable<DataFile> dataFiles = ManifestFiles.read(manifestFile, io, specsById)) {
@@ -67,7 +65,7 @@ public class FlinkManifestUtil {
     }
   }
 
-  public static ManifestOutputFileFactory createOutputFileFactory(
+  static ManifestOutputFileFactory createOutputFileFactory(
       Supplier<Table> tableSupplier,
       Map<String, String> tableProps,
       String flinkJobId,
@@ -84,7 +82,7 @@ public class FlinkManifestUtil {
    * @param result all those DataFiles/DeleteFiles in this WriteResult should be written with same
    *     partition spec
    */
-  public static DeltaManifests writeCompletedFiles(
+  static DeltaManifests writeCompletedFiles(
       WriteResult result, Supplier<OutputFile> outputFileSupplier, PartitionSpec spec)
       throws IOException {
 
@@ -115,7 +113,7 @@ public class FlinkManifestUtil {
     return new DeltaManifests(dataManifest, deleteManifest, result.referencedDataFiles());
   }
 
-  public static WriteResult readCompletedFiles(
+  static WriteResult readCompletedFiles(
       DeltaManifests deltaManifests, FileIO io, Map<Integer, PartitionSpec> specsById)
       throws IOException {
     WriteResult.Builder builder = WriteResult.builder();
@@ -136,7 +134,7 @@ public class FlinkManifestUtil {
     return builder.addReferencedDataFiles(deltaManifests.referencedDataFiles()).build();
   }
 
-  public static void deleteCommittedManifests(
+  static void deleteCommittedManifests(
       Table table, List<ManifestFile> manifests, String newFlinkJobId, long checkpointId) {
     for (ManifestFile manifest : manifests) {
       try {
