@@ -537,6 +537,9 @@ public class IcebergSink
       DataStream<RowData> rowDataInput = inputCreator.apply(uidSuffix);
       DataStreamSink<RowData> rowDataDataStreamSink =
           rowDataInput.sinkTo(sink).uid(uidSuffix == null ? "sink" : uidSuffix);
+
+      // Note that IcebergSink internally consists o multiple operators (like writer, committer, aggregator).
+      // The following parallelism will be propagated to all of the above operators.
       if (sink.flinkWriteConf.writeParallelism() != null) {
         rowDataDataStreamSink.setParallelism(sink.flinkWriteConf.writeParallelism());
       }
