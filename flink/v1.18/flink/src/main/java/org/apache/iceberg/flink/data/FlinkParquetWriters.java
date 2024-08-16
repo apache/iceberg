@@ -498,6 +498,11 @@ public class FlinkParquetWriters {
 
     @Override
     protected Object get(RowData struct, int index) {
+      if(Objects.isNull(struct) || index >= struct.getArity()) {
+        LOG.warn("[FlinkParquetWriter]: Putting value as NULL for index: {} because struct has fewer elements: {}",
+                index, Objects.isNull(struct) ? 0 : struct.getArity());
+        return null;
+      }
       return fieldGetter[index].getFieldOrNull(struct);
     }
   }
