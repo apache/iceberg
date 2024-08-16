@@ -221,6 +221,10 @@ public class ParquetDictionaryRowGroupFilter {
       int id = ref.fieldId();
       int id2 = ref2.fieldId();
 
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       Boolean hasNonDictPage = isFallback.get(id);
       Boolean hasNonDictPage2 = isFallback.get(id2);
       if (hasNonDictPage == null || hasNonDictPage || hasNonDictPage2 == null || hasNonDictPage2) {
@@ -266,6 +270,10 @@ public class ParquetDictionaryRowGroupFilter {
     public <T> Boolean ltEq(BoundReference<T> ref, BoundReference<T> ref2) {
       int id = ref.fieldId();
       int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
 
       Boolean hasNonDictPage = isFallback.get(id);
       Boolean hasNonDictPage2 = isFallback.get(id2);
@@ -313,6 +321,10 @@ public class ParquetDictionaryRowGroupFilter {
       int id = ref.fieldId();
       int id2 = ref2.fieldId();
 
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       Boolean hasNonDictPage = isFallback.get(id);
       Boolean hasNonDictPage2 = isFallback.get(id2);
       if (hasNonDictPage == null || hasNonDictPage || hasNonDictPage2 == null || hasNonDictPage2) {
@@ -359,6 +371,10 @@ public class ParquetDictionaryRowGroupFilter {
       int id = ref.fieldId();
       int id2 = ref2.fieldId();
 
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       Boolean hasNonDictPage = isFallback.get(id);
       Boolean hasNonDictPage2 = isFallback.get(id2);
       if (hasNonDictPage == null || hasNonDictPage || hasNonDictPage2 == null || hasNonDictPage2) {
@@ -398,33 +414,20 @@ public class ParquetDictionaryRowGroupFilter {
       int id = ref.fieldId();
       int id2 = ref2.fieldId();
 
-      Boolean hasNonDictPage = isFallback.get(id);
-      if (hasNonDictPage == null || hasNonDictPage) {
+      if (ref.type().typeId() != ref2.type().typeId()) {
         return ROWS_MIGHT_MATCH;
       }
 
+      Boolean hasNonDictPage = isFallback.get(id);
       Boolean hasNonDictPage2 = isFallback.get(id2);
-      if (hasNonDictPage2 == null || hasNonDictPage2) {
+      if (hasNonDictPage == null || hasNonDictPage || hasNonDictPage2 == null || hasNonDictPage2) {
         return ROWS_MIGHT_MATCH;
-      }
-      // this could take into account compatibility
-      if (ref.type() != ref2.type()) {
-        return ROWS_CANNOT_MATCH;
       }
 
       Set<T> dictionary = dict(id, ref.comparator());
       Set<T> dictionary2 = dict(id2, ref2.comparator());
 
       return hasCommonElement(dictionary, dictionary2) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
-    }
-
-    private <T> boolean hasCommonElement(Set<T> set1, Set<T> set2) {
-      for (T item : set1) {
-        if (set2.contains(item)) {
-          return true;
-        }
-      }
-      return false;
     }
 
     @Override
@@ -442,6 +445,43 @@ public class ParquetDictionaryRowGroupFilter {
       }
 
       return dictionary.contains(lit.value()) ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      int id = ref.fieldId();
+      int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      Boolean hasNonDictPage2 = isFallback.get(id2);
+      if (hasNonDictPage == null || hasNonDictPage || hasNonDictPage2 == null || hasNonDictPage2) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, ref.comparator());
+      Set<T> dictionary2 = dict(id2, ref2.comparator());
+
+      if (dictionary.size() > 1
+          || mayContainNulls.get(id)
+          || dictionary2.size() > 1
+          || mayContainNulls.get(id2)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      return hasCommonElement(dictionary, dictionary2) ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
+    }
+
+    private <T> boolean hasCommonElement(Set<T> set1, Set<T> set2) {
+      for (T item : set1) {
+        if (set2.contains(item)) {
+          return true;
+        }
+      }
+      return false;
     }
 
     @Override

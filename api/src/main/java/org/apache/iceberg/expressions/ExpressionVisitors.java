@@ -128,6 +128,10 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public <T> R notEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      return null;
+    }
+
     public <T> R in(BoundReference<T> ref, Set<T> literalSet) {
       throw new UnsupportedOperationException("In expression is not supported by the visitor");
     }
@@ -229,8 +233,8 @@ public class ExpressionVisitors {
             return gtEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
           case EQ:
             return eq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
-            //        case NOT_EQ:
-            //          return notEq((BoundReference<T>) pred.term(), literalPred.literal());
+          case NOT_EQ:
+            return notEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundTermPredicate: " + pred.op());
@@ -393,8 +397,8 @@ public class ExpressionVisitors {
             return gtEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
           case EQ:
             return eq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
-            //        case NOT_EQ:
-            //          return notEq((BoundReference<T>) pred.term(), literalPred.literal());
+          case NOT_EQ:
+            return notEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundTermPredicate: " + pred.op());

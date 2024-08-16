@@ -236,6 +236,10 @@ public class InclusiveMetricsEvaluator {
         return ROWS_CANNOT_MATCH;
       }
 
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       if (checkLowerBounds(ref, ref2, id, id2, cmp -> cmp >= 0)) {
         return ROWS_CANNOT_MATCH;
       }
@@ -280,6 +284,10 @@ public class InclusiveMetricsEvaluator {
         return ROWS_CANNOT_MATCH;
       }
 
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       if (checkLowerBounds(ref, ref2, id, id2, cmp -> cmp > 0)) {
         return ROWS_CANNOT_MATCH;
       }
@@ -319,6 +327,10 @@ public class InclusiveMetricsEvaluator {
         return ROWS_CANNOT_MATCH;
       }
 
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       if (checkUpperBounds(ref, ref2, id, id2, cmp -> cmp <= 0)) {
         return ROWS_CANNOT_MATCH;
       }
@@ -356,6 +368,10 @@ public class InclusiveMetricsEvaluator {
           || containsNullsOnly(id2)
           || containsNaNsOnly(id2)) {
         return ROWS_CANNOT_MATCH;
+      }
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
       }
 
       if (checkUpperBounds(ref, ref2, id, id2, cmp -> cmp < 0)) {
@@ -402,14 +418,17 @@ public class InclusiveMetricsEvaluator {
     @Override
     public <T> Boolean eq(BoundReference<T> ref, BoundReference<T> ref2) {
       Integer id = ref.fieldId();
+      Integer id2 = ref2.fieldId();
 
-      if (containsNullsOnly(id) || containsNaNsOnly(id)) {
+      if (containsNullsOnly(id)
+          || containsNaNsOnly(id)
+          || containsNullsOnly(id2)
+          || containsNaNsOnly(id2)) {
         return ROWS_CANNOT_MATCH;
       }
 
-      Integer id2 = ref2.fieldId();
-      if (containsNullsOnly(id2) || containsNaNsOnly(id2)) {
-        return ROWS_CANNOT_MATCH;
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
       }
 
       if (checkLowerBounds(ref, ref2, id, id2, cmp -> cmp > 0)) {
@@ -420,6 +439,20 @@ public class InclusiveMetricsEvaluator {
         return ROWS_CANNOT_MATCH;
       }
 
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
+      // because the bounds are not necessarily a min or max value, this cannot be answered using
+      // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      // because the bounds are not necessarily a min or max value, this cannot be answered using
+      // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
       return ROWS_MIGHT_MATCH;
     }
 
@@ -464,13 +497,6 @@ public class InclusiveMetricsEvaluator {
         }
       }
       return false;
-    }
-
-    @Override
-    public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
-      // because the bounds are not necessarily a min or max value, this cannot be answered using
-      // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
-      return ROWS_MIGHT_MATCH;
     }
 
     @Override

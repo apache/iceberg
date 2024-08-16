@@ -231,7 +231,11 @@ public class ParquetMetricsRowGroupFilter {
     @Override
     public <T> Boolean lt(BoundReference<T> ref, BoundReference<T> ref2) {
       int id = ref.fieldId();
-      int id2 = ref.fieldId();
+      int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
 
       Long valueCount = valueCounts.get(id);
       Long valueCount2 = valueCounts.get(id2);
@@ -241,24 +245,18 @@ public class ParquetMetricsRowGroupFilter {
       }
 
       Statistics<?> colStats = stats.get(id);
-      if (colStats != null && !colStats.isEmpty()) {
-        if (allNulls(colStats, valueCount)) {
+      Statistics<?> colStats2 = stats.get(id2);
+      if (colStatsExist(colStats, colStats2)) {
+        if (allNulls(colStats, valueCount) || allNulls(colStats2, valueCount2)) {
           return ROWS_CANNOT_MATCH;
         }
 
-        Statistics<?> colStats2 = stats.get(id2);
-        if (colStats2 != null && !colStats2.isEmpty()) {
-          if (allNulls(colStats2, valueCount2)) {
-            return ROWS_CANNOT_MATCH;
-          }
+        if (minMaxUndefined(colStats) || minMaxUndefined(colStats2)) {
+          return ROWS_MIGHT_MATCH;
+        }
 
-          if (minMaxUndefined(colStats) || minMaxUndefined(colStats2)) {
-            return ROWS_MIGHT_MATCH;
-          }
-
-          if (compareLowerStats(ref, id, id2, colStats, colStats2, cmp -> cmp >= 0)) {
-            return ROWS_CANNOT_MATCH;
-          }
+        if (compareLowerStats(ref, id, id2, colStats, colStats2, cmp -> cmp >= 0)) {
+          return ROWS_CANNOT_MATCH;
         }
       }
 
@@ -300,6 +298,10 @@ public class ParquetMetricsRowGroupFilter {
       int id = ref.fieldId();
       int id2 = ref2.fieldId();
 
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       Long valueCount = valueCounts.get(id);
       Long valueCount2 = valueCounts.get(id2);
       if (valueCount == null || valueCount2 == null) {
@@ -308,24 +310,18 @@ public class ParquetMetricsRowGroupFilter {
       }
 
       Statistics<?> colStats = stats.get(id);
-      if (colStats != null && !colStats.isEmpty()) {
-        if (allNulls(colStats, valueCount)) {
+      Statistics<?> colStats2 = stats.get(id2);
+      if (colStatsExist(colStats, colStats2)) {
+        if (allNulls(colStats, valueCount) || allNulls(colStats2, valueCount2)) {
           return ROWS_CANNOT_MATCH;
         }
 
-        Statistics<?> colStats2 = stats.get(id2);
-        if (colStats2 != null && !colStats2.isEmpty()) {
-          if (allNulls(colStats2, valueCount2)) {
-            return ROWS_CANNOT_MATCH;
-          }
+        if (minMaxUndefined(colStats) || minMaxUndefined(colStats2)) {
+          return ROWS_MIGHT_MATCH;
+        }
 
-          if (minMaxUndefined(colStats) || minMaxUndefined(colStats2)) {
-            return ROWS_MIGHT_MATCH;
-          }
-
-          if (compareLowerStats(ref, id, id2, colStats, colStats2, cmp -> cmp > 0)) {
-            return ROWS_CANNOT_MATCH;
-          }
+        if (compareLowerStats(ref, id, id2, colStats, colStats2, cmp -> cmp > 0)) {
+          return ROWS_CANNOT_MATCH;
         }
       }
 
@@ -367,6 +363,10 @@ public class ParquetMetricsRowGroupFilter {
       int id = ref.fieldId();
       int id2 = ref2.fieldId();
 
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       Long valueCount = valueCounts.get(id);
       Long valueCount2 = valueCounts.get(id2);
       if (valueCount == null || valueCount2 == null) {
@@ -375,13 +375,9 @@ public class ParquetMetricsRowGroupFilter {
       }
 
       Statistics<?> colStats = stats.get(id);
-      if (colStats != null && !colStats.isEmpty()) {
-        if (allNulls(colStats, valueCount)) {
-          return ROWS_CANNOT_MATCH;
-        }
-
-        Statistics<?> colStats2 = stats.get(id2);
-        if (allNulls(colStats2, valueCount2)) {
+      Statistics<?> colStats2 = stats.get(id2);
+      if (colStatsExist(colStats, colStats2)) {
+        if (allNulls(colStats, valueCount) || allNulls(colStats2, valueCount2)) {
           return ROWS_CANNOT_MATCH;
         }
 
@@ -432,6 +428,10 @@ public class ParquetMetricsRowGroupFilter {
       int id = ref.fieldId();
       int id2 = ref2.fieldId();
 
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       Long valueCount = valueCounts.get(id);
       Long valueCount2 = valueCounts.get(id2);
       if (valueCount == null || valueCount2 == null) {
@@ -440,13 +440,9 @@ public class ParquetMetricsRowGroupFilter {
       }
 
       Statistics<?> colStats = stats.get(id);
-      if (colStats != null && !colStats.isEmpty()) {
-        if (allNulls(colStats, valueCount)) {
-          return ROWS_CANNOT_MATCH;
-        }
-
-        Statistics<?> colStats2 = stats.get(id2);
-        if (allNulls(colStats2, valueCount2)) {
+      Statistics<?> colStats2 = stats.get(id2);
+      if (colStatsExist(colStats, colStats2)) {
+        if (allNulls(colStats, valueCount) || allNulls(colStats2, valueCount2)) {
           return ROWS_CANNOT_MATCH;
         }
 
@@ -507,6 +503,10 @@ public class ParquetMetricsRowGroupFilter {
       int id = ref.fieldId();
       int id2 = ref2.fieldId();
 
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       if (checkNestedTypes(id) || checkNestedTypes(id2)) {
         return ROWS_MIGHT_MATCH;
       }
@@ -523,6 +523,20 @@ public class ParquetMetricsRowGroupFilter {
         return rowsCannotMatch;
       }
 
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
+      // because the bounds are not necessarily a min or max value, this cannot be answered using
+      // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      // because the bounds are not necessarily a min or max value, this cannot be answered using
+      // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
       return ROWS_MIGHT_MATCH;
     }
 
@@ -587,13 +601,6 @@ public class ParquetMetricsRowGroupFilter {
         return true;
       }
       return false;
-    }
-
-    @Override
-    public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
-      // because the bounds are not necessarily a min or max value, this cannot be answered using
-      // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
-      return ROWS_MIGHT_MATCH;
     }
 
     @Override
@@ -795,6 +802,10 @@ public class ParquetMetricsRowGroupFilter {
     public <T> Boolean handleNonReference(Bound<T> term) {
       return ROWS_MIGHT_MATCH;
     }
+  }
+
+  private static boolean colStatsExist(Statistics<?> colStats, Statistics<?> colStats2) {
+    return colStats != null && !colStats.isEmpty() && colStats2 != null && !colStats2.isEmpty();
   }
 
   /**

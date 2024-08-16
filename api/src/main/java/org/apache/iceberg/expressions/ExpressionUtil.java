@@ -450,8 +450,8 @@ public class ExpressionUtil {
           return term + " >= " + rightTerm;
         case EQ:
           return term + " = " + rightTerm;
-          //        case NOT_EQ:
-          //          return term + " != " + rightTerm;
+        case NOT_EQ:
+          return term + " != " + rightTerm;
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());

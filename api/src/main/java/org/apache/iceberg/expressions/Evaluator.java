@@ -110,6 +110,7 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean lt(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      validateDataTypes(valueExpr, valueExpr2);
       Comparator<T> cmp = Comparators.forType(valueExpr2.ref().type().asPrimitiveType());
       return cmp.compare(valueExpr.eval(struct), valueExpr2.eval(struct)) < 0;
     }
@@ -122,6 +123,7 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean ltEq(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      validateDataTypes(valueExpr, valueExpr2);
       Comparator<T> cmp = Comparators.forType(valueExpr2.ref().type().asPrimitiveType());
       return cmp.compare(valueExpr.eval(struct), valueExpr2.eval(struct)) <= 0;
     }
@@ -134,6 +136,7 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean gt(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      validateDataTypes(valueExpr, valueExpr2);
       Comparator<T> cmp = Comparators.forType(valueExpr2.ref().type().asPrimitiveType());
       return cmp.compare(valueExpr.eval(struct), valueExpr2.eval(struct)) > 0;
     }
@@ -146,6 +149,7 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean gtEq(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      validateDataTypes(valueExpr, valueExpr2);
       Comparator<T> cmp = Comparators.forType(valueExpr2.ref().type().asPrimitiveType());
       return cmp.compare(valueExpr.eval(struct), valueExpr2.eval(struct)) >= 0;
     }
@@ -158,13 +162,30 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean eq(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      validateDataTypes(valueExpr, valueExpr2);
       Comparator<T> cmp = Comparators.forType(valueExpr2.ref().type().asPrimitiveType());
       return cmp.compare(valueExpr.eval(struct), valueExpr2.eval(struct)) == 0;
+    }
+
+    private <T> void validateDataTypes(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      if (valueExpr.ref().type().typeId() != valueExpr2.ref().type().typeId()) {
+        throw new IllegalArgumentException(
+            "Cannot compare different types: "
+                + valueExpr.ref().type()
+                + " and "
+                + valueExpr2.ref().type());
+      }
     }
 
     @Override
     public <T> Boolean notEq(Bound<T> valueExpr, Literal<T> lit) {
       return !eq(valueExpr, lit);
+    }
+
+    @Override
+    public <T> Boolean notEq(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      validateDataTypes(valueExpr, valueExpr2);
+      return !eq(valueExpr, valueExpr2);
     }
 
     @Override

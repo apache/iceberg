@@ -190,6 +190,10 @@ public class ManifestEvaluator {
 
     @Override
     public <T> Boolean lt(BoundReference<T> ref, BoundReference<T> ref2) {
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       int pos = Accessors.toPosition(ref.accessor());
       int pos2 = Accessors.toPosition(ref2.accessor());
       ByteBuffer lowerBound = stats.get(pos).lowerBound();
@@ -230,6 +234,10 @@ public class ManifestEvaluator {
 
     @Override
     public <T> Boolean ltEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       int pos = Accessors.toPosition(ref.accessor());
       int pos2 = Accessors.toPosition(ref2.accessor());
       ByteBuffer lowerBound = stats.get(pos).lowerBound();
@@ -270,6 +278,10 @@ public class ManifestEvaluator {
 
     @Override
     public <T> Boolean gt(BoundReference<T> ref, BoundReference<T> ref2) {
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       int pos = Accessors.toPosition(ref.accessor());
       int pos2 = Accessors.toPosition(ref2.accessor());
       ByteBuffer upperBound = stats.get(pos).upperBound();
@@ -310,6 +322,10 @@ public class ManifestEvaluator {
 
     @Override
     public <T> Boolean gtEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       int pos = Accessors.toPosition(ref.accessor());
       int pos2 = Accessors.toPosition(ref2.accessor());
       ByteBuffer upperBound = stats.get(pos).upperBound();
@@ -355,6 +371,10 @@ public class ManifestEvaluator {
 
     @Override
     public <T> Boolean eq(BoundReference<T> ref, BoundReference<T> ref2) {
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       int pos = Accessors.toPosition(ref.accessor());
       int pos2 = Accessors.toPosition(ref2.accessor());
       PartitionFieldSummary fieldStats = stats.get(pos);
@@ -385,6 +405,13 @@ public class ManifestEvaluator {
 
     @Override
     public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
+      // because the bounds are not necessarily a min or max value, this cannot be answered using
+      // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEq(BoundReference<T> ref, BoundReference<T> ref2) {
       // because the bounds are not necessarily a min or max value, this cannot be answered using
       // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
       return ROWS_MIGHT_MATCH;

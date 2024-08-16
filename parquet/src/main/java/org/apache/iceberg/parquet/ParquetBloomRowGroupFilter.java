@@ -182,6 +182,7 @@ public class ParquetBloomRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
+    // TODO implement ref to refs comparison
     @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
       // bloom filter is based on hash and cannot eliminate based on lt or ltEq or gt or gtEq
