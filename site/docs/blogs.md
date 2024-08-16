@@ -216,6 +216,12 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 **Authors**: [Ron Ortloff](https://www.linkedin.com/in/ron-ortloff/), [Dennis Huo](https://www.linkedin.com/in/dennis-huo-2aaba92a/)
 
 <!-- markdown-link-check-disable-next-line -->
+### [Open Data Lakehouse powered by Apache Iceberg on Apache Ozone](https://medium.com/engineering-cloudera/open-data-lakehouse-powered-by-apache-iceberg-on-apache-ozone-a225d5dcfe98/)
+**Date**: February 28th, 2023, **Company**: Cloudera
+
+**Authors**: [Saketa Chalamchala](https://www.linkedin.com/in/saketa-chalamchala-3602026a)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [Dealing with Data Incidents Using the Rollback Feature in Apache Iceberg](https://www.dremio.com/blog/dealing-with-data-incidents-using-the-rollback-feature-in-apache-iceberg/)
 **Date**: February 24th, 2022, **Company**: Dremio
 
