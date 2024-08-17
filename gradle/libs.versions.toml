@@ -44,7 +44,6 @@ flink119 =  { strictly = "1.19.0"}
 flink120 = { strictly = "1.20.0"}
 google-libraries-bom = "26.44.0"
 guava = "33.2.1-jre"
-hadoop2 = "2.7.3"
 hadoop3 = "3.3.6"
 httpcomponents-httpclient5 = "5.3.1"
 hive2 = { strictly = "2.3.9"} # see rich version usage explanation above
@@ -128,13 +127,11 @@ flink120-streaming-java = { module = "org.apache.flink:flink-streaming-java", ve
 flink120-table-api-java-bridge = { module = "org.apache.flink:flink-table-api-java-bridge", version.ref = "flink120" }
 google-libraries-bom = { module = "com.google.cloud:libraries-bom", version.ref = "google-libraries-bom" }
 guava-guava = { module = "com.google.guava:guava", version.ref = "guava" }
-hadoop2-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop2" }
-hadoop2-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "hadoop2" }
-hadoop2-hdfs = { module = "org.apache.hadoop:hadoop-hdfs", version.ref = "hadoop2" }
-hadoop2-mapreduce-client-core = { module = "org.apache.hadoop:hadoop-mapreduce-client-core", version.ref = "hadoop2" }
-hadoop2-minicluster = { module = "org.apache.hadoop:hadoop-minicluster", version.ref = "hadoop2" }
 hadoop3-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop3" }
 hadoop3-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "hadoop3" }
+hadoop3-hdfs = { module = "org.apache.hadoop:hadoop-hdfs", version.ref = "hadoop3" }
+hadoop3-mapreduce-client-core = { module = "org.apache.hadoop:hadoop-mapreduce-client-core", version.ref = "hadoop3" }
+hadoop3-minicluster = { module = "org.apache.hadoop:hadoop-minicluster", version.ref = "hadoop3" }
 hive2-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive2" }
 hive2-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive2" }
 hive2-serde = { module = "org.apache.hive:hive-serde", version.ref = "hive2" }

@@ -42,9 +42,9 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     compileOnly libs.flink118.connector.base
     compileOnly libs.flink118.connector.files
 
-    compileOnly libs.hadoop2.hdfs
-    compileOnly libs.hadoop2.common
-    compileOnly(libs.hadoop2.minicluster) {
+    compileOnly libs.hadoop3.hdfs
+    compileOnly libs.hadoop3.common
+    compileOnly(libs.hadoop3.minicluster) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
@@ -186,9 +186,9 @@ project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
     integrationImplementation libs.flink118.table.api.java.bridge
     integrationImplementation "org.apache.flink:flink-table-planner_${scalaVersion}:${libs.versions.flink118.get()}"
 
-    integrationImplementation libs.hadoop2.common
-    integrationImplementation libs.hadoop2.hdfs
-    integrationImplementation(libs.hadoop2.minicluster) {
+    integrationImplementation libs.hadoop3.common
+    integrationImplementation libs.hadoop3.hdfs
+    integrationImplementation(libs.hadoop3.minicluster) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 

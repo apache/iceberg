@@ -348,7 +348,7 @@ project(':iceberg-core') {
     implementation libs.jackson.databind
     implementation libs.caffeine
     implementation libs.roaringbitmap
-    compileOnly(libs.hadoop2.client) {
+    compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
@@ -373,7 +373,7 @@ project(':iceberg-data') {
     implementation project(':iceberg-core')
     compileOnly project(':iceberg-parquet')
     compileOnly project(':iceberg-orc')
-    compileOnly(libs.hadoop2.common) {
+    compileOnly(libs.hadoop3.common) {
       exclude group: 'commons-beanutils'
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -396,7 +396,7 @@ project(':iceberg-data') {
 
     compileOnly libs.avro.avro
 
-    testImplementation(libs.hadoop2.client) {
+    testImplementation(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
@@ -427,7 +427,7 @@ project(':iceberg-aliyun') {
     compileOnly libs.jaxb.api
     compileOnly libs.activation
     compileOnly libs.jaxb.runtime
-    compileOnly(libs.hadoop2.common) {
+    compileOnly(libs.hadoop3.common) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'javax.servlet', module: 'servlet-api'
@@ -478,7 +478,7 @@ project(':iceberg-aws') {
     compileOnly("software.amazon.awssdk:dynamodb")
     compileOnly("software.amazon.awssdk:lakeformation")
 
-    compileOnly(libs.hadoop2.common) {
+    compileOnly(libs.hadoop3.common) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'javax.servlet', module: 'servlet-api'
@@ -582,7 +582,7 @@ project(':iceberg-delta-lake') {
 
     compileOnly "io.delta:delta-standalone_${scalaVersion}:${libs.versions.delta.standalone.get()}"
 
-    compileOnly(libs.hadoop2.common) {
+    compileOnly(libs.hadoop3.common) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'javax.servlet', module: 'servlet-api'
@@ -594,7 +594,7 @@ project(':iceberg-delta-lake') {
     if (sparkVersions.contains("3.5")) {
       integrationImplementation "io.delta:delta-spark_${scalaVersion}:${libs.versions.delta.spark.get()}"
       integrationImplementation project(path: ":iceberg-spark:iceberg-spark-3.5_${scalaVersion}")
-      integrationImplementation(libs.hadoop2.minicluster) {
+      integrationImplementation(libs.hadoop3.minicluster) {
         exclude group: 'org.apache.avro', module: 'avro'
         // to make sure netty libs only come from project(':iceberg-arrow')
         exclude group: 'io.netty', module: 'netty-buffer'
@@ -654,7 +654,7 @@ project(':iceberg-gcp') {
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
 
-    testImplementation(libs.hadoop2.common) {
+    testImplementation(libs.hadoop3.common) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'javax.servlet', module: 'servlet-api'
@@ -729,7 +729,7 @@ project(':iceberg-hive-metastore') {
       exclude group: 'com.zaxxer', module: 'HikariCP'
     }
 
-    compileOnly(libs.hadoop2.client) {
+    compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
@@ -761,12 +761,12 @@ project(':iceberg-orc') {
       exclude group: 'org.apache.hive', module: 'hive-storage-api'
     }
 
-    compileOnly(libs.hadoop2.common) {
+    compileOnly(libs.hadoop3.common) {
       exclude group: 'commons-beanutils'
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
     }
-    compileOnly(libs.hadoop2.client) {
+    compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
@@ -795,7 +795,7 @@ project(':iceberg-parquet') {
     }
 
     compileOnly libs.avro.avro
-    compileOnly(libs.hadoop2.client) {
+    compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
@@ -839,8 +839,8 @@ project(':iceberg-arrow') {
     // We import :netty-common through :arrow-memory-netty
     // so that the same version as used by the :arrow-memory-netty module is picked.
     testImplementation libs.arrow.memory.netty
-    testImplementation libs.hadoop2.common
-    testImplementation libs.hadoop2.mapreduce.client.core
+    testImplementation libs.hadoop3.common
+    testImplementation libs.hadoop3.mapreduce.client.core
   }
 }
 
@@ -866,12 +866,12 @@ project(':iceberg-pig') {
     compileOnly(libs.pig) {
       exclude group: "junit", module: "junit"
     }
-    compileOnly(libs.hadoop2.mapreduce.client.core)
-    compileOnly(libs.hadoop2.client) {
+    compileOnly(libs.hadoop3.mapreduce.client.core)
+    compileOnly(libs.hadoop3.client) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
 
-    testImplementation(libs.hadoop2.minicluster) {
+    testImplementation(libs.hadoop3.minicluster) {
       exclude group: 'org.apache.avro', module: 'avro'
     }
   }
@@ -894,7 +894,7 @@ project(':iceberg-nessie') {
     implementation libs.jackson.core
     implementation libs.jackson.databind
 
-    compileOnly libs.hadoop2.common
+    compileOnly libs.hadoop3.common
     // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
     compileOnly libs.microprofile.openapi.api
 
