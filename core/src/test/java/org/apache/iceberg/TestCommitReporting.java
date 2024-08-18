@@ -37,7 +37,7 @@ public class TestCommitReporting extends TestBase {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
-    return Arrays.asList(2);
+    return Arrays.asList(2, 3);
   }
 
   @TestTemplate

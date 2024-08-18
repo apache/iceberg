@@ -47,7 +47,6 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
-import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.BaseViewSessionCatalog;
@@ -63,6 +62,7 @@ import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -136,7 +136,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private final BiFunction<SessionContext, Map<String, String>, FileIO> ioBuilder;
   private Cache<String, AuthSession> sessions = null;
   private Cache<String, AuthSession> tableSessions = null;
-  private Cache<TableOperations, FileIO> fileIOCloser;
+  private FileIOTracker fileIOTracker = null;
   private AuthSession catalogAuth = null;
   private boolean keepTokenRefreshed = true;
   private RESTClient client = null;
@@ -268,10 +268,11 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     this.io = newFileIO(SessionContext.createEmpty(), mergedProps);
 
-    this.fileIOCloser = newFileIOCloser();
+    this.fileIOTracker = new FileIOTracker();
     this.closeables = new CloseableGroup();
     this.closeables.addCloseable(this.io);
     this.closeables.addCloseable(this.client);
+    this.closeables.addCloseable(fileIOTracker);
     this.closeables.setSuppressCloseFailure(true);
 
     this.snapshotMode =
@@ -465,7 +466,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   private void trackFileIO(RESTTableOperations ops) {
     if (io != ops.io()) {
-      fileIOCloser.put(ops, ops.io());
+      fileIOTracker.track(ops);
     }
   }
 
@@ -547,7 +548,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   public List<Namespace> listNamespaces(SessionContext context, Namespace namespace) {
     Map<String, String> queryParams = Maps.newHashMap();
     if (!namespace.isEmpty()) {
-      queryParams.put("parent", RESTUtil.NAMESPACE_JOINER.join(namespace.levels()));
+      queryParams.put("parent", RESTUtil.encodeNamespace(namespace));
     }
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
@@ -640,11 +641,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     if (closeables != null) {
       closeables.close();
-    }
-
-    if (fileIOCloser != null) {
-      fileIOCloser.invalidateAll();
-      fileIOCloser.cleanUp();
     }
   }
 
@@ -1083,19 +1079,6 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
                 (id, auth, cause) -> {
                   if (auth != null) {
                     auth.stopRefreshing();
-                  }
-                })
-        .build();
-  }
-
-  private Cache<TableOperations, FileIO> newFileIOCloser() {
-    return Caffeine.newBuilder()
-        .weakKeys()
-        .removalListener(
-            (RemovalListener<TableOperations, FileIO>)
-                (ops, fileIO, cause) -> {
-                  if (null != fileIO) {
-                    fileIO.close();
                   }
                 })
         .build();

@@ -150,6 +150,10 @@ Readers should be more permissive because v1 metadata files are allowed in v2 ta
 
 Readers may be more strict for metadata JSON files because the JSON files are not reused and will always match the table version. Required v2 fields that were not present in v1 or optional in v1 may be handled as required fields. For example, a v2 table that is missing `last-sequence-number` can throw an exception.
 
+##### Writing data files
+
+All columns must be written to data files even if they introduce redundancy with metadata stored in manifest files (e.g. columns with identity partition transforms). Writing all columns provides a backup in case of corruption or bugs in the metadata layer.
+
 ### Schemas and Data Types
 
 A table's **schema** is a list of named columns. All data types are either primitives or nested types, which are maps, lists, or structs. A table schema is also a struct type.
@@ -241,7 +245,14 @@ Struct evolution requires the following rules for default values:
 
 #### Column Projection
 
-Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids. If a field id is missing from a data file, its value for each row should be `null`.
+Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids.
+
+Values for field ids which are not present in a data file must be resolved according the following rules:
+
+* Return the value from partition metadata if an [Identity Transform](#partition-transforms) exists for the field and the partition value is present in the `partition` struct on `data_file` object in the manifest. This allows for metadata only migrations of Hive tables.
+* Use `schema.name-mapping.default` metadata to map field id to columns without field id as described below and use the column if it is present.
+* Return the default value if it has a defined `initial-default` (See [Default values](#default-values) section for more details). 
+* Return `null` in all other cases.
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
 
@@ -759,13 +770,13 @@ The unified partition type is a struct containing all fields that have ever been
 and sorted by the field ids in ascending order.  
 In other words, the struct fields represent a union of all known partition fields sorted in ascending order by the field ids.
 For example,
-1) spec#0 has two fields {field#1, field#2}
-and then the table has evolved into spec#1 which has three fields {field#1, field#2, field#3}.
-The unified partition type looks like Struct<field#1, field#2, field#3>.
+1) `spec#0` has two fields `{field#1, field#2}`
+and then the table has evolved into `spec#1` which has three fields `{field#1, field#2, field#3}`.
+The unified partition type looks like `Struct<field#1, field#2, field#3>`.
 
-2) spec#0 has two fields {field#1, field#2}
-and then the table has evolved into spec#1 which has just one field {field#2}.
-The unified partition type looks like Struct<field#1, field#2>.
+2) `spec#0` has two fields `{field#1, field#2}`
+and then the table has evolved into `spec#1` which has just one field `{field#2}`.
+The unified partition type looks like `Struct<field#1, field#2>`.
 
 #### Commit Conflict Resolution and Retry
 
@@ -779,7 +790,9 @@ When two commits happen at the same time and are based on the same version, only
 
 #### File System Tables
 
-An atomic swap can be implemented using atomic rename in file systems that support it, like HDFS or most local file systems [1].
+_Note: This file system based scheme to commit a metadata file is **deprecated** and will be removed in version 4 of this spec. The scheme is **unsafe** in object stores and local file systems._
+
+An atomic swap can be implemented using atomic rename in file systems that support it, like HDFS [1].
 
 Each version of table metadata is stored in a metadata folder under the table’s base location using a file naming scheme that includes a version number, `V`: `v<V>.metadata.json`. To commit a new metadata version, `V+1`, the writer performs the following steps:
 
@@ -851,7 +864,7 @@ The rows in the delete file must be sorted by `file_path` then `pos` to optimize
 
 Equality delete files identify deleted rows in a collection of data files by one or more column values, and may optionally contain additional columns of the deleted row.
 
-Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). Float and double columns cannot be used as delete columns in equality delete files.
+Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). The column restrictions for columns used in equality delete files are the same as those for [identifier fields](#identifier-field-ids) with the exception that optional columns and columns nested under optional structs are allowed (if a parent struct column is null it implies the leaf column is null).
 
 A data row is deleted if its values are equal to all delete columns for any row in an equality delete file that applies to the row's data file (see [`Scan Planning`](#scan-planning)).
 
@@ -1230,42 +1243,6 @@ Example
      ] } ]
 ```
 
-### Content File (Data and Delete) Serialization
-
-Content file (data or delete) is serialized as a JSON object according to the following table.
-
-| Metadata field           |JSON representation|Example|
-|--------------------------|--- |--- |
-| **`spec-id`**            |`JSON int`|`1`|
-| **`content`**            |`JSON string`|`DATA`, `POSITION_DELETES`, `EQUALITY_DELETES`|
-| **`file-path`**          |`JSON string`|`"s3://b/wh/data.db/table"`|
-| **`file-format`**        |`JSON string`|`AVRO`, `ORC`, `PARQUET`|
-| **`partition`**          |`JSON object: Partition data tuple using partition field ids for the struct field ids`|`{"1000":1}`|
-| **`record-count`**       |`JSON long`|`1`|
-| **`file-size-in-bytes`** |`JSON long`|`1024`|
-| **`column-sizes`**       |`JSON object: Map from column id to the total size on disk of all regions that store the column.`|`{"keys":[3,4],"values":[100,200]}`|
-| **`value-counts`**       |`JSON object: Map from column id to number of values in the column (including null and NaN values)`|`{"keys":[3,4],"values":[90,180]}`|
-| **`null-value-counts`**  |`JSON object: Map from column id to number of null values in the column`|`{"keys":[3,4],"values":[10,20]}`|
-| **`nan-value-counts`**   |`JSON object: Map from column id to number of NaN values in the column`|`{"keys":[3,4],"values":[0,0]}`|
-| **`lower-bounds`**       |`JSON object: Map from column id to lower bound binary in the column serialized as hexadecimal string`|`{"keys":[3,4],"values":["01000000","02000000"]}`|
-| **`upper-bounds`**       |`JSON object: Map from column id to upper bound binary in the column serialized as hexadecimal string`|`{"keys":[3,4],"values":["05000000","0A000000"]}`|
-| **`key-metadata`**       |`JSON string: Encryption key metadata binary serialized as hexadecimal string`|`00000000000000000000000000000000`|
-| **`split-offsets`**      |`JSON list of long: Split offsets for the data file`|`[128,256]`|
-| **`equality-ids`**       |`JSON list of int: Field ids used to determine row equality in equality delete files`|`[1]`|
-| **`sort-order-id`**      |`JSON int`|`1`|
-
-### File Scan Task Serialization
-
-File scan task is serialized as a JSON object according to the following table.
-
-| Metadata field       |JSON representation|Example|
-|--------------------------|--- |--- |
-| **`schema`**          |`JSON object`|`See above, read schemas instead`|
-| **`spec`**            |`JSON object`|`See above, read partition specs instead`|
-| **`data-file`**       |`JSON object`|`See above, read content file instead`|
-| **`delete-files`**    |`JSON list of objects`|`See above, read content file instead`|
-| **`residual-filter`** |`JSON object: residual filter expression`|`{"type":"eq","term":"id","value":1}`|
-
 ## Appendix D: Single-value serialization
 
 ### Binary single-value serialization
@@ -1419,3 +1396,14 @@ Writing v2 metadata:
     * `sort_columns` was removed
 
 Note that these requirements apply when writing data to a v2 table. Tables that are upgraded from v1 may contain metadata that does not follow these requirements. Implementations should remain backward-compatible with v1 metadata requirements.
+
+## Appendix F: Implementation Notes
+
+This section covers topics not required by the specification but recommendations for systems implementing the Iceberg specification to help maintain a uniform experience.
+
+### Point in Time Reads (Time Travel)
+
+Iceberg supports two types of histories for tables. A history of previous "current snapshots" stored in ["snapshot-log" table metadata](#table-metadata-fields) and [parent-child lineage stored in "snapshots"](#table-metadata-fields). These two histories 
+might indicate different snapshot IDs for a specific timestamp. The discrepancies can be caused by a variety of table operations (e.g. updating the `current-snapshot-id` can be used to set the snapshot of a table to any arbitrary snapshot, which might have a lineage derived from a table branch or no lineage at all).
+
+When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.

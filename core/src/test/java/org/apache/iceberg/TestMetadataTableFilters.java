@@ -40,7 +40,7 @@ public class TestMetadataTableFilters extends TestBase {
   private static final Set<MetadataTableType> AGG_FILE_TABLES =
       Sets.newHashSet(
           MetadataTableType.ALL_DATA_FILES,
-          MetadataTableType.ALL_DATA_FILES,
+          MetadataTableType.ALL_DELETE_FILES,
           MetadataTableType.ALL_FILES,
           MetadataTableType.ALL_ENTRIES);
 
@@ -132,9 +132,9 @@ public class TestMetadataTableFilters extends TestBase {
         }
       case DATA_FILES:
       case DELETE_FILES:
-      case ALL_DELETE_FILES:
         return partitions;
       case ALL_DATA_FILES:
+      case ALL_DELETE_FILES:
         return partitions * 2; // ScanTask for Data Manifest in DELETED and ADDED states
       case ALL_FILES:
       case ALL_ENTRIES:
@@ -317,7 +317,7 @@ public class TestMetadataTableFilters extends TestBase {
             .withPartition(data10Key)
             .build();
     PartitionKey data11Key = new PartitionKey(newSpec, table.schema());
-    data10Key.set(1, 11);
+    data11Key.set(1, 11);
     DataFile data11 =
         DataFiles.builder(newSpec)
             .withPath("/path/to/data-11.parquet")
@@ -465,8 +465,8 @@ public class TestMetadataTableFilters extends TestBase {
             .withPartition(data10Key)
             .build();
     PartitionKey data11Key = new PartitionKey(newSpec, table.schema());
-    data11Key.set(0, 1); // data=0
-    data10Key.set(1, 11); // id=11
+    data11Key.set(0, 1); // data=1
+    data11Key.set(1, 11); // id=11
     DataFile data11 =
         DataFiles.builder(newSpec)
             .withPath("/path/to/data-11.parquet")

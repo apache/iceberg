@@ -42,10 +42,24 @@ subprojects {
     apply plugin: 'com.palantir.baseline-error-prone'
   }
   apply plugin: 'com.palantir.baseline-class-uniqueness'
-  apply plugin: 'com.palantir.baseline-reproducibility'
+  // What 'com.palantir.baseline-reproducibility' used to do, except the check for the
+  // `sourceCompatibility` Java compile option, which conflicts with the `release` compile option.
+  tasks.withType(AbstractArchiveTask.class).configureEach(t -> {
+    t.setPreserveFileTimestamps(false);
+    t.setReproducibleFileOrder(true);
+    t.setDuplicatesStrategy(DuplicatesStrategy.WARN);
+  });
   apply plugin: 'com.palantir.baseline-exact-dependencies'
-  apply plugin: 'com.palantir.baseline-release-compatibility'
-  apply plugin: 'com.diffplug.spotless'
+  // We need to update Google Java Format to 1.17.0+ to run spotless on JDK 8, but that requires dropping support for JDK 8.
+  if (JavaVersion.current() == JavaVersion.VERSION_21) {
+    task spotlessApply {
+      doLast {
+        throw new GradleException("Spotless plugin is currently disabled when running on JDK 21 (until we drop JDK 8). To run spotlessApply please use a different JDK version.")
+      }
+    }
+  } else {
+    apply plugin: 'com.diffplug.spotless'
+  }
 
   pluginManager.withPlugin('com.palantir.baseline-checkstyle') {
     checkstyle {
@@ -77,11 +91,14 @@ subprojects {
           '-Xep:CollectionUndefinedEquality:ERROR',
           // specific to Palantir - Uses name `log` but we use name `LOG`
           '-Xep:ConsistentLoggerName:OFF',
+          '-Xep:DangerousJavaDeserialization:ERROR',
           '-Xep:DangerousThreadPoolExecutorUsage:OFF',
           // subclasses are not equal
           '-Xep:EqualsGetClass:OFF',
           // specific to Palantir
           '-Xep:FinalClass:OFF',
+          '-Xep:FormatStringAnnotation:ERROR',
+          '-Xep:ImmutablesReferenceEquality:ERROR',
           '-Xep:IntLongMath:ERROR',
           // prefer method references over lambdas
           '-Xep:LambdaMethodReference:ERROR',
@@ -94,6 +111,8 @@ subprojects {
           '-Xep:MissingSummary:ERROR',
           // Enforce hashCode over hash
           '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
+          // Triggers false-positives whenever relocated @VisibleForTesting is used
+          '-Xep:PreferCommonAnnotations:OFF',
           // specific to Palantir
           '-Xep:PreferSafeLoggableExceptions:OFF',
           '-Xep:PreferSafeLogger:OFF',
@@ -111,6 +130,8 @@ subprojects {
           '-Xep:StringSplitter:ERROR',
           '-Xep:TypeParameterShadowing:OFF',
           '-Xep:TypeParameterUnusedInFormals:OFF',
+          // Palantir's UnnecessarilyQualified may throw during analysis
+          '-Xep:UnnecessarilyQualified:OFF',
       )
     }
   }
