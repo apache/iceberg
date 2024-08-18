@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.source.reader;
 
 import java.io.Serializable;
 import java.util.function.Function;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import org.apache.flink.table.data.RowData;
 
@@ -30,21 +29,4 @@ import org.apache.flink.table.data.RowData;
  * @param <T> output type
  */
 public interface RowDataConverter<T>
-    extends Function<RowData, T>, ResultTypeQueryable, Serializable {
-
-  static IdentityConverter identity() {
-    return new IdentityConverter();
-  }
-
-  class IdentityConverter implements RowDataConverter<RowData> {
-    @Override
-    public RowData apply(RowData from) {
-      return from;
-    }
-
-    @Override
-    public TypeInformation getProducedType() {
-      return TypeInformation.of(RowData.class);
-    }
-  }
-}
+    extends Function<RowData, T>, ResultTypeQueryable, Serializable {}
