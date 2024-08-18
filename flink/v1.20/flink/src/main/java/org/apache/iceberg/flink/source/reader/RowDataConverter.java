@@ -29,4 +29,4 @@ import org.apache.flink.table.data.RowData;
  * @param <T> output type
  */
 public interface RowDataConverter<T>
-    extends Function<RowData, T>, ResultTypeQueryable, Serializable {}
+    extends Function<RowData, T>, ResultTypeQueryable<T>, Serializable {}
