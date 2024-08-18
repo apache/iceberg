@@ -37,6 +37,7 @@ import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.flink.FlinkConfigOptions;
@@ -361,6 +362,60 @@ public class TestArrayPoolDataIteratorBatcherRowData {
     batch21.recycle();
 
     assertThat(recordBatchIterator).isExhausted();
+  }
+
+  @Test
+  public void testDataIteratorWithResidualFilter() throws IOException {
+    GenericRecord record0 = GenericRecord.create(TestFixtures.SCHEMA);
+    record0.setField("data", "file-1");
+    record0.setField("id", 0L); // file-0
+    record0.setField("dt", "-");
+
+    GenericRecord record1 = GenericRecord.create(TestFixtures.SCHEMA);
+    record1.setField("data", "file-2");
+    record1.setField("id", 1L); // file-1
+    record1.setField("dt", "-");
+
+    List<Record> fileRecords0 = ImmutableList.of(record0);
+    List<Record> fileRecords1 = ImmutableList.of(record1);
+
+    validateFileOffsetWithResidualFilter(fileRecords0, fileRecords1, Expressions.alwaysTrue());
+
+    validateFileOffsetWithResidualFilter(
+        fileRecords0, fileRecords1, Expressions.greaterThan("id", 0));
+  }
+
+  private void validateFileOffsetWithResidualFilter(
+      List<Record> fileRecords0, List<Record> fileRecords1, Expression residualFilter)
+      throws IOException {
+    ResidualEvaluator residualEvaluator = ResidualEvaluator.unpartitioned(residualFilter);
+
+    FileScanTask fileTask0 =
+        ReaderUtil.createFileTask(
+            fileRecords0,
+            File.createTempFile("junit", null, temporaryFolder.toFile()),
+            FILE_FORMAT,
+            appenderFactory,
+            residualEvaluator);
+
+    FileScanTask fileTask1 =
+        ReaderUtil.createFileTask(
+            fileRecords1,
+            File.createTempFile("junit", null, temporaryFolder.toFile()),
+            FILE_FORMAT,
+            appenderFactory,
+            residualEvaluator);
+
+    CombinedScanTask combinedTask = new BaseCombinedScanTask(Arrays.asList(fileTask0, fileTask1));
+
+    DataIterator<RowData> dataIterator = ReaderUtil.createDataIterator(combinedTask);
+
+    // split initialization
+    dataIterator.seek(0, 0);
+
+    while (dataIterator.hasNext()) {
+      assertThat(dataIterator.fileOffset()).isEqualTo(dataIterator.next().getLong(1));
+    }
   }
 
   @Test
