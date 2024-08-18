@@ -26,7 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 abstract class TestLockFactoryBase {
-  private TriggerLockFactory lockFactory;
+  protected TriggerLockFactory lockFactory;
 
   abstract TriggerLockFactory lockFactory();
 
