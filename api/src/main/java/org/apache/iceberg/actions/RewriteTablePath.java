@@ -20,7 +20,7 @@ package org.apache.iceberg.actions;
 
 import org.apache.iceberg.Table;
 
-public interface RewriteTableLocation extends Action<RewriteTableLocation, RewriteTableLocation.Result> {
+public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTablePath.Result> {
 
   /**
    * Passes the source and target prefixes that will be used to replace the source prefix with the
@@ -30,7 +30,7 @@ public interface RewriteTableLocation extends Action<RewriteTableLocation, Rewri
    * @param targetPrefix the target prefix
    * @return this for method chaining
    */
-  RewriteTableLocation rewriteLocationPrefix(String sourcePrefix, String targetPrefix);
+  RewriteTablePath rewriteLocationPrefix(String sourcePrefix, String targetPrefix);
 
   /**
    * Pass the version copied last time. It is optional if the target table is provided. The default
@@ -43,7 +43,7 @@ public interface RewriteTableLocation extends Action<RewriteTableLocation, Rewri
    *     "00001-8893aa9e-f92e-4443-80e7-cfa42238a654.metadata.json".
    * @return this for method chaining
    */
-  RewriteTableLocation lastCopiedVersion(String lastCopiedVersion);
+  RewriteTablePath lastCopiedVersion(String lastCopiedVersion);
 
   /**
    * The latest version of the table to copy. It is optional, the default value is the source
@@ -55,7 +55,7 @@ public interface RewriteTableLocation extends Action<RewriteTableLocation, Rewri
    *     "00001-8893aa9e-f92e-4443-80e7-cfa42238a654.metadata.json".
    * @return this for method chaining
    */
-  RewriteTableLocation endVersion(String endVersion);
+  RewriteTablePath endVersion(String endVersion);
 
   /**
    * Set the customized staging location. It is optional. By default, staging location is a subdirectory
@@ -64,7 +64,7 @@ public interface RewriteTableLocation extends Action<RewriteTableLocation, Rewri
    * @param stagingLocation the staging location
    * @return this for method chaining
    */
-  RewriteTableLocation stagingLocation(String stagingLocation);
+  RewriteTablePath stagingLocation(String stagingLocation);
 
   /**
    * Set the target table. It is optional if the start version is provided.
@@ -72,7 +72,7 @@ public interface RewriteTableLocation extends Action<RewriteTableLocation, Rewri
    * @param targetTable the target table
    * @return this for method chaining
    */
-  RewriteTableLocation targetTable(Table targetTable);
+  RewriteTablePath targetTable(Table targetTable);
 
   /** The action result that contains a summary of the execution. */
   interface Result {
