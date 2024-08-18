@@ -163,8 +163,6 @@ public class ResidualEvaluator implements Serializable {
       return NaNUtil.isNaN(ref.eval(struct)) ? alwaysFalse() : alwaysTrue();
     }
 
-    // TODO implement ref to refs comparison
-
     @Override
     public <T> Expression lt(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();

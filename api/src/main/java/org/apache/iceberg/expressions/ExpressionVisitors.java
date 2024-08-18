@@ -594,9 +594,8 @@ public class ExpressionVisitors {
             return gtEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
           case EQ:
             return eq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
-            //                    case NOT_EQ:
-            //                      return notEq((BoundReference<T>) pred.term(),
-            // literalPred.literal());
+          case NOT_EQ:
+            return notEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundTermPredicate: " + pred.op());
@@ -663,6 +662,10 @@ public class ExpressionVisitors {
     }
 
     public <T> R notEq(BoundTerm<T> term, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R notEq(BoundTerm<T> term, BoundTerm<T> rightTerm) {
       return null;
     }
 
