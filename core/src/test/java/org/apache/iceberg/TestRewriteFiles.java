@@ -29,7 +29,9 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
@@ -382,6 +384,116 @@ public class TestRewriteFiles extends TestBase {
 
     // We should only get the 4 manifests that this test is expected to add.
     assertThat(listManifestFiles()).hasSize(4);
+  }
+
+  @TestTemplate
+  public void testRewriteDataAndAssignOldSequenceNumbersShouldNotDropDeleteFiles() {
+    assumeThat(formatVersion)
+        .as("Sequence number is only supported in iceberg format v2 or later")
+        .isGreaterThan(1);
+    assertThat(listManifestFiles()).isEmpty();
+
+    commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A2_DELETES), branch);
+
+    long firstRewriteSequenceNumber = latestSnapshot(table, branch).sequenceNumber();
+
+    commit(
+        table,
+        table.newRowDelta().addRows(FILE_B).addRows(FILE_B).addDeletes(FILE_B2_DELETES),
+        branch);
+    commit(
+        table,
+        table.newRowDelta().addRows(FILE_B).addRows(FILE_C).addDeletes(FILE_C2_DELETES),
+        branch);
+
+    long secondRewriteSequenceNumber = latestSnapshot(table, branch).sequenceNumber();
+
+    commit(
+        table,
+        table
+            .newRewrite()
+            .addFile(FILE_D)
+            .deleteFile(FILE_B)
+            .deleteFile(FILE_C)
+            .dataSequenceNumber(secondRewriteSequenceNumber),
+        branch);
+
+    TableMetadata base = readMetadata();
+    Snapshot baseSnap = latestSnapshot(base, branch);
+    long baseSnapshotId = baseSnap.snapshotId();
+
+    Comparator<ManifestFile> sequenceNumberOrdering =
+        new Comparator<>() {
+          @Override
+          public int compare(ManifestFile o1, ManifestFile o2) {
+            return (int) (o1.sequenceNumber() - o2.sequenceNumber());
+          }
+        };
+
+    // FILE_B2_DELETES and FILE_A2_DELETES should not be removed as the rewrite specifies
+    // `firstRewriteSequenceNumber`
+    // explicitly which is the same as that of A2_DELETES and before B2_DELETES
+
+    // Technically A1_DELETES could be removed since it's an equality delete and should apply on
+    // data sequences strictly
+    // smaller, so it's no longer needed. However, MergingSnapshotProducer calls
+    // dropDeleteFilesOlderThan
+    // which doesn't consider if the file is an equality delete, if that API is changed the equality
+    // delete file could be dropped sooner
+    Snapshot pending =
+        apply(
+            table
+                .newRewrite()
+                .addFile(FILE_A2)
+                .deleteFile(FILE_A)
+                .dataSequenceNumber(firstRewriteSequenceNumber),
+            branch);
+
+    assertThat(pending.allManifests(table.io())).hasSize(6);
+
+    long pendingId = pending.snapshotId();
+    List<ManifestFile> manifestFiles =
+        pending.allManifests(table.io()).stream()
+            .sorted(sequenceNumberOrdering.reversed())
+            .collect(Collectors.toList());
+    ManifestFile newManifest = manifestFiles.get(0);
+    validateManifestEntries(newManifest, ids(pendingId), files(FILE_A2), statuses(ADDED));
+
+    assertThat(ManifestFiles.read(newManifest, FILE_IO).entries())
+        .allSatisfy(
+            entry -> assertThat(entry.dataSequenceNumber()).isEqualTo(firstRewriteSequenceNumber));
+    assertThat(newManifest.sequenceNumber()).isEqualTo(secondRewriteSequenceNumber + 2);
+
+    validateManifestEntries(manifestFiles.get(1), ids(pendingId), files(FILE_A), statuses(DELETED));
+
+    validateManifestEntries(
+        manifestFiles.get(2), ids(baseSnapshotId), files(FILE_D), statuses(ADDED));
+
+    validateDeleteManifest(
+        manifestFiles.get(3),
+        dataSeqs(3L),
+        fileSeqs(3L),
+        ids(baseSnapshotId - 1),
+        files(FILE_C2_DELETES),
+        statuses(ADDED));
+
+    validateDeleteManifest(
+        manifestFiles.get(4),
+        dataSeqs(2L),
+        fileSeqs(2L),
+        ids(baseSnapshotId - 2),
+        files(FILE_B2_DELETES),
+        statuses(ADDED));
+
+    validateDeleteManifest(
+        manifestFiles.get(5),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(baseSnapshotId - 3),
+        files(FILE_A2_DELETES),
+        statuses(ADDED));
+
+    assertThat(listManifestFiles()).hasSize(11);
   }
 
   @TestTemplate

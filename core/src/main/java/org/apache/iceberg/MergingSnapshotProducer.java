@@ -833,7 +833,17 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         filterManager.filterManifests(
             SnapshotUtil.schemaFor(base, targetBranch()),
             snapshot != null ? snapshot.dataManifests(ops.io()) : null);
-    long minDataSequenceNumber =
+
+    long minNewFileSequenceNumber =
+        addedDataFiles().stream()
+            .filter(x -> x.dataSequenceNumber() != null && x.dataSequenceNumber() >= 0)
+            .mapToLong(ContentFile::dataSequenceNumber)
+            .reduce(
+                newDataFilesDataSequenceNumber != null
+                    ? newDataFilesDataSequenceNumber
+                    : base.nextSequenceNumber(),
+                Math::min);
+    long minExistingDataSequenceNumber =
         filtered.stream()
             .map(ManifestFile::minSequenceNumber)
             .filter(
@@ -842,6 +852,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                         != ManifestWriter
                             .UNASSIGNED_SEQ) // filter out unassigned in rewritten manifests
             .reduce(base.lastSequenceNumber(), Math::min);
+    long minDataSequenceNumber = Math.min(minNewFileSequenceNumber, minExistingDataSequenceNumber);
     deleteFilterManager.dropDeleteFilesOlderThan(minDataSequenceNumber);
     List<ManifestFile> filteredDeletes =
         deleteFilterManager.filterManifests(
