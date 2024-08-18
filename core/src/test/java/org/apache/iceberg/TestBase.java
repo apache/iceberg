@@ -122,6 +122,14 @@ public class TestBase {
           .withPartitionPath("data_bucket=1") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
+  static final DeleteFile FILE_B_EQ_DELETES =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofEqualityDeletes(1)
+          .withPath("/path/to/data-b2-deletes.parquet")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=0")
+          .withRecordCount(1)
+          .build();
   static final DeleteFile FILE_B_DV =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
