@@ -62,6 +62,7 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkValueConverter;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -130,7 +131,7 @@ public class TestLimitPushDown {
   }
 
   @AfterEach
-  public void cleanup() throws IOException {
+  public void cleanup() {
     dropTable("test");
   }
 
@@ -215,7 +216,7 @@ public class TestLimitPushDown {
   }
 
   @TestTemplate
-  public void testReadWithLimit() {
+  public void testLimitPushedDown() {
     Dataset<org.apache.spark.sql.Row> df =
         spark
             .read()
@@ -223,23 +224,79 @@ public class TestLimitPushDown {
             .load(TableIdentifier.of("default", tableName).toString())
             .selectExpr("*");
 
-    testLimit(df, 0, new Object[][] {});
-    testLimit(df, 2, new Object[][] {{29, "a"}, {43, "b"}});
-    testLimit(df, 4, new Object[][] {{29, "a"}, {43, "b"}, {61, "c"}, {89, "d"}});
+    testLimit(df, 2, new Object[][] {{29, "a"}, {43, "b"}}, true);
+    testLimit(df, 4, new Object[][] {{29, "a"}, {43, "b"}, {61, "c"}, {89, "d"}}, true);
     testLimit(
-        df, 6, new Object[][] {{29, "a"}, {43, "b"}, {61, "c"}, {89, "d"}, {100, "e"}, {121, "f"}});
+        df,
+        6,
+        new Object[][] {{29, "a"}, {43, "b"}, {61, "c"}, {89, "d"}, {100, "e"}, {121, "f"}},
+        true);
+  }
+
+  @TestTemplate
+  public void testDisableLimitPushDown() {
+    spark.conf().set(SparkSQLProperties.LIMIT_PUSH_DOWN_ENABLED, "false");
+    Dataset<org.apache.spark.sql.Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .load(TableIdentifier.of("default", tableName).toString())
+            .selectExpr("*");
+
+    testLimit(df, 2, new Object[][] {{29, "a"}, {43, "b"}}, false);
+  }
+
+  @TestTemplate
+  public void testLimitZeroNotPushedDown() {
+    Dataset<org.apache.spark.sql.Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .load(TableIdentifier.of("default", tableName).toString())
+            .selectExpr("*");
+
+    // Spark converts limit 0 to an empty table scan
+    testLimit(df, 0, new Object[][] {}, false);
+  }
+
+  @TestTemplate
+  public void testLimitWithDataFilterNotPushedDown() {
+    Dataset<org.apache.spark.sql.Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .load(TableIdentifier.of("default", tableName).toString())
+            .selectExpr("*")
+            .filter("id > 30");
+
+    testLimit(df, 2, new Object[][] {{43, "b"}, {61, "c"}}, false);
+  }
+
+  @TestTemplate
+  public void testLimitWithSortNotPushedDown() {
+    Dataset<org.apache.spark.sql.Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .load(TableIdentifier.of("default", tableName).toString())
+            .selectExpr("*")
+            .sort("id");
+
+    testLimit(df, 2, new Object[][] {{29, "a"}, {43, "b"}}, false);
   }
 
   private void testLimit(
-      Dataset<org.apache.spark.sql.Row> df, int limit, Object[][] expectedValues) {
+      Dataset<org.apache.spark.sql.Row> df,
+      int limit,
+      Object[][] expectedValues,
+      boolean limitPushedDown) {
     Dataset<org.apache.spark.sql.Row> limitedDf = df.limit(limit);
     LogicalPlan optimizedPlan = limitedDf.queryExecution().optimizedPlan();
     int pushedLimit = collectPushDownLimit(optimizedPlan);
-    assertThat(pushedLimit).as("Pushed down limit should be " + limit).isEqualTo(limit);
-
-    if (limit == 0) {
-      assertThat(limitedDf.isEmpty()).as("Dataset should be empty when limit is 0").isTrue();
-      return;
+    if (limitPushedDown) {
+      assertThat(pushedLimit).as("Pushed down limit should be " + limit).isEqualTo(limit);
+    } else {
+      assertThat(pushedLimit).as("Pushed down limit should be " + limit).isEqualTo(-1);
     }
 
     List<org.apache.spark.sql.Row> collectedRows = limitedDf.collectAsList();
@@ -277,6 +334,6 @@ public class TestLimitPushDown {
                 })
             .findFirst();
 
-    return limit.orElse(0);
+    return limit.orElse(-1);
   }
 }
