@@ -182,9 +182,14 @@ public class ParquetBloomRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
-    // TODO implement ref to refs comparison
     @Override
     public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
+      // bloom filter is based on hash and cannot eliminate based on lt or ltEq or gt or gtEq
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean lt(BoundReference<T> ref, BoundReference<T> ref2) {
       // bloom filter is based on hash and cannot eliminate based on lt or ltEq or gt or gtEq
       return ROWS_MIGHT_MATCH;
     }
@@ -196,13 +201,31 @@ public class ParquetBloomRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean ltEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      // bloom filter is based on hash and cannot eliminate based on lt or ltEq or gt or gtEq
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
       // bloom filter is based on hash and cannot eliminate based on lt or ltEq or gt or gtEq
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
+    public <T> Boolean gt(BoundReference<T> ref, BoundReference<T> ref2) {
+      // bloom filter is based on hash and cannot eliminate based on lt or ltEq or gt or gtEq
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
+      // bloom filter is based on hash and cannot eliminate based on lt or ltEq or gt or gtEq
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean gtEq(BoundReference<T> ref, BoundReference<T> ref2) {
       // bloom filter is based on hash and cannot eliminate based on lt or ltEq or gt or gtEq
       return ROWS_MIGHT_MATCH;
     }
@@ -221,7 +244,32 @@ public class ParquetBloomRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean eq(BoundReference<T> ref, BoundReference<T> ref2) {
+      // rows could match but not checking because of type mismatch
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+      int id = ref.fieldId();
+      int id2 = ref2.fieldId();
+      if (!fieldsWithBloomFilter.contains(id)
+          || !fieldsWithBloomFilter.contains(id2)) { // no bloom filter
+        return ROWS_MIGHT_MATCH;
+      }
+
+      BloomFilter bloom = loadBloomFilter(id);
+      Type type = types.get(id);
+      BloomFilter bloom2 = loadBloomFilter(id2);
+      return shouldRead(parquetPrimitiveTypes.get(id), bloom2, bloom, type);
+    }
+
+    @Override
     public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
+      // bloom filter is based on hash and cannot eliminate based on notEq
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEq(BoundReference<T> ref, BoundReference<T> ref2) {
       // bloom filter is based on hash and cannot eliminate based on notEq
       return ROWS_MIGHT_MATCH;
     }

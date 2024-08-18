@@ -218,10 +218,10 @@ public class StrictMetricsEvaluator {
       return ROWS_MIGHT_NOT_MATCH;
     }
 
-    //    @Override
-    //    public <T> Boolean lt(BoundReference<T> ref, BoundReference<T> ref2) { // TODO
-    //      return ROWS_MIGHT_MATCH;
-    //    }
+    @Override
+    public <T> Boolean lt(BoundReference<T> ref, BoundReference<T> ref2) {
+      throw new RuntimeException("Strict Evaluator not implemented for BoundReference");
+    }
 
     @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
@@ -244,6 +244,11 @@ public class StrictMetricsEvaluator {
       }
 
       return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean ltEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      throw new RuntimeException("Strict Evaluator not implemented for BoundReference");
     }
 
     @Override
@@ -275,6 +280,11 @@ public class StrictMetricsEvaluator {
     }
 
     @Override
+    public <T> Boolean gt(BoundReference<T> ref, BoundReference<T> ref2) {
+      throw new RuntimeException("Strict Evaluator not implemented for BoundReference");
+    }
+
+    @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <-------X---Min----Max---------->
       Integer id = ref.fieldId();
@@ -300,6 +310,11 @@ public class StrictMetricsEvaluator {
       }
 
       return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean gtEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      throw new RuntimeException("Strict Evaluator not implemented for BoundReference");
     }
 
     @Override
@@ -338,6 +353,11 @@ public class StrictMetricsEvaluator {
     }
 
     @Override
+    public <T> Boolean eq(BoundReference<T> ref, BoundReference<T> ref2) {
+      throw new RuntimeException("Strict Evaluator not implemented for BoundReference");
+    }
+
+    @Override
     public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when X < Min or Max < X because it is not in the range
       Integer id = ref.fieldId();
@@ -372,6 +392,11 @@ public class StrictMetricsEvaluator {
       }
 
       return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      throw new RuntimeException("Strict Evaluator not implemented for BoundReference");
     }
 
     @Override

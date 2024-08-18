@@ -27,6 +27,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.NaNUtil;
 
 /**
@@ -171,9 +172,27 @@ public class ResidualEvaluator implements Serializable {
     }
 
     @Override
+    public <T> Expression lt(BoundReference<T> ref, BoundReference<T> ref2) {
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return alwaysTrue();
+      }
+      Comparator<T> cmp = Comparators.forType(ref.type().asPrimitiveType());
+      return (cmp.compare(ref.eval(struct), ref2.eval(struct)) < 0) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
     public <T> Expression ltEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
       return (cmp.compare(ref.eval(struct), lit.value()) <= 0) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
+    public <T> Expression ltEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return alwaysTrue();
+      }
+      Comparator<T> cmp = Comparators.forType(ref.type().asPrimitiveType());
+      return (cmp.compare(ref.eval(struct), ref2.eval(struct)) <= 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
@@ -183,9 +202,27 @@ public class ResidualEvaluator implements Serializable {
     }
 
     @Override
+    public <T> Expression gt(BoundReference<T> ref, BoundReference<T> ref2) {
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return alwaysTrue();
+      }
+      Comparator<T> cmp = Comparators.forType(ref.type().asPrimitiveType());
+      return (cmp.compare(ref.eval(struct), ref2.eval(struct)) > 0) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
     public <T> Expression gtEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
       return (cmp.compare(ref.eval(struct), lit.value()) >= 0) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
+    public <T> Expression gtEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return alwaysTrue();
+      }
+      Comparator<T> cmp = Comparators.forType(ref.type().asPrimitiveType());
+      return (cmp.compare(ref.eval(struct), ref2.eval(struct)) >= 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
@@ -195,9 +232,27 @@ public class ResidualEvaluator implements Serializable {
     }
 
     @Override
+    public <T> Expression eq(BoundReference<T> ref, BoundReference<T> ref2) {
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return alwaysTrue();
+      }
+      Comparator<T> cmp = Comparators.forType(ref.type().asPrimitiveType());
+      return (cmp.compare(ref.eval(struct), ref2.eval(struct)) == 0) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
     public <T> Expression notEq(BoundReference<T> ref, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
       return (cmp.compare(ref.eval(struct), lit.value()) != 0) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
+    public <T> Expression notEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return alwaysTrue();
+      }
+      Comparator<T> cmp = Comparators.forType(ref.type().asPrimitiveType());
+      return (cmp.compare(ref.eval(struct), ref2.eval(struct)) != 0) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
