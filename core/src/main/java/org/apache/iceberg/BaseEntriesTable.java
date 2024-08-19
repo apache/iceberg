@@ -23,13 +23,16 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.expressions.Binder;
+import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -50,7 +53,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
   public Schema schema() {
     StructType partitionType = Partitioning.partitionType(table());
     Schema schema = ManifestEntry.getSchema(partitionType);
-    if (partitionType.fields().size() < 1) {
+    if (partitionType.fields().isEmpty()) {
       // avoid returning an empty struct, which is not always supported.
       // instead, drop the partition field (id 102)
       schema = TypeUtil.selectNot(schema, Sets.newHashSet(DataFile.PARTITION_ID));
@@ -68,6 +71,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     Expression rowFilter = context.rowFilter();
     boolean caseSensitive = context.caseSensitive();
     boolean ignoreResiduals = context.ignoreResiduals();
+    Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
 
     LoadingCache<Integer, ManifestEvaluator> evalCache =
         Caffeine.newBuilder()
@@ -77,21 +81,191 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
                   PartitionSpec transformedSpec = BaseFilesTable.transformSpec(tableSchema, spec);
                   return ManifestEvaluator.forRowFilter(rowFilter, transformedSpec, caseSensitive);
                 });
+    ManifestContentEvaluator manifestContentEvaluator =
+        new ManifestContentEvaluator(filter, tableSchema.asStruct(), caseSensitive);
 
     CloseableIterable<ManifestFile> filteredManifests =
         CloseableIterable.filter(
-            manifests, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
-
-    String schemaString = SchemaParser.toJson(projectedSchema);
-    String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
-    Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
-    ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
+            manifests,
+            manifest ->
+                evalCache.get(manifest.partitionSpecId()).eval(manifest)
+                    && manifestContentEvaluator.eval(manifest));
 
     return CloseableIterable.transform(
         filteredManifests,
-        manifest ->
-            new ManifestReadTask(
-                table, manifest, projectedSchema, schemaString, specString, residuals));
+        manifest -> new ManifestReadTask(table, manifest, projectedSchema, filter));
+  }
+
+  /**
+   * Evaluates an {@link Expression} on a {@link ManifestFile} to test whether a given data or
+   * delete manifests shall be included in the scan
+   */
+  private static class ManifestContentEvaluator {
+
+    private final Expression boundExpr;
+
+    private ManifestContentEvaluator(
+        Expression expr, Types.StructType structType, boolean caseSensitive) {
+      Expression rewritten = Expressions.rewriteNot(expr);
+      this.boundExpr = Binder.bind(structType, rewritten, caseSensitive);
+    }
+
+    private boolean eval(ManifestFile manifest) {
+      return new ManifestEvalVisitor().eval(manifest);
+    }
+
+    private class ManifestEvalVisitor extends ExpressionVisitors.BoundExpressionVisitor<Boolean> {
+
+      private int manifestContentId;
+
+      private static final boolean ROWS_MIGHT_MATCH = true;
+      private static final boolean ROWS_CANNOT_MATCH = false;
+
+      private boolean eval(ManifestFile manifestFile) {
+        this.manifestContentId = manifestFile.content().id();
+        return ExpressionVisitors.visitEvaluator(boundExpr, this);
+      }
+
+      @Override
+      public Boolean alwaysTrue() {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public Boolean alwaysFalse() {
+        return ROWS_CANNOT_MATCH;
+      }
+
+      @Override
+      public Boolean not(Boolean result) {
+        return !result;
+      }
+
+      @Override
+      public Boolean and(Boolean leftResult, Boolean rightResult) {
+        return leftResult && rightResult;
+      }
+
+      @Override
+      public Boolean or(Boolean leftResult, Boolean rightResult) {
+        return leftResult || rightResult;
+      }
+
+      @Override
+      public <T> Boolean isNull(BoundReference<T> ref) {
+        if (fileContent(ref)) {
+          return ROWS_CANNOT_MATCH; // date_file.content should not be null
+        } else {
+          return ROWS_MIGHT_MATCH;
+        }
+      }
+
+      @Override
+      public <T> Boolean notNull(BoundReference<T> ref) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean isNaN(BoundReference<T> ref) {
+        if (fileContent(ref)) {
+          return ROWS_CANNOT_MATCH; // date_file.content should not be nan
+        } else {
+          return ROWS_MIGHT_MATCH;
+        }
+      }
+
+      @Override
+      public <T> Boolean notNaN(BoundReference<T> ref) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean lt(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean gt(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
+        if (fileContent(ref)) {
+          Literal<Integer> intLit = lit.to(Types.IntegerType.get());
+          if (!contentMatch(intLit.value())) {
+            return ROWS_CANNOT_MATCH;
+          }
+        }
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
+        if (fileContent(ref)) {
+          Literal<Integer> intLit = lit.to(Types.IntegerType.get());
+          if (contentMatch(intLit.value())) {
+            return ROWS_CANNOT_MATCH;
+          }
+        }
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
+        if (fileContent(ref)) {
+          if (literalSet.stream().noneMatch(lit -> contentMatch((Integer) lit))) {
+            return ROWS_CANNOT_MATCH;
+          }
+        }
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean notIn(BoundReference<T> ref, Set<T> literalSet) {
+        if (fileContent(ref)) {
+          if (literalSet.stream().anyMatch(lit -> contentMatch((Integer) lit))) {
+            return ROWS_CANNOT_MATCH;
+          }
+        }
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean startsWith(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      @Override
+      public <T> Boolean notStartsWith(BoundReference<T> ref, Literal<T> lit) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      private <T> boolean fileContent(BoundReference<T> ref) {
+        return ref.fieldId() == DataFile.CONTENT.fieldId();
+      }
+
+      private boolean contentMatch(Integer fileContentId) {
+        if (FileContent.DATA.id() == fileContentId) {
+          return ManifestContent.DATA.id() == manifestContentId;
+        } else if (FileContent.EQUALITY_DELETES.id() == fileContentId
+            || FileContent.POSITION_DELETES.id() == fileContentId) {
+          return ManifestContent.DELETES.id() == manifestContentId;
+        } else {
+          return false;
+        }
+      }
+    }
   }
 
   static class ManifestReadTask extends BaseFileScanTask implements DataTask {
@@ -102,19 +276,29 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     private final ManifestFile manifest;
     private final Map<Integer, PartitionSpec> specsById;
 
+    private ManifestReadTask(
+        Table table, ManifestFile manifest, Schema projection, Expression filter) {
+      this(table.schema(), table.io(), table.specs(), manifest, projection, filter);
+    }
+
     ManifestReadTask(
-        Table table,
+        Schema dataTableSchema,
+        FileIO io,
+        Map<Integer, PartitionSpec> specsById,
         ManifestFile manifest,
         Schema projection,
-        String schemaString,
-        String specString,
-        ResidualEvaluator residuals) {
-      super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
+        Expression filter) {
+      super(
+          DataFiles.fromManifest(manifest),
+          null,
+          SchemaParser.toJson(projection),
+          PartitionSpecParser.toJson(PartitionSpec.unpartitioned()),
+          ResidualEvaluator.unpartitioned(filter));
       this.projection = projection;
-      this.io = table.io();
+      this.io = io;
       this.manifest = manifest;
-      this.specsById = Maps.newHashMap(table.specs());
-      this.dataTableSchema = table.schema();
+      this.specsById = Maps.newHashMap(specsById);
+      this.dataTableSchema = dataTableSchema;
 
       Type fileProjectionType = projection.findType("data_file");
       this.fileProjection =
@@ -123,7 +307,13 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
               : new Schema();
     }
 
-    @VisibleForTesting
+    @Override
+    public long estimatedRowsCount() {
+      return (long) manifest.addedFilesCount()
+          + (long) manifest.deletedFilesCount()
+          + (long) manifest.existingFilesCount();
+    }
+
     ManifestFile manifest() {
       return manifest;
     }
@@ -214,6 +404,22 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     @Override
     public Iterable<FileScanTask> split(long splitSize) {
       return ImmutableList.of(this); // don't split
+    }
+
+    FileIO io() {
+      return io;
+    }
+
+    Map<Integer, PartitionSpec> specsById() {
+      return specsById;
+    }
+
+    Schema dataTableSchema() {
+      return dataTableSchema;
+    }
+
+    Schema projection() {
+      return projection;
     }
   }
 }

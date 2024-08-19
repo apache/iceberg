@@ -105,6 +105,42 @@ public class GenericManifestFile
     this.keyMetadata = null;
   }
 
+  /** Adjust the arg order to avoid conflict with the public constructor below */
+  GenericManifestFile(
+      String path,
+      long length,
+      int specId,
+      ManifestContent content,
+      long sequenceNumber,
+      long minSequenceNumber,
+      Long snapshotId,
+      List<PartitionFieldSummary> partitions,
+      ByteBuffer keyMetadata,
+      Integer addedFilesCount,
+      Long addedRowsCount,
+      Integer existingFilesCount,
+      Long existingRowsCount,
+      Integer deletedFilesCount,
+      Long deletedRowsCount) {
+    this.avroSchema = AVRO_SCHEMA;
+    this.manifestPath = path;
+    this.length = length;
+    this.specId = specId;
+    this.content = content;
+    this.sequenceNumber = sequenceNumber;
+    this.minSequenceNumber = minSequenceNumber;
+    this.snapshotId = snapshotId;
+    this.addedFilesCount = addedFilesCount;
+    this.addedRowsCount = addedRowsCount;
+    this.existingFilesCount = existingFilesCount;
+    this.existingRowsCount = existingRowsCount;
+    this.deletedFilesCount = deletedFilesCount;
+    this.deletedRowsCount = deletedRowsCount;
+    this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
+    this.fromProjectionPos = null;
+    this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
+  }
+
   public GenericManifestFile(
       String path,
       long length,

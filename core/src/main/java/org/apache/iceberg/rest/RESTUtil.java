@@ -33,13 +33,23 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class RESTUtil {
-  private static final char NAMESPACE_SEPARATOR = '\u001f';
-  public static final Joiner NAMESPACE_JOINER = Joiner.on(NAMESPACE_SEPARATOR);
-  public static final Splitter NAMESPACE_SPLITTER = Splitter.on(NAMESPACE_SEPARATOR);
   private static final String NAMESPACE_ESCAPED_SEPARATOR = "%1F";
   private static final Joiner NAMESPACE_ESCAPED_JOINER = Joiner.on(NAMESPACE_ESCAPED_SEPARATOR);
   private static final Splitter NAMESPACE_ESCAPED_SPLITTER =
       Splitter.on(NAMESPACE_ESCAPED_SEPARATOR);
+
+  /**
+   * @deprecated since 1.7.0, will be made private in 1.8.0; use {@link
+   *     RESTUtil#encodeNamespace(Namespace)} instead.
+   */
+  @Deprecated public static final Joiner NAMESPACE_JOINER = Joiner.on(NAMESPACE_ESCAPED_SEPARATOR);
+
+  /**
+   * @deprecated since 1.7.0, will be made private in 1.8.0; use {@link
+   *     RESTUtil#decodeNamespace(String)} instead.
+   */
+  @Deprecated
+  public static final Splitter NAMESPACE_SPLITTER = Splitter.on(NAMESPACE_ESCAPED_SEPARATOR);
 
   private RESTUtil() {}
 

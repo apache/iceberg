@@ -18,10 +18,10 @@
  */
 package org.apache.iceberg.spark.extensions;
 
-import static org.apache.iceberg.AssertHelpers.assertThrows;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
@@ -202,10 +202,10 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
     Snapshot snap3 = table.currentSnapshot();
     long rightAfterSnap3 = waitUntilAfter(snap3.timestampMillis());
 
-    assertThrows(
-        "Should fail if start time is after end time",
-        IllegalArgumentException.class,
-        () -> changelogRecords(snap3.timestampMillis(), snap2.timestampMillis()));
+    assertThatThrownBy(() -> changelogRecords(snap3.timestampMillis(), snap2.timestampMillis()))
+        .as("Should fail if start time is after end time")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot set start-timestamp to be greater than end-timestamp for changelogs");
   }
 
   @Test

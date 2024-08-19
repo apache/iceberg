@@ -18,10 +18,14 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
@@ -39,6 +43,9 @@ import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -55,50 +62,44 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestIcebergStreamWriter {
-  @Rule public TemporaryFolder tempFolder = new TemporaryFolder();
+  @TempDir protected java.nio.file.Path temporaryFolder;
 
   private Table table;
 
-  private final FileFormat format;
-  private final boolean partitioned;
+  @Parameter(index = 0)
+  private FileFormat format;
 
-  @Parameterized.Parameters(name = "format = {0}, partitioned = {1}")
+  @Parameter(index = 1)
+  private boolean partitioned;
+
+  @Parameters(name = "format = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"avro", true},
-      {"avro", false},
-      {"orc", true},
-      {"orc", false},
-      {"parquet", true},
-      {"parquet", false}
+      {FileFormat.AVRO, true},
+      {FileFormat.AVRO, false},
+      {FileFormat.ORC, true},
+      {FileFormat.ORC, false},
+      {FileFormat.PARQUET, true},
+      {FileFormat.PARQUET, false}
     };
   }
 
-  public TestIcebergStreamWriter(String format, boolean partitioned) {
-    this.format = FileFormat.fromString(format);
-    this.partitioned = partitioned;
-  }
-
-  @Before
+  @BeforeEach
   public void before() throws IOException {
-    File folder = tempFolder.newFolder();
+    File folder = Files.createTempDirectory(temporaryFolder, "junit").toFile();
     // Construct the iceberg table.
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
     table = SimpleDataUtil.createTable(folder.getAbsolutePath(), props, partitioned);
   }
 
-  @Test
+  @TestTemplate
   public void testWritingTable() throws Exception {
     long checkpointId = 1L;
     try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
@@ -109,10 +110,10 @@ public class TestIcebergStreamWriter {
       testHarness.processElement(SimpleDataUtil.createRowData(3, "hello"), 1);
 
       testHarness.prepareSnapshotPreBarrier(checkpointId);
-      long expectedDataFiles = partitioned ? 2 : 1;
+      int expectedDataFiles = partitioned ? 2 : 1;
       WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
-      Assert.assertEquals(0, result.deleteFiles().length);
-      Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
+      assertThat(result.deleteFiles()).isEmpty();
+      assertThat(result.dataFiles()).hasSize(expectedDataFiles);
 
       checkpointId = checkpointId + 1;
 
@@ -123,8 +124,8 @@ public class TestIcebergStreamWriter {
       testHarness.prepareSnapshotPreBarrier(checkpointId);
       expectedDataFiles = partitioned ? 4 : 2;
       result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
-      Assert.assertEquals(0, result.deleteFiles().length);
-      Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
+      assertThat(result.deleteFiles()).isEmpty();
+      assertThat(result.dataFiles()).hasSize(expectedDataFiles);
 
       // Commit the iceberg transaction.
       AppendFiles appendFiles = table.newAppend();
@@ -143,7 +144,7 @@ public class TestIcebergStreamWriter {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotTwice() throws Exception {
     long checkpointId = 1;
     long timestamp = 1;
@@ -153,39 +154,39 @@ public class TestIcebergStreamWriter {
       testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), timestamp);
 
       testHarness.prepareSnapshotPreBarrier(checkpointId++);
-      long expectedDataFiles = partitioned ? 2 : 1;
+      int expectedDataFiles = partitioned ? 2 : 1;
       WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
-      Assert.assertEquals(0, result.deleteFiles().length);
-      Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
+      assertThat(result.deleteFiles()).isEmpty();
+      assertThat(result.dataFiles()).hasSize(expectedDataFiles);
 
       // snapshot again immediately.
       for (int i = 0; i < 5; i++) {
         testHarness.prepareSnapshotPreBarrier(checkpointId++);
 
         result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
-        Assert.assertEquals(0, result.deleteFiles().length);
-        Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
+        assertThat(result.deleteFiles()).isEmpty();
+        assertThat(result.dataFiles()).hasSize(expectedDataFiles);
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testTableWithoutSnapshot() throws Exception {
     try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
         createIcebergStreamWriter()) {
-      Assert.assertEquals(0, testHarness.extractOutputValues().size());
+      assertThat(testHarness.extractOutputValues()).isEmpty();
     }
     // Even if we closed the iceberg stream writer, there's no orphan data file.
-    Assert.assertEquals(0, scanDataFiles().size());
+    assertThat(scanDataFiles()).isEmpty();
 
     try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
         createIcebergStreamWriter()) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
       // Still not emit the data file yet, because there is no checkpoint.
-      Assert.assertEquals(0, testHarness.extractOutputValues().size());
+      assertThat(testHarness.extractOutputValues()).isEmpty();
     }
     // Once we closed the iceberg stream writer, there will left an orphan data file.
-    Assert.assertEquals(1, scanDataFiles().size());
+    assertThat(scanDataFiles()).hasSize(1);
   }
 
   private Set<String> scanDataFiles() throws IOException {
@@ -200,7 +201,7 @@ public class TestIcebergStreamWriter {
         LocatedFileStatus status = iterators.next();
         if (status.isFile()) {
           Path path = status.getPath();
-          if (path.getName().endsWith("." + format.toString().toLowerCase())) {
+          if (path.getName().endsWith("." + format.toString().toLowerCase(Locale.ROOT))) {
             paths.add(path.toString());
           }
         }
@@ -209,31 +210,31 @@ public class TestIcebergStreamWriter {
     }
   }
 
-  @Test
+  @TestTemplate
   public void testBoundedStreamCloseWithEmittingDataFiles() throws Exception {
     try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
         createIcebergStreamWriter()) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 2);
 
-      Assertions.assertThat(testHarness.getOneInputOperator()).isInstanceOf(BoundedOneInput.class);
+      assertThat(testHarness.getOneInputOperator()).isInstanceOf(BoundedOneInput.class);
       ((BoundedOneInput) testHarness.getOneInputOperator()).endInput();
 
-      long expectedDataFiles = partitioned ? 2 : 1;
+      int expectedDataFiles = partitioned ? 2 : 1;
       WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
-      Assert.assertEquals(0, result.deleteFiles().length);
-      Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
+      assertThat(result.deleteFiles()).isEmpty();
+      assertThat(result.dataFiles()).hasSize(expectedDataFiles);
 
       ((BoundedOneInput) testHarness.getOneInputOperator()).endInput();
 
       result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
-      Assert.assertEquals(0, result.deleteFiles().length);
+      assertThat(result.deleteFiles()).isEmpty();
       // Datafiles should not be sent again
-      Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
+      assertThat(result.dataFiles()).hasSize(expectedDataFiles);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testBoundedStreamTriggeredEndInputBeforeTriggeringCheckpoint() throws Exception {
     try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
         createIcebergStreamWriter()) {
@@ -242,22 +243,22 @@ public class TestIcebergStreamWriter {
 
       testHarness.endInput();
 
-      long expectedDataFiles = partitioned ? 2 : 1;
+      int expectedDataFiles = partitioned ? 2 : 1;
       WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
-      Assert.assertEquals(0, result.deleteFiles().length);
-      Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
+      assertThat(result.deleteFiles()).isEmpty();
+      assertThat(result.dataFiles()).hasSize(expectedDataFiles);
 
       testHarness.prepareSnapshotPreBarrier(1L);
 
       result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
-      Assert.assertEquals(0, result.deleteFiles().length);
+      assertThat(result.deleteFiles()).isEmpty();
       // It should be ensured that after endInput is triggered, when prepareSnapshotPreBarrier
       // is triggered, write should only send WriteResult once
-      Assert.assertEquals(expectedDataFiles, result.dataFiles().length);
+      assertThat(result.dataFiles()).hasSize(expectedDataFiles);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testTableWithTargetFileSize() throws Exception {
     // Adjust the target-file-size in table properties.
     table
@@ -283,12 +284,12 @@ public class TestIcebergStreamWriter {
       // snapshot the operator.
       testHarness.prepareSnapshotPreBarrier(1);
       WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
-      Assert.assertEquals(0, result.deleteFiles().length);
-      Assert.assertEquals(8, result.dataFiles().length);
+      assertThat(result.deleteFiles()).isEmpty();
+      assertThat(result.dataFiles()).hasSize(8);
 
       // Assert that the data file have the expected records.
       for (DataFile dataFile : result.dataFiles()) {
-        Assert.assertEquals(1000, dataFile.recordCount());
+        assertThat(dataFile.recordCount()).isEqualTo(1000);
       }
 
       // Commit the iceberg transaction.
@@ -301,7 +302,7 @@ public class TestIcebergStreamWriter {
     SimpleDataUtil.assertTableRecords(table, records);
   }
 
-  @Test
+  @TestTemplate
   public void testPromotedFlinkDataType() throws Exception {
     Schema iSchema =
         new Schema(
@@ -327,7 +328,8 @@ public class TestIcebergStreamWriter {
       spec = PartitionSpec.unpartitioned();
     }
 
-    String location = tempFolder.newFolder().getAbsolutePath();
+    String location =
+        Files.createTempDirectory(temporaryFolder, "junit").toFile().getAbsolutePath();
     Map<String, String> props = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name());
     Table icebergTable = new HadoopTables().create(iSchema, spec, props, location);
 
@@ -351,8 +353,8 @@ public class TestIcebergStreamWriter {
       }
       testHarness.prepareSnapshotPreBarrier(1);
       WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
-      Assert.assertEquals(0, result.deleteFiles().length);
-      Assert.assertEquals(partitioned ? 3 : 1, result.dataFiles().length);
+      assertThat(result.deleteFiles()).isEmpty();
+      assertThat(result.dataFiles()).hasSize(partitioned ? 3 : 1);
 
       // Commit the iceberg transaction.
       AppendFiles appendFiles = icebergTable.newAppend();

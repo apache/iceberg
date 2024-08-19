@@ -21,6 +21,7 @@ package org.apache.iceberg.mr.hive;
 import static org.apache.iceberg.mr.hive.HiveIcebergRecordWriter.getWriters;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -56,7 +57,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializationUtil;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
@@ -205,8 +205,7 @@ public class TestHiveIcebergOutputCommitter {
     Table table = table(temp.toFile().getPath(), false);
     JobConf conf = jobConf(table, 1);
 
-    Assertions.assertThatThrownBy(
-            () -> writeRecords(table.name(), 1, 0, true, false, conf, failingCommitter))
+    assertThatThrownBy(() -> writeRecords(table.name(), 1, 0, true, false, conf, failingCommitter))
         .isInstanceOf(RuntimeException.class)
         .hasMessage(exceptionMessage);
 

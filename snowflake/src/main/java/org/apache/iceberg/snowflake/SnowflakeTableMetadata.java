@@ -93,7 +93,7 @@ class SnowflakeTableMetadata {
   }
 
   public String toDebugString() {
-    return String.format("%s, rawJsonVal: %s", toString(), rawJsonVal);
+    return String.format("%s, rawJsonVal: %s", this, rawJsonVal);
   }
 
   /**

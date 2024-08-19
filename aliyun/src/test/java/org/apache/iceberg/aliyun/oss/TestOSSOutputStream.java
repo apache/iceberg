@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aliyun.oss;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -38,7 +39,6 @@ import org.apache.iceberg.aliyun.AliyunProperties;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +50,7 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
   private final OSS ossMock = mock(OSS.class, delegatesTo(ossClient));
 
   private final Path tmpDir = Files.createTempDirectory("oss-file-io-test-");
-  private static final Random random = ThreadLocalRandom.current();
+  private static final Random RANDOM = ThreadLocalRandom.current();
 
   private final AliyunProperties props =
       new AliyunProperties(
@@ -88,28 +88,27 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
         new OSSOutputStream(mock, uri, props, MetricsContext.nullMetrics())) {
       if (arrayWrite) {
         out.write(data);
-        Assertions.assertThat(out.getPos()).as("OSSOutputStream position").isEqualTo(data.length);
+        assertThat(out.getPos()).as("OSSOutputStream position").isEqualTo(data.length);
       } else {
         for (int i = 0; i < data.length; i++) {
           out.write(data[i]);
-          Assertions.assertThat(out.getPos()).as("OSSOutputStream position").isEqualTo(i + 1);
+          assertThat(out.getPos()).as("OSSOutputStream position").isEqualTo(i + 1);
         }
       }
     }
 
-    Assertions.assertThat(ossClient.doesObjectExist(uri.bucket(), uri.key()))
+    assertThat(ossClient.doesObjectExist(uri.bucket(), uri.key()))
         .as("OSS object should exist")
         .isTrue();
-    Assertions.assertThat(
-            ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength())
+    assertThat(ossClient.getObject(uri.bucket(), uri.key()).getObjectMetadata().getContentLength())
         .as("Object length")
         .isEqualTo(data.length);
 
     byte[] actual = ossDataContent(uri, data.length);
-    Assertions.assertThat(actual).as("Object content").isEqualTo(data);
+    assertThat(actual).as("Object content").isEqualTo(data);
 
     // Verify all staging files are cleaned up.
-    Assertions.assertThat(Files.list(Paths.get(props.ossStagingDirectory())).count())
+    assertThat(Files.list(Paths.get(props.ossStagingDirectory())).count())
         .as("Staging files should clean up")
         .isEqualTo(0);
   }
@@ -128,7 +127,7 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
 
   private byte[] randomData(int size) {
     byte[] data = new byte[size];
-    random.nextBytes(data);
+    RANDOM.nextBytes(data);
     return data;
   }
 

@@ -19,7 +19,8 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.expressions.Expressions.ref;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,7 +30,6 @@ import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -58,7 +58,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.OutputMode;
 import org.apache.spark.sql.streaming.StreamingQuery;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -145,7 +144,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     StreamingQuery query = startStream();
 
     List<SimpleRecord> actual = rowsAvailable(query);
-    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
   @Test
@@ -184,7 +183,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     // check answer correctness only 1 record read the micro-batch will be stuck
     List<SimpleRecord> actual = rowsAvailable(query);
-    Assertions.assertThat(actual)
+    assertThat(actual)
         .containsExactlyInAnyOrderElementsOf(
             Lists.newArrayList(TEST_DATA_MULTIPLE_SNAPSHOTS.get(0).get(0)));
   }
@@ -208,7 +207,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     appendDataAsMultipleSnapshots(expected);
 
     List<SimpleRecord> actual = rowsAvailable(query);
-    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
   @Test
@@ -228,14 +227,14 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         startStream(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(streamStartTimestamp));
 
     List<SimpleRecord> empty = rowsAvailable(query);
-    Assertions.assertThat(empty.isEmpty()).isTrue();
+    assertThat(empty.isEmpty()).isTrue();
 
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(expected);
 
     List<SimpleRecord> actual = rowsAvailable(query);
 
-    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
   @Test
@@ -246,7 +245,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         startStream(SparkReadOptions.STREAM_FROM_TIMESTAMP, Long.toString(futureTimestamp));
 
     List<SimpleRecord> actual = rowsAvailable(query);
-    Assertions.assertThat(actual.isEmpty()).isTrue();
+    assertThat(actual.isEmpty()).isTrue();
 
     List<SimpleRecord> data =
         Lists.newArrayList(
@@ -259,7 +258,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         .forEach(
             x -> {
               appendData(data);
-              Assertions.assertThat(rowsAvailable(query).isEmpty()).isTrue();
+              assertThat(rowsAvailable(query).isEmpty()).isTrue();
             });
 
     waitUntilAfter(futureTimestamp);
@@ -267,7 +266,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     // Data appended after the timestamp should appear
     appendData(data);
     actual = rowsAvailable(query);
-    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(data);
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(data);
   }
 
   @Test
@@ -289,7 +288,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     waitUntilAfter(streamStartTimestamp);
     List<List<SimpleRecord>> expected = TEST_DATA_MULTIPLE_SNAPSHOTS;
     appendDataAsMultipleSnapshots(expected);
-    Assertions.assertThat(rowsAvailable(query))
+    assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
@@ -312,7 +311,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     }
 
     List<SimpleRecord> actual = rowsAvailable(stream);
-    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
   @Test
@@ -341,7 +340,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
         startStream(
             SparkReadOptions.STREAM_FROM_TIMESTAMP, String.valueOf(firstSnapshotCommitTime));
     List<SimpleRecord> actual = rowsAvailable(query);
-    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(expectedRecordList);
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(expectedRecordList);
   }
 
   @Test
@@ -380,7 +379,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
       // Read data added by the stream
       List<SimpleRecord> actual =
           spark.read().load(output.getPath()).as(Encoders.bean(SimpleRecord.class)).collectAsList();
-      Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
+      assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
     }
   }
 
@@ -441,7 +440,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     appendData(avroFileRecords, "avro");
 
     StreamingQuery query = startStream();
-    Assertions.assertThat(rowsAvailable(query))
+    assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(
             Iterables.concat(parquetFileRecords, orcFileRecords, avroFileRecords));
   }
@@ -495,11 +494,12 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     StreamingQuery query = startStream();
 
-    AssertHelpers.assertThrowsCause(
-        "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
-        IllegalStateException.class,
-        "Cannot process overwrite snapshot",
-        () -> query.processAllAvailable());
+    assertThatThrownBy(() -> query.processAllAvailable())
+        .as(
+            "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND")
+        .cause()
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot process overwrite snapshot");
   }
 
   @Test
@@ -516,7 +516,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     StreamingQuery query = startStream();
     List<SimpleRecord> actual = rowsAvailable(query);
-    Assertions.assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(Iterables.concat(expected));
   }
 
   @Test
@@ -536,11 +536,12 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
 
     StreamingQuery query = startStream();
 
-    AssertHelpers.assertThrowsCause(
-        "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND",
-        IllegalStateException.class,
-        "Cannot process delete snapshot",
-        () -> query.processAllAvailable());
+    assertThatThrownBy(() -> query.processAllAvailable())
+        .as(
+            "Streaming should fail with IllegalStateException, as the snapshot is not of type APPEND")
+        .cause()
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("Cannot process delete snapshot");
   }
 
   @Test
@@ -559,7 +560,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     Assert.assertEquals(DataOperations.DELETE, table.currentSnapshot().operation());
 
     StreamingQuery query = startStream(SparkReadOptions.STREAMING_SKIP_DELETE_SNAPSHOTS, "true");
-    Assertions.assertThat(rowsAvailable(query))
+    assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
   }
 
@@ -591,7 +592,7 @@ public final class TestStructuredStreamingRead3 extends SparkCatalogTestBase {
     Assert.assertEquals(DataOperations.OVERWRITE, table.currentSnapshot().operation());
 
     StreamingQuery query = startStream(SparkReadOptions.STREAMING_SKIP_OVERWRITE_SNAPSHOTS, "true");
-    Assertions.assertThat(rowsAvailable(query))
+    assertThat(rowsAvailable(query))
         .containsExactlyInAnyOrderElementsOf(Iterables.concat(dataAcrossSnapshots));
   }
 

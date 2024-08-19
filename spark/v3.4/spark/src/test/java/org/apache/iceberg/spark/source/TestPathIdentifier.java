@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,7 +36,6 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -76,9 +76,8 @@ public class TestPathIdentifier extends SparkTestBase {
                 identifier, SparkSchemaUtil.convert(SCHEMA), new Transform[0], ImmutableMap.of());
 
     Assert.assertEquals(table.table().location(), tableLocation.getAbsolutePath());
-    Assertions.assertThat(table.table()).isInstanceOf(BaseTable.class);
-    Assertions.assertThat(((BaseTable) table.table()).operations())
-        .isInstanceOf(HadoopTableOperations.class);
+    assertThat(table.table()).isInstanceOf(BaseTable.class);
+    assertThat(((BaseTable) table.table()).operations()).isInstanceOf(HadoopTableOperations.class);
 
     Assert.assertEquals(sparkCatalog.loadTable(identifier), table);
     Assert.assertTrue(sparkCatalog.dropTable(identifier));

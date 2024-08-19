@@ -78,7 +78,7 @@ public class Tasks {
     private boolean stopAbortsOnFailure = false;
 
     // retry settings
-    private List<Class<? extends Exception>> stopRetryExceptions =
+    private final List<Class<? extends Exception>> stopRetryExceptions =
         Lists.newArrayList(UnrecoverableException.class);
     private List<Class<? extends Exception>> onlyRetryExceptions = null;
     private Predicate<Exception> shouldRetryPredicate = null;
@@ -450,7 +450,9 @@ public class Tasks {
           }
 
           int delayMs =
-              (int) Math.min(minSleepTimeMs * Math.pow(scaleFactor, attempt - 1), maxSleepTimeMs);
+              (int)
+                  Math.min(
+                      minSleepTimeMs * Math.pow(scaleFactor, attempt - 1), (double) maxSleepTimeMs);
           int jitter = ThreadLocalRandom.current().nextInt(Math.max(1, (int) (delayMs * 0.1)));
 
           LOG.warn("Retrying task after failure: {}", e.getMessage(), e);
@@ -496,7 +498,7 @@ public class Tasks {
 
           } catch (ExecutionException e) {
             Throwable cause = e.getCause();
-            if (Error.class.isInstance(cause)) {
+            if (cause instanceof Error) {
               for (Throwable t : uncaught) {
                 cause.addSuppressed(t);
               }

@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.aws.glue;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.RemovalListener;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +48,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
-import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -97,7 +94,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
   private LockManager lockManager;
   private CloseableGroup closeableGroup;
   private Map<String, String> catalogProperties;
-  private Cache<TableOperations, FileIO> fileIOCloser;
+  private FileIOTracker fileIOTracker;
 
   // Attempt to set versionId if available on the path
   private static final DynMethods.UnboundMethod SET_VERSION_ID =
@@ -194,11 +191,12 @@ public class GlueCatalog extends BaseMetastoreCatalog
     this.lockManager = lock;
 
     this.closeableGroup = new CloseableGroup();
+    this.fileIOTracker = new FileIOTracker();
     closeableGroup.addCloseable(glue);
     closeableGroup.addCloseable(lockManager);
     closeableGroup.addCloseable(metricsReporter());
+    closeableGroup.addCloseable(fileIOTracker);
     closeableGroup.setSuppressCloseFailure(true);
-    this.fileIOCloser = newFileIOCloser();
   }
 
   @Override
@@ -243,7 +241,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
               tableSpecificCatalogPropertiesBuilder.buildOrThrow(),
               hadoopConf,
               tableIdentifier);
-      fileIOCloser.put(glueTableOperations, glueTableOperations.io());
+      fileIOTracker.track(glueTableOperations);
       return glueTableOperations;
     }
 
@@ -256,7 +254,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
             catalogProperties,
             hadoopConf,
             tableIdentifier);
-    fileIOCloser.put(glueTableOperations, glueTableOperations.io());
+    fileIOTracker.track(glueTableOperations);
     return glueTableOperations;
   }
 
@@ -387,7 +385,7 @@ public class GlueCatalog extends BaseMetastoreCatalog
           "Cannot rename %s to %s because namespace %s does not exist", from, to, to.namespace());
     }
     // keep metadata
-    Table fromTable = null;
+    Table fromTable;
     String fromTableDbName =
         IcebergToGlueConverter.getDatabaseName(from, awsProperties.glueCatalogSkipNameValidation());
     String fromTableName =
@@ -634,10 +632,6 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   public void close() throws IOException {
     closeableGroup.close();
-    if (fileIOCloser != null) {
-      fileIOCloser.invalidateAll();
-      fileIOCloser.cleanUp();
-    }
   }
 
   @Override
@@ -648,18 +642,5 @@ public class GlueCatalog extends BaseMetastoreCatalog
   @Override
   protected Map<String, String> properties() {
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
-  }
-
-  private Cache<TableOperations, FileIO> newFileIOCloser() {
-    return Caffeine.newBuilder()
-        .weakKeys()
-        .removalListener(
-            (RemovalListener<TableOperations, FileIO>)
-                (ops, fileIO, cause) -> {
-                  if (null != fileIO) {
-                    fileIO.close();
-                  }
-                })
-        .build();
   }
 }

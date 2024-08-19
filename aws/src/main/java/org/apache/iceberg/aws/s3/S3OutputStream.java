@@ -76,7 +76,7 @@ import software.amazon.awssdk.utils.BinaryUtils;
 
 class S3OutputStream extends PositionOutputStream {
   private static final Logger LOG = LoggerFactory.getLogger(S3OutputStream.class);
-  private static final String digestAlgorithm = "MD5";
+  private static final String DIGEST_ALGORITHM = "MD5";
 
   private static volatile ExecutorService executorService;
 
@@ -138,7 +138,7 @@ class S3OutputStream extends PositionOutputStream {
     this.isChecksumEnabled = s3FileIOProperties.isChecksumEnabled();
     try {
       this.completeMessageDigest =
-          isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
+          isChecksumEnabled ? MessageDigest.getInstance(DIGEST_ALGORITHM) : null;
     } catch (NoSuchAlgorithmException e) {
       throw new RuntimeException(
           "Failed to create message digest needed for s3 checksum checks", e);
@@ -220,7 +220,7 @@ class S3OutputStream extends PositionOutputStream {
     currentStagingFile.deleteOnExit();
     try {
       currentPartMessageDigest =
-          isChecksumEnabled ? MessageDigest.getInstance(digestAlgorithm) : null;
+          isChecksumEnabled ? MessageDigest.getInstance(DIGEST_ALGORITHM) : null;
     } catch (NoSuchAlgorithmException e) {
       throw new RuntimeException(
           "Failed to create message digest needed for s3 checksum checks.", e);
@@ -475,7 +475,7 @@ class S3OutputStream extends PositionOutputStream {
     }
   }
 
-  @SuppressWarnings("checkstyle:NoFinalizer")
+  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
   @Override
   protected void finalize() throws Throwable {
     super.finalize();

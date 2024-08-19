@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.aliyun.oss.mock;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.aliyun.oss.OSSErrorCode;
 import com.aliyun.oss.model.Bucket;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -137,7 +139,9 @@ public class AliyunOSSMockLocalStore {
       Map<String, String> userMetaData)
       throws IOException {
     File bucketDir = new File(root, bucketName);
-    assert bucketDir.exists() || bucketDir.mkdirs();
+    assertThat(bucketDir)
+        .satisfiesAnyOf(
+            bucket -> assertThat(bucket).exists(), bucket -> assertThat(bucket.mkdirs()).isTrue());
 
     File dataFile = new File(bucketDir, fileName + DATA_FILE);
     File metaFile = new File(bucketDir, fileName + META_FILE);
@@ -170,17 +174,21 @@ public class AliyunOSSMockLocalStore {
 
   void deleteObject(String bucketName, String filename) {
     File bucketDir = new File(root, bucketName);
-    assert bucketDir.exists();
+    assertThat(bucketDir).exists();
 
     File dataFile = new File(bucketDir, filename + DATA_FILE);
     File metaFile = new File(bucketDir, filename + META_FILE);
-    assert !dataFile.exists() || dataFile.delete();
-    assert !metaFile.exists() || metaFile.delete();
+    assertThat(dataFile)
+        .satisfiesAnyOf(
+            file -> assertThat(file).doesNotExist(), file -> assertThat(file.delete()).isTrue());
+    assertThat(metaFile)
+        .satisfiesAnyOf(
+            file -> assertThat(file).doesNotExist(), file -> assertThat(file.delete()).isTrue());
   }
 
   ObjectMetadata getObjectMetadata(String bucketName, String filename) throws IOException {
     File bucketDir = new File(root, bucketName);
-    assert bucketDir.exists();
+    assertThat(bucketDir).exists();
 
     File dataFile = new File(bucketDir, filename + DATA_FILE);
     if (!dataFile.exists()) {

@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
@@ -35,7 +36,6 @@ import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -328,8 +328,7 @@ public class TestSelect extends SparkCatalogTestBase {
 
   @Test
   public void testUnknownReferenceAsOf() {
-    Assertions.assertThatThrownBy(
-            () -> sql("SELECT * FROM %s VERSION AS OF 'test_unknown'", tableName))
+    assertThatThrownBy(() -> sql("SELECT * FROM %s VERSION AS OF 'test_unknown'", tableName))
         .hasMessageContaining("Cannot find matching snapshot ID or reference name for version")
         .isInstanceOf(ValidationException.class);
   }
@@ -396,48 +395,48 @@ public class TestSelect extends SparkCatalogTestBase {
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
 
     // using snapshot in table identifier and VERSION AS OF
-    AssertHelpers.assertThrows(
-        "Cannot do time-travel based on both table identifier and AS OF",
-        IllegalArgumentException.class,
-        "Cannot do time-travel based on both table identifier and AS OF",
-        () -> {
-          sql(
-              "SELECT * FROM %s.%s VERSION AS OF %s",
-              tableName, snapshotPrefix + snapshotId, snapshotId);
-        });
+    assertThatThrownBy(
+            () -> {
+              sql(
+                  "SELECT * FROM %s.%s VERSION AS OF %s",
+                  tableName, snapshotPrefix + snapshotId, snapshotId);
+            })
+        .as("Cannot do time-travel based on both table identifier and AS OF")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot do time-travel based on both table identifier and AS OF");
 
     // using snapshot in table identifier and TIMESTAMP AS OF
-    AssertHelpers.assertThrows(
-        "Cannot do time-travel based on both table identifier and AS OF",
-        IllegalArgumentException.class,
-        "Cannot do time-travel based on both table identifier and AS OF",
-        () -> {
-          sql(
-              "SELECT * FROM %s.%s VERSION AS OF %s",
-              tableName, timestampPrefix + timestamp, snapshotId);
-        });
+    assertThatThrownBy(
+            () -> {
+              sql(
+                  "SELECT * FROM %s.%s VERSION AS OF %s",
+                  tableName, timestampPrefix + timestamp, snapshotId);
+            })
+        .as("Cannot do time-travel based on both table identifier and AS OF")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot do time-travel based on both table identifier and AS OF");
 
     // using timestamp in table identifier and VERSION AS OF
-    AssertHelpers.assertThrows(
-        "Cannot do time-travel based on both table identifier and AS OF",
-        IllegalArgumentException.class,
-        "Cannot do time-travel based on both table identifier and AS OF",
-        () -> {
-          sql(
-              "SELECT * FROM %s.%s TIMESTAMP AS OF %s",
-              tableName, snapshotPrefix + snapshotId, timestamp);
-        });
+    assertThatThrownBy(
+            () -> {
+              sql(
+                  "SELECT * FROM %s.%s TIMESTAMP AS OF %s",
+                  tableName, snapshotPrefix + snapshotId, timestamp);
+            })
+        .as("Cannot do time-travel based on both table identifier and AS OF")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot do time-travel based on both table identifier and AS OF");
 
     // using timestamp in table identifier and TIMESTAMP AS OF
-    AssertHelpers.assertThrows(
-        "Cannot do time-travel based on both table identifier and AS OF",
-        IllegalArgumentException.class,
-        "Cannot do time-travel based on both table identifier and AS OF",
-        () -> {
-          sql(
-              "SELECT * FROM %s.%s TIMESTAMP AS OF %s",
-              tableName, timestampPrefix + timestamp, timestamp);
-        });
+    assertThatThrownBy(
+            () -> {
+              sql(
+                  "SELECT * FROM %s.%s TIMESTAMP AS OF %s",
+                  tableName, timestampPrefix + timestamp, timestamp);
+            })
+        .as("Cannot do time-travel based on both table identifier and AS OF")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot do time-travel based on both table identifier and AS OF");
   }
 
   @Test
@@ -449,14 +448,13 @@ public class TestSelect extends SparkCatalogTestBase {
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
 
     // using branch_b1 in the table identifier and VERSION AS OF
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("SELECT * FROM %s.branch_b1 VERSION AS OF %s", tableName, snapshotId))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
 
     // using branch_b1 in the table identifier and TIMESTAMP AS OF
-    Assertions.assertThatThrownBy(
-            () -> sql("SELECT * FROM %s.branch_b1 TIMESTAMP AS OF now()", tableName))
+    assertThatThrownBy(() -> sql("SELECT * FROM %s.branch_b1 TIMESTAMP AS OF now()", tableName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot do time-travel based on both table identifier and AS OF");
   }
@@ -472,21 +470,22 @@ public class TestSelect extends SparkCatalogTestBase {
     // create a second snapshot
     sql("INSERT INTO %s VALUES (4, 'd', 4.0), (5, 'e', 5.0)", tableName);
 
-    AssertHelpers.assertThrows(
-        "Should not be able to specify both snapshot id and timestamp",
-        IllegalArgumentException.class,
-        String.format(
-            "Can specify only one of snapshot-id (%s), as-of-timestamp (%s)",
-            snapshotId, timestamp),
-        () -> {
-          spark
-              .read()
-              .format("iceberg")
-              .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
-              .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
-              .load(tableName)
-              .collectAsList();
-        });
+    assertThatThrownBy(
+            () -> {
+              spark
+                  .read()
+                  .format("iceberg")
+                  .option(SparkReadOptions.SNAPSHOT_ID, snapshotId)
+                  .option(SparkReadOptions.AS_OF_TIMESTAMP, timestamp)
+                  .load(tableName)
+                  .collectAsList();
+            })
+        .as("Should not be able to specify both snapshot id and timestamp")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            String.format(
+                "Can specify only one of snapshot-id (%s), as-of-timestamp (%s)",
+                snapshotId, timestamp));
   }
 
   @Test

@@ -68,7 +68,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
-import org.assertj.core.api.Assertions;
 
 public class TestHelpers {
   private TestHelpers() {}
@@ -88,7 +87,12 @@ public class TestHelpers {
         rowType.getChildren().stream()
             .map((LogicalType type) -> InternalSerializers.create(type))
             .toArray(TypeSerializer[]::new);
-    return RowDataUtil.clone(from, null, rowType, fieldSerializers);
+    RowData.FieldGetter[] fieldGetters = new RowData.FieldGetter[rowType.getFieldCount()];
+    for (int i = 0; i < rowType.getFieldCount(); ++i) {
+      fieldGetters[i] = RowData.createFieldGetter(rowType.getTypeAt(i), i);
+    }
+
+    return RowDataUtil.clone(from, null, rowType, fieldSerializers, fieldGetters);
   }
 
   public static void readRowData(FlinkInputFormat input, Consumer<RowData> visitor)
@@ -159,7 +163,7 @@ public class TestHelpers {
   }
 
   public static void assertRowsWithOrder(List<Row> results, List<Row> expected) {
-    Assertions.assertThat(results).containsExactlyElementsOf(expected);
+    assertThat(results).containsExactlyElementsOf(expected);
   }
 
   public static void assertRowData(Schema schema, StructLike expected, RowData actual) {

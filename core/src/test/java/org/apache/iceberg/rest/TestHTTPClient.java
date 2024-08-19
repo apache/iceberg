@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -51,7 +52,6 @@ import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -154,7 +154,7 @@ public class TestHTTPClient {
 
   @Test
   public void testProxyCredentialProviderWithoutProxyServer() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 HTTPClient.builder(ImmutableMap.of())
                     .uri(URI)
@@ -166,7 +166,7 @@ public class TestHTTPClient {
 
   @Test
   public void testProxyServerWithNullHostname() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> HTTPClient.builder(ImmutableMap.of()).uri(URI).withProxy(null, 1070).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid hostname for http client proxy: null");
@@ -212,7 +212,7 @@ public class TestHTTPClient {
             }
           };
 
-      Assertions.assertThatThrownBy(
+      assertThatThrownBy(
               () -> clientWithProxy.get("v1/config", Item.class, ImmutableMap.of(), onError))
           .isInstanceOf(RuntimeException.class)
           .hasMessage(
@@ -270,7 +270,7 @@ public class TestHTTPClient {
               .withDelay(TimeUnit.MILLISECONDS, 5000);
       mockServer.when(mockRequest).respond(mockResponse);
 
-      Assertions.assertThatThrownBy(() -> client.head(path, ImmutableMap.of(), (unused) -> {}))
+      assertThatThrownBy(() -> client.head(path, ImmutableMap.of(), (unused) -> {}))
           .cause()
           .isInstanceOf(SocketTimeoutException.class)
           .hasMessage("Read timed out");
@@ -281,7 +281,7 @@ public class TestHTTPClient {
   @ValueSource(strings = {HTTPClient.REST_CONNECTION_TIMEOUT_MS, HTTPClient.REST_SOCKET_TIMEOUT_MS})
   public void testInvalidTimeout(String timeoutMsType) {
     String invalidTimeoutMs = "invalidMs";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 HTTPClient.builder(ImmutableMap.of(timeoutMsType, invalidTimeoutMs))
                     .uri(URI)
@@ -290,7 +290,7 @@ public class TestHTTPClient {
         .hasMessage(String.format("For input string: \"%s\"", invalidTimeoutMs));
 
     String invalidNegativeTimeoutMs = "-1";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 HTTPClient.builder(ImmutableMap.of(timeoutMsType, invalidNegativeTimeoutMs))
                     .uri(URI)
@@ -312,7 +312,7 @@ public class TestHTTPClient {
         doExecuteRequest(method, path, body, onError, h -> assertThat(h).isNotEmpty());
 
     if (method.usesRequestBody()) {
-      Assertions.assertThat(body)
+      assertThat(body)
           .as("On a successful " + method + ", the correct response body should be returned")
           .isEqualTo(successResponse);
     }
@@ -335,7 +335,7 @@ public class TestHTTPClient {
 
     String path = addRequestTestCaseAndGetPath(method, body, statusCode);
 
-    Assertions.assertThatThrownBy(() -> doExecuteRequest(method, path, body, onError, h -> {}))
+    assertThatThrownBy(() -> doExecuteRequest(method, path, body, onError, h -> {}))
         .isInstanceOf(RuntimeException.class)
         .hasMessage(
             String.format(

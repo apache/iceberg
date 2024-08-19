@@ -53,14 +53,17 @@ import software.amazon.awssdk.services.kms.model.ListAliasesRequest;
 import software.amazon.awssdk.services.kms.model.ListAliasesResponse;
 import software.amazon.awssdk.services.kms.model.ScheduleKeyDeletionRequest;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.BucketVersioningStatus;
 import software.amazon.awssdk.services.s3.model.GetObjectAclRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectAclResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.Permission;
+import software.amazon.awssdk.services.s3.model.PutBucketVersioningRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
+import software.amazon.awssdk.services.s3.model.VersioningConfiguration;
 import software.amazon.awssdk.services.s3control.S3ControlClient;
 import software.amazon.awssdk.utils.ImmutableMap;
 import software.amazon.awssdk.utils.IoUtils;
@@ -106,6 +109,12 @@ public class TestS3FileIOIntegration {
     AwsIntegTestUtil.createAccessPoint(s3Control, accessPointName, bucketName);
     AwsIntegTestUtil.createAccessPoint(
         crossRegionS3Control, crossRegionAccessPointName, crossRegionBucketName);
+    s3.putBucketVersioning(
+        PutBucketVersioningRequest.builder()
+            .bucket(bucketName)
+            .versioningConfiguration(
+                VersioningConfiguration.builder().status(BucketVersioningStatus.ENABLED).build())
+            .build());
   }
 
   @AfterAll
@@ -119,7 +128,7 @@ public class TestS3FileIOIntegration {
 
   @BeforeEach
   public void beforeEach() {
-    objectKey = String.format("%s/%s", prefix, UUID.randomUUID().toString());
+    objectKey = String.format("%s/%s", prefix, UUID.randomUUID());
     objectUri = String.format("s3://%s/%s", bucketName, objectKey);
     clientFactory.initialize(Maps.newHashMap());
   }
@@ -443,6 +452,35 @@ public class TestS3FileIOIntegration {
               s3FileIO.deletePrefix(scalePrefix);
               assertThat(s3FileIO.listPrefix(scalePrefix)).isEmpty();
             });
+  }
+
+  @Test
+  public void testFileRecoveryHappyPath() throws Exception {
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, new S3FileIOProperties());
+    String filePath = String.format("s3://%s/%s/%s", bucketName, prefix, "someFile.parquet");
+    write(s3FileIO, filePath);
+    s3FileIO.deleteFile(filePath);
+    assertThat(s3FileIO.newInputFile(filePath).exists()).isFalse();
+
+    assertThat(s3FileIO.recoverFile(filePath)).isTrue();
+    assertThat(s3FileIO.newInputFile(filePath).exists()).isTrue();
+  }
+
+  @Test
+  public void testFileRecoveryFailsToRecover() throws Exception {
+    S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, new S3FileIOProperties());
+    s3.putBucketVersioning(
+        PutBucketVersioningRequest.builder()
+            .bucket(bucketName)
+            .versioningConfiguration(
+                VersioningConfiguration.builder().status(BucketVersioningStatus.SUSPENDED).build())
+            .build());
+    String filePath = String.format("s3://%s/%s/%s", bucketName, prefix, "unversionedFile.parquet");
+    write(s3FileIO, filePath);
+    s3FileIO.deleteFile(filePath);
+    assertThat(s3FileIO.newInputFile(filePath).exists()).isFalse();
+
+    assertThat(s3FileIO.recoverFile(filePath)).isFalse();
   }
 
   private S3FileIOProperties getDeletionTestProperties() {

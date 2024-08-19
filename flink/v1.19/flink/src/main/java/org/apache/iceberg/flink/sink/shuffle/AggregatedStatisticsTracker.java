@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
-import java.util.Comparator;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
@@ -29,8 +28,6 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortKey;
 import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.SortOrderComparators;
-import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -38,9 +35,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * AggregatedStatisticsTracker is used by {@link DataStatisticsCoordinator} to track the in progress
- * {@link AggregatedStatistics} received from {@link DataStatisticsOperator} subtasks for specific
- * checkpoint.
+ * AggregatedStatisticsTracker tracks the statistics aggregation received from {@link
+ * DataStatisticsOperator} subtasks for every checkpoint.
  */
 class AggregatedStatisticsTracker {
   private static final Logger LOG = LoggerFactory.getLogger(AggregatedStatisticsTracker.class);
@@ -51,10 +47,9 @@ class AggregatedStatisticsTracker {
   private final int downstreamParallelism;
   private final StatisticsType statisticsType;
   private final int switchToSketchThreshold;
-  private final Comparator<StructLike> comparator;
   private final NavigableMap<Long, Aggregation> aggregationsPerCheckpoint;
 
-  private AggregatedStatistics completedStatistics;
+  private CompletedStatistics completedStatistics;
 
   AggregatedStatisticsTracker(
       String operatorName,
@@ -64,7 +59,7 @@ class AggregatedStatisticsTracker {
       int downstreamParallelism,
       StatisticsType statisticsType,
       int switchToSketchThreshold,
-      @Nullable AggregatedStatistics restoredStatistics) {
+      @Nullable CompletedStatistics restoredStatistics) {
     this.operatorName = operatorName;
     this.parallelism = parallelism;
     this.statisticsSerializer =
@@ -74,11 +69,10 @@ class AggregatedStatisticsTracker {
     this.switchToSketchThreshold = switchToSketchThreshold;
     this.completedStatistics = restoredStatistics;
 
-    this.comparator = SortOrderComparators.forSchema(schema, sortOrder);
     this.aggregationsPerCheckpoint = Maps.newTreeMap();
   }
 
-  AggregatedStatistics updateAndCheckCompletion(int subtask, StatisticsEvent event) {
+  CompletedStatistics updateAndCheckCompletion(int subtask, StatisticsEvent event) {
     long checkpointId = event.checkpointId();
     LOG.debug(
         "Handling statistics event from subtask {} of operator {} for checkpoint {}",
@@ -105,7 +99,6 @@ class AggregatedStatisticsTracker {
                     parallelism,
                     downstreamParallelism,
                     switchToSketchThreshold,
-                    comparator,
                     statisticsType,
                     StatisticsUtil.collectType(statisticsType, completedStatistics)));
     DataStatistics dataStatistics =
@@ -140,7 +133,6 @@ class AggregatedStatisticsTracker {
     private final int parallelism;
     private final int downstreamParallelism;
     private final int switchToSketchThreshold;
-    private final Comparator<StructLike> comparator;
     private final StatisticsType configuredType;
     private StatisticsType currentType;
     private Map<SortKey, Long> mapStatistics;
@@ -150,14 +142,12 @@ class AggregatedStatisticsTracker {
         int parallelism,
         int downstreamParallelism,
         int switchToSketchThreshold,
-        Comparator<StructLike> comparator,
         StatisticsType configuredType,
         StatisticsType currentType) {
       this.subtaskSet = Sets.newHashSet();
       this.parallelism = parallelism;
       this.downstreamParallelism = downstreamParallelism;
       this.switchToSketchThreshold = switchToSketchThreshold;
-      this.comparator = comparator;
       this.configuredType = configuredType;
       this.currentType = currentType;
 
@@ -233,7 +223,9 @@ class AggregatedStatisticsTracker {
           convertCoordinatorToSketch();
         }
 
-        sketchStatistics.update(taskSketch);
+        if (taskSketch.getNumSamples() > 0) {
+          sketchStatistics.update(taskSketch);
+        }
       }
     }
 
@@ -246,20 +238,24 @@ class AggregatedStatisticsTracker {
       this.mapStatistics = null;
     }
 
-    private AggregatedStatistics completedStatistics(long checkpointId) {
+    private CompletedStatistics completedStatistics(long checkpointId) {
       if (currentType == StatisticsType.Map) {
         LOG.info("Completed map statistics aggregation with {} keys", mapStatistics.size());
-        return AggregatedStatistics.fromKeyFrequency(checkpointId, mapStatistics);
+        return CompletedStatistics.fromKeyFrequency(checkpointId, mapStatistics);
       } else {
         ReservoirItemsSketch<SortKey> sketch = sketchStatistics.getResult();
-        LOG.info(
-            "Completed sketch statistics aggregation: "
-                + "reservoir size = {}, number of items seen = {}, number of samples = {}",
-            sketch.getK(),
-            sketch.getN(),
-            sketch.getNumSamples());
-        return AggregatedStatistics.fromRangeBounds(
-            checkpointId, SketchUtil.rangeBounds(downstreamParallelism, comparator, sketch));
+        if (sketch != null) {
+          LOG.info(
+              "Completed sketch statistics aggregation: "
+                  + "reservoir size = {}, number of items seen = {}, number of samples = {}",
+              sketch.getK(),
+              sketch.getN(),
+              sketch.getNumSamples());
+          return CompletedStatistics.fromKeySamples(checkpointId, sketch.getSamples());
+        } else {
+          LOG.info("Empty sketch statistics.");
+          return CompletedStatistics.fromKeySamples(checkpointId, new SortKey[0]);
+        }
       }
     }
   }

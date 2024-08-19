@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
@@ -33,7 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -255,7 +255,7 @@ public class TestBaseIncrementalChangelogScan
 
     table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
 
-    Assertions.assertThatThrownBy(() -> plan(newScan()))
+    assertThatThrownBy(() -> plan(newScan()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Delete files are currently not supported in changelog scans");
   }

@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.view;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestViewVersionParser {
@@ -58,7 +60,7 @@ public class TestViewVersionParser {
             "{\"version-id\":1, \"timestamp-ms\":12345, \"schema-id\":1, \"summary\":{\"user\":\"some-user\"}, \"representations\":%s, \"default-namespace\":[\"one\",\"two\"]}",
             serializedRepresentations);
 
-    Assertions.assertThat(ViewVersionParser.fromJson(serializedViewVersion))
+    assertThat(ViewVersionParser.fromJson(serializedViewVersion))
         .as("Should be able to parse valid view version")
         .isEqualTo(expectedViewVersion);
   }
@@ -97,29 +99,29 @@ public class TestViewVersionParser {
                 + "\"default-catalog\":\"catalog\",\"default-namespace\":[\"one\",\"two\"],\"representations\":%s}",
             expectedRepresentations);
 
-    Assertions.assertThat(ViewVersionParser.toJson(viewVersion))
+    assertThat(ViewVersionParser.toJson(viewVersion))
         .as("Should be able to serialize valid view version")
         .isEqualTo(expectedViewVersion);
   }
 
   @Test
   public void testNullViewVersion() {
-    Assertions.assertThatThrownBy(() -> ViewVersionParser.toJson(null))
+    assertThatThrownBy(() -> ViewVersionParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot serialize null view version");
 
-    Assertions.assertThatThrownBy(() -> ViewVersionParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> ViewVersionParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse view version from null object");
 
-    Assertions.assertThatThrownBy(() -> ViewVersionParser.fromJson((String) null))
+    assertThatThrownBy(() -> ViewVersionParser.fromJson((String) null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse view version from null string");
   }
 
   @Test
   public void missingDefaultCatalog() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 ViewVersionParser.fromJson(
                     "{\"version-id\":1,\"timestamp-ms\":12345,\"schema-id\":1,"
