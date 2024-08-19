@@ -20,6 +20,7 @@ package org.apache.iceberg.flink;
 
 import static org.apache.iceberg.flink.FlinkCatalogFactory.ICEBERG_CATALOG_TYPE_HADOOP;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.util.Arrays;
@@ -46,6 +47,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
@@ -54,6 +56,7 @@ import org.apache.iceberg.flink.source.BoundedTableFactory;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -236,6 +239,95 @@ public class TestFlinkTableSinkExtended extends SqlBase {
                 SimpleDataUtil.matchingPartitions(
                     dataFiles, table.spec(), ImmutableMap.of("data", "ccc")))
             .hasSize(1);
+      }
+    } finally {
+      sql("DROP TABLE IF EXISTS %s.%s", FLINK_DATABASE, tableName);
+    }
+  }
+
+  @TestTemplate
+  public void testRangeDistributionPartitionColumn() {
+    // Range partitioner currently only works with streaming writes (with checkpoints)
+    assumeThat(isStreamingJob).isTrue();
+
+    // Initialize a BoundedSource table to precisely emit those rows in only one checkpoint.
+    List<List<Row>> rowsPerCheckpoint =
+        IntStream.range(1, 6)
+            .mapToObj(
+                checkpointId -> {
+                  List<Row> charRows = Lists.newArrayList();
+                  // emit 26x10 rows for each checkpoint cycle
+                  for (int i = 0; i < 10; ++i) {
+                    for (char c = 'a'; c <= 'z'; c++) {
+                      charRows.add(Row.of(c - 'a', String.valueOf(c)));
+                    }
+                  }
+                  return charRows;
+                })
+            .collect(Collectors.toList());
+    List<Row> flattenedRows =
+        rowsPerCheckpoint.stream().flatMap(List::stream).collect(Collectors.toList());
+
+    String dataId = BoundedTableFactory.registerDataSet(rowsPerCheckpoint);
+    sql(
+        "CREATE TABLE %s(id INT NOT NULL, data STRING NOT NULL)"
+            + " WITH ('connector'='BoundedSource', 'data-id'='%s')",
+        SOURCE_TABLE, dataId);
+
+    assertThat(sql("SELECT * FROM %s", SOURCE_TABLE))
+        .as("Should have the expected rows in source table.")
+        .containsExactlyInAnyOrderElementsOf(flattenedRows);
+
+    Map<String, String> tableProps =
+        ImmutableMap.of(
+            "write.format.default",
+            FileFormat.PARQUET.name(),
+            TableProperties.WRITE_DISTRIBUTION_MODE,
+            DistributionMode.RANGE.modeName());
+
+    String tableName = "test_hash_distribution_mode";
+    sql(
+        "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) WITH %s",
+        tableName, toWithClause(tableProps));
+
+    try {
+      // Insert data set.
+      sql("INSERT INTO %s SELECT * FROM %s", tableName, SOURCE_TABLE);
+
+      assertThat(sql("SELECT * FROM %s", tableName))
+          .as("Should have the expected rows in sink table.")
+          .containsExactlyInAnyOrderElementsOf(flattenedRows);
+
+      Table table = catalog.loadTable(TableIdentifier.of(ICEBERG_NAMESPACE, tableName));
+      // ordered in reverse timeline from the newest snapshot to the oldest snapshot
+      List<Snapshot> snapshots = Lists.newArrayList(table.snapshots().iterator());
+      // only keep the snapshots with added data files
+      snapshots =
+          snapshots.stream()
+              .filter(snapshot -> snapshot.addedDataFiles(table.io()).iterator().hasNext())
+              .collect(Collectors.toList());
+
+      // Sometimes we will have more checkpoints than the bounded source if we pass the
+      // auto checkpoint interval. Thus producing multiple snapshots.
+      assertThat(snapshots).hasSizeGreaterThanOrEqualTo(5);
+
+      // It takes 2 checkpoint cycle for statistics collection and application
+      // of the globally aggregated statistics in the range partitioner.
+      // The last two checkpoints should have range shuffle applied
+      List<Snapshot> rangePartitionedCycles =
+          snapshots.subList(snapshots.size() - 2, snapshots.size());
+
+      for (Snapshot snapshot : rangePartitionedCycles) {
+        List<DataFile> addedDataFiles =
+            Lists.newArrayList(snapshot.addedDataFiles(table.io()).iterator());
+        // range partition results in each partition only assigned to one writer task
+        // maybe less than 26 partitions as BoundedSource doesn't always precisely
+        // control the checkpoint boundary.
+        // It is hard to precisely control the test condition in SQL tests.
+        // Here only minimal safe assertions are applied to avoid flakiness.
+        // If there are no shuffling, the number of data files could be as high as
+        // 26 * 4 as the default parallelism is set to 4 for the mini cluster.
+        assertThat(addedDataFiles).hasSizeLessThanOrEqualTo(26);
       }
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", FLINK_DATABASE, tableName);
