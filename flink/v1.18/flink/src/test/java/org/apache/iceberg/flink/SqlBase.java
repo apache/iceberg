@@ -21,73 +21,16 @@ package org.apache.iceberg.flink;
 import static org.apache.iceberg.flink.FlinkCatalogFactory.DEFAULT_CATALOG_NAME;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.nio.file.Path;
 import java.util.List;
-import org.apache.flink.table.api.EnvironmentSettings;
+import java.util.Map;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
-import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
-import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.hive.HiveCatalog;
-import org.apache.iceberg.hive.TestHiveMetastore;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.extension.RegisterExtension;
-import org.junit.jupiter.api.io.TempDir;
 
-public abstract class TestBase extends SqlBase {
-
-  @RegisterExtension
-  public static MiniClusterExtension miniClusterExtension =
-      MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
-
-  @TempDir protected Path temporaryDirectory;
-
-  private static TestHiveMetastore metastore = null;
-  protected static HiveConf hiveConf = null;
-  protected static HiveCatalog catalog = null;
-
-  private volatile TableEnvironment tEnv = null;
-
-  @BeforeAll
-  public static void startMetastore() {
-    TestBase.metastore = new TestHiveMetastore();
-    metastore.start();
-    TestBase.hiveConf = metastore.hiveConf();
-    TestBase.catalog =
-        (HiveCatalog)
-            CatalogUtil.loadCatalog(
-                HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
-  }
-
-  @AfterAll
-  public static void stopMetastore() throws Exception {
-    metastore.stop();
-    TestBase.catalog = null;
-  }
-
-  @Override
-  protected TableEnvironment getTableEnv() {
-    if (tEnv == null) {
-      synchronized (this) {
-        if (tEnv == null) {
-          EnvironmentSettings settings = EnvironmentSettings.newInstance().inBatchMode().build();
-
-          TableEnvironment env = TableEnvironment.create(settings);
-          env.getConfig()
-              .getConfiguration()
-              .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
-          tEnv = env;
-        }
-      }
-    }
-    return tEnv;
-  }
+public abstract class SqlBase {
+  protected abstract TableEnvironment getTableEnv();
 
   protected static TableResult exec(TableEnvironment env, String query, Object... args) {
     return env.executeSql(String.format(query, args));
@@ -141,5 +84,27 @@ public abstract class TestBase extends SqlBase {
     sql("USE %s", getTableEnv().listDatabases()[0]);
     sql("USE CATALOG %s", currentCatalog);
     sql("DROP DATABASE %s %s", ifExists ? "IF EXISTS" : "", database);
+  }
+
+  protected static String toWithClause(Map<String, String> props) {
+    StringBuilder builder = new StringBuilder();
+    builder.append("(");
+    int propCount = 0;
+    for (Map.Entry<String, String> entry : props.entrySet()) {
+      if (propCount > 0) {
+        builder.append(",");
+      }
+      builder
+          .append("'")
+          .append(entry.getKey())
+          .append("'")
+          .append("=")
+          .append("'")
+          .append(entry.getValue())
+          .append("'");
+      propCount++;
+    }
+    builder.append(")");
+    return builder.toString();
   }
 }
