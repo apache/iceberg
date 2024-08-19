@@ -68,7 +68,7 @@ public class FlinkWriteOptions {
           .withDescription("Type of statistics collection: Auto, Map, Sketch");
 
   public static final ConfigOption<Double> RANGE_DISTRIBUTION_SORT_KEY_BASE_WEIGHT =
-      ConfigOptions.key("ange-distribution-sort-key-base-weight")
+      ConfigOptions.key("range-distribution-sort-key-base-weight")
           .doubleType()
           .defaultValue(0.0d)
           .withDescription(

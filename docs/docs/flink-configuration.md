@@ -164,7 +164,7 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 
 Config value is a enum type: `Map`, `Sketch`, `Auto`.
 <ul>
-<li>Map: collect accurate sampling count for every single key.
+<li>Map: collects accurate sampling count for every single key.
 It should be used for low cardinality scenarios (like hundreds or thousands).
 <li>Sketch: constructs a uniform random sampling via reservoir sampling.
 It fits well for high cardinality scenarios (like millions), as memory footprint is kept low.

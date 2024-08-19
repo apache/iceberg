@@ -270,7 +270,7 @@ or via [write-options](flink-configuration.md#write-options).
 
 ### Hash distribution
 
-HASH distribution shuffle data by partition key (partitioned table) or
+HASH distribution shuffles data by partition key (partitioned table) or
 equality fields (non-partitioned table). It simply leverages Flink's
 `DataStream#keyBy` to distribute the data.
 
@@ -286,7 +286,7 @@ Having higher writer parallelism (even if traffic volume requires) won't help.
 
 ### Range distribution (experimental)
 
-RANGE distribution shuffle data by partition key or sort order via a custom range partitioner.
+RANGE distribution shuffles data by partition key or sort order via a custom range partitioner.
 Range distribution collects traffic statistics to guide the range partitioner to
 evenly distribute traffic to writer tasks.
 
@@ -295,7 +295,7 @@ a data file, which Flink streaming writer doesn't support yet.
 
 #### Use cases
 
-RANGE distribution can be applied an Iceberg table that either is partitioned or
+RANGE distribution can be applied to an Iceberg table that either is partitioned or
 has SortOrder defined. For a partitioned table without SortOrder, partition columns
 are used as sort order. If SortOrder is explicitly defined for the table, it is used by
 the range partitioner.
@@ -328,7 +328,7 @@ or high cardinality (like `device_id`) scenarios.
 <li>For low cardinality scenario (like hundreds or thousands),
 HashMap is used to track traffic distribution for every key.
 If a new sort key value shows up, range partitioner would just
-round-robin it to the writer tasks before traffic distribution has been learned.
+round-robin it to the writer tasks before traffic distribution has been learned
 about the new key.
 <li>For high cardinality scenario (like millions or billions),
 uniform random sampling (reservoir sampling) is used to compute range bounds
