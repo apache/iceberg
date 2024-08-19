@@ -482,6 +482,10 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       }
 
       contextBuilder.resolveConfig(table, readOptions, flinkConfig);
+      contextBuilder.exposeLocality(
+          SourceUtil.isLocalityEnabled(table, flinkConfig, exposeLocality));
+      contextBuilder.planParallelism(
+          flinkConfig.get(FlinkConfigOptions.TABLE_EXEC_ICEBERG_WORKER_POOL_SIZE));
       Schema icebergSchema = table.schema();
       if (projectedFlinkSchema != null) {
         contextBuilder.project(FlinkSchemaUtil.convert(icebergSchema, projectedFlinkSchema));
