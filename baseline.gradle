@@ -132,6 +132,7 @@ subprojects {
           '-Xep:TypeParameterUnusedInFormals:OFF',
           // Palantir's UnnecessarilyQualified may throw during analysis
           '-Xep:UnnecessarilyQualified:OFF',
+          '-Xep:UnusedMethod:ERROR',
       )
     }
   }
