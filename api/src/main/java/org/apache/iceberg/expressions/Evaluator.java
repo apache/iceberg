@@ -164,17 +164,15 @@ public class Evaluator implements Serializable {
     public <T> Boolean eq(Bound<T> valueExpr, Bound<T> valueExpr2) {
       validateDataTypes(valueExpr, valueExpr2);
       Comparator<T> cmp = Comparators.forType(valueExpr.ref().type().asPrimitiveType());
-      return cmp.compare(valueExpr.eval(struct), valueExpr2.eval(struct)) == 0;
-    }
-
-    private <T> void validateDataTypes(Bound<T> valueExpr, Bound<T> valueExpr2) {
-      if (valueExpr.ref().type().typeId() != valueExpr2.ref().type().typeId()) {
-        throw new IllegalArgumentException(
-            "Cannot compare different types: "
-                + valueExpr.ref().type()
-                + " and "
-                + valueExpr2.ref().type());
+      // null comparisons to protect notEq
+      T value = valueExpr.eval(struct);
+      T value2 = valueExpr2.eval(struct);
+      if (value == null && value2 == null) {
+        return true;
+      } else if (value == null || value2 == null) {
+        return false;
       }
+      return cmp.compare(value, value2) == 0;
     }
 
     @Override
@@ -184,7 +182,6 @@ public class Evaluator implements Serializable {
 
     @Override
     public <T> Boolean notEq(Bound<T> valueExpr, Bound<T> valueExpr2) {
-      validateDataTypes(valueExpr, valueExpr2);
       return !eq(valueExpr, valueExpr2);
     }
 
@@ -207,6 +204,16 @@ public class Evaluator implements Serializable {
     @Override
     public <T> Boolean notStartsWith(Bound<T> valueExpr, Literal<T> lit) {
       return !startsWith(valueExpr, lit);
+    }
+
+    private <T> void validateDataTypes(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      if (valueExpr.ref().type().typeId() != valueExpr2.ref().type().typeId()) {
+        throw new IllegalArgumentException(
+            "Cannot compare different types: "
+                + valueExpr.ref().type()
+                + " and "
+                + valueExpr2.ref().type());
+      }
     }
   }
 }
