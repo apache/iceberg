@@ -20,7 +20,6 @@ package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -43,8 +42,7 @@ import org.junit.jupiter.api.Test;
 
 public class TestParallelIterable {
   @Test
-  public void closeParallelIteratorWithoutCompleteIteration()
-      throws IOException, IllegalAccessException, NoSuchFieldException {
+  public void closeParallelIteratorWithoutCompleteIteration() {
     ExecutorService executor = Executors.newFixedThreadPool(1);
 
     Iterable<CloseableIterable<Integer>> transform =
@@ -76,8 +74,7 @@ public class TestParallelIterable {
   }
 
   @Test
-  public void closeMoreDataParallelIteratorWithoutCompleteIteration()
-      throws IOException, IllegalAccessException, NoSuchFieldException {
+  public void closeMoreDataParallelIteratorWithoutCompleteIteration() {
     ExecutorService executor = Executors.newFixedThreadPool(1);
     Iterator<Integer> integerIterator =
         new Iterator<Integer>() {
@@ -137,8 +134,7 @@ public class TestParallelIterable {
   }
 
   @Test
-  public void limitQueueSize() throws IOException, IllegalAccessException, NoSuchFieldException {
-
+  public void limitQueueSize() {
     List<Iterable<Integer>> iterables =
         ImmutableList.of(
             () -> IntStream.range(0, 100).iterator(),
