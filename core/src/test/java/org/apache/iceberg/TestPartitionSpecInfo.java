@@ -22,8 +22,10 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
+import org.apache.commons.collections.keyvalue.AbstractMapEntry;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
+import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -92,6 +94,30 @@ public class TestPartitionSpecInfo {
     Assert.assertEquals(spec.lastAssignedFieldId(), table.spec().lastAssignedFieldId());
     Assert.assertEquals(ImmutableMap.of(spec.specId(), spec), table.specs());
     Assert.assertNull(table.specs().get(Integer.MAX_VALUE));
+  }
+
+  @Test
+  public void testSpecInfoPartitionedTableCaseInsensitive() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(schema).caseSensitive(false).identity("DATA").build();
+    TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
+
+    Assertions.assertThat(table.spec()).isEqualTo(spec);
+    Assertions.assertThat(table.spec().lastAssignedFieldId()).isEqualTo(spec.lastAssignedFieldId());
+    Assertions.assertThat(table.specs())
+        .containsExactly(new AbstractMapEntry(spec.specId(), spec) {})
+        .doesNotContainKey(Integer.MAX_VALUE);
+  }
+
+  @Test
+  public void testSpecInfoPartitionedTableCaseSensitiveFails() {
+    Assert.assertThrows(
+        "Cannot find source column: DATA",
+        IllegalArgumentException.class,
+        () -> {
+          PartitionSpec spec =
+              PartitionSpec.builderFor(schema).caseSensitive(true).identity("DATA").build();
+        });
   }
 
   @Test
