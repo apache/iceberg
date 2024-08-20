@@ -25,6 +25,7 @@ import org.apache.avro.Schema;
 import org.apache.avro.file.CodecFactory;
 import org.apache.avro.file.DataFileWriter;
 import org.apache.avro.io.DatumWriter;
+import org.apache.avro.io.EncoderFactory;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.MetricsConfig;
 import org.apache.iceberg.exceptions.RuntimeIOException;
@@ -112,6 +113,8 @@ class AvroFileAppender<D> implements FileAppender<D> {
     for (Map.Entry<String, String> entry : metadata.entrySet()) {
       writer.setMeta(entry.getKey(), entry.getValue());
     }
+
+    writer.setEncoder(b -> EncoderFactory.get().blockingDirectBinaryEncoder(b, null));
 
     return writer.create(schema, stream);
   }
