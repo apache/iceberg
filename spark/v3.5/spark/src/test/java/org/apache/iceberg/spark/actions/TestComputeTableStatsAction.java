@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.spark.actions;
 
-import static org.apache.iceberg.spark.actions.NDVSketchGenerator.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY;
+import static org.apache.iceberg.spark.actions.NDVSketchUtil.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -45,11 +45,19 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.spark.Spark3Util;
+import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.SparkWriteOptions;
+import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
+import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.TestTemplate;
@@ -67,11 +75,23 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
   private static final Schema NESTED_SCHEMA =
       new Schema(required(4, "nestedStructCol", NESTED_STRUCT_TYPE));
 
+  private static final Schema SCHEMA_WITH_NESTED_COLUMN =
+      new Schema(
+          required(4, "nestedStructCol", NESTED_STRUCT_TYPE),
+          required(5, "stringCol", Types.StringType.get()));
+
   @TestTemplate
   public void testComputeTableStatsAction() throws NoSuchTableException, ParseException {
     assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
+    // To create multiple splits on the mapper
+    table
+        .updateProperties()
+        .set("read.split.target-size", "100")
+        .set("write.parquet.row-group-size-bytes", "100")
+        .commit();
     List<SimpleRecord> records =
         Lists.newArrayList(
             new SimpleRecord(1, "a"),
@@ -79,12 +99,7 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
             new SimpleRecord(2, "b"),
             new SimpleRecord(3, "c"),
             new SimpleRecord(4, "d"));
-    spark
-        .createDataset(records, Encoders.bean(SimpleRecord.class))
-        .coalesce(1)
-        .writeTo(tableName)
-        .append();
-    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    spark.createDataset(records, Encoders.bean(SimpleRecord.class)).writeTo(tableName).append();
     SparkActions actions = SparkActions.get();
     ComputeTableStats.Result results =
         actions.computeTableStats(table).columns("id", "data").execute();
@@ -264,10 +279,36 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testComputeTableStatsWithNestedData()
+  public void testComputeTableStatsWithNestedSchema()
       throws NoSuchTableException, ParseException, IOException {
     assumeTrue(catalogName.equals("spark_catalog"));
-    List<Record> records = Lists.newArrayList(createNestedRecord(0L, 0.0));
+    List<Record> records = Lists.newArrayList(createNestedRecord());
+    Table table =
+        catalog.createTable(
+            tableIdent,
+            SCHEMA_WITH_NESTED_COLUMN,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of());
+    DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
+    table.newAppend().appendFile(dataFile).commit();
+
+    Table tbl = Spark3Util.loadIcebergTable(spark, tableName);
+    SparkActions actions = SparkActions.get();
+    actions.computeTableStats(tbl).execute();
+
+    tbl.refresh();
+    List<StatisticsFile> statisticsFiles = tbl.statisticsFiles();
+    Assertions.assertEquals(statisticsFiles.size(), 1);
+    StatisticsFile statisticsFile = statisticsFiles.get(0);
+    assertNotEquals(statisticsFile.fileSizeInBytes(), 0);
+    Assertions.assertEquals(statisticsFile.blobMetadata().size(), 1);
+  }
+
+  @TestTemplate
+  public void testComputeTableStatsWithNoComputableColumns()
+      throws NoSuchTableException, ParseException, IOException {
+    assumeTrue(catalogName.equals("spark_catalog"));
+    List<Record> records = Lists.newArrayList(createNestedRecord());
     Table table =
         catalog.createTable(
             tableIdent, NESTED_SCHEMA, PartitionSpec.unpartitioned(), ImmutableMap.of());
@@ -279,18 +320,104 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
     IllegalArgumentException exception =
         assertThrows(
             IllegalArgumentException.class, () -> actions.computeTableStats(tbl).execute());
-    assertTrue(exception.getMessage().contains("Can't compute stats on non-primitive type column"));
+    Assertions.assertEquals(exception.getMessage(), "No columns found to compute stats");
   }
 
-  private GenericRecord createNestedRecord(Long longCol, Double doubleCol) {
-    GenericRecord record = GenericRecord.create(NESTED_SCHEMA);
+  @TestTemplate
+  public void testComputeTableStatsOnByteColumn() throws NoSuchTableException, ParseException {
+    testComputeTableStats("byte_col", "TINYINT");
+  }
+
+  @TestTemplate
+  public void testComputeTableStatsOnShortColumn() throws NoSuchTableException, ParseException {
+    testComputeTableStats("short_col", "SMALLINT");
+  }
+
+  @TestTemplate
+  public void testComputeTableStatsOnIntColumn() throws NoSuchTableException, ParseException {
+    testComputeTableStats("int_col", "INT");
+  }
+
+  @TestTemplate
+  public void testComputeTableStatsOnLongColumn() throws NoSuchTableException, ParseException {
+    testComputeTableStats("long_col", "BIGINT");
+  }
+
+  @TestTemplate
+  public void testComputeTableStatsOnTimestampColumn() throws NoSuchTableException, ParseException {
+    testComputeTableStats("timestamp_col", "TIMESTAMP");
+  }
+
+  @TestTemplate
+  public void testComputeTableStatsOnTimestampNtzColumn()
+      throws NoSuchTableException, ParseException {
+    testComputeTableStats("timestamp_col", "TIMESTAMP_NTZ");
+  }
+
+  @TestTemplate
+  public void testComputeTableStatsOnDateColumn() throws NoSuchTableException, ParseException {
+    testComputeTableStats("date_col", "DATE");
+  }
+
+  @TestTemplate
+  public void testComputeTableStatsOnDecimalColumn() throws NoSuchTableException, ParseException {
+    testComputeTableStats("decimal_col", "DECIMAL(20, 2)");
+  }
+
+  @TestTemplate
+  public void testComputeTableStatsOnBinaryColumn() throws NoSuchTableException, ParseException {
+    testComputeTableStats("binary_col", "BINARY");
+  }
+
+  public void testComputeTableStats(String columnName, String type)
+      throws NoSuchTableException, ParseException {
+    assumeTrue(catalogName.equals("spark_catalog"));
+    sql("CREATE TABLE %s (id int, %s %s) USING iceberg", tableName, columnName, type);
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+
+    Dataset<Row> dataDF = randomDataDF(table.schema());
+    append(tableName, dataDF);
+
+    SparkActions actions = SparkActions.get();
+    table.refresh();
+    ComputeTableStats.Result results =
+        actions.computeTableStats(table).columns(columnName).execute();
+    assertNotNull(results);
+
+    List<StatisticsFile> statisticsFiles = table.statisticsFiles();
+    Assertions.assertEquals(statisticsFiles.size(), 1);
+
+    StatisticsFile statisticsFile = statisticsFiles.get(0);
+    assertNotEquals(statisticsFile.fileSizeInBytes(), 0);
+    Assertions.assertEquals(statisticsFile.blobMetadata().size(), 1);
+
+    BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
+    Assertions.assertNotNull(
+        blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY));
+  }
+
+  private GenericRecord createNestedRecord() {
+    GenericRecord record = GenericRecord.create(SCHEMA_WITH_NESTED_COLUMN);
     GenericRecord nested = GenericRecord.create(NESTED_STRUCT_TYPE);
     GenericRecord leaf = GenericRecord.create(LEAF_STRUCT_TYPE);
-    leaf.set(0, longCol);
-    leaf.set(1, doubleCol);
+    leaf.set(0, 0L);
+    leaf.set(1, 0.0);
     nested.set(0, leaf);
     record.set(0, nested);
+    record.set(1, "data");
     return record;
+  }
+
+  private Dataset<Row> randomDataDF(Schema schema) {
+    Iterable<InternalRow> rows = RandomData.generateSpark(schema, 10, 0);
+    JavaRDD<InternalRow> rowRDD = sparkContext.parallelize(Lists.newArrayList(rows));
+    StructType rowSparkType = SparkSchemaUtil.convert(schema);
+    return spark.internalCreateDataFrame(JavaRDD.toRDD(rowRDD), rowSparkType, false);
+  }
+
+  private void append(String table, Dataset<Row> df) throws NoSuchTableException {
+    // fanout writes are enabled as write-time clustering is not supported without Spark extensions
+    df.coalesce(1).writeTo(table).option(SparkWriteOptions.FANOUT_ENABLED, "true").append();
   }
 
   @AfterEach

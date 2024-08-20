@@ -19,65 +19,87 @@
 
 package org.apache.spark.sql.stats
 
+import java.nio.ByteBuffer
 import org.apache.datasketches.common.Family
 import org.apache.datasketches.memory.Memory
+import org.apache.datasketches.theta.CompactSketch
 import org.apache.datasketches.theta.SetOperationBuilder
 import org.apache.datasketches.theta.Sketch
-import org.apache.datasketches.theta.Sketches
 import org.apache.datasketches.theta.UpdateSketch
 import org.apache.iceberg.spark.SparkSchemaUtil
-import org.apache.iceberg.spark.SparkValueConverter
 import org.apache.iceberg.types.Conversions
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.aggregate.ImperativeAggregate
 import org.apache.spark.sql.catalyst.expressions.aggregate.TypedImperativeAggregate
 import org.apache.spark.sql.catalyst.trees.UnaryLike
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.BinaryType
 import org.apache.spark.sql.types.DataType
-import org.apache.spark.sql.types.StringType
+import org.apache.spark.sql.types.Decimal
+import org.apache.spark.unsafe.types.UTF8String
 
-case class ThetaSketchAggregator(
-    child: Expression,
-    mutableAggBufferOffset: Int = 0,
-    inputAggBufferOffset: Int = 0) extends TypedImperativeAggregate[Sketch] with UnaryLike[Expression] {
+/**
+ * ThetaSketchAgg generates Alpha family sketch with default seed.
+ * The values fed to the sketch are converted to bytes using Iceberg's single value serialization.
+ * The result returned is an array of bytes of Compact Theta sketch of Datasketches library,
+ * which should be deserialized to Compact sketch before using.
+ *
+ * See [[https://iceberg.apache.org/puffin-spec/]] for more information.
+ *
+ */
+case class ThetaSketchAgg(
+     child: Expression,
+     mutableAggBufferOffset: Int = 0,
+     inputAggBufferOffset: Int = 0) extends TypedImperativeAggregate[Sketch] with UnaryLike[Expression] {
 
-  def this(child: Expression) = this(child, 0, 0)
+  private lazy val icebergType = SparkSchemaUtil.convert(child.dataType)
+
+  def this(colName: String) = {
+    this(col(colName).expr, 0, 0)
+  }
+
+  override def dataType: DataType = BinaryType
+
+  override def nullable: Boolean = false
 
   override def createAggregationBuffer(): Sketch = {
-    UpdateSketch.builder.setFamily(Family.ALPHA).build
+    UpdateSketch.builder.setFamily(Family.ALPHA).build()
   }
 
   override def update(buffer: Sketch, input: InternalRow): Sketch = {
     val value = child.eval(input)
     if (value != null) {
-      val icebergType = SparkSchemaUtil.convert(child.dataType)
-      val byteBuffer = child.dataType match {
-        case StringType => Conversions.toByteBuffer(icebergType,
-          SparkValueConverter.convert(icebergType, value.toString))
-        case _ => Conversions.toByteBuffer(icebergType, SparkValueConverter.convert(icebergType, value))
-      }
+      val icebergValue = toIcebergValue(value)
+      val byteBuffer = Conversions.toByteBuffer(icebergType, icebergValue)
       buffer.asInstanceOf[UpdateSketch].update(byteBuffer)
     }
     buffer
   }
 
-  override def dataType: DataType = BinaryType
+  private def toIcebergValue(value: Any): Any = {
+    value match {
+      case s: UTF8String => s.toString
+      case d: Decimal => d.toJavaBigDecimal
+      case b: Array[Byte] => ByteBuffer.wrap(b)
+      case _ => value
+    }
+  }
 
   override def merge(buffer: Sketch, input: Sketch): Sketch = {
     new SetOperationBuilder().buildUnion.union(buffer, input)
   }
 
   override def eval(buffer: Sketch): Any = {
-    buffer.toByteArray
+    toBytes(buffer)
   }
 
   override def serialize(buffer: Sketch): Array[Byte] = {
-    buffer.compact().toByteArray
+    toBytes(buffer)
   }
 
   override def deserialize(storageFormat: Array[Byte]): Sketch = {
-    Sketches.wrapSketch(Memory.wrap(storageFormat))
+    CompactSketch.wrap(Memory.wrap(storageFormat))
   }
 
   override def withNewMutableAggBufferOffset(newMutableAggBufferOffset: Int): ImperativeAggregate = {
@@ -88,9 +110,12 @@ case class ThetaSketchAggregator(
     copy(inputAggBufferOffset = newInputAggBufferOffset)
   }
 
-  override def nullable: Boolean = false
-
   override protected def withNewChildInternal(newChild: Expression): Expression = {
     copy(child = newChild)
+  }
+
+  private def toBytes(sketch: Sketch): Array[Byte] = {
+    val compactSketch = sketch.compact()
+    compactSketch.toByteArray
   }
 }

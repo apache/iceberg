@@ -20,7 +20,6 @@ package org.apache.iceberg.spark.actions;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.GenericBlobMetadata;
@@ -40,7 +39,7 @@ import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
@@ -55,7 +54,7 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
   private static final Result EMPTY_RESULT = ImmutableComputeTableStats.Result.builder().build();
 
   private final Table table;
-  private Set<String> columns;
+  private List<String> columns;
   private Snapshot snapshot;
 
   ComputeTableStatsSparkAction(SparkSession spark, Table table) {
@@ -73,7 +72,7 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
   public ComputeTableStats columns(String... newColumns) {
     Preconditions.checkArgument(
         newColumns != null && newColumns.length > 0, "Columns cannot be null/empty");
-    this.columns = ImmutableSet.copyOf(newColumns);
+    this.columns = ImmutableList.copyOf(newColumns);
     return this;
   }
 
@@ -102,22 +101,19 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
         table.name(),
         snapshotId());
     List<Blob> blobs = generateNDVBlobs();
-    StatisticsFile statisticsFile;
-    statisticsFile = writeStatsFile(blobs);
-
-    table.updateStatistics().setStatistics(snapshot.snapshotId(), statisticsFile).commit();
+    StatisticsFile statisticsFile = writeStatsFile(blobs);
+    table.updateStatistics().setStatistics(snapshotId(), statisticsFile).commit();
     return ImmutableComputeTableStats.Result.builder().statisticsFile(statisticsFile).build();
   }
 
   private StatisticsFile writeStatsFile(List<Blob> blobs) {
-    LOG.info("Writing stats for table {} for snapshot {}", table.name(), snapshot.snapshotId());
-    TableOperations operations = ((HasTableOperations) table).operations();
-    OutputFile outputFile = operations.io().newOutputFile(outputPath());
+    LOG.info("Writing stats for table {} for snapshot {}", table.name(), snapshotId());
+    OutputFile outputFile = table.io().newOutputFile(outputPath());
     try (PuffinWriter writer = Puffin.write(outputFile).createdBy(appIdentifier()).build()) {
       blobs.forEach(writer::add);
       writer.finish();
       return new GenericStatisticsFile(
-          snapshot.snapshotId(),
+          snapshotId(),
           outputFile.location(),
           writer.fileSize(),
           writer.footerSize(),
@@ -128,20 +124,25 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
   }
 
   private List<Blob> generateNDVBlobs() {
-    return NDVSketchGenerator.generateNDVSketchesAndBlobs(spark(), table, snapshot, columns());
+    return NDVSketchUtil.generateSketches(spark(), table, snapshot, columns());
   }
 
-  private Set<String> columns() {
-    Schema schema = snapshot == null ? table.schema() : table.schemas().get(snapshot.schemaId());
+  private List<String> columns() {
     if (columns == null) {
-      columns = schema.columns().stream().map(Types.NestedField::name).collect(Collectors.toSet());
+      Schema schema = snapshot == null ? table.schema() : table.schemas().get(snapshot.schemaId());
+      columns =
+          schema.columns().stream()
+              .filter(nestedField -> nestedField.type().isPrimitiveType())
+              .map(Types.NestedField::name)
+              .collect(Collectors.toList());
     }
     return columns;
   }
 
   private void validateColumns() {
     Schema schema = table.schemas().get(snapshot.schemaId());
-    for (String columnName : columns) {
+    Preconditions.checkArgument(!columns().isEmpty(), "No columns found to compute stats");
+    for (String columnName : columns()) {
       Types.NestedField field = schema.findField(columnName);
       Preconditions.checkArgument(field != null, "Can't find column %s in %s", columnName, schema);
       Preconditions.checkArgument(

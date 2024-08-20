@@ -21,15 +21,15 @@ package org.apache.iceberg.spark.actions;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.datasketches.memory.Memory;
+import org.apache.datasketches.theta.CompactSketch;
 import org.apache.datasketches.theta.Sketch;
-import org.apache.datasketches.theta.Sketches;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.puffin.Blob;
+import org.apache.iceberg.puffin.PuffinCompressionCodec;
 import org.apache.iceberg.puffin.StandardBlobTypes;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -37,29 +37,28 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Column;
-import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.stats.ThetaSketchAggregator;
+import org.apache.spark.sql.stats.ThetaSketchAgg;
 
-public class NDVSketchGenerator {
+public class NDVSketchUtil {
 
-  private NDVSketchGenerator() {}
+  private NDVSketchUtil() {}
 
   public static final String APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY = "ndv";
 
-  static List<Blob> generateNDVSketchesAndBlobs(
-      SparkSession spark, Table table, Snapshot snapshot, Set<String> columns) {
+  static List<Blob> generateSketches(
+      SparkSession spark, Table table, Snapshot snapshot, List<String> columns) {
     Map<Integer, Sketch> columnToSketchMap = computeNDVSketches(spark, table, snapshot, columns);
     return generateBlobs(table, columns, columnToSketchMap, snapshot);
   }
 
   private static List<Blob> generateBlobs(
-      Table table, Set<String> columns, Map<Integer, Sketch> sketchMap, Snapshot snapshot) {
+      Table table, List<String> columns, Map<Integer, Sketch> sketchMap, Snapshot snapshot) {
+    Schema schema = table.schemas().get(snapshot.schemaId());
     return columns.stream()
         .map(
             columnName -> {
-              Schema schema = table.schemas().get(snapshot.schemaId());
               Types.NestedField field = schema.findField(columnName);
               Sketch sketch = sketchMap.get(field.fieldId());
               long ndv = (long) sketch.getEstimate();
@@ -69,14 +68,14 @@ public class NDVSketchGenerator {
                   snapshot.snapshotId(),
                   snapshot.sequenceNumber(),
                   ByteBuffer.wrap(sketch.toByteArray()),
-                  null,
+                  PuffinCompressionCodec.ZSTD,
                   ImmutableMap.of(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY, String.valueOf(ndv)));
             })
         .collect(Collectors.toList());
   }
 
   private static Map<Integer, Sketch> computeNDVSketches(
-      SparkSession spark, Table table, Snapshot snapshot, Set<String> columnsToBeAnalyzed) {
+      SparkSession spark, Table table, Snapshot snapshot, List<String> columnsToBeAnalyzed) {
     Map<Integer, Sketch> sketchMap = Maps.newHashMap();
     String tableName = table.name();
     List<String> columns = ImmutableList.copyOf(columnsToBeAnalyzed);
@@ -85,24 +84,23 @@ public class NDVSketchGenerator {
         columns.stream()
             .map(
                 columnName -> {
-                  ThetaSketchAggregator thetaSketchAggregator =
-                      new ThetaSketchAggregator(new Column(columnName).expr());
-                  return new Column(thetaSketchAggregator.toAggregateExpression());
+                  ThetaSketchAgg thetaSketchAgg = new ThetaSketchAgg(columnName);
+                  return new Column(thetaSketchAgg.toAggregateExpression());
                 })
             .toArray(Column[]::new);
-    Dataset<Row> sketches =
+
+    Row sketches =
         spark
             .read()
             .format("iceberg")
             .option(SparkReadOptions.SNAPSHOT_ID, snapshot.snapshotId())
             .load(tableName)
-            .select(aggregateColumns);
-
-    Row rows = sketches.collectAsList().get(0);
+            .select(aggregateColumns)
+            .first();
     Schema schema = table.schemas().get(snapshot.schemaId());
     for (int i = 0; i < columns.size(); i++) {
       Types.NestedField field = schema.findField(columns.get(i));
-      sketchMap.put(field.fieldId(), Sketches.wrapSketch(Memory.wrap((byte[]) rows.get(i))));
+      sketchMap.put(field.fieldId(), CompactSketch.wrap(Memory.wrap((byte[]) sketches.get(i))));
     }
     return sketchMap;
   }
