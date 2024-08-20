@@ -383,7 +383,7 @@ cryptography APIs written by the Legion of the Bouncy Castle Inc.
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.dataformat  Name: jackson-dataformat-xml  Version: 2.17.1
+Group: com.fasterxml.jackson.dataformat  Name: jackson-dataformat-xml  Version: 2.17.2
 
 Notice: # Jackson JSON processor
 
@@ -564,7 +564,7 @@ ASM 7 (n/a)
 
 JTHarness (5.0)
 
-* License: (GPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0)	
+* License: (GPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0)  
 * Project: https://wiki.openjdk.java.net/display/CodeTools/JT+Harness
 * Source: http://hg.openjdk.java.net/code-tools/jtharness/
 
@@ -588,7 +588,7 @@ permitted.
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.module  Name: jackson-module-jaxb-annotations  Version: 2.17.1
+Group: com.fasterxml.jackson.module  Name: jackson-module-jaxb-annotations  Version: 2.17.2
 
 Notice: # Jackson JSON processor
 
@@ -614,7 +614,7 @@ from the source code management (SCM) system project uses.
 
 --------------------------------------------------------------------------------
 
-Group: org.apache.commons  Name: commons-compress  Version: 1.26.0
+Group: org.apache.commons  Name: commons-compress  Version: 1.26.2
 
 Notice: Apache Commons Compress
 Copyright 2002-2024 The Apache Software Foundation
@@ -632,6 +632,17 @@ Copyright 2014-2017 The Apache Software Foundation
 
 This product includes software developed at
 The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
+Group: commons-io  Name: commons-io  Version: 2.16.1
+
+Notice: Apache Commons IO
+Copyright 2002-2024 The Apache Software Foundation
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).
 
 
 --------------------------------------------------------------------------------
@@ -679,42 +690,42 @@ This product also includes software developed by the TJDO project
 
 --------------------------------------------------------------------------------
 
-Group: software.amazon.awssdk  Name: annotations  Version: 2.26.25
-Group: software.amazon.awssdk  Name: apache-client  Version: 2.26.25
-Group: software.amazon.awssdk  Name: arns  Version: 2.26.25
-Group: software.amazon.awssdk  Name: auth  Version: 2.26.25
-Group: software.amazon.awssdk  Name: aws-core  Version: 2.26.25
-Group: software.amazon.awssdk  Name: aws-json-protocol  Version: 2.26.25
-Group: software.amazon.awssdk  Name: aws-query-protocol  Version: 2.26.25
-Group: software.amazon.awssdk  Name: aws-xml-protocol  Version: 2.26.25
-Group: software.amazon.awssdk  Name: checksums  Version: 2.26.25
-Group: software.amazon.awssdk  Name: checksums-spi  Version: 2.26.25
-Group: software.amazon.awssdk  Name: crt-core  Version: 2.26.25
-Group: software.amazon.awssdk  Name: dynamodb  Version: 2.26.25
-Group: software.amazon.awssdk  Name: endpoints-spi  Version: 2.26.25
-Group: software.amazon.awssdk  Name: glue  Version: 2.26.25
-Group: software.amazon.awssdk  Name: http-auth  Version: 2.26.25
-Group: software.amazon.awssdk  Name: http-auth-aws  Version: 2.26.25
-Group: software.amazon.awssdk  Name: http-auth-aws-eventstream  Version: 2.26.25
-Group: software.amazon.awssdk  Name: http-auth-spi  Version: 2.26.25
-Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.26.25
-Group: software.amazon.awssdk  Name: iam  Version: 2.26.25
-Group: software.amazon.awssdk  Name: identity-spi  Version: 2.26.25
-Group: software.amazon.awssdk  Name: json-utils  Version: 2.26.25
-Group: software.amazon.awssdk  Name: kms  Version: 2.26.25
-Group: software.amazon.awssdk  Name: lakeformation  Version: 2.26.25
-Group: software.amazon.awssdk  Name: metrics-spi  Version: 2.26.25
-Group: software.amazon.awssdk  Name: netty-nio-client  Version: 2.26.25
-Group: software.amazon.awssdk  Name: profiles  Version: 2.26.25
-Group: software.amazon.awssdk  Name: protocol-core  Version: 2.26.25
-Group: software.amazon.awssdk  Name: regions  Version: 2.26.25
-Group: software.amazon.awssdk  Name: retries  Version: 2.26.25
-Group: software.amazon.awssdk  Name: retries-spi  Version: 2.26.25
-Group: software.amazon.awssdk  Name: s3  Version: 2.26.25
-Group: software.amazon.awssdk  Name: sdk-core  Version: 2.26.25
-Group: software.amazon.awssdk  Name: sso  Version: 2.26.25
-Group: software.amazon.awssdk  Name: sts  Version: 2.26.25
-Group: software.amazon.awssdk  Name: utils  Version: 2.26.25
+Group: software.amazon.awssdk  Name: annotations  Version: 2.26.29
+Group: software.amazon.awssdk  Name: apache-client  Version: 2.26.29
+Group: software.amazon.awssdk  Name: arns  Version: 2.26.29
+Group: software.amazon.awssdk  Name: auth  Version: 2.26.29
+Group: software.amazon.awssdk  Name: aws-core  Version: 2.26.29
+Group: software.amazon.awssdk  Name: aws-json-protocol  Version: 2.26.29
+Group: software.amazon.awssdk  Name: aws-query-protocol  Version: 2.26.29
+Group: software.amazon.awssdk  Name: aws-xml-protocol  Version: 2.26.29
+Group: software.amazon.awssdk  Name: checksums  Version: 2.26.29
+Group: software.amazon.awssdk  Name: checksums-spi  Version: 2.26.29
+Group: software.amazon.awssdk  Name: crt-core  Version: 2.26.29
+Group: software.amazon.awssdk  Name: dynamodb  Version: 2.26.29
+Group: software.amazon.awssdk  Name: endpoints-spi  Version: 2.26.29
+Group: software.amazon.awssdk  Name: glue  Version: 2.26.29
+Group: software.amazon.awssdk  Name: http-auth  Version: 2.26.29
+Group: software.amazon.awssdk  Name: http-auth-aws  Version: 2.26.29
+Group: software.amazon.awssdk  Name: http-auth-aws-eventstream  Version: 2.26.29
+Group: software.amazon.awssdk  Name: http-auth-spi  Version: 2.26.29
+Group: software.amazon.awssdk  Name: http-client-spi  Version: 2.26.29
+Group: software.amazon.awssdk  Name: iam  Version: 2.26.29
+Group: software.amazon.awssdk  Name: identity-spi  Version: 2.26.29
+Group: software.amazon.awssdk  Name: json-utils  Version: 2.26.29
+Group: software.amazon.awssdk  Name: kms  Version: 2.26.29
+Group: software.amazon.awssdk  Name: lakeformation  Version: 2.26.29
+Group: software.amazon.awssdk  Name: metrics-spi  Version: 2.26.29
+Group: software.amazon.awssdk  Name: netty-nio-client  Version: 2.26.29
+Group: software.amazon.awssdk  Name: profiles  Version: 2.26.29
+Group: software.amazon.awssdk  Name: protocol-core  Version: 2.26.29
+Group: software.amazon.awssdk  Name: regions  Version: 2.26.29
+Group: software.amazon.awssdk  Name: retries  Version: 2.26.29
+Group: software.amazon.awssdk  Name: retries-spi  Version: 2.26.29
+Group: software.amazon.awssdk  Name: s3  Version: 2.26.29
+Group: software.amazon.awssdk  Name: sdk-core  Version: 2.26.29
+Group: software.amazon.awssdk  Name: sso  Version: 2.26.29
+Group: software.amazon.awssdk  Name: sts  Version: 2.26.29
+Group: software.amazon.awssdk  Name: utils  Version: 2.26.29
 
 Notice: AWS SDK for Java 2.0
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
@@ -1048,17 +1059,6 @@ project. The following notice covers the Xalan jar files:
 
 --------------------------------------------------------------------------------
 
-Group: commons-io  Name: commons-io  Version: 2.15.1
-
-Notice: Apache Commons IO
-Copyright 2002-2023 The Apache Software Foundation
-
-This product includes software developed at
-The Apache Software Foundation (https://www.apache.org/).
-
-
---------------------------------------------------------------------------------
-
 Group: com.google.inject  Name: guice  Version: 4.0
 
 Notice: Google Guice - Core Library
@@ -1148,8 +1148,8 @@ The Apache Software Foundation (http://www.apache.org/).
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.17.1
-Group: software.amazon.awssdk  Name: third-party-jackson-core  Version: 2.26.25
+Group: com.fasterxml.jackson.core  Name: jackson-core  Version: 2.17.2
+Group: software.amazon.awssdk  Name: third-party-jackson-core  Version: 2.26.29
 
 Notice: # Jackson JSON processor
 
@@ -1187,7 +1187,7 @@ and the licenses and copyrights that apply to that code.
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.17.1
+Group: com.fasterxml.jackson.datatype  Name: jackson-datatype-jsr310  Version: 2.17.2
 
 Notice: # Jackson JSON processor
 
@@ -1303,17 +1303,6 @@ Group: org.apache.kerby  Name: kerb-util  Version: 1.0.1
 
 Notice: Kerby-kerb Util
 Copyright 2014-2017 The Apache Software Foundation
-
-This product includes software developed at
-The Apache Software Foundation (http://www.apache.org/).
-
-
---------------------------------------------------------------------------------
-
-Group: org.apache.avro  Name: avro  Version: 1.11.3
-
-Notice: Apache Avro
-Copyright 2009-2023 The Apache Software Foundation
 
 This product includes software developed at
 The Apache Software Foundation (http://www.apache.org/).
@@ -1455,8 +1444,8 @@ The Apache Software Foundation (http://www.apache.org/).
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.17.1
-Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.17.1
+Group: com.fasterxml.jackson.core  Name: jackson-annotations  Version: 2.17.2
+Group: com.fasterxml.jackson.core  Name: jackson-databind  Version: 2.17.2
 
 Notice: # Jackson JSON processor
 
@@ -1505,6 +1494,18 @@ The Apache Software Foundation (http://www.apache.org/).
 
 --------------------------------------------------------------------------------
 
+Group: org.apache.avro  Name: avro  Version: 1.12.0
+
+Notice: Apache Avro
+Copyright 2009-2024 The Apache Software Foundation
+
+
+This product includes software developed at
+The Apache Software Foundation (http://www.apache.org/).
+
+
+--------------------------------------------------------------------------------
+
 Group: org.apache.hive.shims  Name: hive-shims-0.23  Version: 2.3.9
 
 Notice: Hive Shims 0.23
@@ -1538,7 +1539,7 @@ The Apache Software Foundation (http://www.apache.org/).
 
 --------------------------------------------------------------------------------
 
-Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-json-provider  Version: 2.17.1
+Group: com.fasterxml.jackson.jaxrs  Name: jackson-jaxrs-json-provider  Version: 2.17.2
 
 Notice: # Jackson JSON processor
 
