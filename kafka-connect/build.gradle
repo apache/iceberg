@@ -115,6 +115,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     implementation platform(libs.awssdk.bom)
     implementation 'software.amazon.awssdk:apache-client'
     implementation 'software.amazon.awssdk:auth'
+    implementation "software.amazon.awssdk:http-auth-aws-crt"
     implementation 'software.amazon.awssdk:iam'
     implementation 'software.amazon.awssdk:sso'
     implementation 'software.amazon.awssdk:s3'
