@@ -26,7 +26,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
 import java.util.List;
@@ -82,7 +81,6 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
 
   @TestTemplate
   public void testComputeTableStatsAction() throws NoSuchTableException, ParseException {
-    assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
@@ -121,7 +119,6 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
   @TestTemplate
   public void testComputeTableStatsActionWithoutExplicitColumns()
       throws NoSuchTableException, ParseException {
-    assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
 
     List<SimpleRecord> records =
@@ -144,25 +141,26 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
     StatisticsFile statisticsFile = table.statisticsFiles().get(0);
     Assertions.assertEquals(2, statisticsFile.blobMetadata().size());
     assertNotEquals(0, statisticsFile.fileSizeInBytes());
-    assertNotEquals(
+    Assertions.assertEquals(
         4,
-        statisticsFile
-            .blobMetadata()
-            .get(0)
-            .properties()
-            .get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY));
-    assertNotEquals(
+        Long.parseLong(
+            statisticsFile
+                .blobMetadata()
+                .get(0)
+                .properties()
+                .get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY)));
+    Assertions.assertEquals(
         4,
-        statisticsFile
-            .blobMetadata()
-            .get(1)
-            .properties()
-            .get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY));
+        Long.parseLong(
+            statisticsFile
+                .blobMetadata()
+                .get(1)
+                .properties()
+                .get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY)));
   }
 
   @TestTemplate
   public void testComputeTableStatsForInvalidColumns() throws NoSuchTableException, ParseException {
-    assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     // Append data to create snapshot
     sql("INSERT into %s values(1, 'abcd')", tableName);
@@ -178,7 +176,6 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
 
   @TestTemplate
   public void testComputeTableStatsWithNoSnapshots() throws NoSuchTableException, ParseException {
-    assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
@@ -188,7 +185,6 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
 
   @TestTemplate
   public void testComputeTableStatsWithNullValues() throws NoSuchTableException, ParseException {
-    assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     List<SimpleRecord> records =
         Lists.newArrayList(
@@ -223,7 +219,6 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
   @TestTemplate
   public void testComputeTableStatsWithSnapshotHavingDifferentSchemas()
       throws NoSuchTableException, ParseException {
-    assumeTrue(catalogName.equals("spark_catalog"));
     SparkActions actions = SparkActions.get();
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     // Append data to create snapshot
@@ -255,7 +250,6 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
   @TestTemplate
   public void testComputeTableStatsWhenSnapshotIdNotSpecified()
       throws NoSuchTableException, ParseException {
-    assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     // Append data to create snapshot
     sql("INSERT into %s values(1, 'abcd')", tableName);
@@ -281,10 +275,9 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
   @TestTemplate
   public void testComputeTableStatsWithNestedSchema()
       throws NoSuchTableException, ParseException, IOException {
-    assumeTrue(catalogName.equals("spark_catalog"));
     List<Record> records = Lists.newArrayList(createNestedRecord());
     Table table =
-        catalog.createTable(
+        validationCatalog.createTable(
             tableIdent,
             SCHEMA_WITH_NESTED_COLUMN,
             PartitionSpec.unpartitioned(),
@@ -305,21 +298,19 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testComputeTableStatsWithNoComputableColumns()
-      throws NoSuchTableException, ParseException, IOException {
-    assumeTrue(catalogName.equals("spark_catalog"));
+  public void testComputeTableStatsWithNoComputableColumns() throws IOException {
     List<Record> records = Lists.newArrayList(createNestedRecord());
     Table table =
-        catalog.createTable(
+        validationCatalog.createTable(
             tableIdent, NESTED_SCHEMA, PartitionSpec.unpartitioned(), ImmutableMap.of());
     DataFile dataFile = FileHelpers.writeDataFile(table, Files.localOutput(temp.toFile()), records);
     table.newAppend().appendFile(dataFile).commit();
 
-    Table tbl = Spark3Util.loadIcebergTable(spark, tableName);
+    table.refresh();
     SparkActions actions = SparkActions.get();
     IllegalArgumentException exception =
         assertThrows(
-            IllegalArgumentException.class, () -> actions.computeTableStats(tbl).execute());
+            IllegalArgumentException.class, () -> actions.computeTableStats(table).execute());
     Assertions.assertEquals(exception.getMessage(), "No columns found to compute stats");
   }
 
@@ -371,7 +362,6 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
 
   public void testComputeTableStats(String columnName, String type)
       throws NoSuchTableException, ParseException {
-    assumeTrue(catalogName.equals("spark_catalog"));
     sql("CREATE TABLE %s (id int, %s %s) USING iceberg", tableName, columnName, type);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 

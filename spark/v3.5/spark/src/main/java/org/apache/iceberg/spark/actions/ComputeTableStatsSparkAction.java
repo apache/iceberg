@@ -40,6 +40,7 @@ import org.apache.iceberg.puffin.Puffin;
 import org.apache.iceberg.puffin.PuffinWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.spark.JobGroupInfo;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.SparkSession;
@@ -72,7 +73,7 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
   public ComputeTableStats columns(String... newColumns) {
     Preconditions.checkArgument(
         newColumns != null && newColumns.length > 0, "Columns cannot be null/empty");
-    this.columns = ImmutableList.copyOf(newColumns);
+    this.columns = ImmutableList.copyOf(ImmutableSet.copyOf(newColumns));
     return this;
   }
 
@@ -86,15 +87,16 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
 
   @Override
   public Result execute() {
+    if (snapshot == null) {
+      LOG.info("No snapshot to compute stats for table {}", table.name());
+      return EMPTY_RESULT;
+    }
+    validateColumns();
     JobGroupInfo info = newJobGroupInfo("COMPUTE-TABLE-STATS", jobDesc());
     return withJobGroupInfo(info, this::doExecute);
   }
 
   private Result doExecute() {
-    if (snapshot == null) {
-      return EMPTY_RESULT;
-    }
-    validateColumns();
     LOG.info(
         "Computing stats for columns {} in {} (snapshot {})",
         columns(),
@@ -124,13 +126,13 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
   }
 
   private List<Blob> generateNDVBlobs() {
-    return NDVSketchUtil.generateSketches(spark(), table, snapshot, columns());
+    return NDVSketchUtil.generateBlobs(spark(), table, snapshot, columns());
   }
 
   private List<String> columns() {
     if (columns == null) {
-      Schema schema = snapshot == null ? table.schema() : table.schemas().get(snapshot.schemaId());
-      columns =
+      Schema schema = table.schemas().get(snapshot.schemaId());
+      this.columns =
           schema.columns().stream()
               .filter(nestedField -> nestedField.type().isPrimitiveType())
               .map(Types.NestedField::name)
@@ -159,7 +161,7 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
     return String.format("Iceberg %s Spark %s", icebergVersion, sparkVersion);
   }
 
-  private Long snapshotId() {
+  private long snapshotId() {
     return snapshot != null ? snapshot.snapshotId() : null;
   }
 

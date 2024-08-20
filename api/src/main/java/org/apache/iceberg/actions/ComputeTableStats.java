@@ -22,7 +22,6 @@ import org.apache.iceberg.StatisticsFile;
 
 /** An action that collects statistics of an Iceberg table and writes to Puffin files. */
 public interface ComputeTableStats extends Action<ComputeTableStats, ComputeTableStats.Result> {
-
   /**
    * Choose the set of columns to collect stats, by default all columns are chosen.
    *
