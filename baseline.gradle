@@ -93,6 +93,8 @@ subprojects {
           '-Xep:ConsistentLoggerName:OFF',
           '-Xep:DangerousJavaDeserialization:ERROR',
           '-Xep:DangerousThreadPoolExecutorUsage:OFF',
+          '-Xep:DefaultCharset:ERROR',
+          '-Xep:DefaultLocale:ERROR',
           // subclasses are not equal
           '-Xep:EqualsGetClass:OFF',
           // specific to Palantir
