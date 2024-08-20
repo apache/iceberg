@@ -31,6 +31,7 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -130,7 +131,7 @@ public class IcebergSink
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSink.class);
   private final TableLoader tableLoader;
   private final Map<String, String> snapshotProperties;
-  private final String uidPrefix;
+  private final String uidSuffix;
   private final String sinkId;
   private final Map<String, String> writeProperties;
   private final RowType flinkRowType;
@@ -151,7 +152,7 @@ public class IcebergSink
       TableLoader tableLoader,
       Table table,
       Map<String, String> snapshotProperties,
-      String uidPrefix,
+      String uidSuffix,
       Map<String, String> writeProperties,
       RowType flinkRowType,
       SerializableSupplier<Table> tableSupplier,
@@ -161,7 +162,7 @@ public class IcebergSink
       boolean overwriteMode) {
     this.tableLoader = tableLoader;
     this.snapshotProperties = snapshotProperties;
-    this.uidPrefix = uidPrefix;
+    this.uidSuffix = uidSuffix;
     this.writeProperties = writeProperties;
     this.flinkRowType = flinkRowType;
     this.tableSupplier = tableSupplier;
@@ -231,17 +232,21 @@ public class IcebergSink
     TypeInformation<CommittableMessage<IcebergCommittable>> typeInformation =
         CommittableMessageTypeInfo.of(this::getCommittableSerializer);
 
+    String operatorName =
+        String.format(
+            "%s-%s-%s-%s",
+            Objects.toString(uidSuffix, ""), table.name(), sinkId, "pre-commit-topology");
+    String preCommitAggregatorUid =
+        String.format("Sink pre-commit aggregator: %s", Objects.toString(uidSuffix, ""));
+
     // global forces all output records send to subtask 0 of the downstream committer operator.
     // This is to ensure commit only happen in one committer subtask.
     // Once upstream Flink provides the capability of setting committer operator
     // parallelism to 1, this can be removed.
     return writeResults
-        .global()
-        .transform(
-            suffixIfNotNull(uidPrefix, table.name() + "-" + sinkId + "-pre-commit-topology"),
-            typeInformation,
-            new IcebergWriteAggregator(tableLoader))
-        .uid(suffixIfNotNull(uidPrefix, "pre-commit-topology"))
+        // .global()
+        .transform(operatorName, typeInformation, new IcebergWriteAggregator(tableLoader))
+        .uid(preCommitAggregatorUid)
         .setParallelism(1)
         .setMaxParallelism(1)
         // global forces all output records send to subtask 0 of the downstream committer operator.
@@ -536,7 +541,7 @@ public class IcebergSink
       IcebergSink sink = build();
       DataStream<RowData> rowDataInput = inputCreator.apply(uidSuffix);
       DataStreamSink<RowData> rowDataDataStreamSink =
-          rowDataInput.sinkTo(sink).uid(uidSuffix == null ? "sink" : uidSuffix);
+          rowDataInput.sinkTo(sink).uid(uidSuffix == null ? "sink-why" : uidSuffix);
 
       // Note that IcebergSink internally consists o multiple operators (like writer, committer,
       // aggregator).

@@ -177,6 +177,15 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
     FlinkManifestUtil.deleteCommittedManifests(table, manifests, newFlinkJobId, checkpointId);
   }
 
+  private void logCommitSummary(CommitSummary summary, String description) {
+    LOG.info(
+        "Preparing for commit: {} on table: {} branch: {} with summary: {}.",
+        description,
+        table,
+        branch,
+        summary);
+  }
+
   private void commitPendingResult(
       NavigableMap<Long, WriteResult> pendingResults,
       CommitSummary summary,
@@ -212,14 +221,10 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
           result.referencedDataFiles().length == 0, "Should have no referenced data files.");
       Arrays.stream(result.dataFiles()).forEach(dynamicOverwrite::addFile);
     }
+    String description = "dynamic partition overwrite";
 
-    commitOperation(
-        dynamicOverwrite,
-        summary,
-        "dynamic partition overwrite",
-        newFlinkJobId,
-        operatorId,
-        checkpointId);
+    logCommitSummary(summary, description);
+    commitOperation(dynamicOverwrite, description, newFlinkJobId, operatorId, checkpointId);
   }
 
   private void commitDeltaTxn(
@@ -237,8 +242,10 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
             "Should have no referenced data files for append.");
         Arrays.stream(result.dataFiles()).forEach(appendFiles::appendFile);
       }
+      String description = "append";
+      logCommitSummary(summary, description);
       // fail all commits as really its only one
-      commitOperation(appendFiles, summary, "append", newFlinkJobId, operatorId, checkpointId);
+      commitOperation(appendFiles, description, newFlinkJobId, operatorId, checkpointId);
     } else {
       // To be compatible with iceberg format V2.
       for (Map.Entry<Long, WriteResult> e : pendingResults.entrySet()) {
@@ -259,26 +266,21 @@ class IcebergCommitter implements Committer<IcebergCommittable> {
 
         Arrays.stream(result.dataFiles()).forEach(rowDelta::addRows);
         Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
-        commitOperation(rowDelta, summary, "rowDelta", newFlinkJobId, operatorId, e.getKey());
+
+        String description = "rowDelta";
+        logCommitSummary(summary, description);
+        commitOperation(rowDelta, description, newFlinkJobId, operatorId, e.getKey());
       }
     }
   }
 
   private void commitOperation(
       SnapshotUpdate<?> operation,
-      CommitSummary summary,
       String description,
       String newFlinkJobId,
       String operatorId,
       long checkpointId) {
 
-    LOG.info(
-        "Committing {} for checkpoint {} to table {} branch {} with summary: {}",
-        description,
-        checkpointId,
-        table.name(),
-        branch,
-        summary);
     snapshotProperties.forEach(operation::set);
     // custom snapshot metadata properties will be overridden if they conflict with internal ones
     // used by the sink.
