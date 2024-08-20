@@ -69,10 +69,9 @@ public class ManifestReadBenchmark {
     manifestListFile = String.format("%s/%s.avro", baseDir, UUID.randomUUID());
 
     Random random = new Random(System.currentTimeMillis());
-    ManifestListWriter listWriter =
-        ManifestLists.write(1, org.apache.iceberg.Files.localOutput(manifestListFile), 0, 1L, 0);
 
-    try {
+    try (ManifestListWriter listWriter =
+        ManifestLists.write(1, org.apache.iceberg.Files.localOutput(manifestListFile), 0, 1L, 0)) {
       for (int i = 0; i < NUM_FILES; i++) {
         OutputFile manifestFile =
             org.apache.iceberg.Files.localOutput(
@@ -98,8 +97,6 @@ public class ManifestReadBenchmark {
 
         listWriter.add(writer.toManifestFile());
       }
-
-      listWriter.close();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }

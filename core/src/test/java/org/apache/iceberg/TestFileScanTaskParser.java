@@ -31,14 +31,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class TestFileScanTaskParser {
   @Test
   public void testNullArguments() {
-    assertThatThrownBy(() -> FileScanTaskParser.toJson(null))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid file scan task: null");
-
-    assertThatThrownBy(() -> FileScanTaskParser.fromJson((String) null, true))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid JSON string for file scan task: null");
-
     assertThatThrownBy(() -> ScanTaskParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid scan task: null");
@@ -46,28 +38,6 @@ public class TestFileScanTaskParser {
     assertThatThrownBy(() -> ScanTaskParser.fromJson(null, true))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid JSON string for scan task: null");
-  }
-
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  public void testFileScanTaskParser(boolean caseSensitive) {
-    PartitionSpec spec = TestBase.SPEC;
-    FileScanTask fileScanTask = createFileScanTask(spec, caseSensitive);
-    String jsonStr = FileScanTaskParser.toJson(fileScanTask);
-    assertThat(jsonStr).isEqualTo(fileScanTaskJsonWithoutTaskType());
-    FileScanTask deserializedTask = FileScanTaskParser.fromJson(jsonStr, caseSensitive);
-    assertFileScanTaskEquals(fileScanTask, deserializedTask, spec, caseSensitive);
-  }
-
-  /** Test backward compatibility where task-type field is absent from the JSON string */
-  @ParameterizedTest
-  @ValueSource(booleans = {true, false})
-  public void testFileScanTaskParserWithoutTaskTypeField(boolean caseSensitive) {
-    PartitionSpec spec = TestBase.SPEC;
-    FileScanTask fileScanTask = createFileScanTask(spec, caseSensitive);
-    FileScanTask deserializedTask =
-        FileScanTaskParser.fromJson(fileScanTaskJsonWithoutTaskType(), caseSensitive);
-    assertFileScanTaskEquals(fileScanTask, deserializedTask, spec, caseSensitive);
   }
 
   @ParameterizedTest

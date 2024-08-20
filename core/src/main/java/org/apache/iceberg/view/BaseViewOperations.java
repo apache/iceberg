@@ -102,6 +102,7 @@ public abstract class BaseViewOperations extends BaseMetastoreOperations impleme
   }
 
   @Override
+  @SuppressWarnings("ImmutablesReferenceEquality")
   public void commit(ViewMetadata base, ViewMetadata metadata) {
     // if the metadata is already out of date, reject it
     if (base != current()) {

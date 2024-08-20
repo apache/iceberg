@@ -686,6 +686,8 @@ paths:
         Commits have two parts, requirements and updates. Requirements are assertions that will be validated
         before attempting to make and commit changes. For example, `assert-ref-snapshot-id` will check that a
         named ref's snapshot ID has a certain value.
+        Server implementations are required to fail with a 400 status code
+        if any unknown updates or requirements are received.
 
 
         Updates are changes to make to table metadata. For example, after asserting that the current main ref
@@ -986,7 +988,8 @@ paths:
           A commit for a single table consists of a table identifier with requirements and updates.
           Requirements are assertions that will be validated before attempting to make and commit changes.
           For example, `assert-ref-snapshot-id` will check that a named ref's snapshot ID has a certain value.
-
+          Server implementations are required to fail with a 400 status code
+          if any unknown updates or requirements are received.
 
           Updates are changes to make to table metadata. For example, after asserting that the current main ref
           is at the expected snapshot, a commit may add a new child snapshot and set the ref to the new
