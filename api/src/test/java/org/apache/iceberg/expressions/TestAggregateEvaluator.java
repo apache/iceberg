@@ -91,9 +91,25 @@ public class TestAggregateEvaluator {
           // upper bounds
           ImmutableMap.of(1, toByteBuffer(IntegerType.get(), 3333)));
 
-  private static final DataFile[] dataFiles = {
+  private static final DataFile[] DATA_FILES = {
     FILE, MISSING_SOME_NULLS_STATS_1, MISSING_SOME_NULLS_STATS_2
   };
+
+  private static final DataFile MISSING_ALL_OPTIONAL_STATS =
+      new TestDataFile(
+          "file_null_stats.avro",
+          Row.of(),
+          20,
+          // any value counts, including nulls
+          null,
+          // null value counts
+          null,
+          // nan value counts
+          null,
+          // lower bounds
+          null,
+          // upper bounds
+          null);
 
   @Test
   public void testIntAggregate() {
@@ -105,7 +121,7 @@ public class TestAggregateEvaluator {
             Expressions.min("id"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
 
-    for (DataFile dataFile : dataFiles) {
+    for (DataFile dataFile : DATA_FILES) {
       aggregateEvaluator.update(dataFile);
     }
 
@@ -125,7 +141,7 @@ public class TestAggregateEvaluator {
             Expressions.min("all_nulls"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
 
-    for (DataFile dataFile : dataFiles) {
+    for (DataFile dataFile : DATA_FILES) {
       aggregateEvaluator.update(dataFile);
     }
 
@@ -144,7 +160,7 @@ public class TestAggregateEvaluator {
             Expressions.max("some_nulls"),
             Expressions.min("some_nulls"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
-    for (DataFile dataFile : dataFiles) {
+    for (DataFile dataFile : DATA_FILES) {
       aggregateEvaluator.update(dataFile);
     }
 
@@ -163,13 +179,49 @@ public class TestAggregateEvaluator {
             Expressions.max("no_stats"),
             Expressions.min("no_stats"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
-    for (DataFile dataFile : dataFiles) {
+    for (DataFile dataFile : DATA_FILES) {
       aggregateEvaluator.update(dataFile);
     }
 
     assertThat(aggregateEvaluator.allAggregatorsValid()).isFalse();
     StructLike result = aggregateEvaluator.result();
     Object[] expected = {90L, null, null, null};
+    assertEvaluatorResult(result, expected);
+  }
+
+  @Test
+  public void testIntAggregateAllMissingStats() {
+    List<Expression> list =
+        ImmutableList.of(
+            Expressions.countStar(),
+            Expressions.count("id"),
+            Expressions.max("id"),
+            Expressions.min("id"));
+    AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
+
+    aggregateEvaluator.update(MISSING_ALL_OPTIONAL_STATS);
+
+    assertThat(aggregateEvaluator.allAggregatorsValid()).isFalse();
+    StructLike result = aggregateEvaluator.result();
+    Object[] expected = {20L, null, null, null};
+    assertEvaluatorResult(result, expected);
+  }
+
+  @Test
+  public void testOptionalColAllMissingStats() {
+    List<Expression> list =
+        ImmutableList.of(
+            Expressions.countStar(),
+            Expressions.count("no_stats"),
+            Expressions.max("no_stats"),
+            Expressions.min("no_stats"));
+    AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
+
+    aggregateEvaluator.update(MISSING_ALL_OPTIONAL_STATS);
+
+    assertThat(aggregateEvaluator.allAggregatorsValid()).isFalse();
+    StructLike result = aggregateEvaluator.result();
+    Object[] expected = {20L, null, null, null};
     assertEvaluatorResult(result, expected);
   }
 

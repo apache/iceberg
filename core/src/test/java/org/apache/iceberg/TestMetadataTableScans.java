@@ -21,11 +21,14 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,28 +39,23 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestMetadataTableScans extends MetadataTableScanTestBase {
-
-  public TestMetadataTableScans(int formatVersion) {
-    super(formatVersion);
-  }
 
   private void preparePartitionedTable(boolean transactional) {
     preparePartitionedTableData(transactional);
 
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       if (transactional) {
         table
             .newRowDelta()
@@ -100,7 +98,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     preparePartitionedTableData(false);
   }
 
-  @Test
+  @TestTemplate
   public void testManifestsTableWithDroppedPartition() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -119,11 +117,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scan = manifestsTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
+      assertThat(tasks).hasSize(1);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testManifestsTableAlwaysIgnoresResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -132,26 +130,28 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scan = manifestsTable.newScan().filter(Expressions.lessThan("length", 10000L));
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertTrue("Tasks should not be empty", Iterables.size(tasks) > 0);
+      assertThat(tasks).as("Tasks should not be empty").hasSizeGreaterThan(0);
       for (FileScanTask task : tasks) {
-        Assert.assertEquals("Residuals must be ignored", Expressions.alwaysTrue(), task.residual());
+        assertThat(task.residual())
+            .as("Residuals must be ignored")
+            .isEqualTo(Expressions.alwaysTrue());
       }
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMetadataTableUUID() {
     Table manifestsTable = new ManifestsTable(table);
 
-    Assertions.assertThat(manifestsTable.uuid())
+    assertThat(manifestsTable.uuid())
         .as("UUID should be consistent on multiple calls")
         .isEqualTo(manifestsTable.uuid());
-    Assertions.assertThat(manifestsTable.uuid())
+    assertThat(manifestsTable.uuid())
         .as("Metadata table UUID should be different from the base table UUID")
         .isNotEqualTo(table.uuid());
   }
 
-  @Test
+  @TestTemplate
   public void testDataFilesTableWithDroppedPartition() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -170,11 +170,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scan = dataFilesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
+      assertThat(tasks).hasSize(1);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testDataFilesTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -188,7 +188,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     validateTaskScanResiduals(scan2, true);
   }
 
-  @Test
+  @TestTemplate
   public void testManifestEntriesTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -205,7 +205,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     validateTaskScanResiduals(scan2, true);
   }
 
-  @Test
+  @TestTemplate
   public void testManifestEntriesTableWithDroppedPartition() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -224,11 +224,136 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scan = manifestEntriesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
+      assertThat(tasks).hasSize(1);
     }
   }
 
-  @Test
+  @TestTemplate
+  public void testEntriesTableDataFileContentEq() {
+    preparePartitionedTable();
+
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression dataOnly = Expressions.equal("data_file.content", 0);
+    TableScan entriesTableScan = entriesTable.newScan().filter(dataOnly);
+    Set<String> expected =
+        table.currentSnapshot().dataManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    assertThat(scannedPaths(entriesTableScan))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expected);
+
+    assertThat(
+            scannedPaths(entriesTable.newScan().filter(Expressions.equal("data_file.content", 3))))
+        .as("Expected manifest filter by data file content does not match")
+        .isEmpty();
+  }
+
+  @TestTemplate
+  public void testEntriesTableDateFileContentNotEq() {
+    preparePartitionedTable();
+
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression notData = Expressions.notEqual("data_file.content", 0);
+    TableScan entriesTableScan = entriesTable.newScan().filter(notData);
+    Set<String> expected =
+        table.currentSnapshot().deleteManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+
+    assertThat(scannedPaths(entriesTableScan))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expected);
+
+    Set<String> allManifests =
+        table.currentSnapshot().allManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+    assertThat(
+            scannedPaths(
+                entriesTable.newScan().filter(Expressions.notEqual("data_file.content", 3))))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(allManifests);
+  }
+
+  @TestTemplate
+  public void testEntriesTableDataFileContentIn() {
+    preparePartitionedTable();
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression in0 = Expressions.in("data_file.content", 0);
+    TableScan scan1 = entriesTable.newScan().filter(in0);
+    Set<String> expectedDataManifestPath =
+        table.currentSnapshot().dataManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+    assertThat(scannedPaths(scan1))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expectedDataManifestPath);
+
+    Expression in12 = Expressions.in("data_file.content", 1, 2);
+    TableScan scan2 = entriesTable.newScan().filter(in12);
+    Set<String> expectedDeleteManifestPath =
+        table.currentSnapshot().deleteManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+    assertThat(scannedPaths(scan2))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expectedDeleteManifestPath);
+
+    Expression inAll = Expressions.in("data_file.content", 0, 1, 2);
+    Set<String> allManifests = Sets.union(expectedDataManifestPath, expectedDeleteManifestPath);
+    assertThat(scannedPaths(entriesTable.newScan().filter(inAll)))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(allManifests);
+
+    Expression inNeither = Expressions.in("data_file.content", 3, 4);
+    assertThat(scannedPaths(entriesTable.newScan().filter(inNeither)))
+        .as("Expected manifest filter by data file content does not match")
+        .isEmpty();
+  }
+
+  @TestTemplate
+  public void testEntriesTableDataFileContentNotIn() {
+    preparePartitionedTable();
+    Table entriesTable = new ManifestEntriesTable(table);
+
+    Expression notIn0 = Expressions.notIn("data_file.content", 0);
+    TableScan scan1 = entriesTable.newScan().filter(notIn0);
+    Set<String> expectedDeleteManifestPath =
+        table.currentSnapshot().deleteManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+    assertThat(scannedPaths(scan1))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expectedDeleteManifestPath);
+
+    Expression notIn12 = Expressions.notIn("data_file.content", 1, 2);
+    TableScan scan2 = entriesTable.newScan().filter(notIn12);
+    Set<String> expectedDataManifestPath =
+        table.currentSnapshot().dataManifests(table.io()).stream()
+            .map(ManifestFile::path)
+            .collect(Collectors.toSet());
+    assertThat(scannedPaths(scan2))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(expectedDataManifestPath);
+
+    Expression notInNeither = Expressions.notIn("data_file.content", 3);
+    Set<String> allManifests = Sets.union(expectedDataManifestPath, expectedDeleteManifestPath);
+    assertThat(scannedPaths(entriesTable.newScan().filter(notInNeither)))
+        .as("Expected manifest filter by data file content does not match")
+        .isEqualTo(allManifests);
+
+    Expression notInAll = Expressions.notIn("data_file.content", 0, 1, 2);
+    assertThat(scannedPaths(entriesTable.newScan().filter(notInAll)))
+        .as("Expected manifest filter by data file content does not match")
+        .isEmpty();
+  }
+
+  @TestTemplate
   public void testAllDataFilesTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -242,7 +367,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     validateTaskScanResiduals(scan2, true);
   }
 
-  @Test
+  @TestTemplate
   public void testAllDataFilesTableWithDroppedPartition() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -261,11 +386,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scan = allDataFilesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
+      assertThat(tasks).hasSize(1);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testAllEntriesTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -279,7 +404,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     validateTaskScanResiduals(scan2, true);
   }
 
-  @Test
+  @TestTemplate
   public void testAllEntriesTableWithDroppedPartition() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -298,11 +423,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scan = allEntriesTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
+      assertThat(tasks).hasSize(1);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableWithDroppedPartition() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -322,11 +447,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scan = allManifestsTable.newScan();
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
-      Assert.assertEquals("Should have one task", 1, Iterables.size(tasks));
+      assertThat(tasks).hasSize(1);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableHonorsIgnoreResiduals() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -343,7 +468,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     validateTaskScanResiduals(scan2, true);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionsTableScanNoFilter() {
     preparePartitionedTable();
 
@@ -356,14 +481,14 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                     Types.StructType.of(optional(1000, "data_bucket", Types.IntegerType.get()))))
             .asStruct();
     TableScan scanNoFilter = partitionsTable.newScan().select("partition.data_bucket");
-    Assert.assertEquals(expected, scanNoFilter.schema().asStruct());
+    assertThat(scanNoFilter.schema().asStruct()).isEqualTo(expected);
 
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanNoFilter);
-    if (formatVersion == 2) {
-      Assert.assertEquals(8, Iterators.size(entries.iterator()));
+    if (formatVersion >= 2) {
+      assertThat(entries).hasSize(8);
     } else {
-      Assert.assertEquals(4, Iterators.size(entries.iterator()));
+      assertThat(entries).hasSize(4);
     }
 
     validateSingleFieldPartition(entries, 0);
@@ -372,7 +497,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     validateSingleFieldPartition(entries, 3);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionsTableScanWithProjection() {
     preparePartitionedTable();
 
@@ -382,13 +507,13 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             .asStruct();
 
     TableScan scanWithProjection = partitionsTable.newScan().select("file_count");
-    Assert.assertEquals(expected, scanWithProjection.schema().asStruct());
+    assertThat(scanWithProjection.schema().asStruct()).isEqualTo(expected);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanWithProjection);
-    if (formatVersion == 2) {
-      Assert.assertEquals(8, Iterators.size(entries.iterator()));
+    if (formatVersion >= 2) {
+      assertThat(entries).hasSize(8);
     } else {
-      Assert.assertEquals(4, Iterators.size(entries.iterator()));
+      assertThat(entries).hasSize(4);
     }
 
     validateSingleFieldPartition(entries, 0);
@@ -397,7 +522,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     validateSingleFieldPartition(entries, 3);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionsTableScanNoStats() {
     table.newFastAppend().appendFile(FILE_WITH_STATS).commit();
 
@@ -405,16 +530,16 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<ManifestEntry<?>> tasksAndEq =
         PartitionsTable.planEntries((StaticTableScan) partitionsTable.newScan());
     for (ManifestEntry<? extends ContentFile<?>> task : tasksAndEq) {
-      Assert.assertNull(task.file().columnSizes());
-      Assert.assertNull(task.file().valueCounts());
-      Assert.assertNull(task.file().nullValueCounts());
-      Assert.assertNull(task.file().nanValueCounts());
-      Assert.assertNull(task.file().lowerBounds());
-      Assert.assertNull(task.file().upperBounds());
+      assertThat(task.file().columnSizes()).isNull();
+      assertThat(task.file().valueCounts()).isNull();
+      assertThat(task.file().nullValueCounts()).isNull();
+      assertThat(task.file().nanValueCounts()).isNull();
+      assertThat(task.file().lowerBounds()).isNull();
+      assertThat(task.file().upperBounds()).isNull();
     }
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionsTableScanAndFilter() {
     preparePartitionedTable();
 
@@ -427,16 +552,16 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanAndEq = partitionsTable.newScan().filter(andEquals);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanAndEq);
-    if (formatVersion == 2) {
-      Assert.assertEquals(2, Iterators.size(entries.iterator()));
+    if (formatVersion >= 2) {
+      assertThat(entries).hasSize(2);
     } else {
-      Assert.assertEquals(1, Iterators.size(entries.iterator()));
+      assertThat(entries).hasSize(1);
     }
 
     validateSingleFieldPartition(entries, 0);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionsTableScanLtFilter() {
     preparePartitionedTable();
 
@@ -449,17 +574,17 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanLtAnd = partitionsTable.newScan().filter(ltAnd);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanLtAnd);
-    if (formatVersion == 2) {
-      Assert.assertEquals(4, Iterators.size(entries.iterator()));
+    if (formatVersion >= 2) {
+      assertThat(entries).hasSize(4);
     } else {
-      Assert.assertEquals(2, Iterators.size(entries.iterator()));
+      assertThat(entries).hasSize(2);
     }
 
     validateSingleFieldPartition(entries, 0);
     validateSingleFieldPartition(entries, 1);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionsTableScanOrFilter() {
     preparePartitionedTable();
 
@@ -473,10 +598,10 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanOr);
-    if (formatVersion == 2) {
-      Assert.assertEquals(8, Iterators.size(entries.iterator()));
+    if (formatVersion >= 2) {
+      assertThat(entries).hasSize(8);
     } else {
-      Assert.assertEquals(4, Iterators.size(entries.iterator()));
+      assertThat(entries).hasSize(4);
     }
 
     validateSingleFieldPartition(entries, 0);
@@ -485,7 +610,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     validateSingleFieldPartition(entries, 3);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionsScanNotFilter() {
     preparePartitionedTable();
     Table partitionsTable = new PartitionsTable(table);
@@ -494,17 +619,17 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanNot = partitionsTable.newScan().filter(not);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanNot);
-    if (formatVersion == 2) {
-      Assert.assertEquals(4, Iterators.size(entries.iterator()));
+    if (formatVersion >= 2) {
+      assertThat(entries).hasSize(4);
     } else {
-      Assert.assertEquals(2, Iterators.size(entries.iterator()));
+      assertThat(entries).hasSize(2);
     }
 
     validateSingleFieldPartition(entries, 2);
     validateSingleFieldPartition(entries, 3);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionsTableScanInFilter() {
     preparePartitionedTable();
 
@@ -514,17 +639,17 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanSet = partitionsTable.newScan().filter(set);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanSet);
-    if (formatVersion == 2) {
-      Assert.assertEquals(4, Iterators.size(entries.iterator()));
+    if (formatVersion >= 2) {
+      assertThat(entries).hasSize(4);
     } else {
-      Assert.assertEquals(2, Iterators.size(entries.iterator()));
+      assertThat(entries).hasSize(2);
     }
 
     validateSingleFieldPartition(entries, 2);
     validateSingleFieldPartition(entries, 3);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionsTableScanNotNullFilter() {
     preparePartitionedTable();
 
@@ -534,10 +659,10 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanUnary = partitionsTable.newScan().filter(unary);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanUnary);
-    if (formatVersion == 2) {
-      Assert.assertEquals(8, Iterators.size(entries.iterator()));
+    if (formatVersion >= 2) {
+      assertThat(entries).hasSize(8);
     } else {
-      Assert.assertEquals(4, Iterators.size(entries.iterator()));
+      assertThat(entries).hasSize(4);
     }
 
     validateSingleFieldPartition(entries, 0);
@@ -546,7 +671,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     validateSingleFieldPartition(entries, 3);
   }
 
-  @Test
+  @TestTemplate
   public void testFilesTableScanWithDroppedPartition() throws IOException {
     preparePartitionedTable();
 
@@ -578,7 +703,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             Types.NestedField.optional(1000, "data_bucket", Types.IntegerType.get()),
             Types.NestedField.optional(1001, "data_bucket_16", Types.IntegerType.get()),
             Types.NestedField.optional(1002, "data_trunc_2", Types.StringType.get()));
-    Assert.assertEquals("Partition type must match", expectedType, actualType);
+    assertThat(actualType).as("Partition type must match").isEqualTo(expectedType);
     Accessor<StructLike> accessor = schema.accessorForField(1000);
 
     try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
@@ -588,14 +713,13 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
               .map(accessor::get)
               .map(i -> (Integer) i)
               .collect(Collectors.toSet());
-      Assert.assertEquals("Partition value must match", Sets.newHashSet(0, 1, 2, 3), results);
+      assertThat(results).as("Partition value must match").containsExactly(0, 1, 2, 3);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteFilesTableSelection() throws IOException {
-    Assume.assumeTrue("Only V2 Tables Support Deletes", formatVersion >= 2);
-
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     table.newFastAppend().appendFile(FILE_A).commit();
 
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
@@ -618,10 +742,10 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                 required(
                     103, "record_count", Types.LongType.get(), "Number of records in the file"))
             .asStruct();
-    Assert.assertEquals(expected, scan.schema().asStruct());
+    assertThat(scan.schema().asStruct()).isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testFilesTableReadableMetricsSchema() {
     Table filesTable = new FilesTable(table);
     Types.StructType actual = filesTable.newScan().schema().select("readable_metrics").asStruct();
@@ -705,10 +829,10 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                         "Metrics for column id")),
                 "Column metrics in readable form"));
 
-    Assert.assertEquals("Dynamic schema for readable_metrics should match", actual, expected);
+    assertThat(actual).as("Dynamic schema for readable_metrics should match").isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testEntriesTableReadableMetricsSchema() {
     Table entriesTable = new ManifestEntriesTable(table);
     Types.StructType actual = entriesTable.newScan().schema().select("readable_metrics").asStruct();
@@ -792,10 +916,10 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                         "Metrics for column id")),
                 "Column metrics in readable form"));
 
-    Assert.assertEquals("Dynamic schema for readable_metrics should match", actual, expected);
+    assertThat(actual).as("Dynamic schema for readable_metrics should match").isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionSpecEvolutionAdditive() {
     preparePartitionedTable();
 
@@ -815,8 +939,8 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             .withPartition(data10Key)
             .build();
     PartitionKey data11Key = new PartitionKey(newSpec, table.schema());
-    data11Key.set(0, 1); // data=0
-    data10Key.set(1, 11); // id=11
+    data11Key.set(0, 1); // data=1
+    data11Key.set(1, 11); // id=11
     DataFile data11 =
         DataFiles.builder(newSpec)
             .withPath("/path/to/data-11.parquet")
@@ -835,12 +959,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scan = metadataTable.newScan().filter(filter);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scan);
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       // Four data files and delete files of old spec, one new data file of new spec
-      Assert.assertEquals(9, Iterables.size(entries));
+      assertThat(entries).hasSize(9);
     } else {
       // Four data files of old spec, one new data file of new spec
-      Assert.assertEquals(5, Iterables.size(entries));
+      assertThat(entries).hasSize(5);
     }
 
     filter =
@@ -850,17 +974,17 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     scan = metadataTable.newScan().filter(filter);
     entries = PartitionsTable.planEntries((StaticTableScan) scan);
 
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       // 1 original data file and delete file written by old spec, plus 1 new data file written by
       // new spec
-      Assert.assertEquals(3, Iterables.size(entries));
+      assertThat(entries).hasSize(3);
     } else {
       // 1 original data file written by old spec, plus 1 new data file written by new spec
-      Assert.assertEquals(2, Iterables.size(entries));
+      assertThat(entries).hasSize(2);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionSpecEvolutionRemoval() {
     preparePartitionedTable();
 
@@ -901,12 +1025,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scan);
 
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       // Four data and delete files of original spec, one data file written by new spec
-      Assert.assertEquals(9, Iterables.size(entries));
+      assertThat(entries).hasSize(9);
     } else {
       // Four data files of original spec, one data file written by new spec
-      Assert.assertEquals(5, Iterables.size(entries));
+      assertThat(entries).hasSize(5);
     }
 
     // Filter for a dropped partition spec field.  Correct behavior is that only old partitions are
@@ -920,7 +1044,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     if (formatVersion == 1) {
       // 1 original data file written by old spec
-      Assert.assertEquals(1, Iterables.size(entries));
+      assertThat(entries).hasSize(1);
     } else {
       // 1 original data and 1 delete files written by old spec, plus both of new data file/delete
       // file written by new spec
@@ -935,15 +1059,14 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
       // schema.
       // The Partition table final schema is a union of fields of all specs, including dropped
       // fields.
-      Assert.assertEquals(4, Iterables.size(entries));
+      assertThat(entries).hasSize(4);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionColumnNamedPartition() throws Exception {
     TestTables.clearTables();
-    this.tableDir = temp.newFolder();
-    tableDir.delete();
+    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
 
     Schema schema =
         new Schema(
@@ -988,11 +1111,11 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan scanAndEq = partitionsTable.newScan().filter(andEquals);
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scanAndEq);
-    Assert.assertEquals(1, Iterators.size(entries.iterator()));
+    assertThat(entries).hasSize(1);
     validateSingleFieldPartition(entries, 0);
   }
 
-  @Test
+  @TestTemplate
   public void testAllDataFilesTableScanWithPlanExecutor() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -1011,11 +1134,13 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                           true); // daemon threads will be terminated abruptly when the JVM exits
                       return thread;
                     }));
-    Assert.assertEquals(1, Iterables.size(scan.planFiles()));
-    Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
+    assertThat(scan.planFiles()).hasSize(1);
+    assertThat(planThreadsIndex.get())
+        .as("Thread should be created in provided pool")
+        .isGreaterThan(0);
   }
 
-  @Test
+  @TestTemplate
   public void testAllEntriesTableScanWithPlanExecutor() throws IOException {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
@@ -1034,11 +1159,13 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                           true); // daemon threads will be terminated abruptly when the JVM exits
                       return thread;
                     }));
-    Assert.assertEquals(1, Iterables.size(scan.planFiles()));
-    Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
+    assertThat(scan.planFiles()).hasSize(1);
+    assertThat(planThreadsIndex.get())
+        .as("Thread should be created in provided pool")
+        .isGreaterThan(0);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionsTableScanWithPlanExecutor() {
     preparePartitionedTable();
 
@@ -1059,16 +1186,18 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                     }));
     CloseableIterable<ManifestEntry<?>> entries =
         PartitionsTable.planEntries((StaticTableScan) scan);
-    if (formatVersion == 2) {
-      Assert.assertEquals(8, Iterators.size(entries.iterator()));
+    if (formatVersion >= 2) {
+      assertThat(entries).hasSize(8);
     } else {
-      Assert.assertEquals(4, Iterators.size(entries.iterator()));
+      assertThat(entries).hasSize(4);
     }
 
-    Assert.assertTrue("Thread should be created in provided pool", planThreadsIndex.get() > 0);
+    assertThat(planThreadsIndex.get())
+        .as("Thread should be created in provided pool")
+        .isGreaterThan(0);
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableSnapshotGt() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
@@ -1077,13 +1206,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.greaterThan("reference_snapshot_id", 2));
 
-    Assert.assertEquals(
-        "Expected snapshots do not match",
-        expectedManifestListPaths(table.snapshots(), 3L, 4L),
-        actualManifestListPaths(manifestsTableScan));
+    assertThat(scannedPaths(manifestsTableScan))
+        .as("Expected snapshots do not match")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 3L, 4L));
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableSnapshotGte() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
@@ -1092,13 +1220,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.greaterThanOrEqual("reference_snapshot_id", 3));
 
-    Assert.assertEquals(
-        "Expected snapshots do not match",
-        expectedManifestListPaths(table.snapshots(), 3L, 4L),
-        actualManifestListPaths(manifestsTableScan));
+    assertThat(scannedPaths(manifestsTableScan))
+        .as("Expected snapshots do not match")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 3L, 4L));
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableSnapshotLt() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
@@ -1107,13 +1234,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.lessThan("reference_snapshot_id", 3));
 
-    Assert.assertEquals(
-        "Expected snapshots do not match",
-        expectedManifestListPaths(table.snapshots(), 1L, 2L),
-        actualManifestListPaths(manifestsTableScan));
+    assertThat(scannedPaths(manifestsTableScan))
+        .as("Expected snapshots do not match")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 2L));
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableSnapshotLte() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
@@ -1122,13 +1248,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.lessThanOrEqual("reference_snapshot_id", 2));
 
-    Assert.assertEquals(
-        "Expected snapshots do not match",
-        expectedManifestListPaths(table.snapshots(), 1L, 2L),
-        actualManifestListPaths(manifestsTableScan));
+    assertThat(scannedPaths(manifestsTableScan))
+        .as("Expected snapshots do not match")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 2L));
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableSnapshotEq() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
@@ -1137,13 +1262,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.equal("reference_snapshot_id", 2));
 
-    Assert.assertEquals(
-        "Expected snapshots do not match",
-        expectedManifestListPaths(table.snapshots(), 2L),
-        actualManifestListPaths(manifestsTableScan));
+    assertThat(scannedPaths(manifestsTableScan))
+        .as("Expected snapshots do not match")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 2L));
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableSnapshotNotEq() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
@@ -1152,13 +1276,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.notEqual("reference_snapshot_id", 2));
 
-    Assert.assertEquals(
-        "Expected snapshots do not match",
-        expectedManifestListPaths(table.snapshots(), 1L, 3L, 4L),
-        actualManifestListPaths(manifestsTableScan));
+    assertThat(scannedPaths(manifestsTableScan))
+        .as("Expected snapshots do not match")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 3L, 4L));
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableSnapshotIn() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
@@ -1167,13 +1290,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.in("reference_snapshot_id", 1, 3));
-    Assert.assertEquals(
-        "Expected snapshots do not match",
-        expectedManifestListPaths(table.snapshots(), 1L, 3L),
-        actualManifestListPaths(manifestsTableScan));
+    assertThat(scannedPaths(manifestsTableScan))
+        .as("Expected snapshots do not match")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 3L));
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableSnapshotNotIn() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
@@ -1182,13 +1304,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     TableScan manifestsTableScan =
         manifestsTable.newScan().filter(Expressions.notIn("reference_snapshot_id", 1, 3));
 
-    Assert.assertEquals(
-        "Expected snapshots do not match",
-        expectedManifestListPaths(table.snapshots(), 2L, 4L),
-        actualManifestListPaths(manifestsTableScan));
+    assertThat(scannedPaths(manifestsTableScan))
+        .as("Expected snapshots do not match")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 2L, 4L));
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableSnapshotAnd() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
@@ -1202,13 +1323,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                 Expressions.and(
                     Expressions.equal("reference_snapshot_id", 2),
                     Expressions.greaterThan("length", 0)));
-    Assert.assertEquals(
-        "Expected snapshots do not match",
-        expectedManifestListPaths(table.snapshots(), 2L),
-        actualManifestListPaths(manifestsTableScan));
+    assertThat(scannedPaths(manifestsTableScan))
+        .as("Expected snapshots do not match")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 2L));
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableSnapshotOr() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
@@ -1222,13 +1342,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                 Expressions.or(
                     Expressions.equal("reference_snapshot_id", 2),
                     Expressions.equal("reference_snapshot_id", 4)));
-    Assert.assertEquals(
-        "Expected snapshots do not match",
-        expectedManifestListPaths(table.snapshots(), 2L, 4L),
-        actualManifestListPaths(manifestsTableScan));
+    assertThat(scannedPaths(manifestsTableScan))
+        .as("Expected snapshots do not match")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 2L, 4L));
   }
 
-  @Test
+  @TestTemplate
   public void testAllManifestsTableSnapshotNot() {
     // Snapshots 1,2,3,4
     preparePartitionedTableData();
@@ -1239,15 +1358,14 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             .newScan()
             .filter(Expressions.not(Expressions.equal("reference_snapshot_id", 2)));
 
-    Assert.assertEquals(
-        "Expected snapshots do not match",
-        expectedManifestListPaths(table.snapshots(), 1L, 3L, 4L),
-        actualManifestListPaths(manifestsTableScan));
+    assertThat(scannedPaths(manifestsTableScan))
+        .as("Expected snapshots do not match")
+        .isEqualTo(expectedManifestListPaths(table.snapshots(), 1L, 3L, 4L));
   }
 
-  @Test
+  @TestTemplate
   public void testPositionDeletesWithFilter() {
-    Assume.assumeTrue("Position deletes supported only for v2 tables", formatVersion == 2);
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable();
 
     PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
@@ -1262,21 +1380,19 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     List<ScanTask> tasks = Lists.newArrayList(scan.planFiles());
 
-    Assert.assertEquals(
-        "Expected to scan one delete manifest",
-        1,
-        deleteScan.scanMetrics().scannedDeleteManifests().value());
-    Assert.assertEquals(
-        "Expected to skip three delete manifests",
-        3,
-        deleteScan.scanMetrics().skippedDeleteManifests().value());
+    assertThat(deleteScan.scanMetrics().scannedDeleteManifests().value())
+        .as("Expected to scan one delete manifest")
+        .isEqualTo(1);
+    assertThat(deleteScan.scanMetrics().skippedDeleteManifests().value())
+        .as("Expected to skip three delete manifests")
+        .isEqualTo(3);
 
     assertThat(tasks).hasSize(1);
 
     ScanTask task = tasks.get(0);
     assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
 
-    Types.StructType partitionType = Partitioning.partitionType(table);
+    Types.StructType partitionType = positionDeletesTable.spec().partitionType();
     PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
 
     int filePartition = posDeleteTask.file().partition().get(0, Integer.class);
@@ -1284,36 +1400,35 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         (StructLike)
             constantsMap(posDeleteTask, partitionType).get(MetadataColumns.PARTITION_COLUMN_ID);
     int taskPartition = taskPartitionStruct.get(0, Integer.class);
-    Assert.assertEquals("Expected correct partition on task's file", 1, filePartition);
-    Assert.assertEquals("Expected correct partition on task's column", 1, taskPartition);
+    assertThat(filePartition).as("Expected correct partition on task's file").isEqualTo(1);
+    assertThat(taskPartition).as("Expected correct partition on task's column").isEqualTo(1);
 
-    Assert.assertEquals(
-        "Expected correct partition spec id on task", 0, posDeleteTask.file().specId());
-    Assert.assertEquals(
-        "Expected correct partition spec id on constant column",
-        0,
-        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.SPEC_ID.fieldId()));
-
-    Assert.assertEquals(
-        "Expected correct delete file on task", FILE_B_DELETES.path(), posDeleteTask.file().path());
-    Assert.assertEquals(
-        "Expected correct delete file on constant column",
-        FILE_B_DELETES.path(),
-        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
+    assertThat(posDeleteTask.file().specId())
+        .as("Expected correct partition spec id on task")
+        .isEqualTo(0);
+    assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
+        .as("Expected correct partition spec id on constant column")
+        .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 0);
+    assertThat(posDeleteTask.file().path())
+        .as("Expected correct delete file on task")
+        .isEqualTo(FILE_B_DELETES.path());
+    assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
+        .as("Expected correct delete file on constant column")
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), FILE_B_DELETES.path().toString());
   }
 
-  @Test
+  @TestTemplate
   public void testPositionDeletesBaseTableFilterManifestLevel() {
     testPositionDeletesBaseTableFilter(false);
   }
 
-  @Test
+  @TestTemplate
   public void testPositionDeletesBaseTableFilterEntriesLevel() {
     testPositionDeletesBaseTableFilter(true);
   }
 
   private void testPositionDeletesBaseTableFilter(boolean transactional) {
-    Assume.assumeTrue("Position deletes supported only for v2 tables", formatVersion == 2);
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable(transactional);
 
     PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
@@ -1331,22 +1446,20 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     List<ScanTask> tasks = Lists.newArrayList(scan.planFiles());
 
-    Assert.assertEquals(
-        "Expected to scan one delete manifest",
-        1,
-        deleteScan.scanMetrics().scannedDeleteManifests().value());
+    assertThat(deleteScan.scanMetrics().scannedDeleteManifests().value())
+        .as("Expected to scan one delete manifest")
+        .isEqualTo(1);
     int expectedSkippedManifests = transactional ? 0 : 3;
-    Assert.assertEquals(
-        "Wrong number of manifests skipped",
-        expectedSkippedManifests,
-        deleteScan.scanMetrics().skippedDeleteManifests().value());
+    assertThat(deleteScan.scanMetrics().skippedDeleteManifests().value())
+        .as("Wrong number of manifests skipped")
+        .isEqualTo(expectedSkippedManifests);
 
     assertThat(tasks).hasSize(1);
 
     ScanTask task = tasks.get(0);
     assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
 
-    Types.StructType partitionType = Partitioning.partitionType(table);
+    Types.StructType partitionType = positionDeletesTable.spec().partitionType();
     PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
 
     // base table filter should only be used to evaluate partitions
@@ -1357,29 +1470,28 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         (StructLike)
             constantsMap(posDeleteTask, partitionType).get(MetadataColumns.PARTITION_COLUMN_ID);
     int taskPartition = taskPartitionStruct.get(0, Integer.class);
-    Assert.assertEquals("Expected correct partition on task's file", 0, filePartition);
-    Assert.assertEquals("Expected correct partition on task's column", 0, taskPartition);
+    assertThat(filePartition).as("Expected correct partition on task's file").isEqualTo(0);
+    assertThat(taskPartition).as("Expected correct partition on task's column").isEqualTo(0);
 
-    Assert.assertEquals(
-        "Expected correct partition spec id on task", 0, posDeleteTask.file().specId());
-    Assert.assertEquals(
-        "Expected correct partition spec id on constant column",
-        0,
-        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.SPEC_ID.fieldId()));
-
-    Assert.assertEquals(
-        "Expected correct delete file on task", FILE_A_DELETES.path(), posDeleteTask.file().path());
-    Assert.assertEquals(
-        "Expected correct delete file on constant column",
-        FILE_A_DELETES.path(),
-        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
+    assertThat(posDeleteTask.file().specId())
+        .as("Expected correct partition spec id on task")
+        .isEqualTo(0);
+    assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
+        .as("Expected correct partition spec id on constant column")
+        .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 0);
+    assertThat(posDeleteTask.file().path())
+        .as("Expected correct delete file on task")
+        .isEqualTo(FILE_A_DELETES.path());
+    assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
+        .as("Expected correct delete file on constant column")
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), FILE_A_DELETES.path().toString());
   }
 
-  @Test
+  @TestTemplate
   public void testPositionDeletesWithBaseTableFilterNot() {
-    Assume.assumeTrue("Position deletes supported only for v2 tables", formatVersion == 2);
-
-    // use identity rather than bucket partition spec,
+    assumeThat(formatVersion)
+        .as("Position deletes are not supported by V1 Tables")
+        .isNotEqualTo(1); // use identity rather than bucket partition spec,
     // as bucket.project does not support projecting notEq
     table.updateSpec().removeField("data_bucket").addField("id").commit();
     PartitionSpec spec = table.spec();
@@ -1421,16 +1533,15 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
 
     List<ScanTask> tasks = Lists.newArrayList(scan.planFiles());
 
-    Assert.assertEquals(
-        "Expected to scan one delete manifest",
-        1,
-        deleteScan.scanMetrics().scannedDeleteManifests().value());
+    assertThat(deleteScan.scanMetrics().scannedDeleteManifests().value())
+        .as("Expected to scan one delete manifest")
+        .isEqualTo(1);
     assertThat(tasks).hasSize(1);
 
     ScanTask task = tasks.get(0);
     assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
 
-    Types.StructType partitionType = Partitioning.partitionType(table);
+    Types.StructType partitionType = positionDeletesTable.spec().partitionType();
     PositionDeletesScanTask posDeleteTask = (PositionDeletesScanTask) task;
 
     // base table filter should only be used to evaluate partitions
@@ -1441,27 +1552,28 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         (StructLike)
             constantsMap(posDeleteTask, partitionType).get(MetadataColumns.PARTITION_COLUMN_ID);
     int taskPartition =
-        taskPartitionStruct.get(1, Integer.class); // new partition field in position 1
-    Assert.assertEquals("Expected correct partition on task's file", 1, filePartition);
-    Assert.assertEquals("Expected correct partition on task's column", 1, taskPartition);
+        taskPartitionStruct.get(0, Integer.class); // new partition field in position 0
+    assertThat(filePartition).as("Expected correct partition on task's file").isEqualTo(1);
+    assertThat(taskPartition).as("Expected correct partition on task's column").isEqualTo(1);
 
-    Assert.assertEquals(
-        "Expected correct partition spec id on task", 1, posDeleteTask.file().specId());
-    Assert.assertEquals(
-        "Expected correct partition spec id on constant column",
-        1,
-        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.SPEC_ID.fieldId()));
+    assertThat(posDeleteTask.file().specId())
+        .as("Expected correct partition spec id on task")
+        .isEqualTo(1);
+    assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
+        .as("Expected correct partition spec id on constant column")
+        .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 1);
 
-    Assert.assertEquals("Expected correct delete file on task", path1, posDeleteTask.file().path());
-    Assert.assertEquals(
-        "Expected correct delete file on constant column",
-        path1,
-        constantsMap(posDeleteTask, partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
+    assertThat(posDeleteTask.file().path())
+        .as("Expected correct delete file on task")
+        .isEqualTo(path1);
+    assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
+        .as("Expected correct delete file on constant column")
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), path1);
   }
 
-  @Test
+  @TestTemplate
   public void testPositionDeletesResiduals() {
-    Assume.assumeTrue("Position deletes supported only for v2 tables", formatVersion == 2);
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     preparePartitionedTable();
 
     PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
@@ -1484,18 +1596,16 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     Expression residual = posDeleteTask.residual();
     UnboundPredicate<?> residualPred =
         TestHelpers.assertAndUnwrap(residual, UnboundPredicate.class);
-    Assert.assertEquals(
-        "Expected partition residual to be evaluated", Expression.Operation.GT, residualPred.op());
-    Assert.assertEquals(
-        "Expected partition residual to be evaluated", Literal.of(1), residualPred.literal());
+    assertThat(residualPred.op()).isEqualTo(Expression.Operation.GT);
+    assertThat(residualPred.literal()).isEqualTo(Literal.of(1));
   }
 
-  @Test
+  @TestTemplate
   public void testPositionDeletesUnpartitioned() {
-    Assume.assumeTrue("Position deletes supported only for v2 tables", formatVersion == 2);
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
     table.updateSpec().removeField(Expressions.bucket("data", BUCKETS_NUMBER)).commit();
 
-    Assert.assertEquals("Table should now be unpartitioned", 0, table.spec().fields().size());
+    assertThat(table.spec().fields()).as("Table should now be unpartitioned").hasSize(0);
 
     DataFile dataFile1 =
         DataFiles.builder(table.spec())
@@ -1542,29 +1652,25 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
                   return (PositionDeletesScanTask) task;
                 }));
 
-    Assert.assertEquals(
-        "Expected to scan 1 manifest",
-        1,
-        deleteScan.scanMetrics().scannedDeleteManifests().value());
+    assertThat(deleteScan.scanMetrics().scannedDeleteManifests().value())
+        .as("Expected to scan 1 manifest")
+        .isEqualTo(1);
 
-    Assert.assertEquals("Expected 2 tasks", 2, scanTasks.size());
+    assertThat(scanTasks).hasSize(2);
     scanTasks.sort(Comparator.comparing(f -> f.file().path().toString()));
-    Assert.assertEquals("/path/to/delete1.parquet", scanTasks.get(0).file().path().toString());
-    Assert.assertEquals("/path/to/delete2.parquet", scanTasks.get(1).file().path().toString());
+    assertThat(scanTasks.get(0).file().path().toString()).isEqualTo("/path/to/delete1.parquet");
+    assertThat(scanTasks.get(1).file().path().toString()).isEqualTo("/path/to/delete2.parquet");
 
     Types.StructType partitionType = Partitioning.partitionType(table);
 
-    Assert.assertEquals(
-        "/path/to/delete1.parquet",
-        constantsMap(scanTasks.get(0), partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
-    Assert.assertEquals(
-        "/path/to/delete2.parquet",
-        constantsMap(scanTasks.get(1), partitionType).get(MetadataColumns.FILE_PATH.fieldId()));
-
-    Assert.assertEquals(
-        1, constantsMap(scanTasks.get(0), partitionType).get(MetadataColumns.SPEC_ID.fieldId()));
-    Assert.assertEquals(
-        1, constantsMap(scanTasks.get(1), partitionType).get(MetadataColumns.SPEC_ID.fieldId()));
+    assertThat((Map<Integer, String>) constantsMap(scanTasks.get(0), partitionType))
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), "/path/to/delete1.parquet");
+    assertThat((Map<Integer, String>) constantsMap(scanTasks.get(1), partitionType))
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), "/path/to/delete2.parquet");
+    assertThat((Map<Integer, Integer>) constantsMap(scanTasks.get(0), partitionType))
+        .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 1);
+    assertThat((Map<Integer, Integer>) constantsMap(scanTasks.get(1), partitionType))
+        .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 1);
 
     StructLikeWrapper wrapper = StructLikeWrapper.forType(Partitioning.partitionType(table));
 
@@ -1581,7 +1687,100 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             constantsMap(scanTasks.get(1), partitionType).get(MetadataColumns.PARTITION_COLUMN_ID);
     StructLikeWrapper scanTask2Partition = wrapper.copyFor(scanTask2PartitionStruct);
 
-    Assert.assertEquals(expected, scanTask1Partition);
-    Assert.assertEquals(expected, scanTask2Partition);
+    assertThat(scanTask1Partition).isEqualTo(expected);
+    assertThat(scanTask2Partition).isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testPositionDeletesManyColumns() {
+    assumeThat(formatVersion).as("Position deletes are not supported by V1 Tables").isNotEqualTo(1);
+    UpdateSchema updateSchema = table.updateSchema();
+    for (int i = 0; i <= 2000; i++) {
+      updateSchema.addColumn(String.valueOf(i), Types.IntegerType.get());
+    }
+    updateSchema.commit();
+
+    DataFile dataFile1 =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data1.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    DataFile dataFile2 =
+        DataFiles.builder(table.spec())
+            .withPath("/path/to/data2.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    table.newAppend().appendFile(dataFile1).appendFile(dataFile2).commit();
+
+    DeleteFile delete1 =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/delete1.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    DeleteFile delete2 =
+        FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/delete2.parquet")
+            .withFileSizeInBytes(10)
+            .withRecordCount(1)
+            .build();
+    table.newRowDelta().addDeletes(delete1).addDeletes(delete2).commit();
+
+    PositionDeletesTable positionDeletesTable = new PositionDeletesTable(table);
+    assertThat(TypeUtil.indexById(positionDeletesTable.schema().asStruct()).size()).isEqualTo(2010);
+
+    BatchScan scan = positionDeletesTable.newBatchScan();
+    assertThat(scan).isInstanceOf(PositionDeletesTable.PositionDeletesBatchScan.class);
+    PositionDeletesTable.PositionDeletesBatchScan deleteScan =
+        (PositionDeletesTable.PositionDeletesBatchScan) scan;
+
+    List<PositionDeletesScanTask> scanTasks =
+        Lists.newArrayList(
+            Iterators.transform(
+                deleteScan.planFiles().iterator(),
+                task -> {
+                  assertThat(task).isInstanceOf(PositionDeletesScanTask.class);
+                  return (PositionDeletesScanTask) task;
+                }));
+    assertThat(scanTasks).hasSize(2);
+    scanTasks.sort(Comparator.comparing(f -> f.file().path().toString()));
+    assertThat(scanTasks.get(0).file().path().toString()).isEqualTo("/path/to/delete1.parquet");
+    assertThat(scanTasks.get(1).file().path().toString()).isEqualTo("/path/to/delete2.parquet");
+  }
+
+  @TestTemplate
+  public void testFilesTableEstimateSize() throws Exception {
+    preparePartitionedTable(true);
+
+    assertEstimatedRowCount(new DataFilesTable(table), 4);
+    assertEstimatedRowCount(new AllDataFilesTable(table), 4);
+    assertEstimatedRowCount(new AllFilesTable(table), 4);
+
+    if (formatVersion == 2) {
+      assertEstimatedRowCount(new DeleteFilesTable(table), 4);
+      assertEstimatedRowCount(new AllDeleteFilesTable(table), 4);
+    }
+  }
+
+  @TestTemplate
+  public void testEntriesTableEstimateSize() throws Exception {
+    preparePartitionedTable(true);
+
+    assertEstimatedRowCount(new ManifestEntriesTable(table), 4);
+    assertEstimatedRowCount(new AllEntriesTable(table), 4);
+  }
+
+  private void assertEstimatedRowCount(Table metadataTable, int size) throws Exception {
+    TableScan scan = metadataTable.newScan();
+
+    try (CloseableIterable<FileScanTask> tasks = scan.planFiles()) {
+      List<FileScanTask> taskList = Lists.newArrayList(tasks);
+      assertThat(taskList.size()).isGreaterThan(0);
+      taskList.forEach(task -> assertThat(task.estimatedRowsCount()).isEqualTo(size));
+    }
   }
 }

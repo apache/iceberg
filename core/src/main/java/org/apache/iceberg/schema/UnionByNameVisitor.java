@@ -34,7 +34,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
 
   private final UpdateSchema api;
   private final Schema partnerSchema;
-  private boolean caseSensitive;
+  private final boolean caseSensitive;
 
   private UnionByNameVisitor(UpdateSchema api, Schema partnerSchema, boolean caseSensitive) {
     this.api = api;

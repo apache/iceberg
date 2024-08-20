@@ -22,6 +22,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CommitFailedException;
@@ -35,7 +36,7 @@ import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class BaseViewOperations implements ViewOperations {
+public abstract class BaseViewOperations extends BaseMetastoreOperations implements ViewOperations {
   private static final Logger LOG = LoggerFactory.getLogger(BaseViewOperations.class);
 
   private static final String METADATA_FOLDER_NAME = "metadata";
@@ -101,6 +102,7 @@ public abstract class BaseViewOperations implements ViewOperations {
   }
 
   @Override
+  @SuppressWarnings("ImmutablesReferenceEquality")
   public void commit(ViewMetadata base, ViewMetadata metadata) {
     // if the metadata is already out of date, reject it
     if (base != current()) {
@@ -218,7 +220,7 @@ public abstract class BaseViewOperations implements ViewOperations {
     }
 
     try {
-      return Integer.valueOf(metadataLocation.substring(versionStart, versionEnd));
+      return Integer.parseInt(metadataLocation.substring(versionStart, versionEnd));
     } catch (NumberFormatException e) {
       LOG.warn("Unable to parse version from metadata location: {}", metadataLocation, e);
       return -1;

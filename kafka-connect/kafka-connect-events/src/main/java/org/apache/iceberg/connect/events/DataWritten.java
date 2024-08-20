@@ -49,7 +49,7 @@ public class DataWritten implements Payload {
   static final int DATA_FILES = 10_302;
   static final int DATA_FILES_ELEMENT = 10_303;
   static final int DELETE_FILES = 10_304;
-  static final int DELETE_FILES_ELEMENT = 10_304;
+  static final int DELETE_FILES_ELEMENT = 10_305;
 
   // Used by Avro reflection to instantiate this class when reading events, note that this does not
   // set the partition type so the instance cannot be re-serialized

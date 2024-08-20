@@ -22,9 +22,15 @@ import static org.apache.iceberg.NullOrder.NULLS_FIRST;
 import static org.apache.iceberg.PartitionSpec.unpartitioned;
 import static org.apache.iceberg.SortDirection.ASC;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -37,32 +43,24 @@ import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestReplaceTransaction extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestReplaceTransaction extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2, 3);
   }
 
-  public TestReplaceTransaction(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testReplaceTransactionWithCustomSortOrder() {
     Snapshot start = table.currentSnapshot();
     Schema schema = table.schema();
 
     table.newAppend().appendFile(FILE_A).commit();
 
-    Assert.assertEquals("Version should be 1", 1L, (long) version());
+    assertThat(version()).isEqualTo(1);
 
     validateSnapshot(start, table.currentSnapshot(), FILE_A);
 
@@ -75,10 +73,9 @@ public class TestReplaceTransaction extends TableTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Version should be 2", 2L, (long) version());
-    Assert.assertNull("Table should not have a current snapshot", table.currentSnapshot());
-    Assert.assertEquals(
-        "Schema should match previous schema", schema.asStruct(), table.schema().asStruct());
+    assertThat(version()).isEqualTo(2);
+    assertThat(table.currentSnapshot()).isNull();
+    assertThat(table.schema().asStruct()).isEqualTo(schema.asStruct());
 
     PartitionSpec v2Expected = PartitionSpec.builderFor(table.schema()).withSpecId(1).build();
     V2Assert.assertEquals("Table should have an unpartitioned spec", v2Expected, table.spec());
@@ -90,18 +87,17 @@ public class TestReplaceTransaction extends TableTestBase {
             .build();
     V1Assert.assertEquals("Table should have a spec with one void field", v1Expected, table.spec());
 
-    Assert.assertEquals("Table should have 2 orders", 2, table.sortOrders().size());
+    assertThat(table.sortOrders()).hasSize(2);
     SortOrder sortOrder = table.sortOrder();
-    Assert.assertEquals("Order ID must match", 1, sortOrder.orderId());
-    Assert.assertEquals("Order must have 1 field", 1, sortOrder.fields().size());
-    Assert.assertEquals("Direction must match ", ASC, sortOrder.fields().get(0).direction());
-    Assert.assertEquals(
-        "Null order must match ", NULLS_FIRST, sortOrder.fields().get(0).nullOrder());
+    assertThat(sortOrder.orderId()).isEqualTo(1);
+    assertThat(sortOrder.fields()).hasSize(1);
+    assertThat(sortOrder.fields().get(0).direction()).isEqualTo(ASC);
+    assertThat(sortOrder.fields().get(0).nullOrder()).isEqualTo(NULLS_FIRST);
     Transform<?, ?> transform = Transforms.identity();
-    Assert.assertEquals("Transform must match", transform, sortOrder.fields().get(0).transform());
+    assertThat(sortOrder.fields().get(0).transform()).isEqualTo(transform);
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceTransaction() {
     Schema newSchema =
         new Schema(
@@ -113,7 +109,7 @@ public class TestReplaceTransaction extends TableTestBase {
 
     table.newAppend().appendFile(FILE_A).commit();
 
-    Assert.assertEquals("Version should be 1", 1L, (long) version());
+    assertThat(version()).isEqualTo(1);
 
     validateSnapshot(start, table.currentSnapshot(), FILE_A);
 
@@ -122,10 +118,9 @@ public class TestReplaceTransaction extends TableTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Version should be 2", 2L, (long) version());
-    Assert.assertNull("Table should not have a current snapshot", table.currentSnapshot());
-    Assert.assertEquals(
-        "Schema should match previous schema", schema.asStruct(), table.schema().asStruct());
+    assertThat(version()).isEqualTo(2);
+    assertThat(table.currentSnapshot()).isNull();
+    assertThat(table.schema().asStruct()).isEqualTo(schema.asStruct());
 
     PartitionSpec v2Expected = PartitionSpec.builderFor(table.schema()).withSpecId(1).build();
     V2Assert.assertEquals("Table should have an unpartitioned spec", v2Expected, table.spec());
@@ -137,15 +132,16 @@ public class TestReplaceTransaction extends TableTestBase {
             .build();
     V1Assert.assertEquals("Table should have a spec with one void field", v1Expected, table.spec());
 
-    Assert.assertEquals("Table should have 1 order", 1, table.sortOrders().size());
-    Assert.assertEquals("Table order ID should match", 0, table.sortOrder().orderId());
-    Assert.assertTrue("Table should be unsorted", table.sortOrder().isUnsorted());
+    assertThat(table.sortOrders()).hasSize(1);
+    assertThat(table.sortOrder().orderId()).isEqualTo(0);
+    assertThat(table.sortOrder().isUnsorted()).isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceWithIncompatibleSchemaUpdate() {
-    Assume.assumeTrue(
-        "Fails early for v1 tables because partition spec cannot drop a field", formatVersion == 2);
+    assumeThat(formatVersion)
+        .as("Fails early for v1 tables because partition spec cannot drop a field")
+        .isEqualTo(2);
 
     Schema newSchema = new Schema(required(4, "obj_id", Types.IntegerType.get()));
 
@@ -153,7 +149,7 @@ public class TestReplaceTransaction extends TableTestBase {
 
     table.newAppend().appendFile(FILE_A).commit();
 
-    Assert.assertEquals("Version should be 1", 1L, (long) version());
+    assertThat(version()).isEqualTo(1);
 
     validateSnapshot(start, table.currentSnapshot(), FILE_A);
 
@@ -162,15 +158,13 @@ public class TestReplaceTransaction extends TableTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Version should be 2", 2L, (long) version());
-    Assert.assertNull("Table should not have a current snapshot", table.currentSnapshot());
-    Assert.assertEquals(
-        "Schema should use new schema, not compatible with previous",
-        new Schema(required(3, "obj_id", Types.IntegerType.get())).asStruct(),
-        table.schema().asStruct());
+    assertThat(version()).isEqualTo(2);
+    assertThat(table.currentSnapshot()).isNull();
+    assertThat(table.schema().asStruct())
+        .isEqualTo(new Schema(required(3, "obj_id", Types.IntegerType.get())).asStruct());
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceWithNewPartitionSpec() {
     PartitionSpec newSpec = PartitionSpec.unpartitioned();
 
@@ -179,7 +173,7 @@ public class TestReplaceTransaction extends TableTestBase {
 
     table.newAppend().appendFile(FILE_A).commit();
 
-    Assert.assertEquals("Version should be 1", 1L, (long) version());
+    assertThat(version()).isEqualTo(1);
 
     validateSnapshot(start, table.currentSnapshot(), FILE_A);
 
@@ -188,12 +182,9 @@ public class TestReplaceTransaction extends TableTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Version should be 2", 2L, (long) version());
-    Assert.assertNull("Table should not have a current snapshot", table.currentSnapshot());
-    Assert.assertEquals(
-        "Schema should use new schema, not compatible with previous",
-        schema.asStruct(),
-        table.schema().asStruct());
+    assertThat(version()).isEqualTo(2);
+    assertThat(table.currentSnapshot()).isNull();
+    assertThat(table.schema().asStruct()).isEqualTo(schema.asStruct());
 
     PartitionSpec v2Expected = PartitionSpec.builderFor(table.schema()).withSpecId(1).build();
     V2Assert.assertEquals("Table should have an unpartitioned spec", v2Expected, table.spec());
@@ -206,14 +197,14 @@ public class TestReplaceTransaction extends TableTestBase {
     V1Assert.assertEquals("Table should have a spec with one void field", v1Expected, table.spec());
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceWithNewData() {
     Snapshot start = table.currentSnapshot();
     Schema schema = table.schema();
 
     table.newAppend().appendFile(FILE_A).commit();
 
-    Assert.assertEquals("Version should be 1", 1L, (long) version());
+    assertThat(version()).isEqualTo(1);
 
     validateSnapshot(start, table.currentSnapshot(), FILE_A);
 
@@ -225,19 +216,16 @@ public class TestReplaceTransaction extends TableTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Version should be 2", 2L, (long) version());
-    Assert.assertNotNull("Table should have a current snapshot", table.currentSnapshot());
-    Assert.assertEquals(
-        "Schema should use new schema, not compatible with previous",
-        schema.asStruct(),
-        table.schema().asStruct());
+    assertThat(version()).isEqualTo(2);
+    assertThat(table.currentSnapshot()).isNotNull();
+    assertThat(table.schema().asStruct()).isEqualTo(schema.asStruct());
 
     validateSnapshot(null, table.currentSnapshot(), FILE_B, FILE_C, FILE_D);
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceDetectsUncommittedChangeOnCommit() {
-    Assert.assertEquals("Version should be 0", 0L, (long) version());
+    assertThat(version()).isEqualTo(0);
 
     Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), table.spec());
 
@@ -247,16 +235,16 @@ public class TestReplaceTransaction extends TableTestBase {
         .appendFile(FILE_C)
         .appendFile(FILE_D);
 
-    Assertions.assertThatThrownBy(replace::commitTransaction)
+    assertThatThrownBy(replace::commitTransaction)
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot commit transaction: last operation has not committed");
 
-    Assert.assertEquals("Version should be 0", 0L, (long) version());
+    assertThat(version()).isEqualTo(0);
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceDetectsUncommittedChangeOnTableCommit() {
-    Assert.assertEquals("Version should be 0", 0L, (long) version());
+    assertThat(version()).isEqualTo(0);
 
     Transaction replace = TestTables.beginReplace(tableDir, "test", table.schema(), table.spec());
 
@@ -267,21 +255,21 @@ public class TestReplaceTransaction extends TableTestBase {
         .appendFile(FILE_C)
         .appendFile(FILE_D);
 
-    Assertions.assertThatThrownBy(replace::commitTransaction)
+    assertThatThrownBy(replace::commitTransaction)
         .isInstanceOf(IllegalStateException.class)
         .hasMessage("Cannot commit transaction: last operation has not committed");
 
-    Assert.assertEquals("Version should be 0", 0L, (long) version());
+    assertThat(version()).isEqualTo(0);
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceTransactionRetry() {
     Snapshot start = table.currentSnapshot();
     Schema schema = table.schema();
 
     table.newAppend().appendFile(FILE_A).commit();
 
-    Assert.assertEquals("Version should be 1", 1L, (long) version());
+    assertThat(version()).isEqualTo(1);
 
     validateSnapshot(start, table.currentSnapshot(), FILE_A);
 
@@ -296,23 +284,20 @@ public class TestReplaceTransaction extends TableTestBase {
 
     table.refresh();
 
-    Assert.assertEquals("Version should be 2", 2L, (long) version());
-    Assert.assertNotNull("Table should have a current snapshot", table.currentSnapshot());
-    Assert.assertEquals(
-        "Schema should use new schema, not compatible with previous",
-        schema.asStruct(),
-        table.schema().asStruct());
+    assertThat(version()).isEqualTo(2);
+    assertThat(table.currentSnapshot()).isNotNull();
+    assertThat(table.schema().asStruct()).isEqualTo(schema.asStruct());
 
     validateSnapshot(null, table.currentSnapshot(), FILE_B, FILE_C, FILE_D);
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceTransactionConflict() {
     Snapshot start = table.currentSnapshot();
 
     table.newAppend().appendFile(FILE_A).commit();
 
-    Assert.assertEquals("Version should be 1", 1L, (long) version());
+    assertThat(version()).isEqualTo(1);
 
     validateSnapshot(start, table.currentSnapshot(), FILE_A);
     Set<File> manifests = Sets.newHashSet(listManifestFiles());
@@ -324,63 +309,52 @@ public class TestReplaceTransaction extends TableTestBase {
     // keep failing to trigger eventual transaction failure
     ((TestTables.TestTableOperations) ((BaseTransaction) replace).ops()).failCommits(100);
 
-    Assertions.assertThatThrownBy(replace::commitTransaction)
+    assertThatThrownBy(replace::commitTransaction)
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
 
-    Assert.assertEquals("Version should be 1", 1L, (long) version());
+    assertThat(version()).isEqualTo(1);
 
     table.refresh();
 
     validateSnapshot(start, table.currentSnapshot(), FILE_A);
 
-    Assert.assertEquals(
-        "Should clean up replace manifests", manifests, Sets.newHashSet(listManifestFiles()));
+    assertThat(listManifestFiles()).containsExactlyElementsOf(manifests);
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceToCreateAndAppend() throws IOException {
-    File tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     // this table doesn't exist.
     Transaction replace = TestTables.beginReplace(tableDir, "test_append", SCHEMA, unpartitioned());
 
-    Assert.assertNull(
-        "Starting a create transaction should not commit metadata",
-        TestTables.readMetadata("test_append"));
-    Assert.assertNull("Should have no metadata version", TestTables.metadataVersion("test_append"));
+    assertThat(TestTables.readMetadata("test_append")).isNull();
+    assertThat(TestTables.metadataVersion("test_append")).isNull();
 
-    Assert.assertTrue(
-        "Should return a transaction table",
-        replace.table() instanceof BaseTransaction.TransactionTable);
+    assertThat(replace.table()).isInstanceOf(BaseTransaction.TransactionTable.class);
 
     replace.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    Assert.assertNull(
-        "Appending in a transaction should not commit metadata",
-        TestTables.readMetadata("test_append"));
-    Assert.assertNull("Should have no metadata version", TestTables.metadataVersion("test_append"));
+    assertThat(TestTables.readMetadata("test_append")).isNull();
+    assertThat(TestTables.metadataVersion("test_append")).isNull();
 
     replace.commitTransaction();
 
     TableMetadata meta = TestTables.readMetadata("test_append");
-    Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
-    Assert.assertEquals(
-        "Should have metadata version 0", 0, (int) TestTables.metadataVersion("test_append"));
-    Assert.assertEquals("Should have 1 manifest file", 1, listManifestFiles(tableDir).size());
+    assertThat(meta).isNotNull();
+    assertThat(TestTables.metadataVersion("test_append")).isEqualTo(0);
+    assertThat(listManifestFiles(tableDir)).hasSize(1);
 
-    Assert.assertEquals(
-        "Table schema should match with reassigned IDs",
-        assignFreshIds(SCHEMA).asStruct(),
-        meta.schema().asStruct());
-    Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
-    Assert.assertEquals("Table should have one snapshot", 1, meta.snapshots().size());
+    assertThat(meta.schema().asStruct()).isEqualTo(assignFreshIds(SCHEMA).asStruct());
+    assertThat(meta.spec()).isEqualTo(unpartitioned());
+    assertThat(meta.snapshots()).hasSize(1);
 
     validateSnapshot(null, meta.currentSnapshot(), FILE_A, FILE_B);
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceTransactionWithUnknownState() {
     Schema newSchema =
         new Schema(
@@ -392,7 +366,7 @@ public class TestReplaceTransaction extends TableTestBase {
 
     table.newAppend().appendFile(FILE_A).commit();
 
-    Assert.assertEquals("Version should be 1", 1L, (long) version());
+    assertThat(version()).isEqualTo(1L);
     validateSnapshot(start, table.currentSnapshot(), FILE_A);
 
     TestTables.TestTableOperations ops =
@@ -409,26 +383,23 @@ public class TestReplaceTransaction extends TableTestBase {
 
     replace.newAppend().appendFile(FILE_B).commit();
 
-    Assertions.assertThatThrownBy(replace::commitTransaction)
+    assertThatThrownBy(replace::commitTransaction)
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageStartingWith("datacenter on fire");
 
     table.refresh();
 
-    Assert.assertEquals("Version should be 2", 2L, (long) version());
-    Assert.assertNotNull("Table should have a current snapshot", table.currentSnapshot());
-    Assert.assertEquals(
-        "Schema should use new schema, not compatible with previous",
-        schema.asStruct(),
-        table.schema().asStruct());
-    Assert.assertEquals("Should have 4 files in metadata", 4, countAllMetadataFiles(tableDir));
+    assertThat(version()).isEqualTo(2L);
+    assertThat(table.currentSnapshot()).isNotNull();
+    assertThat(table.schema().asStruct()).isEqualTo(schema.asStruct());
+    assertThat(countAllMetadataFiles(tableDir)).isEqualTo(4);
     validateSnapshot(null, table.currentSnapshot(), FILE_B);
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTransactionWithUnknownState() throws IOException {
-    File tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete());
+    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     // this table doesn't exist.
     TestTables.TestTableOperations ops =
@@ -443,38 +414,28 @@ public class TestReplaceTransaction extends TableTestBase {
             ImmutableMap.of(),
             ops);
 
-    Assert.assertNull(
-        "Starting a create transaction should not commit metadata",
-        TestTables.readMetadata("test_append"));
-    Assert.assertNull("Should have no metadata version", TestTables.metadataVersion("test_append"));
+    assertThat(TestTables.readMetadata("test_append")).isNull();
+    assertThat(TestTables.metadataVersion("test_append")).isNull();
 
-    Assert.assertTrue(
-        "Should return a transaction table",
-        replace.table() instanceof BaseTransaction.TransactionTable);
+    assertThat(replace.table()).isInstanceOf(BaseTransaction.TransactionTable.class);
 
     replace.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    Assert.assertNull(
-        "Appending in a transaction should not commit metadata",
-        TestTables.readMetadata("test_append"));
-    Assert.assertNull("Should have no metadata version", TestTables.metadataVersion("test_append"));
+    assertThat(TestTables.readMetadata("test_append")).isNull();
+    assertThat(TestTables.metadataVersion("test_append")).isNull();
 
-    Assertions.assertThatThrownBy(replace::commitTransaction)
+    assertThatThrownBy(replace::commitTransaction)
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageStartingWith("datacenter on fire");
 
     TableMetadata meta = TestTables.readMetadata("test_append");
-    Assert.assertNotNull("Table metadata should be created after transaction commits", meta);
-    Assert.assertEquals(
-        "Should have metadata version 0", 0, (int) TestTables.metadataVersion("test_append"));
-    Assert.assertEquals("Should have 1 manifest file", 1, listManifestFiles(tableDir).size());
-    Assert.assertEquals("Should have 2 files in metadata", 2, countAllMetadataFiles(tableDir));
-    Assert.assertEquals(
-        "Table schema should match with reassigned IDs",
-        assignFreshIds(SCHEMA).asStruct(),
-        meta.schema().asStruct());
-    Assert.assertEquals("Table spec should match", unpartitioned(), meta.spec());
-    Assert.assertEquals("Table should have one snapshot", 1, meta.snapshots().size());
+    assertThat(meta).isNotNull();
+    assertThat(TestTables.metadataVersion("test_append")).isEqualTo(0);
+    assertThat(listManifestFiles(tableDir)).hasSize(1);
+    assertThat(countAllMetadataFiles(tableDir)).isEqualTo(2);
+    assertThat(meta.schema().asStruct()).isEqualTo(assignFreshIds(SCHEMA).asStruct());
+    assertThat(meta.spec()).isEqualTo(unpartitioned());
+    assertThat(meta.snapshots()).hasSize(1);
 
     validateSnapshot(null, meta.currentSnapshot(), FILE_A, FILE_B);
   }

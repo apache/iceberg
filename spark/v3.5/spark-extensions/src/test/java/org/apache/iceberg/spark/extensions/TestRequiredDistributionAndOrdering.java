@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.math.BigDecimal;
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -27,7 +29,6 @@ import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -183,7 +184,7 @@ public class TestRequiredDistributionAndOrdering extends ExtensionsTestBase {
     Dataset<Row> inputDF = ds.coalesce(1).sortWithinPartitions("c1");
 
     // should fail if ordering is disabled
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 inputDF
                     .writeTo(tableName)

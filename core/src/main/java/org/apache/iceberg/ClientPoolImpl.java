@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Closeable;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,16 +35,29 @@ public abstract class ClientPoolImpl<C, E extends Exception>
   private final Class<? extends E> reconnectExc;
   private final Object signal = new Object();
   private final boolean retryByDefault;
+  private final int maxRetries;
+
   private volatile int currentSize;
   private boolean closed;
 
+  private static final int CONNECTION_RETRY_WAIT_PERIOD_MS = 1000;
+
   public ClientPoolImpl(int poolSize, Class<? extends E> reconnectExc, boolean retryByDefault) {
+    this(poolSize, reconnectExc, retryByDefault, 1);
+  }
+
+  public ClientPoolImpl(
+      int poolSize,
+      Class<? extends E> reconnectExc,
+      boolean retryByDefault,
+      int maxConnectionRetries) {
     this.poolSize = poolSize;
     this.reconnectExc = reconnectExc;
     this.clients = new ArrayDeque<>(poolSize);
     this.currentSize = 0;
     this.closed = false;
     this.retryByDefault = retryByDefault;
+    this.maxRetries = maxConnectionRetries;
   }
 
   @Override
@@ -56,21 +70,25 @@ public abstract class ClientPoolImpl<C, E extends Exception>
     C client = get();
     try {
       return action.run(client);
-
     } catch (Exception exc) {
       if (retry && isConnectionException(exc)) {
-        try {
-          client = reconnect(client);
-        } catch (Exception ignored) {
-          // if reconnection throws any exception, rethrow the original failure
-          throw reconnectExc.cast(exc);
+        int retryAttempts = 0;
+        while (retryAttempts < maxRetries) {
+          try {
+            client = reconnect(client);
+            return action.run(client);
+          } catch (Exception e) {
+            if (isConnectionException(e)) {
+              retryAttempts++;
+              Thread.sleep(CONNECTION_RETRY_WAIT_PERIOD_MS);
+            } else {
+              throw reconnectExc.cast(exc);
+            }
+          }
         }
-
-        return action.run(client);
       }
 
       throw exc;
-
     } finally {
       release(client);
     }
@@ -142,6 +160,11 @@ public abstract class ClientPoolImpl<C, E extends Exception>
     synchronized (signal) {
       signal.notify();
     }
+  }
+
+  @VisibleForTesting
+  Deque<C> clients() {
+    return clients;
   }
 
   public int poolSize() {

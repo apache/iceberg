@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hive;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +50,7 @@ import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -79,6 +81,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
   private Map<String, String> catalogProperties;
+  private FileIOTracker fileIOTracker;
 
   public HiveCatalog() {}
 
@@ -111,6 +114,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.clients = new CachedClientPool(conf, properties);
+    this.fileIOTracker = new FileIOTracker();
   }
 
   @Override
@@ -129,20 +133,9 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
                 .map(t -> TableIdentifier.of(namespace, t))
                 .collect(Collectors.toList());
       } else {
-        List<Table> tableObjects =
-            clients.run(client -> client.getTableObjectsByName(database, tableNames));
         tableIdentifiers =
-            tableObjects.stream()
-                .filter(
-                    table ->
-                        table.getParameters() != null
-                            && BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE
-                                .equalsIgnoreCase(
-                                    table
-                                        .getParameters()
-                                        .get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
-                .map(table -> TableIdentifier.of(namespace, table.getTableName()))
-                .collect(Collectors.toList());
+            listIcebergTables(
+                tableNames, namespace, BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE);
       }
 
       LOG.debug(
@@ -222,12 +215,38 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   @Override
   public void renameTable(TableIdentifier from, TableIdentifier originalTo) {
+    renameTableOrView(from, originalTo, HiveOperationsBase.ContentType.TABLE);
+  }
+
+  private List<TableIdentifier> listIcebergTables(
+      List<String> tableNames, Namespace namespace, String tableTypeProp)
+      throws TException, InterruptedException {
+    List<Table> tableObjects =
+        clients.run(client -> client.getTableObjectsByName(namespace.level(0), tableNames));
+    return tableObjects.stream()
+        .filter(
+            table ->
+                table.getParameters() != null
+                    && tableTypeProp.equalsIgnoreCase(
+                        table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP)))
+        .map(table -> TableIdentifier.of(namespace, table.getTableName()))
+        .collect(Collectors.toList());
+  }
+
+  private void renameTableOrView(
+      TableIdentifier from,
+      TableIdentifier originalTo,
+      HiveOperationsBase.ContentType contentType) {
     if (!isValidIdentifier(from)) {
       throw new NoSuchTableException("Invalid identifier: %s", from);
     }
 
     TableIdentifier to = removeCatalogName(originalTo);
     Preconditions.checkArgument(isValidIdentifier(to), "Invalid identifier: %s", to);
+    if (!namespaceExists(to.namespace())) {
+      throw new NoSuchNamespaceException(
+          "Cannot rename %s to %s. Namespace does not exist: %s", from, to, to.namespace());
+    }
 
     String toDatabase = to.namespace().level(0);
     String fromDatabase = from.namespace().level(0);
@@ -235,7 +254,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
     try {
       Table table = clients.run(client -> client.getTable(fromDatabase, fromName));
-      HiveOperationsBase.validateTableIsIceberg(table, fullTableName(name, from));
+      validateTableIsIcebergTableOrView(contentType, table, CatalogUtil.fullTableName(name, from));
 
       table.setDbName(toDatabase);
       table.setTableName(to.name());
@@ -246,7 +265,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
             return null;
           });
 
-      LOG.info("Renamed table from {}, to {}", from, to);
+      LOG.info("Renamed {} from {}, to {}", contentType.value(), from, to);
 
     } catch (NoSuchObjectException e) {
       throw new NoSuchTableException("Table does not exist: %s", from);
@@ -266,6 +285,17 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted in call to rename", e);
+    }
+  }
+
+  private void validateTableIsIcebergTableOrView(
+      HiveOperationsBase.ContentType contentType, Table table, String fullName) {
+    switch (contentType) {
+      case TABLE:
+        HiveOperationsBase.validateTableIsIceberg(table, fullName);
+        break;
+      case VIEW:
+        throw new UnsupportedOperationException("View is not supported.");
     }
   }
 
@@ -486,7 +516,10 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   public TableOperations newTableOps(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
-    return new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
+    HiveTableOperations ops =
+        new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
+    fileIOTracker.track(ops);
+    return ops;
   }
 
   @Override
@@ -608,6 +641,14 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   @Override
   protected Map<String, String> properties() {
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
+  }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (fileIOTracker != null) {
+      fileIOTracker.close();
+    }
   }
 
   @VisibleForTesting

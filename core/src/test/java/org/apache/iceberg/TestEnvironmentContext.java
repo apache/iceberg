@@ -18,14 +18,15 @@
  */
 package org.apache.iceberg;
 
-import org.assertj.core.api.Assertions;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.junit.jupiter.api.Test;
 
 public class TestEnvironmentContext {
 
   @Test
   public void testDefaultValue() {
-    Assertions.assertThat(EnvironmentContext.get().get("iceberg-version"))
+    assertThat(EnvironmentContext.get().get("iceberg-version"))
         .isEqualTo(IcebergBuild.fullVersion());
   }
 }

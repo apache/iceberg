@@ -40,16 +40,9 @@ public class FileScanTaskParser {
 
   private FileScanTaskParser() {}
 
-  public static String toJson(FileScanTask fileScanTask) {
-    return JsonUtil.generate(
-        generator -> FileScanTaskParser.toJson(fileScanTask, generator), false);
-  }
-
-  private static void toJson(FileScanTask fileScanTask, JsonGenerator generator)
-      throws IOException {
+  static void toJson(FileScanTask fileScanTask, JsonGenerator generator) throws IOException {
     Preconditions.checkArgument(fileScanTask != null, "Invalid file scan task: null");
     Preconditions.checkArgument(generator != null, "Invalid JSON generator: null");
-    generator.writeStartObject();
 
     generator.writeFieldName(SCHEMA);
     SchemaParser.toJson(fileScanTask.schema(), generator);
@@ -78,16 +71,9 @@ public class FileScanTaskParser {
       generator.writeFieldName(RESIDUAL);
       ExpressionParser.toJson(fileScanTask.residual(), generator);
     }
-
-    generator.writeEndObject();
   }
 
-  public static FileScanTask fromJson(String json, boolean caseSensitive) {
-    Preconditions.checkArgument(json != null, "Invalid JSON string for file scan task: null");
-    return JsonUtil.parse(json, node -> FileScanTaskParser.fromJson(node, caseSensitive));
-  }
-
-  private static FileScanTask fromJson(JsonNode jsonNode, boolean caseSensitive) {
+  static FileScanTask fromJson(JsonNode jsonNode, boolean caseSensitive) {
     Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for file scan task: null");
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for file scan task: non-object (%s)", jsonNode);

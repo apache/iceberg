@@ -18,10 +18,10 @@
  */
 package org.apache.iceberg.connect.events;
 
-import static java.util.stream.Collectors.toList;
-
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.util.Utf8;
@@ -96,7 +96,9 @@ public class TableReference implements IndexedRecord {
         return;
       case NAMESPACE:
         this.namespace =
-            v == null ? null : ((List<Utf8>) v).stream().map(Utf8::toString).collect(toList());
+            v == null
+                ? null
+                : ((List<Utf8>) v).stream().map(Utf8::toString).collect(Collectors.toList());
         return;
       case NAME:
         this.name = v == null ? null : v.toString();
@@ -118,5 +120,24 @@ public class TableReference implements IndexedRecord {
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
     }
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    TableReference that = (TableReference) o;
+    return Objects.equals(catalog, that.catalog)
+        && Objects.equals(namespace, that.namespace)
+        && Objects.equals(name, that.name);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(catalog, namespace, name);
   }
 }

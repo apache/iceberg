@@ -182,7 +182,7 @@ public class SparkTableUtil {
       Option<scala.collection.immutable.Map<String, String>> scalaPartitionFilter;
       if (partitionFilter != null && !partitionFilter.isEmpty()) {
         Builder<Tuple2<String, String>, scala.collection.immutable.Map<String, String>> builder =
-            Map$.MODULE$.<String, String>newBuilder();
+            Map$.MODULE$.newBuilder();
         partitionFilter.forEach((key, value) -> builder.$plus$eq(Tuple2.apply(key, value)));
         scalaPartitionFilter = Option.apply(builder.result());
       } else {
@@ -705,7 +705,7 @@ public class SparkTableUtil {
     return PropertyUtil.propertyAsBoolean(
         table.properties(),
         TableProperties.WRITE_AUDIT_PUBLISH_ENABLED,
-        Boolean.getBoolean(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
+        Boolean.parseBoolean(TableProperties.WRITE_AUDIT_PUBLISH_ENABLED_DEFAULT));
   }
 
   /** Class representing a table partition. */

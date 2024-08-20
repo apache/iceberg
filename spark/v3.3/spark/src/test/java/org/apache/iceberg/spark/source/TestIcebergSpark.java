@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.sql.Date;
@@ -33,7 +35,6 @@ import org.apache.spark.sql.types.CharType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.DecimalType;
 import org.apache.spark.sql.types.VarcharType;
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -181,7 +182,7 @@ public class TestIcebergSpark {
 
   @Test
   public void testRegisterBooleanBucketUDF() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 IcebergSpark.registerBucketUDF(
                     spark, "iceberg_bucket_boolean_16", DataTypes.BooleanType, 16))
@@ -191,7 +192,7 @@ public class TestIcebergSpark {
 
   @Test
   public void testRegisterDoubleBucketUDF() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 IcebergSpark.registerBucketUDF(
                     spark, "iceberg_bucket_double_16", DataTypes.DoubleType, 16))
@@ -201,7 +202,7 @@ public class TestIcebergSpark {
 
   @Test
   public void testRegisterFloatBucketUDF() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 IcebergSpark.registerBucketUDF(
                     spark, "iceberg_bucket_float_16", DataTypes.FloatType, 16))

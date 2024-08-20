@@ -72,7 +72,7 @@ public class ObjectData {
 
   public S3ObjectMetadata createFullMetadata() {
     S3ObjectMetadata metadata = new S3ObjectMetadata();
-    MessageDigest md = null;
+    MessageDigest md;
     try {
       md = MessageDigest.getInstance("MD5");
     } catch (NoSuchAlgorithmException e) {

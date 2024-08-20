@@ -18,11 +18,14 @@
  */
 package org.apache.iceberg.hadoop;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.util.Locale;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.StaticTableOperations;
 import org.apache.iceberg.Table;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestStaticTable extends HadoopTableTestBase {
@@ -39,7 +42,7 @@ public class TestStaticTable extends HadoopTableTestBase {
   @Test
   public void testLoadFromMetadata() {
     Table staticTable = getStaticTable();
-    Assertions.assertThat(((HasTableOperations) staticTable).operations())
+    assertThat(((HasTableOperations) staticTable).operations())
         .as("Loading a metadata file based table should return StaticTableOperations")
         .isInstanceOf(StaticTableOperations.class);
   }
@@ -47,7 +50,7 @@ public class TestStaticTable extends HadoopTableTestBase {
   @Test
   public void testCannotBeAddedTo() {
     Table staticTable = getStaticTable();
-    Assertions.assertThatThrownBy(() -> staticTable.newOverwrite().addFile(FILE_A).commit())
+    assertThatThrownBy(() -> staticTable.newOverwrite().addFile(FILE_A).commit())
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
   }
@@ -56,7 +59,7 @@ public class TestStaticTable extends HadoopTableTestBase {
   public void testCannotBeDeletedFrom() {
     table.newAppend().appendFile(FILE_A).commit();
     Table staticTable = getStaticTable();
-    Assertions.assertThatThrownBy(() -> staticTable.newDelete().deleteFile(FILE_A).commit())
+    assertThatThrownBy(() -> staticTable.newDelete().deleteFile(FILE_A).commit())
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Cannot modify a static table");
   }
@@ -69,11 +72,11 @@ public class TestStaticTable extends HadoopTableTestBase {
       Table staticTable = getStaticTable(type);
 
       if (type.equals(MetadataTableType.POSITION_DELETES)) {
-        Assertions.assertThatThrownBy(staticTable::newScan)
+        assertThatThrownBy(staticTable::newScan)
             .isInstanceOf(UnsupportedOperationException.class)
             .hasMessage("Cannot create TableScan from table of type POSITION_DELETES");
       } else {
-        Assertions.assertThatThrownBy(() -> staticTable.newScan().appendsAfter(1))
+        assertThatThrownBy(() -> staticTable.newScan().appendsAfter(1))
             .isInstanceOf(UnsupportedOperationException.class)
             .hasMessage(String.format("Cannot incrementally scan table of type %s", type));
       }
@@ -86,13 +89,11 @@ public class TestStaticTable extends HadoopTableTestBase {
     table.newAppend().appendFile(FILE_B).commit();
     table.newOverwrite().deleteFile(FILE_B).addFile(FILE_C).commit();
     Table staticTable = getStaticTable();
-    Assertions.assertThat(table.history()).as("Same history?").containsAll(staticTable.history());
-    Assertions.assertThat(table.currentSnapshot().snapshotId())
+    assertThat(table.history()).as("Same history?").containsAll(staticTable.history());
+    assertThat(table.currentSnapshot().snapshotId())
         .as("Same snapshot?")
         .isEqualTo(staticTable.currentSnapshot().snapshotId());
-    Assertions.assertThat(table.properties())
-        .as("Same properties?")
-        .isEqualTo(staticTable.properties());
+    assertThat(table.properties()).as("Same properties?").isEqualTo(staticTable.properties());
   }
 
   @Test
@@ -105,7 +106,7 @@ public class TestStaticTable extends HadoopTableTestBase {
     table.newOverwrite().deleteFile(FILE_B).addFile(FILE_C).commit();
     staticTable.refresh();
 
-    Assertions.assertThat(staticTable.currentSnapshot().snapshotId())
+    assertThat(staticTable.currentSnapshot().snapshotId())
         .as("Snapshot unchanged after table modified")
         .isEqualTo(originalSnapshot);
   }
@@ -113,8 +114,8 @@ public class TestStaticTable extends HadoopTableTestBase {
   @Test
   public void testMetadataTables() {
     for (MetadataTableType type : MetadataTableType.values()) {
-      String enumName = type.name().replace("_", "").toLowerCase();
-      Assertions.assertThat(getStaticTable(type).getClass().getName().toLowerCase())
+      String enumName = type.name().replace("_", "").toLowerCase(Locale.ROOT);
+      assertThat(getStaticTable(type).getClass().getName().toLowerCase(Locale.ROOT))
           .as("Should be able to get MetadataTable of type : " + type)
           .contains(enumName);
     }

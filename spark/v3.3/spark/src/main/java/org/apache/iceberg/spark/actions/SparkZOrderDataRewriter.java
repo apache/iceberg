@@ -30,6 +30,7 @@ import org.apache.iceberg.SortDirection;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkUtil;
@@ -101,6 +102,26 @@ class SparkZOrderDataRewriter extends SparkShufflingDataRewriter {
     super.init(options);
     this.maxOutputSize = maxOutputSize(options);
     this.varLengthContribution = varLengthContribution(options);
+  }
+
+  @Override
+  protected SortOrder sortOrder() {
+    return Z_SORT_ORDER;
+  }
+
+  /**
+   * Overrides the sortSchema method to include columns from Z_SCHEMA.
+   *
+   * <p>This method generates a new Schema object which consists of columns from the original table
+   * schema and Z_SCHEMA.
+   */
+  @Override
+  protected Schema sortSchema() {
+    return new Schema(
+        new ImmutableList.Builder<Types.NestedField>()
+            .addAll(table().schema().columns())
+            .addAll(Z_SCHEMA.columns())
+            .build());
   }
 
   @Override

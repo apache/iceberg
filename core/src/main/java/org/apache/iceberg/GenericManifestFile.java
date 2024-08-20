@@ -39,6 +39,7 @@ public class GenericManifestFile
     implements ManifestFile, StructLike, IndexedRecord, SchemaConstructable, Serializable {
   private static final Schema AVRO_SCHEMA =
       AvroSchemaUtil.convert(ManifestFile.schema(), "manifest_file");
+  private static final ManifestContent[] MANIFEST_CONTENT_VALUES = ManifestContent.values();
 
   private transient Schema avroSchema; // not final for Java serialization
   private int[] fromProjectionPos;
@@ -102,6 +103,42 @@ public class GenericManifestFile
     this.partitions = null;
     this.fromProjectionPos = null;
     this.keyMetadata = null;
+  }
+
+  /** Adjust the arg order to avoid conflict with the public constructor below */
+  GenericManifestFile(
+      String path,
+      long length,
+      int specId,
+      ManifestContent content,
+      long sequenceNumber,
+      long minSequenceNumber,
+      Long snapshotId,
+      List<PartitionFieldSummary> partitions,
+      ByteBuffer keyMetadata,
+      Integer addedFilesCount,
+      Long addedRowsCount,
+      Integer existingFilesCount,
+      Long existingRowsCount,
+      Integer deletedFilesCount,
+      Long deletedRowsCount) {
+    this.avroSchema = AVRO_SCHEMA;
+    this.manifestPath = path;
+    this.length = length;
+    this.specId = specId;
+    this.content = content;
+    this.sequenceNumber = sequenceNumber;
+    this.minSequenceNumber = minSequenceNumber;
+    this.snapshotId = snapshotId;
+    this.addedFilesCount = addedFilesCount;
+    this.addedRowsCount = addedRowsCount;
+    this.existingFilesCount = existingFilesCount;
+    this.existingRowsCount = existingRowsCount;
+    this.deletedFilesCount = deletedFilesCount;
+    this.deletedRowsCount = deletedRowsCount;
+    this.partitions = partitions == null ? null : partitions.toArray(new PartitionFieldSummary[0]);
+    this.fromProjectionPos = null;
+    this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
   }
 
   public GenericManifestFile(
@@ -339,7 +376,7 @@ public class GenericManifestFile
         return;
       case 3:
         this.content =
-            value != null ? ManifestContent.values()[(Integer) value] : ManifestContent.DATA;
+            value != null ? MANIFEST_CONTENT_VALUES[(Integer) value] : ManifestContent.DATA;
         return;
       case 4:
         this.sequenceNumber = value != null ? (Long) value : 0;

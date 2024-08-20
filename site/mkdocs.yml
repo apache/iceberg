@@ -17,9 +17,7 @@
 
 INHERIT: ./nav.yml
 
-copyright: |
-  Apache Iceberg, Iceberg, Apache, the Apache feather logo, and the Apache Iceberg project logo are</br>either registered trademarks or trademarks of The Apache Software Foundation. Copyright &copy; 2023</br>The Apache Software Foundation, Licensed under the <a href="https://www.apache.org/licenses/">Apache License, Version 2.0</a>.</br></br>
-site_name: Apache Iceberg
+site_name: "Apache Iceberg™"
 
 theme:
   custom_dir: overrides
@@ -51,6 +49,7 @@ plugins:
   - search
   - macros
   - monorepo
+  - privacy
   - offline:
       enabled: !ENV [OFFLINE, false]
 
@@ -79,7 +78,10 @@ markdown_extensions:
       permalink: 🔗
 
 extra:
-  icebergVersion: '1.4.3'
+  icebergVersion: '1.6.0'
+  nessieVersion: '0.92.1'
+  flinkVersion: '1.19.0'
+  flinkVersionMajor: '1.19'
   social:
     - icon: fontawesome/regular/comments
       link: 'https://iceberg.apache.org/community/'

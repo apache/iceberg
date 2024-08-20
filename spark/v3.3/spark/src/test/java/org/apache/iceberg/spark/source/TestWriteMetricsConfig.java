@@ -21,13 +21,13 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -231,11 +231,12 @@ public class TestWriteMetricsConfig {
     properties.put(TableProperties.DEFAULT_WRITE_METRICS_MODE, "counts");
     properties.put("write.metadata.metrics.column.ids", "full");
 
-    AssertHelpers.assertThrows(
-        "Creating a table with invalid metrics should fail",
-        ValidationException.class,
-        null,
-        () -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation));
+    assertThatThrownBy(() -> tables.create(SIMPLE_SCHEMA, spec, properties, tableLocation))
+        .as("Creating a table with invalid metrics should fail")
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith(
+            "Invalid metrics config, could not find column ids from table prop write.metadata.metrics.column.ids in "
+                + "schema table");
   }
 
   @Test

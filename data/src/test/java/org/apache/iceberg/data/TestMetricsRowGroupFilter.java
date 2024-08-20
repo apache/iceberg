@@ -39,10 +39,14 @@ import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData.Record;
@@ -51,6 +55,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.data.orc.GenericOrcReader;
@@ -77,32 +84,20 @@ import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
 import org.apache.parquet.schema.MessageType;
-import org.assertj.core.api.Assertions;
-import org.assertj.core.api.Assumptions;
-import org.junit.Assert;
-import org.junit.Assume;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestMetricsRowGroupFilter {
 
-  @Parameterized.Parameters(name = "format = {0}")
-  public static Object[] parameters() {
-    return new Object[] {"parquet", "orc"};
+  @Parameters(name = "fileFormat = {0}")
+  public static List<Object> parameters() {
+    return Arrays.asList(FileFormat.PARQUET, FileFormat.ORC);
   }
 
-  private final FileFormat format;
-
-  public TestMetricsRowGroupFilter(String format) {
-    this.format = FileFormat.fromString(format);
-  }
-
-  private static final Types.StructType structFieldType =
+  private static final Types.StructType STRUCT_FIELD_TYPE =
       Types.StructType.of(Types.NestedField.required(8, "int_field", IntegerType.get()));
 
   private static final Schema SCHEMA =
@@ -113,7 +108,7 @@ public class TestMetricsRowGroupFilter {
           optional(4, "all_nulls", DoubleType.get()),
           optional(5, "some_nulls", StringType.get()),
           optional(6, "no_nulls", StringType.get()),
-          optional(7, "struct_not_null", structFieldType),
+          optional(7, "struct_not_null", STRUCT_FIELD_TYPE),
           optional(9, "not_in_file", FloatType.get()),
           optional(10, "str", StringType.get()),
           optional(
@@ -125,7 +120,7 @@ public class TestMetricsRowGroupFilter {
           optional(16, "no_nans", DoubleType.get()),
           optional(17, "some_double_nans", DoubleType.get()));
 
-  private static final Types.StructType _structFieldType =
+  private static final Types.StructType UNDERSCORE_STRUCT_FIELD_TYPE =
       Types.StructType.of(Types.NestedField.required(8, "_int_field", IntegerType.get()));
 
   private static final Schema FILE_SCHEMA =
@@ -136,7 +131,7 @@ public class TestMetricsRowGroupFilter {
           optional(4, "_all_nulls", DoubleType.get()),
           optional(5, "_some_nulls", StringType.get()),
           optional(6, "_no_nulls", StringType.get()),
-          optional(7, "_struct_not_null", _structFieldType),
+          optional(7, "_struct_not_null", UNDERSCORE_STRUCT_FIELD_TYPE),
           optional(10, "_str", StringType.get()),
           optional(14, "_all_nans", Types.DoubleType.get()),
           optional(15, "_some_nans", FloatType.get()),
@@ -148,7 +143,7 @@ public class TestMetricsRowGroupFilter {
   static {
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < 200; i += 1) {
-      sb.append(UUID.randomUUID().toString());
+      sb.append(UUID.randomUUID());
     }
     TOO_LONG_FOR_STATS_PARQUET = sb.toString();
   }
@@ -160,9 +155,10 @@ public class TestMetricsRowGroupFilter {
   private MessageType parquetSchema = null;
   private BlockMetaData rowGroupMetadata = null;
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @Parameter private FileFormat format;
+  @TempDir private File tempDir;
 
-  @Before
+  @BeforeEach
   public void createInputFile() throws IOException {
     switch (format) {
       case ORC:
@@ -178,8 +174,8 @@ public class TestMetricsRowGroupFilter {
   }
 
   public void createOrcInputFile() throws IOException {
-    this.orcFile = temp.newFile();
-    Assert.assertTrue(orcFile.delete());
+    this.orcFile = File.createTempFile("junit", null, tempDir);
+    assertThat(orcFile.delete()).isTrue();
 
     OutputFile outFile = Files.localOutput(orcFile);
     try (FileAppender<GenericRecord> appender =
@@ -206,7 +202,7 @@ public class TestMetricsRowGroupFilter {
             "_some_double_nans", (i % 10 == 0) ? Double.NaN : 2D); // includes some nan values
         record.setField("_no_nans", 3D); // optional, but always non-nan
 
-        GenericRecord structNotNull = GenericRecord.create(_structFieldType);
+        GenericRecord structNotNull = GenericRecord.create(UNDERSCORE_STRUCT_FIELD_TYPE);
         structNotNull.setField("_int_field", INT_MIN_VALUE + i);
         record.setField("_struct_not_null", structNotNull); // struct with int
 
@@ -218,18 +214,18 @@ public class TestMetricsRowGroupFilter {
     try (Reader reader =
         OrcFile.createReader(
             new Path(inFile.location()), OrcFile.readerOptions(new Configuration()))) {
-      Assert.assertEquals("Should create only one stripe", 1, reader.getStripes().size());
+      assertThat(reader.getStripes()).as("Should create only one stripe").hasSize(1);
     }
 
     orcFile.deleteOnExit();
   }
 
   private void createParquetInputFile() throws IOException {
-    File parquetFile = temp.newFile();
-    Assert.assertTrue(parquetFile.delete());
+    File parquetFile = File.createTempFile("junit", null, tempDir);
+    assertThat(parquetFile.delete()).isTrue();
 
     // build struct field schema
-    org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
+    org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(UNDERSCORE_STRUCT_FIELD_TYPE);
 
     OutputFile outFile = Files.localOutput(parquetFile);
     try (FileAppender<Record> appender = Parquet.write(outFile).schema(FILE_SCHEMA).build()) {
@@ -262,7 +258,7 @@ public class TestMetricsRowGroupFilter {
 
     InputFile inFile = Files.localInput(parquetFile);
     try (ParquetFileReader reader = ParquetFileReader.open(parquetInputFile(inFile))) {
-      Assert.assertEquals("Should create only one row group", 1, reader.getRowGroups().size());
+      assertThat(reader.getRowGroups()).as("Should create only one row group").hasSize(1);
       rowGroupMetadata = reader.getRowGroups().get(0);
       parquetSchema = reader.getFileMetaData().getSchema();
     }
@@ -270,97 +266,108 @@ public class TestMetricsRowGroupFilter {
     parquetFile.deleteOnExit();
   }
 
-  @Test
+  @TestTemplate
   public void testAllNulls() {
     boolean shouldRead;
 
     shouldRead = shouldRead(notNull("all_nulls"));
-    Assert.assertFalse("Should skip: no non-null value in all null column", shouldRead);
+    assertThat(shouldRead).as("Should skip: no non-null value in all null column").isFalse();
 
     shouldRead = shouldRead(notNull("some_nulls"));
-    Assert.assertTrue("Should read: column with some nulls contains a non-null value", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: column with some nulls contains a non-null value")
+        .isTrue();
 
     shouldRead = shouldRead(notNull("no_nulls"));
-    Assert.assertTrue("Should read: non-null column contains a non-null value", shouldRead);
+    assertThat(shouldRead).as("Should read: non-null column contains a non-null value").isTrue();
 
     shouldRead = shouldRead(notNull("map_not_null"));
-    Assert.assertTrue("Should read: map type is not skipped", shouldRead);
+    assertThat(shouldRead).as("Should read: map type is not skipped").isTrue();
 
     shouldRead = shouldRead(notNull("struct_not_null"));
-    Assert.assertTrue("Should read: struct type is not skipped", shouldRead);
+    assertThat(shouldRead).as("Should read: struct type is not skipped").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testNoNulls() {
     boolean shouldRead = shouldRead(isNull("all_nulls"));
-    Assert.assertTrue("Should read: at least one null value in all null column", shouldRead);
+    assertThat(shouldRead).as("Should read: at least one null value in all null column").isTrue();
 
     shouldRead = shouldRead(isNull("some_nulls"));
-    Assert.assertTrue("Should read: column with some nulls contains a null value", shouldRead);
+    assertThat(shouldRead).as("Should read: column with some nulls contains a null value").isTrue();
 
     shouldRead = shouldRead(isNull("no_nulls"));
-    Assert.assertFalse("Should skip: non-null column contains no null values", shouldRead);
+    assertThat(shouldRead).as("Should skip: non-null column contains no null values").isFalse();
 
     shouldRead = shouldRead(isNull("map_not_null"));
-    Assert.assertTrue("Should read: map type is not skipped", shouldRead);
+    assertThat(shouldRead).as("Should read: map type is not skipped").isTrue();
 
     shouldRead = shouldRead(isNull("struct_not_null"));
-    Assert.assertTrue("Should read: struct type is not skipped", shouldRead);
+    assertThat(shouldRead).as("Should read: struct type is not skipped").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testFloatWithNan() {
     // NaN's should break Parquet's Min/Max stats we should be reading in all cases
     boolean shouldRead = shouldRead(greaterThan("some_nans", 1.0));
-    Assert.assertTrue(shouldRead);
+    assertThat(shouldRead).isTrue();
 
     shouldRead = shouldRead(greaterThanOrEqual("some_nans", 1.0));
-    Assert.assertTrue(shouldRead);
+    assertThat(shouldRead).isTrue();
 
     shouldRead = shouldRead(lessThan("some_nans", 3.0));
-    Assert.assertTrue(shouldRead);
+    assertThat(shouldRead).isTrue();
 
     shouldRead = shouldRead(lessThanOrEqual("some_nans", 1.0));
-    Assert.assertTrue(shouldRead);
+    assertThat(shouldRead).isTrue();
 
     shouldRead = shouldRead(equal("some_nans", 2.0));
-    Assert.assertTrue(shouldRead);
+    assertThat(shouldRead).isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testDoubleWithNan() {
     boolean shouldRead = shouldRead(greaterThan("some_double_nans", 1.0));
-    Assert.assertTrue("Should read: column with some nans contains target value", shouldRead);
+    assertThat(shouldRead).as("Should read: column with some nans contains target value").isTrue();
 
     shouldRead = shouldRead(greaterThanOrEqual("some_double_nans", 1.0));
-    Assert.assertTrue("Should read: column with some nans contains the target value", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: column with some nans contains the target value")
+        .isTrue();
 
     shouldRead = shouldRead(lessThan("some_double_nans", 3.0));
-    Assert.assertTrue("Should read: column with some nans contains target value", shouldRead);
+    assertThat(shouldRead).as("Should read: column with some nans contains target value").isTrue();
 
     shouldRead = shouldRead(lessThanOrEqual("some_double_nans", 1.0));
-    Assert.assertTrue("Should read: column with some nans contains target value", shouldRead);
+    assertThat(shouldRead).as("Should read: column with some nans contains target value").isTrue();
 
     shouldRead = shouldRead(equal("some_double_nans", 2.0));
-    Assert.assertTrue("Should read: column with some nans contains target value", shouldRead);
+    assertThat(shouldRead).as("Should read: column with some nans contains target value").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIsNaN() {
     boolean shouldRead = shouldRead(isNaN("all_nans"));
-    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: NaN counts are not tracked in Parquet metrics")
+        .isTrue();
 
     shouldRead = shouldRead(isNaN("some_nans"));
-    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: NaN counts are not tracked in Parquet metrics")
+        .isTrue();
 
     shouldRead = shouldRead(isNaN("no_nans"));
     switch (format) {
       case ORC:
-        Assert.assertFalse(
-            "Should read 0 rows due to the ORC filter push-down feature", shouldRead);
+        assertThat(shouldRead)
+            .as("Should read 0 rows due to the ORC filter push-down feature")
+            .isFalse();
         break;
       case PARQUET:
-        Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+        assertThat(shouldRead)
+            .as("Should read: NaN counts are not tracked in Parquet metrics")
+            .isTrue();
         break;
       default:
         throw new UnsupportedOperationException(
@@ -368,46 +375,56 @@ public class TestMetricsRowGroupFilter {
     }
 
     shouldRead = shouldRead(isNaN("all_nulls"));
-    Assert.assertFalse("Should skip: all null column will not contain nan value", shouldRead);
+    assertThat(shouldRead).as("Should skip: all null column will not contain nan value").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testNotNaN() {
     boolean shouldRead = shouldRead(notNaN("all_nans"));
-    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: NaN counts are not tracked in Parquet metrics")
+        .isTrue();
 
     shouldRead = shouldRead(notNaN("some_nans"));
-    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: NaN counts are not tracked in Parquet metrics")
+        .isTrue();
 
     shouldRead = shouldRead(notNaN("no_nans"));
-    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: NaN counts are not tracked in Parquet metrics")
+        .isTrue();
 
     shouldRead = shouldRead(notNaN("all_nulls"));
-    Assert.assertTrue("Should read: NaN counts are not tracked in Parquet metrics", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: NaN counts are not tracked in Parquet metrics")
+        .isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testRequiredColumn() {
     boolean shouldRead = shouldRead(notNull("required"));
-    Assert.assertTrue("Should read: required columns are always non-null", shouldRead);
+    assertThat(shouldRead).as("Should read: required columns are always non-null").isTrue();
 
     shouldRead = shouldRead(isNull("required"));
-    Assert.assertFalse("Should skip: required columns are always non-null", shouldRead);
+    assertThat(shouldRead).as("Should skip: required columns are always non-null").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testMissingColumn() {
-    Assertions.assertThatThrownBy(() -> shouldRead(lessThan("missing", 5)))
+    assertThatThrownBy(() -> shouldRead(lessThan("missing", 5)))
         .as("Should complain about missing column in expression")
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot find field 'missing'");
   }
 
-  @Test
+  @TestTemplate
   public void testColumnNotInFile() {
-    Assume.assumeFalse(
-        "If a column is not in file, ORC does NOT try to apply predicates assuming null values for the column",
-        format == FileFormat.ORC);
+    assumeThat(format)
+        .as(
+            "If a column is not in file, ORC does NOT try to apply predicates assuming null values for the column")
+        .isNotEqualTo(FileFormat.ORC);
+
     Expression[] cannotMatch =
         new Expression[] {
           lessThan("not_in_file", 1.0f), lessThanOrEqual("not_in_file", 1.0f),
@@ -417,20 +434,25 @@ public class TestMetricsRowGroupFilter {
 
     for (Expression expr : cannotMatch) {
       boolean shouldRead = shouldRead(expr);
-      Assert.assertFalse("Should skip when column is not in file (all nulls): " + expr, shouldRead);
+      assertThat(shouldRead)
+          .as("Should skip when column is not in file (all nulls): " + expr)
+          .isFalse();
     }
 
     Expression[] canMatch = new Expression[] {isNull("not_in_file"), notEqual("not_in_file", 1.0f)};
 
     for (Expression expr : canMatch) {
       boolean shouldRead = shouldRead(expr);
-      Assert.assertTrue("Should read when column is not in file (all nulls): " + expr, shouldRead);
+      assertThat(shouldRead)
+          .as("Should read when column is not in file (all nulls): " + expr)
+          .isTrue();
     }
   }
 
-  @Test
+  @TestTemplate
   public void testMissingStatsParquet() {
-    Assume.assumeTrue(format == FileFormat.PARQUET);
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
     Expression[] exprs =
         new Expression[] {
           lessThan("no_stats_parquet", "a"),
@@ -447,13 +469,14 @@ public class TestMetricsRowGroupFilter {
 
     for (Expression expr : exprs) {
       boolean shouldRead = shouldRead(expr);
-      Assert.assertTrue("Should read when missing stats for expr: " + expr, shouldRead);
+      assertThat(shouldRead).as("Should read when missing stats for expr: " + expr).isTrue();
     }
   }
 
-  @Test
+  @TestTemplate
   public void testZeroRecordFileParquet() {
-    Assume.assumeTrue(format == FileFormat.PARQUET);
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
     BlockMetaData emptyBlock = new BlockMetaData();
     emptyBlock.setRowCount(0);
 
@@ -471,455 +494,469 @@ public class TestMetricsRowGroupFilter {
 
     for (Expression expr : exprs) {
       boolean shouldRead = shouldReadParquet(expr, true, parquetSchema, emptyBlock);
-      Assert.assertFalse("Should never read 0-record file: " + expr, shouldRead);
+      assertThat(shouldRead).as("Should never read 0-record file: " + expr).isFalse();
     }
   }
 
-  @Test
+  @TestTemplate
   public void testNot() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
     boolean shouldRead = shouldRead(not(lessThan("id", INT_MIN_VALUE - 25)));
-    Assert.assertTrue("Should read: not(false)", shouldRead);
+    assertThat(shouldRead).as("Should read: not(false)").isTrue();
 
     shouldRead = shouldRead(not(greaterThan("id", INT_MIN_VALUE - 25)));
-    Assert.assertFalse("Should skip: not(true)", shouldRead);
+    assertThat(shouldRead).as("Should skip: not(true)").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testAnd() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
     boolean shouldRead =
         shouldRead(
             and(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MIN_VALUE - 30)));
-    Assert.assertFalse("Should skip: and(false, true)", shouldRead);
+    assertThat(shouldRead).as("Should skip: and(false, true)").isFalse();
 
     shouldRead =
         shouldRead(
             and(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE + 1)));
-    Assert.assertFalse("Should skip: and(false, false)", shouldRead);
+    assertThat(shouldRead).as("Should skip: and(false, false)").isFalse();
 
     shouldRead =
         shouldRead(
             and(greaterThan("id", INT_MIN_VALUE - 25), lessThanOrEqual("id", INT_MIN_VALUE)));
-    Assert.assertTrue("Should read: and(true, true)", shouldRead);
+    assertThat(shouldRead).as("Should read: and(true, true)").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testOr() {
     // this test case must use a real predicate, not alwaysTrue(), or binding will simplify it out
     boolean shouldRead =
         shouldRead(
             or(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE + 1)));
-    Assert.assertFalse("Should skip: or(false, false)", shouldRead);
+    assertThat(shouldRead).as("Should skip: or(false, false)").isFalse();
 
     shouldRead =
         shouldRead(
             or(lessThan("id", INT_MIN_VALUE - 25), greaterThanOrEqual("id", INT_MAX_VALUE - 19)));
-    Assert.assertTrue("Should read: or(false, true)", shouldRead);
+    assertThat(shouldRead).as("Should read: or(false, true)").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerLt() {
     boolean shouldRead = shouldRead(lessThan("id", INT_MIN_VALUE - 25));
-    Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range below lower bound (5 < 30)").isFalse();
 
     shouldRead = shouldRead(lessThan("id", INT_MIN_VALUE));
-    Assert.assertFalse("Should not read: id range below lower bound (30 is not < 30)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: id range below lower bound (30 is not < 30)")
+        .isFalse();
 
     shouldRead = shouldRead(lessThan("id", INT_MIN_VALUE + 1));
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(lessThan("id", INT_MAX_VALUE));
-    Assert.assertTrue("Should read: may possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerLtEq() {
     boolean shouldRead = shouldRead(lessThanOrEqual("id", INT_MIN_VALUE - 25));
-    Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range below lower bound (5 < 30)").isFalse();
 
     shouldRead = shouldRead(lessThanOrEqual("id", INT_MIN_VALUE - 1));
-    Assert.assertFalse("Should not read: id range below lower bound (29 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range below lower bound (29 < 30)").isFalse();
 
     shouldRead = shouldRead(lessThanOrEqual("id", INT_MIN_VALUE));
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(lessThanOrEqual("id", INT_MAX_VALUE));
-    Assert.assertTrue("Should read: many possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerGt() {
     boolean shouldRead = shouldRead(greaterThan("id", INT_MAX_VALUE + 6));
-    Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range above upper bound (85 < 79)").isFalse();
 
     shouldRead = shouldRead(greaterThan("id", INT_MAX_VALUE));
-    Assert.assertFalse("Should not read: id range above upper bound (79 is not > 79)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: id range above upper bound (79 is not > 79)")
+        .isFalse();
 
     shouldRead = shouldRead(greaterThan("id", INT_MAX_VALUE - 1));
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(greaterThan("id", INT_MAX_VALUE - 4));
-    Assert.assertTrue("Should read: may possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerGtEq() {
     boolean shouldRead = shouldRead(greaterThanOrEqual("id", INT_MAX_VALUE + 6));
-    Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range above upper bound (85 < 79)").isFalse();
 
     shouldRead = shouldRead(greaterThanOrEqual("id", INT_MAX_VALUE + 1));
-    Assert.assertFalse("Should not read: id range above upper bound (80 > 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range above upper bound (80 > 79)").isFalse();
 
     shouldRead = shouldRead(greaterThanOrEqual("id", INT_MAX_VALUE));
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(greaterThanOrEqual("id", INT_MAX_VALUE - 4));
-    Assert.assertTrue("Should read: may possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerEq() {
     boolean shouldRead = shouldRead(equal("id", INT_MIN_VALUE - 25));
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id below lower bound").isFalse();
 
     shouldRead = shouldRead(equal("id", INT_MIN_VALUE - 1));
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id below lower bound").isFalse();
 
     shouldRead = shouldRead(equal("id", INT_MIN_VALUE));
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound").isTrue();
 
     shouldRead = shouldRead(equal("id", INT_MAX_VALUE - 4));
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    assertThat(shouldRead).as("Should read: id between lower and upper bounds").isTrue();
 
     shouldRead = shouldRead(equal("id", INT_MAX_VALUE));
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound").isTrue();
 
     shouldRead = shouldRead(equal("id", INT_MAX_VALUE + 1));
-    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id above upper bound").isFalse();
 
     shouldRead = shouldRead(equal("id", INT_MAX_VALUE + 6));
-    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id above upper bound").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerNotEq() {
     boolean shouldRead = shouldRead(notEqual("id", INT_MIN_VALUE - 25));
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound").isTrue();
 
     shouldRead = shouldRead(notEqual("id", INT_MIN_VALUE - 1));
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound").isTrue();
 
     shouldRead = shouldRead(notEqual("id", INT_MIN_VALUE));
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound").isTrue();
 
     shouldRead = shouldRead(notEqual("id", INT_MAX_VALUE - 4));
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    assertThat(shouldRead).as("Should read: id between lower and upper bounds").isTrue();
 
     shouldRead = shouldRead(notEqual("id", INT_MAX_VALUE));
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound").isTrue();
 
     shouldRead = shouldRead(notEqual("id", INT_MAX_VALUE + 1));
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
 
     shouldRead = shouldRead(notEqual("id", INT_MAX_VALUE + 6));
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerNotEqRewritten() {
     boolean shouldRead = shouldRead(not(equal("id", INT_MIN_VALUE - 25)));
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound").isTrue();
 
     shouldRead = shouldRead(not(equal("id", INT_MIN_VALUE - 1)));
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound").isTrue();
 
     shouldRead = shouldRead(not(equal("id", INT_MIN_VALUE)));
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound").isTrue();
 
     shouldRead = shouldRead(not(equal("id", INT_MAX_VALUE - 4)));
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    assertThat(shouldRead).as("Should read: id between lower and upper bounds").isTrue();
 
     shouldRead = shouldRead(not(equal("id", INT_MAX_VALUE)));
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound").isTrue();
 
     shouldRead = shouldRead(not(equal("id", INT_MAX_VALUE + 1)));
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
 
     shouldRead = shouldRead(not(equal("id", INT_MAX_VALUE + 6)));
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testStructFieldLt() {
     boolean shouldRead = shouldRead(lessThan("struct_not_null.int_field", INT_MIN_VALUE - 25));
-    Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range below lower bound (5 < 30)").isFalse();
 
     shouldRead = shouldRead(lessThan("struct_not_null.int_field", INT_MIN_VALUE));
-    Assert.assertFalse("Should not read: id range below lower bound (30 is not < 30)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: id range below lower bound (30 is not < 30)")
+        .isFalse();
 
     shouldRead = shouldRead(lessThan("struct_not_null.int_field", INT_MIN_VALUE + 1));
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(lessThan("struct_not_null.int_field", INT_MAX_VALUE));
-    Assert.assertTrue("Should read: may possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testStructFieldLtEq() {
     boolean shouldRead =
         shouldRead(lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE - 25));
-    Assert.assertFalse("Should not read: id range below lower bound (5 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range below lower bound (5 < 30)").isFalse();
 
     shouldRead = shouldRead(lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE - 1));
-    Assert.assertFalse("Should not read: id range below lower bound (29 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range below lower bound (29 < 30)").isFalse();
 
     shouldRead = shouldRead(lessThanOrEqual("struct_not_null.int_field", INT_MIN_VALUE));
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(lessThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE));
-    Assert.assertTrue("Should read: many possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: many possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testStructFieldGt() {
     boolean shouldRead = shouldRead(greaterThan("struct_not_null.int_field", INT_MAX_VALUE + 6));
-    Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range above upper bound (85 < 79)").isFalse();
 
     shouldRead = shouldRead(greaterThan("struct_not_null.int_field", INT_MAX_VALUE));
-    Assert.assertFalse("Should not read: id range above upper bound (79 is not > 79)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should not read: id range above upper bound (79 is not > 79)")
+        .isFalse();
 
     shouldRead = shouldRead(greaterThan("struct_not_null.int_field", INT_MAX_VALUE - 1));
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(greaterThan("struct_not_null.int_field", INT_MAX_VALUE - 4));
-    Assert.assertTrue("Should read: may possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testStructFieldGtEq() {
     boolean shouldRead =
         shouldRead(greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE + 6));
-    Assert.assertFalse("Should not read: id range above upper bound (85 < 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range above upper bound (85 < 79)").isFalse();
 
     shouldRead = shouldRead(greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE + 1));
-    Assert.assertFalse("Should not read: id range above upper bound (80 > 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id range above upper bound (80 > 79)").isFalse();
 
     shouldRead = shouldRead(greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE));
-    Assert.assertTrue("Should read: one possible id", shouldRead);
+    assertThat(shouldRead).as("Should read: one possible id").isTrue();
 
     shouldRead = shouldRead(greaterThanOrEqual("struct_not_null.int_field", INT_MAX_VALUE - 4));
-    Assert.assertTrue("Should read: may possible ids", shouldRead);
+    assertThat(shouldRead).as("Should read: may possible ids").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testStructFieldEq() {
     boolean shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MIN_VALUE - 25));
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id below lower bound").isFalse();
 
     shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MIN_VALUE - 1));
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id below lower bound").isFalse();
 
     shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MIN_VALUE));
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound").isTrue();
 
     shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MAX_VALUE - 4));
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    assertThat(shouldRead).as("Should read: id between lower and upper bounds").isTrue();
 
     shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MAX_VALUE));
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound").isTrue();
 
     shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MAX_VALUE + 1));
-    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id above upper bound").isFalse();
 
     shouldRead = shouldRead(equal("struct_not_null.int_field", INT_MAX_VALUE + 6));
-    Assert.assertFalse("Should not read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id above upper bound").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testStructFieldNotEq() {
     boolean shouldRead = shouldRead(notEqual("struct_not_null.int_field", INT_MIN_VALUE - 25));
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound").isTrue();
 
     shouldRead = shouldRead(notEqual("struct_not_null.int_field", INT_MIN_VALUE - 1));
-    Assert.assertTrue("Should read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound").isTrue();
 
     shouldRead = shouldRead(notEqual("struct_not_null.int_field", INT_MIN_VALUE));
-    Assert.assertTrue("Should read: id equal to lower bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound").isTrue();
 
     shouldRead = shouldRead(notEqual("struct_not_null.int_field", INT_MAX_VALUE - 4));
-    Assert.assertTrue("Should read: id between lower and upper bounds", shouldRead);
+    assertThat(shouldRead).as("Should read: id between lower and upper bounds").isTrue();
 
     shouldRead = shouldRead(notEqual("struct_not_null.int_field", INT_MAX_VALUE));
-    Assert.assertTrue("Should read: id equal to upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound").isTrue();
 
     shouldRead = shouldRead(notEqual("id", INT_MAX_VALUE + 1));
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
 
     shouldRead = shouldRead(notEqual("struct_not_null.int_field", INT_MAX_VALUE + 6));
-    Assert.assertTrue("Should read: id above upper bound", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testCaseInsensitive() {
     boolean shouldRead = shouldRead(equal("ID", INT_MIN_VALUE - 25), false);
-    Assert.assertFalse("Should not read: id below lower bound", shouldRead);
+    assertThat(shouldRead).as("Should not read: id below lower bound").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testStringStartsWith() {
-    Assume.assumeFalse(
-        "ORC row group filter does not support StringStartsWith", format == FileFormat.ORC);
+    assumeThat(format)
+        .as("ORC row group filter does not support StringStartsWith")
+        .isNotEqualTo(FileFormat.ORC);
+
     boolean shouldRead = shouldRead(startsWith("str", "1"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
 
     shouldRead = shouldRead(startsWith("str", "0st"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
 
     shouldRead = shouldRead(startsWith("str", "1str1"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
 
     shouldRead = shouldRead(startsWith("str", "1str1_xgd"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
 
     shouldRead = shouldRead(startsWith("str", "2str"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
 
     shouldRead = shouldRead(startsWith("str", "9xstr"));
-    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+    assertThat(shouldRead).as("Should not read: range doesn't match").isFalse();
 
     shouldRead = shouldRead(startsWith("str", "0S"));
-    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+    assertThat(shouldRead).as("Should not read: range doesn't match").isFalse();
 
     shouldRead = shouldRead(startsWith("str", "x"));
-    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+    assertThat(shouldRead).as("Should not read: range doesn't match").isFalse();
 
     shouldRead = shouldRead(startsWith("str", "9str9aaa"));
-    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+    assertThat(shouldRead).as("Should not read: range doesn't match").isFalse();
   }
 
-  @Test
+  @TestTemplate
   public void testStringNotStartsWith() {
-    Assume.assumeFalse(
-        "ORC row group filter does not support StringStartsWith", format == FileFormat.ORC);
+    assumeThat(format)
+        .as("ORC row group filter does not support StringStartsWith")
+        .isNotEqualTo(FileFormat.ORC);
+
     boolean shouldRead = shouldRead(notStartsWith("str", "1"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
 
     shouldRead = shouldRead(notStartsWith("str", "0st"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
 
     shouldRead = shouldRead(notStartsWith("str", "1str1"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
 
     shouldRead = shouldRead(notStartsWith("str", "1str1_xgd"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
 
     shouldRead = shouldRead(notStartsWith("str", "2str"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
 
     shouldRead = shouldRead(notStartsWith("str", "9xstr"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
 
     shouldRead = shouldRead(notStartsWith("required", "r"));
-    Assert.assertFalse("Should not read: range doesn't match", shouldRead);
+    assertThat(shouldRead).as("Should not read: range doesn't match").isFalse();
 
     shouldRead = shouldRead(notStartsWith("required", "requ"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
 
     shouldRead = shouldRead(notStartsWith("some_nulls", "ssome"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
 
     shouldRead = shouldRead(notStartsWith("some_nulls", "som"));
-    Assert.assertTrue("Should read: range matches", shouldRead);
+    assertThat(shouldRead).as("Should read: range matches").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerIn() {
     boolean shouldRead = shouldRead(in("id", INT_MIN_VALUE - 25, INT_MIN_VALUE - 24));
-    Assert.assertFalse("Should not read: id below lower bound (5 < 30, 6 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id below lower bound (5 < 30, 6 < 30)").isFalse();
 
     shouldRead = shouldRead(in("id", INT_MIN_VALUE - 2, INT_MIN_VALUE - 1));
-    Assert.assertFalse("Should not read: id below lower bound (28 < 30, 29 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id below lower bound (28 < 30, 29 < 30)").isFalse();
 
     shouldRead = shouldRead(in("id", INT_MIN_VALUE - 1, INT_MIN_VALUE));
-    Assert.assertTrue("Should read: id equal to lower bound (30 == 30)", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound (30 == 30)").isTrue();
 
     shouldRead = shouldRead(in("id", INT_MAX_VALUE - 4, INT_MAX_VALUE - 3));
-    Assert.assertTrue(
-        "Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)")
+        .isTrue();
 
     shouldRead = shouldRead(in("id", INT_MAX_VALUE, INT_MAX_VALUE + 1));
-    Assert.assertTrue("Should read: id equal to upper bound (79 == 79)", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound (79 == 79)").isTrue();
 
     shouldRead = shouldRead(in("id", INT_MAX_VALUE + 1, INT_MAX_VALUE + 2));
-    Assert.assertFalse("Should not read: id above upper bound (80 > 79, 81 > 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id above upper bound (80 > 79, 81 > 79)").isFalse();
 
     shouldRead = shouldRead(in("id", INT_MAX_VALUE + 6, INT_MAX_VALUE + 7));
-    Assert.assertFalse("Should not read: id above upper bound (85 > 79, 86 > 79)", shouldRead);
+    assertThat(shouldRead).as("Should not read: id above upper bound (85 > 79, 86 > 79)").isFalse();
 
     shouldRead = shouldRead(in("all_nulls", 1, 2));
-    Assert.assertFalse("Should skip: in on all nulls column", shouldRead);
+    assertThat(shouldRead).as("Should skip: in on all nulls column").isFalse();
 
     shouldRead = shouldRead(in("some_nulls", "aaa", "some"));
-    Assert.assertTrue("Should read: in on some nulls column", shouldRead);
+    assertThat(shouldRead).as("Should read: in on some nulls column").isTrue();
 
     shouldRead = shouldRead(in("no_nulls", "aaa", ""));
-    Assert.assertTrue("Should read: in on no nulls column", shouldRead);
+    assertThat(shouldRead).as("Should read: in on no nulls column").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testIntegerNotIn() {
     boolean shouldRead = shouldRead(notIn("id", INT_MIN_VALUE - 25, INT_MIN_VALUE - 24));
-    Assert.assertTrue("Should read: id below lower bound (5 < 30, 6 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound (5 < 30, 6 < 30)").isTrue();
 
     shouldRead = shouldRead(notIn("id", INT_MIN_VALUE - 2, INT_MIN_VALUE - 1));
-    Assert.assertTrue("Should read: id below lower bound (28 < 30, 29 < 30)", shouldRead);
+    assertThat(shouldRead).as("Should read: id below lower bound (28 < 30, 29 < 30)").isTrue();
 
     shouldRead = shouldRead(notIn("id", INT_MIN_VALUE - 1, INT_MIN_VALUE));
-    Assert.assertTrue("Should read: id equal to lower bound (30 == 30)", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to lower bound (30 == 30)").isTrue();
 
     shouldRead = shouldRead(notIn("id", INT_MAX_VALUE - 4, INT_MAX_VALUE - 3));
-    Assert.assertTrue(
-        "Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)", shouldRead);
+    assertThat(shouldRead)
+        .as("Should read: id between lower and upper bounds (30 < 75 < 79, 30 < 76 < 79)")
+        .isTrue();
 
     shouldRead = shouldRead(notIn("id", INT_MAX_VALUE, INT_MAX_VALUE + 1));
-    Assert.assertTrue("Should read: id equal to upper bound (79 == 79)", shouldRead);
+    assertThat(shouldRead).as("Should read: id equal to upper bound (79 == 79)").isTrue();
 
     shouldRead = shouldRead(notIn("id", INT_MAX_VALUE + 1, INT_MAX_VALUE + 2));
-    Assert.assertTrue("Should read: id above upper bound (80 > 79, 81 > 79)", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound (80 > 79, 81 > 79)").isTrue();
 
     shouldRead = shouldRead(notIn("id", INT_MAX_VALUE + 6, INT_MAX_VALUE + 7));
-    Assert.assertTrue("Should read: id above upper bound (85 > 79, 86 > 79)", shouldRead);
+    assertThat(shouldRead).as("Should read: id above upper bound (85 > 79, 86 > 79)").isTrue();
 
     shouldRead = shouldRead(notIn("all_nulls", 1, 2));
-    Assert.assertTrue("Should read: notIn on all nulls column", shouldRead);
+    assertThat(shouldRead).as("Should read: notIn on all nulls column").isTrue();
 
     shouldRead = shouldRead(notIn("some_nulls", "aaa", "some"));
-    Assert.assertTrue("Should read: notIn on some nulls column", shouldRead);
+    assertThat(shouldRead).as("Should read: notIn on some nulls column").isTrue();
 
     shouldRead = shouldRead(notIn("no_nulls", "aaa", ""));
     if (format == FileFormat.PARQUET) {
       // no_nulls column has all values == "", so notIn("no_nulls", "") should always be false and
       // so should be skipped
       // However, the metrics evaluator in Parquets always reads row group for a notIn filter
-      Assert.assertTrue("Should read: notIn on no nulls column", shouldRead);
+      assertThat(shouldRead).as("Should read: notIn on no nulls column").isTrue();
     } else {
-      Assert.assertFalse("Should skip: notIn on no nulls column", shouldRead);
+      assertThat(shouldRead).as("Should skip: notIn on no nulls column").isFalse();
     }
   }
 
-  @Test
+  @TestTemplate
   public void testSomeNullsNotEq() {
     boolean shouldRead = shouldRead(notEqual("some_nulls", "some"));
-    Assert.assertTrue("Should read: notEqual on some nulls column", shouldRead);
+    assertThat(shouldRead).as("Should read: notEqual on some nulls column").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testInLimitParquet() {
-    Assume.assumeTrue(format == FileFormat.PARQUET);
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
     boolean shouldRead = shouldRead(in("id", 1, 2));
-    Assert.assertFalse("Should not read if IN is evaluated", shouldRead);
+    assertThat(shouldRead).as("Should not read if IN is evaluated").isFalse();
 
     List<Integer> ids = Lists.newArrayListWithExpectedSize(400);
     for (int id = -400; id <= 0; id++) {
@@ -927,26 +964,28 @@ public class TestMetricsRowGroupFilter {
     }
 
     shouldRead = shouldRead(in("id", ids));
-    Assert.assertTrue("Should read if IN is not evaluated", shouldRead);
+    assertThat(shouldRead).as("Should read if IN is not evaluated").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testParquetTypePromotion() {
-    Assume.assumeTrue("Only valid for Parquet", format == FileFormat.PARQUET);
+    assumeThat(format).as("Only valid for Parquet").isEqualTo(FileFormat.PARQUET);
+
     Schema promotedSchema = new Schema(required(1, "id", Types.LongType.get()));
     boolean shouldRead =
         new ParquetMetricsRowGroupFilter(promotedSchema, equal("id", INT_MIN_VALUE + 1), true)
             .shouldRead(parquetSchema, rowGroupMetadata);
-    Assert.assertTrue("Should succeed with promoted schema", shouldRead);
+    assertThat(shouldRead).as("Should succeed with promoted schema").isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testTransformFilter() {
-    Assumptions.assumeThat(format).isEqualTo(FileFormat.PARQUET);
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
+
     boolean shouldRead =
         new ParquetMetricsRowGroupFilter(SCHEMA, equal(truncate("required", 2), "some_value"), true)
             .shouldRead(parquetSchema, rowGroupMetadata);
-    Assertions.assertThat(shouldRead)
+    assertThat(shouldRead)
         .as("Should read: filter contains non-reference evaluate as True")
         .isTrue();
   }

@@ -1,8 +1,5 @@
 ---
 title: "Spec"
-url: spec
-toc: true
-disableSidebar: true
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -28,6 +25,8 @@ This is a specification for the Iceberg table format that is designed to manage 
 ## Format Versioning
 
 Versions 1 and 2 of the Iceberg spec are complete and adopted by the community.
+
+**Version 3 is under active development and has not been formally adopted.**
 
 The format version number is incremented when new features are added that will break forward-compatibility---that is, when older readers would not read newer table features correctly. Tables may continue to be written with an older version of the spec to ensure compatibility by not using features that are not yet implemented by processing engines.
 
@@ -58,7 +57,7 @@ In addition to row-level deletes, version 2 makes some requirements stricter for
 
 ## Overview
 
-![Iceberg snapshot structure](../../../img/iceberg-metadata.png)
+![Iceberg snapshot structure](https://iceberg.apache.org/assets/images/iceberg-metadata.png)
 
 This table format tracks individual data files in a table instead of directories. This allows writers to create data files in-place and only adds files to the table in an explicit commit.
 
@@ -128,12 +127,12 @@ Tables do not require rename, except for tables that use atomic rename to implem
 
 #### Writer requirements
 
-Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata files to a table with the given version.
+Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata files (including manifests files and manifest lists) to a table with the given version.
 
 | Requirement | Write behavior |
 |-------------|----------------|
 | (blank)     | The field should be omitted |
-| _optional_  | The field can be written |
+| _optional_  | The field can be written or omitted |
 | _required_  | The field must be written |
 
 Readers should be more permissive because v1 metadata files are allowed in v2 tables so that tables can be upgraded to v2 without rewriting the metadata tree. For manifest list and manifest files, this table shows the expected v2 read behavior:
@@ -150,6 +149,10 @@ Readers should be more permissive because v1 metadata files are allowed in v2 ta
 | _required_ | _required_ | Fill in a default or throw an exception if the field is missing |
 
 Readers may be more strict for metadata JSON files because the JSON files are not reused and will always match the table version. Required v2 fields that were not present in v1 or optional in v1 may be handled as required fields. For example, a v2 table that is missing `last-sequence-number` can throw an exception.
+
+##### Writing data files
+
+All columns must be written to data files even if they introduce redundancy with metadata stored in manifest files (e.g. columns with identity partition transforms). Writing all columns provides a backup in case of corruption or bugs in the metadata layer.
 
 ### Schemas and Data Types
 
@@ -169,7 +172,7 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 
 Supported primitive types are defined in the table below. Primitive types added after v1 have an "added by" version that is the first spec version in which the type is allowed. For example, nanosecond-precision timestamps are part of the v3 spec; using v3 types in v1 or v2 tables can break forward compatibility.
 
-| Added by verison | Primitive type     | Description                                                              | Requirements                                     |
+| Added by version | Primitive type     | Description                                                              | Requirements                                     |
 |------------------|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|
 |                  | **`boolean`**      | True or false                                                            |                                                  |
 |                  | **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
@@ -202,8 +205,9 @@ For details on how to serialize a schema to JSON, see Appendix C.
 #### Default values
 
 Default values can be tracked for struct fields (both nested structs and the top-level schema's struct). There can be two defaults with a field:
-- `initial-default` is used to populate the field's value for all records that were written before the field was added to the schema
-- `write-default` is used to populate the field's value for any records written after the field was added to the schema, if the writer does not supply the field's value
+
+* `initial-default` is used to populate the field's value for all records that were written before the field was added to the schema
+* `write-default` is used to populate the field's value for any records written after the field was added to the schema, if the writer does not supply the field's value
 
 The `initial-default` is set only when a field is added to an existing schema. The `write-default` is initially set to the same value as `initial-default` and can be changed through schema evolution. If either default is not set for an optional field, then the default value is null for compatibility with older spec versions.
 
@@ -229,6 +233,7 @@ Any struct, including a top-level schema, can evolve through deleting fields, ad
 Grouping a subset of a struct’s fields into a nested struct is **not** allowed, nor is moving fields from a nested struct into its immediate parent struct (`struct<a, b, c> ↔ struct<a, struct<b, c>>`). Evolving primitive types to structs is **not** allowed, nor is evolving a single-field struct to a primitive (`map<string, int> ↔ map<string, struct<int>>`).
 
 Struct evolution requires the following rules for default values:
+
 * The `initial-default` must be set when a field is added and cannot change
 * The `write-default` must be set when a field is added and may change
 * When a required field is added, both defaults must be set to a non-null value
@@ -240,7 +245,14 @@ Struct evolution requires the following rules for default values:
 
 #### Column Projection
 
-Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids. If a field id is missing from a data file, its value for each row should be `null`.
+Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids.
+
+Values for field ids which are not present in a data file must be resolved according the following rules:
+
+* Return the value from partition metadata if an [Identity Transform](#partition-transforms) exists for the field and the partition value is present in the `partition` struct on `data_file` object in the manifest. This allows for metadata only migrations of Hive tables.
+* Use `schema.name-mapping.default` metadata to map field id to columns without field id as described below and use the column if it is present.
+* Return the default value if it has a defined `initial-default` (See [Default values](#default-values) section for more details). 
+* Return `null` in all other cases.
 
 For example, a file may be written with schema `1: a int, 2: b string, 3: c double` and read using projection schema `3: measurement, 2: name, 4: a`. This must select file columns `c` (renamed to `measurement`), `b` (now called `name`), and a column of `null` values called `a`; in that order.
 
@@ -301,7 +313,7 @@ Tables are configured with a **partition spec** that defines how to produce a tu
 *   A **transform** that is applied to the source column(s) to produce a partition value
 *   A **partition name**
 
-The source column, selected by id, must be a primitive type and cannot be contained in a map or list, but may be nested in a struct. For details on how to serialize a partition spec to JSON, see Appendix C.
+The source columns, selected by ids, must be a primitive type and cannot be contained in a map or list, but may be nested in a struct. For details on how to serialize a partition spec to JSON, see Appendix C.
 
 Partition specs capture the transform from table data to partition values. This is used to transform predicates to partition predicates, in addition to transforming data values. Deriving partition predicates from column predicates on the table data is used to separate the logical queries from physical storage: the partitioning can change and the correct partition filters are always derived from column predicates. This simplifies queries because users don’t have to supply both logical predicates and partition predicates. For more information, see Scan Planning below.
 
@@ -315,7 +327,7 @@ Partition field IDs must be reused if an existing partition spec contains an equ
 |-------------------|--------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------|
 | **`identity`**    | Source value, unmodified                                     | Any                                                                                                       | Source type |
 | **`bucket[N]`**   | Hash of value, mod `N` (see below)                           | `int`, `long`, `decimal`, `date`, `time`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`, `string`, `uuid`, `fixed`, `binary` | `int`       |
-| **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`                                                                        | Source type |
+| **`truncate[W]`** | Value truncated to width `W` (see below)                     | `int`, `long`, `decimal`, `string`, `binary`                                                              | Source type |
 | **`year`**        | Extract a date or timestamp year, as years from 1970         | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
 | **`month`**       | Extract a date or timestamp month, as months from 1970-01-01 | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
 | **`day`**         | Extract a date or timestamp day, as days from 1970-01-01     | `date`, `timestamp`, `timestamptz`, `timestamp_ns`, `timestamptz_ns`                                      | `int`       |
@@ -352,12 +364,14 @@ For hash function details by type, see Appendix B.
 | **`long`**    | `W`, width            | `v - (v % W)`	remainders must be positive	[1]                    | `W=10`: `1` ￫ `0`, `-1` ￫ `-10`  |
 | **`decimal`** | `W`, width (no scale) | `scaled_W = decimal(W, scale(v))` `v - (v % scaled_W)`		[1, 2] | `W=50`, `s=2`: `10.65` ￫ `10.50` |
 | **`string`**  | `L`, length           | Substring of length `L`: `v.substring(0, L)` [3]                    | `L=3`: `iceberg` ￫ `ice`         |
+| **`binary`**  | `L`, length           | Sub array of length `L`: `v.subarray(0, L)`  [4]                    | `L=3`: `\x01\x02\x03\x04\x05` ￫ `\x01\x02\x03` |
 
 Notes:
 
 1. The remainder, `v % W`, must be positive. For languages where `%` can produce negative values, the correct truncate function is: `v - (((v % W) + W) % W)`
 2. The width, `W`, used to truncate decimal values is applied using the scale of the decimal column to avoid additional (and potentially conflicting) parameters.
 3. Strings are truncated to a valid UTF-8 string with no more than `L` code points.
+4. In contrast to strings, binary values do not have an assumed encoding and are truncated to `L` bytes.
 
 
 #### Partition Evolution
@@ -387,6 +401,8 @@ A sort order is defined by a sort order id and a list of sort fields. The order 
 *   A **transform** that is used to produce values to be sorted on from the source column(s). This is the same transform as described in [partition transforms](#partition-transforms).
 *   A **sort direction**, that can only be either `asc` or `desc`
 *   A **null order** that describes the order of null values when sorted. Can only be either `nulls-first` or `nulls-last`
+
+For details on how to serialize a sort order to JSON, see Appendix C.
 
 Order id `0` is reserved for the unsorted order. 
 
@@ -685,7 +701,7 @@ For serialization details, see Appendix C.
 
 #### Table Statistics
 
-Table statistics files are valid [Puffin files](../puffin-spec). Statistics are informational. A reader can choose to
+Table statistics files are valid [Puffin files](puffin-spec.md). Statistics are informational. A reader can choose to
 ignore statistics information. Statistics support is not required to read the table correctly. A table can contain
 many statistics files associated with different table snapshots.
 
@@ -694,9 +710,9 @@ Statistics files metadata within `statistics` table metadata field is a struct w
 | v1 | v2 | Field name | Type | Description |
 |----|----|------------|------|-------------|
 | _required_ | _required_ | **`snapshot-id`** | `string` | ID of the Iceberg table's snapshot the statistics file is associated with. |
-| _required_ | _required_ | **`statistics-path`** | `string` | Path of the statistics file. See [Puffin file format](../puffin-spec). |
+| _required_ | _required_ | **`statistics-path`** | `string` | Path of the statistics file. See [Puffin file format](puffin-spec.md). |
 | _required_ | _required_ | **`file-size-in-bytes`** | `long` | Size of the statistics file. |
-| _required_ | _required_ | **`file-footer-size-in-bytes`** | `long` | Total size of the statistics file's footer (not the footer payload size). See [Puffin file format](../puffin-spec) for footer definition. |
+| _required_ | _required_ | **`file-footer-size-in-bytes`** | `long` | Total size of the statistics file's footer (not the footer payload size). See [Puffin file format](puffin-spec.md) for footer definition. |
 | _optional_ | _optional_ | **`key-metadata`** | Base64-encoded implementation-specific key metadata for encryption. |
 | _required_ | _required_ | **`blob-metadata`** | `list<blob metadata>` (see below) | A list of the blob metadata for statistics contained in the file with structure described below. |
 
@@ -754,13 +770,13 @@ The unified partition type is a struct containing all fields that have ever been
 and sorted by the field ids in ascending order.  
 In other words, the struct fields represent a union of all known partition fields sorted in ascending order by the field ids.
 For example,
-1) spec#0 has two fields {field#1, field#2}
-and then the table has evolved into spec#1 which has three fields {field#1, field#2, field#3}.
-The unified partition type looks like Struct<field#1, field#2, field#3>.
+1) `spec#0` has two fields `{field#1, field#2}`
+and then the table has evolved into `spec#1` which has three fields `{field#1, field#2, field#3}`.
+The unified partition type looks like `Struct<field#1, field#2, field#3>`.
 
-2) spec#0 has two fields {field#1, field#2}
-and then the table has evolved into spec#1 which has just one field {field#2}.
-The unified partition type looks like Struct<field#1, field#2>.
+2) `spec#0` has two fields `{field#1, field#2}`
+and then the table has evolved into `spec#1` which has just one field `{field#2}`.
+The unified partition type looks like `Struct<field#1, field#2>`.
 
 #### Commit Conflict Resolution and Retry
 
@@ -774,7 +790,9 @@ When two commits happen at the same time and are based on the same version, only
 
 #### File System Tables
 
-An atomic swap can be implemented using atomic rename in file systems that support it, like HDFS or most local file systems [1].
+_Note: This file system based scheme to commit a metadata file is **deprecated** and will be removed in version 4 of this spec. The scheme is **unsafe** in object stores and local file systems._
+
+An atomic swap can be implemented using atomic rename in file systems that support it, like HDFS [1].
 
 Each version of table metadata is stored in a metadata folder under the table’s base location using a file naming scheme that includes a version number, `V`: `v<V>.metadata.json`. To commit a new metadata version, `V+1`, the writer performs the following steps:
 
@@ -787,7 +805,7 @@ Each version of table metadata is stored in a metadata folder under the table’
 
 Notes:
 
-1. The file system table scheme is implemented in [HadoopTableOperations](../../../javadoc/{{% icebergVersion %}}/index.html?org/apache/iceberg/hadoop/HadoopTableOperations.html).
+1. The file system table scheme is implemented in [HadoopTableOperations](../javadoc/{{ icebergVersion }}/index.html?org/apache/iceberg/hadoop/HadoopTableOperations.html).
 
 #### Metastore Tables
 
@@ -803,7 +821,7 @@ Each version of table metadata is stored in a metadata folder under the table’
 
 Notes:
 
-1. The metastore table scheme is partly implemented in [BaseMetastoreTableOperations](../../../javadoc/{{% icebergVersion %}}/index.html?org/apache/iceberg/BaseMetastoreTableOperations.html).
+1. The metastore table scheme is partly implemented in [BaseMetastoreTableOperations](../javadoc/{{ icebergVersion }}/index.html?org/apache/iceberg/BaseMetastoreTableOperations.html).
 
 
 ### Delete Formats
@@ -846,7 +864,7 @@ The rows in the delete file must be sorted by `file_path` then `pos` to optimize
 
 Equality delete files identify deleted rows in a collection of data files by one or more column values, and may optionally contain additional columns of the deleted row.
 
-Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). Float and double columns cannot be used as delete columns in equality delete files.
+Equality delete files store any subset of a table's columns and use the table's field ids. The _delete columns_ are the columns of the delete file used to match data rows. Delete columns are identified by id in the delete file [metadata column `equality_ids`](#manifests). The column restrictions for columns used in equality delete files are the same as those for [identifier fields](#identifier-field-ids) with the exception that optional columns and columns nested under optional structs are allowed (if a parent struct column is null it implies the leaf column is null).
 
 A data row is deleted if its values are equal to all delete columns for any row in an equality delete file that applies to the row's data file (see [`Scan Planning`](#scan-planning)).
 
@@ -1117,7 +1135,17 @@ Partition specs are serialized as a JSON object with the following fields:
 |**`spec-id`**|`JSON int`|`0`|
 |**`fields`**|`JSON list: [`<br />&nbsp;&nbsp;`<partition field JSON>,`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"source-id": 4,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "ts_day",`<br />&nbsp;&nbsp;`"transform": "day"`<br />`}, {`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1001,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`} ]`|
 
-Each partition field in the fields list is stored as an object. See the table for more detail:
+Each partition field in `fields` is stored as a JSON object with the following properties.
+
+| V1       | V2       | V3       | Field            | JSON representation | Example      |
+|----------|----------|----------|------------------|---------------------|--------------|
+| required | required | omitted  | **`source-id`**  | `JSON int`          | 1            |
+| optional | optional | required | **`source-ids`** | `JSON list of ints` | `[1,2]`      |
+|          | required | required | **`field-id`**   | `JSON int`          | 1000         |
+| required | required | required | **`name`**       | `JSON string`       | `id_bucket`  |
+| required | required | required | **`transform`**  | `JSON string`       | `bucket[16]` |
+
+Supported partition transforms are listed below.
 
 |Transform or Field|JSON representation|Example|
 |--- |--- |--- |
@@ -1128,16 +1156,14 @@ Each partition field in the fields list is stored as an object. See the table fo
 |**`month`**|`JSON string: "month"`|`"month"`|
 |**`day`**|`JSON string: "day"`|`"day"`|
 |**`hour`**|`JSON string: "hour"`|`"hour"`|
-|**`Partition Field`** [1,2]|`JSON object: {`<br />&nbsp;&nbsp;`"source-id": <id int>,`<br />&nbsp;&nbsp;`"field-id": <field id int>,`<br />&nbsp;&nbsp;`"name": <name string>,`<br />&nbsp;&nbsp;`"transform": <transform JSON>`<br />`}`|`{`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`}`|
 
 In some cases partition specs are stored using only the field list instead of the object format that includes the spec ID, like the deprecated `partition-spec` field in table metadata. The object format should be used unless otherwise noted in this spec.
 
 The `field-id` property was added for each partition field in v2. In v1, the reference implementation assigned field ids sequentially in each spec starting at 1,000. See Partition Evolution for more details.
 
-Notes:
+In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms. In v1 and v2 metadata, writers must always write `source-id`; for multi-arg transforms, writers must produce `source-ids` and set `source-id` to the first ID from the field ID list.
 
-1. For partition fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
-2. For partition fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
+Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them. Writers should not write using partition specs that use unknown transforms.
 
 ### Sort Orders
 
@@ -1150,13 +1176,17 @@ Sort orders are serialized as a list of JSON object, each of which contains the 
 
 Each sort field in the fields list is stored as an object with the following properties:
 
-|Field|JSON representation|Example|
-|--- |--- |--- |
-|**`Sort Field`** [1,2]|`JSON object: {`<br />&nbsp;&nbsp;`"transform": <transform JSON>,`<br />&nbsp;&nbsp;`"source-id": <source id int>,`<br />&nbsp;&nbsp;`"direction": <direction string>,`<br />&nbsp;&nbsp;`"null-order": <null-order string>`<br />`}`|`{`<br />&nbsp;&nbsp;`  "transform": "bucket[4]",`<br />&nbsp;&nbsp;`  "source-id": 3,`<br />&nbsp;&nbsp;`  "direction": "desc",`<br />&nbsp;&nbsp;`  "null-order": "nulls-last"`<br />`}`|
+| V1       | V2       | V3       | Field            | JSON representation | Example     |
+|----------|----------|----------|------------------|---------------------|-------------|
+| required | required | required | **`transform`**  | `JSON string`       | `bucket[4]` |
+| required | required | omitted  | **`source-id`**  | `JSON int`          | 1           |
+|          |          | required | **`source-ids`** | `JSON list of ints` | `[1,2]`     |
+| required | required | required | **`direction`**  | `JSON string`       | `asc`       |
+| required | required | required | **`null-order`** | `JSON string`       | `nulls-last`|
 
-Notes:
-1. For sort fields with a transform with a single argument, the ID of the source field is set on `source-id`, and `source-ids` is omitted.
-2. For sort fields with a transform of multiple arguments, the IDs of the source fields are set on `source-ids`. To preserve backward compatibility, `source-id` is set to -1.
+In v3 metadata, writers must use only `source-ids` because v3 requires reader support for multi-arg transforms. In v1 and v2 metadata, writers must always write `source-id`; for multi-arg transforms, writers must produce `source-ids` and set `source-id` to the first ID from the field ID list.
+
+Older versions of the reference implementation can read tables with transforms unknown to it, ignoring them. But other implementations may break if they encounter unknown transforms. All v3 readers are required to read tables with unknown transforms, ignoring them.
 
 The following table describes the possible values for the some of the field within sort field: 
 
@@ -1212,42 +1242,6 @@ Example
        { "field-id": 5, "names": ["longitude", "long"] }
      ] } ]
 ```
-
-### Content File (Data and Delete) Serialization
-
-Content file (data or delete) is serialized as a JSON object according to the following table.
-
-| Metadata field           |JSON representation|Example|
-|--------------------------|--- |--- |
-| **`spec-id`**            |`JSON int`|`1`|
-| **`content`**            |`JSON string`|`DATA`, `POSITION_DELETES`, `EQUALITY_DELETES`|
-| **`file-path`**          |`JSON string`|`"s3://b/wh/data.db/table"`|
-| **`file-format`**        |`JSON string`|`AVRO`, `ORC`, `PARQUET`|
-| **`partition`**          |`JSON object: Partition data tuple using partition field ids for the struct field ids`|`{"1000":1}`|
-| **`record-count`**       |`JSON long`|`1`|
-| **`file-size-in-bytes`** |`JSON long`|`1024`|
-| **`column-sizes`**       |`JSON object: Map from column id to the total size on disk of all regions that store the column.`|`{"keys":[3,4],"values":[100,200]}`|
-| **`value-counts`**       |`JSON object: Map from column id to number of values in the column (including null and NaN values)`|`{"keys":[3,4],"values":[90,180]}`|
-| **`null-value-counts`**  |`JSON object: Map from column id to number of null values in the column`|`{"keys":[3,4],"values":[10,20]}`|
-| **`nan-value-counts`**   |`JSON object: Map from column id to number of NaN values in the column`|`{"keys":[3,4],"values":[0,0]}`|
-| **`lower-bounds`**       |`JSON object: Map from column id to lower bound binary in the column serialized as hexadecimal string`|`{"keys":[3,4],"values":["01000000","02000000"]}`|
-| **`upper-bounds`**       |`JSON object: Map from column id to upper bound binary in the column serialized as hexadecimal string`|`{"keys":[3,4],"values":["05000000","0A000000"]}`|
-| **`key-metadata`**       |`JSON string: Encryption key metadata binary serialized as hexadecimal string`|`00000000000000000000000000000000`|
-| **`split-offsets`**      |`JSON list of long: Split offsets for the data file`|`[128,256]`|
-| **`equality-ids`**       |`JSON list of int: Field ids used to determine row equality in equality delete files`|`[1]`|
-| **`sort-order-id`**      |`JSON int`|`1`|
-
-### File Scan Task Serialization
-
-File scan task is serialized as a JSON object according to the following table.
-
-| Metadata field       |JSON representation|Example|
-|--------------------------|--- |--- |
-| **`schema`**          |`JSON object`|`See above, read schemas instead`|
-| **`spec`**            |`JSON object`|`See above, read partition specs instead`|
-| **`data-file`**       |`JSON object`|`See above, read content file instead`|
-| **`delete-files`**    |`JSON list of objects`|`See above, read content file instead`|
-| **`residual-filter`** |`JSON object: residual filter expression`|`{"type":"eq","term":"id","value":1}`|
 
 ## Appendix D: Single-value serialization
 
@@ -1313,6 +1307,25 @@ Default values are added to struct fields in v3.
 * Tables with `initial-default` will be read correctly by older readers if `initial-default` is always null for optional fields. Otherwise, old readers will default optional columns with null. Old readers will fail to read required fields which are populated by `initial-default` because that default is not supported.
 
 Types `timestamp_ns` and `timestamptz_ns` are added in v3.
+
+All readers are required to read tables with unknown partition transforms, ignoring them.
+
+Writing v3 metadata:
+
+* Partition Field and Sort Field JSON:
+    * `source-ids` was added and is required
+    * `source-id` is no longer required and should be omitted; always use `source-ids` instead
+
+Reading v1 or v2 metadata for v3:
+
+* Partition Field and Sort Field JSON:
+    * `source-ids` should default to a single-value list of the value of `source-id`
+
+Writing v1 or v2 metadata:
+
+* Partition Field and Sort Field JSON:
+    * For a single-arg transform, `source-id` should be written; if `source-ids` is also written it should be a single-element list of `source-id`
+    * For multi-arg transforms, `source-ids` should be written; `source-id` should be set to the first element of `source-ids`
 
 ### Version 2
 
@@ -1383,3 +1396,14 @@ Writing v2 metadata:
     * `sort_columns` was removed
 
 Note that these requirements apply when writing data to a v2 table. Tables that are upgraded from v1 may contain metadata that does not follow these requirements. Implementations should remain backward-compatible with v1 metadata requirements.
+
+## Appendix F: Implementation Notes
+
+This section covers topics not required by the specification but recommendations for systems implementing the Iceberg specification to help maintain a uniform experience.
+
+### Point in Time Reads (Time Travel)
+
+Iceberg supports two types of histories for tables. A history of previous "current snapshots" stored in ["snapshot-log" table metadata](#table-metadata-fields) and [parent-child lineage stored in "snapshots"](#table-metadata-fields). These two histories 
+might indicate different snapshot IDs for a specific timestamp. The discrepancies can be caused by a variety of table operations (e.g. updating the `current-snapshot-id` can be used to set the snapshot of a table to any arbitrary snapshot, which might have a lineage derived from a table branch or no lineage at all).
+
+When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.

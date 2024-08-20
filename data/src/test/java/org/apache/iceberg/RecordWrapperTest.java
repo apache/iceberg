@@ -20,10 +20,10 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.StructLikeWrapper;
-import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
 public abstract class RecordWrapperTest {
@@ -44,8 +44,8 @@ public abstract class RecordWrapperTest {
           optional(113, "bytes", Types.BinaryType.get()),
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
-          required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // maximum precision
-          );
+          required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // maximum precision
+          optional(117, "uuid", Types.UUIDType.get()));
 
   private static final Types.StructType TIMESTAMP_WITHOUT_ZONE =
       Types.StructType.of(
@@ -103,7 +103,8 @@ public abstract class RecordWrapperTest {
   }
 
   private void generateAndValidate(Schema schema) {
-    generateAndValidate(schema, Assert::assertEquals);
+    generateAndValidate(
+        schema, (message, expected, actual) -> assertThat(actual).as(message).isEqualTo(expected));
   }
 
   public interface AssertMethod {

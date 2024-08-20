@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.extensions;
 import static org.apache.iceberg.TableProperties.FORMAT_VERSION;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,6 @@ import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Row;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Test;
@@ -202,8 +202,7 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
     Snapshot snap3 = table.currentSnapshot();
     long rightAfterSnap3 = waitUntilAfter(snap3.timestampMillis());
 
-    Assertions.assertThatThrownBy(
-            () -> changelogRecords(snap3.timestampMillis(), snap2.timestampMillis()))
+    assertThatThrownBy(() -> changelogRecords(snap3.timestampMillis(), snap2.timestampMillis()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot set start-timestamp to be greater than end-timestamp for changelogs");
   }
@@ -293,6 +292,69 @@ public class TestChangelogTable extends SparkExtensionsTestBase {
         ImmutableList.of(
             row(1, file1, 0L, false, 0, row("a")), row(2, file2, 0L, false, 0, row("b"))),
         rows);
+  }
+
+  @Test
+  public void testQueryWithRollback() {
+    createTable();
+
+    sql("INSERT INTO %s VALUES (1, 'a')", tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot snap1 = table.currentSnapshot();
+    long rightAfterSnap1 = waitUntilAfter(snap1.timestampMillis());
+
+    sql("INSERT INTO %s VALUES (2, 'b')", tableName);
+    table.refresh();
+    Snapshot snap2 = table.currentSnapshot();
+    long rightAfterSnap2 = waitUntilAfter(snap2.timestampMillis());
+
+    sql(
+        "CALL %s.system.rollback_to_snapshot('%s', %d)",
+        catalogName, tableIdent, snap1.snapshotId());
+    table.refresh();
+    Assert.assertEquals("Snapshot should match after rollback", table.currentSnapshot(), snap1);
+
+    sql("INSERT OVERWRITE %s VALUES (-2, 'a')", tableName);
+    table.refresh();
+    Snapshot snap3 = table.currentSnapshot();
+    long rightAfterSnap3 = waitUntilAfter(snap3.timestampMillis());
+
+    assertEquals(
+        "Should have expected changed rows up to snapshot 3",
+        ImmutableList.of(
+            row(1, "a", "INSERT", 0, snap1.snapshotId()),
+            row(1, "a", "DELETE", 1, snap3.snapshotId()),
+            row(-2, "a", "INSERT", 1, snap3.snapshotId())),
+        changelogRecords(null, rightAfterSnap3));
+
+    assertEquals(
+        "Should have expected changed rows up to snapshot 2",
+        ImmutableList.of(row(1, "a", "INSERT", 0, snap1.snapshotId())),
+        changelogRecords(null, rightAfterSnap2));
+
+    assertEquals(
+        "Should have expected changed rows from snapshot 3 only since snapshot 2 is on a different branch.",
+        ImmutableList.of(
+            row(1, "a", "DELETE", 0, snap3.snapshotId()),
+            row(-2, "a", "INSERT", 0, snap3.snapshotId())),
+        changelogRecords(rightAfterSnap1, snap3.timestampMillis()));
+
+    assertEquals(
+        "Should have expected changed rows from snapshot 3",
+        ImmutableList.of(
+            row(1, "a", "DELETE", 0, snap3.snapshotId()),
+            row(-2, "a", "INSERT", 0, snap3.snapshotId())),
+        changelogRecords(rightAfterSnap2, null));
+
+    sql(
+        "CALL %s.system.set_current_snapshot('%s', %d)",
+        catalogName, tableIdent, snap2.snapshotId());
+    table.refresh();
+    Assert.assertEquals("Snapshot should match after reset", table.currentSnapshot(), snap2);
+    assertEquals(
+        "Should have expected changed rows from snapshot 2 only since snapshot 3 is on a different branch.",
+        ImmutableList.of(row(2, "b", "INSERT", 0, snap2.snapshotId())),
+        changelogRecords(rightAfterSnap1, null));
   }
 
   private void createTableWithDefaultRows() {

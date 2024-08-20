@@ -43,10 +43,6 @@ public class DynConstructors {
       this.constructed = constructed;
     }
 
-    public Class<? extends C> getConstructedClass() {
-      return constructed;
-    }
-
     public C newInstanceChecked(Object... args) throws Exception {
       try {
         if (args.length > ctor.getParameterCount()) {
@@ -57,9 +53,9 @@ public class DynConstructors {
       } catch (InstantiationException | IllegalAccessException e) {
         throw e;
       } catch (InvocationTargetException e) {
-        Throwables.propagateIfInstanceOf(e.getCause(), Exception.class);
-        Throwables.propagateIfInstanceOf(e.getCause(), RuntimeException.class);
-        throw Throwables.propagate(e.getCause());
+        Throwables.throwIfInstanceOf(e.getCause(), Exception.class);
+        Throwables.throwIfInstanceOf(e.getCause(), RuntimeException.class);
+        throw new RuntimeException(e.getCause());
       }
     }
 
@@ -67,8 +63,8 @@ public class DynConstructors {
       try {
         return newInstanceChecked(args);
       } catch (Exception e) {
-        Throwables.propagateIfInstanceOf(e, RuntimeException.class);
-        throw Throwables.propagate(e);
+        Throwables.throwIfInstanceOf(e, RuntimeException.class);
+        throw new RuntimeException(e.getCause());
       }
     }
 
@@ -80,6 +76,8 @@ public class DynConstructors {
       return (R) newInstance(args);
     }
 
+    /** @deprecated since 1.7.0, visibility will be reduced in 1.8.0 */
+    @Deprecated // will become package-private
     @Override
     @SuppressWarnings("unchecked")
     public <R> R invokeChecked(Object target, Object... args) throws Exception {
@@ -115,8 +113,8 @@ public class DynConstructors {
   public static class Builder {
     private final Class<?> baseClass;
     private ClassLoader loader = Thread.currentThread().getContextClassLoader();
-    private Ctor ctor = null;
-    private Map<String, Throwable> problems = Maps.newHashMap();
+    private Ctor<?> ctor = null;
+    private final Map<String, Throwable> problems = Maps.newHashMap();
 
     public Builder(Class<?> baseClass) {
       this.baseClass = baseClass;
@@ -162,7 +160,7 @@ public class DynConstructors {
       }
 
       try {
-        ctor = new Ctor<T>(targetClass.getConstructor(types), targetClass);
+        ctor = new Ctor<>(targetClass.getConstructor(types), targetClass);
       } catch (NoSuchMethodException e) {
         // not the right implementation
         problems.put(methodName(targetClass, types), e);
@@ -170,12 +168,6 @@ public class DynConstructors {
       return this;
     }
 
-    public Builder hiddenImpl(Class<?>... types) {
-      hiddenImpl(baseClass, types);
-      return this;
-    }
-
-    @SuppressWarnings("unchecked")
     public Builder hiddenImpl(String className, Class<?>... types) {
       // don't do any work if an implementation has been found
       if (ctor != null) {
@@ -183,7 +175,7 @@ public class DynConstructors {
       }
 
       try {
-        Class targetClass = Class.forName(className, true, loader);
+        Class<?> targetClass = Class.forName(className, true, loader);
         hiddenImpl(targetClass, types);
       } catch (NoClassDefFoundError | ClassNotFoundException e) {
         // cannot load this implementation
@@ -201,7 +193,7 @@ public class DynConstructors {
       try {
         Constructor<T> hidden = targetClass.getDeclaredConstructor(types);
         AccessController.doPrivileged(new MakeAccessible(hidden));
-        ctor = new Ctor<T>(hidden, targetClass);
+        ctor = new Ctor<>(hidden, targetClass);
       } catch (SecurityException e) {
         // unusable
         problems.put(methodName(targetClass, types), e);
@@ -215,7 +207,7 @@ public class DynConstructors {
     @SuppressWarnings("unchecked")
     public <C> Ctor<C> buildChecked() throws NoSuchMethodException {
       if (ctor != null) {
-        return ctor;
+        return (Ctor<C>) ctor;
       }
       throw buildCheckedException(baseClass, problems);
     }
@@ -223,14 +215,14 @@ public class DynConstructors {
     @SuppressWarnings("unchecked")
     public <C> Ctor<C> build() {
       if (ctor != null) {
-        return ctor;
+        return (Ctor<C>) ctor;
       }
       throw buildRuntimeException(baseClass, problems);
     }
   }
 
   private static class MakeAccessible implements PrivilegedAction<Void> {
-    private Constructor<?> hidden;
+    private final Constructor<?> hidden;
 
     MakeAccessible(Constructor<?> hidden) {
       this.hidden = hidden;

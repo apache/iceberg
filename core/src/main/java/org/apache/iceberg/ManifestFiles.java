@@ -25,6 +25,8 @@ import java.util.Map;
 import org.apache.iceberg.ManifestReader.FileType;
 import org.apache.iceberg.avro.AvroEncoderUtil;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.encryption.EncryptedFiles;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.ContentCache;
@@ -79,7 +81,7 @@ public class ManifestFiles {
   }
 
   /** Drop manifest file cache object for a FileIO if exists. */
-  public static synchronized void dropCache(FileIO fileIO) {
+  public static void dropCache(FileIO fileIO) {
     CONTENT_CACHES.invalidate(fileIO);
     CONTENT_CACHES.cleanUp();
   }
@@ -157,11 +159,31 @@ public class ManifestFiles {
    */
   public static ManifestWriter<DataFile> write(
       int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
+    return write(
+        formatVersion, spec, EncryptedFiles.plainAsEncryptedOutput(outputFile), snapshotId);
+  }
+
+  /**
+   * Create a new {@link ManifestWriter} for the given format version.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param encryptedOutputFile an {@link EncryptedOutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DataFile> write(
+      int formatVersion,
+      PartitionSpec spec,
+      EncryptedOutputFile encryptedOutputFile,
+      Long snapshotId) {
     switch (formatVersion) {
       case 1:
-        return new ManifestWriter.V1Writer(spec, outputFile, snapshotId);
+        return new ManifestWriter.V1Writer(spec, encryptedOutputFile, snapshotId);
       case 2:
-        return new ManifestWriter.V2Writer(spec, outputFile, snapshotId);
+        return new ManifestWriter.V2Writer(spec, encryptedOutputFile, snapshotId);
+      case 3:
+        return new ManifestWriter.V3Writer(spec, encryptedOutputFile, snapshotId);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -198,11 +220,28 @@ public class ManifestFiles {
    */
   public static ManifestWriter<DeleteFile> writeDeleteManifest(
       int formatVersion, PartitionSpec spec, OutputFile outputFile, Long snapshotId) {
+    return writeDeleteManifest(
+        formatVersion, spec, EncryptedFiles.plainAsEncryptedOutput(outputFile), snapshotId);
+  }
+
+  /**
+   * Create a new {@link ManifestWriter} for the given format version.
+   *
+   * @param formatVersion a target format version
+   * @param spec a {@link PartitionSpec}
+   * @param outputFile an {@link EncryptedOutputFile} where the manifest will be written
+   * @param snapshotId a snapshot ID for the manifest entries, or null for an inherited ID
+   * @return a manifest writer
+   */
+  public static ManifestWriter<DeleteFile> writeDeleteManifest(
+      int formatVersion, PartitionSpec spec, EncryptedOutputFile outputFile, Long snapshotId) {
     switch (formatVersion) {
       case 1:
         throw new IllegalArgumentException("Cannot write delete files in a v1 table");
       case 2:
         return new ManifestWriter.V2DeleteWriter(spec, outputFile, snapshotId);
+      case 3:
+        return new ManifestWriter.V3DeleteWriter(spec, outputFile, snapshotId);
     }
     throw new UnsupportedOperationException(
         "Cannot write manifest for table version: " + formatVersion);
@@ -254,7 +293,7 @@ public class ManifestFiles {
       int specId,
       InputFile toCopy,
       Map<Integer, PartitionSpec> specsById,
-      OutputFile outputFile,
+      EncryptedOutputFile outputFile,
       long snapshotId,
       SnapshotSummary.Builder summaryBuilder) {
     // use metadata that will add the current snapshot's ID for the rewrite
@@ -278,7 +317,7 @@ public class ManifestFiles {
       int specId,
       InputFile toCopy,
       Map<Integer, PartitionSpec> specsById,
-      OutputFile outputFile,
+      EncryptedOutputFile outputFile,
       long snapshotId,
       SnapshotSummary.Builder summaryBuilder) {
     // for a rewritten manifest all snapshot ids should be set. use empty metadata to throw an
@@ -302,7 +341,7 @@ public class ManifestFiles {
   private static ManifestFile copyManifestInternal(
       int formatVersion,
       ManifestReader<DataFile> reader,
-      OutputFile outputFile,
+      EncryptedOutputFile outputFile,
       long snapshotId,
       SnapshotSummary.Builder summaryBuilder,
       ManifestEntry.Status allowedEntryStatus) {

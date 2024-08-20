@@ -192,7 +192,7 @@ public class NessieIcebergClient implements AutoCloseable {
 
   private TableIdentifier toIdentifier(EntriesResponse.Entry entry) {
     List<String> elements = entry.getName().getElements();
-    return TableIdentifier.of(elements.toArray(new String[elements.size()]));
+    return TableIdentifier.of(elements.toArray(new String[0]));
   }
 
   public IcebergTable table(TableIdentifier tableIdentifier) {
@@ -216,10 +216,8 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   public void createNamespace(Namespace namespace, Map<String, String> metadata) {
+    checkNamespaceIsValid(namespace);
     getRef().checkMutable();
-    if (namespace.isEmpty()) {
-      throw new IllegalArgumentException("Creating empty namespaces is not supported");
-    }
     ContentKey key = ContentKey.of(namespace.levels());
     org.projectnessie.model.Namespace content =
         org.projectnessie.model.Namespace.of(key.getElements(), metadata);
@@ -308,6 +306,7 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   public boolean dropNamespace(Namespace namespace) throws NamespaceNotEmptyException {
+    checkNamespaceIsValid(namespace);
     getRef().checkMutable();
     ContentKey key = ContentKey.of(namespace.levels());
     try {
@@ -353,8 +352,16 @@ public class NessieIcebergClient implements AutoCloseable {
     return false;
   }
 
+  private static void checkNamespaceIsValid(Namespace namespace) {
+    if (namespace.isEmpty()) {
+      throw new NoSuchNamespaceException("Invalid namespace: %s", namespace);
+    }
+  }
+
   public Map<String, String> loadNamespaceMetadata(Namespace namespace)
       throws NoSuchNamespaceException {
+    checkNamespaceIsValid(namespace);
+
     ContentKey key = ContentKey.of(namespace.levels());
     try {
       Map<ContentKey, Content> contentMap = withReference(api.getContent()).key(key).get();
@@ -380,6 +387,7 @@ public class NessieIcebergClient implements AutoCloseable {
   }
 
   private boolean updateProperties(Namespace namespace, Consumer<Map<String, String>> action) {
+    checkNamespaceIsValid(namespace);
     getRef().checkMutable();
     ContentKey key = ContentKey.of(namespace.levels());
     try {
@@ -571,19 +579,6 @@ public class NessieIcebergClient implements AutoCloseable {
       LOG.error("Cannot drop {}: unknown error", contentType, e);
     }
     return false;
-  }
-
-  /** @deprecated will be removed after 1.5.0 */
-  @Deprecated
-  public void commitTable(
-      TableMetadata base,
-      TableMetadata metadata,
-      String newMetadataLocation,
-      IcebergTable expectedContent,
-      ContentKey key)
-      throws NessieConflictException, NessieNotFoundException {
-    String contentId = expectedContent == null ? null : expectedContent.getId();
-    commitTable(base, metadata, newMetadataLocation, contentId, key);
   }
 
   public void commitTable(

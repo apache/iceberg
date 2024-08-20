@@ -18,15 +18,6 @@
  */
 package org.apache.iceberg;
 
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS;
-import static org.apache.iceberg.TableProperties.COMMIT_NUM_STATUS_CHECKS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_MIN_WAIT_MS_DEFAULT;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS;
-import static org.apache.iceberg.TableProperties.COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT;
-
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -40,16 +31,18 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.LocationUtil;
-import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class BaseMetastoreTableOperations implements TableOperations {
+public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperations
+    implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(BaseMetastoreTableOperations.class);
 
   public static final String TABLE_TYPE_PROP = "table_type";
@@ -291,12 +284,6 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     };
   }
 
-  protected enum CommitStatus {
-    FAILURE,
-    SUCCESS,
-    UNKNOWN
-  }
-
   /**
    * Attempt to load the table and see if any current or past metadata location matches the one we
    * were attempting to set. This is used as a last resort when we are dealing with exceptions that
@@ -309,65 +296,29 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
    * @return Commit Status of Success, Failure or Unknown
    */
   protected CommitStatus checkCommitStatus(String newMetadataLocation, TableMetadata config) {
-    int maxAttempts =
-        PropertyUtil.propertyAsInt(
-            config.properties(), COMMIT_NUM_STATUS_CHECKS, COMMIT_NUM_STATUS_CHECKS_DEFAULT);
-    long minWaitMs =
-        PropertyUtil.propertyAsLong(
-            config.properties(),
-            COMMIT_STATUS_CHECKS_MIN_WAIT_MS,
-            COMMIT_STATUS_CHECKS_MIN_WAIT_MS_DEFAULT);
-    long maxWaitMs =
-        PropertyUtil.propertyAsLong(
-            config.properties(),
-            COMMIT_STATUS_CHECKS_MAX_WAIT_MS,
-            COMMIT_STATUS_CHECKS_MAX_WAIT_MS_DEFAULT);
-    long totalRetryMs =
-        PropertyUtil.propertyAsLong(
-            config.properties(),
-            COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS,
-            COMMIT_STATUS_CHECKS_TOTAL_WAIT_MS_DEFAULT);
+    return CommitStatus.valueOf(
+        checkCommitStatus(
+                tableName(),
+                newMetadataLocation,
+                config.properties(),
+                () -> checkCurrentMetadataLocation(newMetadataLocation))
+            .name());
+  }
 
-    AtomicReference<CommitStatus> status = new AtomicReference<>(CommitStatus.UNKNOWN);
-
-    Tasks.foreach(newMetadataLocation)
-        .retry(maxAttempts)
-        .suppressFailureWhenFinished()
-        .exponentialBackoff(minWaitMs, maxWaitMs, totalRetryMs, 2.0)
-        .onFailure(
-            (location, checkException) ->
-                LOG.error("Cannot check if commit to {} exists.", tableName(), checkException))
-        .run(
-            location -> {
-              TableMetadata metadata = refresh();
-              String currentMetadataFileLocation = metadata.metadataFileLocation();
-              boolean commitSuccess =
-                  currentMetadataFileLocation.equals(newMetadataLocation)
-                      || metadata.previousFiles().stream()
-                          .anyMatch(log -> log.file().equals(newMetadataLocation));
-              if (commitSuccess) {
-                LOG.info(
-                    "Commit status check: Commit to {} of {} succeeded",
-                    tableName(),
-                    newMetadataLocation);
-                status.set(CommitStatus.SUCCESS);
-              } else {
-                LOG.warn(
-                    "Commit status check: Commit to {} of {} unknown, new metadata location is not current "
-                        + "or in history",
-                    tableName(),
-                    newMetadataLocation);
-              }
-            });
-
-    if (status.get() == CommitStatus.UNKNOWN) {
-      LOG.error(
-          "Cannot determine commit state to {}. Failed during checking {} times. "
-              + "Treating commit state as unknown.",
-          tableName(),
-          maxAttempts);
-    }
-    return status.get();
+  /**
+   * Validate if the new metadata location is the current metadata location or present within
+   * previous metadata files.
+   *
+   * @param newMetadataLocation newly written metadata location
+   * @return true if the new metadata location is the current metadata location or present within
+   *     previous metadata files.
+   */
+  private boolean checkCurrentMetadataLocation(String newMetadataLocation) {
+    TableMetadata metadata = refresh();
+    String currentMetadataFileLocation = metadata.metadataFileLocation();
+    return currentMetadataFileLocation.equals(newMetadataLocation)
+        || metadata.previousFiles().stream()
+            .anyMatch(log -> log.file().equals(newMetadataLocation));
   }
 
   private String newTableMetadataFilePath(TableMetadata meta, int newVersion) {
@@ -395,7 +346,7 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
     }
 
     try {
-      return Integer.valueOf(metadataLocation.substring(versionStart, versionEnd));
+      return Integer.parseInt(metadataLocation.substring(versionStart, versionEnd));
     } catch (NumberFormatException e) {
       LOG.warn("Unable to parse version from metadata location: {}", metadataLocation, e);
       return -1;
@@ -427,14 +378,21 @@ public abstract class BaseMetastoreTableOperations implements TableOperations {
       // the log, thus we don't include metadata.previousFiles() for deletion - everything else can
       // be removed
       removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
-      Tasks.foreach(removedPreviousMetadataFiles)
-          .noRetry()
-          .suppressFailureWhenFinished()
-          .onFailure(
-              (previousMetadataFile, exc) ->
-                  LOG.warn(
-                      "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
-          .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+      if (io() instanceof SupportsBulkOperations) {
+        ((SupportsBulkOperations) io())
+            .deleteFiles(
+                Iterables.transform(
+                    removedPreviousMetadataFiles, TableMetadata.MetadataLogEntry::file));
+      } else {
+        Tasks.foreach(removedPreviousMetadataFiles)
+            .noRetry()
+            .suppressFailureWhenFinished()
+            .onFailure(
+                (previousMetadataFile, exc) ->
+                    LOG.warn(
+                        "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
+            .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+      }
     }
   }
 }

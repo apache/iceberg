@@ -20,11 +20,12 @@ package org.apache.iceberg.orc;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.orc.TypeDescription;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 /** Test projections on ORC types. */
@@ -38,13 +39,11 @@ public class TestBuildOrcProjection {
 
     // Original mapping (stored in ORC)
     TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
-    Assertions.assertThat(orcSchema.getChildren()).hasSize(2);
-    Assertions.assertThat(orcSchema.findSubtype("a").getId()).isEqualTo(1);
-    Assertions.assertThat(orcSchema.findSubtype("a").getCategory())
-        .isEqualTo(TypeDescription.Category.INT);
-    Assertions.assertThat(orcSchema.findSubtype("b").getId()).isEqualTo(2);
-    Assertions.assertThat(orcSchema.findSubtype("b").getCategory())
-        .isEqualTo(TypeDescription.Category.STRING);
+    assertThat(orcSchema.getChildren()).hasSize(2);
+    assertThat(orcSchema.findSubtype("a").getId()).isEqualTo(1);
+    assertThat(orcSchema.findSubtype("a").getCategory()).isEqualTo(TypeDescription.Category.INT);
+    assertThat(orcSchema.findSubtype("b").getId()).isEqualTo(2);
+    assertThat(orcSchema.findSubtype("b").getCategory()).isEqualTo(TypeDescription.Category.STRING);
   }
 
   @Test
@@ -64,12 +63,12 @@ public class TestBuildOrcProjection {
             );
 
     TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
-    Assertions.assertThat(newOrcSchema.getChildren()).hasSize(2);
-    Assertions.assertThat(newOrcSchema.findSubtype("b").getId()).isEqualTo(1);
-    Assertions.assertThat(newOrcSchema.findSubtype("b").getCategory())
+    assertThat(newOrcSchema.getChildren()).hasSize(2);
+    assertThat(newOrcSchema.findSubtype("b").getId()).isEqualTo(1);
+    assertThat(newOrcSchema.findSubtype("b").getCategory())
         .isEqualTo(TypeDescription.Category.STRING);
-    Assertions.assertThat(newOrcSchema.findSubtype("c_r3").getId()).isEqualTo(2);
-    Assertions.assertThat(newOrcSchema.findSubtype("c_r3").getCategory())
+    assertThat(newOrcSchema.findSubtype("c_r3").getId()).isEqualTo(2);
+    assertThat(newOrcSchema.findSubtype("c_r3").getCategory())
         .isEqualTo(TypeDescription.Category.DATE);
   }
 
@@ -84,16 +83,14 @@ public class TestBuildOrcProjection {
     TypeDescription orcSchema = ORCSchemaUtil.convert(originalSchema);
 
     TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(originalSchema, orcSchema);
-    Assertions.assertThat(newOrcSchema.getChildren()).hasSize(1);
-    Assertions.assertThat(newOrcSchema.findSubtype("a").getCategory())
+    assertThat(newOrcSchema.getChildren()).hasSize(1);
+    assertThat(newOrcSchema.findSubtype("a").getCategory())
         .isEqualTo(TypeDescription.Category.STRUCT);
     TypeDescription nestedCol = newOrcSchema.findSubtype("a");
-    Assertions.assertThat(nestedCol.findSubtype("b").getId()).isEqualTo(2);
-    Assertions.assertThat(nestedCol.findSubtype("b").getCategory())
-        .isEqualTo(TypeDescription.Category.STRING);
-    Assertions.assertThat(nestedCol.findSubtype("c").getId()).isEqualTo(3);
-    Assertions.assertThat(nestedCol.findSubtype("c").getCategory())
-        .isEqualTo(TypeDescription.Category.DATE);
+    assertThat(nestedCol.findSubtype("b").getId()).isEqualTo(2);
+    assertThat(nestedCol.findSubtype("b").getCategory()).isEqualTo(TypeDescription.Category.STRING);
+    assertThat(nestedCol.findSubtype("c").getId()).isEqualTo(3);
+    assertThat(nestedCol.findSubtype("c").getCategory()).isEqualTo(TypeDescription.Category.DATE);
   }
 
   @Test
@@ -113,16 +110,14 @@ public class TestBuildOrcProjection {
     Schema evolveSchema = new Schema(optional(1, "aa", newNestedStructType));
 
     TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolveSchema, orcSchema);
-    Assertions.assertThat(newOrcSchema.getChildren()).hasSize(1);
-    Assertions.assertThat(newOrcSchema.findSubtype("a").getCategory())
+    assertThat(newOrcSchema.getChildren()).hasSize(1);
+    assertThat(newOrcSchema.findSubtype("a").getCategory())
         .isEqualTo(TypeDescription.Category.STRUCT);
     TypeDescription nestedCol = newOrcSchema.findSubtype("a");
-    Assertions.assertThat(nestedCol.findSubtype("c").getId()).isEqualTo(2);
-    Assertions.assertThat(nestedCol.findSubtype("c").getCategory())
-        .isEqualTo(TypeDescription.Category.DATE);
-    Assertions.assertThat(nestedCol.findSubtype("b").getId()).isEqualTo(3);
-    Assertions.assertThat(nestedCol.findSubtype("b").getCategory())
-        .isEqualTo(TypeDescription.Category.STRING);
+    assertThat(nestedCol.findSubtype("c").getId()).isEqualTo(2);
+    assertThat(nestedCol.findSubtype("c").getCategory()).isEqualTo(TypeDescription.Category.DATE);
+    assertThat(nestedCol.findSubtype("b").getId()).isEqualTo(3);
+    assertThat(nestedCol.findSubtype("b").getCategory()).isEqualTo(TypeDescription.Category.STRING);
   }
 
   @Test
@@ -136,15 +131,14 @@ public class TestBuildOrcProjection {
             optional(2, "b", Types.StructType.of(required(3, "c", Types.LongType.get()))));
 
     TypeDescription newOrcSchema = ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema);
-    Assertions.assertThat(newOrcSchema.getChildren()).hasSize(2);
-    Assertions.assertThat(newOrcSchema.findSubtype("a").getCategory())
-        .isEqualTo(TypeDescription.Category.INT);
-    Assertions.assertThat(newOrcSchema.findSubtype("b_r2").getId()).isEqualTo(2);
-    Assertions.assertThat(newOrcSchema.findSubtype("b_r2").getCategory())
+    assertThat(newOrcSchema.getChildren()).hasSize(2);
+    assertThat(newOrcSchema.findSubtype("a").getCategory()).isEqualTo(TypeDescription.Category.INT);
+    assertThat(newOrcSchema.findSubtype("b_r2").getId()).isEqualTo(2);
+    assertThat(newOrcSchema.findSubtype("b_r2").getCategory())
         .isEqualTo(TypeDescription.Category.STRUCT);
     TypeDescription nestedCol = newOrcSchema.findSubtype("b_r2");
-    Assertions.assertThat(nestedCol.findSubtype("c_r3").getId()).isEqualTo(3);
-    Assertions.assertThat(nestedCol.findSubtype("c_r3").getCategory())
+    assertThat(nestedCol.findSubtype("c_r3").getId()).isEqualTo(3);
+    assertThat(nestedCol.findSubtype("c_r3").getCategory())
         .isEqualTo(TypeDescription.Category.LONG);
   }
 
@@ -166,8 +160,7 @@ public class TestBuildOrcProjection {
                     required(3, "c", Types.LongType.get()),
                     required(4, "d", Types.LongType.get()))));
 
-    Assertions.assertThatThrownBy(
-            () -> ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema))
+    assertThatThrownBy(() -> ORCSchemaUtil.buildOrcProjection(evolvedSchema, baseOrcSchema))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Field 4 of type long is required and was not found.");
   }

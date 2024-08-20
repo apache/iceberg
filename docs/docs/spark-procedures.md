@@ -546,6 +546,7 @@ See [`migrate`](#migrate) to replace an existing table with an Iceberg table.
 | `table`       | ✔️  | string | Name of the new Iceberg table to create |
 | `location`    |    | string | Table location for the new table (delegated to the catalog by default) |
 | `properties`  | ️   | map<string, string> | Properties to add to the newly created table |
+| `parallelism` |    | int | Number of threads to use for file reading (defaults to 1) |
 
 #### Output
 
@@ -588,6 +589,7 @@ By default, the original table is retained with the name `table_BACKUP_`.
 | `properties`  | ️   | map<string, string> | Properties for the new Iceberg table |
 | `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 | `backup_table_name` |  | string | Name of the table that will be retained as backup (defaults to `table_BACKUP_`) |
+| `parallelism` |   | int | Number of threads to use for file reading (defaults to 1) |
 
 #### Output
 
@@ -629,7 +631,7 @@ will then treat these files as if they are part of the set of files  owned by Ic
 | `source_table`          | ✔️        | string              | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
 | `partition_filter`      | ️         | map<string, string> | A map of partitions in the source table to import from                                              |
 | `check_duplicate_files` | ️         | boolean             | Whether to prevent files existing in the table from being added (defaults to true)                  |
-| `parallelism`           |           | int                 | number of threads to use for file reading (defaults to 1)                                         |
+| `parallelism`           |           | int                 | Number of threads to use for file reading (defaults to 1)                                         |
 
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
@@ -756,8 +758,8 @@ Creates a view that contains the changes from a given table.
 | `table`              | ✔️         | string              | Name of the source table for the changelog                                                                                                                                                           |
 | `changelog_view`     |           | string              | Name of the view to create                                                                                                                                                                           |
 | `options`            |           | map<string, string> | A map of Spark read options to use                                                                                                                                                                   |
-| `net_changes`        |           | boolean             | Whether to output net changes (see below for more information). Defaults to false.                                                                                                                   |
-| `compute_updates`    |           | boolean             | Whether to compute pre/post update images (see below for more information). Defaults to false.                                                                                                       | 
+| `net_changes`        |           | boolean             | Whether to output net changes (see below for more information). Defaults to false. It must be false when `compute_updates` is true.                                                                                                                  |
+| `compute_updates`    |           | boolean             | Whether to compute pre/post update images (see below for more information). Defaults to true if `identifer_columns` are provided; otherwise, defaults to false.                                                                                                       | 
 | `identifier_columns` |           | array<string>       | The list of identifier columns to compute updates. If the argument `compute_updates` is set to true and `identifier_columns` are not provided, the table’s current identifier fields will be used.   |
 
 Here is a list of commonly used Spark read options:
@@ -823,7 +825,10 @@ second snapshot deleted 1 record.
 |2	| Bob	   |INSERT	|0	|5390529835796506035|
 |1	| Alice  |DELETE	|1	|8764748981452218370|
 
-Create a changelog view that computes net changes. It removes intermediate changes and only outputs the net changes. 
+#### Net Changes
+
+The procedure can remove intermediate changes across multiple snapshots, and only outputs the net changes. Here is an example to create a changelog view that computes net changes. 
+
 ```sql
 CALL spark_catalog.system.create_changelog_view(
   table => 'db.tbl',

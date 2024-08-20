@@ -18,9 +18,7 @@ title: "Spark and Iceberg Quickstart"
  - limitations under the License.
  -->
 
-## Spark and Iceberg Quickstart
-
-This guide will get you up and running with an Iceberg and Spark environment, including sample code to
+This guide will get you up and running with Apache Iceberg™ using Apache Spark™, including sample code to
 highlight some powerful features. You can learn more about Iceberg's Spark runtime by checking out the [Spark](docs/latest/spark-ddl.md) section.
 
 - [Docker-Compose](#docker-compose)
@@ -335,6 +333,7 @@ If you already have a Spark environment, you can add Iceberg, using the `--packa
     If you want to include Iceberg in your Spark installation, add the Iceberg Spark runtime to Spark's `jars` folder.
     You can download the runtime by visiting to the [Releases](releases.md) page.
 
+<!-- markdown-link-check-disable-next-line -->
 [spark-runtime-jar]: https://search.maven.org/remotecontent?filepath=org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/{{ icebergVersion }}/iceberg-spark-runtime-3.5_2.12-{{ icebergVersion }}.jar
 
 #### Learn More

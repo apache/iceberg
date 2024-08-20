@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import static org.apache.iceberg.spark.SparkSchemaUtil.convert;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsSafe;
 import static org.apache.iceberg.spark.data.TestHelpers.assertEqualsUnsafe;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -63,7 +64,6 @@ import org.apache.spark.sql.SaveMode;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.encoders.RowEncoder;
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -92,7 +92,7 @@ public class TestDataFrameWrites extends AvroDataTest {
 
   private Map<String, String> tableProperties;
 
-  private org.apache.spark.sql.types.StructType sparkSchema =
+  private final org.apache.spark.sql.types.StructType sparkSchema =
       new org.apache.spark.sql.types.StructType(
           new org.apache.spark.sql.types.StructField[] {
             new org.apache.spark.sql.types.StructField(
@@ -107,16 +107,16 @@ public class TestDataFrameWrites extends AvroDataTest {
                 org.apache.spark.sql.types.Metadata.empty())
           });
 
-  private Schema icebergSchema =
+  private final Schema icebergSchema =
       new Schema(
           Types.NestedField.optional(1, "optionalField", Types.StringType.get()),
           Types.NestedField.required(2, "requiredField", Types.StringType.get()));
 
-  private List<String> data0 =
+  private final List<String> data0 =
       Arrays.asList(
           "{\"optionalField\": \"a1\", \"requiredField\": \"bid_001\"}",
           "{\"optionalField\": \"a2\", \"requiredField\": \"bid_002\"}");
-  private List<String> data1 =
+  private final List<String> data1 =
       Arrays.asList(
           "{\"optionalField\": \"d1\", \"requiredField\": \"bid_101\"}",
           "{\"optionalField\": \"d2\", \"requiredField\": \"bid_102\"}",
@@ -221,16 +221,15 @@ public class TestDataFrameWrites extends AvroDataTest {
     final int numPartitions = 10;
     final int partitionToFail = new Random().nextInt(numPartitions);
     MapPartitionsFunction<Row, Row> failOnFirstPartitionFunc =
-        (MapPartitionsFunction<Row, Row>)
-            input -> {
-              int partitionId = TaskContext.getPartitionId();
+        input -> {
+          int partitionId = TaskContext.getPartitionId();
 
-              if (partitionId == partitionToFail) {
-                throw new SparkException(
-                    String.format("Intended exception in partition %d !", partitionId));
-              }
-              return input;
-            };
+          if (partitionId == partitionToFail) {
+            throw new SparkException(
+                String.format("Intended exception in partition %d !", partitionId));
+          }
+          return input;
+        };
 
     Dataset<Row> df =
         createDataset(records, schema)
@@ -286,8 +285,8 @@ public class TestDataFrameWrites extends AvroDataTest {
         "Spark 3 rejects writing nulls to a required column", spark.version().startsWith("2"));
 
     File location = new File(temp.newFolder("parquet"), "test");
-    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
-    String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
+    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location);
+    String targetPath = String.format("%s/nullable_poc/targetFolder/", location);
 
     tableProperties = ImmutableMap.of(TableProperties.WRITE_DATA_LOCATION, targetPath);
 
@@ -339,8 +338,8 @@ public class TestDataFrameWrites extends AvroDataTest {
         "Spark 3 rejects writing nulls to a required column", spark.version().startsWith("2"));
 
     File location = new File(temp.newFolder("parquet"), "test");
-    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location.toString());
-    String targetPath = String.format("%s/nullable_poc/targetFolder/", location.toString());
+    String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location);
+    String targetPath = String.format("%s/nullable_poc/targetFolder/", location);
 
     tableProperties = ImmutableMap.of(TableProperties.WRITE_DATA_LOCATION, targetPath);
 
@@ -408,8 +407,7 @@ public class TestDataFrameWrites extends AvroDataTest {
 
     Iterable<Record> records2 = RandomData.generate(schema, 100, 0L);
 
-    Assertions.assertThatThrownBy(
-            () -> writeDataWithFailOnPartition(records2, schema, location.toString()))
+    assertThatThrownBy(() -> writeDataWithFailOnPartition(records2, schema, location.toString()))
         .isInstanceOf(SparkException.class);
 
     table.refresh();

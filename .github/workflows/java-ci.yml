@@ -22,7 +22,9 @@ on:
   push:
     branches:
     - 'main'
-    - '0.**'
+    - '0.*'
+    - '1.*'
+    - '2.*'
     tags:
     - 'apache-iceberg-**'
   pull_request:
@@ -63,7 +65,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        jvm: [8, 11, 17]
+        jvm: [11, 17, 21]
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -90,20 +92,26 @@ jobs:
 
   build-checks:
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        jvm: [11, 17, 21]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-java@v4
       with:
         distribution: zulu
-        java-version: 8
-    - run: ./gradlew -DallVersions build -x test -x javadoc -x integrationTest
+        java-version: ${{ matrix.jvm }}
+    - run: ./gradlew -DallModules build -x test -x javadoc -x integrationTest
 
   build-javadoc:
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        jvm: [11, 17, 21]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-java@v4
       with:
         distribution: zulu
-        java-version: 8
+        java-version: ${{ matrix.jvm }}
     - run: ./gradlew -Pquick=true javadoc

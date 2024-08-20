@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -41,14 +42,15 @@ import org.apache.iceberg.data.GenericAppenderHelper;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.CatalogTestBase;
-import org.apache.iceberg.flink.MiniClusterResource;
+import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.Timeout;
 
+@Timeout(60)
 public class TestStreamScanSql extends CatalogTestBase {
   private static final String TABLE = "test_table";
   private static final FileFormat FORMAT = FileFormat.PARQUET;
@@ -57,25 +59,27 @@ public class TestStreamScanSql extends CatalogTestBase {
 
   @Override
   protected TableEnvironment getTableEnv() {
-    if (tEnv == null) {
-      synchronized (this) {
-        if (tEnv == null) {
-          EnvironmentSettings.Builder settingsBuilder =
-              EnvironmentSettings.newInstance().inStreamingMode();
+    TableEnvironment tableEnv = tEnv;
+    if (tableEnv != null) {
+      return tableEnv;
+    }
+    synchronized (this) {
+      if (tEnv == null) {
+        EnvironmentSettings.Builder settingsBuilder =
+            EnvironmentSettings.newInstance().inStreamingMode();
 
-          StreamExecutionEnvironment env =
-              StreamExecutionEnvironment.getExecutionEnvironment(
-                  MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
-          env.enableCheckpointing(400);
+        StreamExecutionEnvironment env =
+            StreamExecutionEnvironment.getExecutionEnvironment(
+                MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
+        env.enableCheckpointing(400);
 
-          StreamTableEnvironment streamTableEnv =
-              StreamTableEnvironment.create(env, settingsBuilder.build());
-          streamTableEnv
-              .getConfig()
-              .getConfiguration()
-              .set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
-          tEnv = streamTableEnv;
-        }
+        StreamTableEnvironment streamTableEnv =
+            StreamTableEnvironment.create(env, settingsBuilder.build());
+        streamTableEnv
+            .getConfig()
+            .getConfiguration()
+            .set(TableConfigOptions.TABLE_DYNAMIC_TABLE_OPTIONS_ENABLED, true);
+        tEnv = streamTableEnv;
       }
     }
     return tEnv;
@@ -418,7 +422,7 @@ public class TestStreamScanSql extends CatalogTestBase {
     }
     result.getJobClient().ifPresent(JobClient::cancel);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 exec(
                     "SELECT * FROM %s /*+ OPTIONS('streaming'='true', 'monitor-interval'='1s', 'start-tag'='%s', "

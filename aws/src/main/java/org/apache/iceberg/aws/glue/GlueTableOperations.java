@@ -318,7 +318,8 @@ class GlueTableOperations extends BaseMetastoreTableOperations {
                   TableInput.builder()
                       .applyMutation(
                           builder ->
-                              IcebergToGlueConverter.setTableInputInformation(builder, metadata))
+                              IcebergToGlueConverter.setTableInputInformation(
+                                  builder, metadata, glueTable))
                       .name(tableName)
                       .tableType(GLUE_EXTERNAL_TABLE_TYPE)
                       .parameters(parameters)

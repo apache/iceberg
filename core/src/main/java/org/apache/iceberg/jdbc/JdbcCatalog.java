@@ -55,6 +55,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -86,7 +87,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   private Map<String, String> catalogProperties;
   private final Function<Map<String, String>, FileIO> ioBuilder;
   private final Function<Map<String, String>, JdbcClientPool> clientPoolBuilder;
-  private final boolean initializeCatalogTables;
+  private boolean initializeCatalogTables;
   private CloseableGroup closeableGroup;
   private JdbcUtil.SchemaVersion schemaVersion = JdbcUtil.SchemaVersion.V0;
 
@@ -137,6 +138,9 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       this.connections = new JdbcClientPool(uri, properties);
     }
 
+    this.initializeCatalogTables =
+        PropertyUtil.propertyAsBoolean(
+            properties, JdbcUtil.INIT_CATALOG_TABLES_PROPERTY, initializeCatalogTables);
     if (initializeCatalogTables) {
       initializeCatalogTables();
     }
@@ -464,6 +468,16 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
                             .toArray(String[]::new)))
             // remove duplicates
             .distinct()
+            // exclude fuzzy matches when `namespace` contains `%` or `_`
+            .filter(
+                n -> {
+                  for (int i = 0; i < namespace.levels().length; i++) {
+                    if (!n.levels()[i].equals(namespace.levels()[i])) {
+                      return false;
+                    }
+                  }
+                  return true;
+                })
             .collect(Collectors.toList());
 
     return namespaces;
@@ -684,6 +698,11 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
           "Rename operation affected {} rows: the catalog view's primary key assumption has been violated",
           updatedRecords);
     }
+  }
+
+  @VisibleForTesting
+  JdbcClientPool connectionPool() {
+    return connections;
   }
 
   private int execute(String sql, String... args) {

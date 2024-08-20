@@ -36,6 +36,7 @@ import org.apache.iceberg.io.FilterIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.Filter;
@@ -398,33 +399,9 @@ public class Deletes {
 
     @Override
     protected boolean shouldKeep(T posDelete) {
-      return charSeqEquals(dataLocation, (CharSequence) FILENAME_ACCESSOR.get(posDelete));
-    }
-
-    private boolean charSeqEquals(CharSequence s1, CharSequence s2) {
-      if (s1 == s2) {
-        return true;
-      }
-
-      int count = s1.length();
-      if (count != s2.length()) {
-        return false;
-      }
-
-      if (s1 instanceof String && s2 instanceof String && s1.hashCode() != s2.hashCode()) {
-        return false;
-      }
-
-      // File paths inside a delete file normally have more identical chars at the beginning. For
-      // example, a typical
-      // path is like "s3:/bucket/db/table/data/partition/00000-0-[uuid]-00001.parquet".
-      // The uuid is where the difference starts. So it's faster to find the first diff backward.
-      for (int i = count - 1; i >= 0; i--) {
-        if (s1.charAt(i) != s2.charAt(i)) {
-          return false;
-        }
-      }
-      return true;
+      return Comparators.filePath()
+              .compare(dataLocation, (CharSequence) FILENAME_ACCESSOR.get(posDelete))
+          == 0;
     }
   }
 }

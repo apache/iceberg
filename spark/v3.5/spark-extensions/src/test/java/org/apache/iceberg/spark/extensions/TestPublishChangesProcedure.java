@@ -19,9 +19,9 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -31,23 +31,17 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
-import org.assertj.core.api.Assertions;
-import org.junit.After;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
 
-public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
+public class TestPublishChangesProcedure extends ExtensionsTestBase {
 
-  public TestPublishChangesProcedure(
-      String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @After
+  @AfterEach
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
 
-  @Test
+  @TestTemplate
   public void testApplyWapChangesUsingPositionalArgs() {
     String wapId = "wap_id_1";
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
@@ -83,7 +77,7 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testApplyWapChangesUsingNamedArgs() {
     String wapId = "wap_id_1";
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
@@ -121,7 +115,7 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s", tableName));
   }
 
-  @Test
+  @TestTemplate
   public void testApplyWapChangesRefreshesRelationCache() {
     String wapId = "wap_id_1";
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
@@ -153,35 +147,34 @@ public class TestPublishChangesProcedure extends SparkExtensionsTestBase {
     sql("UNCACHE TABLE tmp");
   }
 
-  @Test
+  @TestTemplate
   public void testApplyInvalidWapId() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.system.publish_changes('%s', 'not_valid')", catalogName, tableIdent))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Cannot apply unknown WAP ID 'not_valid'");
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidApplyWapChangesCases() {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql("CALL %s.system.publish_changes('n', table => 't', 'not_valid')", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Named and positional arguments cannot be mixed");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("CALL %s.custom.publish_changes('n', 't', 'not_valid')", catalogName))
         .isInstanceOf(NoSuchProcedureException.class)
         .hasMessage("Procedure custom.publish_changes not found");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.publish_changes('t')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.publish_changes('t')", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Missing required parameters: [wap_id]");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.publish_changes('', 'not_valid')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.publish_changes('', 'not_valid')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
   }

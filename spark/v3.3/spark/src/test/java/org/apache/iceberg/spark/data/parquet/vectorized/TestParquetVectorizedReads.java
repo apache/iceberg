@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.data.parquet.vectorized;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,7 +28,6 @@ import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Iterator;
 import org.apache.avro.generic.GenericData;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.CloseableIterable;
@@ -56,8 +56,8 @@ import org.junit.Test;
 
 public class TestParquetVectorizedReads extends AvroDataTest {
   private static final int NUM_ROWS = 200_000;
-  private static final ByteBuffer fileDek = ByteBuffer.allocate(16);
-  private static final ByteBuffer aadPrefix = ByteBuffer.allocate(16);
+  private static final ByteBuffer FILE_DEK = ByteBuffer.allocate(16);
+  private static final ByteBuffer AAD_PREFIX = ByteBuffer.allocate(16);
 
   static final int BATCH_SIZE = 10_000;
   static final Function<GenericData.Record, GenericData.Record> IDENTITY = record -> record;
@@ -134,12 +134,12 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   FileAppender<GenericData.Record> encryptedParquetWriter(Schema schema, File testFile)
       throws IOException {
     SecureRandom rand = new SecureRandom();
-    rand.nextBytes(fileDek.array());
-    rand.nextBytes(aadPrefix.array());
+    rand.nextBytes(FILE_DEK.array());
+    rand.nextBytes(AAD_PREFIX.array());
     return Parquet.write(Files.localOutput(testFile))
         .schema(schema)
-        .withFileEncryptionKey(fileDek)
-        .withAADPrefix(aadPrefix)
+        .withFileEncryptionKey(FILE_DEK)
+        .withAADPrefix(AAD_PREFIX)
         .named("test")
         .build();
   }
@@ -156,12 +156,12 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   FileAppender<GenericData.Record> encryptedParquetV2Writer(Schema schema, File testFile)
       throws IOException {
     SecureRandom rand = new SecureRandom();
-    rand.nextBytes(fileDek.array());
-    rand.nextBytes(aadPrefix.array());
+    rand.nextBytes(FILE_DEK.array());
+    rand.nextBytes(AAD_PREFIX.array());
     return Parquet.write(Files.localOutput(testFile))
         .schema(schema)
-        .withFileEncryptionKey(fileDek)
-        .withAADPrefix(aadPrefix)
+        .withFileEncryptionKey(FILE_DEK)
+        .withAADPrefix(AAD_PREFIX)
         .named("test")
         .writerVersion(ParquetProperties.WriterVersion.PARQUET_2_0)
         .build();
@@ -200,8 +200,8 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     }
 
     if (encrypted) {
-      readBuilder.withFileEncryptionKey(fileDek);
-      readBuilder.withAADPrefix(aadPrefix);
+      readBuilder.withFileEncryptionKey(FILE_DEK);
+      readBuilder.withAADPrefix(AAD_PREFIX);
     }
 
     try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
@@ -255,18 +255,18 @@ public class TestParquetVectorizedReads extends AvroDataTest {
   @Test
   @Override
   public void testNestedStruct() {
-    AssertHelpers.assertThrows(
-        "Vectorized reads are not supported yet for struct fields",
-        UnsupportedOperationException.class,
-        "Vectorized reads are not supported yet for struct fields",
-        () ->
-            VectorizedSparkParquetReaders.buildReader(
-                TypeUtil.assignIncreasingFreshIds(
-                    new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))),
-                new MessageType(
-                    "struct", new GroupType(Type.Repetition.OPTIONAL, "struct").withId(1)),
-                Maps.newHashMap(),
-                null));
+    assertThatThrownBy(
+            () ->
+                VectorizedSparkParquetReaders.buildReader(
+                    TypeUtil.assignIncreasingFreshIds(
+                        new Schema(required(1, "struct", SUPPORTED_PRIMITIVES))),
+                    new MessageType(
+                        "struct", new GroupType(Type.Repetition.OPTIONAL, "struct").withId(1)),
+                    Maps.newHashMap(),
+                    null))
+        .as("Vectorized reads are not supported yet for struct fields")
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Vectorized reads are not supported yet for struct fields");
   }
 
   @Test
@@ -390,13 +390,9 @@ public class TestParquetVectorizedReads extends AvroDataTest {
     try (FileAppender<GenericData.Record> writer = parquetV2Writer(schema, dataFile)) {
       writer.addAll(data);
     }
-    AssertHelpers.assertThrows(
-        "Vectorized reads not supported",
-        UnsupportedOperationException.class,
-        "Cannot support vectorized reads for column",
-        () -> {
-          assertRecordsMatch(schema, 30000, data, dataFile, true, BATCH_SIZE);
-          return null;
-        });
+    assertThatThrownBy(() -> assertRecordsMatch(schema, 30000, data, dataFile, true, BATCH_SIZE))
+        .as("Vectorized reads not supported")
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining("Cannot support vectorized reads for column");
   }
 }

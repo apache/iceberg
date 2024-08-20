@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RequestResponseTestBase;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -144,50 +146,49 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
   public void testDeserializeInvalidResponse() {
     String jsonDefaultsHasWrongType =
         "{\"defaults\":[\"warehouse\",\"s3://bucket/warehouse\"],\"overrides\":{\"clients\":\"5\"}}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonDefaultsHasWrongType))
-        .isInstanceOf(JsonProcessingException.class)
+    assertThatThrownBy(() -> deserialize(jsonDefaultsHasWrongType))
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
-            "Cannot deserialize value of type `java.util.LinkedHashMap<java.lang.String,java.lang.String>`");
+            "Cannot parse string map from non-object value: defaults: [\"warehouse\",\"s3://bucket/warehouse\"]");
 
     String jsonOverridesHasWrongType =
         "{\"defaults\":{\"warehouse\":\"s3://bucket/warehouse\"},\"overrides\":\"clients\"}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonOverridesHasWrongType))
-        .isInstanceOf(JsonProcessingException.class)
-        .hasMessageContaining("Cannot construct instance of `java.util.LinkedHashMap`");
+    assertThatThrownBy(() -> deserialize(jsonOverridesHasWrongType))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Cannot parse string map from non-object value: overrides: \"clients\"");
 
-    Assertions.assertThatThrownBy(() -> deserialize(null))
+    assertThatThrownBy(() -> deserialize(null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotCreateInvalidObjects() {
-    Assertions.assertThatThrownBy(() -> ConfigResponse.builder().withOverride(null, "100").build())
+    assertThatThrownBy(() -> ConfigResponse.builder().withOverride(null, "100").build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid override property: null");
 
-    Assertions.assertThatThrownBy(() -> ConfigResponse.builder().withDefault(null, "100").build())
+    assertThatThrownBy(() -> ConfigResponse.builder().withDefault(null, "100").build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid default property: null");
 
-    Assertions.assertThatThrownBy(() -> ConfigResponse.builder().withOverrides(null).build())
+    assertThatThrownBy(() -> ConfigResponse.builder().withOverrides(null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid override properties map: null");
 
-    Assertions.assertThatThrownBy(() -> ConfigResponse.builder().withDefaults(null).build())
+    assertThatThrownBy(() -> ConfigResponse.builder().withDefaults(null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid default properties map: null");
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "a");
     mapWithNullKey.put("b", "b");
-    Assertions.assertThatThrownBy(
-            () -> ConfigResponse.builder().withDefaults(mapWithNullKey).build())
+    assertThatThrownBy(() -> ConfigResponse.builder().withDefaults(mapWithNullKey).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid default property: null");
 
-    Assertions.assertThatThrownBy(
-            () -> ConfigResponse.builder().withOverrides(mapWithNullKey).build())
+    assertThatThrownBy(() -> ConfigResponse.builder().withOverrides(mapWithNullKey).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid override property: null");
   }
@@ -213,11 +214,11 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
             "b", "from_overrides",
             "c", "from_client");
 
-    Assertions.assertThat(merged)
+    assertThat(merged)
         .as(
             "The merged properties map should use values from defaults, then client config, and finally overrides")
         .isEqualTo(expected);
-    Assertions.assertThat(merged)
+    assertThat(merged)
         .as("The merged properties map should omit keys with null values")
         .doesNotContainValue(null);
   }
@@ -234,10 +235,10 @@ public class TestConfigResponse extends RequestResponseTestBase<ConfigResponse> 
 
   @Override
   public void assertEquals(ConfigResponse actual, ConfigResponse expected) {
-    Assertions.assertThat(actual.defaults())
+    assertThat(actual.defaults())
         .as("Config properties to use as defaults should be equal")
         .isEqualTo(expected.defaults());
-    Assertions.assertThat(actual.overrides())
+    assertThat(actual.overrides())
         .as("Config properties to use as overrides should be equal")
         .isEqualTo(expected.overrides());
   }

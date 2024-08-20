@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.DELETE_ISOLATION_LEVEL;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Collections;
@@ -49,7 +50,6 @@ import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -135,7 +135,7 @@ public class TestCopyOnWriteDelete extends TestDelete {
             });
 
     try {
-      Assertions.assertThatThrownBy(deleteFuture::get)
+      assertThatThrownBy(deleteFuture::get)
           .isInstanceOf(ExecutionException.class)
           .cause()
           .isInstanceOf(IllegalStateException.class)

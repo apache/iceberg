@@ -737,20 +737,8 @@ class DeleteFileIndex {
       return wrapped;
     }
 
-    public PartitionSpec spec() {
-      return spec;
-    }
-
-    public StructLike partition() {
-      return wrapped.partition();
-    }
-
     public long applySequenceNumber() {
       return applySequenceNumber;
-    }
-
-    public FileContent content() {
-      return wrapped.content();
     }
 
     public List<Types.NestedField> equalityFields() {
@@ -776,10 +764,6 @@ class DeleteFileIndex {
 
     public Map<Integer, Long> nullValueCounts() {
       return wrapped.nullValueCounts();
-    }
-
-    public Map<Integer, Long> nanValueCounts() {
-      return wrapped.nanValueCounts();
     }
 
     public boolean hasLowerAndUpperBounds() {

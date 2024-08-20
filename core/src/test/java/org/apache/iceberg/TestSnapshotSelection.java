@@ -18,29 +18,27 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestSnapshotSelection extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSnapshotSelection extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2, 3);
   }
 
-  public TestSnapshotSelection(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testSnapshotSelectionById() {
-    Assert.assertEquals("Table should start empty", 0, listManifestFiles().size());
+    assertThat(listManifestFiles()).hasSize(0);
 
     table.newFastAppend().appendFile(FILE_A).commit();
     Snapshot firstSnapshot = table.currentSnapshot();
@@ -48,12 +46,12 @@ public class TestSnapshotSelection extends TableTestBase {
     table.newFastAppend().appendFile(FILE_B).commit();
     Snapshot secondSnapshot = table.currentSnapshot();
 
-    Assert.assertEquals("Table should have two snapshots", 2, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).hasSize(2);
     validateSnapshot(null, table.snapshot(firstSnapshot.snapshotId()), FILE_A);
     validateSnapshot(firstSnapshot, table.snapshot(secondSnapshot.snapshotId()), FILE_B);
   }
 
-  @Test
+  @TestTemplate
   public void testSnapshotStatsForAddedFiles() {
     DataFile fileWithStats =
         DataFiles.builder(SPEC)
@@ -76,12 +74,12 @@ public class TestSnapshotSelection extends TableTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     Iterable<DataFile> addedFiles = snapshot.addedDataFiles(table.io());
-    Assert.assertEquals(1, Iterables.size(addedFiles));
+    assertThat(addedFiles).hasSize(1);
     DataFile dataFile = Iterables.getOnlyElement(addedFiles);
-    Assert.assertNotNull("Value counts should be not null", dataFile.valueCounts());
-    Assert.assertNotNull("Null value counts should be not null", dataFile.nullValueCounts());
-    Assert.assertNotNull("Lower bounds should be not null", dataFile.lowerBounds());
-    Assert.assertNotNull("Upper bounds should be not null", dataFile.upperBounds());
+    assertThat(dataFile.valueCounts()).isNotNull();
+    assertThat(dataFile.nullValueCounts()).isNotNull();
+    assertThat(dataFile.lowerBounds()).isNotNull();
+    assertThat(dataFile.upperBounds()).isNotNull();
   }
 
   private ByteBuffer longToBuffer(long value) {

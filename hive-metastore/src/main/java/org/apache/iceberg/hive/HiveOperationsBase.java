@@ -22,13 +22,15 @@ import java.util.Collections;
 import java.util.Map;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.TableType;
+import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.iceberg.BaseMetastoreOperations;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
 import org.apache.iceberg.io.FileIO;
@@ -52,6 +54,21 @@ interface HiveOperationsBase {
   String NO_LOCK_EXPECTED_KEY = "expected_parameter_key";
   String NO_LOCK_EXPECTED_VALUE = "expected_parameter_value";
 
+  enum ContentType {
+    TABLE("Table"),
+    VIEW("View");
+
+    private final String value;
+
+    ContentType(String value) {
+      this.value = value;
+    }
+
+    public String value() {
+      return value;
+    }
+  }
+
   TableType tableType();
 
   ClientPool<IMetaStoreClient, TException> metaClients();
@@ -61,6 +78,15 @@ interface HiveOperationsBase {
   String database();
 
   String table();
+
+  default Table loadHmsTable() throws TException, InterruptedException {
+    try {
+      return metaClients().run(client -> client.getTable(database(), table()));
+    } catch (NoSuchObjectException nte) {
+      LOG.trace("Table not found {}", database() + "." + table(), nte);
+      return null;
+    }
+  }
 
   default Map<String, String> hmsEnvContext(String metadataLocation) {
     return metadataLocation == null
@@ -76,11 +102,11 @@ interface HiveOperationsBase {
     return maxHiveTablePropertySize() > 0;
   }
 
-  default void setSchema(TableMetadata metadata, Map<String, String> parameters) {
+  default void setSchema(Schema schema, Map<String, String> parameters) {
     parameters.remove(TableProperties.CURRENT_SCHEMA);
-    if (exposeInHmsProperties() && metadata.schema() != null) {
-      String schema = SchemaParser.toJson(metadata.schema());
-      setField(parameters, TableProperties.CURRENT_SCHEMA, schema);
+    if (exposeInHmsProperties() && schema != null) {
+      String jsonSchema = SchemaParser.toJson(schema);
+      setField(parameters, TableProperties.CURRENT_SCHEMA, jsonSchema);
     }
   }
 
@@ -123,13 +149,14 @@ interface HiveOperationsBase {
     }
   }
 
-  static StorageDescriptor storageDescriptor(TableMetadata metadata, boolean hiveEngineEnabled) {
-
+  static StorageDescriptor storageDescriptor(
+      Schema schema, String location, boolean hiveEngineEnabled) {
     final StorageDescriptor storageDescriptor = new StorageDescriptor();
-    storageDescriptor.setCols(HiveSchemaUtil.convert(metadata.schema()));
-    storageDescriptor.setLocation(metadata.location());
+    storageDescriptor.setCols(HiveSchemaUtil.convert(schema));
+    storageDescriptor.setLocation(location);
     SerDeInfo serDeInfo = new SerDeInfo();
     serDeInfo.setParameters(Maps.newHashMap());
+
     if (hiveEngineEnabled) {
       storageDescriptor.setInputFormat("org.apache.iceberg.mr.hive.HiveIcebergInputFormat");
       storageDescriptor.setOutputFormat("org.apache.iceberg.mr.hive.HiveIcebergOutputFormat");
@@ -139,6 +166,7 @@ interface HiveOperationsBase {
       storageDescriptor.setInputFormat("org.apache.hadoop.mapred.FileInputFormat");
       serDeInfo.setSerializationLib("org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe");
     }
+
     storageDescriptor.setSerdeInfo(serDeInfo);
     return storageDescriptor;
   }
@@ -151,6 +179,18 @@ interface HiveOperationsBase {
       }
     } catch (RuntimeException e) {
       LOG.error("Failed to cleanup metadata file at {}", metadataLocation, e);
+    }
+  }
+
+  static void cleanupMetadataAndUnlock(
+      FileIO io,
+      BaseMetastoreOperations.CommitStatus commitStatus,
+      String metadataLocation,
+      HiveLock lock) {
+    try {
+      cleanupMetadata(io, commitStatus.name(), metadataLocation);
+    } finally {
+      lock.unlock();
     }
   }
 

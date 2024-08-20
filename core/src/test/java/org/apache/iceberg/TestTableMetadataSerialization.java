@@ -19,29 +19,26 @@
 package org.apache.iceberg;
 
 import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestTableMetadataSerialization extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestTableMetadataSerialization extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2, 3);
   }
 
-  public TestTableMetadataSerialization(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testSerialization() throws Exception {
     // add a commit to the metadata so there is at least one snapshot, and history
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
@@ -59,31 +56,21 @@ public class TestTableMetadataSerialization extends TableTestBase {
       result = (TableMetadata) reader.readObject();
     }
 
-    Assert.assertEquals(
-        "Metadata file location should match",
-        meta.metadataFileLocation(),
-        result.metadataFileLocation());
-    Assert.assertEquals("UUID should match", meta.uuid(), result.uuid());
-    Assert.assertEquals("Location should match", meta.location(), result.location());
-    Assert.assertEquals(
-        "Last updated should match", meta.lastUpdatedMillis(), result.lastUpdatedMillis());
-    Assert.assertEquals("Last column id", meta.lastColumnId(), result.lastColumnId());
-    Assert.assertEquals(
-        "Schema should match", meta.schema().asStruct(), result.schema().asStruct());
+    assertThat(result.metadataFileLocation()).isEqualTo(meta.metadataFileLocation());
+    assertThat(result.uuid()).isEqualTo(meta.uuid());
+    assertThat(result.location()).isEqualTo(meta.location());
+    assertThat(result.lastUpdatedMillis()).isEqualTo(meta.lastUpdatedMillis());
+    assertThat(result.lastColumnId()).isEqualTo(meta.lastColumnId());
+    assertThat(result.schema().asStruct()).isEqualTo(meta.schema().asStruct());
     assertSameSchemaList(meta.schemas(), result.schemas());
-    Assert.assertEquals(
-        "Current schema id should match", meta.currentSchemaId(), result.currentSchemaId());
-    Assert.assertEquals("Spec should match", meta.defaultSpecId(), result.defaultSpecId());
-    Assert.assertEquals("Spec list should match", meta.specs(), result.specs());
-    Assert.assertEquals("Properties should match", meta.properties(), result.properties());
-    Assert.assertEquals(
-        "Current snapshot ID should match",
-        meta.currentSnapshot().snapshotId(),
-        result.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Snapshots should match",
-        Lists.transform(meta.snapshots(), Snapshot::snapshotId),
-        Lists.transform(result.snapshots(), Snapshot::snapshotId));
-    Assert.assertEquals("History should match", meta.snapshotLog(), result.snapshotLog());
+    assertThat(result.currentSchemaId()).isEqualTo(meta.currentSchemaId());
+    assertThat(result.defaultSpecId()).isEqualTo(meta.defaultSpecId());
+    assertThat(result.specs()).isEqualTo(meta.specs());
+    assertThat(result.properties()).isEqualTo(meta.properties());
+    assertThat(result.currentSnapshot().snapshotId())
+        .isEqualTo(meta.currentSnapshot().snapshotId());
+    assertThat(Lists.transform(result.snapshots(), Snapshot::snapshotId))
+        .isEqualTo(Lists.transform(meta.snapshots(), Snapshot::snapshotId));
+    assertThat(result.snapshotLog()).isEqualTo(meta.snapshotLog());
   }
 }

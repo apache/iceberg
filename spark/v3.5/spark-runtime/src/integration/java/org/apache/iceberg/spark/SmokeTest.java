@@ -18,23 +18,21 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
-import java.util.Map;
+import java.nio.file.Files;
+import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
-import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.apache.iceberg.spark.extensions.ExtensionsTestBase;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-public class SmokeTest extends SparkExtensionsTestBase {
-
-  public SmokeTest(String catalogName, String implementation, Map<String, String> config) {
-    super(catalogName, implementation, config);
-  }
-
-  @Before
+@ExtendWith(ParameterizedTestExtension.class)
+public class SmokeTest extends ExtensionsTestBase {
+  @AfterEach
   public void dropTable() {
     sql("DROP TABLE IF EXISTS %s", tableName);
   }
@@ -42,30 +40,32 @@ public class SmokeTest extends SparkExtensionsTestBase {
   // Run through our Doc's Getting Started Example
   // TODO Update doc example so that it can actually be run, modifications were required for this
   // test suite to run
-  @Test
+  @TestTemplate
   public void testGettingStarted() throws IOException {
     // Creating a table
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
 
     // Writing
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
-    Assert.assertEquals(
-        "Should have inserted 3 rows", 3L, scalarSql("SELECT COUNT(*) FROM %s", tableName));
+    assertThat(scalarSql("SELECT COUNT(*) FROM %s", tableName))
+        .as("Should have inserted 3 rows")
+        .isEqualTo(3L);
 
     sql("DROP TABLE IF EXISTS source PURGE");
     sql(
         "CREATE TABLE source (id bigint, data string) USING parquet LOCATION '%s'",
-        temp.newFolder());
+        Files.createTempDirectory(temp, "junit"));
     sql("INSERT INTO source VALUES (10, 'd'), (11, 'ee')");
 
     sql("INSERT INTO %s SELECT id, data FROM source WHERE length(data) = 1", tableName);
-    Assert.assertEquals(
-        "Table should now have 4 rows", 4L, scalarSql("SELECT COUNT(*) FROM %s", tableName));
+    assertThat(scalarSql("SELECT COUNT(*) FROM %s", tableName))
+        .as("Table should now have 4 rows")
+        .isEqualTo(4L);
 
     sql("DROP TABLE IF EXISTS updates PURGE");
     sql(
         "CREATE TABLE updates (id bigint, data string) USING parquet LOCATION '%s'",
-        temp.newFolder());
+        Files.createTempDirectory(temp, "junit"));
     sql("INSERT INTO updates VALUES (1, 'x'), (2, 'x'), (4, 'z')");
 
     sql(
@@ -73,31 +73,31 @@ public class SmokeTest extends SparkExtensionsTestBase {
             + "WHEN MATCHED THEN UPDATE SET t.data = u.data\n"
             + "WHEN NOT MATCHED THEN INSERT *",
         tableName);
-    Assert.assertEquals(
-        "Table should now have 5 rows", 5L, scalarSql("SELECT COUNT(*) FROM %s", tableName));
-    Assert.assertEquals(
-        "Record 1 should now have data x",
-        "x",
-        scalarSql("SELECT data FROM %s WHERE id = 1", tableName));
+    assertThat(scalarSql("SELECT COUNT(*) FROM %s", tableName))
+        .as("Table should now have 5 rows")
+        .isEqualTo(5L);
+    assertThat(scalarSql("SELECT data FROM %s WHERE id = 1", tableName))
+        .as("Record 1 should now have data x")
+        .isEqualTo("x");
 
     // Reading
-    Assert.assertEquals(
-        "There should be 2 records with data x",
-        2L,
-        scalarSql("SELECT count(1) as count FROM %s WHERE data = 'x' GROUP BY data ", tableName));
+    assertThat(
+            scalarSql(
+                "SELECT count(1) as count FROM %s WHERE data = 'x' GROUP BY data ", tableName))
+        .as("There should be 2 records with data x")
+        .isEqualTo(2L);
 
     // Not supported because of Spark limitation
     if (!catalogName.equals("spark_catalog")) {
-      Assert.assertEquals(
-          "There should be 3 snapshots",
-          3L,
-          scalarSql("SELECT COUNT(*) FROM %s.snapshots", tableName));
+      assertThat(scalarSql("SELECT COUNT(*) FROM %s.snapshots", tableName))
+          .as("There should be 3 snapshots")
+          .isEqualTo(3L);
     }
   }
 
   // From Spark DDL Docs section
-  @Test
-  public void testAlterTable() throws NoSuchTableException {
+  @TestTemplate
+  public void testAlterTable() {
     sql(
         "CREATE TABLE %s (category int, id bigint, data string, ts timestamp) USING iceberg",
         tableName);
@@ -108,7 +108,7 @@ public class SmokeTest extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s ADD PARTITION FIELD years(ts)", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD bucket(16, category) AS shard", tableName);
     table = getTable();
-    Assert.assertEquals("Table should have 4 partition fields", 4, table.spec().fields().size());
+    assertThat(table.spec().fields()).as("Table should have 4 partition fields").hasSize(4);
 
     // Drop Examples
     sql("ALTER TABLE %s DROP PARTITION FIELD bucket(16, id)", tableName);
@@ -117,17 +117,17 @@ public class SmokeTest extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s DROP PARTITION FIELD shard", tableName);
 
     table = getTable();
-    Assert.assertTrue("Table should be unpartitioned", table.spec().isUnpartitioned());
+    assertThat(table.spec().isUnpartitioned()).as("Table should be unpartitioned").isTrue();
 
     // Sort order examples
     sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
     sql("ALTER TABLE %s WRITE ORDERED BY category ASC, id DESC", tableName);
     sql("ALTER TABLE %s WRITE ORDERED BY category ASC NULLS LAST, id DESC NULLS FIRST", tableName);
     table = getTable();
-    Assert.assertEquals("Table should be sorted on 2 fields", 2, table.sortOrder().fields().size());
+    assertThat(table.sortOrder().fields()).as("Table should be sorted on 2 fields").hasSize(2);
   }
 
-  @Test
+  @TestTemplate
   public void testCreateTable() {
     sql("DROP TABLE IF EXISTS %s", tableName("first"));
     sql("DROP TABLE IF EXISTS %s", tableName("second"));
@@ -150,7 +150,7 @@ public class SmokeTest extends SparkExtensionsTestBase {
             + "PARTITIONED BY (category)",
         tableName("second"));
     Table second = getTable("second");
-    Assert.assertEquals("Should be partitioned on 1 column", 1, second.spec().fields().size());
+    assertThat(second.spec().fields()).as("Should be partitioned on 1 column").hasSize(1);
 
     sql(
         "CREATE TABLE %s (\n"
@@ -162,7 +162,14 @@ public class SmokeTest extends SparkExtensionsTestBase {
             + "PARTITIONED BY (bucket(16, id), days(ts), category)",
         tableName("third"));
     Table third = getTable("third");
-    Assert.assertEquals("Should be partitioned on 3 columns", 3, third.spec().fields().size());
+    assertThat(third.spec().fields()).as("Should be partitioned on 3 columns").hasSize(3);
+  }
+
+  @TestTemplate
+  public void showView() {
+    sql("DROP VIEW IF EXISTS %s", "test");
+    sql("CREATE VIEW %s AS SELECT 1 AS id", "test");
+    assertThat(sql("SHOW VIEWS")).contains(row("default", "test", false));
   }
 
   private Table getTable(String name) {

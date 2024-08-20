@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.NullOrder;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -28,7 +29,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.spark.sql.internal.SQLConf;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -73,7 +73,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     assertThat(table.sortOrder().isUnsorted()).as("Table should start unsorted").isTrue();
     sql("SET %s=true", SQLConf.CASE_SENSITIVE().key());
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> {
               sql("ALTER TABLE %s WRITE ORDERED BY category, id", tableName);
             })

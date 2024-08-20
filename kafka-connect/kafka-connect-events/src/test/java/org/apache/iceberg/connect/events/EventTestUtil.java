@@ -44,8 +44,7 @@ class EventTestUtil {
   static final Schema SCHEMA =
       new Schema(ImmutableList.of(Types.NestedField.required(1, "id", Types.LongType.get())));
 
-  static final PartitionSpec SPEC =
-      PartitionSpec.builderFor(SCHEMA).identity("id").withSpecId(1).build();
+  static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("id").build();
 
   static final SortOrder ORDER =
       SortOrder.builderFor(SCHEMA).sortBy("id", SortDirection.ASC, NullOrder.NULLS_FIRST).build();

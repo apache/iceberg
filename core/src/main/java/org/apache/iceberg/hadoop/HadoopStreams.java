@@ -21,7 +21,6 @@ package org.apache.iceberg.hadoop;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -123,11 +122,7 @@ public class HadoopStreams {
       return stream.read(b, off, len);
     }
 
-    public int read(ByteBuffer buf) throws IOException {
-      return stream.read(buf);
-    }
-
-    @SuppressWarnings("checkstyle:NoFinalizer")
+    @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
     @Override
     protected void finalize() throws Throwable {
       super.finalize();
@@ -187,9 +182,20 @@ public class HadoopStreams {
     public void close() throws IOException {
       stream.close();
       this.closed = true;
+      // {@link org.apache.hadoop.fs.s3a.S3ABlockOutputStream#close()} calls {@link
+      // org.apache.hadoop.fs.s3a.S3ABlockOutputStream#putObject()}
+      // which doesn't throw an exception when interrupted.
+      // Need to check the interrupted flag to detect failed object upload
+      // and propagate the error up.
+      if (Thread.interrupted()
+          && "org.apache.hadoop.fs.s3a.S3ABlockOutputStream"
+              .equals(stream.getWrappedStream().getClass().getName())) {
+        throw new IOException(
+            "S3ABlockOutputStream failed to upload object after stream was closed");
+      }
     }
 
-    @SuppressWarnings("checkstyle:NoFinalizer")
+    @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
     @Override
     protected void finalize() throws Throwable {
       super.finalize();

@@ -30,18 +30,18 @@ public enum HiveVersion {
   NOT_SUPPORTED(0);
 
   private final int order;
-  private static final HiveVersion current = calculate();
+  private static final HiveVersion CURRENT = calculate();
 
   HiveVersion(int order) {
     this.order = order;
   }
 
   public static HiveVersion current() {
-    return current;
+    return CURRENT;
   }
 
   public static boolean min(HiveVersion other) {
-    return current.order >= other.order;
+    return CURRENT.order >= other.order;
   }
 
   private static HiveVersion calculate() {

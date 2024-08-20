@@ -46,13 +46,13 @@ public interface DeltaLakeToIcebergMigrationActionsProvider {
 
   class DefaultDeltaLakeToIcebergMigrationActions
       implements DeltaLakeToIcebergMigrationActionsProvider {
-    private static final DefaultDeltaLakeToIcebergMigrationActions defaultMigrationActions =
+    private static final DefaultDeltaLakeToIcebergMigrationActions DEFAULT_MIGRATION_ACTIONS =
         new DefaultDeltaLakeToIcebergMigrationActions();
 
     private DefaultDeltaLakeToIcebergMigrationActions() {}
 
     static DefaultDeltaLakeToIcebergMigrationActions defaultMigrationActions() {
-      return defaultMigrationActions;
+      return DEFAULT_MIGRATION_ACTIONS;
     }
   }
 }
