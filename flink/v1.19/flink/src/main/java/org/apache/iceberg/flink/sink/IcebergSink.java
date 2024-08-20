@@ -31,8 +31,6 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.flink.annotation.Experimental;
@@ -232,19 +230,18 @@ public class IcebergSink
     TypeInformation<CommittableMessage<IcebergCommittable>> typeInformation =
         CommittableMessageTypeInfo.of(this::getCommittableSerializer);
 
+    String suffix = defaultSuffix(uidSuffix, "sink");
     String operatorName =
-        String.format(
-            "%s-%s-%s-%s",
-            Objects.toString(uidSuffix, ""), table.name(), sinkId, "pre-commit-topology");
-    String preCommitAggregatorUid =
-        String.format("Sink pre-commit aggregator: %s", Objects.toString(uidSuffix, ""));
+        String.format("%s-%s-%s-%s", "Sink pre-commit aggregator", sinkId, table.name(), suffix);
+
+    String preCommitAggregatorUid = String.format("Sink pre-commit aggregator: %s", suffix);
 
     // global forces all output records send to subtask 0 of the downstream committer operator.
     // This is to ensure commit only happen in one committer subtask.
     // Once upstream Flink provides the capability of setting committer operator
     // parallelism to 1, this can be removed.
     return writeResults
-        // .global()
+        .global()
         .transform(operatorName, typeInformation, new IcebergWriteAggregator(tableLoader))
         .uid(preCommitAggregatorUid)
         .setParallelism(1)
@@ -263,7 +260,7 @@ public class IcebergSink
 
   public static class Builder {
     private TableLoader tableLoader;
-    private String uidSuffix = null;
+    private String uidSuffix = "";
     private Function<String, DataStream<RowData>> inputCreator = null;
     private TableSchema tableSchema;
     private SerializableTable table;
@@ -300,7 +297,7 @@ public class IcebergSink
             SingleOutputStreamOperator<RowData> inputStream =
                 input.map(mapper, outputType).setParallelism(input.getParallelism());
             if (newUidSuffix != null) {
-              inputStream.name(operatorName(newUidSuffix)).uid(newUidSuffix + "-mapper");
+              inputStream.name("Sink pre-write mapper: " + newUidSuffix);
             }
             return inputStream;
           };
@@ -429,7 +426,7 @@ public class IcebergSink
     /**
      * Set the uid suffix for IcebergSink operators. Note that IcebergSink internally consists of
      * multiple operators (like writer, committer, aggregator). Actual operator uid will be
-     * prepended with a prefix like "Sink Committer: uidSuffix".
+     * prepended with a prefix like "Sink Committer: $uidSuffix".
      *
      * <p>Flink auto generates operator uid if not set explicitly. It is a recommended <a
      * href="https://ci.apache.org/projects/flink/flink-docs-master/docs/ops/production_ready/">
@@ -466,10 +463,6 @@ public class IcebergSink
     public Builder toBranch(String branch) {
       writeOptions.put(FlinkWriteOptions.BRANCH.key(), branch);
       return this;
-    }
-
-    private String operatorName(String suffix) {
-      return uidSuffix != null ? uidSuffix + "-" + suffix : suffix;
     }
 
     IcebergSink build() {
@@ -522,7 +515,7 @@ public class IcebergSink
           tableLoader,
           table,
           snapshotSummary,
-          Optional.ofNullable(uidSuffix).orElse(""),
+          uidSuffix,
           writeProperties(table, flinkWriteConf.dataFileFormat(), flinkWriteConf),
           toFlinkRowType(table.schema(), tableSchema),
           tableSupplier,
@@ -539,9 +532,12 @@ public class IcebergSink
      */
     public DataStreamSink<RowData> append() {
       IcebergSink sink = build();
-      DataStream<RowData> rowDataInput = inputCreator.apply(uidSuffix);
-      DataStreamSink<RowData> rowDataDataStreamSink =
-          rowDataInput.sinkTo(sink).uid(uidSuffix == null ? "sink-why" : uidSuffix);
+      String suffix = defaultSuffix(uidSuffix, "sink");
+      DataStream<RowData> rowDataInput = inputCreator.apply(suffix);
+      // Please note that V2 sink framework will apply the uid here to the framework created
+      // operators like writer,
+      // committer. E.g. "Sink writer: <uidSuffix>
+      DataStreamSink<RowData> rowDataDataStreamSink = rowDataInput.sinkTo(sink).uid(suffix);
 
       // Note that IcebergSink internally consists o multiple operators (like writer, committer,
       // aggregator).
@@ -551,6 +547,13 @@ public class IcebergSink
       }
       return rowDataDataStreamSink;
     }
+  }
+
+  private static String defaultSuffix(String uidSuffix, String defaultSuffix) {
+    if (uidSuffix == null || uidSuffix.isEmpty()) {
+      return defaultSuffix;
+    }
+    return uidSuffix;
   }
 
   private static SerializableTable checkAndGetTable(TableLoader tableLoader, Table table) {
@@ -737,9 +740,5 @@ public class IcebergSink
    */
   public static Builder forRowData(DataStream<RowData> input) {
     return new Builder().forRowData(input);
-  }
-
-  private static String suffixIfNotNull(String uidSuffix, String suffix) {
-    return uidSuffix != null ? uidSuffix + "-" + suffix : suffix;
   }
 }

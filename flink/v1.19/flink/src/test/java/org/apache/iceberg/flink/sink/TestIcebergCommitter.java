@@ -385,7 +385,7 @@ class TestIcebergCommitter extends TestBase {
 
   /** The data was not committed in the previous job. */
   @TestTemplate
-  public void testStateRestoreFromPreJob() throws Exception {
+  public void testStateRestoreFromPreJobWithUncommitted() throws Exception {
     String jobId1 = "jobId1";
     OperatorSubtaskState snapshot;
 
@@ -475,7 +475,7 @@ class TestIcebergCommitter extends TestBase {
 
   /** The data was committed in the previous job. */
   @TestTemplate
-  public void testStateRestoreFromPreJob2() throws Exception {
+  public void testStateRestoreFromPreJobWithCommitted() throws Exception {
     String jobId1 = "jobId1";
     OperatorSubtaskState snapshot;
 
