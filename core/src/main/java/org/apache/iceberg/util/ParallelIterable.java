@@ -192,12 +192,9 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       // If the consumer is processing records more slowly than the producers, the producers will
       // eventually fill the queue and yield, returning continuations. Continuations and new tasks
       // are started by checkTasks(). The check here prevents us from restarting continuations or
-      // starting new tasks too early (when queue is almost full) or too late (when queue is already
-      // emptied). Restarting too early would lead to tasks yielding very quickly (CPU waste on
-      // scheduling). Restarting too late would mean the consumer may need to wait for the tasks
-      // to produce new items. A consumer slower than producers shouldn't need to wait.
-      int queueLowWaterMark = maxQueueSize / 2;
-      if (queue.size() > queueLowWaterMark) {
+      // starting new tasks before the queue is emptied. Restarting too early would lead to tasks
+      // yielding very quickly (CPU waste on scheduling).
+      if (!queue.isEmpty()) {
         return true;
       }
 
