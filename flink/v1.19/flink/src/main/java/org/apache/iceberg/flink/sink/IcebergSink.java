@@ -297,7 +297,8 @@ public class IcebergSink
             SingleOutputStreamOperator<RowData> inputStream =
                 input.map(mapper, outputType).setParallelism(input.getParallelism());
             if (newUidSuffix != null) {
-              inputStream.name("Sink pre-write mapper: " + newUidSuffix);
+              String uid = "Sink pre-write mapper: " + newUidSuffix;
+              inputStream.name(uid).uid(uid);
             }
             return inputStream;
           };
