@@ -64,7 +64,7 @@ class RemoveDanglingDeletesSparkAction
   private final Table table;
 
   protected RemoveDanglingDeletesSparkAction(SparkSession spark, Table table) {
-    super(spark.cloneSession());
+    super(spark);
     this.table = table;
   }
 
@@ -81,7 +81,7 @@ class RemoveDanglingDeletesSparkAction
           .build();
     }
 
-    String desc = String.format("Removing dangling delete in %s", table.name());
+    String desc = String.format("Removing dangling delete files in %s", table.name());
     JobGroupInfo info = newJobGroupInfo("REMOVE-DELETES", desc);
     return withJobGroupInfo(info, this::doExecute);
   }
@@ -106,21 +106,20 @@ class RemoveDanglingDeletesSparkAction
   /**
    * Dangling delete files can be identified with following steps
    *
-   * <p>1.Group data files by partition keys and find the minimum data sequence number in each
-   * group.
-   *
-   * <p>2. Left outer join delete files with partition-grouped data files on partition keys.
-   *
-   * <p>3. Filter results to find dangling delete files by comparing delete file sequence_number to
-   * its partitions' minimum data sequence number.
-   *
-   * <p>4. Collect results row to driver and use {@link SparkDeleteFile SparkDeleteFile} to wrap
-   * rows to valid delete files
+   * <ol>
+   *   <li>Group data files by partition keys and find the minimum data sequence number in each
+   *       group.
+   *   <li>Left outer join delete files with partition-grouped data files on partition keys.
+   *   <li>Find dangling deletes by comparing each delete file's sequence number to its partition's
+   *       minimum data sequence number.
+   *   <li>Collect results row to driver and use {@link SparkDeleteFile SparkDeleteFile} to wrap
+   *       rows to valid delete files
+   * </ol>
    */
   private List<DeleteFile> findDanglingDeletes() {
     Dataset<Row> minSequenceNumberByPartition =
         loadMetadataTable(table, MetadataTableType.ENTRIES)
-            // find live entry for data files
+            // find live data files
             .filter("data_file.content == 0 AND status < 2")
             .selectExpr(
                 "data_file.partition as partition",
@@ -132,8 +131,8 @@ class RemoveDanglingDeletesSparkAction
 
     Dataset<Row> deleteEntries =
         loadMetadataTable(table, MetadataTableType.ENTRIES)
-            // find live entry for delete files
-            .filter(" data_file.content != 0 AND status < 2");
+            // find live delete files
+            .filter("data_file.content != 0 AND status < 2");
 
     Column joinOnPartition =
         deleteEntries
@@ -146,14 +145,14 @@ class RemoveDanglingDeletesSparkAction
 
     Column filterOnDanglingDeletes =
         col("min_data_sequence_number")
-            // when all data files are rewritten with new partition spec
+            // delete fies without any data files in partition
             .isNull()
-            // dangling position delete files
+            // position delete files without any applicable data files in partition
             .or(
                 col("data_file.content")
                     .equalTo("1")
                     .and(col("sequence_number").$less(col("min_data_sequence_number"))))
-            // dangling equality delete files
+            // equality delete files without any applicable data files in the partition
             .or(
                 col("data_file.content")
                     .equalTo("2")
@@ -165,6 +164,7 @@ class RemoveDanglingDeletesSparkAction
             .filter(filterOnDanglingDeletes)
             .select("data_file.*");
     return danglingDeletes.collectAsList().stream()
+        // map on driver because SparkDeleteFile is not serializable
         .map(row -> deleteFileWrapper(danglingDeletes.schema(), row))
         .collect(Collectors.toList());
   }

@@ -84,8 +84,8 @@ public class RewriteDataFilesSparkAction
           PARTIAL_PROGRESS_MAX_FAILED_COMMITS,
           TARGET_FILE_SIZE_BYTES,
           USE_STARTING_SEQUENCE_NUMBER,
-          OUTPUT_SPEC_ID,
           REWRITE_JOB_ORDER,
+          OUTPUT_SPEC_ID,
           REMOVE_DANGLING_DELETES);
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
@@ -179,13 +179,10 @@ public class RewriteDataFilesSparkAction
 
     Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
 
-    Builder resultBuilder;
-    if (partialProgressEnabled) {
-      resultBuilder =
-          doExecuteWithPartialProgress(ctx, groupStream, commitManager(startingSnapshotId));
-    } else {
-      resultBuilder = doExecute(ctx, groupStream, commitManager(startingSnapshotId));
-    }
+    Builder resultBuilder =
+        partialProgressEnabled
+            ? doExecuteWithPartialProgress(ctx, groupStream, commitManager(startingSnapshotId))
+            : doExecute(ctx, groupStream, commitManager(startingSnapshotId));
 
     if (removeDanglingDeletes) {
       RemoveDanglingDeletesSparkAction action =
