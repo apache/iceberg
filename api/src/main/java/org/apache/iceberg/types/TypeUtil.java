@@ -29,6 +29,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -386,6 +387,76 @@ public class TypeUtil {
 
       case DECIMAL:
         Types.DecimalType fromDecimal = (Types.DecimalType) from;
+        if (to.typeId() != Type.TypeID.DECIMAL) {
+          return false;
+        }
+
+        Types.DecimalType toDecimal = (Types.DecimalType) to;
+        return fromDecimal.scale() == toDecimal.scale()
+            && fromDecimal.precision() <= toDecimal.precision();
+    }
+
+    return false;
+  }
+
+  public static boolean isPromotionAllowed(
+      Types.NestedField from,
+      Type.PrimitiveType to,
+      List<PartitionSpec> partitionSpecs,
+      int formatVersion) {
+    if (from.type().equals(to)) {
+      return true;
+    }
+
+    return validTransformsForPromotion(from, to, partitionSpecs, formatVersion);
+  }
+
+  private static boolean validTransformsForPromotion(
+      Types.NestedField from,
+      Type.PrimitiveType to,
+      List<PartitionSpec> partitionSpecs,
+      int formatVersion) {
+    Type fromType = from.type();
+    switch (fromType.typeId()) {
+      case INTEGER:
+        if (to.typeId() == Type.TypeID.LONG) {
+          return true;
+        } else if (to.typeId() == Type.TypeID.STRING) {
+          Preconditions.checkArgument(
+              formatVersion >= 3,
+              "Type promotion from integer to string is only supported in format version 3 or later");
+          for (PartitionSpec spec : partitionSpecs) {
+            Preconditions.checkArgument(
+                spec.fields().stream().noneMatch(field -> field.sourceId() == from.fieldId()),
+                "Cannot promote field %s to string since it is part of a transform that produces different values after promotion",
+                from.fieldId());
+          }
+
+          return true;
+        }
+
+        return false;
+      case LONG:
+        if (to.typeId() == Type.TypeID.STRING) {
+          Preconditions.checkArgument(
+              formatVersion >= 3,
+              "Type promotion from integer to string is only supported in format version 3 or later");
+          for (PartitionSpec spec : partitionSpecs) {
+            Preconditions.checkArgument(
+                spec.fields().stream().noneMatch(field -> field.sourceId() == from.fieldId()),
+                "Cannot promote field %s to string since it is part of a transform that produces different values after promotion",
+                from.fieldId());
+          }
+
+          return true;
+        }
+
+        return false;
+      case FLOAT:
+        return to.typeId() == Type.TypeID.DOUBLE;
+
+      case DECIMAL:
+        Types.DecimalType fromDecimal = (Types.DecimalType) fromType;
         if (to.typeId() != Type.TypeID.DECIMAL) {
           return false;
         }

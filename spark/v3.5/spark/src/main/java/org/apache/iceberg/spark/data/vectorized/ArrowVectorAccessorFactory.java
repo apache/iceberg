@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.data.vectorized;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import org.apache.arrow.memory.ArrowBuf;
+import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarCharVector;
@@ -79,6 +80,11 @@ final class ArrowVectorAccessorFactory
     @Override
     public UTF8String ofRow(FixedSizeBinaryVector vector, int rowId) {
       return UTF8String.fromString(UUIDUtil.convert(vector.get(rowId)).toString());
+    }
+
+    @Override
+    public UTF8String ofRow(BigIntVector vector, int rowId) {
+      return UTF8String.fromString(String.valueOf(vector.get(rowId)));
     }
 
     @Override

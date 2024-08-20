@@ -32,6 +32,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.NaNUtil;
@@ -207,8 +208,15 @@ public class InclusiveMetricsEvaluator {
         return ROWS_CANNOT_MATCH;
       }
 
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+      ByteBuffer fieldLowerBounds = lowerBounds != null ? lowerBounds.get(id) : null;
+      ByteBuffer fieldUpperBounds = upperBounds != null ? upperBounds.get(id) : null;
+
+      if (fieldPromotedToString(ref, fieldLowerBounds, fieldUpperBounds)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      if (fieldLowerBounds != null) {
+        T lower = Conversions.fromByteBuffer(ref.type(), fieldLowerBounds);
 
         if (NaNUtil.isNaN(lower)) {
           // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
@@ -232,8 +240,15 @@ public class InclusiveMetricsEvaluator {
         return ROWS_CANNOT_MATCH;
       }
 
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+      ByteBuffer fieldLowerBounds = lowerBounds != null ? lowerBounds.get(id) : null;
+      ByteBuffer fieldUpperBounds = upperBounds != null ? upperBounds.get(id) : null;
+
+      if (fieldPromotedToString(ref, fieldLowerBounds, fieldUpperBounds)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      if (fieldLowerBounds != null) {
+        T lower = Conversions.fromByteBuffer(ref.type(), fieldLowerBounds);
 
         if (NaNUtil.isNaN(lower)) {
           // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
@@ -257,8 +272,15 @@ public class InclusiveMetricsEvaluator {
         return ROWS_CANNOT_MATCH;
       }
 
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+      ByteBuffer fieldLowerBounds = lowerBounds != null ? lowerBounds.get(id) : null;
+      ByteBuffer fieldUpperBounds = upperBounds != null ? upperBounds.get(id) : null;
+
+      if (fieldPromotedToString(ref, fieldLowerBounds, fieldUpperBounds)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      if (fieldUpperBounds != null) {
+        T upper = Conversions.fromByteBuffer(ref.type(), fieldUpperBounds);
 
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp <= 0) {
@@ -277,8 +299,15 @@ public class InclusiveMetricsEvaluator {
         return ROWS_CANNOT_MATCH;
       }
 
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+      ByteBuffer fieldLowerBounds = lowerBounds != null ? lowerBounds.get(id) : null;
+      ByteBuffer fieldUpperBounds = upperBounds != null ? upperBounds.get(id) : null;
+
+      if (fieldPromotedToString(ref, fieldLowerBounds, fieldUpperBounds)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      if (fieldUpperBounds != null) {
+        T upper = Conversions.fromByteBuffer(ref.type(), fieldUpperBounds);
 
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp < 0) {
@@ -297,8 +326,15 @@ public class InclusiveMetricsEvaluator {
         return ROWS_CANNOT_MATCH;
       }
 
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+      ByteBuffer fieldLowerBounds = lowerBounds != null ? lowerBounds.get(id) : null;
+      ByteBuffer fieldUpperBounds = upperBounds != null ? upperBounds.get(id) : null;
+
+      if (fieldPromotedToString(ref, fieldLowerBounds, fieldUpperBounds)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      if (fieldLowerBounds != null) {
+        T lower = Conversions.fromByteBuffer(ref.type(), fieldLowerBounds);
 
         if (NaNUtil.isNaN(lower)) {
           // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
@@ -311,8 +347,8 @@ public class InclusiveMetricsEvaluator {
         }
       }
 
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+      if (fieldUpperBounds != null) {
+        T upper = Conversions.fromByteBuffer(ref.type(), fieldUpperBounds);
 
         int cmp = lit.comparator().compare(upper, lit.value());
         if (cmp < 0) {
@@ -338,6 +374,13 @@ public class InclusiveMetricsEvaluator {
         return ROWS_CANNOT_MATCH;
       }
 
+      ByteBuffer fieldLowerBounds = lowerBounds != null ? lowerBounds.get(id) : null;
+      ByteBuffer fieldUpperBounds = upperBounds != null ? upperBounds.get(id) : null;
+
+      if (fieldPromotedToString(ref, fieldLowerBounds, fieldUpperBounds)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
       Collection<T> literals = literalSet;
 
       if (literals.size() > IN_PREDICATE_LIMIT) {
@@ -345,8 +388,8 @@ public class InclusiveMetricsEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
-      if (lowerBounds != null && lowerBounds.containsKey(id)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+      if (fieldLowerBounds != null) {
+        T lower = Conversions.fromByteBuffer(ref.type(), fieldLowerBounds);
 
         if (NaNUtil.isNaN(lower)) {
           // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
@@ -362,8 +405,8 @@ public class InclusiveMetricsEvaluator {
         }
       }
 
-      if (upperBounds != null && upperBounds.containsKey(id)) {
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+      if (fieldUpperBounds != null) {
+        T upper = Conversions.fromByteBuffer(ref.type(), fieldUpperBounds);
         literals =
             literals.stream()
                 .filter(v -> ref.comparator().compare(upper, v) >= 0)
@@ -468,6 +511,15 @@ public class InclusiveMetricsEvaluator {
       }
 
       return ROWS_MIGHT_MATCH;
+    }
+
+    private <T> boolean fieldPromotedToString(
+        BoundReference<T> ref, ByteBuffer fieldLowerBounds, ByteBuffer fieldUpperBounds) {
+      return fieldLowerBounds != null
+          && fieldUpperBounds != null
+          && ref.field().type().typeId() == Type.TypeID.STRING
+          && (fieldLowerBounds.capacity() == 8L || fieldLowerBounds.capacity() == 4L)
+          && fieldLowerBounds.capacity() == fieldUpperBounds.capacity();
     }
 
     private boolean mayContainNull(Integer id) {

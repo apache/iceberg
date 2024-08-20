@@ -188,7 +188,7 @@ public class GenericArrowVectorAccessorFactory<
       if (isDecimal(primitive)) {
         return new LongBackedDecimalAccessor<>((BigIntVector) vector, decimalFactorySupplier.get());
       }
-      return new LongAccessor<>((BigIntVector) vector);
+      return new LongAccessor<>((BigIntVector) vector, stringFactorySupplier.get());
     } else if (vector instanceof Float4Vector) {
       return new FloatAccessor<>((Float4Vector) vector);
     } else if (vector instanceof Float8Vector) {
@@ -271,15 +271,22 @@ public class GenericArrowVectorAccessorFactory<
       extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
     private final BigIntVector vector;
+    private final StringFactory<Utf8StringT> stringFactory;
 
-    LongAccessor(BigIntVector vector) {
+    LongAccessor(BigIntVector vector, StringFactory<Utf8StringT> stringFactory) {
       super(vector);
       this.vector = vector;
+      this.stringFactory = stringFactory;
     }
 
     @Override
     public final long getLong(int rowId) {
       return vector.get(rowId);
+    }
+
+    @Override
+    public final Utf8StringT getUTF8String(int rowId) {
+      return stringFactory.ofRow(vector, rowId);
     }
   }
 
@@ -811,6 +818,12 @@ public class GenericArrowVectorAccessorFactory<
           String.format(
               "Creating %s from a FixedSizeBinaryVector is not supported",
               getGenericClass().getSimpleName()));
+    }
+
+    default Utf8StringT ofRow(BigIntVector vector, int rowId) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Creating %s from BigIntVector is not supported", getGenericClass().getSimpleName()));
     }
 
     /** Create a UTF8 String from the byte array. */

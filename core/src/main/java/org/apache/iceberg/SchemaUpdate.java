@@ -285,7 +285,7 @@ class SchemaUpdate implements UpdateSchema {
     }
 
     Preconditions.checkArgument(
-        TypeUtil.isPromotionAllowed(field.type(), newType),
+        TypeUtil.isPromotionAllowed(field, newType, base.specs(), base.formatVersion()),
         "Cannot change column type: %s: %s -> %s",
         name,
         field.type(),

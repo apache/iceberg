@@ -33,6 +33,7 @@ import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
+import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
@@ -414,6 +415,16 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
         break;
       case INT64:
         this.vec = arrowField.createVector(rootAlloc);
+        if (vec instanceof VarCharVector) {
+          Field localIntField =
+              new Field(
+                  icebergField.name(),
+                  new FieldType(
+                      icebergField.isOptional(), new ArrowType.Int(Long.SIZE, true), null, null),
+                  null);
+          this.vec = localIntField.createVector(rootAlloc);
+        }
+
         ((BigIntVector) vec).allocateNew(batchSize);
         this.readType = ReadType.LONG;
         this.typeWidth = (int) BigIntVector.TYPE_WIDTH;

@@ -22,6 +22,7 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
+import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.DecimalFactory;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.StringFactory;
@@ -63,6 +64,11 @@ final class ArrowVectorAccessors {
     @Override
     public String ofRow(VarCharVector vector, int rowId) {
       return ofBytes(vector.get(rowId));
+    }
+
+    @Override
+    public String ofRow(BigIntVector vector, int rowId) {
+      return String.valueOf(vector.get(rowId));
     }
 
     @Override
