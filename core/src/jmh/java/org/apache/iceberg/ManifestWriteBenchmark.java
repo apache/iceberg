@@ -86,7 +86,11 @@ public class ManifestWriteBenchmark {
   @State(Scope.Benchmark)
   public static class BenchmarkState {
     @Param({"1", "2"})
-    int formatVersion;
+    private int formatVersion;
+
+    public int getFormatVersion() {
+      return formatVersion;
+    }
   }
 
   @Benchmark
@@ -97,7 +101,7 @@ public class ManifestWriteBenchmark {
 
     try (ManifestListWriter listWriter =
         ManifestLists.write(
-            state.formatVersion,
+            state.getFormatVersion(),
             org.apache.iceberg.Files.localOutput(manifestListFile),
             0,
             1L,
