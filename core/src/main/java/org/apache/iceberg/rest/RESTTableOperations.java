@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.LocationProviders;
@@ -56,6 +57,7 @@ class RESTTableOperations implements TableOperations {
   private final FileIO io;
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
+  private final Set<Endpoint> endpoints;
   private UpdateType updateType;
   private TableMetadata current;
 
@@ -64,8 +66,9 @@ class RESTTableOperations implements TableOperations {
       String path,
       Supplier<Map<String, String>> headers,
       FileIO io,
-      TableMetadata current) {
-    this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current);
+      TableMetadata current,
+      Set<Endpoint> endpoints) {
+    this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current, endpoints);
   }
 
   RESTTableOperations(
@@ -75,7 +78,8 @@ class RESTTableOperations implements TableOperations {
       FileIO io,
       UpdateType updateType,
       List<MetadataUpdate> createChanges,
-      TableMetadata current) {
+      TableMetadata current,
+      Set<Endpoint> endpoints) {
     this.client = client;
     this.path = path;
     this.headers = headers;
@@ -88,6 +92,7 @@ class RESTTableOperations implements TableOperations {
     } else {
       this.current = current;
     }
+    this.endpoints = endpoints;
   }
 
   @Override
@@ -97,12 +102,15 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
+    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_LOAD_TABLE);
     return updateCurrentMetadata(
         client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
   }
 
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
+    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_UPDATE_TABLE);
+
     Consumer<ErrorResponse> errorHandler;
     List<UpdateRequirement> requirements;
     List<MetadataUpdate> updates;
@@ -148,7 +156,6 @@ class RESTTableOperations implements TableOperations {
     // the error handler will throw necessary exceptions like CommitFailedException and
     // UnknownCommitStateException
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
-    // TODO: make sure UPDATE_TABLE is allowed
     LoadTableResponse response =
         client.post(path, request, LoadTableResponse.class, headers, errorHandler);
 

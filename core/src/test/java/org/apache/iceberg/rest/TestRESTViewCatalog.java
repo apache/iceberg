@@ -57,11 +57,11 @@ import org.mockito.Mockito;
 public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
-  @TempDir private Path temp;
+  @TempDir protected Path temp;
 
-  private RESTCatalog restCatalog;
-  private InMemoryCatalog backendCatalog;
-  private Server httpServer;
+  protected RESTCatalog restCatalog;
+  protected InMemoryCatalog backendCatalog;
+  protected Server httpServer;
 
   @BeforeEach
   public void createCatalog() throws Exception {

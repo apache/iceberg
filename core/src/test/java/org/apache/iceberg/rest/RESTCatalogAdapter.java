@@ -240,6 +240,14 @@ public class RESTCatalogAdapter implements RESTClient {
     public Class<? extends RESTResponse> responseClass() {
       return responseClass;
     }
+
+    HTTPMethod method() {
+      return method;
+    }
+
+    String resourcePath() {
+      return resourcePath;
+    }
   }
 
   private static OAuthTokenResponse handleOAuthRequest(Object body) {

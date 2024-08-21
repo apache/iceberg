@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -68,6 +69,22 @@ public class Endpoint {
         "Invalid endpoint (must consist of two elements separated by space): %s",
         endpoint);
     return create(elements.get(0), elements.get(1));
+  }
+
+  /**
+   * Checks if the set of endpoints support the given {@link Endpoint}.
+   *
+   * @param endpoints The set of endpoints to check
+   * @param endpoint The endpoint to check against the set of endpoints
+   * @throws UnsupportedOperationException if the given {@link Endpoint} is not included in the set
+   *     of endpoints.
+   */
+  public static void checkEndpointSupported(Set<Endpoint> endpoints, Endpoint endpoint) {
+    if (!endpoints.contains(endpoint)) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Server does not support endpoint: %s %s", endpoint.httpMethod(), endpoint.path()));
+    }
   }
 
   @Override
