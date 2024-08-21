@@ -170,6 +170,41 @@ public class TestParallelIterable {
     executor.shutdownNow();
   }
 
+  @Test
+  public void queueSizeOne() {
+    List<Iterable<Integer>> iterables =
+        ImmutableList.of(
+            () -> IntStream.range(0, 100).iterator(),
+            () -> IntStream.range(0, 100).iterator(),
+            () -> IntStream.range(0, 100).iterator());
+
+    Multiset<Integer> expectedValues =
+        IntStream.range(0, 100)
+            .boxed()
+            .flatMap(i -> Stream.of(i, i, i))
+            .collect(ImmutableMultiset.toImmutableMultiset());
+
+    ExecutorService executor = Executors.newCachedThreadPool();
+    ParallelIterable<Integer> parallelIterable = new ParallelIterable<>(iterables, executor, 1);
+    ParallelIterator<Integer> iterator = (ParallelIterator<Integer>) parallelIterable.iterator();
+
+    Multiset<Integer> actualValues = HashMultiset.create();
+
+    while (iterator.hasNext()) {
+      assertThat(iterator.queueSize())
+          .as("iterator internal queue size")
+          .isLessThanOrEqualTo(1 + iterables.size());
+      actualValues.add(iterator.next());
+    }
+
+    assertThat(actualValues)
+        .as("multiset of values returned by the iterator")
+        .isEqualTo(expectedValues);
+
+    iterator.close();
+    executor.shutdownNow();
+  }
+
   private void queueHasElements(ParallelIterator<Integer> iterator) {
     assertThat(iterator.hasNext()).isTrue();
     assertThat(iterator.next()).isNotNull();
