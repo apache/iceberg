@@ -95,6 +95,7 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
                   iterables, iterable -> new Task<>(iterable, queue, closed, maxQueueSize))
               .iterator();
       this.workerPool = workerPool;
+      Preconditions.checkArgument(maxQueueSize > 0, "Max queue size must be greater than 0");
       this.maxQueueSize = maxQueueSize;
       // submit 2 tasks per worker at a time
       this.taskFutures = new CompletableFuture[2 * ThreadPools.WORKER_THREAD_POOL_SIZE];
