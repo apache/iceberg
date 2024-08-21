@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import static org.apache.iceberg.flink.maintenance.operator.JdbcLockFactory.INIT_LOCK_TABLES_PROPERTY;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
@@ -46,7 +47,7 @@ class TestJdbcLockFactory extends TestLockFactoryBase {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "username", "user");
     properties.put(JdbcCatalog.PROPERTY_PREFIX + "password", "password");
-    properties.put("maintenance.lock.jdbc.init-lock-tables", "true");
+    properties.put(INIT_LOCK_TABLES_PROPERTY, "true");
 
     return new JdbcLockFactory(
         "jdbc:sqlite:file::memory:?ic" + UUID.randomUUID().toString().replace("-", ""),

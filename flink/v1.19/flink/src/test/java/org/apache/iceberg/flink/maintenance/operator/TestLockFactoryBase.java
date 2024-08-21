@@ -60,7 +60,7 @@ abstract class TestLockFactoryBase {
   }
 
   @Test
-  void testNoConflict() {
+  void testNoConflictWithRecoveryLock() {
     TriggerLockFactory.Lock lock1 = lockFactory.createLock();
     TriggerLockFactory.Lock lock2 = lockFactory.createRecoveryLock();
     assertThat(lock1.tryLock()).isTrue();

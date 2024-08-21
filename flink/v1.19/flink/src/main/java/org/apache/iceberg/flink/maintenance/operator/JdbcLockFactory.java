@@ -32,6 +32,7 @@ import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.jdbc.UncheckedInterruptedException;
 import org.apache.iceberg.jdbc.UncheckedSQLException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
@@ -39,35 +40,51 @@ import org.slf4j.LoggerFactory;
 
 public class JdbcLockFactory implements TriggerLockFactory {
   private static final Logger LOG = LoggerFactory.getLogger(JdbcLockFactory.class);
-  private static final String INIT_LOCK_TABLES_PROPERTY = "maintenance.lock.jdbc.init-lock-tables";
-  private static final String LOCK_TABLE_NAME = "maintenance_lock";
-  private static final int MAX_PREFIX_LENGTH = 100;
+
+  @VisibleForTesting
+  static final String INIT_LOCK_TABLES_PROPERTY = "flink-maintenance.lock.jdbc.init-lock-tables";
+
+  private static final String LOCK_TABLE_NAME = "flink_maintenance_lock";
+  private static final int LOCK_ID_MAX_LENGTH = 100;
   private static final String CREATE_LOCK_TABLE_SQL =
-      "CREATE TABLE "
-          + LOCK_TABLE_NAME
-          + "(LOCK_TYPE CHAR(1) NOT NULL, ISSUER VARCHAR("
-          + MAX_PREFIX_LENGTH
-          + ") NOT NULL, LOCK_ID CHAR(36) NOT NULL, PRIMARY KEY (LOCK_TYPE, ISSUER))";
+      String.format(
+          "CREATE TABLE %s "
+              + "(LOCK_TYPE CHAR(1) NOT NULL, "
+              + "LOCK_ID VARCHAR(%s) NOT NULL, "
+              + "INSTANCE_ID CHAR(36) NOT NULL, PRIMARY KEY (LOCK_TYPE, LOCK_ID))",
+          LOCK_TABLE_NAME, LOCK_ID_MAX_LENGTH);
+
   private static final String CREATE_LOCK_SQL =
-      "INSERT INTO " + LOCK_TABLE_NAME + " (LOCK_TYPE, ISSUER, LOCK_ID) VALUES (?, ?, ?)";
+      String.format(
+          "INSERT INTO %s (LOCK_TYPE, LOCK_ID, INSTANCE_ID) VALUES (?, ?, ?)", LOCK_TABLE_NAME);
   private static final String GET_LOCK_SQL =
-      "SELECT LOCK_ID FROM " + LOCK_TABLE_NAME + " WHERE LOCK_TYPE=? AND ISSUER=?";
+      String.format("SELECT INSTANCE_ID FROM %s WHERE LOCK_TYPE=? AND LOCK_ID=?", LOCK_TABLE_NAME);
   private static final String DELETE_LOCK_SQL =
-      "DELETE FROM " + LOCK_TABLE_NAME + " WHERE LOCK_TYPE=? AND ISSUER=? AND LOCK_ID=?";
+      String.format(
+          "DELETE FROM %s WHERE LOCK_TYPE=? AND LOCK_ID=? AND INSTANCE_ID=?", LOCK_TABLE_NAME);
 
   private final String uri;
-  private final String issuer;
+  private final String lockId;
   private final Map<String, String> properties;
   private transient JdbcClientPool pool;
 
-  public JdbcLockFactory(String uri, String issuer, Map<String, String> properties) {
+  /**
+   * Creates a new {@link TriggerLockFactory}. The issuer should be unique between the users of the
+   * same uri.
+   *
+   * @param uri of the jdbc connection
+   * @param lockId of the lock which should indentify the job and the table
+   * @param properties used for creating the jdbc connection pool
+   */
+  public JdbcLockFactory(String uri, String lockId, Map<String, String> properties) {
     Preconditions.checkNotNull(uri, "JDBC connection URI is required");
+    Preconditions.checkNotNull(properties, "Properties map is required");
     Preconditions.checkArgument(
-        issuer.length() < MAX_PREFIX_LENGTH,
-        "Invalid prefix length: issuer should be shorter than %s",
-        MAX_PREFIX_LENGTH);
+        lockId.length() < LOCK_ID_MAX_LENGTH,
+        "Invalid prefix length: lockId should be shorter than %s",
+        LOCK_ID_MAX_LENGTH);
     this.uri = uri;
-    this.issuer = issuer;
+    this.lockId = lockId;
     this.properties = properties;
   }
 
@@ -88,12 +105,12 @@ public class JdbcLockFactory implements TriggerLockFactory {
 
   @Override
   public Lock createLock() {
-    return new Lock(pool, issuer, Type.MAINTENANCE);
+    return new Lock(pool, lockId, Type.MAINTENANCE);
   }
 
   @Override
   public Lock createRecoveryLock() {
-    return new Lock(pool, issuer, Type.RECOVERY);
+    return new Lock(pool, lockId, Type.RECOVERY);
   }
 
   @Override
@@ -102,7 +119,7 @@ public class JdbcLockFactory implements TriggerLockFactory {
   }
 
   private void initializeLockTables() {
-    LOG.trace("Creating database tables (if missing) to store table maintenance locks");
+    LOG.debug("Creating database tables (if missing) to store table maintenance locks");
     try {
       pool.run(
           conn -> {
@@ -114,10 +131,11 @@ public class JdbcLockFactory implements TriggerLockFactory {
                     LOCK_TABLE_NAME /* tableNamePattern */,
                     null /* types */);
             if (tableExists.next()) {
+              LOG.debug("Flink maintenance lock table already exists");
               return true;
             }
 
-            LOG.debug("Creating table {} to store iceberg catalog tables", LOCK_TABLE_NAME);
+            LOG.info("Creating Flink maintenance lock table {}", LOCK_TABLE_NAME);
             return conn.prepareStatement(CREATE_LOCK_TABLE_SQL).execute();
           });
 
@@ -137,38 +155,50 @@ public class JdbcLockFactory implements TriggerLockFactory {
 
   public static class Lock implements TriggerLockFactory.Lock {
     private final JdbcClientPool pool;
-    private final String issuer;
+    private final String lockId;
     private final Type type;
 
-    public Lock(JdbcClientPool pool, String issuer, Type type) {
+    public Lock(JdbcClientPool pool, String lockId, Type type) {
       this.pool = pool;
-      this.issuer = issuer;
+      this.lockId = lockId;
       this.type = type;
     }
 
     @Override
     public boolean tryLock() {
       if (isHeld()) {
-        LOG.info("Lock is already held");
+        LOG.info("Lock is already held for {}", this);
         return false;
       }
 
+      String newInstanceId = UUID.randomUUID().toString();
       try {
         return pool.run(
             conn -> {
               try (PreparedStatement sql = conn.prepareStatement(CREATE_LOCK_SQL)) {
                 sql.setString(1, type.key);
-                sql.setString(2, issuer);
-                sql.setString(3, UUID.randomUUID().toString());
-                return sql.executeUpdate() == 1;
+                sql.setString(2, lockId);
+                sql.setString(3, newInstanceId);
+                int count = sql.executeUpdate();
+                LOG.info(
+                    "Created {} lock with instanceId {} with row count {}",
+                    this,
+                    newInstanceId,
+                    count);
+                return count == 1;
               }
             });
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         throw new UncheckedInterruptedException(e, "Interrupted during tryLock");
       } catch (SQLException e) {
-        // SQL exception happened when creating the lock
-        throw new UncheckedSQLException(e, "Failed to create %s lock", type);
+        // SQL exception happened when creating the lock. Check if the lock creation was
+        // successful behind the scenes.
+        if (newInstanceId.equals(instanceId())) {
+          return true;
+        } else {
+          throw new UncheckedSQLException(e, "Failed to create %s lock", this);
+        }
       }
     }
 
@@ -180,7 +210,7 @@ public class JdbcLockFactory implements TriggerLockFactory {
             conn -> {
               try (PreparedStatement sql = conn.prepareStatement(GET_LOCK_SQL)) {
                 sql.setString(1, type.key);
-                sql.setString(2, issuer);
+                sql.setString(2, lockId);
                 try (ResultSet rs = sql.executeQuery()) {
                   return rs.next();
                 }
@@ -191,7 +221,7 @@ public class JdbcLockFactory implements TriggerLockFactory {
         throw new UncheckedInterruptedException(e, "Interrupted during isHeld");
       } catch (SQLException e) {
         // SQL exception happened when getting lock information
-        throw new UncheckedSQLException(e, "Failed to get lock information for %s", type);
+        throw new UncheckedSQLException(e, "Failed to get lock information for %s", this);
       }
     }
 
@@ -199,36 +229,81 @@ public class JdbcLockFactory implements TriggerLockFactory {
     @Override
     public void unlock() {
       try {
-        pool.run(
+        // Possible concurrency issue:
+        // - `unlock` and `tryLock` happens at the same time when there is an existing lock
+        //
+        // Steps:
+        // 1. `unlock` removes the lock in the database, but there is a temporary connection failure
+        // 2. `lock` founds that there is no lock, so creates a new lock
+        // 3. `unlock` retires the lock removal and removes the new lock
+        //
+        // To prevent the situation above we fetch the current lockId, and remove the lock
+        // only with the given id.
+        String instanceId = instanceId();
+
+        if (instanceId != null) {
+          pool.run(
+              conn -> {
+                try (PreparedStatement sql = conn.prepareStatement(DELETE_LOCK_SQL)) {
+                  sql.setString(1, type.key);
+                  sql.setString(2, lockId);
+                  sql.setString(3, instanceId);
+                  long count = sql.executeUpdate();
+                  LOG.info(
+                      "Deleted {} lock with instanceId {} with row count {}",
+                      this,
+                      instanceId,
+                      count);
+                } catch (SQLException e) {
+                  // SQL exception happened when deleting lock information
+                  throw new UncheckedSQLException(
+                      e, "Failed to delete %s lock with instanceId %s", this, lockId);
+                }
+
+                return null;
+              });
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new UncheckedInterruptedException(e, "Interrupted during unlock");
+      } catch (UncheckedSQLException e) {
+        throw e;
+      } catch (SQLException e) {
+        // SQL exception happened when getting/updating lock information
+        throw new UncheckedSQLException(e, "Failed to remove lock %s", this);
+      }
+    }
+
+    @Override
+    public String toString() {
+      return MoreObjects.toStringHelper(this).add("type", type).add("lockId", lockId).toString();
+    }
+
+    @SuppressWarnings("checkstyle:NestedTryDepth")
+    private String instanceId() {
+      try {
+        return pool.run(
             conn -> {
-              String lockId;
               try (PreparedStatement sql = conn.prepareStatement(GET_LOCK_SQL)) {
                 sql.setString(1, type.key);
-                sql.setString(2, issuer);
+                sql.setString(2, lockId);
                 try (ResultSet rs = sql.executeQuery()) {
                   if (rs.next()) {
-                    lockId = rs.getString(1);
+                    return rs.getString(1);
                   } else {
                     return null;
                   }
                 }
+              } catch (SQLException e) {
+                // SQL exception happened when getting lock information
+                throw new UncheckedSQLException(e, "Failed to get lock information for %s", type);
               }
-
-              try (PreparedStatement sql = conn.prepareStatement(DELETE_LOCK_SQL)) {
-                sql.setString(1, type.key);
-                sql.setString(2, issuer);
-                sql.setString(3, lockId);
-                sql.executeUpdate();
-              }
-
-              return null;
             });
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         throw new UncheckedInterruptedException(e, "Interrupted during unlock");
       } catch (SQLException e) {
-        // SQL exception happened when getting/updating lock information
-        throw new UncheckedSQLException(e, "Failed to get/update lock information for %s", type);
+        throw new UncheckedSQLException(e, "Failed to get lock information for %s", type);
       }
     }
   }
