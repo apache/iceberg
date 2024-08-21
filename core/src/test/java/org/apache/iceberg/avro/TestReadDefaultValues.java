@@ -24,15 +24,12 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SingleValueParser;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
@@ -127,7 +124,7 @@ public class TestReadDefaultValues {
 
       Record expectedRecord = new Record(AvroSchemaUtil.convert(readerSchema.asStruct()));
       expectedRecord.put(0, 1);
-      expectedRecord.put(1, toGenericRecord(type, defaultValue));
+      expectedRecord.put(1, IcebergDataToGenericRecord.toGenericRecord(type, defaultValue));
 
       File testFile = temp.newFile();
       Assert.assertTrue("Delete should succeed", testFile.delete());
@@ -196,42 +193,6 @@ public class TestReadDefaultValues {
 
       // Existence of default value should not affect the read result
       AvroTestHelpers.assertEquals(readerSchema.asStruct(), expectedRecord, rows.get(0));
-    }
-  }
-
-  // TODO: Merge the conversion mechanism with the end state of
-  // ValueReaders.ConstantReader.toGenericRecord().
-  private Object toGenericRecord(Type type, Object data) {
-    // Recursively convert data to GenericRecord if type is a StructType.
-    if (type instanceof Types.StructType) {
-      Types.StructType structType = (Types.StructType) type;
-      Record genericRecord = new Record(AvroSchemaUtil.convert(type));
-      int index = 0;
-      for (Types.NestedField field : structType.fields()) {
-        genericRecord.put(
-            field.name(), toGenericRecord(field.type(), ((GenericRecord) data).get(index)));
-        index++;
-      }
-      return genericRecord;
-    } else if (type instanceof Types.MapType) {
-      Types.MapType mapType = (Types.MapType) type;
-      Map<Object, Object> genericMap =
-          Maps.newHashMapWithExpectedSize(((Map<Object, Object>) data).size());
-      for (Map.Entry<Object, Object> entry : ((Map<Object, Object>) data).entrySet()) {
-        genericMap.put(
-            toGenericRecord(mapType.keyType(), entry.getKey()),
-            toGenericRecord(mapType.valueType(), entry.getValue()));
-      }
-      return genericMap;
-    } else if (type instanceof Types.ListType) {
-      Types.ListType listType = (Types.ListType) type;
-      List<Object> genericList = Lists.newArrayListWithExpectedSize(((List<Object>) data).size());
-      for (Object element : (List<Object>) data) {
-        genericList.add(toGenericRecord(listType.elementType(), element));
-      }
-      return genericList;
-    } else {
-      return data;
     }
   }
 }
