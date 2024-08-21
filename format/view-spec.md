@@ -42,6 +42,17 @@ An atomic swap of one view metadata file for another provides the basis for maki
 
 Writers create view metadata files optimistically, assuming that the current metadata location will not be changed before the writer's commit. Once a writer has created an update, it commits by swapping the view's metadata file pointer from the base location to the new location.
 
+### Materialized Views
+
+Views have the option to be turned into materialized views by precomputing the data from the view query.
+Materialized views return the precomputed data when queried and push the cost of query execution to the precomputation step.
+
+Iceberg materialized views are realized as a combination of an Iceberg view with an underlying Iceberg table to store the precomputed data, referred to as the storage table.
+The metadata of the materialized view is an extension to the view metadata.
+In addition to the metadata of a common view, it stores a pointer to the precomputed data and freshness information to check if the precomputed data is still fresh.
+The storage table can have the states "fresh", "stale" or "invalid".
+The freshness information is composed of data about the so-called "source tables", which are the tables referenced in the query definition of the materialized view. 
+
 ## Specification
 
 ### Terms
@@ -82,8 +93,11 @@ Each version in `versions` is a struct with the following fields:
 | _required_  | `representations`   | A list of [representations](#representations) for the view definition         |
 | _optional_  | `default-catalog`   | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _required_  | `default-namespace` | Namespace to use when a reference in the SELECT is a single identifier        |
+| _optional_  | `storage-table`   | A [full identifier](#full-identifier) of the storage table |
 
 When `default-catalog` is `null` or not set, the catalog in which the view is stored must be used as the default catalog.
+
+When 'storage-table' is `null` or not set, the entity is a common view, otherwise it is a materialized view.
 
 #### Summary
 
@@ -159,6 +173,57 @@ Each entry in `version-log` is a struct with the following fields:
 |-------------|----------------|-------------|
 | _required_  | `timestamp-ms` | Timestamp when the view's `current-version-id` was updated (ms from epoch) |
 | _required_  | `version-id`   | ID that `current-version-id` was set to |
+
+#### Full identifier
+
+The full identifier holds a fully resolved reference for a table or view in the catalog.
+
+| Requirement | Field name     | Description |
+|-------------|----------------|-------------|
+| _required_  | `catalog` | A string specifying the catalog of the source table |
+| _required_  | `namespace`   | A list of namespace levels |
+| _required_  | `table`   | A string specifying the name of the source table |
+| _optional_  | `ref`   | Branch or Tag name of the source table that is being referenced in the view query  |
+
+When 'ref' is `null` or not set, it defaults to “main”. This field is to be ignored if the referenced entity is a view.
+
+### Materialized View Metadata stored as part of the Table Metadata
+
+To be able to determine the freshness of the precomputed data, additional metadata is stored as part of the storage table.
+
+For that the additional field "refresh-state" is introduced as an opaque record in the table snapshot summary.
+
+| Requirement | Field name     | Description |
+|-------------|----------------|-------------|
+| _required_  | `refresh-state` | A [refresh state](#refresh-state) record stored as a JSON-encoded string. | 
+
+#### Refresh state
+
+The refresh state record captures the state of all source tables and source views in the fully expanded query tree of the materialized view. It has the following fields:
+
+| Requirement | Field name     | Description |
+|-------------|----------------|-------------|
+| _required_  | `refresh-version-id` | The `version-id` of the materialized view when the refresh operation was performed  | 
+| _required_  | `source-table-states`   | A list of [source table](#soure-table) records  |
+| _required_  | `source-view-states`   | A list of [source view](#soure-view) records  |
+
+#### Source table
+
+A source table record captures the state of a source table at the time of the last refresh operation.
+
+| Requirement | Field name     | Description |
+|-------------|----------------|-------------|
+| _required_  | `identifier` | A [full identifier](#full-identifier) for the source table | 
+| _required_  | `snapshot-id`   | Snapshot-id of when the last refresh operation was performed |
+
+#### Source view
+
+A source view record captures the state of a source view at the time of the last refresh operation.
+
+| Requirement | Field name     | Description |
+|-------------|----------------|-------------|
+| _required_  | `identifier` | A [full identifier](#full-identifier) for the source view | 
+| _required_  | `version-id`   | Version-id of when the last refresh operation was performed |
 
 ## Appendix A: An Example
 
