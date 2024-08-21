@@ -21,12 +21,16 @@ package org.apache.iceberg.flink.source.reader;
 import java.util.List;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.InputFilesDecryptor;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.DataIterator;
+import org.apache.iceberg.flink.source.FileScanTaskReader;
 import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
+import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -91,5 +95,23 @@ public class ConverterReaderFunction<T> extends DataIteratorReaderFunction<T> {
     }
 
     return recordLimiter;
+  }
+
+  private static class ConverterFileScanTaskReader<T> implements FileScanTaskReader<T> {
+    private final RowDataFileScanTaskReader rowDataReader;
+    private final RowDataConverter<T> converter;
+
+    ConverterFileScanTaskReader(
+        RowDataFileScanTaskReader rowDataReader, RowDataConverter<T> converter) {
+      this.rowDataReader = rowDataReader;
+      this.converter = converter;
+    }
+
+    @Override
+    public CloseableIterator<T> open(
+        FileScanTask fileScanTask, InputFilesDecryptor inputFilesDecryptor) {
+      return CloseableIterator.transform(
+          rowDataReader.open(fileScanTask, inputFilesDecryptor), converter);
+    }
   }
 }
