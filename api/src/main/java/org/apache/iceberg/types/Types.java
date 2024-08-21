@@ -512,7 +512,7 @@ public class Types {
     }
 
     public NestedField withFieldId(int newId) {
-      return new NestedField(isOptional, newId, name, type, doc);
+      return new NestedField(isOptional, newId, name, type, doc, initialDefault, writeDefault);
     }
 
     public int fieldId() {

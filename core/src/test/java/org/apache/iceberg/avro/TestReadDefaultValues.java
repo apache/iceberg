@@ -41,7 +41,7 @@ public class TestReadDefaultValues {
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
-  private static final Object[][] typesWithDefaults =
+  private static final Object[][] TYPES_WITH_DEFAULTS =
       new Object[][] {
         {Types.BooleanType.get(), "true"},
         {Types.IntegerType.get(), "1"},
@@ -110,7 +110,7 @@ public class TestReadDefaultValues {
 
   @Test
   public void testDefaultValueApplied() throws IOException {
-    for (Object[] typeWithDefault : typesWithDefaults) {
+    for (Object[] typeWithDefault : TYPES_WITH_DEFAULTS) {
       Type type = (Type) typeWithDefault[0];
       String defaultValueJson = (String) typeWithDefault[1];
       Object defaultValue = SingleValueParser.fromJson(type, defaultValueJson);
@@ -155,7 +155,7 @@ public class TestReadDefaultValues {
 
   @Test
   public void testDefaultValueNotApplied() throws IOException {
-    for (Object[] typeWithDefault : typesWithDefaults) {
+    for (Object[] typeWithDefault : TYPES_WITH_DEFAULTS) {
       Type type = (Type) typeWithDefault[0];
       String defaultValueJson = (String) typeWithDefault[1];
       Object defaultValue = SingleValueParser.fromJson(type, defaultValueJson);
