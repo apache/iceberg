@@ -466,7 +466,7 @@ public class Types {
     private final Object initialDefault;
     private final Object writeDefault;
 
-    public NestedField(
+    private NestedField(
         boolean isOptional,
         int id,
         String name,
