@@ -106,6 +106,27 @@ public class TestPartitionStatsGenerator {
         .hasMessage("Couldn't find the snapshot for the branch INVALID_BRANCH");
   }
 
+  @Test
+  public void testPartitionStatsOnUnPartitionedTable() throws Exception {
+    Table testTable =
+        TestTables.create(
+            temp.newFolder("unpartitioned_table"),
+            "unpartitioned_table",
+            SCHEMA,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            2);
+
+    List<Record> records = prepareRecords(testTable.schema());
+    DataFile dataFile = FileHelpers.writeDataFile(testTable, outputFile(), records);
+    testTable.newAppend().appendFile(dataFile).commit();
+
+    PartitionStatsGenerator partitionStatsGenerator = new PartitionStatsGenerator(testTable);
+    assertThatThrownBy(partitionStatsGenerator::generate)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("getting schema for an unpartitioned table");
+  }
+
   @SuppressWarnings("checkstyle:MethodLength")
   @Test
   public void testPartitionStats() throws Exception {
@@ -497,7 +518,7 @@ public class TestPartitionStatsGenerator {
     // read the partition entries from the stats file
     List<Record> rows;
     try (CloseableIterable<Record> recordIterator =
-        PartitionStatsWriterUtil.readPartitionStatsFile(
+        PartitionStatsGeneratorUtil.readPartitionStatsFile(
             recordSchema, Files.localInput(result.path()))) {
       rows = Lists.newArrayList(recordIterator);
     }

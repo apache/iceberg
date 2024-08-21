@@ -45,12 +45,17 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Generates {@link PartitionStatisticsFile} file as per the spec for the given table. Computes the
+ * stats by going through the partition info stored in each manifest file.
+ */
 public class PartitionStatsGenerator {
   private static final Logger LOG = LoggerFactory.getLogger(PartitionStatsGenerator.class);
 
   private final Table table;
   private String branch;
   private Types.StructType partitionType;
+  // Map of PartitionData, partition-stats-entry per partitionData.
   private Map<Record, Record> partitionEntryMap;
 
   public PartitionStatsGenerator(Table table) {
@@ -77,7 +82,6 @@ public class PartitionStatsGenerator {
     }
 
     partitionType = Partitioning.partitionType(table);
-    // Map of partitionData, partition-stats-entry per partitionData.
     partitionEntryMap = Maps.newConcurrentMap();
 
     Schema dataSchema = PartitionStatsUtil.schema(partitionType);
@@ -119,8 +123,8 @@ public class PartitionStatsGenerator {
         Iterators.transform(sortedKeys.iterator(), this::convertPartitionRecords);
 
     OutputFile outputFile =
-        PartitionStatsWriterUtil.newPartitionStatsFile(table, currentSnapshot.snapshotId());
-    PartitionStatsWriterUtil.writePartitionStatsFile(table, entriesForWriter, outputFile);
+        PartitionStatsGeneratorUtil.newPartitionStatsFile(table, currentSnapshot.snapshotId());
+    PartitionStatsGeneratorUtil.writePartitionStatsFile(table, entriesForWriter, outputFile);
     return ImmutableGenericPartitionStatisticsFile.builder()
         .snapshotId(currentSnapshot.snapshotId())
         .path(outputFile.location())

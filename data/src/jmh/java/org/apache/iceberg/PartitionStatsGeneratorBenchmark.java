@@ -28,9 +28,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.data.PartitionStatsGenerator;
-import org.apache.iceberg.data.PartitionStatsWriterUtil;
+import org.apache.iceberg.data.PartitionStatsGeneratorUtil;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
@@ -66,50 +67,45 @@ public class PartitionStatsGeneratorBenchmark {
 
   private String baseDir;
 
-  // create 3 manifests with same partition values
-  private static final int ITERATION_COUNTER = 3;
+  // Create 10k manifests
+  private static final int MANIFEST_COUNTER = 10000;
 
-  // create 3 * 10000 manifests
-  private static final int PARTITION_COUNT = 10000;
+  // each manifest with 100 partition values
+  private static final int PARTITION_PER_MANIFEST = 100;
 
-  // one data file manifest
-  private static final int DATA_FILES_PER_PARTITION_COUNT = 1;
+  // 20 data files per partition, which results in 2k data files per manifest
+  private static final int DATA_FILES_PER_PARTITION_COUNT = 20;
 
   private Table table;
 
-  private PartitionStatisticsFile result;
-
   @Setup
-  public void setupBenchmark() throws IOException {
+  public void setupBenchmark() {
     baseDir =
         Paths.get(new File(System.getProperty("java.io.tmpdir")).getAbsolutePath()).toString();
     table = TestTables.create(new File(baseDir), "foo", SCHEMA, SPEC, SortOrder.unsorted(), 2);
 
-    for (int interations = 0; interations < ITERATION_COUNTER; interations++) {
-      for (int partitionOrdinal = 0; partitionOrdinal < PARTITION_COUNT; partitionOrdinal++) {
-        StructLike partition = TestHelpers.Row.of(partitionOrdinal);
-        AppendFiles appendFiles = table.newAppend();
-        for (int fileOrdinal = 0; fileOrdinal < DATA_FILES_PER_PARTITION_COUNT; fileOrdinal++) {
-          DataFile dataFile = FileGenerationUtil.generateDataFile(table, partition);
-          appendFiles.appendFile(dataFile);
-        }
+    IntStream.range(0, MANIFEST_COUNTER)
+        .forEach(
+            manifestCount -> {
+              AppendFiles appendFiles = table.newAppend();
 
-        appendFiles.commit();
-      }
-    }
+              IntStream.range(0, PARTITION_PER_MANIFEST)
+                  .forEach(
+                      partitionOrdinal -> {
+                        StructLike partition = TestHelpers.Row.of(partitionOrdinal);
+                        IntStream.range(0, DATA_FILES_PER_PARTITION_COUNT)
+                            .forEach(
+                                fileOrdinal ->
+                                    appendFiles.appendFile(
+                                        FileGenerationUtil.generateDataFile(table, partition)));
+                      });
+
+              appendFiles.commit();
+            });
   }
 
   @TearDown
   public void tearDownBenchmark() throws IOException {
-    // validate row count
-    try (CloseableIterable<Record> recordIterator =
-        PartitionStatsWriterUtil.readPartitionStatsFile(
-            PartitionStatsUtil.schema(Partitioning.partitionType(table)),
-            Files.localInput(result.path()))) {
-      assertThat(recordIterator).hasSize(PARTITION_COUNT);
-    }
-
-    // clean up the temp folder
     if (baseDir != null) {
       try (Stream<Path> walk = java.nio.file.Files.walk(Paths.get(baseDir))) {
         walk.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
@@ -120,12 +116,20 @@ public class PartitionStatsGeneratorBenchmark {
 
   @Benchmark
   @Threads(1)
-  public void writePartitionStats() {
+  public void benchmarkPartitionStats() throws IOException {
     Snapshot currentSnapshot = table.currentSnapshot();
 
     PartitionStatsGenerator partitionStatsGenerator = new PartitionStatsGenerator(table);
-    result = partitionStatsGenerator.generate();
+    PartitionStatisticsFile result = partitionStatsGenerator.generate();
     table.updatePartitionStatistics().setPartitionStatistics(result).commit();
     assertThat(result.snapshotId()).isEqualTo(currentSnapshot.snapshotId());
+
+    // validate row count
+    try (CloseableIterable<Record> recordIterator =
+        PartitionStatsGeneratorUtil.readPartitionStatsFile(
+            PartitionStatsUtil.schema(Partitioning.partitionType(table)),
+            Files.localInput(result.path()))) {
+      assertThat(recordIterator).hasSize(PARTITION_PER_MANIFEST);
+    }
   }
 }

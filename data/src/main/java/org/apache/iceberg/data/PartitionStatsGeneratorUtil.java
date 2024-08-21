@@ -28,6 +28,7 @@ import java.util.Iterator;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.PartitionStatsUtil;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
@@ -42,10 +43,22 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 
-public final class PartitionStatsWriterUtil {
+/**
+ * Util to write and read the {@link PartitionStatisticsFile}. Uses generic readers and writes to
+ * support writing and reading of the stats in table default format.
+ */
+public final class PartitionStatsGeneratorUtil {
 
-  private PartitionStatsWriterUtil() {}
+  private PartitionStatsGeneratorUtil() {}
 
+  /**
+   * Creates a new {@link OutputFile} for storing partition statistics for the specified table. The
+   * output file extension will be same as table's default format.
+   *
+   * @param table The {@link Table} for which the partition statistics file is being created.
+   * @param snapshotId The ID of the snapshot associated with the partition statistics.
+   * @return A new {@link OutputFile} that can be used to write partition statistics.
+   */
   public static OutputFile newPartitionStatsFile(Table table, long snapshotId) {
     FileFormat fileFormat =
         FileFormat.fromString(
@@ -59,12 +72,20 @@ public final class PartitionStatsWriterUtil {
                     fileFormat.addExtension(String.format("partition-stats-%d", snapshotId))));
   }
 
+  /**
+   * Writes partition statistics to the specified {@link OutputFile} for the given table.
+   *
+   * @param table The {@link Table} for which the partition statistics are being written.
+   * @param records An {@link Iterator} of {@link Record} to be written into the file.
+   * @param outputFile The {@link OutputFile} where the partition statistics will be written. Should
+   *     include the file extension.
+   */
   public static void writePartitionStatsFile(
       Table table, Iterator<Record> records, OutputFile outputFile) {
     Schema dataSchema = PartitionStatsUtil.schema(Partitioning.partitionType(table));
     FileFormat fileFormat =
         FileFormat.fromString(
-            table.properties().getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT));
+            outputFile.location().substring(outputFile.location().lastIndexOf(".") + 1));
     FileWriterFactory<Record> factory =
         GenericFileWriterFactory.builderFor(table)
             .dataSchema(dataSchema)
@@ -82,6 +103,12 @@ public final class PartitionStatsWriterUtil {
     }
   }
 
+  /**
+   * Reads partition statistics from the specified {@link InputFile} using given schema.
+   *
+   * @param schema The {@link Schema} of the partition statistics file.
+   * @param inputFile An {@link InputFile} pointing to the partition stats file.
+   */
   public static CloseableIterable<Record> readPartitionStatsFile(
       Schema schema, InputFile inputFile) {
     // TODO: support other formats or introduce GenericFileReader

@@ -23,6 +23,7 @@ import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 
 public class IdentityPartitionConverters {
@@ -51,12 +52,12 @@ public class IdentityPartitionConverters {
         if (value instanceof GenericData.Fixed) {
           return ((GenericData.Fixed) value).bytes();
         } else if (value instanceof ByteBuffer) {
-          return ((ByteBuffer) value).array();
+          return ByteBuffers.toByteArray((ByteBuffer) value);
         }
         return value;
       case UUID:
         if (value instanceof ByteBuffer) {
-          return ((ByteBuffer) value).array();
+          return ByteBuffers.toByteArray((ByteBuffer) value);
         }
         return value;
       default:

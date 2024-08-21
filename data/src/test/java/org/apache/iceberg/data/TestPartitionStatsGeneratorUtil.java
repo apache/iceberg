@@ -51,7 +51,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class TestPartitionStatsWriterUtil {
+public class TestPartitionStatsGeneratorUtil {
   private static final Schema SCHEMA =
       new Schema(
           required(1, "id", Types.LongType.get()),
@@ -105,7 +105,7 @@ public class TestPartitionStatsWriterUtil {
   }
 
   @Test
-  public void testPartitionStatsOptionalFields() throws Exception {
+  public void testOptionalFields() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
     Table testTable =
         TestTables.create(
@@ -230,14 +230,14 @@ public class TestPartitionStatsWriterUtil {
 
   private static void testPartitionStats(
       Table testTable, List<Record> expectedRecords, Schema dataSchema) throws IOException {
-    OutputFile outputFile = PartitionStatsWriterUtil.newPartitionStatsFile(testTable, 42L);
-    PartitionStatsWriterUtil.writePartitionStatsFile(
+    OutputFile outputFile = PartitionStatsGeneratorUtil.newPartitionStatsFile(testTable, 42L);
+    PartitionStatsGeneratorUtil.writePartitionStatsFile(
         testTable, expectedRecords.iterator(), outputFile);
     assertThat(Paths.get(outputFile.location())).exists();
 
     List<Record> writtenRecords;
     try (CloseableIterable<Record> recordIterator =
-        PartitionStatsWriterUtil.readPartitionStatsFile(
+        PartitionStatsGeneratorUtil.readPartitionStatsFile(
             dataSchema, Files.localInput(outputFile.location()))) {
       writtenRecords = Lists.newArrayList(recordIterator);
     }

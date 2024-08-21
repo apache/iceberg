@@ -46,10 +46,12 @@ public class PartitionStatsUtil {
   }
 
   /**
-   * Generates a schema as per partition statistics spec based on the given partition type.
+   * Generates the Partition Stats Files Schema based on a given partition type.
+   *
+   * <p>Note: Provide the unified partition tuple as mentioned in the spec.
    *
    * @param partitionType the struct type that defines the structure of the partition.
-   * @return a schema that corresponds to the provided partition type.
+   * @return a schema that corresponds to the provided unified partition type.
    */
   public static Schema schema(Types.StructType partitionType) {
     Preconditions.checkState(
@@ -88,6 +90,10 @@ public class PartitionStatsUtil {
    */
   public static CloseableIterable<Record> fromManifest(
       Table table, ManifestFile manifest, Schema recordSchema) {
+    Preconditions.checkState(
+        !recordSchema.findField(Column.PARTITION.name()).type().asStructType().fields().isEmpty(),
+        "record schema should not be unpartitioned");
+
     return CloseableIterable.transform(
         ManifestFiles.open(manifest, table.io(), table.specs())
             .select(BaseScan.scanColumns(manifest.content()))
@@ -191,28 +197,24 @@ public class PartitionStatsUtil {
   }
 
   private static void checkAndIncrementLong(Record toUpdate, Record fromRecord, Column column) {
-    if (fromRecord.get(column.ordinal()) != null) {
-      if (toUpdate.get(column.ordinal()) != null) {
-        toUpdate.set(
-            column.ordinal(),
-            toUpdate.get(column.ordinal(), Long.class)
-                + fromRecord.get(column.ordinal(), Long.class));
-      } else {
-        toUpdate.set(column.ordinal(), fromRecord.get(column.ordinal(), Long.class));
-      }
+    if ((fromRecord.get(column.ordinal()) != null) && (toUpdate.get(column.ordinal()) != null)) {
+      toUpdate.set(
+          column.ordinal(),
+          toUpdate.get(column.ordinal(), Long.class)
+              + fromRecord.get(column.ordinal(), Long.class));
+    } else if (fromRecord.get(column.ordinal()) != null) {
+      toUpdate.set(column.ordinal(), fromRecord.get(column.ordinal(), Long.class));
     }
   }
 
   private static void checkAndIncrementInt(Record toUpdate, Record fromRecord, Column column) {
-    if (fromRecord.get(column.ordinal()) != null) {
-      if (toUpdate.get(column.ordinal()) != null) {
-        toUpdate.set(
-            column.ordinal(),
-            toUpdate.get(column.ordinal(), Integer.class)
-                + fromRecord.get(column.ordinal(), Integer.class));
-      } else {
-        toUpdate.set(column.ordinal(), fromRecord.get(column.ordinal(), Integer.class));
-      }
+    if ((fromRecord.get(column.ordinal()) != null) && (toUpdate.get(column.ordinal()) != null)) {
+      toUpdate.set(
+          column.ordinal(),
+          toUpdate.get(column.ordinal(), Integer.class)
+              + fromRecord.get(column.ordinal(), Integer.class));
+    } else if (fromRecord.get(column.ordinal()) != null) {
+      toUpdate.set(column.ordinal(), fromRecord.get(column.ordinal(), Integer.class));
     }
   }
 }
