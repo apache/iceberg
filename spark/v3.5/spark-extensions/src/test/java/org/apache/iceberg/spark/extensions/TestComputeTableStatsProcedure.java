@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Snapshot;
@@ -26,7 +29,6 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -43,7 +45,7 @@ public class TestComputeTableStatsProcedure extends ExtensionsTestBase {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     List<Object[]> result =
         sql("CALL %s.system.compute_table_stats('%s')", catalogName, tableIdent);
-    Assertions.assertTrue(result.isEmpty());
+    assertThat(result).isEmpty();
   }
 
   @TestTemplate
@@ -56,7 +58,7 @@ public class TestComputeTableStatsProcedure extends ExtensionsTestBase {
         sql(
             "CALL %s.system.compute_table_stats(table => '%s', columns => array('id'))",
             catalogName, tableIdent);
-    Assertions.assertNotNull(output.get(0));
+    assertThat(output.get(0)).isNotNull();
   }
 
   @TestTemplate
@@ -71,7 +73,7 @@ public class TestComputeTableStatsProcedure extends ExtensionsTestBase {
         sql(
             "CALL %s.system.compute_table_stats('%s', %dL)",
             catalogName, tableIdent, snapshot.snapshotId());
-    Assertions.assertNotNull(output.get(0));
+    assertThat(output.get(0)).isNotNull();
   }
 
   @TestTemplate
@@ -80,14 +82,13 @@ public class TestComputeTableStatsProcedure extends ExtensionsTestBase {
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
         tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
-    IllegalArgumentException illegalArgumentException =
-        Assertions.assertThrows(
-            IllegalArgumentException.class,
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.compute_table_stats(table => '%s', columns => array('id1'))",
-                    catalogName, tableIdent));
-    Assertions.assertTrue(illegalArgumentException.getMessage().contains("Can't find column id1"));
+                    catalogName, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Can't find column id1");
   }
 
   @TestTemplate
@@ -96,13 +97,12 @@ public class TestComputeTableStatsProcedure extends ExtensionsTestBase {
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
         tableName);
     sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
-    IllegalArgumentException illegalArgumentException =
-        Assertions.assertThrows(
-            IllegalArgumentException.class,
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.compute_table_stats(table => '%s', snapshot_id => %dL)",
-                    catalogName, tableIdent, 1234L));
-    Assertions.assertTrue(illegalArgumentException.getMessage().contains("Snapshot not found"));
+                    catalogName, tableIdent, 1234L))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Snapshot not found");
   }
 }
