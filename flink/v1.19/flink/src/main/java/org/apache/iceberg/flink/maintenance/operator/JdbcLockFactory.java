@@ -69,11 +69,11 @@ public class JdbcLockFactory implements TriggerLockFactory {
   private transient JdbcClientPool pool;
 
   /**
-   * Creates a new {@link TriggerLockFactory}. The issuer should be unique between the users of the
+   * Creates a new {@link TriggerLockFactory}. The lockId should be unique between the users of the
    * same uri.
    *
    * @param uri of the jdbc connection
-   * @param lockId of the lock which should indentify the job and the table
+   * @param lockId which should indentify the job and the table
    * @param properties used for creating the jdbc connection pool
    */
   public JdbcLockFactory(String uri, String lockId, Map<String, String> properties) {
