@@ -61,10 +61,12 @@ import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorState;
 import org.apache.iceberg.flink.source.enumerator.IcebergEnumeratorStateSerializer;
 import org.apache.iceberg.flink.source.enumerator.StaticIcebergEnumerator;
 import org.apache.iceberg.flink.source.reader.ColumnStatsWatermarkExtractor;
+import org.apache.iceberg.flink.source.reader.ConverterReaderFunction;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReader;
 import org.apache.iceberg.flink.source.reader.IcebergSourceReaderMetrics;
 import org.apache.iceberg.flink.source.reader.MetaDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.ReaderFunction;
+import org.apache.iceberg.flink.source.reader.RowDataConverter;
 import org.apache.iceberg.flink.source.reader.RowDataReaderFunction;
 import org.apache.iceberg.flink.source.reader.SerializableRecordEmitter;
 import org.apache.iceberg.flink.source.reader.SplitWatermarkExtractor;
@@ -211,12 +213,31 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
   }
 
+  /**
+   * Create a source builder.
+   *
+   * @deprecated since 1.7.0. Will be removed in 2.0.0; use{@link IcebergSource#forRowData()} or
+   *     {@link IcebergSource#forOutputType(RowDataConverter)} instead
+   */
+  @Deprecated
   public static <T> Builder<T> builder() {
     return new Builder<>();
   }
 
+  /** Create a source builder for RowData output type. */
   public static Builder<RowData> forRowData() {
     return new Builder<>();
+  }
+
+  /**
+   * Create a source builder that would convert {@link RowData} to the output type {@code T}.
+   *
+   * @param converter convert {@link RowData} to output type {@code T}
+   * @param <T> output type
+   * @return an IcebergSource builder
+   */
+  public static <T> Builder<T> forOutputType(RowDataConverter<T> converter) {
+    return new Builder<T>().converter(converter);
   }
 
   public static class Builder<T> {
@@ -225,6 +246,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     private SplitAssignerFactory splitAssignerFactory;
     private SerializableComparator<IcebergSourceSplit> splitComparator;
     private ReaderFunction<T> readerFunction;
+    private RowDataConverter<T> converter;
     private ReadableConfig flinkConfig = new Configuration();
     private final ScanContext.Builder contextBuilder = ScanContext.builder();
     private TableSchema projectedFlinkSchema;
@@ -255,8 +277,25 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
+    /**
+     * @deprecated since 1.7.0. Will be removed in 2.0.0; use{@link
+     *     IcebergSource#forOutputType(RowDataConverter)} instead to produce output type other than
+     *     {@link RowData}.
+     */
+    @Deprecated
     public Builder<T> readerFunction(ReaderFunction<T> newReaderFunction) {
+      Preconditions.checkState(
+          converter == null,
+          "Cannot set reader function when builder was created via IcebergSource.forOutputType(Converter)");
       this.readerFunction = newReaderFunction;
+      return this;
+    }
+
+    /**
+     * Don't need to be public. It is set by {@link IcebergSource#forOutputType(RowDataConverter)}.
+     */
+    private Builder<T> converter(RowDataConverter<T> newConverter) {
+      this.converter = newConverter;
       return this;
     }
 
@@ -510,25 +549,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       ScanContext context = contextBuilder.build();
       context.validate();
       if (readerFunction == null) {
-        if (table instanceof BaseMetadataTable) {
-          MetaDataReaderFunction rowDataReaderFunction =
-              new MetaDataReaderFunction(
-                  flinkConfig, table.schema(), context.project(), table.io(), table.encryption());
-          this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
-        } else {
-          RowDataReaderFunction rowDataReaderFunction =
-              new RowDataReaderFunction(
-                  flinkConfig,
-                  table.schema(),
-                  context.project(),
-                  context.nameMapping(),
-                  context.caseSensitive(),
-                  table.io(),
-                  table.encryption(),
-                  context.filters(),
-                  context.limit());
-          this.readerFunction = (ReaderFunction<T>) rowDataReaderFunction;
-        }
+        this.readerFunction = readerFunction(context);
       }
 
       if (splitAssignerFactory == null) {
@@ -548,6 +569,41 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
           splitComparator,
           table,
           emitter);
+    }
+
+    private ReaderFunction<T> readerFunction(ScanContext context) {
+      if (table instanceof BaseMetadataTable) {
+        MetaDataReaderFunction rowDataReaderFunction =
+            new MetaDataReaderFunction(
+                flinkConfig, table.schema(), context.project(), table.io(), table.encryption());
+        return (ReaderFunction<T>) rowDataReaderFunction;
+      } else {
+        if (converter == null) {
+          return (ReaderFunction<T>)
+              new RowDataReaderFunction(
+                  flinkConfig,
+                  table.schema(),
+                  context.project(),
+                  context.nameMapping(),
+                  context.caseSensitive(),
+                  table.io(),
+                  table.encryption(),
+                  context.filters(),
+                  context.limit());
+        } else {
+          return new ConverterReaderFunction<>(
+              converter,
+              flinkConfig,
+              table.schema(),
+              context.project(),
+              context.nameMapping(),
+              context.caseSensitive(),
+              table.io(),
+              table.encryption(),
+              context.filters(),
+              context.limit());
+        }
+      }
     }
   }
 }
