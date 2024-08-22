@@ -103,7 +103,7 @@ public class TestIcebergSpeculativeExecutionSupport extends TestBase {
   public void after() {
     sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, INPUT_TABLE_NAME);
     sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, OUTPUT_TABLE_NAME);
-    sql("DROP DATABASE %s", DATABASE_NAME);
+    dropDatabase(DATABASE_NAME, true);
     dropCatalog(CATALOG_NAME, true);
   }
 
