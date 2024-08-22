@@ -35,7 +35,7 @@ class TableChange {
   private long deleteFileSize;
   private int commitNum;
 
-  TableChange(
+  private TableChange(
       int dataFileNum, int deleteFileNum, long dataFileSize, long deleteFileSize, int commitNum) {
     this.dataFileNum = dataFileNum;
     this.deleteFileNum = deleteFileNum;
@@ -65,6 +65,10 @@ class TableChange {
 
   static TableChange empty() {
     return new TableChange(0, 0, 0L, 0L, 0);
+  }
+
+  static Builder builder() {
+    return new Builder();
   }
 
   int dataFileNum() {
@@ -129,5 +133,42 @@ class TableChange {
   @Override
   public int hashCode() {
     return Objects.hash(dataFileNum, deleteFileNum, dataFileSize, deleteFileSize, commitNum);
+  }
+
+  static class Builder {
+    private int dataFileNum = 0;
+    private int deleteFileNum = 0;
+    private long dataFileSize = 0L;
+    private long deleteFileSize = 0L;
+    private int commitNum = 0;
+
+    public Builder dataFileNum(int newDataFileNum) {
+      this.dataFileNum = newDataFileNum;
+      return this;
+    }
+
+    public Builder deleteFileNum(int newDeleteFileNum) {
+      this.deleteFileNum = newDeleteFileNum;
+      return this;
+    }
+
+    public Builder dataFileSize(long newDataFileSize) {
+      this.dataFileSize = newDataFileSize;
+      return this;
+    }
+
+    public Builder deleteFileSize(long newDeleteFileSize) {
+      this.deleteFileSize = newDeleteFileSize;
+      return this;
+    }
+
+    public Builder commitNum(int newCommitNum) {
+      this.commitNum = newCommitNum;
+      return this;
+    }
+
+    public TableChange build() {
+      return new TableChange(dataFileNum, deleteFileNum, dataFileSize, deleteFileSize, commitNum);
+    }
   }
 }
