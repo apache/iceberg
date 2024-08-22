@@ -232,7 +232,6 @@ class BaseIncrementalChangelogScan
                             snapshotId,
                             dataFile,
                             addedDeleteFiles,
-                            // not used
                             filterExisting(context.deletes().forEntry(entry)),
                             context.schemaAsString(),
                             context.specAsString(),
@@ -263,7 +262,6 @@ class BaseIncrementalChangelogScan
                           snapshotId,
                           dataFile,
                           addedDeleteFiles,
-                          // not used
                           filterExisting(context.deletes().forEntry(entry)),
                           context.schemaAsString(),
                           context.specAsString(),

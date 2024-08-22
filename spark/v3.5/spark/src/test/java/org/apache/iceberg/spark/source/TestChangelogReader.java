@@ -403,7 +403,7 @@ public class TestChangelogReader extends TestBase {
   }
 
   @Test
-  public void testFlinkScenario1() throws IOException {
+  public void testRepeatedEqualityDelete() throws IOException {
     List<Record> rl1 = Lists.newArrayList();
     GenericRecord record = GenericRecord.create(table2.schema());
     rl1.add(record.copy("id", 1, "data", "a"));
@@ -458,8 +458,6 @@ public class TestChangelogReader extends TestBase {
     addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId1, 0, rl1);
     addExpectedRows(expectedRows, ChangelogOperation.DELETE, snapshotId2, 1, deleted1);
     addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId2, 1, rl2);
-    // in snapshot 3, eqDeletes2 applies to both df1 and df2, so there are two deletes emitted
-    addExpectedRows(expectedRows, ChangelogOperation.DELETE, snapshotId3, 2, deleted1);
     addExpectedRows(expectedRows, ChangelogOperation.DELETE, snapshotId3, 2, deleted2);
     addExpectedRows(expectedRows, ChangelogOperation.INSERT, snapshotId3, 2, rl3);
 
@@ -467,7 +465,7 @@ public class TestChangelogReader extends TestBase {
   }
 
   @Test
-  public void testFlinkScenario2() throws IOException {
+  public void testRepeatedUpdateInSameCommit() throws IOException {
     List<Record> rl1 = Lists.newArrayList();
     GenericRecord record = GenericRecord.create(table2.schema());
     rl1.add(record.copy("id", 1, "data", "a"));
