@@ -257,7 +257,7 @@ public class JdbcLockFactory implements TriggerLockFactory {
                 } catch (SQLException e) {
                   // SQL exception happened when deleting lock information
                   throw new UncheckedSQLException(
-                      e, "Failed to delete %s lock with instanceId %s", this, lockId);
+                      e, "Failed to delete %s lock with instanceId %s", this, instanceId);
                 }
 
                 return null;
