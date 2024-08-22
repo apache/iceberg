@@ -52,6 +52,7 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.data.RowDataToRowMapper;
 import org.apache.iceberg.flink.sink.AvroGenericRecordToRowDataMapper;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
+import org.apache.iceberg.flink.source.reader.AvroGenericRecordConverter;
 import org.apache.iceberg.flink.source.reader.AvroGenericRecordReaderFunction;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -69,12 +70,13 @@ public class TestIcebergSourceBoundedGenericRecord {
   private static final HadoopCatalogExtension CATALOG_EXTENSION =
       new HadoopCatalogExtension(TestFixtures.DATABASE, TestFixtures.TABLE);
 
-  @Parameters(name = "format={0}, parallelism = {1}")
+  @Parameters(name = "format={0}, parallelism = {1}, useConverter = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {FileFormat.AVRO, 2},
-      {FileFormat.PARQUET, 2},
-      {FileFormat.ORC, 2}
+      {FileFormat.AVRO, 2, true},
+      {FileFormat.PARQUET, 2, true},
+      {FileFormat.PARQUET, 2, false},
+      {FileFormat.ORC, 2, true}
     };
   }
 
@@ -83,6 +85,9 @@ public class TestIcebergSourceBoundedGenericRecord {
 
   @Parameter(index = 1)
   private int parallelism;
+
+  @Parameter(index = 2)
+  private boolean useConverter;
 
   @TestTemplate
   public void testUnpartitionedTable() throws Exception {
@@ -147,24 +152,15 @@ public class TestIcebergSourceBoundedGenericRecord {
       table = tableLoader.loadTable();
     }
 
-    AvroGenericRecordReaderFunction readerFunction =
-        new AvroGenericRecordReaderFunction(
-            TestFixtures.TABLE_IDENTIFIER.name(),
-            new Configuration(),
-            table.schema(),
-            null,
-            null,
-            false,
-            table.io(),
-            table.encryption(),
-            filters);
+    Schema readSchema = projectedSchema != null ? projectedSchema : table.schema();
+    IcebergSource.Builder<GenericRecord> sourceBuilder;
+    if (useConverter) {
+      sourceBuilder = createSourceBuilderWithConverter(table, readSchema, config);
+    } else {
+      sourceBuilder =
+          createSourceBuilderWithReaderFunction(table, projectedSchema, filters, config);
+    }
 
-    IcebergSource.Builder<GenericRecord> sourceBuilder =
-        IcebergSource.<GenericRecord>builder()
-            .tableLoader(CATALOG_EXTENSION.tableLoader())
-            .readerFunction(readerFunction)
-            .assignerFactory(new SimpleSplitAssignerFactory())
-            .flinkConfig(config);
     if (projectedSchema != null) {
       sourceBuilder.project(projectedSchema);
     }
@@ -172,7 +168,6 @@ public class TestIcebergSourceBoundedGenericRecord {
     sourceBuilder.filters(filters);
     sourceBuilder.setAll(options);
 
-    Schema readSchema = projectedSchema != null ? projectedSchema : table.schema();
     RowType rowType = FlinkSchemaUtil.convert(readSchema);
     org.apache.avro.Schema avroSchema =
         AvroSchemaUtil.convert(readSchema, TestFixtures.TABLE_IDENTIFIER.name());
@@ -192,5 +187,36 @@ public class TestIcebergSourceBoundedGenericRecord {
     try (CloseableIterator<Row> iter = stream.executeAndCollect()) {
       return Lists.newArrayList(iter);
     }
+  }
+
+  private IcebergSource.Builder<GenericRecord> createSourceBuilderWithReaderFunction(
+      Table table, Schema projected, List<Expression> filters, Configuration config) {
+    AvroGenericRecordReaderFunction readerFunction =
+        new AvroGenericRecordReaderFunction(
+            TestFixtures.TABLE_IDENTIFIER.name(),
+            new Configuration(),
+            table.schema(),
+            projected,
+            null,
+            false,
+            table.io(),
+            table.encryption(),
+            filters);
+
+    return IcebergSource.<GenericRecord>builder()
+        .tableLoader(CATALOG_EXTENSION.tableLoader())
+        .readerFunction(readerFunction)
+        .assignerFactory(new SimpleSplitAssignerFactory())
+        .flinkConfig(config);
+  }
+
+  private IcebergSource.Builder<GenericRecord> createSourceBuilderWithConverter(
+      Table table, Schema readSchema, Configuration config) {
+    AvroGenericRecordConverter converter =
+        AvroGenericRecordConverter.fromIcebergSchema(readSchema, table.name());
+    return IcebergSource.forOutputType(converter)
+        .tableLoader(CATALOG_EXTENSION.tableLoader())
+        .assignerFactory(new SimpleSplitAssignerFactory())
+        .flinkConfig(config);
   }
 }

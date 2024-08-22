@@ -28,13 +28,21 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.source.AvroGenericRecordFileScanTaskReader;
 import org.apache.iceberg.flink.source.DataIterator;
+import org.apache.iceberg.flink.source.IcebergSource;
 import org.apache.iceberg.flink.source.RowDataFileScanTaskReader;
 import org.apache.iceberg.flink.source.RowDataToAvroGenericRecordConverter;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-/** Read Iceberg rows as {@link GenericRecord}. */
+/**
+ * Read Iceberg rows as {@link GenericRecord}.
+ *
+ * @deprecated since 1.7.0. Will be removed in 2.0.0; use {@link
+ *     IcebergSource#forOutputType(RowDataConverter)} and {@link AvroGenericRecordConverter}
+ *     instead.
+ */
+@Deprecated
 public class AvroGenericRecordReaderFunction extends DataIteratorReaderFunction<GenericRecord> {
   private final String tableName;
   private final Schema readSchema;
