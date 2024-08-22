@@ -162,9 +162,6 @@ public class TestCreateActions extends CatalogTestBase {
     this.tableLocation = tableDir.toURI().toString();
     this.catalog = (TableCatalog) spark.sessionState().catalogManager().catalog(catalogName);
 
-    if (!catalogName.equals("spark_catalog")) {
-      spark.conf().set("spark.sql.catalog.spark_catalog", SparkSessionCatalog.class.getName());
-    }
     spark.conf().set("hive.exec.dynamic.partition", "true");
     spark.conf().set("hive.exec.dynamic.partition.mode", "nonstrict");
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", false);
@@ -190,7 +187,6 @@ public class TestCreateActions extends CatalogTestBase {
     // Drop the hive table.
     spark.sql(String.format("DROP TABLE IF EXISTS %s", baseTableName));
     spark.sessionState().catalogManager().reset();
-    spark.conf().unset("spark.sql.catalog.spark_catalog");
     spark.conf().unset("spark.sql.catalog.spark_catalog.type");
     spark.conf().unset("spark.sql.catalog.spark_catalog.default-namespace");
     spark.conf().unset("spark.sql.catalog.spark_catalog.parquet-enabled");
