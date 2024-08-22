@@ -162,7 +162,7 @@ public class ComputeTableStatsSparkAction extends BaseSparkAction<ComputeTableSt
   }
 
   private long snapshotId() {
-    return snapshot != null ? snapshot.snapshotId() : null;
+    return snapshot.snapshotId();
   }
 
   private String jobDesc() {
