@@ -162,7 +162,11 @@ class TestMonitorSource extends OperatorTestBase {
 
                 // The first non-empty event should contain the expected value
                 return newEvent.equals(
-                    TableChange.builder().dataFileNum(1).dataFileSize(size).commitNum(1).build());
+                    TableChange.builder()
+                        .dataFileCount(1)
+                        .dataFileSizeInBytes(size)
+                        .commitCount(1)
+                        .build());
               });
     } finally {
       closeJobClient(jobClient);
@@ -298,17 +302,17 @@ class TestMonitorSource extends OperatorTestBase {
         new MonitorSource.TableChangeIterator(tableLoader, null, 1);
 
     // For a single maxReadBack we only get a single change
-    assertThat(iterator.next().commitNum()).isEqualTo(1);
+    assertThat(iterator.next().commitCount()).isEqualTo(1);
 
     iterator = new MonitorSource.TableChangeIterator(tableLoader, null, 2);
 
     // Expecting 2 commits/snapshots for maxReadBack=2
-    assertThat(iterator.next().commitNum()).isEqualTo(2);
+    assertThat(iterator.next().commitCount()).isEqualTo(2);
 
     iterator = new MonitorSource.TableChangeIterator(tableLoader, null, Long.MAX_VALUE);
 
     // For maxReadBack Long.MAX_VALUE we get every change
-    assertThat(iterator.next().commitNum()).isEqualTo(3);
+    assertThat(iterator.next().commitCount()).isEqualTo(3);
   }
 
   @Test
@@ -323,7 +327,7 @@ class TestMonitorSource extends OperatorTestBase {
         new MonitorSource.TableChangeIterator(tableLoader, null, Long.MAX_VALUE);
 
     // Read the current snapshot
-    assertThat(iterator.next().commitNum()).isEqualTo(1);
+    assertThat(iterator.next().commitCount()).isEqualTo(1);
 
     // Create a DataOperations.REPLACE snapshot
     Table table = tableLoader.loadTable();
@@ -350,16 +354,17 @@ class TestMonitorSource extends OperatorTestBase {
         Lists.newArrayList(table.currentSnapshot().addedDeleteFiles(table.io()).iterator());
 
     long dataSize = dataFiles.stream().mapToLong(ContentFile::fileSizeInBytes).sum();
-    long deleteSize = deleteFiles.stream().mapToLong(ContentFile::fileSizeInBytes).sum();
+    long deleteRecordCount = deleteFiles.stream().mapToLong(DeleteFile::recordCount).sum();
 
     TableChange newChange = previous.copy();
     newChange.merge(
         TableChange.builder()
-            .dataFileNum(dataFiles.size())
-            .dataFileSize(dataSize)
-            .deleteFileNum(deleteFiles.size())
-            .deleteFileSize(deleteSize)
-            .commitNum(1)
+            .dataFileCount(dataFiles.size())
+            .dataFileSizeInBytes(dataSize)
+            // Currently we only test with equality deletes
+            .eqDeleteFileCount(deleteFiles.size())
+            .eqDeleteRecordCount(deleteRecordCount)
+            .commitCount(1)
             .build());
     return newChange;
   }
