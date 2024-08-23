@@ -524,7 +524,7 @@ public class ExpressionUtil {
       case TIMESTAMP:
         return sanitizeTimestamp((long) value, now);
       case TIMESTAMP_NANO:
-        return sanitizeTimestamp((long) value / 1000, now);
+        return sanitizeTimestamp(DateTimeUtil.nanosToMicros((long) value / 1000), now);
       case STRING:
         return sanitizeString((CharSequence) value, now, today);
       case BOOLEAN:
@@ -547,7 +547,8 @@ public class ExpressionUtil {
     } else if (literal instanceof Literals.TimestampLiteral) {
       return sanitizeTimestamp(((Literals.TimestampLiteral) literal).value(), now);
     } else if (literal instanceof Literals.TimestampNanoLiteral) {
-      return sanitizeTimestamp(((Literals.TimestampNanoLiteral) literal).value() / 1000, now);
+      return sanitizeTimestamp(
+          DateTimeUtil.nanosToMicros(((Literals.TimestampNanoLiteral) literal).value()), now);
     } else if (literal instanceof Literals.TimeLiteral) {
       return "(time)";
     } else if (literal instanceof Literals.IntegerLiteral) {
