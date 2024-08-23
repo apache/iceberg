@@ -100,6 +100,38 @@ paths:
 
         Common catalog configuration settings are documented at
         https://iceberg.apache.org/docs/latest/configuration/#catalog-properties
+
+
+        The catalog configuration also holds an optional `endpoints` field that contains information about the endpoints
+        supported by the server. If a server does not send the `endpoints` field, a default set of endpoints is assumed:
+
+          - GET /v1/{prefix}/namespaces
+
+          - POST /v1/{prefix}/namespaces
+
+          - GET /v1/{prefix}/namespaces/{namespace}
+
+          - DELETE /v1/{prefix}/namespaces/{namespace}
+
+          - POST /v1/{prefix}/namespaces/{namespace}/properties
+
+          - GET /v1/{prefix}/namespaces/{namespace}/tables
+
+          - POST /v1/{prefix}/namespaces/{namespace}/tables
+
+          - GET /v1/{prefix}/namespaces/{namespace}/tables/{table}
+
+          - POST /v1/{prefix}/namespaces/{namespace}/tables/{table}
+
+          - DELETE /v1/{prefix}/namespaces/{namespace}/tables/{table}
+
+          - POST /v1/{prefix}/namespaces/{namespace}/register
+
+          - POST /v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics
+
+          - POST /v1/{prefix}/tables/rename
+
+          - POST /v1/{prefix}/transactions/commit
         "
       responses:
         200:
@@ -114,7 +146,14 @@ paths:
                 },
                 "defaults": {
                   "clients": "4"
-                }
+                },
+                "endpoints": [
+                  "GET /v1/{prefix}/namespaces/{namespace}",
+                  "GET /v1/{prefix}/namespaces",
+                  "POST /v1/{prefix}/namespaces",
+                  "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+                  "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+                ]
               }
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
@@ -1583,6 +1622,19 @@ components:
             type: string
           description:
             Properties that should be used as default configuration; applied before client configuration.
+        endpoints:
+          type: array
+          items:
+            type: string
+          description: A list of endpoints that the server supports. The format of each endpoint must be "<HTTP verb> <resource path from OpenAPI REST spec>".
+            The HTTP verb and the resource path must be separated by a space character.
+          example: [
+            "GET /v1/{prefix}/namespaces/{namespace}",
+            "GET /v1/{prefix}/namespaces",
+            "POST /v1/{prefix}/namespaces",
+            "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+            "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+          ]
 
     CreateNamespaceRequest:
       type: object

@@ -54,6 +54,17 @@ class CatalogConfig(BaseModel):
         ...,
         description='Properties that should be used as default configuration; applied before client configuration.',
     )
+    endpoints: Optional[List[str]] = Field(
+        None,
+        description='A list of endpoints that the server supports. The format of each endpoint must be "<HTTP verb> <resource path from OpenAPI REST spec>". The HTTP verb and the resource path must be separated by a space character.',
+        example=[
+            'GET /v1/{prefix}/namespaces/{namespace}',
+            'GET /v1/{prefix}/namespaces',
+            'POST /v1/{prefix}/namespaces',
+            'GET /v1/{prefix}/namespaces/{namespace}/tables/{table}',
+            'GET /v1/{prefix}/namespaces/{namespace}/views/{view}',
+        ],
+    )
 
 
 class UpdateNamespacePropertiesRequest(BaseModel):
