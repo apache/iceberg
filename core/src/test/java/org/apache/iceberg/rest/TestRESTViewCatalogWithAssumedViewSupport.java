@@ -88,7 +88,8 @@ public class TestRESTViewCatalogWithAssumedViewSupport extends TestRESTViewCatal
             httpServer.getURI().toString(),
             "credential",
             "catalog:12345",
-            "view-endpoints-supported", // assume that the server supports view endpoints
+            // assume that the server supports view endpoints
+            RESTSessionCatalog.VIEW_ENDPOINTS_SUPPORTED,
             "true"));
   }
 }
