@@ -24,6 +24,7 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIterable;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -47,9 +48,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class TestPartitionStatsGeneratorUtil {
   private static final Schema SCHEMA =
@@ -60,14 +60,14 @@ public class TestPartitionStatsGeneratorUtil {
 
   private static final Random RANDOM = ThreadLocalRandom.current();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir public File temp;
 
   @Test
   public void testPartitionStats() throws Exception {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
     Table testTable =
         TestTables.create(
-            temp.newFolder("test_partition_stats"),
+            tempDir("test_partition_stats"),
             "test_partition_stats",
             SCHEMA,
             spec,
@@ -109,7 +109,7 @@ public class TestPartitionStatsGeneratorUtil {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
     Table testTable =
         TestTables.create(
-            temp.newFolder("test_partition_stats_optional"),
+            tempDir("test_partition_stats_optional"),
             "test_partition_stats_optional",
             SCHEMA,
             spec,
@@ -188,12 +188,7 @@ public class TestPartitionStatsGeneratorUtil {
             .build();
     Table testTable =
         TestTables.create(
-            temp.newFolder("test_all_type"),
-            "test_all_type",
-            schema,
-            spec,
-            SortOrder.unsorted(),
-            2);
+            tempDir("test_all_type"), "test_all_type", schema, spec, SortOrder.unsorted(), 2);
 
     Types.StructType partitionSchema = Partitioning.partitionType(testTable);
     Schema dataSchema = PartitionStatsUtil.schema(partitionSchema);
@@ -255,5 +250,9 @@ public class TestPartitionStatsGeneratorUtil {
     }
 
     return genericRecord;
+  }
+
+  private File tempDir(String folderName) throws IOException {
+    return java.nio.file.Files.createTempDirectory(temp.toPath(), folderName).toFile();
   }
 }

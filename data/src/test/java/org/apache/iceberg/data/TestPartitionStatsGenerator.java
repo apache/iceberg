@@ -24,10 +24,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionStatisticsFile;
 import org.apache.iceberg.PartitionStatsUtil;
@@ -36,18 +41,22 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.TestTables;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.groups.Tuple;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestPartitionStatsGenerator {
   private static final Schema SCHEMA =
       new Schema(
@@ -58,13 +67,18 @@ public class TestPartitionStatsGenerator {
   protected static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).identity("c2").identity("c3").build();
 
-  @Rule public TemporaryFolder temp = new TemporaryFolder();
+  @TempDir public File temp;
+
+  @Parameters(name = "fileFormat = {0}")
+  public static List<Object> parameters() {
+    return Arrays.asList(FileFormat.PARQUET, FileFormat.ORC, FileFormat.AVRO);
+  }
+
+  @Parameter private FileFormat format;
 
   @Test
   public void testPartitionStatsOnEmptyTable() throws Exception {
-    Table testTable =
-        TestTables.create(
-            temp.newFolder("empty_table"), "empty_table", SCHEMA, SPEC, SortOrder.unsorted(), 2);
+    Table testTable = TestTables.create(tempDir("empty_table"), "empty_table", SCHEMA, SPEC, 2);
 
     PartitionStatsGenerator partitionStatsGenerator = new PartitionStatsGenerator(testTable);
     assertThat(partitionStatsGenerator.generate()).isNull();
@@ -72,9 +86,7 @@ public class TestPartitionStatsGenerator {
 
   @Test
   public void testPartitionStatsOnEmptyBranch() throws Exception {
-    Table testTable =
-        TestTables.create(
-            temp.newFolder("empty_branch"), "empty_branch", SCHEMA, SPEC, SortOrder.unsorted(), 2);
+    Table testTable = TestTables.create(tempDir("empty_branch"), "empty_branch", SCHEMA, SPEC, 2);
 
     testTable.manageSnapshots().createBranch("b1").commit();
 
@@ -91,13 +103,7 @@ public class TestPartitionStatsGenerator {
   @Test
   public void testPartitionStatsOnInvalidSnapshot() throws Exception {
     Table testTable =
-        TestTables.create(
-            temp.newFolder("invalid_snapshot"),
-            "invalid_snapshot",
-            SCHEMA,
-            SPEC,
-            SortOrder.unsorted(),
-            2);
+        TestTables.create(tempDir("invalid_snapshot"), "invalid_snapshot", SCHEMA, SPEC, 2);
 
     PartitionStatsGenerator partitionStatsGenerator =
         new PartitionStatsGenerator(testTable, "INVALID_BRANCH");
@@ -110,11 +116,10 @@ public class TestPartitionStatsGenerator {
   public void testPartitionStatsOnUnPartitionedTable() throws Exception {
     Table testTable =
         TestTables.create(
-            temp.newFolder("unpartitioned_table"),
+            tempDir("unpartitioned_table"),
             "unpartitioned_table",
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            SortOrder.unsorted(),
             2);
 
     List<Record> records = prepareRecords(testTable.schema());
@@ -128,16 +133,16 @@ public class TestPartitionStatsGenerator {
   }
 
   @SuppressWarnings("checkstyle:MethodLength")
-  @Test
+  @TestTemplate // Tests for all the table formats (PARQUET, ORC, AVRO)
   public void testPartitionStats() throws Exception {
     Table testTable =
         TestTables.create(
-            temp.newFolder("partition_stats"),
-            "partition_stats_compute",
+            tempDir("partition_stats_" + format.name()),
+            "partition_stats_compute_" + format.name(),
             SCHEMA,
             SPEC,
-            SortOrder.unsorted(),
-            2);
+            2,
+            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
 
     List<Record> records = prepareRecords(testTable.schema());
     DataFile dataFile1 =
@@ -297,7 +302,7 @@ public class TestPartitionStatsGenerator {
 
     Table testTable =
         TestTables.create(
-            temp.newFolder("partition_stats_schema_evolve"),
+            tempDir("partition_stats_schema_evolve"),
             "partition_stats_schema_evolve",
             SCHEMA,
             specBefore,
@@ -472,7 +477,7 @@ public class TestPartitionStatsGenerator {
   }
 
   private OutputFile outputFile() throws IOException {
-    return Files.localOutput(File.createTempFile("data", null, temp.newFolder()));
+    return Files.localOutput(File.createTempFile("data", null, tempDir("stats")));
   }
 
   private static Record partitionRecord(Types.StructType partitionType, String c2, String c3) {
@@ -548,7 +553,7 @@ public class TestPartitionStatsGenerator {
     DeleteFile eqDeletes =
         FileHelpers.writeDeleteFile(
             testTable,
-            Files.localOutput(File.createTempFile("junit", null, temp.newFolder())),
+            Files.localOutput(File.createTempFile("junit", null, tempDir("eq_delete"))),
             TestHelpers.Row.of("foo", "A"),
             dataDeletes,
             deleteRowSchema);
@@ -566,7 +571,7 @@ public class TestPartitionStatsGenerator {
     DeleteFile posDeletes =
         FileHelpers.writePosDeleteFile(
             testTable,
-            Files.localOutput(File.createTempFile("junit", null, temp.newFolder())),
+            Files.localOutput(File.createTempFile("junit", null, tempDir("pos_delete"))),
             TestHelpers.Row.of("bar", "A"),
             deletes);
     testTable.newRowDelta().addDeletes(posDeletes).commit();
@@ -582,5 +587,9 @@ public class TestPartitionStatsGenerator {
     }
     posDelete.set(path, position, nested);
     return posDelete;
+  }
+
+  private File tempDir(String folderName) throws IOException {
+    return java.nio.file.Files.createTempDirectory(temp.toPath(), folderName).toFile();
   }
 }

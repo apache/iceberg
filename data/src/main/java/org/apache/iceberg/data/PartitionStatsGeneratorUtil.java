@@ -33,6 +33,9 @@ import org.apache.iceberg.PartitionStatsUtil;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.data.avro.DataReader;
+import org.apache.iceberg.data.orc.GenericOrcReader;
 import org.apache.iceberg.data.parquet.GenericParquetReaders;
 import org.apache.iceberg.encryption.EncryptedFiles;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
@@ -41,6 +44,7 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 
 /**
@@ -111,10 +115,25 @@ public final class PartitionStatsGeneratorUtil {
    */
   public static CloseableIterable<Record> readPartitionStatsFile(
       Schema schema, InputFile inputFile) {
-    // TODO: support other formats or introduce GenericFileReader
-    return Parquet.read(inputFile)
-        .project(schema)
-        .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
-        .build();
+    FileFormat fileFormat =
+        FileFormat.fromString(
+            inputFile.location().substring(inputFile.location().lastIndexOf(".") + 1));
+
+    switch (fileFormat) {
+      case PARQUET:
+        return Parquet.read(inputFile)
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericParquetReaders.buildReader(schema, fileSchema))
+            .build();
+      case ORC:
+        return ORC.read(inputFile)
+            .project(schema)
+            .createReaderFunc(fileSchema -> GenericOrcReader.buildReader(schema, fileSchema))
+            .build();
+      case AVRO:
+        return Avro.read(inputFile).project(schema).createReaderFunc(DataReader::create).build();
+      default:
+        throw new UnsupportedOperationException("Unsupported file format:" + fileFormat.name());
+    }
   }
 }
