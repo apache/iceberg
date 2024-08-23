@@ -81,95 +81,159 @@ class TestTriggerManager extends OperatorTestBase {
   }
 
   @Test
-  void testCommitNumber() throws Exception {
+  void testCommitCount() throws Exception {
+    TriggerManager manager =
+        manager(sql.tableLoader(TABLE_NAME), new TriggerEvaluator.Builder().commitCount(3).build());
+    try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
+        harness(manager)) {
+      testHarness.open();
+
+      addEventAndCheckResult(testHarness, TableChange.builder().commitCount(1).build(), 0);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitCount(2).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitCount(3).build(), 2);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitCount(10).build(), 3);
+
+      // No trigger in this case
+      addEventAndCheckResult(testHarness, TableChange.builder().commitCount(1).build(), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitCount(1).build(), 3);
+
+      addEventAndCheckResult(testHarness, TableChange.builder().commitCount(1).build(), 4);
+    }
+  }
+
+  @Test
+  void testDataFileCount() throws Exception {
     TriggerManager manager =
         manager(
-            sql.tableLoader(TABLE_NAME), new TriggerEvaluator.Builder().commitNumber(3).build());
+            sql.tableLoader(TABLE_NAME), new TriggerEvaluator.Builder().dataFileCount(3).build());
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
       testHarness.open();
 
-      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(1).build(), 0);
-      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(2).build(), 1);
-      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(3).build(), 2);
-      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(10).build(), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileCount(1).build(), 0);
+
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileCount(2).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileCount(3).build(), 2);
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileCount(5).build(), 3);
 
       // No trigger in this case
-      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(1).build(), 3);
-      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(1).build(), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileCount(1).build(), 3);
 
-      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(1).build(), 4);
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileCount(2).build(), 4);
     }
   }
 
   @Test
-  void testFileNumber() throws Exception {
-    TriggerManager manager =
-        manager(sql.tableLoader(TABLE_NAME), new TriggerEvaluator.Builder().fileNumber(3).build());
-    try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
-        harness(manager)) {
-      testHarness.open();
-
-      addEventAndCheckResult(testHarness, TableChange.builder().dataFileNum(1).build(), 0);
-
-      addEventAndCheckResult(
-          testHarness, TableChange.builder().dataFileNum(1).deleteFileNum(1).build(), 1);
-      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(3).build(), 2);
-      addEventAndCheckResult(
-          testHarness, TableChange.builder().dataFileNum(5).deleteFileNum(7).build(), 3);
-
-      // No trigger in this case
-      addEventAndCheckResult(testHarness, TableChange.builder().dataFileNum(1).build(), 3);
-      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(1).build(), 3);
-
-      addEventAndCheckResult(testHarness, TableChange.builder().dataFileNum(1).build(), 4);
-    }
-  }
-
-  @Test
-  void testFileSize() throws Exception {
-    TriggerManager manager =
-        manager(sql.tableLoader(TABLE_NAME), new TriggerEvaluator.Builder().fileSize(3).build());
-    try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
-        harness(manager)) {
-      testHarness.open();
-
-      addEventAndCheckResult(testHarness, TableChange.builder().dataFileSize(1L).build(), 0);
-      addEventAndCheckResult(
-          testHarness, TableChange.builder().dataFileSize(1L).deleteFileSize(1L).build(), 1);
-      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileSize(3L).build(), 2);
-      addEventAndCheckResult(
-          testHarness, TableChange.builder().dataFileSize(5L).deleteFileSize(7L).build(), 3);
-
-      // No trigger in this case
-      addEventAndCheckResult(testHarness, TableChange.builder().dataFileSize(1L).build(), 3);
-      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileSize(1L).build(), 3);
-
-      addEventAndCheckResult(testHarness, TableChange.builder().dataFileSize(1L).build(), 4);
-    }
-  }
-
-  @Test
-  void testDeleteFileNumber() throws Exception {
+  void testDataFileSizeInBytes() throws Exception {
     TriggerManager manager =
         manager(
             sql.tableLoader(TABLE_NAME),
-            new TriggerEvaluator.Builder().deleteFileNumber(3).build());
+            new TriggerEvaluator.Builder().dataFileSizeInBytes(3).build());
+    try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
+        harness(manager)) {
+      testHarness.open();
+
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileSizeInBytes(1L).build(), 0);
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileSizeInBytes(2L).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileSizeInBytes(5L).build(), 2);
+
+      // No trigger in this case
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileSizeInBytes(1L).build(), 2);
+
+      addEventAndCheckResult(testHarness, TableChange.builder().dataFileSizeInBytes(2L).build(), 3);
+    }
+  }
+
+  @Test
+  void testPosDeleteFileCount() throws Exception {
+    TriggerManager manager =
+        manager(
+            sql.tableLoader(TABLE_NAME),
+            new TriggerEvaluator.Builder().posDeleteFileCount(3).build());
+    try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
+        harness(manager)) {
+      testHarness.open();
+
+      addEventAndCheckResult(testHarness, TableChange.builder().posDeleteFileCount(1).build(), 0);
+      addEventAndCheckResult(testHarness, TableChange.builder().posDeleteFileCount(2).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().posDeleteFileCount(3).build(), 2);
+      addEventAndCheckResult(testHarness, TableChange.builder().posDeleteFileCount(10).build(), 3);
+
+      // No trigger in this case
+      addEventAndCheckResult(testHarness, TableChange.builder().posDeleteFileCount(1).build(), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().posDeleteFileCount(1).build(), 3);
+
+      addEventAndCheckResult(testHarness, TableChange.builder().posDeleteFileCount(1).build(), 4);
+    }
+  }
+
+  @Test
+  void testPosDeleteRecordCount() throws Exception {
+    TriggerManager manager =
+        manager(
+            sql.tableLoader(TABLE_NAME),
+            new TriggerEvaluator.Builder().posDeleteRecordCount(3).build());
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
       testHarness.open();
 
       addEventAndCheckResult(
-          testHarness, TableChange.builder().dataFileNum(3).deleteFileNum(1).build(), 0);
-      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(2).build(), 1);
-      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(3).build(), 2);
-      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(10).build(), 3);
+          testHarness, TableChange.builder().posDeleteRecordCount(1L).build(), 0);
+      addEventAndCheckResult(
+          testHarness, TableChange.builder().posDeleteRecordCount(2L).build(), 1);
+      addEventAndCheckResult(
+          testHarness, TableChange.builder().posDeleteRecordCount(5L).build(), 2);
 
       // No trigger in this case
-      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(1).build(), 3);
-      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(1).build(), 3);
+      addEventAndCheckResult(
+          testHarness, TableChange.builder().posDeleteRecordCount(1L).build(), 2);
 
-      addEventAndCheckResult(testHarness, TableChange.builder().deleteFileNum(1).build(), 4);
+      addEventAndCheckResult(
+          testHarness, TableChange.builder().posDeleteRecordCount(2L).build(), 3);
+    }
+  }
+
+  @Test
+  void testEqDeleteFileCount() throws Exception {
+    TriggerManager manager =
+        manager(
+            sql.tableLoader(TABLE_NAME),
+            new TriggerEvaluator.Builder().eqDeleteFileCount(3).build());
+    try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
+        harness(manager)) {
+      testHarness.open();
+
+      addEventAndCheckResult(testHarness, TableChange.builder().eqDeleteFileCount(1).build(), 0);
+      addEventAndCheckResult(testHarness, TableChange.builder().eqDeleteFileCount(2).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().eqDeleteFileCount(3).build(), 2);
+      addEventAndCheckResult(testHarness, TableChange.builder().eqDeleteFileCount(10).build(), 3);
+
+      // No trigger in this case
+      addEventAndCheckResult(testHarness, TableChange.builder().eqDeleteFileCount(1).build(), 3);
+      addEventAndCheckResult(testHarness, TableChange.builder().eqDeleteFileCount(1).build(), 3);
+
+      addEventAndCheckResult(testHarness, TableChange.builder().eqDeleteFileCount(1).build(), 4);
+    }
+  }
+
+  @Test
+  void testEqDeleteRecordCount() throws Exception {
+    TriggerManager manager =
+        manager(
+            sql.tableLoader(TABLE_NAME),
+            new TriggerEvaluator.Builder().eqDeleteRecordCount(3).build());
+    try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
+        harness(manager)) {
+      testHarness.open();
+
+      addEventAndCheckResult(testHarness, TableChange.builder().eqDeleteRecordCount(1L).build(), 0);
+      addEventAndCheckResult(testHarness, TableChange.builder().eqDeleteRecordCount(2L).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().eqDeleteRecordCount(5L).build(), 2);
+
+      // No trigger in this case
+      addEventAndCheckResult(testHarness, TableChange.builder().eqDeleteRecordCount(1L).build(), 2);
+
+      addEventAndCheckResult(testHarness, TableChange.builder().eqDeleteRecordCount(2L).build(), 3);
     }
   }
 
@@ -183,7 +247,7 @@ class TestTriggerManager extends OperatorTestBase {
         harness(manager)) {
       testHarness.open();
 
-      TableChange event = TableChange.builder().dataFileSize(1).commitNum(1).build();
+      TableChange event = TableChange.builder().dataFileCount(1).commitCount(1).build();
 
       // Wait for some time
       testHarness.processElement(event, EVENT_TIME);
@@ -225,7 +289,7 @@ class TestTriggerManager extends OperatorTestBase {
       testHarness.open();
 
       testHarness.processElement(
-          TableChange.builder().dataFileSize(1).commitNum(1).build(), EVENT_TIME);
+          TableChange.builder().dataFileCount(1).commitCount(1).build(), EVENT_TIME);
 
       assertThat(testHarness.extractOutputValues()).isEmpty();
 
@@ -240,7 +304,7 @@ class TestTriggerManager extends OperatorTestBase {
       testHarness.open();
 
       // Arrives the first real change which triggers the recovery process
-      testHarness.processElement(TableChange.builder().commitNum(1).build(), EVENT_TIME_2);
+      testHarness.processElement(TableChange.builder().commitCount(1).build(), EVENT_TIME_2);
       assertTriggers(
           testHarness.extractOutputValues(),
           Lists.newArrayList(Trigger.recovery(testHarness.getProcessingTime())));
@@ -261,11 +325,11 @@ class TestTriggerManager extends OperatorTestBase {
         harness(manager)) {
       testHarness.open();
 
-      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(2).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitCount(2).build(), 1);
       long currentTime = testHarness.getProcessingTime();
 
       // No new fire yet
-      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(2).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitCount(2).build(), 1);
 
       // Check that the trigger fired after the delay
       testHarness.setProcessingTime(currentTime + DELAY);
@@ -281,11 +345,11 @@ class TestTriggerManager extends OperatorTestBase {
         harness(manager)) {
       testHarness.open();
 
-      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(2).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitCount(2).build(), 1);
 
       // Create a lock to prevent execution, and check that there is no result
       assertThat(lock.tryLock()).isTrue();
-      addEventAndCheckResult(testHarness, TableChange.builder().commitNum(2).build(), 1);
+      addEventAndCheckResult(testHarness, TableChange.builder().commitCount(2).build(), 1);
       long currentTime = testHarness.getProcessingTime();
 
       // Remove the lock, and still no trigger
@@ -331,7 +395,7 @@ class TestTriggerManager extends OperatorTestBase {
       ++processingTime;
       expected.add(Trigger.recovery(processingTime));
       testHarness.setProcessingTime(processingTime);
-      testHarness.processElement(TableChange.builder().commitNum(2).build(), processingTime);
+      testHarness.processElement(TableChange.builder().commitCount(2).build(), processingTime);
       assertTriggers(testHarness.extractOutputValues(), expected);
 
       // Nothing happens until the recovery is finished
@@ -347,7 +411,7 @@ class TestTriggerManager extends OperatorTestBase {
       // Still no results as the recovery is ongoing
       ++processingTime;
       testHarness.setProcessingTime(processingTime);
-      testHarness.processElement(TableChange.builder().commitNum(2).build(), processingTime);
+      testHarness.processElement(TableChange.builder().commitCount(2).build(), processingTime);
       assertTriggers(testHarness.extractOutputValues(), expected);
 
       // Simulate the action of removing lock and recoveryLock by downstream lock cleaner when it
@@ -383,8 +447,8 @@ class TestTriggerManager extends OperatorTestBase {
             lockFactory,
             Lists.newArrayList(NAME_1, NAME_2),
             Lists.newArrayList(
-                new TriggerEvaluator.Builder().commitNumber(2).build(),
-                new TriggerEvaluator.Builder().commitNumber(4).build()),
+                new TriggerEvaluator.Builder().commitCount(2).build(),
+                new TriggerEvaluator.Builder().commitCount(4).build()),
             1L,
             1L);
     source
@@ -400,7 +464,7 @@ class TestTriggerManager extends OperatorTestBase {
       jobClient = env.executeAsync();
 
       // This one doesn't trigger - tests NOTHING_TO_TRIGGER
-      source.sendRecord(TableChange.builder().commitNum(1).build());
+      source.sendRecord(TableChange.builder().commitCount(1).build());
 
       Awaitility.await()
           .until(
@@ -412,7 +476,7 @@ class TestTriggerManager extends OperatorTestBase {
               });
 
       // Trigger one of the tasks - tests TRIGGERED
-      source.sendRecord(TableChange.builder().commitNum(1).build());
+      source.sendRecord(TableChange.builder().commitCount(1).build());
       // Wait until we receive the trigger
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
       assertThat(
@@ -421,7 +485,7 @@ class TestTriggerManager extends OperatorTestBase {
       lock.unlock();
 
       // Trigger both of the tasks - tests TRIGGERED
-      source.sendRecord(TableChange.builder().commitNum(2).build());
+      source.sendRecord(TableChange.builder().commitCount(2).build());
       // Wait until we receive the trigger
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
       lock.unlock();
@@ -472,14 +536,14 @@ class TestTriggerManager extends OperatorTestBase {
       jobClient = env.executeAsync();
 
       // Start the first trigger
-      source.sendRecord(TableChange.builder().commitNum(2).build());
+      source.sendRecord(TableChange.builder().commitCount(2).build());
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       // Remove the lock to allow the next trigger
       lock.unlock();
 
       // The second trigger will be blocked
-      source.sendRecord(TableChange.builder().commitNum(2).build());
+      source.sendRecord(TableChange.builder().commitCount(2).build());
       Awaitility.await()
           .until(
               () ->
@@ -518,11 +582,11 @@ class TestTriggerManager extends OperatorTestBase {
       jobClient = env.executeAsync();
 
       // Start the first trigger - notice that we do not remove the lock after the trigger
-      source.sendRecord(TableChange.builder().commitNum(2).build());
+      source.sendRecord(TableChange.builder().commitCount(2).build());
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
 
       // The second trigger will be blocked by the lock
-      source.sendRecord(TableChange.builder().commitNum(2).build());
+      source.sendRecord(TableChange.builder().commitCount(2).build());
       Awaitility.await()
           .until(
               () ->
@@ -589,13 +653,13 @@ class TestTriggerManager extends OperatorTestBase {
         tableLoader,
         lockFactory,
         Lists.newArrayList(NAME_1),
-        Lists.newArrayList(new TriggerEvaluator.Builder().commitNumber(2).build()),
+        Lists.newArrayList(new TriggerEvaluator.Builder().commitCount(2).build()),
         minFireDelayMs,
         lockCheckDelayMs);
   }
 
   private TriggerManager manager(TableLoader tableLoader) {
-    return manager(tableLoader, new TriggerEvaluator.Builder().commitNumber(2).build());
+    return manager(tableLoader, new TriggerEvaluator.Builder().commitCount(2).build());
   }
 
   private static void assertTriggers(List<Trigger> expected, List<Trigger> actual) {
