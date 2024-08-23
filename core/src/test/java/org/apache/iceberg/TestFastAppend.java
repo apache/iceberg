@@ -253,6 +253,31 @@ public class TestFastAppend extends TestBase {
   }
 
   @TestTemplate
+  public void testIncreaseNumRetries() {
+    TestTables.TestTableOperations ops = table.ops();
+    ops.failCommits(TableProperties.COMMIT_NUM_RETRIES_DEFAULT + 1);
+
+    AppendFiles append = table.newFastAppend().appendFile(FILE_B);
+
+    // Default number of retries results in a failed commit
+    assertThatThrownBy(append::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+
+    // After increasing the number of retries the commit succeeds
+    table
+        .updateProperties()
+        .set(
+            TableProperties.COMMIT_NUM_RETRIES,
+            String.valueOf(TableProperties.COMMIT_NUM_RETRIES_DEFAULT + 1))
+        .commit();
+
+    append.commit();
+
+    validateSnapshot(null, readMetadata().currentSnapshot(), FILE_B);
+  }
+
+  @TestTemplate
   public void testAppendManifestCleanup() throws IOException {
     // inject 5 failures
     TestTables.TestTableOperations ops = table.ops();
