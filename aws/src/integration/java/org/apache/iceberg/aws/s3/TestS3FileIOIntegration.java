@@ -206,14 +206,6 @@ public class TestS3FileIOIntegration {
     validateRead(s3FileIO);
   }
 
-  /**
-   * Regression test to verify the aws module has 'software.amazon.awssdk:http-auth-aws-crt'
-   * dependency. Otherwise, access to S3 multi region access point fails by
-   * "software.amazon.awssdk.core.exception.SdkException: Failed to determine how to authenticate
-   * the user: 'aws.auth#sigv4a' signer could not be retrieved: Could not load class. You must add a
-   * dependency on the 'software.amazon.awssdk:http-auth-aws-crt' module to enable the CRT-V4a
-   * signing feature"
-   */
   @Test
   public void testNewInputStreamWithMultiRegionAccessPoint() throws Exception {
     Assumptions.assumeThat(multiRegionAccessPointAlias).isNotEmpty();
@@ -280,14 +272,6 @@ public class TestS3FileIOIntegration {
     }
   }
 
-  /**
-   * Regression test to verify the aws module has 'software.amazon.awssdk:http-auth-aws-crt'
-   * dependency. Otherwise, access to S3 multi region access point fails by
-   * "software.amazon.awssdk.core.exception.SdkException: Failed to determine how to authenticate
-   * the user: 'aws.auth#sigv4a' signer could not be retrieved: Could not load class. You must add a
-   * dependency on the 'software.amazon.awssdk:http-auth-aws-crt' module to enable the CRT-V4a
-   * signing feature"
-   */
   @Test
   public void testNewOutputStreamWithMultiRegionAccessPoint() throws Exception {
     Assumptions.assumeThat(multiRegionAccessPointAlias).isNotEmpty();
