@@ -19,7 +19,6 @@
 package org.apache.iceberg.transforms;
 
 import com.google.errorprone.annotations.Immutable;
-import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -36,21 +35,20 @@ import org.apache.iceberg.util.SerializableFunction;
 class Timestamps implements Transform<Long, Integer> {
 
   static final Timestamps YEAR_FROM_MICROS =
-      new Timestamps(ChronoUnit.MICROS, ResultTypeUnit.YEARS, "year");
+      new Timestamps(ChronoUnit.MICROS, ChronoUnit.YEARS, "year");
   static final Timestamps MONTH_FROM_MICROS =
-      new Timestamps(ChronoUnit.MICROS, ResultTypeUnit.MONTHS, "month");
+      new Timestamps(ChronoUnit.MICROS, ChronoUnit.MONTHS, "month");
   static final Timestamps DAY_FROM_MICROS =
-      new Timestamps(ChronoUnit.MICROS, ResultTypeUnit.DAYS, "day");
+      new Timestamps(ChronoUnit.MICROS, ChronoUnit.DAYS, "day");
   static final Timestamps HOUR_FROM_MICROS =
-      new Timestamps(ChronoUnit.MICROS, ResultTypeUnit.HOURS, "hour");
+      new Timestamps(ChronoUnit.MICROS, ChronoUnit.HOURS, "hour");
   static final Timestamps YEAR_FROM_NANOS =
-      new Timestamps(ChronoUnit.NANOS, ResultTypeUnit.YEARS, "year");
+      new Timestamps(ChronoUnit.NANOS, ChronoUnit.YEARS, "year");
   static final Timestamps MONTH_FROM_NANOS =
-      new Timestamps(ChronoUnit.NANOS, ResultTypeUnit.MONTHS, "month");
-  static final Timestamps DAY_FROM_NANOS =
-      new Timestamps(ChronoUnit.NANOS, ResultTypeUnit.DAYS, "day");
+      new Timestamps(ChronoUnit.NANOS, ChronoUnit.MONTHS, "month");
+  static final Timestamps DAY_FROM_NANOS = new Timestamps(ChronoUnit.NANOS, ChronoUnit.DAYS, "day");
   static final Timestamps HOUR_FROM_NANOS =
-      new Timestamps(ChronoUnit.NANOS, ResultTypeUnit.HOURS, "hour");
+      new Timestamps(ChronoUnit.NANOS, ChronoUnit.HOURS, "hour");
 
   static Timestamps get(Type type, String transform) {
     String name = transform.toLowerCase(Locale.ENGLISH);
@@ -86,31 +84,12 @@ class Timestamps implements Transform<Long, Integer> {
     }
   }
 
-  enum ResultTypeUnit {
-    YEARS(ChronoUnit.YEARS),
-    MONTHS(ChronoUnit.MONTHS),
-    DAYS(ChronoUnit.DAYS),
-    HOURS(ChronoUnit.HOURS),
-    MICROS(ChronoUnit.MICROS),
-    NANOS(ChronoUnit.NANOS);
-
-    private final ChronoUnit unit;
-
-    ResultTypeUnit(final ChronoUnit unit) {
-      this.unit = unit;
-    }
-
-    Duration duration() {
-      return unit.getDuration();
-    }
-  }
-
   @Immutable
   static class Apply implements SerializableFunction<Long, Integer> {
     private final ChronoUnit sourceTypeUnit;
-    private final ResultTypeUnit resultTypeUnit;
+    private final ChronoUnit resultTypeUnit;
 
-    Apply(ChronoUnit sourceTypeUnit, ResultTypeUnit resultTypeUnit) {
+    Apply(ChronoUnit sourceTypeUnit, ChronoUnit resultTypeUnit) {
       this.sourceTypeUnit = sourceTypeUnit;
       this.resultTypeUnit = resultTypeUnit;
     }
@@ -160,7 +139,7 @@ class Timestamps implements Transform<Long, Integer> {
   private final String name;
   private final Apply apply;
 
-  Timestamps(ChronoUnit sourceTypeUnit, ResultTypeUnit resultTypeUnit, String name) {
+  Timestamps(ChronoUnit sourceTypeUnit, ChronoUnit resultTypeUnit, String name) {
     this.name = name;
     this.apply = new Apply(sourceTypeUnit, resultTypeUnit);
   }
@@ -183,14 +162,10 @@ class Timestamps implements Transform<Long, Integer> {
 
   @Override
   public Type getResultType(Type sourceType) {
-    if (apply.resultTypeUnit == ResultTypeUnit.DAYS) {
+    if (apply.resultTypeUnit == ChronoUnit.DAYS) {
       return Types.DateType.get();
     }
     return Types.IntegerType.get();
-  }
-
-  ResultTypeUnit resultTypeUnit() {
-    return apply.resultTypeUnit;
   }
 
   @Override
@@ -208,8 +183,8 @@ class Timestamps implements Transform<Long, Integer> {
       // test the granularity, in hours. hour(ts) => 1 hour, day(ts) => 24 hours, and hour satisfies
       // the order of day
       Timestamps otherTransform = (Timestamps) other;
-      return apply.resultTypeUnit.duration().toHours()
-          <= otherTransform.apply.resultTypeUnit.duration().toHours();
+      return apply.resultTypeUnit.getDuration().toHours()
+          <= otherTransform.apply.resultTypeUnit.getDuration().toHours();
     }
 
     return false;

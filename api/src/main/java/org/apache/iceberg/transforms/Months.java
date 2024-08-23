@@ -57,16 +57,8 @@ public class Months<T> extends TimeTransform<T> {
     }
 
     if (other instanceof Timestamps) {
-      Timestamps.ResultTypeUnit otherResultTypeUnit = ((Timestamps) other).resultTypeUnit();
-      switch (otherResultTypeUnit) {
-        case MICROS:
-          return Timestamps.MONTH_FROM_MICROS.satisfiesOrderOf(other);
-        case NANOS:
-          return Timestamps.MONTH_FROM_NANOS.satisfiesOrderOf(other);
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported timestamp unit: " + otherResultTypeUnit);
-      }
+      // incoming type unit does not matter
+      return Timestamps.MONTH_FROM_MICROS.satisfiesOrderOf(other);
     } else if (other instanceof Dates) {
       return Dates.MONTH.satisfiesOrderOf(other);
     } else if (other instanceof Months || other instanceof Years) {

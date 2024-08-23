@@ -21,7 +21,6 @@ package org.apache.iceberg.transforms;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
@@ -461,29 +460,11 @@ public class TestTimestamps {
   }
 
   @Test
-  public void testApplyRejectsBadSourceType() {
-    Timestamps badSourceType =
-        new Timestamps(ChronoUnit.CENTURIES, Timestamps.ResultTypeUnit.YEARS, "year");
-    assertThatThrownBy(() -> badSourceType.apply(11L))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageMatching("Unsupported source type unit: Centuries");
-  }
-
-  @Test
-  public void testApplyRejectsBadResultType() {
-    Timestamps badResultType =
-        new Timestamps(ChronoUnit.MICROS, Timestamps.ResultTypeUnit.NANOS, "nano");
-    assertThatThrownBy(() -> badResultType.apply(11L))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessageMatching("Unsupported result type unit: NANOS");
-  }
-
-  @Test
   public void testGetOfTimestampTypeRejectsBadString() {
     Types.TimestampType timestampType = Types.TimestampType.withZone();
     assertThatThrownBy(() -> Timestamps.get(timestampType, "trash"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageMatching("Unsupported source/result type units: timestamptz -> trash");
+        .hasMessageMatching("Unsupported transform: trash");
   }
 
   @Test
@@ -491,6 +472,6 @@ public class TestTimestamps {
     Types.TimestampNanoType timestampNanoType = Types.TimestampNanoType.withZone();
     assertThatThrownBy(() -> Timestamps.get(timestampNanoType, "trash"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageMatching("Unsupported source/result type units: timestamptz_ns -> trash");
+        .hasMessageMatching("Unsupported transform: trash");
   }
 }
