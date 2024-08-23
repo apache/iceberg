@@ -24,8 +24,8 @@ import java.time.Instant;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import org.apache.iceberg.util.DateTimeUtil;
 
 class TransformUtil {
 
@@ -55,19 +55,19 @@ class TransformUtil {
   }
 
   static String humanTimestampWithZone(Long timestampMicros) {
-    return ChronoUnit.MICROS.addTo(EPOCH, timestampMicros).toString();
+    return DateTimeUtil.microsToIsoTimestamptz(timestampMicros);
   }
 
   static String humanTimestampWithoutZone(Long timestampMicros) {
-    return ChronoUnit.MICROS.addTo(EPOCH, timestampMicros).toLocalDateTime().toString();
+    return DateTimeUtil.microsToIsoTimestamp(timestampMicros);
   }
 
   static String humanTimestampNanoWithZone(Long timestampNanos) {
-    return ChronoUnit.NANOS.addTo(EPOCH, timestampNanos).toString();
+    return DateTimeUtil.nanosToIsoTimestamptz(timestampNanos);
   }
 
-  static String humanTimestampNanoWithoutZone(Long timestampMicros) {
-    return ChronoUnit.NANOS.addTo(EPOCH, timestampMicros).toLocalDateTime().toString();
+  static String humanTimestampNanoWithoutZone(Long timestampNanos) {
+    return DateTimeUtil.nanosToIsoTimestamp(timestampNanos);
   }
 
   static String humanHour(int hourOrdinal) {

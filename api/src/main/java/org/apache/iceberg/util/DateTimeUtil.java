@@ -70,6 +70,10 @@ public class DateTimeUtil {
     return ChronoUnit.MICROS.addTo(EPOCH, microsFromEpoch).toLocalDateTime();
   }
 
+  public static LocalDateTime timestampFromNanos(long nanosFromEpoch) {
+    return ChronoUnit.NANOS.addTo(EPOCH, nanosFromEpoch).toLocalDateTime();
+  }
+
   public static long microsFromInstant(Instant instant) {
     return ChronoUnit.MICROS.between(EPOCH, instant.atOffset(ZoneOffset.UTC));
   }
@@ -126,8 +130,18 @@ public class DateTimeUtil {
     return localDateTime.atOffset(ZoneOffset.UTC).format(FORMATTER);
   }
 
+  public static String nanosToIsoTimestamptz(long nanos) {
+    LocalDateTime localDateTime = timestampFromNanos(nanos);
+    return localDateTime.atOffset(ZoneOffset.UTC).format(FORMATTER);
+  }
+
   public static String microsToIsoTimestamp(long micros) {
     LocalDateTime localDateTime = timestampFromMicros(micros);
+    return localDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+  }
+
+  public static String nanosToIsoTimestamp(long nanos) {
+    LocalDateTime localDateTime = timestampFromNanos(nanos);
     return localDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
   }
 
@@ -231,8 +245,7 @@ public class DateTimeUtil {
     return Math.toIntExact(convertNanos(nanos, ChronoUnit.HOURS));
   }
 
-  @VisibleForTesting
-  static long convertNanos(long nanos, ChronoUnit granularity) {
+  private static long convertNanos(long nanos, ChronoUnit granularity) {
     if (nanos >= 0) {
       long epochSecond = Math.floorDiv(nanos, NANOS_PER_SECOND);
       long nanoAdjustment = Math.floorMod(nanos, NANOS_PER_SECOND);
