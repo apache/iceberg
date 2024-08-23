@@ -51,7 +51,13 @@ public class TestDateTimeUtil {
 
   @Test
   public void isoTimestampToNanos() {
-    assertThat(DateTimeUtil.isoTimestampToNanos("2017-11-16T14:31:08.000001001-08:00"))
+    assertThat(DateTimeUtil.isoTimestampToNanos("2017-11-16T22:31:08.000001001"))
+        .isEqualTo(1510871468000001001L);
+  }
+
+  @Test
+  public void isoTimestamptzToNanos() {
+    assertThat(DateTimeUtil.isoTimestamptzToNanos("2017-11-16T14:31:08.000001001-08:00"))
         .isEqualTo(1510871468000001001L);
   }
 
