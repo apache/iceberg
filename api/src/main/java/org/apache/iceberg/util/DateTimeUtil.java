@@ -27,6 +27,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoUnit;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
 public class DateTimeUtil {
   private DateTimeUtil() {}
@@ -77,6 +78,10 @@ public class DateTimeUtil {
     return ChronoUnit.MICROS.between(EPOCH, dateTime.atOffset(ZoneOffset.UTC));
   }
 
+  public static long nanosFromTimestamp(LocalDateTime dateTime) {
+    return ChronoUnit.NANOS.between(EPOCH, dateTime.atOffset(ZoneOffset.UTC));
+  }
+
   public static long microsToMillis(long micros) {
     // When the timestamp is negative, i.e before 1970, we need to adjust the milliseconds portion.
     // Example - 1965-01-01 10:11:12.123456 is represented as (-157700927876544) in micro precision.
@@ -98,6 +103,10 @@ public class DateTimeUtil {
 
   public static long microsFromTimestamptz(OffsetDateTime dateTime) {
     return ChronoUnit.MICROS.between(EPOCH, dateTime);
+  }
+
+  public static long nanosFromTimestamptz(OffsetDateTime dateTime) {
+    return ChronoUnit.NANOS.between(EPOCH, dateTime);
   }
 
   public static String formatTimestampMillis(long millis) {
@@ -135,9 +144,9 @@ public class DateTimeUtil {
         OffsetDateTime.parse(timestampString, DateTimeFormatter.ISO_DATE_TIME));
   }
 
-  public static long isoTimestampToNanos(CharSequence timestamp) {
-    return ChronoUnit.NANOS.between(
-        EPOCH, OffsetDateTime.parse(timestamp, DateTimeFormatter.ISO_DATE_TIME));
+  public static long isoTimestamptzToNanos(CharSequence timestampString) {
+    return nanosFromTimestamptz(
+        OffsetDateTime.parse(timestampString, DateTimeFormatter.ISO_DATE_TIME));
   }
 
   public static boolean isUTCTimestamptz(String timestampString) {
@@ -148,6 +157,11 @@ public class DateTimeUtil {
 
   public static long isoTimestampToMicros(String timestampString) {
     return microsFromTimestamp(
+        LocalDateTime.parse(timestampString, DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+  }
+
+  public static long isoTimestampToNanos(CharSequence timestampString) {
+    return nanosFromTimestamp(
         LocalDateTime.parse(timestampString, DateTimeFormatter.ISO_LOCAL_DATE_TIME));
   }
 
@@ -201,7 +215,24 @@ public class DateTimeUtil {
     }
   }
 
-  public static long convertNanos(long nanos, ChronoUnit granularity) {
+  public static int nanosToYears(long nanos) {
+    return Math.toIntExact(convertNanos(nanos, ChronoUnit.YEARS));
+  }
+
+  public static int nanosToMonths(long nanos) {
+    return Math.toIntExact(convertNanos(nanos, ChronoUnit.MONTHS));
+  }
+
+  public static int nanosToDays(long nanos) {
+    return Math.toIntExact(convertNanos(nanos, ChronoUnit.DAYS));
+  }
+
+  public static int nanosToHours(long nanos) {
+    return Math.toIntExact(convertNanos(nanos, ChronoUnit.HOURS));
+  }
+
+  @VisibleForTesting
+  static long convertNanos(long nanos, ChronoUnit granularity) {
     if (nanos >= 0) {
       long epochSecond = Math.floorDiv(nanos, NANOS_PER_SECOND);
       long nanoAdjustment = Math.floorMod(nanos, NANOS_PER_SECOND);

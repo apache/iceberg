@@ -167,7 +167,19 @@ class Timestamps implements Transform<Long, Integer> {
                   "Unsupported result type unit: " + resultTypeUnit);
           }
         case NANOS:
-          return Math.toIntExact(DateTimeUtil.convertNanos(timestamp, resultTypeUnit.unit));
+          switch (resultTypeUnit) {
+            case YEARS:
+              return DateTimeUtil.nanosToYears(timestamp);
+            case MONTHS:
+              return DateTimeUtil.nanosToMonths(timestamp);
+            case DAYS:
+              return DateTimeUtil.nanosToDays(timestamp);
+            case HOURS:
+              return DateTimeUtil.nanosToHours(timestamp);
+            default:
+              throw new UnsupportedOperationException(
+                  "Unsupported result type unit: " + resultTypeUnit);
+          }
         default:
           throw new UnsupportedOperationException(
               "Unsupported source type unit: " + sourceTypeUnit);
