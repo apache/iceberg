@@ -206,6 +206,14 @@ public class TestS3FileIOIntegration {
     validateRead(s3FileIO);
   }
 
+  /**
+   * Regression test to verify the aws module has 'software.amazon.awssdk:http-auth-aws-crt'
+   * dependency. Otherwise, access to S3 multi region access point fails by
+   * "software.amazon.awssdk.core.exception.SdkException: Failed to determine how to authenticate
+   * the user: 'aws.auth#sigv4a' signer could not be retrieved: Could not load class. You must add a
+   * dependency on the 'software.amazon.awssdk:http-auth-aws-crt' module to enable the CRT-V4a
+   * signing feature"
+   */
   @Test
   public void testNewInputStreamWithMultiRegionAccessPoint() throws Exception {
     Assumptions.assumeThat(multiRegionAccessPointAlias).isNotEmpty();
@@ -227,11 +235,11 @@ public class TestS3FileIOIntegration {
   public void testNewOutputStream() throws Exception {
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
     write(s3FileIO);
-    InputStream stream =
-        s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build());
-    String result = IoUtils.toUtf8String(stream);
-    stream.close();
-    assertThat(result).isEqualTo(content);
+    try (InputStream stream =
+        s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build())) {
+      String result = IoUtils.toUtf8String(stream);
+      assertThat(result).isEqualTo(content);
+    }
   }
 
   @Test
@@ -242,11 +250,11 @@ public class TestS3FileIOIntegration {
             S3FileIOProperties.ACCESS_POINTS_PREFIX + bucketName,
             testAccessPointARN(AwsIntegTestUtil.testRegion(), accessPointName)));
     write(s3FileIO);
-    InputStream stream =
-        s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build());
-    String result = IoUtils.toUtf8String(stream);
-    stream.close();
-    assertThat(result).isEqualTo(content);
+    try (InputStream stream =
+        s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build())) {
+      String result = IoUtils.toUtf8String(stream);
+      assertThat(result).isEqualTo(content);
+    }
   }
 
   @Test
@@ -259,19 +267,27 @@ public class TestS3FileIOIntegration {
             S3FileIOProperties.ACCESS_POINTS_PREFIX + bucketName,
             testAccessPointARN(AwsIntegTestUtil.testCrossRegion(), crossRegionAccessPointName)));
     write(s3FileIO);
-    InputStream stream =
+    try (InputStream stream =
         s3Client.getObject(
             GetObjectRequest.builder()
                 .bucket(
                     testAccessPointARN(
                         AwsIntegTestUtil.testCrossRegion(), crossRegionAccessPointName))
                 .key(objectKey)
-                .build());
-    String result = IoUtils.toUtf8String(stream);
-    stream.close();
-    assertThat(result).isEqualTo(content);
+                .build())) {
+      String result = IoUtils.toUtf8String(stream);
+      assertThat(result).isEqualTo(content);
+    }
   }
 
+  /**
+   * Regression test to verify the aws module has 'software.amazon.awssdk:http-auth-aws-crt'
+   * dependency. Otherwise, access to S3 multi region access point fails by
+   * "software.amazon.awssdk.core.exception.SdkException: Failed to determine how to authenticate
+   * the user: 'aws.auth#sigv4a' signer could not be retrieved: Could not load class. You must add a
+   * dependency on the 'software.amazon.awssdk:http-auth-aws-crt' module to enable the CRT-V4a
+   * signing feature"
+   */
   @Test
   public void testNewOutputStreamWithMultiRegionAccessPoint() throws Exception {
     Assumptions.assumeThat(multiRegionAccessPointAlias).isNotEmpty();
@@ -283,11 +299,11 @@ public class TestS3FileIOIntegration {
             testMultiRegionAccessPointARN(
                 AwsIntegTestUtil.testRegion(), multiRegionAccessPointAlias)));
     write(s3FileIO);
-    InputStream stream =
-        s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build());
-    String result = IoUtils.toUtf8String(stream);
-    stream.close();
-    assertThat(result).isEqualTo(content);
+    try (InputStream stream =
+        s3.getObject(GetObjectRequest.builder().bucket(bucketName).key(objectKey).build())) {
+      String result = IoUtils.toUtf8String(stream);
+      assertThat(result).isEqualTo(content);
+    }
   }
 
   @Test
@@ -547,18 +563,18 @@ public class TestS3FileIOIntegration {
 
   private void write(S3FileIO s3FileIO, String uri) throws Exception {
     OutputFile outputFile = s3FileIO.newOutputFile(uri);
-    OutputStream outputStream = outputFile.create();
-    IoUtils.copy(new ByteArrayInputStream(contentBytes), outputStream);
-    outputStream.close();
+    try (OutputStream outputStream = outputFile.create()) {
+      IoUtils.copy(new ByteArrayInputStream(contentBytes), outputStream);
+    }
   }
 
   private void validateRead(S3FileIO s3FileIO) throws Exception {
     InputFile file = s3FileIO.newInputFile(objectUri);
     assertThat(file.getLength()).isEqualTo(contentBytes.length);
-    InputStream stream = file.newStream();
-    String result = IoUtils.toUtf8String(stream);
-    stream.close();
-    assertThat(result).isEqualTo(content);
+    try (InputStream stream = file.newStream()) {
+      String result = IoUtils.toUtf8String(stream);
+      assertThat(result).isEqualTo(content);
+    }
   }
 
   private String testAccessPointARN(String region, String accessPoint) {
