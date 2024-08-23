@@ -40,15 +40,7 @@ class TriggerEvaluator implements Serializable {
 
   boolean check(TableChange event, long lastTimeMs, long currentTimeMs) {
     boolean result =
-        predicates.stream()
-            .anyMatch(
-                p -> {
-                  try {
-                    return p.evaluate(event, lastTimeMs, currentTimeMs);
-                  } catch (Exception e) {
-                    throw new RuntimeException("Error accessing state", e);
-                  }
-                });
+        predicates.stream().anyMatch(p -> p.evaluate(event, lastTimeMs, currentTimeMs));
     LOG.debug(
         "Checking event: {}, at {}, last: {} with result: {}",
         event,
@@ -59,29 +51,47 @@ class TriggerEvaluator implements Serializable {
   }
 
   static class Builder implements Serializable {
-    private Integer commitNumber;
-    private Integer fileNumber;
-    private Long fileSize;
-    private Integer deleteFileNumber;
+    private Integer dataFileCount;
+    private Long dataFileSizeInBytes;
+    private Integer posDeleteFileCount;
+    private Long posDeleteRecordCount;
+    private Integer eqDeleteFileCount;
+    private Long eqDeleteRecordCount;
+    private Integer commitCount;
     private Duration timeout;
 
-    Builder commitNumber(int newCommitNumber) {
-      this.commitNumber = newCommitNumber;
+    public Builder dataFileCount(int newDataFileCount) {
+      this.dataFileCount = newDataFileCount;
       return this;
     }
 
-    Builder fileNumber(int newFileNumber) {
-      this.fileNumber = newFileNumber;
+    public Builder dataFileSizeInBytes(long neDataFileSizeInBytes) {
+      this.dataFileSizeInBytes = neDataFileSizeInBytes;
       return this;
     }
 
-    Builder fileSize(long newFileSize) {
-      this.fileSize = newFileSize;
+    public Builder posDeleteFileCount(int newPosDeleteFileCount) {
+      this.posDeleteFileCount = newPosDeleteFileCount;
       return this;
     }
 
-    Builder deleteFileNumber(int newDeleteFileNumber) {
-      this.deleteFileNumber = newDeleteFileNumber;
+    public Builder posDeleteRecordCount(long newPosDeleteRecordCount) {
+      this.posDeleteRecordCount = newPosDeleteRecordCount;
+      return this;
+    }
+
+    public Builder eqDeleteFileCount(int newEqDeleteFileCount) {
+      this.eqDeleteFileCount = newEqDeleteFileCount;
+      return this;
+    }
+
+    public Builder eqDeleteRecordCount(long newEqDeleteRecordCount) {
+      this.eqDeleteRecordCount = newEqDeleteRecordCount;
+      return this;
+    }
+
+    public Builder commitCount(int newCommitCount) {
+      this.commitCount = newCommitCount;
       return this;
     }
 
@@ -92,24 +102,37 @@ class TriggerEvaluator implements Serializable {
 
     TriggerEvaluator build() {
       List<Predicate> predicates = Lists.newArrayList();
-      if (commitNumber != null) {
-        predicates.add((change, unused, unused2) -> change.commitNum() >= commitNumber);
+      if (dataFileCount != null) {
+        predicates.add((change, unused, unused2) -> change.dataFileCount() >= dataFileCount);
       }
 
-      if (fileNumber != null) {
+      if (dataFileSizeInBytes != null) {
         predicates.add(
-            (change, unused, unused2) ->
-                change.dataFileNum() + change.deleteFileNum() >= fileNumber);
+            (change, unused, unused2) -> change.dataFileSizeInBytes() >= dataFileSizeInBytes);
       }
 
-      if (fileSize != null) {
+      if (posDeleteFileCount != null) {
         predicates.add(
-            (change, unused, unused2) ->
-                change.dataFileSize() + change.deleteFileSize() >= fileSize);
+            (change, unused, unused2) -> change.posDeleteFileCount() >= posDeleteFileCount);
       }
 
-      if (deleteFileNumber != null) {
-        predicates.add((change, unused, unused2) -> change.deleteFileNum() >= deleteFileNumber);
+      if (posDeleteRecordCount != null) {
+        predicates.add(
+            (change, unused, unused2) -> change.posDeleteRecordCount() >= posDeleteRecordCount);
+      }
+
+      if (eqDeleteFileCount != null) {
+        predicates.add(
+            (change, unused, unused2) -> change.eqDeleteFileCount() >= eqDeleteFileCount);
+      }
+
+      if (eqDeleteRecordCount != null) {
+        predicates.add(
+            (change, unused, unused2) -> change.eqDeleteRecordCount() >= eqDeleteRecordCount);
+      }
+
+      if (commitCount != null) {
+        predicates.add((change, unused, unused2) -> change.commitCount() >= commitCount);
       }
 
       if (timeout != null) {

@@ -105,12 +105,12 @@ public class JdbcLockFactory implements TriggerLockFactory {
 
   @Override
   public Lock createLock() {
-    return new Lock(pool, lockId, Type.MAINTENANCE);
+    return new JdbcLock(pool, lockId, Type.MAINTENANCE);
   }
 
   @Override
   public Lock createRecoveryLock() {
-    return new Lock(pool, lockId, Type.RECOVERY);
+    return new JdbcLock(pool, lockId, Type.RECOVERY);
   }
 
   @Override
@@ -153,12 +153,12 @@ public class JdbcLockFactory implements TriggerLockFactory {
     }
   }
 
-  public static class Lock implements TriggerLockFactory.Lock {
+  private static class JdbcLock implements TriggerLockFactory.Lock {
     private final JdbcClientPool pool;
     private final String lockId;
     private final Type type;
 
-    public Lock(JdbcClientPool pool, String lockId, Type type) {
+    private JdbcLock(JdbcClientPool pool, String lockId, Type type) {
       this.pool = pool;
       this.lockId = lockId;
       this.type = type;
@@ -221,7 +221,7 @@ public class JdbcLockFactory implements TriggerLockFactory {
         throw new UncheckedInterruptedException(e, "Interrupted during isHeld");
       } catch (SQLException e) {
         // SQL exception happened when getting lock information
-        throw new UncheckedSQLException(e, "Failed to get lock information for %s", this);
+        throw new UncheckedSQLException(e, "Failed to check the state of the lock %s", this);
       }
     }
 
@@ -266,8 +266,6 @@ public class JdbcLockFactory implements TriggerLockFactory {
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         throw new UncheckedInterruptedException(e, "Interrupted during unlock");
-      } catch (UncheckedSQLException e) {
-        throw e;
       } catch (SQLException e) {
         // SQL exception happened when getting/updating lock information
         throw new UncheckedSQLException(e, "Failed to remove lock %s", this);
@@ -312,7 +310,7 @@ public class JdbcLockFactory implements TriggerLockFactory {
     MAINTENANCE("m"),
     RECOVERY("r");
 
-    private String key;
+    private final String key;
 
     Type(String key) {
       this.key = key;
