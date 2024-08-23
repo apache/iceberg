@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static scala.collection.JavaConverters.seqAsJavaList;
 
 import java.math.BigDecimal;
@@ -39,7 +40,6 @@ import org.apache.spark.sql.catalyst.plans.logical.NamedArgument;
 import org.apache.spark.sql.catalyst.plans.logical.PositionalArgument;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -135,7 +135,7 @@ public class TestCallStatementParser {
 
   @Test
   public void testCallParseError() {
-    Assertions.assertThatThrownBy(() -> parser.parsePlan("CALL cat.system radish kebab"))
+    assertThatThrownBy(() -> parser.parsePlan("CALL cat.system radish kebab"))
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("missing '(' at 'radish'");
   }

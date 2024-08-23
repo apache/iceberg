@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.spark.sql;
 
-import org.apache.iceberg.AssertHelpers;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
 import org.apache.iceberg.spark.functions.YearsFunction;
 import org.apache.spark.sql.AnalysisException;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -70,46 +71,46 @@ public class TestSparkYearsFunction extends SparkTestBaseWithCatalog {
 
   @Test
   public void testWrongNumberOfArguments() {
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with zero arguments",
-        AnalysisException.class,
-        "Function 'years' cannot process input: (): Wrong number of inputs",
-        () -> scalarSql("SELECT system.years()"));
+    assertThatThrownBy(() -> scalarSql("SELECT system.years()"))
+        .as("Function resolution should not work with zero arguments")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Function 'years' cannot process input: (): Wrong number of inputs");
 
-    AssertHelpers.assertThrows(
-        "Function resolution should not work with more than one argument",
-        AnalysisException.class,
-        "Function 'years' cannot process input: (date, date): Wrong number of inputs",
-        () -> scalarSql("SELECT system.years(date('1969-12-31'), date('1969-12-31'))"));
+    assertThatThrownBy(
+            () -> scalarSql("SELECT system.years(date('1969-12-31'), date('1969-12-31'))"))
+        .as("Function resolution should not work with more than one argument")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'years' cannot process input: (date, date): Wrong number of inputs");
   }
 
   @Test
   public void testInvalidInputTypes() {
-    AssertHelpers.assertThrows(
-        "Int type should not be coercible to date/timestamp",
-        AnalysisException.class,
-        "Function 'years' cannot process input: (int): Expected value to be date or timestamp",
-        () -> scalarSql("SELECT system.years(1)"));
+    assertThatThrownBy(() -> scalarSql("SELECT system.years(1)"))
+        .as("Int type should not be coercible to date/timestamp")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'years' cannot process input: (int): Expected value to be date or timestamp");
 
-    AssertHelpers.assertThrows(
-        "Long type should not be coercible to date/timestamp",
-        AnalysisException.class,
-        "Function 'years' cannot process input: (bigint): Expected value to be date or timestamp",
-        () -> scalarSql("SELECT system.years(1L)"));
+    assertThatThrownBy(() -> scalarSql("SELECT system.years(1L)"))
+        .as("Long type should not be coercible to date/timestamp")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining(
+            "Function 'years' cannot process input: (bigint): Expected value to be date or timestamp");
   }
 
   @Test
   public void testThatMagicFunctionsAreInvoked() {
     String dateValue = "date('2017-12-01')";
     String dateTransformClass = YearsFunction.DateToYearsFunction.class.getName();
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.years(%s)", dateValue))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.years(%s)", dateValue))
         .asString()
         .isNotNull()
         .contains("staticinvoke(class " + dateTransformClass);
 
     String timestampValue = "TIMESTAMP '2017-12-01 10:12:55.038194 UTC+00:00'";
     String timestampTransformClass = YearsFunction.TimestampToYearsFunction.class.getName();
-    Assertions.assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.years(%s)", timestampValue))
+    assertThat(scalarSql("EXPLAIN EXTENDED SELECT system.years(%s)", timestampValue))
         .asString()
         .isNotNull()
         .contains("staticinvoke(class " + timestampTransformClass);

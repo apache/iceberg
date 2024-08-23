@@ -40,7 +40,7 @@ public class FileIOParser {
     return JsonUtil.generate(gen -> toJson(io, gen), pretty);
   }
 
-  private static void toJson(FileIO io, JsonGenerator generator) throws IOException {
+  public static void toJson(FileIO io, JsonGenerator generator) throws IOException {
     String impl = io.getClass().getName();
     Map<String, String> properties;
     try {
@@ -72,7 +72,7 @@ public class FileIOParser {
     return JsonUtil.parse(json, node -> fromJson(node, conf));
   }
 
-  private static FileIO fromJson(JsonNode json, Object conf) {
+  public static FileIO fromJson(JsonNode json, Object conf) {
     Preconditions.checkArgument(json.isObject(), "Cannot parse FileIO from non-object: %s", json);
     String impl = JsonUtil.getString(FILE_IO_IMPL, json);
     Map<String, String> properties = JsonUtil.getStringMap(PROPERTIES, json);

@@ -32,6 +32,7 @@ import static org.apache.iceberg.TestHelpers.assertSameSchemaList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.entry;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import java.io.File;
@@ -49,6 +50,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.UUID;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -63,6 +66,9 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestTableMetadata {
   private static final String TEST_LOCATION = "s3://bucket/test/location";
@@ -537,7 +543,7 @@ public class TestTableMetadata {
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp, "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp, "/tmp/000001-" + UUID.randomUUID() + ".metadata.json"));
 
     TableMetadata base =
         new TableMetadata(
@@ -606,17 +612,14 @@ public class TestTableMetadata {
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 100,
-            "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 100, "/tmp/000001-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 90,
-            "/tmp/000002-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 90, "/tmp/000002-" + UUID.randomUUID() + ".metadata.json"));
 
     MetadataLogEntry latestPreviousMetadata =
         new MetadataLogEntry(
-            currentTimestamp - 80,
-            "/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json");
+            currentTimestamp - 80, "/tmp/000003-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
         new TableMetadata(
@@ -691,29 +694,23 @@ public class TestTableMetadata {
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 100,
-            "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 100, "/tmp/000001-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 90,
-            "/tmp/000002-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 90, "/tmp/000002-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 80,
-            "/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 80, "/tmp/000003-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 70,
-            "/tmp/000004-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 70, "/tmp/000004-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 60,
-            "/tmp/000005-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 60, "/tmp/000005-" + UUID.randomUUID() + ".metadata.json"));
 
     MetadataLogEntry latestPreviousMetadata =
         new MetadataLogEntry(
-            currentTimestamp - 50,
-            "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
+            currentTimestamp - 50, "/tmp/000006-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
         new TableMetadata(
@@ -792,29 +789,23 @@ public class TestTableMetadata {
     List<MetadataLogEntry> previousMetadataLog = Lists.newArrayList();
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 100,
-            "/tmp/000001-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 100, "/tmp/000001-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 90,
-            "/tmp/000002-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 90, "/tmp/000002-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 80,
-            "/tmp/000003-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 80, "/tmp/000003-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 70,
-            "/tmp/000004-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 70, "/tmp/000004-" + UUID.randomUUID() + ".metadata.json"));
     previousMetadataLog.add(
         new MetadataLogEntry(
-            currentTimestamp - 60,
-            "/tmp/000005-" + UUID.randomUUID().toString() + ".metadata.json"));
+            currentTimestamp - 60, "/tmp/000005-" + UUID.randomUUID() + ".metadata.json"));
 
     MetadataLogEntry latestPreviousMetadata =
         new MetadataLogEntry(
-            currentTimestamp - 50,
-            "/tmp/000006-" + UUID.randomUUID().toString() + ".metadata.json");
+            currentTimestamp - 50, "/tmp/000006-" + UUID.randomUUID() + ".metadata.json");
 
     TableMetadata base =
         new TableMetadata(
@@ -1466,8 +1457,20 @@ public class TestTableMetadata {
         .doesNotContainKey(TableProperties.FORMAT_VERSION);
   }
 
-  @Test
-  public void testReplaceV1MetadataToV2ThroughTableProperty() {
+  private static Stream<Arguments> upgradeFormatVersionProvider() {
+    // return a stream of all valid upgrade paths
+    return IntStream.range(1, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION)
+        .boxed()
+        .flatMap(
+            baseFormatVersion ->
+                IntStream.rangeClosed(
+                        baseFormatVersion + 1, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION)
+                    .mapToObj(newFormatVersion -> arguments(baseFormatVersion, newFormatVersion)));
+  }
+
+  @ParameterizedTest
+  @MethodSource("upgradeFormatVersionProvider")
+  public void testReplaceMetadataThroughTableProperty(int baseFormatVersion, int newFormatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
@@ -1475,7 +1478,8 @@ public class TestTableMetadata {
             schema,
             PartitionSpec.unpartitioned(),
             null,
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, "1", "key", "val"));
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION, String.valueOf(baseFormatVersion), "key", "val"));
 
     meta =
         meta.buildReplacement(
@@ -1483,17 +1487,19 @@ public class TestTableMetadata {
             meta.spec(),
             meta.sortOrder(),
             meta.location(),
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key2", "val2"));
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION, String.valueOf(newFormatVersion), "key2", "val2"));
 
-    assertThat(meta.formatVersion()).isEqualTo(2);
+    assertThat(meta.formatVersion()).isEqualTo(newFormatVersion);
     assertThat(meta.properties())
         .containsEntry("key", "val")
         .containsEntry("key2", "val2")
         .doesNotContainKey(TableProperties.FORMAT_VERSION);
   }
 
-  @Test
-  public void testUpgradeV1MetadataToV2ThroughTableProperty() {
+  @ParameterizedTest
+  @MethodSource("upgradeFormatVersionProvider")
+  public void testUpgradeMetadataThroughTableProperty(int baseFormatVersion, int newFormatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
@@ -1501,15 +1507,17 @@ public class TestTableMetadata {
             schema,
             PartitionSpec.unpartitioned(),
             null,
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, "1", "key", "val"));
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION, String.valueOf(baseFormatVersion), "key", "val"));
 
     meta =
         meta.replaceProperties(
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, "2", "key2", "val2"));
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION, String.valueOf(newFormatVersion), "key2", "val2"));
 
     assertThat(meta.formatVersion())
         .as("format version should be configured based on the format-version key")
-        .isEqualTo(2);
+        .isEqualTo(newFormatVersion);
     assertThat(meta.properties())
         .as("should not contain format-version but should contain new properties")
         .containsExactly(entry("key2", "val2"));

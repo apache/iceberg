@@ -62,7 +62,7 @@ class PropertiesUpdate implements UpdateProperties {
   public UpdateProperties remove(String key) {
     Preconditions.checkNotNull(key, "Key cannot be null");
     Preconditions.checkArgument(
-        !updates.keySet().contains(key), "Cannot remove and update the same key: %s", key);
+        !updates.containsKey(key), "Cannot remove and update the same key: %s", key);
 
     removals.add(key);
 

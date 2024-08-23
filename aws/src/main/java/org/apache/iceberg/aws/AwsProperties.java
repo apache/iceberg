@@ -220,26 +220,26 @@ public class AwsProperties implements Serializable {
   private static final String HTTP_CLIENT_PREFIX = "http-client.";
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
-  private String clientAssumeRoleArn;
-  private String clientAssumeRoleExternalId;
-  private int clientAssumeRoleTimeoutSec;
-  private String clientAssumeRoleRegion;
-  private String clientAssumeRoleSessionName;
-  private String clientCredentialsProvider;
-  private boolean clientAssumeRoleStsRegionalEndpointEnabled;
+  private final String clientAssumeRoleArn;
+  private final String clientAssumeRoleExternalId;
+  private final int clientAssumeRoleTimeoutSec;
+  private final String clientAssumeRoleRegion;
+  private final String clientAssumeRoleSessionName;
+  private final String clientCredentialsProvider;
+  private final boolean clientAssumeRoleStsRegionalEndpointEnabled;
   private final Map<String, String> clientCredentialsProviderProperties;
 
-  private String glueEndpoint;
+  private final String glueEndpoint;
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
   private boolean glueCatalogSkipNameValidation;
   private boolean glueLakeFormationEnabled;
 
   private String dynamoDbTableName;
-  private String dynamoDbEndpoint;
+  private final String dynamoDbEndpoint;
 
   private String restSigningRegion;
-  private String restSigningName;
+  private final String restSigningName;
   private String restAccessKeyId;
   private String restSecretAccessKey;
   private String restSessionToken;

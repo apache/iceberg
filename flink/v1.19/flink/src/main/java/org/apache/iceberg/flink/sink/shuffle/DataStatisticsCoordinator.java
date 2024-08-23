@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import java.util.Comparator;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -35,60 +36,99 @@ import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.ThrowableCatchingRunnable;
 import org.apache.flink.util.function.ThrowingRunnable;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Comparators;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * DataStatisticsCoordinator receives {@link DataStatisticsEvent} from {@link
- * DataStatisticsOperator} every subtask and then merge them together. Once aggregation for all
- * subtasks data statistics completes, DataStatisticsCoordinator will send the aggregated data
- * statistics back to {@link DataStatisticsOperator}. In the end a custom partitioner will
- * distribute traffic based on the aggregated data statistics to improve data clustering.
+ * DataStatisticsCoordinator receives {@link StatisticsEvent} from {@link DataStatisticsOperator}
+ * every subtask and then merge them together. Once aggregation for all subtasks data statistics
+ * completes, DataStatisticsCoordinator will send the aggregated data statistics back to {@link
+ * DataStatisticsOperator}. In the end a custom partitioner will distribute traffic based on the
+ * aggregated data statistics to improve data clustering.
  */
 @Internal
-class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements OperatorCoordinator {
+class DataStatisticsCoordinator implements OperatorCoordinator {
   private static final Logger LOG = LoggerFactory.getLogger(DataStatisticsCoordinator.class);
 
   private final String operatorName;
+  private final OperatorCoordinator.Context context;
+  private final Schema schema;
+  private final SortOrder sortOrder;
+  private final Comparator<StructLike> comparator;
+  private final int downstreamParallelism;
+  private final StatisticsType statisticsType;
+  private final double closeFileCostWeightPercentage;
+
   private final ExecutorService coordinatorExecutor;
-  private final OperatorCoordinator.Context operatorCoordinatorContext;
   private final SubtaskGateways subtaskGateways;
   private final CoordinatorExecutorThreadFactory coordinatorThreadFactory;
-  private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
-  private final transient AggregatedStatisticsTracker<D, S> aggregatedStatisticsTracker;
-  private volatile AggregatedStatistics<D, S> completedStatistics;
-  private volatile boolean started;
+  private final TypeSerializer<CompletedStatistics> completedStatisticsSerializer;
+  private final TypeSerializer<GlobalStatistics> globalStatisticsSerializer;
+
+  private transient boolean started;
+  private transient AggregatedStatisticsTracker aggregatedStatisticsTracker;
+  private transient CompletedStatistics completedStatistics;
+  private transient GlobalStatistics globalStatistics;
 
   DataStatisticsCoordinator(
       String operatorName,
       OperatorCoordinator.Context context,
-      TypeSerializer<DataStatistics<D, S>> statisticsSerializer) {
+      Schema schema,
+      SortOrder sortOrder,
+      int downstreamParallelism,
+      StatisticsType statisticsType,
+      double closeFileCostWeightPercentage) {
     this.operatorName = operatorName;
+    this.context = context;
+    this.schema = schema;
+    this.sortOrder = sortOrder;
+    this.comparator = Comparators.forType(SortKeyUtil.sortKeySchema(schema, sortOrder).asStruct());
+    this.downstreamParallelism = downstreamParallelism;
+    this.statisticsType = statisticsType;
+    this.closeFileCostWeightPercentage = closeFileCostWeightPercentage;
+
     this.coordinatorThreadFactory =
         new CoordinatorExecutorThreadFactory(
             "DataStatisticsCoordinator-" + operatorName, context.getUserCodeClassloader());
     this.coordinatorExecutor = Executors.newSingleThreadExecutor(coordinatorThreadFactory);
-    this.operatorCoordinatorContext = context;
-    this.subtaskGateways = new SubtaskGateways(operatorName, parallelism());
-    this.statisticsSerializer = statisticsSerializer;
-    this.aggregatedStatisticsTracker =
-        new AggregatedStatisticsTracker<>(operatorName, statisticsSerializer, parallelism());
+    this.subtaskGateways = new SubtaskGateways(operatorName, context.currentParallelism());
+    SortKeySerializer sortKeySerializer = new SortKeySerializer(schema, sortOrder);
+    this.completedStatisticsSerializer = new CompletedStatisticsSerializer(sortKeySerializer);
+    this.globalStatisticsSerializer = new GlobalStatisticsSerializer(sortKeySerializer);
   }
 
   @Override
   public void start() throws Exception {
     LOG.info("Starting data statistics coordinator: {}.", operatorName);
-    started = true;
+    this.started = true;
+
+    // statistics are restored already in resetToCheckpoint() before start() called
+    this.aggregatedStatisticsTracker =
+        new AggregatedStatisticsTracker(
+            operatorName,
+            context.currentParallelism(),
+            schema,
+            sortOrder,
+            downstreamParallelism,
+            statisticsType,
+            SketchUtil.COORDINATOR_SKETCH_SWITCH_THRESHOLD,
+            completedStatistics);
   }
 
   @Override
   public void close() throws Exception {
     coordinatorExecutor.shutdown();
+    this.aggregatedStatisticsTracker = null;
+    this.started = false;
     LOG.info("Closed data statistics coordinator: {}.", operatorName);
   }
 
@@ -148,7 +188,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
                 operatorName,
                 actionString,
                 t);
-            operatorCoordinatorContext.failJob(t);
+            context.failJob(t);
           }
         });
   }
@@ -157,42 +197,108 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     Preconditions.checkState(started, "The coordinator of %s has not started yet.", operatorName);
   }
 
-  private int parallelism() {
-    return operatorCoordinatorContext.currentParallelism();
-  }
-
-  private void handleDataStatisticRequest(int subtask, DataStatisticsEvent<D, S> event) {
-    AggregatedStatistics<D, S> aggregatedStatistics =
+  private void handleDataStatisticRequest(int subtask, StatisticsEvent event) {
+    CompletedStatistics maybeCompletedStatistics =
         aggregatedStatisticsTracker.updateAndCheckCompletion(subtask, event);
 
-    if (aggregatedStatistics != null) {
-      completedStatistics = aggregatedStatistics;
-      sendDataStatisticsToSubtasks(
-          completedStatistics.checkpointId(), completedStatistics.dataStatistics());
+    if (maybeCompletedStatistics != null) {
+      if (maybeCompletedStatistics.isEmpty()) {
+        LOG.info(
+            "Skip aggregated statistics for checkpoint {} as it is empty.", event.checkpointId());
+      } else {
+        LOG.info("Completed statistics aggregation for checkpoint {}", event.checkpointId());
+        // completedStatistics contains the complete samples, which is needed to compute
+        // the range bounds in globalStatistics if downstreamParallelism changed.
+        this.completedStatistics = maybeCompletedStatistics;
+        // globalStatistics only contains assignment calculated based on Map or Sketch statistics
+        this.globalStatistics =
+            globalStatistics(
+                maybeCompletedStatistics,
+                downstreamParallelism,
+                comparator,
+                closeFileCostWeightPercentage);
+        sendGlobalStatisticsToSubtasks(globalStatistics);
+      }
+    }
+  }
+
+  private static GlobalStatistics globalStatistics(
+      CompletedStatistics completedStatistics,
+      int downstreamParallelism,
+      Comparator<StructLike> comparator,
+      double closeFileCostWeightPercentage) {
+    if (completedStatistics.type() == StatisticsType.Sketch) {
+      // range bound is a much smaller array compared to the complete samples.
+      // It helps reduce the amount of data transfer from coordinator to operator subtasks.
+      return GlobalStatistics.fromRangeBounds(
+          completedStatistics.checkpointId(),
+          SketchUtil.rangeBounds(
+              downstreamParallelism, comparator, completedStatistics.keySamples()));
+    } else {
+      return GlobalStatistics.fromMapAssignment(
+          completedStatistics.checkpointId(),
+          MapAssignment.fromKeyFrequency(
+              downstreamParallelism,
+              completedStatistics.keyFrequency(),
+              closeFileCostWeightPercentage,
+              comparator));
     }
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
-  private void sendDataStatisticsToSubtasks(
-      long checkpointId, DataStatistics<D, S> globalDataStatistics) {
-    callInCoordinatorThread(
+  private void sendGlobalStatisticsToSubtasks(GlobalStatistics statistics) {
+    runInCoordinatorThread(
         () -> {
-          DataStatisticsEvent<D, S> dataStatisticsEvent =
-              DataStatisticsEvent.create(checkpointId, globalDataStatistics, statisticsSerializer);
-          int parallelism = parallelism();
-          for (int i = 0; i < parallelism; ++i) {
-            subtaskGateways.getSubtaskGateway(i).sendEvent(dataStatisticsEvent);
+          LOG.info(
+              "Broadcast latest global statistics from checkpoint {} to all subtasks",
+              statistics.checkpointId());
+          // applyImmediately is set to false so that operator subtasks can
+          // apply the change at checkpoint boundary
+          StatisticsEvent statisticsEvent =
+              StatisticsEvent.createGlobalStatisticsEvent(
+                  statistics, globalStatisticsSerializer, false);
+          for (int i = 0; i < context.currentParallelism(); ++i) {
+            // Ignore future return value for potential error (e.g. subtask down).
+            // Upon restart, subtasks send request to coordinator to refresh statistics
+            // if there is any difference
+            subtaskGateways.getSubtaskGateway(i).sendEvent(statisticsEvent);
           }
-
-          return null;
         },
         String.format(
             "Failed to send operator %s coordinator global data statistics for checkpoint %d",
-            operatorName, checkpointId));
+            operatorName, statistics.checkpointId()));
+  }
+
+  @SuppressWarnings("FutureReturnValueIgnored")
+  private void handleRequestGlobalStatisticsEvent(int subtask, RequestGlobalStatisticsEvent event) {
+    if (globalStatistics != null) {
+      runInCoordinatorThread(
+          () -> {
+            if (event.signature() != null && event.signature() != globalStatistics.hashCode()) {
+              LOG.debug(
+                  "Skip responding to statistics request from subtask {}, as hashCode matches or not included in the request",
+                  subtask);
+            } else {
+              LOG.info(
+                  "Send latest global statistics from checkpoint {} to subtask {}",
+                  globalStatistics.checkpointId(),
+                  subtask);
+              StatisticsEvent statisticsEvent =
+                  StatisticsEvent.createGlobalStatisticsEvent(
+                      globalStatistics, globalStatisticsSerializer, true);
+              subtaskGateways.getSubtaskGateway(subtask).sendEvent(statisticsEvent);
+            }
+          },
+          String.format(
+              "Failed to send operator %s coordinator global data statistics to requesting subtask %d for checkpoint %d",
+              operatorName, subtask, globalStatistics.checkpointId()));
+    } else {
+      LOG.info(
+          "Ignore global statistics request from subtask {} as statistics not available", subtask);
+    }
   }
 
   @Override
-  @SuppressWarnings("unchecked")
   public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) {
     runInCoordinatorThread(
         () -> {
@@ -202,8 +308,14 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
               attemptNumber,
               operatorName,
               event);
-          Preconditions.checkArgument(event instanceof DataStatisticsEvent);
-          handleDataStatisticRequest(subtask, ((DataStatisticsEvent<D, S>) event));
+          if (event instanceof StatisticsEvent) {
+            handleDataStatisticRequest(subtask, ((StatisticsEvent) event));
+          } else if (event instanceof RequestGlobalStatisticsEvent) {
+            handleRequestGlobalStatisticsEvent(subtask, (RequestGlobalStatisticsEvent) event);
+          } else {
+            throw new IllegalArgumentException(
+                "Invalid operator event type: " + event.getClass().getCanonicalName());
+          }
         },
         String.format(
             "handling operator event %s from subtask %d (#%d)",
@@ -218,9 +330,14 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
               "Snapshotting data statistics coordinator {} for checkpoint {}",
               operatorName,
               checkpointId);
-          resultFuture.complete(
-              DataStatisticsUtil.serializeAggregatedStatistics(
-                  completedStatistics, statisticsSerializer));
+          if (completedStatistics == null) {
+            // null checkpoint result is not allowed, hence supply an empty byte array
+            resultFuture.complete(new byte[0]);
+          } else {
+            resultFuture.complete(
+                StatisticsUtil.serializeCompletedStatistics(
+                    completedStatistics, completedStatisticsSerializer));
+          }
         },
         String.format("taking checkpoint %d", checkpointId));
   }
@@ -229,12 +346,10 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   public void notifyCheckpointComplete(long checkpointId) {}
 
   @Override
-  public void resetToCheckpoint(long checkpointId, @Nullable byte[] checkpointData)
-      throws Exception {
+  public void resetToCheckpoint(long checkpointId, byte[] checkpointData) {
     Preconditions.checkState(
         !started, "The coordinator %s can only be reset if it was not yet started", operatorName);
-
-    if (checkpointData == null) {
+    if (checkpointData == null || checkpointData.length == 0) {
       LOG.info(
           "Data statistic coordinator {} has nothing to restore from checkpoint {}",
           operatorName,
@@ -244,8 +359,13 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
 
     LOG.info(
         "Restoring data statistic coordinator {} from checkpoint {}", operatorName, checkpointId);
-    completedStatistics =
-        DataStatisticsUtil.deserializeAggregatedStatistics(checkpointData, statisticsSerializer);
+    this.completedStatistics =
+        StatisticsUtil.deserializeCompletedStatistics(
+            checkpointData, completedStatisticsSerializer);
+    // recompute global statistics in case downstream parallelism changed
+    this.globalStatistics =
+        globalStatistics(
+            completedStatistics, downstreamParallelism, comparator, closeFileCostWeightPercentage);
   }
 
   @Override
@@ -269,7 +389,7 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
     runInCoordinatorThread(
         () -> {
           LOG.info(
-              "Unregistering gateway after failure for subtask {} (#{}) of data statistic {}",
+              "Unregistering gateway after failure for subtask {} (#{}) of data statistics {}",
               subtask,
               attemptNumber,
               operatorName);
@@ -295,14 +415,20 @@ class DataStatisticsCoordinator<D extends DataStatistics<D, S>, S> implements Op
   }
 
   @VisibleForTesting
-  AggregatedStatistics<D, S> completedStatistics() {
+  CompletedStatistics completedStatistics() {
     return completedStatistics;
+  }
+
+  @VisibleForTesting
+  GlobalStatistics globalStatistics() {
+    return globalStatistics;
   }
 
   private static class SubtaskGateways {
     private final String operatorName;
     private final Map<Integer, SubtaskGateway>[] gateways;
 
+    @SuppressWarnings("unchecked")
     private SubtaskGateways(String operatorName, int parallelism) {
       this.operatorName = operatorName;
       gateways = new Map[parallelism];

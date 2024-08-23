@@ -76,14 +76,14 @@ public class TestGlueCatalogTable extends GlueTestBase {
     String tableDescription = "Test table";
     Map<String, String> tableProperties =
         ImmutableMap.<String, String>builder()
-            .putAll(tableLocationProperties)
+            .putAll(TABLE_LOCATION_PROPERTIES)
             .put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, tableDescription)
             .build();
     glueCatalog.createTable(
         TableIdentifier.of(namespace, tableName), schema, partitionSpec, tableProperties);
     // verify table exists in Glue
     GetTableResponse response =
-        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+        GLUE.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
     assertThat(response.table().databaseName()).isEqualTo(namespace);
     assertThat(response.table().name()).isEqualTo(tableName);
     assertThat(response.table().parameters())
@@ -94,12 +94,12 @@ public class TestGlueCatalogTable extends GlueTestBase {
     assertThat(response.table().storageDescriptor().columns()).hasSameSizeAs(schema.columns());
     assertThat(response.table().partitionKeys()).hasSameSizeAs(partitionSpec.fields());
     assertThat(response.table().storageDescriptor().additionalLocations())
-        .containsExactlyInAnyOrderElementsOf(tableLocationProperties.values());
+        .containsExactlyInAnyOrderElementsOf(TABLE_LOCATION_PROPERTIES.values());
     // verify metadata file exists in S3
     String metaLocation =
         response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
-    String key = metaLocation.split(testBucketName, -1)[1].substring(1);
-    s3.headObject(HeadObjectRequest.builder().bucket(testBucketName).key(key).build());
+    String key = metaLocation.split(TEST_BUCKET_NAME, -1)[1].substring(1);
+    S3.headObject(HeadObjectRequest.builder().bucket(TEST_BUCKET_NAME).key(key).build());
     Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     assertThat(table.spec()).isEqualTo(partitionSpec);
     assertThat(table.schema()).asString().isEqualTo(schema.toString());
@@ -137,18 +137,18 @@ public class TestGlueCatalogTable extends GlueTestBase {
   public void testCreateAndLoadTableWithoutWarehouseLocation() {
     GlueCatalog glueCatalogWithoutWarehouse = new GlueCatalog();
     glueCatalogWithoutWarehouse.initialize(
-        catalogName,
+        CATALOG_NAME,
         null,
         new AwsProperties(),
         new S3FileIOProperties(),
-        glue,
+        GLUE,
         LockManagers.defaultLockManager(),
         ImmutableMap.of());
     String namespace = createNamespace();
     String tableName = getRandomName();
     TableIdentifier identifier = TableIdentifier.of(namespace, tableName);
     try {
-      glueCatalog.createTable(identifier, schema, partitionSpec, tableLocationProperties);
+      glueCatalog.createTable(identifier, schema, partitionSpec, TABLE_LOCATION_PROPERTIES);
       glueCatalog.loadTable(identifier);
     } catch (RuntimeException e) {
       throw new RuntimeException(
@@ -182,6 +182,8 @@ public class TestGlueCatalogTable extends GlueTestBase {
     assertThat(current).isNull();
     // create table, refresh should update
     createTable(namespace, tableName);
+    String description = "test description";
+    updateTableDescription(namespace, tableName, description);
     current = ops.refresh();
     assertThat(current.schema()).asString().isEqualTo(schema.toString());
     assertThat(current.spec()).isEqualTo(partitionSpec);
@@ -200,12 +202,86 @@ public class TestGlueCatalogTable extends GlueTestBase {
     assertThat(table.history()).hasSize(1);
     // check table in Glue
     GetTableResponse response =
-        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+        GLUE.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
     assertThat(response.table().tableType())
         .as("external table type is set after update")
         .isEqualTo("EXTERNAL_TABLE");
     assertThat(response.table().storageDescriptor().columns()).hasSameSizeAs(schema.columns());
     assertThat(response.table().partitionKeys()).hasSameSizeAs(partitionSpec.fields());
+    assertThat(response.table().description()).isEqualTo(description);
+
+    String updatedComment = "test updated comment";
+    table
+        .updateProperties()
+        .set(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, updatedComment)
+        .commit();
+    // check table in Glue
+    response =
+        GLUE.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    assertThat(response.table().description()).isEqualTo(updatedComment);
+  }
+
+  @Test
+  public void testDropColumn() {
+    String namespace = createNamespace();
+    String tableName = createTable(namespace);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    table
+        .updateSchema()
+        .addColumn("c2", Types.StringType.get(), "updated from Iceberg API")
+        .addColumn("c3", Types.StringType.get())
+        .commit();
+
+    updateTableColumns(
+        namespace,
+        tableName,
+        column -> {
+          if (column.name().equals("c3")) {
+            return column.toBuilder().comment("updated from Glue API").build();
+          } else {
+            return column;
+          }
+        });
+
+    table.updateSchema().deleteColumn("c2").deleteColumn("c3").commit();
+
+    GetTableResponse response =
+        GLUE.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    List<Column> actualColumns = response.table().storageDescriptor().columns();
+
+    List<Column> expectedColumns =
+        ImmutableList.of(
+            Column.builder()
+                .name("c1")
+                .type("string")
+                .comment("c1")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "1",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"))
+                .build(),
+            Column.builder()
+                .name("c2")
+                .type("string")
+                .comment("updated from Iceberg API")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "2",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "false"))
+                .build(),
+            Column.builder()
+                .name("c3")
+                .type("string")
+                .comment("updated from Glue API")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "3",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "false"))
+                .build());
+    assertThat(actualColumns).isEqualTo(expectedColumns);
   }
 
   @Test
@@ -232,7 +308,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Table table = glueCatalog.loadTable(id);
     // create a new table in Glue, so that rename to that table will fail
     String newTableName = tableName + "_2";
-    glue.createTable(
+    GLUE.createTable(
         CreateTableRequest.builder()
             .databaseName(namespace)
             .tableInput(TableInput.builder().name(newTableName).build())
@@ -261,7 +337,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     Table table = glueCatalog.loadTable(id);
     // delete the old table metadata, so that drop old table will fail
     String newTableName = tableName + "_2";
-    glue.updateTable(
+    GLUE.updateTable(
         UpdateTableRequest.builder()
             .databaseName(namespace)
             .tableInput(TableInput.builder().name(tableName).parameters(Maps.newHashMap()).build())
@@ -276,7 +352,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
         .hasMessageContaining("Input Glue table is not an iceberg table");
     assertThatThrownBy(
             () ->
-                glue.getTable(
+                GLUE.getTable(
                     GetTableRequest.builder().databaseName(namespace).name(newTableName).build()))
         .isInstanceOf(EntityNotFoundException.class)
         .as("renamed table should be deleted")
@@ -294,11 +370,11 @@ public class TestGlueCatalogTable extends GlueTestBase {
         .hasMessageContaining("Table does not exist");
     String warehouseLocation =
         glueCatalog.defaultWarehouseLocation(TableIdentifier.of(namespace, tableName));
-    String prefix = warehouseLocation.split(testBucketName + "/", -1)[1];
+    String prefix = warehouseLocation.split(TEST_BUCKET_NAME + "/", -1)[1];
     ListObjectsV2Response response =
-        s3.listObjectsV2(
+        S3.listObjectsV2(
             ListObjectsV2Request.builder()
-                .bucket(testBucketName)
+                .bucket(TEST_BUCKET_NAME)
                 .prefix(prefix + "/metadata/")
                 .build());
     assertThat(response.hasContents()).isTrue();
@@ -347,10 +423,10 @@ public class TestGlueCatalogTable extends GlueTestBase {
         .hasMessageContaining("Table does not exist");
     String warehouseLocation =
         glueCatalog.defaultWarehouseLocation(TableIdentifier.of(namespace, tableName));
-    String prefix = warehouseLocation.split(testBucketName + "/", -1)[1];
+    String prefix = warehouseLocation.split(TEST_BUCKET_NAME + "/", -1)[1];
     ListObjectsV2Response response =
-        s3.listObjectsV2(
-            ListObjectsV2Request.builder().bucket(testBucketName).prefix(prefix).build());
+        S3.listObjectsV2(
+            ListObjectsV2Request.builder().bucket(TEST_BUCKET_NAME).prefix(prefix).build());
     if (response.hasContents()) {
       // might have directory markers left
       for (S3Object s3Object : response.contents()) {
@@ -365,7 +441,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
   public void testCommitTableSkipArchive() {
     // create ns
     String namespace = getRandomName();
-    namespaces.add(namespace);
+    NAMESPACES.add(namespace);
     glueCatalog.createNamespace(Namespace.of(namespace));
     // create table and commit without skip
     Schema schema = new Schema(Types.NestedField.required(1, "c1", Types.StringType.get(), "c1"));
@@ -374,11 +450,11 @@ public class TestGlueCatalogTable extends GlueTestBase {
     AwsProperties properties = new AwsProperties();
     properties.setGlueCatalogSkipArchive(false);
     glueCatalog.initialize(
-        catalogName,
-        testBucketPath,
+        CATALOG_NAME,
+        TEST_BUCKET_PATH,
         properties,
         new S3FileIOProperties(),
-        glue,
+        GLUE,
         LockManagers.defaultLockManager(),
         ImmutableMap.of());
     glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
@@ -391,7 +467,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
             .build();
     table.newAppend().appendFile(dataFile).commit();
     assertThat(
-            glue.getTableVersions(
+            GLUE.getTableVersions(
                     GetTableVersionsRequest.builder()
                         .databaseName(namespace)
                         .tableName(tableName)
@@ -400,12 +476,12 @@ public class TestGlueCatalogTable extends GlueTestBase {
         .hasSize(2);
     // create table and commit with skip
     tableName = getRandomName();
-    glueCatalog.initialize(catalogName, ImmutableMap.of());
+    glueCatalog.initialize(CATALOG_NAME, ImmutableMap.of());
     glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
     table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
     table.newAppend().appendFile(dataFile).commit();
     assertThat(
-            glue.getTableVersions(
+            GLUE.getTableVersions(
                     GetTableVersionsRequest.builder()
                         .databaseName(namespace)
                         .tableName(tableName)
@@ -418,13 +494,13 @@ public class TestGlueCatalogTable extends GlueTestBase {
   @Test
   public void testCommitTableSkipNameValidation() {
     String namespace = "dd-dd";
-    namespaces.add(namespace);
+    NAMESPACES.add(namespace);
     glueCatalogWithSkipNameValidation.createNamespace(Namespace.of(namespace));
     String tableName = "cc-cc";
     glueCatalogWithSkipNameValidation.createTable(
-        TableIdentifier.of(namespace, tableName), schema, partitionSpec, tableLocationProperties);
+        TableIdentifier.of(namespace, tableName), schema, partitionSpec, TABLE_LOCATION_PROPERTIES);
     GetTableResponse response =
-        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+        GLUE.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
     assertThat(response.table().databaseName()).isEqualTo(namespace);
     assertThat(response.table().name()).isEqualTo(tableName);
   }
@@ -446,7 +522,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
     table.updateSpec().addField(truncate("c1", 8)).commit();
     table.updateSchema().deleteColumn("c3").renameColumn("c4", "c5").commit();
     GetTableResponse response =
-        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+        GLUE.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
     List<Column> actualColumns = response.table().storageDescriptor().columns();
 
     List<Column> expectedColumns =
@@ -502,6 +578,72 @@ public class TestGlueCatalogTable extends GlueTestBase {
   }
 
   @Test
+  public void testGlueTableColumnCommentsPreserved() {
+    String namespace = createNamespace();
+    String tableName = createTable(namespace);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    table
+        .updateSchema()
+        .addColumn("c2", Types.StringType.get())
+        .addColumn("c3", Types.StringType.get())
+        .commit();
+
+    updateTableColumns(
+        namespace,
+        tableName,
+        column -> {
+          if (column.name().equals("c2") || column.name().equals("c3")) {
+            return column.toBuilder().comment("updated from Glue API").build();
+          } else {
+            return column;
+          }
+        });
+
+    table
+        .updateSchema()
+        .updateColumn("c2", Types.StringType.get(), "updated from Iceberg API")
+        .commit();
+
+    GetTableResponse response =
+        GLUE.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    List<Column> actualColumns = response.table().storageDescriptor().columns();
+
+    List<Column> expectedColumns =
+        ImmutableList.of(
+            Column.builder()
+                .name("c1")
+                .type("string")
+                .comment("c1")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "1",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"))
+                .build(),
+            Column.builder()
+                .name("c2")
+                .type("string")
+                .comment("updated from Iceberg API")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "2",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"))
+                .build(),
+            Column.builder()
+                .name("c3")
+                .type("string")
+                .comment("updated from Glue API")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "3",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"))
+                .build());
+    assertThat(actualColumns).isEqualTo(expectedColumns);
+  }
+
+  @Test
   public void testTablePropsDefinedAtCatalogLevel() {
     String namespace = createNamespace();
     String tableName = getRandomName();
@@ -513,7 +655,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
             "table-default.key3", "catalog-default-key3",
             "table-override.key3", "catalog-override-key3",
             "table-override.key4", "catalog-override-key4",
-            "warehouse", "s3://" + testBucketName + "/" + testPathPrefix);
+            "warehouse", "s3://" + TEST_BUCKET_NAME + "/" + TEST_PATH_PREFIX);
 
     glueCatalog.initialize("glue", catalogProps);
 
@@ -580,7 +722,7 @@ public class TestGlueCatalogTable extends GlueTestBase {
 
   @Test
   public void testTableLevelS3Tags() {
-    String testBucketPath = "s3://" + testBucketName + "/" + testPathPrefix;
+    String testBucketPath = "s3://" + TEST_BUCKET_NAME + "/" + TEST_PATH_PREFIX;
     Map<String, String> properties =
         ImmutableMap.of(
             S3FileIOProperties.WRITE_TABLE_TAG_ENABLED,
@@ -588,11 +730,11 @@ public class TestGlueCatalogTable extends GlueTestBase {
             S3FileIOProperties.WRITE_NAMESPACE_TAG_ENABLED,
             "true");
     glueCatalog.initialize(
-        catalogName,
+        CATALOG_NAME,
         testBucketPath,
         new AwsProperties(properties),
         new S3FileIOProperties(properties),
-        glue,
+        GLUE,
         null);
     String namespace = createNamespace();
     String tableName = getRandomName();
@@ -600,13 +742,13 @@ public class TestGlueCatalogTable extends GlueTestBase {
 
     // Get metadata object tag from S3
     GetTableResponse response =
-        glue.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+        GLUE.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
     String metaLocation =
         response.table().parameters().get(BaseMetastoreTableOperations.METADATA_LOCATION_PROP);
-    String key = metaLocation.split(testBucketName, -1)[1].substring(1);
+    String key = metaLocation.split(TEST_BUCKET_NAME, -1)[1].substring(1);
     List<Tag> tags =
-        s3.getObjectTagging(
-                GetObjectTaggingRequest.builder().bucket(testBucketName).key(key).build())
+        S3.getObjectTagging(
+                GetObjectTaggingRequest.builder().bucket(TEST_BUCKET_NAME).key(key).build())
             .tagSet();
     Map<String, String> tagMap = tags.stream().collect(Collectors.toMap(Tag::key, Tag::value));
 

@@ -149,7 +149,7 @@ class ExponentialHttpRequestRetryStrategy implements HttpRequestRetryStrategy {
       }
     }
 
-    int delayMillis = 1000 * (int) Math.min(Math.pow(2.0, (long) execCount - 1), 64.0);
+    int delayMillis = 1000 * (int) Math.min(Math.pow(2.0, (long) execCount - 1.0), 64.0);
     int jitter = ThreadLocalRandom.current().nextInt(Math.max(1, (int) (delayMillis * 0.1)));
 
     return TimeValue.ofMilliseconds(delayMillis + jitter);

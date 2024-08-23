@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.rest.requests;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +30,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.rest.RequestResponseTestBase;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestUpdateNamespacePropertiesRequest
@@ -117,13 +119,13 @@ public class TestUpdateNamespacePropertiesRequest
     // Invalid top-level types
     String jsonInvalidTypeOnRemovalField =
         "{\"removals\":{\"foo\":\"bar\"},\"updates\":{\"owner\":\"Hank\"}}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnRemovalField))
+    assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnRemovalField))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageStartingWith("Cannot deserialize value of type");
 
     String jsonInvalidTypeOnUpdatesField =
         "{\"removals\":[\"foo\":\"bar\"],\"updates\":[\"owner\"]}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnUpdatesField))
+    assertThatThrownBy(() -> deserialize(jsonInvalidTypeOnUpdatesField))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageStartingWith("Unexpected character")
         .hasMessageContaining("expecting comma to separate Array entries");
@@ -133,52 +135,48 @@ public class TestUpdateNamespacePropertiesRequest
     //    e.g. { removals: [ "foo", "bar", 1234 ] } will parse correctly.
     String invalidJsonWrongTypeInRemovalsList =
         "{\"removals\":[\"foo\",\"bar\", {\"owner\": \"Hank\"}],\"updates\":{\"owner\":\"Hank\"}}";
-    Assertions.assertThatThrownBy(() -> deserialize(invalidJsonWrongTypeInRemovalsList))
+    assertThatThrownBy(() -> deserialize(invalidJsonWrongTypeInRemovalsList))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageStartingWith("Cannot deserialize value of type");
 
     String nullJson = null;
-    Assertions.assertThatThrownBy(() -> deserialize(nullJson))
+    assertThatThrownBy(() -> deserialize(nullJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotCreateInvalidObjects() {
-    Assertions.assertThatThrownBy(
-            () -> UpdateNamespacePropertiesRequest.builder().remove(null).build())
+    assertThatThrownBy(() -> UpdateNamespacePropertiesRequest.builder().remove(null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid property to remove: null");
 
-    Assertions.assertThatThrownBy(
-            () -> UpdateNamespacePropertiesRequest.builder().removeAll(null).build())
+    assertThatThrownBy(() -> UpdateNamespacePropertiesRequest.builder().removeAll(null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid list of properties to remove: null");
 
     List<String> listWithNull = Lists.newArrayList("a", null, null);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> UpdateNamespacePropertiesRequest.builder().removeAll(listWithNull).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid property to remove: null");
 
-    Assertions.assertThatThrownBy(
-            () -> UpdateNamespacePropertiesRequest.builder().update(null, "100").build())
+    assertThatThrownBy(() -> UpdateNamespacePropertiesRequest.builder().update(null, "100").build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid property to update: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> UpdateNamespacePropertiesRequest.builder().update("owner", null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid value to update for key [owner]: null. Use remove instead");
 
-    Assertions.assertThatThrownBy(
-            () -> UpdateNamespacePropertiesRequest.builder().updateAll(null).build())
+    assertThatThrownBy(() -> UpdateNamespacePropertiesRequest.builder().updateAll(null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid collection of properties to update: null");
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "hello");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> UpdateNamespacePropertiesRequest.builder().updateAll(mapWithNullKey).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid property to update: null");
@@ -186,7 +184,7 @@ public class TestUpdateNamespacePropertiesRequest
     Map<String, String> mapWithMultipleNullValues = Maps.newHashMap();
     mapWithMultipleNullValues.put("a", null);
     mapWithMultipleNullValues.put("b", "b");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 UpdateNamespacePropertiesRequest.builder()
                     .updateAll(mapWithMultipleNullValues)
@@ -211,10 +209,10 @@ public class TestUpdateNamespacePropertiesRequest
   @Override
   public void assertEquals(
       UpdateNamespacePropertiesRequest actual, UpdateNamespacePropertiesRequest expected) {
-    Assertions.assertThat(actual.updates())
+    assertThat(actual.updates())
         .as("Properties to update should be equal")
         .isEqualTo(expected.updates());
-    Assertions.assertThat(Sets.newHashSet(actual.removals()))
+    assertThat(Sets.newHashSet(actual.removals()))
         .as("Properties to remove should be equal")
         .containsExactlyInAnyOrderElementsOf(Sets.newHashSet(expected.removals()));
   }

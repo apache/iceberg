@@ -19,11 +19,11 @@
 package org.apache.iceberg.orc;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestIdToOrcName {
@@ -70,31 +70,31 @@ public class TestIdToOrcName {
             required(26, "colWith`Quotes`", Types.LongType.get()));
 
     Map<Integer, String> actual = ORCSchemaUtil.idToOrcName(schema);
-    Assertions.assertThat(actual.get(1)).isEqualTo("`long`");
-    Assertions.assertThat(actual.get(2)).isEqualTo("`struct`");
-    Assertions.assertThat(actual.get(3)).isEqualTo("`struct`.`long`");
-    Assertions.assertThat(actual.get(4)).isEqualTo("`listOfLongs`");
-    Assertions.assertThat(actual.get(5)).isEqualTo("`listOfLongs`.`_elem`");
-    Assertions.assertThat(actual.get(6)).isEqualTo("`listOfStructs`");
-    Assertions.assertThat(actual.get(7)).isEqualTo("`listOfStructs`.`_elem`");
-    Assertions.assertThat(actual.get(8)).isEqualTo("`listOfStructs`.`_elem`.`long`");
-    Assertions.assertThat(actual.get(9)).isEqualTo("`map`");
-    Assertions.assertThat(actual.get(10)).isEqualTo("`map`.`_key`");
-    Assertions.assertThat(actual.get(11)).isEqualTo("`map`.`_value`");
-    Assertions.assertThat(actual.get(12)).isEqualTo("`mapOfStructs`");
-    Assertions.assertThat(actual.get(13)).isEqualTo("`mapOfStructs`.`_key`");
-    Assertions.assertThat(actual.get(14)).isEqualTo("`mapOfStructs`.`_value`");
-    Assertions.assertThat(actual.get(15)).isEqualTo("`mapOfStructs`.`_key`.`long`");
-    Assertions.assertThat(actual.get(16)).isEqualTo("`mapOfStructs`.`_value`.`long`");
-    Assertions.assertThat(actual.get(17)).isEqualTo("`listOfMapsOfStruct`");
-    Assertions.assertThat(actual.get(18)).isEqualTo("`listOfMapsOfStruct`.`_elem`");
-    Assertions.assertThat(actual.get(19)).isEqualTo("`listOfMapsOfStruct`.`_elem`.`_key`");
-    Assertions.assertThat(actual.get(20)).isEqualTo("`listOfMapsOfStruct`.`_elem`.`_value`");
-    Assertions.assertThat(actual.get(21)).isEqualTo("`listOfMapsOfStruct`.`_elem`.`_key`.`long`");
-    Assertions.assertThat(actual.get(22)).isEqualTo("`listOfMapsOfStruct`.`_elem`.`_value`.`long`");
-    Assertions.assertThat(actual.get(23)).isEqualTo("`col.with.dots`");
-    Assertions.assertThat(actual.get(24)).isEqualTo("`col.with.dots`.`inner.col.with.dots`");
-    Assertions.assertThat(actual.get(25)).isEqualTo("`colW!th$peci@lCh@rs`");
-    Assertions.assertThat(actual.get(26)).isEqualTo("`colWith``Quotes```");
+    assertThat(actual.get(1)).isEqualTo("`long`");
+    assertThat(actual.get(2)).isEqualTo("`struct`");
+    assertThat(actual.get(3)).isEqualTo("`struct`.`long`");
+    assertThat(actual.get(4)).isEqualTo("`listOfLongs`");
+    assertThat(actual.get(5)).isEqualTo("`listOfLongs`.`_elem`");
+    assertThat(actual.get(6)).isEqualTo("`listOfStructs`");
+    assertThat(actual.get(7)).isEqualTo("`listOfStructs`.`_elem`");
+    assertThat(actual.get(8)).isEqualTo("`listOfStructs`.`_elem`.`long`");
+    assertThat(actual.get(9)).isEqualTo("`map`");
+    assertThat(actual.get(10)).isEqualTo("`map`.`_key`");
+    assertThat(actual.get(11)).isEqualTo("`map`.`_value`");
+    assertThat(actual.get(12)).isEqualTo("`mapOfStructs`");
+    assertThat(actual.get(13)).isEqualTo("`mapOfStructs`.`_key`");
+    assertThat(actual.get(14)).isEqualTo("`mapOfStructs`.`_value`");
+    assertThat(actual.get(15)).isEqualTo("`mapOfStructs`.`_key`.`long`");
+    assertThat(actual.get(16)).isEqualTo("`mapOfStructs`.`_value`.`long`");
+    assertThat(actual.get(17)).isEqualTo("`listOfMapsOfStruct`");
+    assertThat(actual.get(18)).isEqualTo("`listOfMapsOfStruct`.`_elem`");
+    assertThat(actual.get(19)).isEqualTo("`listOfMapsOfStruct`.`_elem`.`_key`");
+    assertThat(actual.get(20)).isEqualTo("`listOfMapsOfStruct`.`_elem`.`_value`");
+    assertThat(actual.get(21)).isEqualTo("`listOfMapsOfStruct`.`_elem`.`_key`.`long`");
+    assertThat(actual.get(22)).isEqualTo("`listOfMapsOfStruct`.`_elem`.`_value`.`long`");
+    assertThat(actual.get(23)).isEqualTo("`col.with.dots`");
+    assertThat(actual.get(24)).isEqualTo("`col.with.dots`.`inner.col.with.dots`");
+    assertThat(actual.get(25)).isEqualTo("`colW!th$peci@lCh@rs`");
+    assertThat(actual.get(26)).isEqualTo("`colWith``Quotes```");
   }
 }

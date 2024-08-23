@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink;
 
 import static org.apache.iceberg.flink.FlinkCatalogFactory.DEFAULT_CATALOG_NAME;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -26,7 +27,6 @@ import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.TableResult;
 import org.apache.flink.test.junit5.MiniClusterExtension;
-import org.apache.flink.test.util.TestBaseUtils;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -35,16 +35,15 @@ import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 
-public abstract class TestBase extends TestBaseUtils {
+public abstract class TestBase extends SqlBase {
 
   @RegisterExtension
-  public static MiniClusterExtension miniClusterResource =
+  public static MiniClusterExtension miniClusterExtension =
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
   @TempDir protected Path temporaryDirectory;
@@ -72,6 +71,7 @@ public abstract class TestBase extends TestBaseUtils {
     TestBase.catalog = null;
   }
 
+  @Override
   protected TableEnvironment getTableEnv() {
     if (tEnv == null) {
       synchronized (this) {
@@ -107,14 +107,11 @@ public abstract class TestBase extends TestBaseUtils {
   }
 
   protected void assertSameElements(Iterable<Row> expected, Iterable<Row> actual) {
-    Assertions.assertThat(actual).isNotNull().containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(actual).isNotNull().containsExactlyInAnyOrderElementsOf(expected);
   }
 
   protected void assertSameElements(String message, Iterable<Row> expected, Iterable<Row> actual) {
-    Assertions.assertThat(actual)
-        .isNotNull()
-        .as(message)
-        .containsExactlyInAnyOrderElementsOf(expected);
+    assertThat(actual).isNotNull().as(message).containsExactlyInAnyOrderElementsOf(expected);
   }
 
   /**

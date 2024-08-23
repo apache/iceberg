@@ -231,7 +231,6 @@ public class TestCommitMetricsResultParser {
     String expectedJson = "{ }";
 
     String json = CommitMetricsResultParser.toJson(commitMetricsResult, true);
-    System.out.println(json);
     assertThat(json).isEqualTo(expectedJson);
     assertThat(CommitMetricsResultParser.fromJson(json))
         .isEqualTo(ImmutableCommitMetricsResult.builder().build());

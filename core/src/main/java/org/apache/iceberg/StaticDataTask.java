@@ -64,6 +64,19 @@ class StaticDataTask implements DataTask {
     this.rows = rows;
   }
 
+  StaticDataTask(
+      DataFile metadataFile, Schema tableSchema, Schema projectedSchema, StructLike[] rows) {
+    this.tableSchema = tableSchema;
+    this.projectedSchema = projectedSchema;
+    this.metadataFile = metadataFile;
+    this.rows = rows;
+  }
+
+  @Override
+  public Schema schema() {
+    return tableSchema;
+  }
+
   @Override
   public List<DeleteFile> deletes() {
     return ImmutableList.of();
@@ -104,6 +117,23 @@ class StaticDataTask implements DataTask {
   @Override
   public Iterable<FileScanTask> split(long splitSize) {
     return ImmutableList.of(this);
+  }
+
+  Schema projectedSchema() {
+    return projectedSchema;
+  }
+
+  DataFile metadataFile() {
+    return metadataFile;
+  }
+
+  /**
+   * Returns the table rows before projection.
+   *
+   * @return the table rows before projection
+   */
+  StructLike[] tableRows() {
+    return rows;
   }
 
   /** Implements {@link StructLike#get} for passing static rows. */

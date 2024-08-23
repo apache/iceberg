@@ -22,6 +22,13 @@ title: "Vendors"
 
 This page contains some of the vendors who are shipping and supporting Apache Iceberg in their products
 
+### [Bodo](https://bodo.ai)
+
+Bodo is a high performance SQL & Python compute engine that brings HPC and supercomputing techniques to data analytics.
+Bodo supports Apache Iceberg tables as a first-class table format and storage, enabling users to read and write Iceberg
+tables with Bodo's high-performance data processing engine. Bodo is available as a cloud service on
+AWS and Azure, and as well as an on-premises solution.
+
 ### [CelerData](https://celerdata.com)
 
 CelerData provides commercial offerings for [StarRocks](https://www.starrocks.io/), a distributed MPP SQL engine for enterprise analytics on Iceberg. With its fully vectorized technology, local caching, and intelligent materialized view, StarRocks delivers sub-second query latency for both batch and real-time analytics. CelerData offers both an [enterprise deployment](https://celerdata.com/celerdata-enterprise) and a [cloud service](https://celerdata.com/celerdata-cloud) to help customers use StarRocks more smoothly. Learn more about how to query Iceberg with StarRocks [here](https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog).
@@ -33,15 +40,22 @@ ClickHouse is a column-oriented database that enables its users to generate powe
 
 ### [Cloudera](http://cloudera.com)
 
-Cloudera Data Platform integrates Apache Iceberg to the following components:
-* Apache Hive, Apache Impala, and Apache Spark to query Apache Iceberg tables
-* Cloudera Data Warehouse service providing access to Apache Iceberg tables through Apache Hive and Apache Impala
-* Cloudera Data Engineering service providing access to Apache Iceberg tables through Apache Spark
-* The CDP Shared Data Experience (SDX) provides compliance and self-service data access for Apache Iceberg tables
-* Hive metastore, which plays a lightweight role in providing the Iceberg Catalog
-* Data Visualization to visualize data stored in Apache Iceberg
+[Cloudera's data lakehouse](https://www.cloudera.com/products/open-data-lakehouse.html)
+enables customers to store and manage their data in open table
+formats like Apache Iceberg for running large scale multi-function analytics and AI.
+Organizations rely on Cloudera's Iceberg support because it is easy to use, easy
+to integrate into any data ecosystem and easy to run multiple engines - both Cloudera
+and non-Cloudera, regardless of where the data resides.
+It provides a common standard for all data with unified security, governance, metadata
+management, and fine-grained access control across the data.
 
-https://docs.cloudera.com/cdp-public-cloud/cloud/cdp-iceberg/topics/iceberg-in-cdp.html
+[Cloudera](https://www.cloudera.com/) provides an integrated end to end open data lakehouse with the ability
+to ingest batch and streaming data using NiFi, Flink and Kafka, then process
+the same copy of data using Spark and run analytics or AI with our
+[Data Visualization](https://www.cloudera.com/products/cloudera-data-platform/data-visualization.html),
+[Data warehouse](https://www.cloudera.com/products/data-warehouse.html) and
+[Machine Learning](https://www.cloudera.com/products/machine-learning.html) tools on private
+or any public cloud.
 
 ### [Dremio](https://www.dremio.com/)
 

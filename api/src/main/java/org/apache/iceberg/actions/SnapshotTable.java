@@ -19,6 +19,7 @@
 package org.apache.iceberg.actions;
 
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 
 /** An action that creates an independent snapshot of an existing table. */
 public interface SnapshotTable extends Action<SnapshotTable, SnapshotTable.Result> {
@@ -56,6 +57,17 @@ public interface SnapshotTable extends Action<SnapshotTable, SnapshotTable.Resul
    * @return this for method chaining
    */
   SnapshotTable tableProperty(String key, String value);
+
+  /**
+   * Sets the executor service to use for parallel file reading. The default is not using executor
+   * service.
+   *
+   * @param service executor service
+   * @return this for method chaining
+   */
+  default SnapshotTable executeWith(ExecutorService service) {
+    throw new UnsupportedOperationException("Setting executor service is not supported");
+  }
 
   /** The action result that contains a summary of the execution. */
   interface Result {

@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -29,27 +31,38 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class TestFileScanTaskParser {
   @Test
   public void testNullArguments() {
-    Assertions.assertThatThrownBy(() -> FileScanTaskParser.toJson(null))
+    assertThatThrownBy(() -> ScanTaskParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid file scan task: null");
+        .hasMessage("Invalid scan task: null");
 
-    Assertions.assertThatThrownBy(() -> FileScanTaskParser.fromJson(null, true))
+    assertThatThrownBy(() -> ScanTaskParser.fromJson(null, true))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid JSON string for file scan task: null");
+        .hasMessage("Invalid JSON string for scan task: null");
   }
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
-  public void testParser(boolean caseSensitive) {
+  public void testScanTaskParser(boolean caseSensitive) {
     PartitionSpec spec = TestBase.SPEC;
-    FileScanTask fileScanTask = createScanTask(spec, caseSensitive);
-    String jsonStr = FileScanTaskParser.toJson(fileScanTask);
-    Assertions.assertThat(jsonStr).isEqualTo(expectedFileScanTaskJson());
-    FileScanTask deserializedTask = FileScanTaskParser.fromJson(jsonStr, caseSensitive);
+    FileScanTask fileScanTask = createFileScanTask(spec, caseSensitive);
+    String jsonStr = ScanTaskParser.toJson(fileScanTask);
+    assertThat(jsonStr).isEqualTo(fileScanTaskJson());
+    FileScanTask deserializedTask = ScanTaskParser.fromJson(jsonStr, caseSensitive);
     assertFileScanTaskEquals(fileScanTask, deserializedTask, spec, caseSensitive);
   }
 
-  private FileScanTask createScanTask(PartitionSpec spec, boolean caseSensitive) {
+  /** Test backward compatibility where task-type field is absent from the JSON string */
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  public void testScanTaskParserWithoutTaskTypeField(boolean caseSensitive) {
+    PartitionSpec spec = TestBase.SPEC;
+    FileScanTask fileScanTask = createFileScanTask(spec, caseSensitive);
+    FileScanTask deserializedTask =
+        ScanTaskParser.fromJson(fileScanTaskJsonWithoutTaskType(), caseSensitive);
+    assertFileScanTaskEquals(fileScanTask, deserializedTask, spec, caseSensitive);
+  }
+
+  private FileScanTask createFileScanTask(PartitionSpec spec, boolean caseSensitive) {
     ResidualEvaluator residualEvaluator;
     if (spec.isUnpartitioned()) {
       residualEvaluator = ResidualEvaluator.unpartitioned(Expressions.alwaysTrue());
@@ -65,8 +78,28 @@ public class TestFileScanTaskParser {
         residualEvaluator);
   }
 
-  private String expectedFileScanTaskJson() {
+  private String fileScanTaskJsonWithoutTaskType() {
     return "{\"schema\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
+        + "{\"id\":3,\"name\":\"id\",\"required\":true,\"type\":\"int\"},"
+        + "{\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
+        + "\"spec\":{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
+        + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]},"
+        + "\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
+        + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},"
+        + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
+        + "\"start\":0,\"length\":10,"
+        + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
+        + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
+        + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1},"
+        + "{\"spec-id\":0,\"content\":\"EQUALITY_DELETES\",\"file-path\":\"/path/to/data-a2-deletes.parquet\","
+        + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,"
+        + "\"record-count\":1,\"equality-ids\":[1],\"sort-order-id\":0}],"
+        + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}";
+  }
+
+  private String fileScanTaskJson() {
+    return "{\"task-type\":\"file-scan-task\","
+        + "\"schema\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
         + "{\"id\":3,\"name\":\"id\",\"required\":true,\"type\":\"int\"},"
         + "{\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
         + "\"spec\":{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
@@ -87,17 +120,15 @@ public class TestFileScanTaskParser {
   private static void assertFileScanTaskEquals(
       FileScanTask expected, FileScanTask actual, PartitionSpec spec, boolean caseSensitive) {
     TestContentFileParser.assertContentFileEquals(expected.file(), actual.file(), spec);
-    Assertions.assertThat(actual.deletes()).hasSameSizeAs(expected.deletes());
+    assertThat(actual.deletes()).hasSameSizeAs(expected.deletes());
     for (int pos = 0; pos < expected.deletes().size(); ++pos) {
       TestContentFileParser.assertContentFileEquals(
           expected.deletes().get(pos), actual.deletes().get(pos), spec);
     }
 
-    Assertions.assertThat(expected.schema().sameSchema(actual.schema()))
-        .as("Schema should match")
-        .isTrue();
-    Assertions.assertThat(actual.spec()).isEqualTo(expected.spec());
-    Assertions.assertThat(
+    assertThat(actual.schema().asStruct()).isEqualTo(expected.schema().asStruct());
+    assertThat(actual.spec()).isEqualTo(expected.spec());
+    assertThat(
             ExpressionUtil.equivalent(
                 expected.residual(), actual.residual(), TestBase.SCHEMA.asStruct(), caseSensitive))
         .as("Residual expression should match")

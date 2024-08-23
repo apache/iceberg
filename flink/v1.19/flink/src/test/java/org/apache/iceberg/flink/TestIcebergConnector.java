@@ -176,7 +176,7 @@ public class TestIcebergConnector extends TestBase {
             settingsBuilder.inStreamingMode();
             StreamExecutionEnvironment env =
                 StreamExecutionEnvironment.getExecutionEnvironment(
-                    MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
+                    MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
             env.enableCheckpointing(400);
             env.setMaxParallelism(2);
             env.setParallelism(2);
@@ -317,10 +317,6 @@ public class TestIcebergConnector extends TestBase {
 
   private String databaseName() {
     return properties.getOrDefault("catalog-database", "default_database");
-  }
-
-  private String toWithClause(Map<String, String> props) {
-    return CatalogTestBase.toWithClause(props);
   }
 
   private String createWarehouse() {

@@ -18,36 +18,21 @@
  */
 package org.apache.iceberg.flink;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.Expressions;
 import org.apache.flink.table.api.TableEnvironment;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.apache.flink.table.api.internal.TableEnvironmentImpl;
-import org.apache.flink.table.operations.ModifyOperation;
-import org.apache.flink.table.planner.delegation.PlannerBase;
-import org.apache.flink.types.Row;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.source.BoundedTableFactory;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,7 +76,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
           settingsBuilder.inStreamingMode();
           StreamExecutionEnvironment env =
               StreamExecutionEnvironment.getExecutionEnvironment(
-                  MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG);
+                  MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG);
           env.enableCheckpointing(400);
           env.setMaxParallelism(2);
           env.setParallelism(2);
@@ -167,39 +152,6 @@ public class TestFlinkTableSink extends CatalogTestBase {
     sql("INSERT OVERWRITE %s SELECT 2, 'b'", TABLE_NAME);
     SimpleDataUtil.assertTableRecords(
         icebergTable, Lists.newArrayList(SimpleDataUtil.createRecord(2, "b")));
-  }
-
-  @TestTemplate
-  public void testWriteParallelism() throws Exception {
-    List<Row> dataSet =
-        IntStream.range(1, 1000)
-            .mapToObj(i -> ImmutableList.of(Row.of(i, "aaa"), Row.of(i, "bbb"), Row.of(i, "ccc")))
-            .flatMap(List::stream)
-            .collect(Collectors.toList());
-    String dataId = BoundedTableFactory.registerDataSet(ImmutableList.of(dataSet));
-    sql(
-        "CREATE TABLE %s(id INT NOT NULL, data STRING NOT NULL)"
-            + " WITH ('connector'='BoundedSource', 'data-id'='%s')",
-        SOURCE_TABLE, dataId);
-
-    PlannerBase planner = (PlannerBase) ((TableEnvironmentImpl) getTableEnv()).getPlanner();
-    String insertSQL =
-        String.format(
-            "INSERT INTO %s /*+ OPTIONS('write-parallelism'='1') */ SELECT * FROM %s",
-            TABLE_NAME, SOURCE_TABLE);
-    ModifyOperation operation = (ModifyOperation) planner.getParser().parse(insertSQL).get(0);
-    Transformation<?> dummySink = planner.translate(Collections.singletonList(operation)).get(0);
-    Transformation<?> committer = dummySink.getInputs().get(0);
-    Transformation<?> writer = committer.getInputs().get(0);
-
-    assertThat(writer.getParallelism()).as("Should have the expected 1 parallelism.").isEqualTo(1);
-    writer
-        .getInputs()
-        .forEach(
-            input ->
-                assertThat(input.getParallelism())
-                    .as("Should have the expected parallelism.")
-                    .isEqualTo(isStreamingJob ? 2 : 4));
   }
 
   @TestTemplate
@@ -285,72 +237,6 @@ public class TestFlinkTableSink extends CatalogTestBase {
               SimpleDataUtil.createRecord(3, "b"),
               SimpleDataUtil.createRecord(4, "c"),
               SimpleDataUtil.createRecord(5, "d")));
-    } finally {
-      sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
-    }
-  }
-
-  @TestTemplate
-  public void testHashDistributeMode() throws Exception {
-    String tableName = "test_hash_distribution_mode";
-    Map<String, String> tableProps =
-        ImmutableMap.of(
-            "write.format.default",
-            format.name(),
-            TableProperties.WRITE_DISTRIBUTION_MODE,
-            DistributionMode.HASH.modeName());
-
-    // Initialize a BoundedSource table to precisely emit those rows in only one checkpoint.
-    List<Row> dataSet =
-        IntStream.range(1, 1000)
-            .mapToObj(i -> ImmutableList.of(Row.of(i, "aaa"), Row.of(i, "bbb"), Row.of(i, "ccc")))
-            .flatMap(List::stream)
-            .collect(Collectors.toList());
-    String dataId = BoundedTableFactory.registerDataSet(ImmutableList.of(dataSet));
-    sql(
-        "CREATE TABLE %s(id INT NOT NULL, data STRING NOT NULL)"
-            + " WITH ('connector'='BoundedSource', 'data-id'='%s')",
-        SOURCE_TABLE, dataId);
-
-    assertThat(sql("SELECT * FROM %s", SOURCE_TABLE))
-        .as("Should have the expected rows in source table.")
-        .containsExactlyInAnyOrderElementsOf(dataSet);
-
-    sql(
-        "CREATE TABLE %s(id INT, data VARCHAR) PARTITIONED BY (data) WITH %s",
-        tableName, toWithClause(tableProps));
-
-    try {
-      // Insert data set.
-      sql("INSERT INTO %s SELECT * FROM %s", tableName, SOURCE_TABLE);
-
-      assertThat(sql("SELECT * FROM %s", tableName))
-          .as("Should have the expected rows in sink table.")
-          .containsExactlyInAnyOrderElementsOf(dataSet);
-
-      // Sometimes we will have more than one checkpoint if we pass the auto checkpoint interval,
-      // thus producing multiple snapshots.  Here we assert that each snapshot has only 1 file per
-      // partition.
-      Table table = validationCatalog.loadTable(TableIdentifier.of(icebergNamespace, tableName));
-      Map<Long, List<DataFile>> snapshotToDataFiles = SimpleDataUtil.snapshotToDataFiles(table);
-      for (List<DataFile> dataFiles : snapshotToDataFiles.values()) {
-        if (dataFiles.isEmpty()) {
-          continue;
-        }
-
-        assertThat(
-                SimpleDataUtil.matchingPartitions(
-                    dataFiles, table.spec(), ImmutableMap.of("data", "aaa")))
-            .hasSize(1);
-        assertThat(
-                SimpleDataUtil.matchingPartitions(
-                    dataFiles, table.spec(), ImmutableMap.of("data", "bbb")))
-            .hasSize(1);
-        assertThat(
-                SimpleDataUtil.matchingPartitions(
-                    dataFiles, table.spec(), ImmutableMap.of("data", "ccc")))
-            .hasSize(1);
-      }
     } finally {
       sql("DROP TABLE IF EXISTS %s.%s", flinkDatabase, tableName);
     }

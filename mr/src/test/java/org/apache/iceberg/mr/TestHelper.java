@@ -20,7 +20,6 @@ package org.apache.iceberg.mr;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +39,7 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.rules.TemporaryFolder;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 public class TestHelper {
   private final Configuration conf;
@@ -49,29 +48,9 @@ public class TestHelper {
   private final Schema schema;
   private final PartitionSpec spec;
   private final FileFormat fileFormat;
-  private final TemporaryFolder tmp;
   private final Path temp;
 
   private Table table;
-
-  @Deprecated
-  public TestHelper(
-      Configuration conf,
-      Tables tables,
-      String tableIdentifier,
-      Schema schema,
-      PartitionSpec spec,
-      FileFormat fileFormat,
-      TemporaryFolder tmp) {
-    this.conf = conf;
-    this.tables = tables;
-    this.tableIdentifier = tableIdentifier;
-    this.schema = schema;
-    this.spec = spec;
-    this.fileFormat = fileFormat;
-    this.temp = null;
-    this.tmp = tmp;
-  }
 
   public TestHelper(
       Configuration conf,
@@ -88,7 +67,6 @@ public class TestHelper {
     this.spec = spec;
     this.fileFormat = fileFormat;
     this.temp = temp;
-    this.tmp = null;
   }
 
   public void setTable(Table table) {
@@ -144,15 +122,12 @@ public class TestHelper {
   }
 
   private GenericAppenderHelper appender() {
-    if (null != tmp) {
-      return new GenericAppenderHelper(table, fileFormat, tmp, conf);
-    }
     return new GenericAppenderHelper(table, fileFormat, temp, conf);
   }
 
   public static class RecordsBuilder {
 
-    private final List<Record> records = new ArrayList<Record>();
+    private final List<Record> records = Lists.newArrayList();
     private final Schema schema;
 
     private RecordsBuilder(Schema schema) {

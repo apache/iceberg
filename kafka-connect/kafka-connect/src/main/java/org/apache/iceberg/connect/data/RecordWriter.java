@@ -21,11 +21,11 @@ package org.apache.iceberg.connect.data;
 import java.util.List;
 import org.apache.kafka.connect.sink.SinkRecord;
 
-public interface RecordWriter extends Cloneable {
+interface RecordWriter extends Cloneable {
 
   void write(SinkRecord record);
 
-  List<WriterResult> complete();
+  List<IcebergWriterResult> complete();
 
   void close();
 }

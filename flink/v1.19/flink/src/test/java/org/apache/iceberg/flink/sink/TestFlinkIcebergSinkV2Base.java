@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +32,8 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -42,8 +47,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.StructLikeSet;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
 
 public class TestFlinkIcebergSinkV2Base {
 
@@ -54,13 +57,39 @@ public class TestFlinkIcebergSinkV2Base {
   protected static final int ROW_ID_POS = 0;
   protected static final int ROW_DATA_POS = 1;
 
-  protected int parallelism = 1;
   protected TableLoader tableLoader;
   protected Table table;
   protected StreamExecutionEnvironment env;
+
+  @Parameter(index = 0)
   protected FileFormat format;
+
+  @Parameter(index = 1)
+  protected int parallelism = 1;
+
+  @Parameter(index = 2)
   protected boolean partitioned;
+
+  @Parameter(index = 3)
   protected String writeDistributionMode;
+
+  @Parameters(name = "FileFormat={0}, Parallelism={1}, Partitioned={2}, WriteDistributionMode={3}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      new Object[] {FileFormat.AVRO, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+      new Object[] {FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+      new Object[] {FileFormat.AVRO, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+      new Object[] {FileFormat.AVRO, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+      new Object[] {FileFormat.ORC, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+      new Object[] {FileFormat.ORC, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+      new Object[] {FileFormat.ORC, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+      new Object[] {FileFormat.ORC, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+      new Object[] {FileFormat.PARQUET, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+      new Object[] {FileFormat.PARQUET, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+      new Object[] {FileFormat.PARQUET, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+      new Object[] {FileFormat.PARQUET, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE}
+    };
+  }
 
   protected static final Map<String, RowKind> ROW_KIND_MAP =
       ImmutableMap.of(
@@ -231,7 +260,7 @@ public class TestFlinkIcebergSinkV2Base {
             ImmutableList.of(record(1, "ddd"), record(2, "ddd")));
 
     if (partitioned && writeDistributionMode.equals(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)) {
-      Assertions.assertThatThrownBy(
+      assertThatThrownBy(
               () ->
                   testChangeLogs(
                       ImmutableList.of("id"),
@@ -278,7 +307,7 @@ public class TestFlinkIcebergSinkV2Base {
           expectedRecords,
           branch);
     } else {
-      Assertions.assertThatThrownBy(
+      assertThatThrownBy(
               () ->
                   testChangeLogs(
                       ImmutableList.of("id"),
@@ -318,16 +347,14 @@ public class TestFlinkIcebergSinkV2Base {
     table.refresh();
     List<Snapshot> snapshots = findValidSnapshots();
     int expectedSnapshotNum = expectedRecordsPerCheckpoint.size();
-    Assert.assertEquals(
-        "Should have the expected snapshot number", expectedSnapshotNum, snapshots.size());
+    assertThat(snapshots).hasSize(expectedSnapshotNum);
 
     for (int i = 0; i < expectedSnapshotNum; i++) {
       long snapshotId = snapshots.get(i).snapshotId();
       List<Record> expectedRecords = expectedRecordsPerCheckpoint.get(i);
-      Assert.assertEquals(
-          "Should have the expected records for the checkpoint#" + i,
-          expectedRowSet(expectedRecords.toArray(new Record[0])),
-          actualRowSet(snapshotId, "*"));
+      assertThat(actualRowSet(snapshotId, "*"))
+          .as("Should have the expected records for the checkpoint#" + i)
+          .isEqualTo(expectedRowSet(expectedRecords.toArray(new Record[0])));
     }
   }
 

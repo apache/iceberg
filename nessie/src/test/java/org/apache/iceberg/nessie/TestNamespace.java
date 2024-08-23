@@ -19,6 +19,8 @@
 package org.apache.iceberg.nessie;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,7 +36,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.projectnessie.error.NessieNotFoundException;
 import org.projectnessie.model.ContentKey;
@@ -63,56 +64,55 @@ public class TestNamespace extends BaseTestIceberg {
     createTable(TableIdentifier.of("t6"));
 
     List<TableIdentifier> tables = catalog.listTables(nsABC);
-    Assertions.assertThat(tables).isNotNull().hasSize(1);
+    assertThat(tables).isNotNull().hasSize(1);
     tables = catalog.listTables(nsAB);
-    Assertions.assertThat(tables).isNotNull().hasSize(2);
+    assertThat(tables).isNotNull().hasSize(2);
     tables = catalog.listTables(nsA);
-    Assertions.assertThat(tables).isNotNull().hasSize(3);
+    assertThat(tables).isNotNull().hasSize(3);
     tables = catalog.listTables(null);
-    Assertions.assertThat(tables).isNotNull().hasSize(6);
+    assertThat(tables).isNotNull().hasSize(6);
 
     List<Namespace> namespaces = catalog.listNamespaces();
-    Assertions.assertThat(namespaces).containsExactly(nsA, nsB);
+    assertThat(namespaces).containsExactly(nsA, nsB);
     namespaces = catalog.listNamespaces(nsA);
-    Assertions.assertThat(namespaces).containsExactly(nsAB);
+    assertThat(namespaces).containsExactly(nsAB);
     namespaces = catalog.listNamespaces(nsAB);
-    Assertions.assertThat(namespaces).containsExactly(nsABC);
+    assertThat(namespaces).containsExactly(nsABC);
     namespaces = catalog.listNamespaces(nsB);
-    Assertions.assertThat(namespaces).containsExactly(nsBC);
+    assertThat(namespaces).containsExactly(nsBC);
   }
 
   @Test
   public void testCreatingAndDroppingNamespace() {
     Namespace namespace = Namespace.of("test");
     catalog.createNamespace(namespace, ImmutableMap.of());
-    Assertions.assertThat(catalog.namespaceExists(namespace)).isTrue();
+    assertThat(catalog.namespaceExists(namespace)).isTrue();
     catalog.dropNamespace(namespace);
-    Assertions.assertThat(catalog.namespaceExists(namespace)).isFalse();
+    assertThat(catalog.namespaceExists(namespace)).isFalse();
   }
 
   @Test
   public void testCreatingAndDroppingNamespaceWithContent() throws NessieNotFoundException {
     Namespace namespace = Namespace.of("test");
     catalog.createNamespace(namespace, ImmutableMap.of());
-    Assertions.assertThat(catalog.namespaceExists(namespace)).isTrue();
+    assertThat(catalog.namespaceExists(namespace)).isTrue();
     TableIdentifier identifier = TableIdentifier.of(namespace, "tbl");
 
     Schema schema =
         new Schema(Types.StructType.of(required(1, "id", Types.LongType.get())).fields());
-    Assertions.assertThat(catalog.createTable(identifier, schema)).isNotNull();
+    assertThat(catalog.createTable(identifier, schema)).isNotNull();
 
     ContentKey key = NessieUtil.toKey(identifier);
-    Assertions.assertThat(
-            api.getContent().key(key).refName(BRANCH).get().get(key).unwrap(IcebergTable.class))
+    assertThat(api.getContent().key(key).refName(BRANCH).get().get(key).unwrap(IcebergTable.class))
         .isPresent();
 
-    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(namespace))
+    assertThatThrownBy(() -> catalog.dropNamespace(namespace))
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessageContaining("Namespace 'test' is not empty");
 
     catalog.dropTable(identifier, true);
     catalog.dropNamespace(namespace);
-    Assertions.assertThat(catalog.namespaceExists(namespace)).isFalse();
+    assertThat(catalog.namespaceExists(namespace)).isFalse();
   }
 
   @Test
@@ -120,46 +120,43 @@ public class TestNamespace extends BaseTestIceberg {
     Map<String, String> properties = ImmutableMap.of("prop", "val");
     Namespace namespace = Namespace.of("withProperties");
     catalog.createNamespace(namespace, properties);
-    Assertions.assertThat(catalog.namespaceExists(namespace)).isTrue();
-    Assertions.assertThat(catalog.loadNamespaceMetadata(namespace)).isEqualTo(properties);
+    assertThat(catalog.namespaceExists(namespace)).isTrue();
+    assertThat(catalog.loadNamespaceMetadata(namespace)).isEqualTo(properties);
 
     ImmutableMap<String, String> updatedProperties =
         ImmutableMap.of("prop2", "val2", "prop", "new_val");
     catalog.setProperties(namespace, updatedProperties);
-    Assertions.assertThat(catalog.loadNamespaceMetadata(namespace)).isEqualTo(updatedProperties);
+    assertThat(catalog.loadNamespaceMetadata(namespace)).isEqualTo(updatedProperties);
 
-    Assertions.assertThatThrownBy(
-            () -> catalog.setProperties(Namespace.of("unknown"), updatedProperties))
+    assertThatThrownBy(() -> catalog.setProperties(Namespace.of("unknown"), updatedProperties))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Namespace does not exist: unknown");
   }
 
   @Test
   public void testEmptyNamespace() {
-    Assertions.assertThatThrownBy(
-            () -> catalog.createNamespace(Namespace.empty(), Collections.emptyMap()))
+    assertThatThrownBy(() -> catalog.createNamespace(Namespace.empty(), Collections.emptyMap()))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Invalid namespace: ");
 
-    Assertions.assertThat(catalog.namespaceExists(Namespace.empty())).isFalse();
+    assertThat(catalog.namespaceExists(Namespace.empty())).isFalse();
 
-    Assertions.assertThatThrownBy(() -> catalog.loadNamespaceMetadata(Namespace.empty()))
+    assertThatThrownBy(() -> catalog.loadNamespaceMetadata(Namespace.empty()))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Invalid namespace: ");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 catalog.setProperties(
                     Namespace.empty(), ImmutableMap.of("prop2", "val2", "prop", "val")))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Invalid namespace: ");
 
-    Assertions.assertThatThrownBy(
-            () -> catalog.removeProperties(Namespace.empty(), ImmutableSet.of("prop2")))
+    assertThatThrownBy(() -> catalog.removeProperties(Namespace.empty(), ImmutableSet.of("prop2")))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Invalid namespace: ");
 
-    Assertions.assertThatThrownBy(() -> catalog.dropNamespace(Namespace.empty()))
+    assertThatThrownBy(() -> catalog.dropNamespace(Namespace.empty()))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Invalid namespace: ");
   }
@@ -169,15 +166,14 @@ public class TestNamespace extends BaseTestIceberg {
     Map<String, String> properties = ImmutableMap.of("prop2", "val2", "prop", "val");
     Namespace namespace = Namespace.of("withPropertyDeletes");
     catalog.createNamespace(namespace, properties);
-    Assertions.assertThat(catalog.namespaceExists(namespace)).isTrue();
-    Assertions.assertThat(catalog.loadNamespaceMetadata(namespace)).isEqualTo(properties);
+    assertThat(catalog.namespaceExists(namespace)).isTrue();
+    assertThat(catalog.loadNamespaceMetadata(namespace)).isEqualTo(properties);
 
     Set<String> toRemove = Sets.newHashSet(Arrays.asList("prop1", "prop2", "prop3"));
     catalog.removeProperties(namespace, toRemove);
-    Assertions.assertThat(catalog.loadNamespaceMetadata(namespace))
-        .isEqualTo(ImmutableMap.of("prop", "val"));
+    assertThat(catalog.loadNamespaceMetadata(namespace)).isEqualTo(ImmutableMap.of("prop", "val"));
 
-    Assertions.assertThatThrownBy(() -> catalog.removeProperties(Namespace.of("unknown"), toRemove))
+    assertThatThrownBy(() -> catalog.removeProperties(Namespace.of("unknown"), toRemove))
         .isInstanceOf(NoSuchNamespaceException.class)
         .hasMessage("Namespace does not exist: unknown");
   }
@@ -187,18 +183,15 @@ public class TestNamespace extends BaseTestIceberg {
     Map<String, String> properties = ImmutableMap.of("location", "/custom/location");
     Namespace namespaceWithLocation = Namespace.of("withLocation");
     catalog.createNamespace(namespaceWithLocation, properties);
-    Assertions.assertThat(catalog.namespaceExists(namespaceWithLocation)).isTrue();
-    Assertions.assertThat(
-            catalog.defaultWarehouseLocation(TableIdentifier.of("withLocation", "testTable")))
+    assertThat(catalog.namespaceExists(namespaceWithLocation)).isTrue();
+    assertThat(catalog.defaultWarehouseLocation(TableIdentifier.of("withLocation", "testTable")))
         .startsWith("/custom/location/testTable");
     Namespace namespaceWithoutLocation = Namespace.of("withoutLocation");
     catalog.createNamespace(namespaceWithoutLocation, ImmutableMap.of());
-    Assertions.assertThat(catalog.namespaceExists(namespaceWithoutLocation)).isTrue();
-    Assertions.assertThat(
-            catalog.defaultWarehouseLocation(TableIdentifier.of("withoutLocation", "testTable")))
+    assertThat(catalog.namespaceExists(namespaceWithoutLocation)).isTrue();
+    assertThat(catalog.defaultWarehouseLocation(TableIdentifier.of("withoutLocation", "testTable")))
         .contains("/withoutLocation/testTable");
-    Assertions.assertThat(
-            catalog.defaultWarehouseLocation(TableIdentifier.of("badNamespace", "testTable")))
+    assertThat(catalog.defaultWarehouseLocation(TableIdentifier.of("badNamespace", "testTable")))
         .contains("/badNamespace/testTable");
   }
 }

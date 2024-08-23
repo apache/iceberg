@@ -193,7 +193,8 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
     PartitionKey partitionKey = new PartitionKey(partitionedSpec, table().schema());
     StructType dataSparkType = SparkSchemaUtil.convert(table().schema());
-    InternalRowWrapper internalRowWrapper = new InternalRowWrapper(dataSparkType);
+    InternalRowWrapper internalRowWrapper =
+        new InternalRowWrapper(dataSparkType, table().schema().asStruct());
 
     try (ClusteredDataWriter<InternalRow> closeableWriter = writer) {
       for (InternalRow row : rows) {
@@ -256,7 +257,8 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
     PartitionKey partitionKey = new PartitionKey(partitionedSpec, table().schema());
     StructType dataSparkType = SparkSchemaUtil.convert(table().schema());
-    InternalRowWrapper internalRowWrapper = new InternalRowWrapper(dataSparkType);
+    InternalRowWrapper internalRowWrapper =
+        new InternalRowWrapper(dataSparkType, table().schema().asStruct());
 
     try (FanoutDataWriter<InternalRow> closeableWriter = writer) {
       for (InternalRow row : rows) {
@@ -324,7 +326,8 @@ public abstract class WritersBenchmark extends IcebergSourceBenchmark {
 
     PartitionKey partitionKey = new PartitionKey(partitionedSpec, table().schema());
     StructType deleteSparkType = SparkSchemaUtil.convert(table().schema());
-    InternalRowWrapper internalRowWrapper = new InternalRowWrapper(deleteSparkType);
+    InternalRowWrapper internalRowWrapper =
+        new InternalRowWrapper(deleteSparkType, table().schema().asStruct());
 
     try (ClusteredEqualityDeleteWriter<InternalRow> closeableWriter = writer) {
       for (InternalRow row : rows) {

@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -785,7 +786,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
               hive_metastoreConstants.META_TABLE_STORAGE, HiveIcebergStorageHandler.class.getName())
           .containsEntry(
               BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-              BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase())
+              BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ROOT))
           .containsEntry(
               BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
               getCurrentSnapshotForHiveCatalogTable(icebergTable))

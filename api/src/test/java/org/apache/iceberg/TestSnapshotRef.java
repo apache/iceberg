@@ -19,8 +19,8 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestSnapshotRef {
@@ -69,38 +69,37 @@ public class TestSnapshotRef {
 
   @Test
   public void testNoTypeFailure() {
-    Assertions.assertThatThrownBy(() -> SnapshotRef.builderFor(1L, null).build())
+    assertThatThrownBy(() -> SnapshotRef.builderFor(1L, null).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Snapshot reference type must not be null");
   }
 
   @Test
   public void testTagBuildFailures() {
-    Assertions.assertThatThrownBy(() -> SnapshotRef.tagBuilder(1L).maxRefAgeMs(-1L).build())
+    assertThatThrownBy(() -> SnapshotRef.tagBuilder(1L).maxRefAgeMs(-1L).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Max reference age must be greater than 0");
 
-    Assertions.assertThatThrownBy(() -> SnapshotRef.tagBuilder(1L).minSnapshotsToKeep(2).build())
+    assertThatThrownBy(() -> SnapshotRef.tagBuilder(1L).minSnapshotsToKeep(2).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Tags do not support setting minSnapshotsToKeep");
 
-    Assertions.assertThatThrownBy(() -> SnapshotRef.tagBuilder(1L).maxSnapshotAgeMs(2L).build())
+    assertThatThrownBy(() -> SnapshotRef.tagBuilder(1L).maxSnapshotAgeMs(2L).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Tags do not support setting maxSnapshotAgeMs");
   }
 
   @Test
   public void testBranchBuildFailures() {
-    Assertions.assertThatThrownBy(() -> SnapshotRef.branchBuilder(1L).maxSnapshotAgeMs(-1L).build())
+    assertThatThrownBy(() -> SnapshotRef.branchBuilder(1L).maxSnapshotAgeMs(-1L).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Max snapshot age must be greater than 0 ms");
 
-    Assertions.assertThatThrownBy(
-            () -> SnapshotRef.branchBuilder(1L).minSnapshotsToKeep(-1).build())
+    assertThatThrownBy(() -> SnapshotRef.branchBuilder(1L).minSnapshotsToKeep(-1).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Min snapshots to keep must be greater than 0");
 
-    Assertions.assertThatThrownBy(() -> SnapshotRef.branchBuilder(1L).maxRefAgeMs(-1L).build())
+    assertThatThrownBy(() -> SnapshotRef.branchBuilder(1L).maxRefAgeMs(-1L).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Max reference age must be greater than 0");
   }

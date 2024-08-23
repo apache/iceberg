@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.flink.MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG;
+import static org.apache.iceberg.flink.MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG;
 import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.apache.iceberg.flink.TestFixtures.TABLE_IDENTIFIER;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,7 +53,6 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -63,7 +63,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
   private static final int SLOTS_PER_TASK_MANAGER = 8;
 
   @RegisterExtension
-  private static final MiniClusterExtension MINI_CLUSTER_RESOURCE =
+  private static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
       new MiniClusterExtension(
           new MiniClusterResourceConfiguration.Builder()
               .setNumberTaskManagers(NUMBER_TASK_MANAGERS)
@@ -72,7 +72,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
               .build());
 
   @RegisterExtension
-  private static final HadoopCatalogExtension catalogExtension =
+  private static final HadoopCatalogExtension CATALOG_EXTENSION =
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   private static final TypeInformation<Row> ROW_TYPE_INFO =
@@ -90,7 +90,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
   private void setupEnvironment(TableSchemaType tableSchemaType) {
     PartitionSpec partitionSpec = tableSchemaType.getPartitionSpec(numBuckets);
     table =
-        catalogExtension
+        CATALOG_EXTENSION
             .catalog()
             .createTable(
                 TABLE_IDENTIFIER,
@@ -102,7 +102,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
             .enableCheckpointing(100)
             .setParallelism(parallelism)
             .setMaxParallelism(parallelism * 2);
-    tableLoader = catalogExtension.tableLoader();
+    tableLoader = CATALOG_EXTENSION.tableLoader();
   }
 
   private void appendRowsToTable(List<RowData> allRows) throws Exception {
@@ -145,21 +145,21 @@ public class TestBucketPartitionerFlinkIcebergSink {
     appendRowsToTable(rows);
     TableTestStats stats = extractPartitionResults(tableSchemaType);
 
-    Assertions.assertThat(stats.totalRowCount).isEqualTo(rows.size());
+    assertThat(stats.totalRowCount).isEqualTo(rows.size());
     // All 4 buckets should've been written to
-    Assertions.assertThat(stats.writersPerBucket.size()).isEqualTo(numBuckets);
-    Assertions.assertThat(stats.numFilesPerBucket.size()).isEqualTo(numBuckets);
+    assertThat(stats.writersPerBucket.size()).isEqualTo(numBuckets);
+    assertThat(stats.numFilesPerBucket.size()).isEqualTo(numBuckets);
     // Writer expectation (2 writers per bucket):
     // - Bucket0 -> Writers [0, 4]
     // - Bucket1 -> Writers [1, 5]
     // - Bucket2 -> Writers [2, 6]
     // - Bucket3 -> Writers [3, 7]
     for (int i = 0, j = numBuckets; i < numBuckets; i++, j++) {
-      Assertions.assertThat(stats.writersPerBucket.get(i)).hasSameElementsAs(Arrays.asList(i, j));
+      assertThat(stats.writersPerBucket.get(i)).hasSameElementsAs(Arrays.asList(i, j));
       // 2 files per bucket (one file is created by each writer)
-      Assertions.assertThat(stats.numFilesPerBucket.get(i)).isEqualTo(2);
+      assertThat(stats.numFilesPerBucket.get(i)).isEqualTo(2);
       // 2 rows per file (total of 16 rows across 8 files)
-      Assertions.assertThat(stats.rowsPerWriter.get(i)).isEqualTo(2);
+      assertThat(stats.rowsPerWriter.get(i)).isEqualTo(2);
     }
   }
 

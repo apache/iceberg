@@ -52,7 +52,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestHiveIcebergStorageHandlerTimezone {
-  private static final Optional<ThreadLocal<DateFormat>> dateFormat =
+  private static final Optional<ThreadLocal<DateFormat>> DATE_FORMAT =
       Optional.ofNullable(
           (ThreadLocal<DateFormat>)
               DynFields.builder()
@@ -61,7 +61,7 @@ public class TestHiveIcebergStorageHandlerTimezone {
                   .buildStatic()
                   .get());
 
-  private static final Optional<ThreadLocal<TimeZone>> localTimeZone =
+  private static final Optional<ThreadLocal<TimeZone>> LOCAL_TIME_ZONE =
       Optional.ofNullable(
           (ThreadLocal<TimeZone>)
               DynFields.builder()
@@ -103,8 +103,8 @@ public class TestHiveIcebergStorageHandlerTimezone {
     // Magic to clean cached date format and local timezone for Hive where the default timezone is
     // used/stored in the
     // cached object
-    dateFormat.ifPresent(ThreadLocal::remove);
-    localTimeZone.ifPresent(ThreadLocal::remove);
+    DATE_FORMAT.ifPresent(ThreadLocal::remove);
+    LOCAL_TIME_ZONE.ifPresent(ThreadLocal::remove);
 
     this.testTables =
         HiveIcebergStorageHandlerTestUtils.testTables(

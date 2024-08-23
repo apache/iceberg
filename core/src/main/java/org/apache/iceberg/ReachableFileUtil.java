@@ -21,7 +21,6 @@ package org.apache.iceberg;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.hadoop.Util;
@@ -140,24 +139,6 @@ public class ReachableFileUtil {
    */
   public static List<String> statisticsFilesLocations(Table table) {
     return statisticsFilesLocationsForSnapshots(table, null);
-  }
-
-  /**
-   * Returns locations of statistics files for a table matching the given predicate .
-   *
-   * @param table table for which statistics files needs to be listed
-   * @param predicate predicate for filtering the statistics files
-   * @return the location of statistics files
-   * @deprecated since 1.5.0, will be removed in 1.6.0; use the {@code
-   *     statisticsFilesLocationsForSnapshots(table, snapshotIds)} instead.
-   */
-  @Deprecated
-  public static List<String> statisticsFilesLocations(
-      Table table, Predicate<StatisticsFile> predicate) {
-    return table.statisticsFiles().stream()
-        .filter(predicate)
-        .map(StatisticsFile::path)
-        .collect(Collectors.toList());
   }
 
   /**

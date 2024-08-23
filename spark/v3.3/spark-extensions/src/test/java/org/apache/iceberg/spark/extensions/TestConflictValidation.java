@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -69,21 +70,24 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
 
     // Validating from previous snapshot finds conflicts
     Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
-    AssertHelpers.assertThrowsCause(
-        "Conflicting new data files should throw exception",
-        ValidationException.class,
-        "Found conflicting files that can contain records matching ref(name=\"id\") == 1:",
-        () -> {
-          try {
-            conflictingDf
-                .writeTo(tableName)
-                .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
-                .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
-                .overwrite(functions.col("id").equalTo(1));
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
+    assertThatThrownBy(
+            () -> {
+              try {
+                conflictingDf
+                    .writeTo(tableName)
+                    .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
+                    .option(
+                        SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
+                    .overwrite(functions.col("id").equalTo(1));
+              } catch (NoSuchTableException e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .as("Conflicting new data files should throw exception")
+        .cause()
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Found conflicting files that can contain records matching ref(name=\"id\") == 1:");
 
     // Validating from latest snapshot should succeed
     table.refresh();
@@ -111,21 +115,23 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
     // Validating from previous snapshot finds conflicts
     List<SimpleRecord> conflictingRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
     Dataset<Row> conflictingDf = spark.createDataFrame(conflictingRecords, SimpleRecord.class);
-    AssertHelpers.assertThrowsCause(
-        "Conflicting new delete files should throw exception",
-        ValidationException.class,
-        "Found new conflicting delete files that can apply to records matching ref(name=\"id\") == 1:",
-        () -> {
-          try {
-            conflictingDf
-                .writeTo(tableName)
-                .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
-                .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SNAPSHOT.toString())
-                .overwrite(functions.col("id").equalTo(1));
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
+    assertThatThrownBy(
+            () -> {
+              try {
+                conflictingDf
+                    .writeTo(tableName)
+                    .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
+                    .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SNAPSHOT.toString())
+                    .overwrite(functions.col("id").equalTo(1));
+              } catch (NoSuchTableException e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .as("Conflicting new delete files should throw exception")
+        .cause()
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Found new conflicting delete files that can apply to records matching ref(name=\"id\") == 1:");
 
     // Validating from latest snapshot should succeed
     table.refresh();
@@ -149,21 +155,24 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
     // Validating from previous snapshot finds conflicts
     List<SimpleRecord> conflictingRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
     Dataset<Row> conflictingDf = spark.createDataFrame(conflictingRecords, SimpleRecord.class);
-    AssertHelpers.assertThrowsCause(
-        "Conflicting deleted data files should throw exception",
-        ValidationException.class,
-        "Found conflicting deleted files that can contain records matching ref(name=\"id\") == 1:",
-        () -> {
-          try {
-            conflictingDf
-                .writeTo(tableName)
-                .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
-                .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
-                .overwrite(functions.col("id").equalTo(1));
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
+    assertThatThrownBy(
+            () -> {
+              try {
+                conflictingDf
+                    .writeTo(tableName)
+                    .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
+                    .option(
+                        SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
+                    .overwrite(functions.col("id").equalTo(1));
+              } catch (NoSuchTableException e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .as("Conflicting deleted data files should throw exception")
+        .cause()
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Found conflicting deleted files that can contain records matching ref(name=\"id\") == 1:");
 
     // Validating from latest snapshot should succeed
     table.refresh();
@@ -184,20 +193,23 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
 
     // Validating from no snapshot id defaults to beginning snapshot id and finds conflicts
     Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
-    AssertHelpers.assertThrowsCause(
-        "Conflicting new data files should throw exception",
-        ValidationException.class,
-        "Found conflicting files that can contain records matching ref(name=\"id\") == 1:",
-        () -> {
-          try {
-            conflictingDf
-                .writeTo(tableName)
-                .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
-                .overwrite(functions.col("id").equalTo(1));
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
+    assertThatThrownBy(
+            () -> {
+              try {
+                conflictingDf
+                    .writeTo(tableName)
+                    .option(
+                        SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
+                    .overwrite(functions.col("id").equalTo(1));
+              } catch (NoSuchTableException e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .as("Conflicting new data files should throw exception")
+        .cause()
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Found conflicting files that can contain records matching ref(name=\"id\") == 1:");
 
     // Validating from latest snapshot should succeed
     table.refresh();
@@ -225,21 +237,23 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
     // Validating from previous snapshot finds conflicts
     List<SimpleRecord> conflictingRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
     Dataset<Row> conflictingDf = spark.createDataFrame(conflictingRecords, SimpleRecord.class);
-    AssertHelpers.assertThrowsCause(
-        "Conflicting new delete files should throw exception",
-        ValidationException.class,
-        "Found new conflicting delete files that can apply to records matching ref(name=\"id\") == 1:",
-        () -> {
-          try {
-            conflictingDf
-                .writeTo(tableName)
-                .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
-                .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SNAPSHOT.toString())
-                .overwrite(functions.col("id").equalTo(1));
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
+    assertThatThrownBy(
+            () -> {
+              try {
+                conflictingDf
+                    .writeTo(tableName)
+                    .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
+                    .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SNAPSHOT.toString())
+                    .overwrite(functions.col("id").equalTo(1));
+              } catch (NoSuchTableException e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .as("Conflicting new delete files should throw exception")
+        .cause()
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Found new conflicting delete files that can apply to records matching ref(name=\"id\") == 1:");
 
     // Validating from latest snapshot should succeed
     table.refresh();
@@ -278,21 +292,24 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
 
     // Validating from previous snapshot finds conflicts
     Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
-    AssertHelpers.assertThrowsCause(
-        "Conflicting deleted data files should throw exception",
-        ValidationException.class,
-        "Found conflicting files that can contain records matching partitions [id=1]",
-        () -> {
-          try {
-            conflictingDf
-                .writeTo(tableName)
-                .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
-                .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
-                .overwritePartitions();
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
+    assertThatThrownBy(
+            () -> {
+              try {
+                conflictingDf
+                    .writeTo(tableName)
+                    .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
+                    .option(
+                        SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
+                    .overwritePartitions();
+              } catch (NoSuchTableException e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .as("Conflicting deleted data files should throw exception")
+        .cause()
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Found conflicting files that can contain records matching partitions [id=1]");
 
     // Validating from latest snapshot should succeed
     table.refresh();
@@ -318,21 +335,23 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
 
     // Validating from previous snapshot finds conflicts
     Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
-    AssertHelpers.assertThrowsCause(
-        "Conflicting deleted data files should throw exception",
-        ValidationException.class,
-        "Found new conflicting delete files that can apply to records matching [id=1]",
-        () -> {
-          try {
-            conflictingDf
-                .writeTo(tableName)
-                .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
-                .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SNAPSHOT.toString())
-                .overwritePartitions();
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
+    assertThatThrownBy(
+            () -> {
+              try {
+                conflictingDf
+                    .writeTo(tableName)
+                    .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
+                    .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SNAPSHOT.toString())
+                    .overwritePartitions();
+              } catch (NoSuchTableException e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .as("Conflicting deleted data files should throw exception")
+        .cause()
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Found new conflicting delete files that can apply to records matching [id=1]");
 
     // Validating from latest snapshot should succeed
     table.refresh();
@@ -357,21 +376,23 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
     spark.createDataFrame(records, SimpleRecord.class).coalesce(1).writeTo(tableName).append();
     Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
 
-    AssertHelpers.assertThrowsCause(
-        "Conflicting deleted data files should throw exception",
-        ValidationException.class,
-        "Found conflicting deleted files that can apply to records matching [id=1]",
-        () -> {
-          try {
-            conflictingDf
-                .writeTo(tableName)
-                .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
-                .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SNAPSHOT.toString())
-                .overwritePartitions();
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
+    assertThatThrownBy(
+            () -> {
+              try {
+                conflictingDf
+                    .writeTo(tableName)
+                    .option(SparkWriteOptions.VALIDATE_FROM_SNAPSHOT_ID, String.valueOf(snapshotId))
+                    .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SNAPSHOT.toString())
+                    .overwritePartitions();
+              } catch (NoSuchTableException e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .as("Conflicting deleted data files should throw exception")
+        .cause()
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Found conflicting deleted files that can apply to records matching [id=1]");
 
     // Validating from latest snapshot should succeed
     table.refresh();
@@ -409,20 +430,23 @@ public class TestConflictValidation extends SparkExtensionsTestBase {
 
     // Validating from null snapshot is equivalent to validating from beginning
     Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
-    AssertHelpers.assertThrowsCause(
-        "Conflicting deleted data files should throw exception",
-        ValidationException.class,
-        "Found conflicting files that can contain records matching partitions [id=1]",
-        () -> {
-          try {
-            conflictingDf
-                .writeTo(tableName)
-                .option(SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
-                .overwritePartitions();
-          } catch (NoSuchTableException e) {
-            throw new RuntimeException(e);
-          }
-        });
+    assertThatThrownBy(
+            () -> {
+              try {
+                conflictingDf
+                    .writeTo(tableName)
+                    .option(
+                        SparkWriteOptions.ISOLATION_LEVEL, IsolationLevel.SERIALIZABLE.toString())
+                    .overwritePartitions();
+              } catch (NoSuchTableException e) {
+                throw new RuntimeException(e);
+              }
+            })
+        .as("Conflicting deleted data files should throw exception")
+        .cause()
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining(
+            "Found conflicting files that can contain records matching partitions [id=1]");
 
     // Validating from latest snapshot should succeed
     table.refresh();

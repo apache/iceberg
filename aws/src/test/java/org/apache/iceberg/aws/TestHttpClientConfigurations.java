@@ -24,6 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 
 public class TestHttpClientConfigurations {
@@ -34,6 +35,7 @@ public class TestHttpClientConfigurations {
     properties.put(HttpClientProperties.URLCONNECTION_CONNECTION_TIMEOUT_MS, "80");
     properties.put(HttpClientProperties.APACHE_SOCKET_TIMEOUT_MS, "100");
     properties.put(HttpClientProperties.APACHE_CONNECTION_TIMEOUT_MS, "200");
+    properties.put(HttpClientProperties.PROXY_ENDPOINT, "http://proxy:8080");
     UrlConnectionHttpClientConfigurations urlConnectionHttpClientConfigurations =
         UrlConnectionHttpClientConfigurations.create(properties);
     UrlConnectionHttpClient.Builder urlConnectionHttpClientBuilder =
@@ -46,6 +48,9 @@ public class TestHttpClientConfigurations {
 
     Mockito.verify(spyUrlConnectionHttpClientBuilder).socketTimeout(Duration.ofMillis(90));
     Mockito.verify(spyUrlConnectionHttpClientBuilder).connectionTimeout(Duration.ofMillis(80));
+    Mockito.verify(spyUrlConnectionHttpClientBuilder)
+        .proxyConfiguration(
+            Mockito.any(software.amazon.awssdk.http.urlconnection.ProxyConfiguration.class));
   }
 
   @Test
@@ -64,6 +69,9 @@ public class TestHttpClientConfigurations {
         .connectionTimeout(Mockito.any(Duration.class));
     Mockito.verify(spyUrlConnectionHttpClientBuilder, Mockito.never())
         .socketTimeout(Mockito.any(Duration.class));
+    Mockito.verify(spyUrlConnectionHttpClientBuilder, Mockito.never())
+        .proxyConfiguration(
+            Mockito.any(software.amazon.awssdk.http.urlconnection.ProxyConfiguration.class));
   }
 
   @Test
@@ -80,6 +88,7 @@ public class TestHttpClientConfigurations {
     properties.put(HttpClientProperties.APACHE_MAX_CONNECTIONS, "104");
     properties.put(HttpClientProperties.APACHE_TCP_KEEP_ALIVE_ENABLED, "true");
     properties.put(HttpClientProperties.APACHE_USE_IDLE_CONNECTION_REAPER_ENABLED, "false");
+    properties.put(HttpClientProperties.PROXY_ENDPOINT, "http://proxy:8080");
     ApacheHttpClientConfigurations apacheHttpClientConfigurations =
         ApacheHttpClientConfigurations.create(properties);
     ApacheHttpClient.Builder apacheHttpClientBuilder = ApacheHttpClient.builder();
@@ -96,6 +105,8 @@ public class TestHttpClientConfigurations {
     Mockito.verify(spyApacheHttpClientBuilder).maxConnections(104);
     Mockito.verify(spyApacheHttpClientBuilder).tcpKeepAlive(true);
     Mockito.verify(spyApacheHttpClientBuilder).useIdleConnectionReaper(false);
+    Mockito.verify(spyApacheHttpClientBuilder)
+        .proxyConfiguration(Mockito.any(ProxyConfiguration.class));
   }
 
   @Test
@@ -123,5 +134,7 @@ public class TestHttpClientConfigurations {
     Mockito.verify(spyApacheHttpClientBuilder, Mockito.never()).tcpKeepAlive(Mockito.anyBoolean());
     Mockito.verify(spyApacheHttpClientBuilder, Mockito.never())
         .useIdleConnectionReaper(Mockito.anyBoolean());
+    Mockito.verify(spyApacheHttpClientBuilder, Mockito.never())
+        .proxyConfiguration(Mockito.any(ProxyConfiguration.class));
   }
 }

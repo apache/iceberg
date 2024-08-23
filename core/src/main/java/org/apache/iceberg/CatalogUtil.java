@@ -307,7 +307,7 @@ public class CatalogUtil {
           catalogImpl);
     }
 
-    return CatalogUtil.loadCatalog(catalogImpl, name, options, conf);
+    return loadCatalog(catalogImpl, name, options, conf);
   }
 
   /**

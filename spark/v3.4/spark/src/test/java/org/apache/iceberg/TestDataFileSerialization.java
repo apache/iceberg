@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.TaskCheckHelper.assertEquals;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -48,7 +49,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkConf;
 import org.apache.spark.serializer.KryoSerializer;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -118,7 +118,7 @@ public class TestDataFileSerialization {
     try (Input in = new Input(new FileInputStream(data))) {
       for (int i = 0; i < 2; i += 1) {
         Object obj = kryo.readClassAndObject(in);
-        Assertions.assertThat(obj).as("Should be a DataFile").isInstanceOf(DataFile.class);
+        assertThat(obj).as("Should be a DataFile").isInstanceOf(DataFile.class);
         assertEquals(DATA_FILE, (DataFile) obj);
       }
     }
@@ -136,7 +136,7 @@ public class TestDataFileSerialization {
         new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
       for (int i = 0; i < 2; i += 1) {
         Object obj = in.readObject();
-        Assertions.assertThat(obj).as("Should be a DataFile").isInstanceOf(DataFile.class);
+        assertThat(obj).as("Should be a DataFile").isInstanceOf(DataFile.class);
         assertEquals(DATA_FILE, (DataFile) obj);
       }
     }

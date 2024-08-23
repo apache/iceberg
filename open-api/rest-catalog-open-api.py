@@ -360,11 +360,7 @@ class RemovePartitionStatisticsUpdate(BaseUpdate):
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
-class TableRequirement(BaseModel):
-    type: str
-
-
-class AssertCreate(TableRequirement):
+class AssertCreate(BaseModel):
     """
     The table must not already exist; used for create transactions
     """
@@ -372,7 +368,7 @@ class AssertCreate(TableRequirement):
     type: Literal['assert-create']
 
 
-class AssertTableUUID(TableRequirement):
+class AssertTableUUID(BaseModel):
     """
     The table UUID must match the requirement's `uuid`
     """
@@ -381,7 +377,7 @@ class AssertTableUUID(TableRequirement):
     uuid: str
 
 
-class AssertRefSnapshotId(TableRequirement):
+class AssertRefSnapshotId(BaseModel):
     """
     The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; if `snapshot-id` is `null` or missing, the ref must not already exist
     """
@@ -391,7 +387,7 @@ class AssertRefSnapshotId(TableRequirement):
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
-class AssertLastAssignedFieldId(TableRequirement):
+class AssertLastAssignedFieldId(BaseModel):
     """
     The table's last assigned column id must match the requirement's `last-assigned-field-id`
     """
@@ -400,7 +396,7 @@ class AssertLastAssignedFieldId(TableRequirement):
     last_assigned_field_id: int = Field(..., alias='last-assigned-field-id')
 
 
-class AssertCurrentSchemaId(TableRequirement):
+class AssertCurrentSchemaId(BaseModel):
     """
     The table's current schema id must match the requirement's `current-schema-id`
     """
@@ -409,7 +405,7 @@ class AssertCurrentSchemaId(TableRequirement):
     current_schema_id: int = Field(..., alias='current-schema-id')
 
 
-class AssertLastAssignedPartitionId(TableRequirement):
+class AssertLastAssignedPartitionId(BaseModel):
     """
     The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
     """
@@ -418,7 +414,7 @@ class AssertLastAssignedPartitionId(TableRequirement):
     last_assigned_partition_id: int = Field(..., alias='last-assigned-partition-id')
 
 
-class AssertDefaultSpecId(TableRequirement):
+class AssertDefaultSpecId(BaseModel):
     """
     The table's default spec id must match the requirement's `default-spec-id`
     """
@@ -427,7 +423,7 @@ class AssertDefaultSpecId(TableRequirement):
     default_spec_id: int = Field(..., alias='default-spec-id')
 
 
-class AssertDefaultSortOrderId(TableRequirement):
+class AssertDefaultSortOrderId(BaseModel):
     """
     The table's default sort order id must match the requirement's `default-sort-order-id`
     """
@@ -436,11 +432,7 @@ class AssertDefaultSortOrderId(TableRequirement):
     default_sort_order_id: int = Field(..., alias='default-sort-order-id')
 
 
-class ViewRequirement(BaseModel):
-    type: str
-
-
-class AssertViewUUID(ViewRequirement):
+class AssertViewUUID(BaseModel):
     """
     The view UUID must match the requirement's `uuid`
     """
@@ -470,6 +462,8 @@ class TokenType(BaseModel):
 
 class OAuthClientCredentialsRequest(BaseModel):
     """
+    The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec, see description of the endpoint.
+
     OAuth2 client credentials request
 
     See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
@@ -489,6 +483,8 @@ class OAuthClientCredentialsRequest(BaseModel):
 
 class OAuthTokenExchangeRequest(BaseModel):
     """
+    The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec, see description of the endpoint.
+
     OAuth2 token exchange request
 
     See https://datatracker.ietf.org/doc/html/rfc8693
@@ -508,7 +504,10 @@ class OAuthTokenExchangeRequest(BaseModel):
 
 
 class OAuthTokenRequest(BaseModel):
-    __root__: Union[OAuthClientCredentialsRequest, OAuthTokenExchangeRequest]
+    __root__: Union[OAuthClientCredentialsRequest, OAuthTokenExchangeRequest] = Field(
+        ...,
+        description='The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec, see description of the endpoint.',
+    )
 
 
 class CounterResult(BaseModel):
@@ -540,6 +539,10 @@ class CommitReport(BaseModel):
 
 
 class OAuthError(BaseModel):
+    """
+    The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec, see description of the endpoint.
+    """
+
     error: Literal[
         'invalid_request',
         'invalid_client',
@@ -553,6 +556,10 @@ class OAuthError(BaseModel):
 
 
 class OAuthTokenResponse(BaseModel):
+    """
+    The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec, see description of the endpoint.
+    """
+
     access_token: str = Field(
         ..., description='The access token, for client credentials or token exchange'
     )
@@ -630,7 +637,7 @@ class BlobMetadata(BaseModel):
     snapshot_id: int = Field(..., alias='snapshot-id')
     sequence_number: int = Field(..., alias='sequence-number')
     fields: List[int]
-    properties: Optional[Dict[str, Any]] = None
+    properties: Optional[Dict[str, str]] = None
 
 
 class PartitionStatisticsFile(BaseModel):
@@ -843,6 +850,23 @@ class SetPartitionStatisticsUpdate(BaseUpdate):
     )
 
 
+class TableRequirement(BaseModel):
+    __root__: Union[
+        AssertCreate,
+        AssertTableUUID,
+        AssertRefSnapshotId,
+        AssertLastAssignedFieldId,
+        AssertCurrentSchemaId,
+        AssertLastAssignedPartitionId,
+        AssertDefaultSpecId,
+        AssertDefaultSortOrderId,
+    ] = Field(..., discriminator='type')
+
+
+class ViewRequirement(BaseModel):
+    __root__: AssertViewUUID = Field(..., discriminator='type')
+
+
 class ReportMetricsRequest2(CommitReport):
     report_type: str = Field(..., alias='report-type')
 
@@ -1000,11 +1024,9 @@ class TableMetadata(BaseModel):
     last_sequence_number: Optional[int] = Field(None, alias='last-sequence-number')
     snapshot_log: Optional[SnapshotLog] = Field(None, alias='snapshot-log')
     metadata_log: Optional[MetadataLog] = Field(None, alias='metadata-log')
-    statistics_files: Optional[List[StatisticsFile]] = Field(
-        None, alias='statistics-files'
-    )
-    partition_statistics_files: Optional[List[PartitionStatisticsFile]] = Field(
-        None, alias='partition-statistics-files'
+    statistics: Optional[List[StatisticsFile]] = None
+    partition_statistics: Optional[List[PartitionStatisticsFile]] = Field(
+        None, alias='partition-statistics'
     )
 
 

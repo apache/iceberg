@@ -169,7 +169,7 @@ public class TestPartitionPruning {
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
 
-  private PartitionSpec spec =
+  private final PartitionSpec spec =
       PartitionSpec.builderFor(LOG_SCHEMA)
           .identity("date")
           .identity("level")

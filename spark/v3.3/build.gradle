@@ -59,6 +59,10 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-arrow')
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
+    if (scalaVersion == '2.12') {
+      // scala-collection-compat_2.12 pulls scala 2.12.17 and we need 2.12.18 for JDK 21 support
+      implementation 'org.scala-lang:scala-library:2.12.18'
+    }
 
     compileOnly libs.errorprone.annotations
     compileOnly libs.avro.avro
@@ -103,6 +107,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation libs.sqlite.jdbc
     testImplementation libs.awaitility
+    testImplementation libs.junit.vintage.engine
   }
 
   test {
@@ -136,6 +141,10 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 
   dependencies {
     implementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
+    if (scalaVersion == '2.12') {
+      // scala-collection-compat_2.12 pulls scala 2.12.17 and we need 2.12.18 for JDK 21 support
+      implementation 'org.scala-lang:scala-library:2.12.18'
+    }
     implementation libs.roaringbitmap
 
     compileOnly "org.scala-lang:scala-library"
@@ -164,6 +173,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 
     testImplementation libs.avro.avro
     testImplementation libs.parquet.hadoop
+    testImplementation libs.junit.vintage.engine
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     runtimeOnly libs.antlr.runtime
@@ -177,7 +187,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 }
 
 project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersion}") {
-  apply plugin: 'com.github.johnrengelman.shadow'
+  apply plugin: 'io.github.goooler.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 

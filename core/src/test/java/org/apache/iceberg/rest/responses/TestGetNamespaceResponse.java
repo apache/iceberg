@@ -18,13 +18,15 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RequestResponseTestBase;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespaceResponse> {
@@ -66,56 +68,55 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
   @Test
   public void testDeserializeInvalidResponse() {
     String jsonNamespaceHasWrongType = "{\"namespace\":\"accounting%1Ftax\",\"properties\":null}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonNamespaceHasWrongType))
+    assertThatThrownBy(() -> deserialize(jsonNamespaceHasWrongType))
         .as("A JSON response with the wrong type for a field should fail to deserialize")
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageContaining("Cannot parse string array from non-array");
 
     String jsonPropertiesHasWrongType =
         "{\"namespace\":[\"accounting\",\"tax\"],\"properties\":[]}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonPropertiesHasWrongType))
+    assertThatThrownBy(() -> deserialize(jsonPropertiesHasWrongType))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageContaining(
             "Cannot deserialize value of type `java.util.LinkedHashMap<java.lang.String,java.lang.String>`");
 
     String emptyJson = "{}";
-    Assertions.assertThatThrownBy(() -> deserialize(emptyJson))
+    assertThatThrownBy(() -> deserialize(emptyJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid namespace: null");
 
     String jsonWithKeysSpelledIncorrectly =
         "{\"namepsace\":[\"accounting\",\"tax\"],\"propertiezzzz\":{\"owner\":\"Hank\"}}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonWithKeysSpelledIncorrectly))
+    assertThatThrownBy(() -> deserialize(jsonWithKeysSpelledIncorrectly))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid namespace: null");
 
     String nullJson = null;
-    Assertions.assertThatThrownBy(() -> deserialize(nullJson))
+    assertThatThrownBy(() -> deserialize(nullJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotBuildInvalidRequests() {
-    Assertions.assertThatThrownBy(() -> GetNamespaceResponse.builder().withNamespace(null).build())
+    assertThatThrownBy(() -> GetNamespaceResponse.builder().withNamespace(null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid namespace: null");
 
-    Assertions.assertThatThrownBy(() -> GetNamespaceResponse.builder().setProperties(null).build())
+    assertThatThrownBy(() -> GetNamespaceResponse.builder().setProperties(null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid properties map: null");
 
     Map<String, String> mapWithNullKey = Maps.newHashMap();
     mapWithNullKey.put(null, "hello");
-    Assertions.assertThatThrownBy(
-            () -> GetNamespaceResponse.builder().setProperties(mapWithNullKey).build())
+    assertThatThrownBy(() -> GetNamespaceResponse.builder().setProperties(mapWithNullKey).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid property: null");
 
     Map<String, String> mapWithMultipleNullValues = Maps.newHashMap();
     mapWithMultipleNullValues.put("a", null);
     mapWithMultipleNullValues.put("b", "b");
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> GetNamespaceResponse.builder().setProperties(mapWithMultipleNullValues).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid value for properties [a]: null");
@@ -136,8 +137,8 @@ public class TestGetNamespaceResponse extends RequestResponseTestBase<GetNamespa
 
   @Override
   public void assertEquals(GetNamespaceResponse actual, GetNamespaceResponse expected) {
-    Assertions.assertThat(actual.namespace()).isEqualTo(expected.namespace());
-    Assertions.assertThat(actual.properties()).isEqualTo(expected.properties());
+    assertThat(actual.namespace()).isEqualTo(expected.namespace());
+    assertThat(actual.properties()).isEqualTo(expected.properties());
   }
 
   @Override

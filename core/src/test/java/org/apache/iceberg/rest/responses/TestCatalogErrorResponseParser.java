@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.util.Arrays;
 import java.util.List;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestCatalogErrorResponseParser {
@@ -35,7 +36,7 @@ public class TestCatalogErrorResponseParser {
     String json = "{\"error\":" + errorModelJson + "}";
     ErrorResponse response =
         ErrorResponse.builder().withMessage(message).withType(type).responseCode(code).build();
-    Assertions.assertThat(ErrorResponseParser.toJson(response))
+    assertThat(ErrorResponseParser.toJson(response))
         .as("Should be able to serialize an error response as json")
         .isEqualTo(json);
   }
@@ -58,7 +59,7 @@ public class TestCatalogErrorResponseParser {
             .responseCode(code)
             .withStackTrace(stack)
             .build();
-    Assertions.assertThat(ErrorResponseParser.toJson(response))
+    assertThat(ErrorResponseParser.toJson(response))
         .as("Should be able to serialize an error response as json")
         .isEqualTo(json);
   }
@@ -121,9 +122,9 @@ public class TestCatalogErrorResponseParser {
   }
 
   public void assertEquals(ErrorResponse expected, ErrorResponse actual) {
-    Assertions.assertThat(actual.message()).isEqualTo(expected.message());
-    Assertions.assertThat(actual.type()).isEqualTo(expected.type());
-    Assertions.assertThat(actual.code()).isEqualTo(expected.code());
-    Assertions.assertThat(actual.stack()).isEqualTo(expected.stack());
+    assertThat(actual.message()).isEqualTo(expected.message());
+    assertThat(actual.type()).isEqualTo(expected.type());
+    assertThat(actual.code()).isEqualTo(expected.code());
+    assertThat(actual.stack()).isEqualTo(expected.stack());
   }
 }

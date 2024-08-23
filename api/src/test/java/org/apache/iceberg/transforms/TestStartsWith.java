@@ -35,7 +35,6 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestStartsWith {
@@ -57,7 +56,7 @@ public class TestStartsWith {
     assertProjectionStrict(spec, startsWith(COLUMN, "abab"), "abab", Expression.Operation.EQ);
 
     Expression projection = Projections.strict(spec).project(startsWith(COLUMN, "ababab"));
-    Assertions.assertThat(projection).isInstanceOf(False.class);
+    assertThat(projection).isInstanceOf(False.class);
   }
 
   @Test
