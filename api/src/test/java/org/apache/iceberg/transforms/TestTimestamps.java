@@ -479,27 +479,11 @@ public class TestTimestamps {
   }
 
   @Test
-  public void testGetOfTimestampTypeRejectsBadChronoUnit() {
-    Types.TimestampType timestampType = Types.TimestampType.withZone();
-    assertThatThrownBy(() -> Timestamps.get(timestampType, ChronoUnit.CENTURIES))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageMatching("Unsupported source/result type units: timestamptz -> Centuries");
-  }
-
-  @Test
   public void testGetOfTimestampTypeRejectsBadString() {
     Types.TimestampType timestampType = Types.TimestampType.withZone();
     assertThatThrownBy(() -> Timestamps.get(timestampType, "trash"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageMatching("Unsupported source/result type units: timestamptz -> trash");
-  }
-
-  @Test
-  public void testGetOfTimestampNanoTypeRejectsBadChronoUnit() {
-    Types.TimestampNanoType timestampNanoType = Types.TimestampNanoType.withZone();
-    assertThatThrownBy(() -> Timestamps.get(timestampNanoType, ChronoUnit.CENTURIES))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageMatching("Unsupported source/result type units: timestamptz_ns -> Centuries");
   }
 
   @Test

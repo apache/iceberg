@@ -52,67 +52,37 @@ class Timestamps implements Transform<Long, Integer> {
   static final Timestamps HOUR_FROM_NANOS =
       new Timestamps(ChronoUnit.NANOS, ResultTypeUnit.HOURS, "hour");
 
-  static Timestamps get(Types.TimestampType type, String resultTypeUnit) {
-    switch (resultTypeUnit.toLowerCase(Locale.ENGLISH)) {
-      case "year":
-        return get(type, ChronoUnit.YEARS);
-      case "month":
-        return get(type, ChronoUnit.MONTHS);
-      case "day":
-        return get(type, ChronoUnit.DAYS);
-      case "hour":
-        return get(type, ChronoUnit.HOURS);
+  static Timestamps get(Type type, String transform) {
+    String name = transform.toLowerCase(Locale.ENGLISH);
+    switch (type.typeId()) {
+      case TIMESTAMP:
+        switch (name) {
+          case "year":
+            return YEAR_FROM_MICROS;
+          case "month":
+            return MONTH_FROM_MICROS;
+          case "day":
+            return DAY_FROM_MICROS;
+          case "hour":
+            return HOUR_FROM_MICROS;
+          default:
+            throw new IllegalArgumentException("Unsupported transform: " + name);
+        }
+      case TIMESTAMP_NANO:
+        switch (name) {
+          case "year":
+            return YEAR_FROM_NANOS;
+          case "month":
+            return MONTH_FROM_NANOS;
+          case "day":
+            return DAY_FROM_NANOS;
+          case "hour":
+            return HOUR_FROM_NANOS;
+          default:
+            throw new IllegalArgumentException("Unsupported transform: " + name);
+        }
       default:
-        throw new IllegalArgumentException(
-            "Unsupported source/result type units: " + type + " -> " + resultTypeUnit);
-    }
-  }
-
-  static Timestamps get(Types.TimestampNanoType type, String resultTypeUnit) {
-    switch (resultTypeUnit.toLowerCase(Locale.ENGLISH)) {
-      case "year":
-        return get(type, ChronoUnit.YEARS);
-      case "month":
-        return get(type, ChronoUnit.MONTHS);
-      case "day":
-        return get(type, ChronoUnit.DAYS);
-      case "hour":
-        return get(type, ChronoUnit.HOURS);
-      default:
-        throw new IllegalArgumentException(
-            "Unsupported source/result type units: " + type + " -> " + resultTypeUnit);
-    }
-  }
-
-  static Timestamps get(Types.TimestampType type, ChronoUnit resultTypeUnit) {
-    switch (resultTypeUnit) {
-      case YEARS:
-        return YEAR_FROM_MICROS;
-      case MONTHS:
-        return MONTH_FROM_MICROS;
-      case DAYS:
-        return DAY_FROM_MICROS;
-      case HOURS:
-        return HOUR_FROM_MICROS;
-      default:
-        throw new IllegalArgumentException(
-            "Unsupported source/result type units: " + type + " -> " + resultTypeUnit);
-    }
-  }
-
-  static Timestamps get(Types.TimestampNanoType type, ChronoUnit resultTypeUnit) {
-    switch (resultTypeUnit) {
-      case YEARS:
-        return YEAR_FROM_NANOS;
-      case MONTHS:
-        return MONTH_FROM_NANOS;
-      case DAYS:
-        return DAY_FROM_NANOS;
-      case HOURS:
-        return HOUR_FROM_NANOS;
-      default:
-        throw new IllegalArgumentException(
-            "Unsupported source/result type units: " + type + " -> " + resultTypeUnit);
+        throw new IllegalArgumentException("Unsupported type for transform " + name + ": " + type);
     }
   }
 

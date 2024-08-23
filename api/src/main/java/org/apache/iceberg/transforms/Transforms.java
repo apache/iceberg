@@ -24,7 +24,6 @@ import java.util.regex.Pattern;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
 
 /**
  * Factory methods for transforms.
@@ -87,9 +86,8 @@ public class Transforms {
     try {
       switch (type.typeId()) {
         case TIMESTAMP:
-          return Timestamps.get((Types.TimestampType) type, transform);
         case TIMESTAMP_NANO:
-          return Timestamps.get((Types.TimestampNanoType) type, transform);
+          return Timestamps.get(type, transform);
         case DATE:
           return Dates.valueOf(transform.toUpperCase(Locale.ENGLISH));
       }
