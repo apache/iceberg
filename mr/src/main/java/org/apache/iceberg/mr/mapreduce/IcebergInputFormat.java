@@ -63,7 +63,6 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileIO;
@@ -71,7 +70,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
-import org.apache.iceberg.mr.hive.HiveIcebergStorageHandler;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -104,8 +102,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
   public List<InputSplit> getSplits(JobContext context) {
     Configuration conf = context.getConfiguration();
     Table table =
-        Optional.ofNullable(
-                HiveIcebergStorageHandler.table(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER)))
+        Optional.ofNullable(Utils.table(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER)))
             .orElseGet(() -> Catalogs.loadTable(conf));
     final ExecutorService workerPool =
         ThreadPools.newWorkerPool(
@@ -185,7 +182,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     // wouldn't be able to inject the config into these tasks on the deserializer-side, unlike for
     // standard queries
     if (scan instanceof DataTableScan) {
-      HiveIcebergStorageHandler.checkAndSkipIoConfigSerialization(conf, table);
+      Utils.checkAndSkipIoConfigSerialization(conf, table);
     }
 
     return splits;
@@ -218,19 +215,15 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     private static final DynMethods.StaticMethod HIVE_VECTORIZED_READER_BUILDER;
 
     static {
-      if (HiveVersion.min(HiveVersion.HIVE_3)) {
-        HIVE_VECTORIZED_READER_BUILDER =
-            DynMethods.builder("reader")
-                .impl(
-                    HIVE_VECTORIZED_READER_CLASS,
-                    InputFile.class,
-                    FileScanTask.class,
-                    Map.class,
-                    TaskAttemptContext.class)
-                .buildStatic();
-      } else {
-        HIVE_VECTORIZED_READER_BUILDER = null;
-      }
+      HIVE_VECTORIZED_READER_BUILDER =
+          DynMethods.builder("reader")
+              .impl(
+                  HIVE_VECTORIZED_READER_CLASS,
+                  InputFile.class,
+                  FileScanTask.class,
+                  Map.class,
+                  TaskAttemptContext.class)
+              .buildStatic();
     }
 
     private TaskAttemptContext context;
@@ -254,7 +247,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       CombinedScanTask task = ((IcebergSplit) split).task();
       this.context = newContext;
       Table table = ((IcebergSplit) split).table();
-      HiveIcebergStorageHandler.checkAndSetIoConfig(conf, table);
+      Utils.checkAndSetIoConfig(conf, table);
       this.io = table.io();
       this.encryptionManager = table.encryption();
       this.tasks = task.files().iterator();
@@ -416,13 +409,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
         case PIG:
           throw new UnsupportedOperationException("Parquet support not yet supported for Pig");
         case HIVE:
-          if (HiveVersion.min(HiveVersion.HIVE_3)) {
-            parquetIterator =
-                HIVE_VECTORIZED_READER_BUILDER.invoke(inputFile, task, idToConstant, context);
-          } else {
-            throw new UnsupportedOperationException(
-                "Vectorized read is unsupported for Hive 2 integration.");
-          }
+          parquetIterator =
+              HIVE_VECTORIZED_READER_BUILDER.invoke(inputFile, task, idToConstant, context);
           break;
         case GENERIC:
           Parquet.ReadBuilder parquetReadBuilder =
@@ -463,13 +451,8 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
           // TODO: implement value readers for Pig
           throw new UnsupportedOperationException("ORC support not yet supported for Pig");
         case HIVE:
-          if (HiveVersion.min(HiveVersion.HIVE_3)) {
-            orcIterator =
-                HIVE_VECTORIZED_READER_BUILDER.invoke(inputFile, task, idToConstant, context);
-          } else {
-            throw new UnsupportedOperationException(
-                "Vectorized read is unsupported for Hive 2 integration.");
-          }
+          orcIterator =
+              HIVE_VECTORIZED_READER_BUILDER.invoke(inputFile, task, idToConstant, context);
           break;
         case GENERIC:
           ORC.ReadBuilder orcReadBuilder =
