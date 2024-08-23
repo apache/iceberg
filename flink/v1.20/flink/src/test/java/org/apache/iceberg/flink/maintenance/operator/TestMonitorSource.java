@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import static org.apache.iceberg.flink.maintenance.operator.FlinkStreamingTestUtils.closeJobClient;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -35,6 +34,7 @@ import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -161,7 +161,8 @@ class TestMonitorSource extends OperatorTestBase {
                 }
 
                 // The first non-empty event should contain the expected value
-                return newEvent.equals(new TableChange(1, 0, size, 0L, 1));
+                return newEvent.equals(
+                    TableChange.builder().dataFileNum(1).dataFileSize(size).commitNum(1).build());
               });
     } finally {
       closeJobClient(jobClient);
@@ -348,15 +349,18 @@ class TestMonitorSource extends OperatorTestBase {
     List<DeleteFile> deleteFiles =
         Lists.newArrayList(table.currentSnapshot().addedDeleteFiles(table.io()).iterator());
 
-    long dataSize = dataFiles.stream().mapToLong(d -> d.fileSizeInBytes()).sum();
-    long deleteSize = deleteFiles.stream().mapToLong(d -> d.fileSizeInBytes()).sum();
-    boolean hasDelete = table.currentSnapshot().addedDeleteFiles(table.io()).iterator().hasNext();
+    long dataSize = dataFiles.stream().mapToLong(ContentFile::fileSizeInBytes).sum();
+    long deleteSize = deleteFiles.stream().mapToLong(ContentFile::fileSizeInBytes).sum();
 
-    return new TableChange(
-        previous.dataFileNum() + dataFiles.size(),
-        previous.deleteFileNum() + deleteFiles.size(),
-        previous.dataFileSize() + dataSize,
-        previous.deleteFileSize() + deleteSize,
-        previous.commitNum() + 1);
+    TableChange newChange = previous.copy();
+    newChange.merge(
+        TableChange.builder()
+            .dataFileNum(dataFiles.size())
+            .dataFileSize(dataSize)
+            .deleteFileNum(deleteFiles.size())
+            .deleteFileSize(deleteSize)
+            .commitNum(1)
+            .build());
+    return newChange;
   }
 }
