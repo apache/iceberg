@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.events.CreateSnapshotEvent;
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -32,12 +31,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
 
-/**
- * {@link AppendFiles Append} implementation that adds a new manifest file for the write.
- *
- * <p>This implementation will attempt to commit 5 times before throwing {@link
- * CommitFailedException}.
- */
+/** {@link AppendFiles Append} implementation that adds a new manifest file for the write. */
 class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final String tableName;
   private final TableOperations ops;

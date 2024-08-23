@@ -18,15 +18,9 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.expressions.Expression;
 
-/**
- * {@link DeleteFiles Delete} implementation that avoids loading full manifests in memory.
- *
- * <p>This implementation will attempt to commit 5 times before throwing {@link
- * CommitFailedException}.
- */
+/** {@link DeleteFiles Delete} implementation that avoids loading full manifests in memory. */
 public class StreamingDelete extends MergingSnapshotProducer<DeleteFiles> implements DeleteFiles {
   private boolean validateFilesToDeleteExist = false;
 

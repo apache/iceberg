@@ -253,10 +253,35 @@ public class TestFastAppend extends TestBase {
   }
 
   @TestTemplate
-  public void testAppendManifestCleanup() throws IOException {
-    // inject 5 failures
+  public void testIncreaseNumRetries() {
     TestTables.TestTableOperations ops = table.ops();
-    ops.failCommits(5);
+    ops.failCommits(TableProperties.COMMIT_NUM_RETRIES_DEFAULT + 1);
+
+    AppendFiles append = table.newFastAppend().appendFile(FILE_B);
+
+    // Default number of retries results in a failed commit
+    assertThatThrownBy(append::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+
+    // After increasing the number of retries the commit succeeds
+    table
+        .updateProperties()
+        .set(
+            TableProperties.COMMIT_NUM_RETRIES,
+            String.valueOf(TableProperties.COMMIT_NUM_RETRIES_DEFAULT + 1))
+        .commit();
+
+    append.commit();
+
+    validateSnapshot(null, readMetadata().currentSnapshot(), FILE_B);
+  }
+
+  @TestTemplate
+  public void testAppendManifestCleanup() throws IOException {
+    // inject failures
+    TestTables.TestTableOperations ops = table.ops();
+    ops.failCommits(TableProperties.COMMIT_NUM_RETRIES_DEFAULT + 1);
 
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
     AppendFiles append = table.newFastAppend().appendManifest(manifest);
@@ -284,9 +309,9 @@ public class TestFastAppend extends TestBase {
   public void testRecoveryWithManifestList() {
     table.updateProperties().set(TableProperties.MANIFEST_LISTS_ENABLED, "true").commit();
 
-    // inject 3 failures, the last try will succeed
+    // inject failures, the last try will succeed
     TestTables.TestTableOperations ops = table.ops();
-    ops.failCommits(3);
+    ops.failCommits(TableProperties.COMMIT_NUM_RETRIES_DEFAULT);
 
     AppendFiles append = table.newFastAppend().appendFile(FILE_B);
     Snapshot pending = append.apply();
@@ -306,9 +331,9 @@ public class TestFastAppend extends TestBase {
   public void testRecoveryWithoutManifestList() {
     table.updateProperties().set(TableProperties.MANIFEST_LISTS_ENABLED, "false").commit();
 
-    // inject 3 failures, the last try will succeed
+    // inject failures, the last try will succeed
     TestTables.TestTableOperations ops = table.ops();
-    ops.failCommits(3);
+    ops.failCommits(TableProperties.COMMIT_NUM_RETRIES_DEFAULT);
 
     AppendFiles append = table.newFastAppend().appendFile(FILE_B);
     Snapshot pending = append.apply();
@@ -416,7 +441,7 @@ public class TestFastAppend extends TestBase {
 
     table.updateProperties().set(TableProperties.COMMIT_NUM_RETRIES, "1").commit();
 
-    table.ops().failCommits(5);
+    table.ops().failCommits(2);
 
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
 
