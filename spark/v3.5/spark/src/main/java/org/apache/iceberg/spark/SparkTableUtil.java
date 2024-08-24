@@ -851,6 +851,12 @@ public class SparkTableUtil {
         .run(item -> io.deleteFile(item.path()));
   }
 
+  public static Dataset<Row> loadTable(SparkSession spark, Table table, long snapshotId) {
+    SparkTable sparkTable = new SparkTable(table, snapshotId, false);
+    DataSourceV2Relation relation = createRelation(sparkTable, ImmutableMap.of());
+    return Dataset.ofRows(spark, relation);
+  }
+
   public static Dataset<Row> loadMetadataTable(
       SparkSession spark, Table table, MetadataTableType type) {
     return loadMetadataTable(spark, table, type, ImmutableMap.of());
@@ -858,11 +864,16 @@ public class SparkTableUtil {
 
   public static Dataset<Row> loadMetadataTable(
       SparkSession spark, Table table, MetadataTableType type, Map<String, String> extraOptions) {
-    SparkTable metadataTable =
-        new SparkTable(MetadataTableUtils.createMetadataTableInstance(table, type), false);
+    Table metadataTable = MetadataTableUtils.createMetadataTableInstance(table, type);
+    SparkTable sparkMetadataTable = new SparkTable(metadataTable, false);
+    DataSourceV2Relation relation = createRelation(sparkMetadataTable, extraOptions);
+    return Dataset.ofRows(spark, relation);
+  }
+
+  private static DataSourceV2Relation createRelation(
+      SparkTable sparkTable, Map<String, String> extraOptions) {
     CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(extraOptions);
-    return Dataset.ofRows(
-        spark, DataSourceV2Relation.create(metadataTable, Some.empty(), Some.empty(), options));
+    return DataSourceV2Relation.create(sparkTable, Option.empty(), Option.empty(), options);
   }
 
   /**
