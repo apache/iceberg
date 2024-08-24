@@ -63,7 +63,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class IcebergFilesCommitter extends AbstractStreamOperator<Void>
-    implements OneInputStreamOperator<WriteResult, Void>, BoundedOneInput {
+    implements OneInputStreamOperator<FlinkWriteResult, Void>, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
   private static final long INITIAL_CHECKPOINT_ID = -1L;
@@ -96,7 +96,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   // The completed files cache for current checkpoint. Once the snapshot barrier received, it will
   // be flushed to the 'dataFilesPerCheckpoint'.
-  private final List<WriteResult> writeResultsOfCurrentCkpt = Lists.newArrayList();
+  private final Map<Long, List<WriteResult>> writeResultsOfCurrentCkpt = Maps.newHashMap();
   private final String branch;
 
   // It will have an unique identifier for one job.
@@ -259,28 +259,28 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       long checkpointId)
       throws IOException {
     NavigableMap<Long, byte[]> pendingMap = deltaManifestsMap.headMap(checkpointId, true);
-    List<ManifestFile> manifests = Lists.newArrayList();
-    NavigableMap<Long, WriteResult> pendingResults = Maps.newTreeMap();
     for (Map.Entry<Long, byte[]> e : pendingMap.entrySet()) {
+      List<ManifestFile> manifests = Lists.newArrayList();
+      NavigableMap<Long, WriteResult> pendingResults = Maps.newTreeMap();
+
       if (Arrays.equals(EMPTY_MANIFEST_DATA, e.getValue())) {
         // Skip the empty flink manifest.
-        continue;
+      } else {
+        DeltaManifests deltaManifests =
+            SimpleVersionedSerialization.readVersionAndDeSerialize(
+                DeltaManifestsSerializer.INSTANCE, e.getValue());
+        pendingResults.put(
+            e.getKey(),
+            FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));
+        manifests.addAll(deltaManifests.manifests());
       }
 
-      DeltaManifests deltaManifests =
-          SimpleVersionedSerialization.readVersionAndDeSerialize(
-              DeltaManifestsSerializer.INSTANCE, e.getValue());
-      pendingResults.put(
-          e.getKey(),
-          FlinkManifestUtil.readCompletedFiles(deltaManifests, table.io(), table.specs()));
-      manifests.addAll(deltaManifests.manifests());
+      CommitSummary summary = new CommitSummary(pendingResults);
+      commitPendingResult(pendingResults, summary, newFlinkJobId, operatorId, e.getKey());
+      committerMetrics.updateCommitSummary(summary);
+      deleteCommittedManifests(manifests, newFlinkJobId, checkpointId);
     }
-
-    CommitSummary summary = new CommitSummary(pendingResults);
-    commitPendingResult(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
-    committerMetrics.updateCommitSummary(summary);
     pendingMap.clear();
-    deleteCommittedManifests(manifests, newFlinkJobId, checkpointId);
   }
 
   private void commitPendingResult(
@@ -426,8 +426,12 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   }
 
   @Override
-  public void processElement(StreamRecord<WriteResult> element) {
-    this.writeResultsOfCurrentCkpt.add(element.getValue());
+  public void processElement(StreamRecord<FlinkWriteResult> element) {
+    FlinkWriteResult flinkWriteResult = element.getValue();
+    List<WriteResult> writeResults =
+        writeResultsOfCurrentCkpt.computeIfAbsent(
+            flinkWriteResult.checkpointId(), k -> Lists.newArrayList());
+    writeResults.add(flinkWriteResult.writeResult());
   }
 
   @Override
@@ -448,8 +452,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     if (writeResultsOfCurrentCkpt.isEmpty()) {
       return EMPTY_MANIFEST_DATA;
     }
-
-    WriteResult result = WriteResult.builder().addAll(writeResultsOfCurrentCkpt).build();
+    List<WriteResult> writeResults = writeResultsOfCurrentCkpt.get(checkpointId);
+    WriteResult result = WriteResult.builder().addAll(writeResults).build();
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
             result, () -> manifestOutputFileFactory.create(checkpointId), spec);
