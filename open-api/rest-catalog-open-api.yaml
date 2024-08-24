@@ -541,7 +541,7 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/{prefix}/namespaces/{namespace}/tables/{table}/preplan:
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
@@ -549,29 +549,28 @@ paths:
     post:
       tags:
         - Catalog API
-      summary: Prepare a list of tasks that can be used to distribute table scan planning
+      summary: Returns either a list of `PlanTask`, a list of `FileScanTask`. If planning is not complete returns a `plan-id`.
       description:
-        Prepare a list of tasks that can be used to distribute table scan planning based on a set of table scan criteria
+        Prepares either a list of `PlanTask` that can be used to distribute table scan planning, or a list of `FileScanTask`, based on a set of table scan criteria
         such as selected columns, filters, snapshot range, case sensitivity, etc.
+        In the event that the plan tasks or file scan tasks are not ready to be served, the service will return a `plan-id`,
+        which can be used as input in the `GetTasksStatus`.
         
-        Requires that client specifies only a `snapshot-id` for a regular scan, or for performing incremental scans only provide 
+        Requires that the client specifies only a `snapshot-id` for a snapshot scan, or for performing incremental scans only provide 
         a `start-snapshot-id` and an `end-snapshot-id`. 
-        
-        This API returns a list of `plan-task`s, and each of them can be used in the `PlanTable` API
-        to request a subset of all file scan tasks in a table scan.
+      
+        Each `PlanTask`, can be used as input in the `RetrieveTasks` API
+        to request a subset of file scan tasks in a table scan.
         This mechanism allows clients to distribute and parallelize the entire table scan planning process.
-      operationId: PreplanTable
-      parameters:
-        - $ref: '#/components/parameters/page-token'
-        - $ref: '#/components/parameters/page-size'
+      operationId: planTable
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PreplanTableRequest'
+              $ref: '#/components/schemas/PlanTableRequest'
       responses:
         200:
-          $ref: '#/components/responses/PreplanTableResponse'
+          $ref: '#/components/responses/PlanTableResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -601,45 +600,27 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
-  /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan:
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan/{id}:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
-    post:
+      - $ref: '#/components/parameters/id'
+
+    get:
       tags:
         - Catalog API
-      summary: Perform scan planning against a table
-      operationId: PlanTable
-      parameters:
-        - $ref: '#/components/parameters/page-token'
-        - $ref: '#/components/parameters/page-size'
+      summary: Uses a `plan-id` as input to get status of `planTable`. Returns a list of `PlanTask`, a list of `FileScanTask`, or both when plan is complete.
+      operationId: GetTaskStatus
       description:
-        Perform scan planning against a table based on a set of table scan criteria such as selected columns, filters,
-        snapshot range, case sensitivity, etc.
-        
-        Requires that client specifies only a `snapshot-id` for a regular scan, or for performing incremental scans only provide
-        a `start-snapshot-id` and an `end-snapshot-id`.
-        
-        An optional `plan-task` can be provided to request only a subset of file scan tasks.
-        The `plan-task` can be retrieved by invoking the `PreplanTable` endpoint.
-        
-        If preplanning using the `PreplanTable` endpoint is required before hitting this endpoint but the client fails
-        to supply a `plan-task` in the request, then a `421 Misdirected Request` response should be returned to
-        indicate this requirement.
-        
-        If planning a table scan produces too many file scan tasks and the server is unable to return them within its
-        response size limit, then a `422 Unprocessable Content` response should be returned to indicate that the client
-        should first attempt to preplan the specific table scan to distribute the planning process and make the content
-        processable by the server.
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PlanTableRequest'
+        Gets the status of a plan by using a `plan-id` which can be obtained from `planTable`.
+        If the plan is not completed, returns a `plan-status` representing the state of the plan.
+        If the plan is completed, returns a list of `PlanTask` or `FileScanTask`.
+      
+        If an invalid `plan-id` is provided, the service will return a `404 NoSuchPlanIdError` exception indicating that the requested plan does not exist.
       responses:
         200:
-          $ref: '#/components/responses/PlanTableResponse'
+          $ref: '#/components/responses/GetTasksStatusResponse'
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -649,6 +630,7 @@ paths:
         404:
           description:
             Not Found
+            - NoSuchPlanIdException, the plan-id does not exist
             - NoSuchTableException, the table does not exist
             - NoSuchNamespaceException, the namespace does not exist
           content:
@@ -656,20 +638,118 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               examples:
+                PlanIdDoesNotExist:
+                  $ref: '#/components/examples/NoSuchPlanIdError'
                 TableDoesNotExist:
                   $ref: '#/components/examples/NoSuchTableError'
                 NamespaceDoesNotExist:
                   $ref: '#/components/examples/NoSuchNamespaceError'
         419:
           $ref: '#/components/responses/AuthenticationTimeoutResponse'
-        421:
-          $ref: '#/components/responses/MisdirectedRequestResponse'
-        422:
-          $ref: '#/components/responses/UnprocessableContentResponse'
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
+
+    delete:
+      tags:
+        - Catalog API
+      summary: Uses a `plan-id` as input to cancel a `planTable` operation.
+      operationId: CancelPlan
+      description:
+        Uses a `plan-id` as input to cancel a `planTable` operation.
+        If successful, should return a state that says "cancelled".
+        
+        If an invalid `plan-id` is provided, the service will return a `404 NoSuchPlanIdError` exception indicating that the requested plan does not exist.
+      responses:
+        200:
+          $ref: '#/components/responses/CancelPlanResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found
+            - NoSuchPlanIdException, the plan-id does not exist
+            - NoSuchTableException, the table does not exist
+            - NoSuchNamespaceException, the namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                PlanIdDoesNotExist:
+                  $ref: '#/components/examples/NoSuchPlanIdError'
+                TableDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NamespaceDoesNotExist:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/tasks:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Retrieves additional `PlanTask`s and `FileScanTask`s from the service.
+      operationId: RetrieveTasks
+      description:
+        Requires a client to provide a `PlanTask` which can be obtained from `GetTaskStatus`, 
+        in order to fetch additional `PlanTask`s and `FileScanTask`s from a service.
+      
+        If an invalid plan-task is provided to the service, the service will return a `404 NoSuchPlanTaskError` exception.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetrieveTasksRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/RetrieveTasksResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found
+            - NoSuchPlanTaskException, the plan-task does not exist
+            - NoSuchTableException, the table does not exist
+            - NoSuchNamespaceException, the namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                PlanTaskDoesNotExist:
+                  $ref: '#/components/examples/NoSuchPlanTaskError'
+                TableDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NamespaceDoesNotExist:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+
 
   /v1/{prefix}/namespaces/{namespace}/register:
     parameters:
@@ -1593,6 +1673,14 @@ components:
         type: string
       example: "sales"
 
+    id:
+      name: id
+      in: path
+      description: A plan id
+      required: true
+      schema:
+        type: string
+
     view:
       name: view
       in: path
@@ -1748,8 +1836,8 @@ components:
 
     PageToken:
       description:
-        An opaque token that allows clients to make use of pagination for list APIs (e.g. ListTables) 
-        as well as for scan-planning APIs (e.g PlanTable). Clients may initiate the first paginated request by sending an empty
+        An opaque token that allows clients to make use of pagination for list APIs
+        (e.g. ListTables). Clients may initiate the first paginated request by sending an empty
         query parameter `pageToken` to the server.
         
         Servers that support pagination should identify the `pageToken` parameter and return a
@@ -2926,37 +3014,59 @@ components:
           additionalProperties:
             type: string
 
-    PreplanTableResult:
-      type: object
-      required:
-        - plan-tasks
-      properties:
-        plan-tasks:
-          type: array
-          items:
-            $ref: '#/components/schemas/PlanTask'
-        next-page-token:
-          $ref: '#/components/schemas/PageToken'
-
     PlanTableResult:
       type: object
-      required:
-        - file-scan-tasks
+      description: If the plan has not finished return a `plan-id`. 
+        If finished, the response will contain a list of `FileScanTask`, a list of `PlanTask`, or both.
       properties:
         file-scan-tasks:
           type: array
           items:
             $ref: '#/components/schemas/FileScanTask'
-        delete-files:
-          description:
-            A list of delete files that can be either positional or equality. 
-            If the client does not recognize the type of delete file being returned by the service
-            it should immediately throw an exception that it does not support this type.
+        plan-tasks:
           type: array
           items:
-            $ref: '#/components/schemas/DeleteFile'
-        next-page-token:
-          $ref: '#/components/schemas/PageToken'
+              $ref: '#/components/schemas/PlanTask'
+        plan-id:
+            description: id used to track progress of the plan
+            type: string
+
+    GetTasksStatusResult:
+      type: object
+      description: If the plan has not finished return a `plan-status`.
+        If the plan has finished can return a list of `FileScanTask`, a list of `PlanTask`, or both.
+      properties:
+        file-scan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileScanTask'
+        plan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanTask'
+        plan-status:
+            $ref: '#/components/schemas/PlanStatus'
+
+
+    RetrieveTasksResult:
+      type: object
+      description: Used to fetch file scan tasks for a given `planTask`. Can also return additional plan-tasks.
+      properties:
+        file-scan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileScanTask'
+        plan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanTask'
+
+    CancelPlanResult:
+      type: object
+      description: Used to indicate state of cancellation. If successful should return "cancelled" state.
+      properties:
+        cancel-status:
+          $ref: '#/components/schemas/PlanStatus'
 
     CommitTableRequest:
       type: object
@@ -3842,51 +3952,9 @@ components:
             type: integer
           description: "List of equality field IDs"
 
-    PreplanTableRequest:
-      type: object
-      properties:
-        snapshot-id:
-          description:
-            The ID of the snapshot to use for the table scan.
-          type: integer
-          format: int64
-        select:
-          description:
-            A list of fields in schema that are selected in a table scan.
-            When not specified, all columns in the requested schema should be selected.
-          type: array
-          items:
-            $ref: '#/components/schemas/FieldName'
-        filter:
-          description:
-            an unbounded expression to describe the filters to apply to a table scan,
-          $ref: '#/components/schemas/Expression'
-        case-sensitive:
-          description: If field selection and filtering should be case sensitive
-          type: boolean
-          default: true
-        use-snapshot-schema:
-          description:
-            If the client is performing time travel, the snapshot schema should be used.
-            For clients performing a plan for a branch, should default to using the table schema.
-          type: boolean
-          default: false
-        start-snapshot-id:
-          description: The ID of the starting snapshot of the incremental scan
-          type: integer
-          format: int64
-        end-snapshot-id:
-          description:
-            The ID of the inclusive ending snapshot of the incremental scan.
-            If not specified, the snapshot at the main branch head will be used as the end snapshot.
-          type: integer
-          format: int64
-
     PlanTableRequest:
       type: object
       properties:
-        plan-task:
-          $ref: '#/components/schemas/PlanTask'
         snapshot-id:
           description:
             The ID of the snapshot to use for the table scan.
@@ -3931,6 +3999,32 @@ components:
           items:
             $ref: '#/components/schemas/FieldName'
 
+    GetTasksStatusRequest:
+      type: object
+      required:
+        - plan-id
+      properties:
+        plan-id:
+          description: id used to track status of `planTable`
+          type: string
+
+    RetrieveTasksRequest:
+      type: object
+      required:
+        - plan-task
+      properties:
+        plan-task:
+          $ref: '#/components/schemas/PlanTask'
+
+    CancelPlanRequest:
+      type: object
+      required:
+        - plan-id
+      properties:
+        plan-id:
+          description: id used to cancel `planTable` operation
+          type: string
+
     FieldName:
       description:
         A field name that follows the Iceberg naming standard, and can be used in APIs like
@@ -3948,8 +4042,14 @@ components:
       description:
         An opaque JSON object that contains information provided by the REST server
         to be utilized by clients for distributed table scan planning; should be supplied
-        as input in `PlanTable` operation.
+        as input in `RetrieveTasks` operation.
       type: object
+
+    PlanStatus:
+      description:
+        Represents the current status of the `planTable` operation.
+      type: string
+      enum: [started, cancelled, failed]
 
     FileScanTask:
       type: object
@@ -4132,37 +4232,6 @@ components:
             }
           }
 
-    MisdirectedRequestResponse:
-      description:
-        Misdirected Request. The request was directed to a server that is not able to produce a response.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/IcebergErrorResponse'
-          example: {
-            "error": {
-              "message": "Fail to plan table scan: must perform preplan before planning a table scan",
-              "type": "PreplanTableRequiredException",
-              "code": 421
-            }
-          }
-
-    UnprocessableContentResponse:
-      description:
-        Unprocessable Content. The server understands the content type of the request entity, and the syntax of the
-        request entity is correct, but it was unable to process the contained instructions.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/IcebergErrorResponse'
-          example: {
-            "error": {
-              "message": "Fail to plan table scan: too many file scan tasks. Please use preplan to distribute table scan.",
-              "type": "TooManyFileScanTasksException",
-              "code": 422
-            }
-          }
-
     ServiceUnavailableResponse:
       description:
         The service is not ready to handle the request. The client should wait and retry.
@@ -4217,19 +4286,34 @@ components:
           schema:
             $ref: '#/components/schemas/LoadTableResult'
 
-    PreplanTableResponse:
-      description: Result of preplanning a table scan
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/PreplanTableResult'
-
     PlanTableResponse:
       description: Result of planning a table scan
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/PlanTableResult'
+
+    GetTasksStatusResponse:
+      description: Result of checking status of a plan
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GetTasksStatusResult'
+
+    RetrieveTasksResponse:
+      description: Result of retrieving additional plan tasks and file scan tasks.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RetrieveTasksResult'
+
+    CancelPlanResponse:
+      description: Result of a cancellation of a plan
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CancelPlanResult'
+
 
     LoadTableResponse:
       description: Table metadata result when loading a table
@@ -4305,6 +4389,26 @@ components:
           "message": "The given namespace already exists",
           "type": "AlreadyExistsException",
           "code": 409
+        }
+      }
+
+    NoSuchPlanIdError:
+      summary: The plan id does not exist
+      value: {
+        "error": {
+          "message": "The plan id does not exist",
+          "type": "NoSuchPlanIdException",
+          "code": 404
+        }
+      }
+
+    NoSuchPlanTaskError:
+      summary: The plan task does not exist
+      value: {
+        "error": {
+          "message": "The plan task does not exist",
+          "type": "NoSuchPlanTaskException",
+          "code": 404
         }
       }
 
