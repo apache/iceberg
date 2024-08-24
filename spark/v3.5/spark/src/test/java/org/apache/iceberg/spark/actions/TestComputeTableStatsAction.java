@@ -80,6 +80,20 @@ public class TestComputeTableStatsAction extends CatalogTestBase {
           required(5, "stringCol", Types.StringType.get()));
 
   @TestTemplate
+  public void testLoadingTableDirectly() {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+    sql("INSERT into %s values(1, 'abcd')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+
+    SparkActions actions = SparkActions.get();
+    ComputeTableStats.Result results = actions.computeTableStats(table).execute();
+    StatisticsFile statisticsFile = results.statisticsFile();
+    Assertions.assertNotEquals(statisticsFile.fileSizeInBytes(), 0);
+    Assertions.assertEquals(statisticsFile.blobMetadata().size(), 2);
+  }
+
+  @TestTemplate
   public void testComputeTableStatsAction() throws NoSuchTableException, ParseException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);

@@ -32,9 +32,10 @@ import org.apache.iceberg.puffin.StandardBlobTypes;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Column;
+import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.stats.ThetaSketchAgg;
@@ -73,13 +74,8 @@ public class NDVSketchUtil {
 
   private static Row computeNDVSketches(
       SparkSession spark, Table table, Snapshot snapshot, List<String> colNames) {
-    return spark
-        .read()
-        .format("iceberg")
-        .option(SparkReadOptions.SNAPSHOT_ID, snapshot.snapshotId())
-        .load(table.name())
-        .select(toAggColumns(colNames))
-        .first();
+    Dataset<Row> inputDF = SparkTableUtil.loadTable(spark, table, snapshot.snapshotId());
+    return inputDF.select(toAggColumns(colNames)).first();
   }
 
   private static Column[] toAggColumns(List<String> colNames) {
