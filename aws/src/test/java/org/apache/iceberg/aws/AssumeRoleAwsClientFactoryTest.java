@@ -22,6 +22,8 @@ import static org.apache.iceberg.aws.AwsProperties.CLIENT_ASSUME_ROLE_ARN;
 import static org.apache.iceberg.aws.AwsProperties.CLIENT_ASSUME_ROLE_REGION;
 import static org.apache.iceberg.aws.AwsProperties.CLIENT_ASSUME_ROLE_STS_REGIONAL_ENDPOINT_ENABLED;
 import static org.apache.iceberg.aws.AwsProperties.CLIENT_FACTORY;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static software.amazon.awssdk.core.SdkSystemSetting.AWS_REGION;
 
 import java.util.List;
@@ -33,7 +35,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -88,12 +89,12 @@ public class AssumeRoleAwsClientFactoryTest {
             "true");
     AwsClientFactory awsClientFactory = AwsClientFactories.from(properties);
 
-    Assertions.assertThat(awsClientFactory).isInstanceOf(AssumeRoleAwsClientFactory.class);
+    assertThat(awsClientFactory).isInstanceOf(AssumeRoleAwsClientFactory.class);
     AssumeRoleAwsClientFactory assumeRoleAwsClientFactory =
         (AssumeRoleAwsClientFactory) awsClientFactory;
     StsClient stsClient = assumeRoleAwsClientFactory.stsClientBuilder().build();
     StsServiceClientConfiguration config = stsClient.serviceClientConfiguration();
-    Assertions.assertThat(config.region()).isEqualTo(region);
+    assertThat(config.region()).isEqualTo(region);
   }
 
   @Test
@@ -111,7 +112,7 @@ public class AssumeRoleAwsClientFactoryTest {
             "true");
     AwsClientFactory awsClientFactory = AwsClientFactories.from(properties);
 
-    Assertions.assertThat(awsClientFactory).isInstanceOf(AssumeRoleAwsClientFactory.class);
+    assertThat(awsClientFactory).isInstanceOf(AssumeRoleAwsClientFactory.class);
     AssumeRoleAwsClientFactory assumeRoleAwsClientFactory =
         (AssumeRoleAwsClientFactory) awsClientFactory;
     StsClientBuilder clientBuilder = assumeRoleAwsClientFactory.stsClientBuilder();
@@ -119,12 +120,12 @@ public class AssumeRoleAwsClientFactoryTest {
 
     StsClient stsClient = buildWithCustomInterceptor(clientBuilder, stsHost);
 
-    Assertions.catchThrowable(stsClient::getCallerIdentity);
+    catchThrowable(stsClient::getCallerIdentity);
     String stsEndpoint = stsHost.get();
-    Assertions.assertThat(stsEndpoint).contains(region);
+    assertThat(stsEndpoint).contains(region);
     Matcher matcher = STS_HOST.matcher(stsEndpoint);
-    Assertions.assertThat(matcher.matches()).isTrue();
-    Assertions.assertThat(matcher.group(1)).isEqualTo(region);
+    assertThat(matcher.matches()).isTrue();
+    assertThat(matcher.group(1)).isEqualTo(region);
   }
 
   @Test
@@ -142,7 +143,7 @@ public class AssumeRoleAwsClientFactoryTest {
             "false");
     AwsClientFactory awsClientFactory = AwsClientFactories.from(properties);
 
-    Assertions.assertThat(awsClientFactory).isInstanceOf(AssumeRoleAwsClientFactory.class);
+    assertThat(awsClientFactory).isInstanceOf(AssumeRoleAwsClientFactory.class);
     AssumeRoleAwsClientFactory assumeRoleAwsClientFactory =
         (AssumeRoleAwsClientFactory) awsClientFactory;
     StsClientBuilder clientBuilder = assumeRoleAwsClientFactory.stsClientBuilder();
@@ -150,12 +151,12 @@ public class AssumeRoleAwsClientFactoryTest {
 
     StsClient stsClient = buildWithCustomInterceptor(clientBuilder, stsHost);
 
-    Assertions.catchThrowable(stsClient::getCallerIdentity);
+    catchThrowable(stsClient::getCallerIdentity);
     String stsEndpoint = stsHost.get();
-    Assertions.assertThat(stsEndpoint).doesNotContain(region);
+    assertThat(stsEndpoint).doesNotContain(region);
     Matcher matcher = STS_HOST.matcher(stsEndpoint);
-    Assertions.assertThat(matcher.find()).isTrue();
-    Assertions.assertThat(Region.regions()).contains(Region.of(matcher.group(1)));
+    assertThat(matcher.find()).isTrue();
+    assertThat(Region.regions()).contains(Region.of(matcher.group(1)));
   }
 
   private StsClient buildWithCustomInterceptor(
