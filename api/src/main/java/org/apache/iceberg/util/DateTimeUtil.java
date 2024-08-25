@@ -27,7 +27,6 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoUnit;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 
 public class DateTimeUtil {
   private DateTimeUtil() {}
