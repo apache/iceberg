@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -368,10 +369,56 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
     SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
   }
 
+  @TestTemplate
+  void testOperatorsUidNameNoUidSuffix() throws Exception {
+    List<Row> rows = createRows("");
+    DataStream<Row> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");
+
+    IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+        .table(table)
+        .tableLoader(tableLoader)
+        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .writeParallelism(parallelism)
+        .distributionMode(DistributionMode.HASH)
+        .append();
+
+    Transformation firstTransformation = env.getTransformations().get(0);
+    Transformation secondTransformation = env.getTransformations().get(1);
+    assertThat(firstTransformation.getUid()).isEqualTo("pre-write-mapper-icebergSink");
+    assertThat(firstTransformation.getName()).isEqualTo("Sink pre-write mapper: icebergSink");
+    assertThat(secondTransformation.getUid()).isEqualTo("sink-icebergSink");
+    assertThat(secondTransformation.getName()).isEqualTo("Sink: icebergSink");
+  }
+
+  @TestTemplate
+  void testOperatorsUidNameWitUidSuffix() throws Exception {
+    List<Row> rows = createRows("");
+    DataStream<Row> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");
+
+    IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+        .table(table)
+        .tableLoader(tableLoader)
+        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .writeParallelism(parallelism)
+        .distributionMode(DistributionMode.HASH)
+        .uidSuffix("mlpt-ingestion")
+        .append();
+
+    Transformation firstTransformation = env.getTransformations().get(0);
+    Transformation secondTransformation = env.getTransformations().get(1);
+    assertThat(firstTransformation.getUid()).isEqualTo("pre-write-mapper-mlpt-ingestion");
+    assertThat(firstTransformation.getName()).isEqualTo("Sink pre-write mapper: mlpt-ingestion");
+    assertThat(secondTransformation.getUid()).isEqualTo("sink-mlpt-ingestion");
+    assertThat(secondTransformation.getName()).isEqualTo("Sink: mlpt-ingestion");
+  }
+
   private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)
       throws Exception {
     List<Row> rows = createRows("");
-    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
+    DataStream<Row> dataStream =
+        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");
 
     IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .table(table)

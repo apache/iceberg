@@ -297,8 +297,9 @@ public class IcebergSink
             SingleOutputStreamOperator<RowData> inputStream =
                 input.map(mapper, outputType).setParallelism(input.getParallelism());
             if (newUidSuffix != null) {
-              String uid = "Sink pre-write mapper: " + newUidSuffix;
-              inputStream.name(uid).uid(uid);
+              String name = "Sink pre-write mapper: " + newUidSuffix;
+              String uid = "pre-write-mapper-" + newUidSuffix;
+              inputStream.name(name).uid(uid);
             }
             return inputStream;
           };
@@ -474,8 +475,8 @@ public class IcebergSink
       Preconditions.checkNotNull(tableLoader(), "Table loader shouldn't be null");
 
       // Set the table if it is not yet set in the builder, so we can do the equalityId checks
-      this.table = checkAndGetTable(tableLoader(), table);
-
+      SerializableTable serializableTable = checkAndGetTable(tableLoader(), table);
+      this.table = serializableTable;
       // Init the `flinkWriteConf` here, so we can do the checks
       FlinkWriteConf flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
 
@@ -484,7 +485,6 @@ public class IcebergSink
       if (tableRefreshInterval != null) {
         tableSupplier = new CachingTableSupplier(table, tableLoader(), tableRefreshInterval);
       } else {
-        SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
         tableSupplier = () -> serializableTable;
       }
 
@@ -533,12 +533,14 @@ public class IcebergSink
      */
     public DataStreamSink<RowData> append() {
       IcebergSink sink = build();
-      String suffix = defaultSuffix(uidSuffix, "sink");
+      String suffix = defaultSuffix(uidSuffix, "icebergSink");
       DataStream<RowData> rowDataInput = inputCreator.apply(suffix);
       // Please note that V2 sink framework will apply the uid here to the framework created
       // operators like writer,
       // committer. E.g. "Sink writer: <uidSuffix>
-      DataStreamSink<RowData> rowDataDataStreamSink = rowDataInput.sinkTo(sink).uid(suffix);
+      String uid = "sink-" + suffix;
+      String name = "Sink: " + suffix;
+      DataStreamSink<RowData> rowDataDataStreamSink = rowDataInput.sinkTo(sink).uid(uid).name(name);
 
       // Note that IcebergSink internally consists o multiple operators (like writer, committer,
       // aggregator).
