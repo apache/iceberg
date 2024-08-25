@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.assertj.core.api.Assertions;
@@ -54,6 +56,8 @@ import software.amazon.awssdk.services.sts.StsServiceClientConfiguration;
 public class AssumeRoleAwsClientFactoryTest {
 
   private static final String CURRENT_DEFAULT_REGION = System.getProperty(AWS_REGION.property());
+  private static final Pattern STS_HOST =
+      Pattern.compile("sts\\.(?<region>[^/]*)\\.amazonaws\\.com");
 
   @BeforeAll
   public static void init() {
@@ -116,7 +120,11 @@ public class AssumeRoleAwsClientFactoryTest {
     StsClient stsClient = buildWithCustomInterceptor(clientBuilder, stsHost);
 
     Assertions.catchThrowable(stsClient::getCallerIdentity);
-    Assertions.assertThat(stsHost.get()).contains(region);
+    String stsEndpoint = stsHost.get();
+    Assertions.assertThat(stsEndpoint).contains(region);
+    Matcher matcher = STS_HOST.matcher(stsEndpoint);
+    Assertions.assertThat(matcher.matches()).isTrue();
+    Assertions.assertThat(matcher.group(1)).isEqualTo(region);
   }
 
   @Test
@@ -143,7 +151,11 @@ public class AssumeRoleAwsClientFactoryTest {
     StsClient stsClient = buildWithCustomInterceptor(clientBuilder, stsHost);
 
     Assertions.catchThrowable(stsClient::getCallerIdentity);
-    Assertions.assertThat(stsHost.get()).doesNotContain(region);
+    String stsEndpoint = stsHost.get();
+    Assertions.assertThat(stsEndpoint).doesNotContain(region);
+    Matcher matcher = STS_HOST.matcher(stsEndpoint);
+    Assertions.assertThat(matcher.find()).isTrue();
+    Assertions.assertThat(Region.regions()).contains(Region.of(matcher.group(1)));
   }
 
   private StsClient buildWithCustomInterceptor(
