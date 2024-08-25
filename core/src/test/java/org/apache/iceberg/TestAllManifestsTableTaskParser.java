@@ -93,7 +93,8 @@ public class TestAllManifestsTableTaskParser {
         specsById,
         "/path/manifest-list-file.avro",
         Expressions.equal("id", 1),
-        1L);
+        1L,
+        1234L);
   }
 
   private String taskJson() {
@@ -121,12 +122,14 @@ public class TestAllManifestsTableTaskParser {
         + "{\"id\":11,\"name\":\"contains_nan\",\"required\":true,\"type\":\"boolean\"},"
         + "{\"id\":12,\"name\":\"lower_bound\",\"required\":false,\"type\":\"string\"},"
         + "{\"id\":13,\"name\":\"upper_bound\",\"required\":false,\"type\":\"string\"}]},\"element-required\":true}},"
-        + "{\"id\":18,\"name\":\"reference_snapshot_id\",\"required\":true,\"type\":\"long\"}]},"
+        + "{\"id\":18,\"name\":\"reference_snapshot_id\",\"required\":true,\"type\":\"long\"},"
+        + "{\"id\":19,\"name\":\"reference_snapshot_timestamp_millis\",\"required\":true,\"type\":\"long\"}]},"
         + "\"partition-specs\":[{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
         + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]}],"
         + "\"manifest-list-Location\":\"/path/manifest-list-file.avro\","
         + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1},"
-        + "\"reference-snapshot-id\":1}";
+        + "\"reference-snapshot-id\":1,"
+        + "\"reference-snapshot-timestamp-millis\":1234}";
   }
 
   private void assertTaskEquals(

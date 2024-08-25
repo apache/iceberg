@@ -39,6 +39,8 @@ class AllManifestsTableTaskParser {
   private static final String MANIFEST_LIST_LOCATION = "manifest-list-Location";
   private static final String RESIDUAL = "residual-filter";
   private static final String REFERENCE_SNAPSHOT_ID = "reference-snapshot-id";
+  private static final String REFERENCE_SNAPSHOT_TIMESTAMP_MILLIS =
+      "reference-snapshot-timestamp-millis";
 
   private AllManifestsTableTaskParser() {}
 
@@ -69,6 +71,8 @@ class AllManifestsTableTaskParser {
     ExpressionParser.toJson(task.residual(), generator);
 
     generator.writeNumberField(REFERENCE_SNAPSHOT_ID, task.referenceSnapshotId());
+    generator.writeNumberField(
+        REFERENCE_SNAPSHOT_TIMESTAMP_MILLIS, task.referenceSnapshotTimestampMillis());
   }
 
   static AllManifestsTable.ManifestListReadTask fromJson(JsonNode jsonNode) {
@@ -94,6 +98,8 @@ class AllManifestsTableTaskParser {
     String manifestListLocation = JsonUtil.getString(MANIFEST_LIST_LOCATION, jsonNode);
     Expression residualFilter = ExpressionParser.fromJson(JsonUtil.get(RESIDUAL, jsonNode));
     long referenceSnapshotId = JsonUtil.getLong(REFERENCE_SNAPSHOT_ID, jsonNode);
+    long referenceSnapshotTimestampMillis =
+        JsonUtil.getLong(REFERENCE_SNAPSHOT_TIMESTAMP_MILLIS, jsonNode);
 
     return new AllManifestsTable.ManifestListReadTask(
         dataTableSchema,
@@ -102,6 +108,7 @@ class AllManifestsTableTaskParser {
         specsById,
         manifestListLocation,
         residualFilter,
-        referenceSnapshotId);
+        referenceSnapshotId,
+        referenceSnapshotTimestampMillis);
   }
 }
