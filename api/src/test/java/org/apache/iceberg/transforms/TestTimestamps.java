@@ -208,7 +208,7 @@ public class TestTimestamps {
     Types.TimestampType type = Types.TimestampType.withoutZone();
     Literal<Long> ts = Literal.of("2017-12-01T10:12:55.038194").to(type);
     Literal<Long> pts = Literal.of("1970-01-01T00:00:01.000001").to(type);
-    Literal<Long> nts = Literal.of("1969-12-31T23:59:58.999999").to(type);
+    Literal<Long> nts = Literal.of("1969-12-31T23:59:59.999999").to(type);
 
     Transform<Long, Integer> years = Transforms.year(type);
     assertThat((int) years.apply(ts.value())).as("Should produce 2017 - 1970 = 47").isEqualTo(47);
@@ -241,7 +241,7 @@ public class TestTimestamps {
     Types.TimestampNanoType type = Types.TimestampNanoType.withoutZone();
     Literal<Long> ts = Literal.of("2017-12-01T10:12:55.038194789").to(type);
     Literal<Long> pts = Literal.of("1970-01-01T00:00:01.000000001").to(type);
-    Literal<Long> nts = Literal.of("1969-12-31T23:59:58.999999999").to(type);
+    Literal<Long> nts = Literal.of("1969-12-31T23:59:59.999999999").to(type);
 
     Transform<Long, Integer> years = Transforms.year(type);
     assertThat((int) years.apply(ts.value())).as("Should produce 2017 - 1970 = 47").isEqualTo(47);
@@ -273,7 +273,7 @@ public class TestTimestamps {
     Types.TimestampType type = Types.TimestampType.withoutZone();
     Literal<Long> ts = Literal.of("2017-12-01T10:12:55.038194").to(type);
     Literal<Long> pts = Literal.of("1970-01-01T00:00:01.000001").to(type);
-    Literal<Long> nts = Literal.of("1969-12-31T23:59:58.999999").to(type);
+    Literal<Long> nts = Literal.of("1969-12-31T23:59:59.999999").to(type);
 
     Transform<Long, Integer> years = Transforms.year();
     assertThat((int) years.bind(type).apply(ts.value()))
@@ -317,7 +317,7 @@ public class TestTimestamps {
     Types.TimestampNanoType type = Types.TimestampNanoType.withoutZone();
     Literal<Long> ts = Literal.of("2017-12-01T10:12:55.038194789").to(type);
     Literal<Long> pts = Literal.of("1970-01-01T00:00:01.000000001").to(type);
-    Literal<Long> nts = Literal.of("1969-12-31T23:59:58.999999999").to(type);
+    Literal<Long> nts = Literal.of("1969-12-31T23:59:59.999999999").to(type);
 
     Transform<Long, Integer> years = Transforms.year();
     assertThat((int) years.bind(type).apply(ts.value()))
@@ -577,7 +577,7 @@ public class TestTimestamps {
 
   @Test
   public void testTimestampNanoNullHumanString() {
-    Types.TimestampType type = Types.TimestampType.withZone();
+    Types.TimestampNanoType type = Types.TimestampNanoType.withZone();
     assertThat(Transforms.year().toHumanString(type, null))
         .as("Should produce \"null\" for null")
         .isEqualTo("null");
