@@ -330,6 +330,10 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
       return manifest;
     }
 
+    Snapshot snapshot() {
+      return snapshot;
+    }
+
     @Override
     public CloseableIterable<StructLike> rows() {
       Types.NestedField refSnapshotIdField = projection.findField(MetricsUtil.REF_SNAPSHOT_ID);

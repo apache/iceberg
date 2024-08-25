@@ -37,6 +37,7 @@ class ManifestEntriesTableTaskParser {
   private static final String SCHEMA = "schema";
   private static final String PROJECTION = "projection";
   private static final String RESIDUAL = "residual-filter";
+  private static final String SNAPSHOT = "snapshot";
   private static final String MANIFEST = "manifest-file";
 
   private ManifestEntriesTableTaskParser() {}
@@ -58,6 +59,9 @@ class ManifestEntriesTableTaskParser {
     }
 
     generator.writeEndArray();
+
+    generator.writeFieldName(SNAPSHOT);
+    SnapshotParser.toJson(task.snapshot(), generator);
 
     generator.writeFieldName(MANIFEST);
     ManifestFileParser.toJson(task.manifest(), generator);
@@ -88,11 +92,12 @@ class ManifestEntriesTableTaskParser {
 
     Map<Integer, PartitionSpec> specsById = PartitionUtil.indexSpecs(specsBuilder.build());
 
+    Snapshot snapshot = SnapshotParser.fromJson(JsonUtil.get(SNAPSHOT, jsonNode));
     ManifestFile manifestFile = ManifestFileParser.fromJson(JsonUtil.get(MANIFEST, jsonNode));
     Schema projection = SchemaParser.fromJson(JsonUtil.get(PROJECTION, jsonNode));
     Expression residualFilter = ExpressionParser.fromJson(JsonUtil.get(RESIDUAL, jsonNode));
 
     return new BaseEntriesTable.ManifestReadTask(
-        dataTableSchema, fileIO, specsById, manifestFile, projection, residualFilter);
+        dataTableSchema, fileIO, specsById, snapshot, manifestFile, projection, residualFilter);
   }
 }
