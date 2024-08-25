@@ -301,10 +301,10 @@ public class Types {
     public boolean equals(Object other) {
       if (this == other) {
         return true;
-      }
-      if (!(other instanceof TimestampNanoType)) {
+      } else if (!(other instanceof TimestampNanoType)) {
         return false;
       }
+
       return adjustToUTC == ((TimestampNanoType) other).adjustToUTC;
     }
 
