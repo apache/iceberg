@@ -254,6 +254,7 @@ public class AwsProperties implements Serializable {
     this.clientAssumeRoleSessionName = null;
     this.clientCredentialsProvider = null;
     this.clientCredentialsProviderProperties = null;
+    this.clientAssumeRoleStsRegionalEndpointEnabled = false;
 
     this.glueCatalogId = null;
     this.glueEndpoint = null;

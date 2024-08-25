@@ -47,14 +47,14 @@ public class TestAwsProperties {
     AwsProperties awsProperties =
         new AwsProperties(
             ImmutableMap.of(CLIENT_ASSUME_ROLE_STS_REGIONAL_ENDPOINT_ENABLED, "true"));
-    Assertions.assertThat(awsProperties.clientAssumeRoleStsRegionalEndpointEnabled()).isTrue();
+    assertThat(awsProperties.clientAssumeRoleStsRegionalEndpointEnabled()).isTrue();
 
     awsProperties =
         new AwsProperties(
             ImmutableMap.of(CLIENT_ASSUME_ROLE_STS_REGIONAL_ENDPOINT_ENABLED, "false"));
-    Assertions.assertThat(awsProperties.clientAssumeRoleStsRegionalEndpointEnabled()).isFalse();
+    assertThat(awsProperties.clientAssumeRoleStsRegionalEndpointEnabled()).isFalse();
 
     awsProperties = new AwsProperties(ImmutableMap.of());
-    Assertions.assertThat(awsProperties.clientAssumeRoleStsRegionalEndpointEnabled()).isFalse();
+    assertThat(awsProperties.clientAssumeRoleStsRegionalEndpointEnabled()).isFalse();
   }
 }
