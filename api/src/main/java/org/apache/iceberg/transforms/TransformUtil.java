@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import org.apache.iceberg.util.DateTimeUtil;
 
@@ -80,5 +81,11 @@ class TransformUtil {
   static String base64encode(ByteBuffer buffer) {
     // use direct encoding because all of the encoded bytes are in ASCII
     return StandardCharsets.ISO_8859_1.decode(Base64.getEncoder().encode(buffer)).toString();
+  }
+
+  static boolean satisfiesOrderOf(ChronoUnit leftGranularity, ChronoUnit rightGranularity) {
+    // test the granularity, in hours. hour(ts) => 1 hour, day(ts) => 24 hours, and hour satisfies
+    // the order of day
+    return leftGranularity.getDuration().toHours() <= rightGranularity.getDuration().toHours();
   }
 }

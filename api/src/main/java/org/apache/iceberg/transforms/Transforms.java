@@ -67,6 +67,10 @@ public class Transforms {
     return new UnknownTransform<>(transform);
   }
 
+  /**
+   * @deprecated use {@link #identity()} instead; will be removed in 2.0.0
+   */
+  @Deprecated
   public static Transform<?, ?> fromString(Type type, String transform) {
     Matcher widthMatcher = HAS_WIDTH.matcher(transform);
     if (widthMatcher.matches()) {
@@ -79,24 +83,20 @@ public class Transforms {
       }
     }
 
-    if (transform.equalsIgnoreCase("identity")) {
-      return Identity.get(type);
-    }
-
-    try {
-      switch (type.typeId()) {
-        case TIMESTAMP:
-        case TIMESTAMP_NANO:
-          return Timestamps.get(type, transform);
-        case DATE:
-          return Dates.valueOf(transform.toUpperCase(Locale.ENGLISH));
-      }
-    } catch (IllegalArgumentException ignored) {
-      // fall through to return unknown transform
-    }
-
-    if (transform.equalsIgnoreCase("void")) {
-      return VoidTransform.get();
+    String lowerTransform = transform.toLowerCase(Locale.ENGLISH);
+    switch (lowerTransform) {
+      case "identity":
+        return Identity.get(type);
+      case "year":
+        return Years.get().toEnum(type);
+      case "month":
+        return Months.get().toEnum(type);
+      case "day":
+        return Days.get().toEnum(type);
+      case "hour":
+        return Hours.get().toEnum(type);
+      case "void":
+        return VoidTransform.get();
     }
 
     return new UnknownTransform<>(transform);
@@ -126,16 +126,7 @@ public class Transforms {
   @Deprecated
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> year(Type type) {
-    switch (type.typeId()) {
-      case DATE:
-        return (Transform<T, Integer>) Dates.YEAR;
-      case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.YEAR_FROM_MICROS;
-      case TIMESTAMP_NANO:
-        return (Transform<T, Integer>) Timestamps.YEAR_FROM_NANOS;
-      default:
-        throw new IllegalArgumentException("Cannot partition type " + type + " by year");
-    }
+    return (Transform<T, Integer>) Years.get().toEnum(type);
   }
 
   /**
@@ -149,16 +140,7 @@ public class Transforms {
   @Deprecated
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> month(Type type) {
-    switch (type.typeId()) {
-      case DATE:
-        return (Transform<T, Integer>) Dates.MONTH;
-      case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.MONTH_FROM_MICROS;
-      case TIMESTAMP_NANO:
-        return (Transform<T, Integer>) Timestamps.MONTH_FROM_NANOS;
-      default:
-        throw new IllegalArgumentException("Cannot partition type " + type + " by month");
-    }
+    return (Transform<T, Integer>) Months.get().toEnum(type);
   }
 
   /**
@@ -172,16 +154,7 @@ public class Transforms {
   @Deprecated
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> day(Type type) {
-    switch (type.typeId()) {
-      case DATE:
-        return (Transform<T, Integer>) Dates.DAY;
-      case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.DAY_FROM_MICROS;
-      case TIMESTAMP_NANO:
-        return (Transform<T, Integer>) Timestamps.DAY_FROM_NANOS;
-      default:
-        throw new IllegalArgumentException("Cannot partition type " + type + " by day");
-    }
+    return (Transform<T, Integer>) Days.get().toEnum(type);
   }
 
   /**
@@ -195,14 +168,7 @@ public class Transforms {
   @Deprecated
   @SuppressWarnings("unchecked")
   public static <T> Transform<T, Integer> hour(Type type) {
-    switch (type.typeId()) {
-      case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.HOUR_FROM_MICROS;
-      case TIMESTAMP_NANO:
-        return (Transform<T, Integer>) Timestamps.HOUR_FROM_NANOS;
-      default:
-        throw new IllegalArgumentException(String.format("Cannot partition type %s by hour", type));
-    }
+    return (Transform<T, Integer>) Hours.get().toEnum(type);
   }
 
   /**

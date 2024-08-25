@@ -122,22 +122,22 @@ public interface PartitionSpecVisitor<T> {
       int width = ((Truncate<?>) transform).width();
       return visitor.truncate(field.fieldId(), sourceName, field.sourceId(), width);
     } else if (transform == Dates.YEAR
-        || transform == Timestamps.YEAR_FROM_MICROS
-        || transform == Timestamps.YEAR_FROM_NANOS
+        || transform == Timestamps.MICROS_TO_YEAR
+        || transform == Timestamps.NANOS_TO_YEAR
         || transform instanceof Years) {
       return visitor.year(field.fieldId(), sourceName, field.sourceId());
     } else if (transform == Dates.MONTH
-        || transform == Timestamps.MONTH_FROM_MICROS
-        || transform == Timestamps.MONTH_FROM_NANOS
+        || transform == Timestamps.MICROS_TO_MONTH
+        || transform == Timestamps.NANOS_TO_MONTH
         || transform instanceof Months) {
       return visitor.month(field.fieldId(), sourceName, field.sourceId());
     } else if (transform == Dates.DAY
-        || transform == Timestamps.DAY_FROM_MICROS
-        || transform == Timestamps.DAY_FROM_NANOS
+        || transform == Timestamps.MICROS_TO_DAY
+        || transform == Timestamps.NANOS_TO_DAY
         || transform instanceof Days) {
       return visitor.day(field.fieldId(), sourceName, field.sourceId());
-    } else if (transform == Timestamps.HOUR_FROM_MICROS
-        || transform == Timestamps.HOUR_FROM_NANOS
+    } else if (transform == Timestamps.MICROS_TO_HOUR
+        || transform == Timestamps.NANOS_TO_HOUR
         || transform instanceof Hours) {
       return visitor.hour(field.fieldId(), sourceName, field.sourceId());
     } else if (transform instanceof VoidTransform) {

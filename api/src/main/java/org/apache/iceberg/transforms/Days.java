@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
+import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -31,41 +32,19 @@ public class Days<T> extends TimeTransform<T> {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
+  protected ChronoUnit granularity() {
+    return ChronoUnit.DAYS;
+  }
+
+  @Override
   protected Transform<T, Integer> toEnum(Type type) {
-    switch (type.typeId()) {
-      case DATE:
-        return (Transform<T, Integer>) Dates.DAY;
-      case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.DAY_FROM_MICROS;
-      case TIMESTAMP_NANO:
-        return (Transform<T, Integer>) Timestamps.DAY_FROM_NANOS;
-      default:
-        throw new IllegalArgumentException("Unsupported type: " + type);
-    }
+    return (Transform<T, Integer>)
+        fromSourceType(type, Dates.DAY, Timestamps.MICROS_TO_DAY, Timestamps.NANOS_TO_DAY);
   }
 
   @Override
   public Type getResultType(Type sourceType) {
     return Types.DateType.get();
-  }
-
-  @Override
-  public boolean satisfiesOrderOf(Transform<?, ?> other) {
-    if (this == other) {
-      return true;
-    }
-
-    if (other instanceof Timestamps) {
-      // incoming type unit does not matter
-      return Timestamps.DAY_FROM_MICROS.satisfiesOrderOf(other);
-    } else if (other instanceof Dates) {
-      return Dates.DAY.satisfiesOrderOf(other);
-    } else if (other instanceof Days || other instanceof Months || other instanceof Years) {
-      return true;
-    }
-
-    return false;
   }
 
   @Override

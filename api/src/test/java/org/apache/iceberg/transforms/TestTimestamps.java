@@ -19,7 +19,6 @@
 package org.apache.iceberg.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.types.Type;
@@ -27,6 +26,182 @@ import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestTimestamps {
+  @Test
+  public void testMicrosSatisfiesOrderOfDates() {
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Dates.DAY)).isTrue();
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Dates.MONTH)).isTrue();
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Dates.YEAR)).isTrue();
+
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Dates.DAY)).isTrue();
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Dates.MONTH)).isTrue();
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Dates.YEAR)).isTrue();
+
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Dates.DAY)).isFalse();
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Dates.MONTH)).isTrue();
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Dates.YEAR)).isTrue();
+
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Dates.DAY)).isFalse();
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Dates.MONTH)).isFalse();
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Dates.YEAR)).isTrue();
+  }
+
+  @Test
+  public void testMicrosSatisfiesOrderOfTimestamps() {
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Timestamps.MICROS_TO_HOUR)).isTrue();
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Timestamps.MICROS_TO_DAY)).isTrue();
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Timestamps.MICROS_TO_MONTH)).isTrue();
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Timestamps.MICROS_TO_YEAR)).isTrue();
+
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Timestamps.MICROS_TO_HOUR)).isFalse();
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Timestamps.MICROS_TO_DAY)).isTrue();
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Timestamps.MICROS_TO_MONTH)).isTrue();
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Timestamps.MICROS_TO_YEAR)).isTrue();
+
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Timestamps.MICROS_TO_HOUR)).isFalse();
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Timestamps.MICROS_TO_DAY)).isFalse();
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Timestamps.MICROS_TO_MONTH)).isTrue();
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Timestamps.MICROS_TO_YEAR)).isTrue();
+
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Timestamps.MICROS_TO_HOUR)).isFalse();
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Timestamps.MICROS_TO_DAY)).isFalse();
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Timestamps.MICROS_TO_MONTH)).isFalse();
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Timestamps.MICROS_TO_YEAR)).isTrue();
+  }
+
+  @Test
+  public void testMicrosSatisfiesOrderOfTimestampNanos() {
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Timestamps.NANOS_TO_HOUR)).isTrue();
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Timestamps.NANOS_TO_DAY)).isTrue();
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Timestamps.NANOS_TO_MONTH)).isTrue();
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Timestamps.NANOS_TO_YEAR)).isTrue();
+
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Timestamps.NANOS_TO_HOUR)).isFalse();
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Timestamps.NANOS_TO_DAY)).isTrue();
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Timestamps.NANOS_TO_MONTH)).isTrue();
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Timestamps.NANOS_TO_YEAR)).isTrue();
+
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Timestamps.NANOS_TO_HOUR)).isFalse();
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Timestamps.NANOS_TO_DAY)).isFalse();
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Timestamps.NANOS_TO_MONTH)).isTrue();
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Timestamps.NANOS_TO_YEAR)).isTrue();
+
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Timestamps.NANOS_TO_HOUR)).isFalse();
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Timestamps.NANOS_TO_DAY)).isFalse();
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Timestamps.NANOS_TO_MONTH)).isFalse();
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Timestamps.NANOS_TO_YEAR)).isTrue();
+  }
+
+  @Test
+  public void testMicrosSatisfiesOrderOfTimeTransforms() {
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Hours.get())).isTrue();
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Days.get())).isTrue();
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Months.get())).isTrue();
+    assertThat(Timestamps.MICROS_TO_HOUR.satisfiesOrderOf(Years.get())).isTrue();
+
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Hours.get())).isFalse();
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Days.get())).isTrue();
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Months.get())).isTrue();
+    assertThat(Timestamps.MICROS_TO_DAY.satisfiesOrderOf(Years.get())).isTrue();
+
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Hours.get())).isFalse();
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Days.get())).isFalse();
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Months.get())).isTrue();
+    assertThat(Timestamps.MICROS_TO_MONTH.satisfiesOrderOf(Years.get())).isTrue();
+
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Hours.get())).isFalse();
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Days.get())).isFalse();
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Months.get())).isFalse();
+    assertThat(Timestamps.MICROS_TO_YEAR.satisfiesOrderOf(Years.get())).isTrue();
+  }
+
+  @Test
+  public void testNanosSatisfiesOrderOfDates() {
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Dates.DAY)).isTrue();
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Dates.MONTH)).isTrue();
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Dates.YEAR)).isTrue();
+
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Dates.DAY)).isTrue();
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Dates.MONTH)).isTrue();
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Dates.YEAR)).isTrue();
+
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Dates.DAY)).isFalse();
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Dates.MONTH)).isTrue();
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Dates.YEAR)).isTrue();
+
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Dates.DAY)).isFalse();
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Dates.MONTH)).isFalse();
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Dates.YEAR)).isTrue();
+  }
+
+  @Test
+  public void testNanosSatisfiesOrderOfTimestamps() {
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Timestamps.MICROS_TO_HOUR)).isTrue();
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Timestamps.MICROS_TO_DAY)).isTrue();
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Timestamps.MICROS_TO_MONTH)).isTrue();
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Timestamps.MICROS_TO_YEAR)).isTrue();
+
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Timestamps.MICROS_TO_HOUR)).isFalse();
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Timestamps.MICROS_TO_DAY)).isTrue();
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Timestamps.MICROS_TO_MONTH)).isTrue();
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Timestamps.MICROS_TO_YEAR)).isTrue();
+
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Timestamps.MICROS_TO_HOUR)).isFalse();
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Timestamps.MICROS_TO_DAY)).isFalse();
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Timestamps.MICROS_TO_MONTH)).isTrue();
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Timestamps.MICROS_TO_YEAR)).isTrue();
+
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Timestamps.MICROS_TO_HOUR)).isFalse();
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Timestamps.MICROS_TO_DAY)).isFalse();
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Timestamps.MICROS_TO_MONTH)).isFalse();
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Timestamps.MICROS_TO_YEAR)).isTrue();
+  }
+
+  @Test
+  public void testNanosSatisfiesOrderOfTimestampNanos() {
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Timestamps.NANOS_TO_HOUR)).isTrue();
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Timestamps.NANOS_TO_DAY)).isTrue();
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Timestamps.NANOS_TO_MONTH)).isTrue();
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Timestamps.NANOS_TO_YEAR)).isTrue();
+
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Timestamps.NANOS_TO_HOUR)).isFalse();
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Timestamps.NANOS_TO_DAY)).isTrue();
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Timestamps.NANOS_TO_MONTH)).isTrue();
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Timestamps.NANOS_TO_YEAR)).isTrue();
+
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Timestamps.NANOS_TO_HOUR)).isFalse();
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Timestamps.NANOS_TO_DAY)).isFalse();
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Timestamps.NANOS_TO_MONTH)).isTrue();
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Timestamps.NANOS_TO_YEAR)).isTrue();
+
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Timestamps.NANOS_TO_HOUR)).isFalse();
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Timestamps.NANOS_TO_DAY)).isFalse();
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Timestamps.NANOS_TO_MONTH)).isFalse();
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Timestamps.NANOS_TO_YEAR)).isTrue();
+  }
+
+  @Test
+  public void testNanosSatisfiesOrderOfTimeTransforms() {
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Hours.get())).isTrue();
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Days.get())).isTrue();
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Months.get())).isTrue();
+    assertThat(Timestamps.NANOS_TO_HOUR.satisfiesOrderOf(Years.get())).isTrue();
+
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Hours.get())).isFalse();
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Days.get())).isTrue();
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Months.get())).isTrue();
+    assertThat(Timestamps.NANOS_TO_DAY.satisfiesOrderOf(Years.get())).isTrue();
+
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Hours.get())).isFalse();
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Days.get())).isFalse();
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Months.get())).isTrue();
+    assertThat(Timestamps.NANOS_TO_MONTH.satisfiesOrderOf(Years.get())).isTrue();
+
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Hours.get())).isFalse();
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Days.get())).isFalse();
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Months.get())).isFalse();
+    assertThat(Timestamps.NANOS_TO_YEAR.satisfiesOrderOf(Years.get())).isTrue();
+  }
+
   @Test
   @SuppressWarnings("deprecation")
   public void testDeprecatedTimestampTransform() {
@@ -457,21 +632,5 @@ public class TestTimestamps {
     Transform<Integer, Integer> hour = Transforms.hour();
     Type hourResultType = hour.getResultType(type);
     assertThat(hourResultType).isEqualTo(Types.IntegerType.get());
-  }
-
-  @Test
-  public void testGetOfTimestampTypeRejectsBadString() {
-    Types.TimestampType timestampType = Types.TimestampType.withZone();
-    assertThatThrownBy(() -> Timestamps.get(timestampType, "trash"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageMatching("Unsupported transform: trash");
-  }
-
-  @Test
-  public void testGetOfTimestampNanoTypeRejectsBadString() {
-    Types.TimestampNanoType timestampNanoType = Types.TimestampNanoType.withZone();
-    assertThatThrownBy(() -> Timestamps.get(timestampNanoType, "trash"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageMatching("Unsupported transform: trash");
   }
 }

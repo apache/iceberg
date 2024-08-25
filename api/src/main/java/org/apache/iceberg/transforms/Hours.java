@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
+import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -31,16 +32,15 @@ public class Hours<T> extends TimeTransform<T> {
   }
 
   @Override
+  protected ChronoUnit granularity() {
+    return ChronoUnit.HOURS;
+  }
+
+  @Override
   @SuppressWarnings("unchecked")
   protected Transform<T, Integer> toEnum(Type type) {
-    switch (type.typeId()) {
-      case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.HOUR_FROM_MICROS;
-      case TIMESTAMP_NANO:
-        return (Transform<T, Integer>) Timestamps.HOUR_FROM_NANOS;
-      default:
-        throw new IllegalArgumentException("Unsupported type: " + type);
-    }
+    return (Transform<T, Integer>)
+        fromSourceType(type, null, Timestamps.MICROS_TO_HOUR, Timestamps.NANOS_TO_HOUR);
   }
 
   @Override
@@ -51,24 +51,6 @@ public class Hours<T> extends TimeTransform<T> {
   @Override
   public Type getResultType(Type sourceType) {
     return Types.IntegerType.get();
-  }
-
-  @Override
-  public boolean satisfiesOrderOf(Transform<?, ?> other) {
-    if (this == other) {
-      return true;
-    }
-
-    if (other instanceof Timestamps) {
-      return other == Timestamps.HOUR_FROM_MICROS || other == Timestamps.HOUR_FROM_NANOS;
-    } else if (other instanceof Hours
-        || other instanceof Days
-        || other instanceof Months
-        || other instanceof Years) {
-      return true;
-    }
-
-    return false;
   }
 
   @Override
