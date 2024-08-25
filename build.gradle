@@ -471,6 +471,7 @@ project(':iceberg-aws') {
     compileOnly("software.amazon.awssdk:url-connection-client")
     compileOnly("software.amazon.awssdk:apache-client")
     compileOnly("software.amazon.awssdk:auth")
+    compileOnly("software.amazon.awssdk:http-auth-aws-crt")
     compileOnly("software.amazon.awssdk:s3")
     compileOnly("software.amazon.awssdk:kms")
     compileOnly("software.amazon.awssdk:glue")
