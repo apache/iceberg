@@ -64,6 +64,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
   static CloseableIterable<FileScanTask> planFiles(
       Table table,
+      Snapshot snapshot,
       CloseableIterable<ManifestFile> manifests,
       Schema tableSchema,
       Schema projectedSchema,
@@ -93,7 +94,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
     return CloseableIterable.transform(
         filteredManifests,
-        manifest -> new ManifestReadTask(table, manifest, projectedSchema, filter));
+        manifest -> new ManifestReadTask(table, snapshot, manifest, projectedSchema, filter));
   }
 
   /**
@@ -273,18 +274,24 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     private final Schema fileProjection;
     private final Schema dataTableSchema;
     private final FileIO io;
+    private final Snapshot snapshot;
     private final ManifestFile manifest;
     private final Map<Integer, PartitionSpec> specsById;
 
     private ManifestReadTask(
-        Table table, ManifestFile manifest, Schema projection, Expression filter) {
-      this(table.schema(), table.io(), table.specs(), manifest, projection, filter);
+        Table table,
+        Snapshot snapshot,
+        ManifestFile manifest,
+        Schema projection,
+        Expression filter) {
+      this(table.schema(), table.io(), table.specs(), snapshot, manifest, projection, filter);
     }
 
     ManifestReadTask(
         Schema dataTableSchema,
         FileIO io,
         Map<Integer, PartitionSpec> specsById,
+        Snapshot snapshot,
         ManifestFile manifest,
         Schema projection,
         Expression filter) {
@@ -296,6 +303,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
           ResidualEvaluator.unpartitioned(filter));
       this.projection = projection;
       this.io = io;
+      this.snapshot = snapshot;
       this.manifest = manifest;
       this.specsById = Maps.newHashMap(specsById);
       this.dataTableSchema = dataTableSchema;
@@ -320,22 +328,65 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
 
     @Override
     public CloseableIterable<StructLike> rows() {
+      Types.NestedField refSnapshotIdField = projection.findField(MetricsUtil.REF_SNAPSHOT_ID);
+      Types.NestedField refSnapshotTimestampMillisField =
+          projection.findField(MetricsUtil.REF_SNAPSHOT_TIMESTAMP_MILLIS);
       Types.NestedField readableMetricsField = projection.findField(MetricsUtil.READABLE_METRICS);
 
-      if (readableMetricsField == null) {
-        StructProjection structProjection = structProjection(projection);
+      Schema actualProjection =
+          actualProjection(
+              projection,
+              refSnapshotIdField,
+              refSnapshotTimestampMillisField,
+              readableMetricsField);
+      StructProjection structProjection = structProjection(actualProjection);
 
-        return CloseableIterable.transform(
-            entries(fileProjection), entry -> structProjection.wrap((StructLike) entry));
+      CloseableIterable<StructLike> rows;
+      if (readableMetricsField == null) {
+        rows =
+            CloseableIterable.transform(
+                entries(fileProjection), entry -> structProjection.wrap((StructLike) entry));
       } else {
         Schema requiredFileProjection = requiredFileProjection();
-        Schema actualProjection = removeReadableMetrics(projection, readableMetricsField);
-        StructProjection structProjection = structProjection(actualProjection);
-
-        return CloseableIterable.transform(
-            entries(requiredFileProjection),
-            entry -> withReadableMetrics(structProjection, entry, readableMetricsField));
+        rows =
+            CloseableIterable.transform(
+                entries(requiredFileProjection),
+                entry -> withReadableMetrics(structProjection, entry, readableMetricsField));
       }
+      if (refSnapshotIdField != null || refSnapshotTimestampMillisField != null) {
+        return CloseableIterable.transform(
+            rows,
+            r ->
+                new MetricsUtil.StructWithRefSnapshot(
+                    r, projection, snapshot, refSnapshotIdField, refSnapshotTimestampMillisField));
+      }
+
+      return rows;
+    }
+
+    private Schema actualProjection(
+        Schema projection,
+        Types.NestedField refSnapshotIdField,
+        Types.NestedField refSnapshotTimestampField,
+        Types.NestedField readableMetricsField) {
+      Schema actualProjection = projection;
+
+      if (refSnapshotIdField != null) {
+        actualProjection =
+            TypeUtil.selectNot(actualProjection, Sets.newHashSet(refSnapshotIdField.fieldId()));
+      }
+
+      if (refSnapshotTimestampField != null) {
+        actualProjection =
+            TypeUtil.selectNot(
+                actualProjection, Sets.newHashSet(refSnapshotTimestampField.fieldId()));
+      }
+
+      if (readableMetricsField != null) {
+        actualProjection = removeReadableMetrics(actualProjection, readableMetricsField);
+      }
+
+      return actualProjection;
     }
 
     /**

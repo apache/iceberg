@@ -66,7 +66,8 @@ public class ManifestEntriesTable extends BaseEntriesTable {
     protected CloseableIterable<FileScanTask> doPlanFiles() {
       CloseableIterable<ManifestFile> manifests =
           CloseableIterable.withNoopClose(snapshot().allManifests(table().io()));
-      return BaseEntriesTable.planFiles(table(), manifests, tableSchema(), schema(), context());
+      return BaseEntriesTable.planFiles(
+          table(), snapshot(), manifests, tableSchema(), schema(), context());
     }
   }
 }

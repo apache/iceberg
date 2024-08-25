@@ -18,7 +18,14 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ParallelIterable;
 
 /**
  * A {@link Table} implementation that exposes a table's manifest entries as rows, for both delete
@@ -43,6 +50,21 @@ public class AllEntriesTable extends BaseEntriesTable {
   }
 
   @Override
+  public Schema schema() {
+    Schema baseSchema = super.schema();
+
+    return TypeUtil.join(
+        baseSchema,
+        new Schema(
+            optional(
+                baseSchema.highestFieldId() + 1, MetricsUtil.REF_SNAPSHOT_ID, Types.LongType.get()),
+            optional(
+                baseSchema.highestFieldId() + 2,
+                MetricsUtil.REF_SNAPSHOT_TIMESTAMP_MILLIS,
+                Types.LongType.get())));
+  }
+
+  @Override
   MetadataTableType metadataTableType() {
     return MetadataTableType.ALL_ENTRIES;
   }
@@ -64,9 +86,23 @@ public class AllEntriesTable extends BaseEntriesTable {
 
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
-      CloseableIterable<ManifestFile> manifests =
-          reachableManifests(snapshot -> snapshot.allManifests(table().io()));
-      return BaseEntriesTable.planFiles(table(), manifests, tableSchema(), schema(), context());
+      try (CloseableIterable<FileScanTask> iterable =
+          new ParallelIterable<>(
+              CloseableIterable.transform(
+                  CloseableIterable.withNoopClose(table().snapshots()),
+                  snapshot ->
+                      BaseEntriesTable.planFiles(
+                          table(),
+                          snapshot,
+                          CloseableIterable.withNoopClose(snapshot.allManifests(table().io())),
+                          tableSchema(),
+                          schema(),
+                          context())),
+              planExecutor())) {
+        return CloseableIterable.withNoopClose(iterable);
+      } catch (IOException e) {
+        throw new UncheckedIOException("Failed to close parallel iterable", e);
+      }
     }
   }
 }
