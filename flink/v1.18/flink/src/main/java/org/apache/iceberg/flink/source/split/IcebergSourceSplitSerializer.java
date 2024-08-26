@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.source.split;
 
 import java.io.IOException;
+import java.util.Locale;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
 
@@ -54,6 +55,7 @@ public class IcebergSourceSplitSerializer implements SimpleVersionedSerializer<I
       default:
         throw new IOException(
             String.format(
+                Locale.ROOT,
                 "Failed to deserialize IcebergSourceSplit. "
                     + "Encountered unsupported version: %d. Supported version are [1]",
                 version));

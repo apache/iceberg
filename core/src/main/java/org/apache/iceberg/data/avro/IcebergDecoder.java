@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.avro.AvroRuntimeException;
 import org.apache.avro.Schema;
@@ -138,7 +139,8 @@ public class IcebergDecoder<D> extends MessageDecoder.BaseDecoder<D> {
 
     if (IcebergEncoder.V1_HEADER[0] != header[0] || IcebergEncoder.V1_HEADER[1] != header[1]) {
       throw new BadHeaderException(
-          String.format("Unrecognized header bytes: 0x%02X 0x%02X", header[0], header[1]));
+          String.format(
+              Locale.ROOT, "Unrecognized header bytes: 0x%02X 0x%02X", header[0], header[1]));
     }
 
     RawDecoder<D> decoder = getDecoder(FP_BUFFER.get().getLong(2));

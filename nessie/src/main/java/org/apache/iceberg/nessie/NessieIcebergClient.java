@@ -136,11 +136,12 @@ public class NessieIcebergClient implements AutoCloseable {
     } catch (NessieNotFoundException ex) {
       if (requestedRef != null) {
         throw new IllegalArgumentException(
-            String.format("Nessie ref '%s' does not exist", requestedRef), ex);
+            String.format(Locale.ROOT, "Nessie ref '%s' does not exist", requestedRef), ex);
       }
 
       throw new IllegalArgumentException(
           String.format(
+              Locale.ROOT,
               "Nessie does not have an existing default branch. "
                   + "Either configure an alternative ref via '%s' or create the default branch on the server.",
               NessieConfigConstants.CONF_NESSIE_REF),
@@ -248,17 +249,21 @@ public class NessieIcebergClient implements AutoCloseable {
           }
         }
         throw new RuntimeException(
-            String.format("Cannot create namespace '%s': %s", namespace, e.getMessage()));
+            String.format(
+                Locale.ROOT, "Cannot create namespace '%s': %s", namespace, e.getMessage()));
       }
     } catch (NessieNotFoundException e) {
       throw new RuntimeException(
           String.format(
+              Locale.ROOT,
               "Cannot create namespace '%s': ref '%s' is no longer valid.",
-              namespace, getRef().getName()),
+              namespace,
+              getRef().getName()),
           e);
     } catch (BaseNessieClientServerException e) {
       throw new RuntimeException(
-          String.format("Cannot create namespace '%s': %s", namespace, e.getMessage()), e);
+          String.format(Locale.ROOT, "Cannot create namespace '%s': %s", namespace, e.getMessage()),
+          e);
     }
   }
 
@@ -272,8 +277,10 @@ public class NessieIcebergClient implements AutoCloseable {
             org.projectnessie.model.Namespace.of(namespace.levels());
         filter +=
             String.format(
+                Locale.ROOT,
                 "size(entry.keyElements) == %d && entry.encodedKey.startsWith('%s.')",
-                root.getElementCount() + 1, root.name());
+                root.getElementCount() + 1,
+                root.name());
       }
       List<ContentKey> entries =
           withReference(api.getEntries()).filter(filter).stream()
@@ -337,7 +344,8 @@ public class NessieIcebergClient implements AutoCloseable {
           }
         }
         throw new RuntimeException(
-            String.format("Cannot drop namespace '%s': %s", namespace, e.getMessage()));
+            String.format(
+                Locale.ROOT, "Cannot drop namespace '%s': %s", namespace, e.getMessage()));
       }
     } catch (NessieNotFoundException e) {
       LOG.error(
@@ -347,7 +355,8 @@ public class NessieIcebergClient implements AutoCloseable {
           e);
     } catch (BaseNessieClientServerException e) {
       throw new RuntimeException(
-          String.format("Cannot drop namespace '%s': %s", namespace, e.getMessage()), e);
+          String.format(Locale.ROOT, "Cannot drop namespace '%s': %s", namespace, e.getMessage()),
+          e);
     }
     return false;
   }
@@ -372,8 +381,10 @@ public class NessieIcebergClient implements AutoCloseable {
     } catch (NessieNotFoundException e) {
       throw new RuntimeException(
           String.format(
+              Locale.ROOT,
               "Cannot load namespace '%s': ref '%s' is no longer valid.",
-              namespace, getRef().getName()),
+              namespace,
+              getRef().getName()),
           e);
     }
   }
@@ -420,18 +431,24 @@ public class NessieIcebergClient implements AutoCloseable {
       }
       throw new RuntimeException(
           String.format(
-              "Cannot update properties on namespace '%s': %s", namespace, e.getMessage()));
+              Locale.ROOT,
+              "Cannot update properties on namespace '%s': %s",
+              namespace,
+              e.getMessage()));
     } catch (NessieContentNotFoundException e) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     } catch (NessieReferenceNotFoundException e) {
       throw new RuntimeException(
           String.format(
+              Locale.ROOT,
               "Cannot update properties on namespace '%s': ref '%s' is no longer valid.",
-              namespace, getRef().getName()),
+              namespace,
+              getRef().getName()),
           e);
     } catch (BaseNessieClientServerException e) {
       throw new RuntimeException(
-          String.format("Cannot update namespace '%s': %s", namespace, e.getMessage()), e);
+          String.format(Locale.ROOT, "Cannot update namespace '%s': %s", namespace, e.getMessage()),
+          e);
     }
   }
 
@@ -455,7 +472,7 @@ public class NessieIcebergClient implements AutoCloseable {
     String contentType = NessieUtil.contentTypeString(type).toLowerCase(Locale.ENGLISH);
     try {
       commitRetry(
-          String.format("Iceberg rename %s from '%s' to '%s'", contentType, from, to),
+          String.format(Locale.ROOT, "Iceberg rename %s from '%s' to '%s'", contentType, from, to),
           Operation.Delete.of(NessieUtil.toKey(from)),
           Operation.Put.of(NessieUtil.toKey(to), existingFromContent));
     } catch (NessieNotFoundException e) {
@@ -468,8 +485,12 @@ public class NessieIcebergClient implements AutoCloseable {
       // and removed by another.
       throw new RuntimeException(
           String.format(
+              Locale.ROOT,
               "Cannot rename %s '%s' to '%s': ref '%s' no longer exists.",
-              contentType, from, to, getRef().getName()),
+              contentType,
+              from,
+              to,
+              getRef().getName()),
           e);
     } catch (BaseNessieClientServerException e) {
       CommitFailedException commitFailedException =
@@ -525,7 +546,8 @@ public class NessieIcebergClient implements AutoCloseable {
       }
     } else if (existingFromContent.getType() != type) {
       throw new RuntimeException(
-          String.format("content type of from identifier %s should be of %s", from, type));
+          String.format(
+              Locale.ROOT, "content type of from identifier %s should be of %s", from, type));
     }
   }
 
@@ -548,8 +570,10 @@ public class NessieIcebergClient implements AutoCloseable {
     if (existingContent.getType() != type) {
       throw new RuntimeException(
           String.format(
+              Locale.ROOT,
               "Cannot drop %s: not matching with the type `%s`",
-              identifier, NessieUtil.contentTypeString(type)));
+              identifier,
+              NessieUtil.contentTypeString(type)));
     }
 
     String contentType = NessieUtil.contentTypeString(type).toLowerCase(Locale.ENGLISH);
@@ -564,7 +588,7 @@ public class NessieIcebergClient implements AutoCloseable {
     // We try to drop the content. Simple retry after ref update.
     try {
       commitRetry(
-          String.format("Iceberg delete %s %s", contentType, identifier),
+          String.format(Locale.ROOT, "Iceberg delete %s %s", contentType, identifier),
           Operation.Delete.of(NessieUtil.toKey(identifier)));
       return true;
     } catch (NessieConflictException e) {
@@ -709,22 +733,25 @@ public class NessieIcebergClient implements AutoCloseable {
   private String buildCommitMsg(TableMetadata base, TableMetadata metadata, String tableName) {
     if (isSnapshotOperation(base, metadata)) {
       return String.format(
-          "Iceberg %s against %s", metadata.currentSnapshot().operation(), tableName);
+          Locale.ROOT, "Iceberg %s against %s", metadata.currentSnapshot().operation(), tableName);
     } else if (base != null && metadata.currentSchemaId() != base.currentSchemaId()) {
-      return String.format("Iceberg schema change against table %s", tableName);
+      return String.format(Locale.ROOT, "Iceberg schema change against table %s", tableName);
     } else if (base == null) {
-      return String.format("Iceberg table created/registered with name %s", tableName);
+      return String.format(Locale.ROOT, "Iceberg table created/registered with name %s", tableName);
     }
-    return String.format("Iceberg commit against table %s", tableName);
+    return String.format(Locale.ROOT, "Iceberg commit against table %s", tableName);
   }
 
   private String buildCommitMsg(ViewMetadata base, ViewMetadata metadata, String viewName) {
     String operation = metadata.currentVersion().operation();
     if (base != null && !metadata.currentSchemaId().equals(base.currentSchemaId())) {
       return String.format(
-          "Iceberg schema change against view %s for the operation %s", viewName, operation);
+          Locale.ROOT,
+          "Iceberg schema change against view %s for the operation %s",
+          viewName,
+          operation);
     }
-    return String.format("Iceberg view %sd with name %s", operation, viewName);
+    return String.format(Locale.ROOT, "Iceberg view %sd with name %s", operation, viewName);
   }
 
   public String refName() {

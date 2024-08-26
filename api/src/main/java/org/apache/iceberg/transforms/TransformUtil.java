@@ -26,6 +26,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
+import java.util.Locale;
 
 class TransformUtil {
 
@@ -35,19 +36,25 @@ class TransformUtil {
   private static final int EPOCH_YEAR = EPOCH.getYear();
 
   static String humanYear(int yearOrdinal) {
-    return String.format("%04d", EPOCH_YEAR + yearOrdinal);
+    return String.format(Locale.ROOT, "%04d", EPOCH_YEAR + yearOrdinal);
   }
 
   static String humanMonth(int monthOrdinal) {
     return String.format(
+        Locale.ROOT,
         "%04d-%02d",
-        EPOCH_YEAR + Math.floorDiv(monthOrdinal, 12), 1 + Math.floorMod(monthOrdinal, 12));
+        EPOCH_YEAR + Math.floorDiv(monthOrdinal, 12),
+        1 + Math.floorMod(monthOrdinal, 12));
   }
 
   static String humanDay(int dayOrdinal) {
     OffsetDateTime day = EPOCH.plusDays(dayOrdinal);
     return String.format(
-        "%04d-%02d-%02d", day.getYear(), day.getMonth().getValue(), day.getDayOfMonth());
+        Locale.ROOT,
+        "%04d-%02d-%02d",
+        day.getYear(),
+        day.getMonth().getValue(),
+        day.getDayOfMonth());
   }
 
   static String humanTime(Long microsFromMidnight) {
@@ -65,8 +72,12 @@ class TransformUtil {
   static String humanHour(int hourOrdinal) {
     OffsetDateTime time = EPOCH.plusHours(hourOrdinal);
     return String.format(
+        Locale.ROOT,
         "%04d-%02d-%02d-%02d",
-        time.getYear(), time.getMonth().getValue(), time.getDayOfMonth(), time.getHour());
+        time.getYear(),
+        time.getMonth().getValue(),
+        time.getDayOfMonth(),
+        time.getHour());
   }
 
   static String base64encode(ByteBuffer buffer) {
