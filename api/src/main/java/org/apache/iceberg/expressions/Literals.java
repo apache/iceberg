@@ -538,7 +538,8 @@ class Literals {
 
         case TIMESTAMP_NANO:
           if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
-            return (Literal<T>) new TimestampNanoLiteral(DateTimeUtil.isoTimestamptzToNanos(value()));
+            return (Literal<T>)
+                new TimestampNanoLiteral(DateTimeUtil.isoTimestamptzToNanos(value()));
           } else {
             return (Literal<T>) new TimestampNanoLiteral(DateTimeUtil.isoTimestampToNanos(value()));
           }

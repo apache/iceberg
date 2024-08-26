@@ -67,7 +67,8 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
     } else if (other instanceof Timestamps) {
       return TransformUtil.satisfiesOrderOf(granularity(), ((Timestamps) other).granularity());
     } else if (other instanceof TimeTransform) {
-      return TransformUtil.satisfiesOrderOf(granularity(), ((TimeTransform<?>) other).granularity());
+      return TransformUtil.satisfiesOrderOf(
+          granularity(), ((TimeTransform<?>) other).granularity());
     }
 
     return false;

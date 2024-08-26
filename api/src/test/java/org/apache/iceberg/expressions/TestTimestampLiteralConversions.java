@@ -163,8 +163,7 @@ public class TestTimestampLiteralConversions {
     Literal<CharSequence> isoTimestampNanosWithZoneOffset =
         Literal.of("2017-11-16T14:31:08.000000001+00:00");
 
-    assertThatThrownBy(
-        () -> isoTimestampNanosWithZoneOffset.to(Types.TimestampType.withoutZone()))
+    assertThatThrownBy(() -> isoTimestampNanosWithZoneOffset.to(Types.TimestampType.withoutZone()))
         .as("Should not convert timestamp with offset to a timestamp without zone")
         .isInstanceOf(DateTimeParseException.class);
 
@@ -180,19 +179,17 @@ public class TestTimestampLiteralConversions {
         .isEqualTo(1510842668000000001L);
   }
 
-
   @Test
   public void testTimestampMicrosWithZoneConversion() {
     Literal<CharSequence> isoTimestampMicrosWithZoneOffset =
         Literal.of("2017-11-16T14:31:08.000001+00:00");
 
-    assertThatThrownBy(
-        () -> isoTimestampMicrosWithZoneOffset.to(Types.TimestampType.withoutZone()))
+    assertThatThrownBy(() -> isoTimestampMicrosWithZoneOffset.to(Types.TimestampType.withoutZone()))
         .as("Should not convert timestamp with offset to a timestamp without zone")
         .isInstanceOf(DateTimeParseException.class);
 
     assertThatThrownBy(
-        () -> isoTimestampMicrosWithZoneOffset.to(Types.TimestampNanoType.withoutZone()))
+            () -> isoTimestampMicrosWithZoneOffset.to(Types.TimestampNanoType.withoutZone()))
         .as("Should not convert timestamp with offset to a timestamp without zone")
         .isInstanceOf(DateTimeParseException.class);
 
@@ -208,13 +205,12 @@ public class TestTimestampLiteralConversions {
     Literal<CharSequence> isoTimestampNanosWithoutZoneOffset =
         Literal.of("2017-11-16T14:31:08.000000001");
 
-    assertThatThrownBy(
-        () -> isoTimestampNanosWithoutZoneOffset.to(Types.TimestampType.withZone()))
+    assertThatThrownBy(() -> isoTimestampNanosWithoutZoneOffset.to(Types.TimestampType.withZone()))
         .as("Should not convert timestamp without offset to a timestamp with zone")
         .isInstanceOf(DateTimeParseException.class);
 
     assertThatThrownBy(
-        () -> isoTimestampNanosWithoutZoneOffset.to(Types.TimestampNanoType.withZone()))
+            () -> isoTimestampNanosWithoutZoneOffset.to(Types.TimestampNanoType.withZone()))
         .as("Should not convert timestamp without offset to a timestamp with zone")
         .isInstanceOf(DateTimeParseException.class);
 
@@ -230,20 +226,20 @@ public class TestTimestampLiteralConversions {
     Literal<CharSequence> isoTimestampMicrosWithoutZoneOffset =
         Literal.of("2017-11-16T14:31:08.000001");
 
-    assertThatThrownBy(
-        () -> isoTimestampMicrosWithoutZoneOffset.to(Types.TimestampType.withZone()))
+    assertThatThrownBy(() -> isoTimestampMicrosWithoutZoneOffset.to(Types.TimestampType.withZone()))
         .as("Should not convert timestamp without offset to a timestamp with zone")
         .isInstanceOf(DateTimeParseException.class);
 
     assertThatThrownBy(
-        () -> isoTimestampMicrosWithoutZoneOffset.to(Types.TimestampNanoType.withZone()))
+            () -> isoTimestampMicrosWithoutZoneOffset.to(Types.TimestampNanoType.withZone()))
         .as("Should not convert timestamp without offset to a timestamp with zone")
         .isInstanceOf(DateTimeParseException.class);
 
     assertThat(isoTimestampMicrosWithoutZoneOffset.to(Types.TimestampType.withoutZone()).value())
         .isEqualTo(1510842668000001L);
 
-    assertThat(isoTimestampMicrosWithoutZoneOffset.to(Types.TimestampNanoType.withoutZone()).value())
+    assertThat(
+            isoTimestampMicrosWithoutZoneOffset.to(Types.TimestampNanoType.withoutZone()).value())
         .isEqualTo(1510842668000001000L);
   }
 }
