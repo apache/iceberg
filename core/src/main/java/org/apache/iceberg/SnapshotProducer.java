@@ -36,6 +36,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -497,7 +498,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             ops.metadataFileLocation(
                 FileFormat.AVRO.addExtension(
                     String.format(
-                        "snap-%d-%d-%s", snapshotId(), attempt.incrementAndGet(), commitUUID))));
+                        Locale.ROOT,
+                        "snap-%d-%d-%s",
+                        snapshotId(),
+                        attempt.incrementAndGet(),
+                        commitUUID))));
   }
 
   protected EncryptedOutputFile newManifestOutputFile() {

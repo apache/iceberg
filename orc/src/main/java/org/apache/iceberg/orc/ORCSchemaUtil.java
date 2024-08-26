@@ -19,6 +19,7 @@
 package org.apache.iceberg.orc;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -326,7 +327,11 @@ public final class ORCSchemaUtil {
         } else {
           if (isRequired) {
             throw new IllegalArgumentException(
-                String.format("Field %d of type %s is required and was not found.", fieldId, type));
+                String.format(
+                    Locale.ROOT,
+                    "Field %d of type %s is required and was not found.",
+                    fieldId,
+                    type));
           }
 
           orcType = convert(fieldId, type, false);

@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -59,6 +60,7 @@ class ManifestOutputFileFactory {
   private String generatePath(long checkpointId) {
     return FileFormat.AVRO.addExtension(
         String.format(
+            Locale.ROOT,
             "%s-%s-%05d-%d-%d-%05d",
             flinkJobId,
             operatorUniqueId,
@@ -78,7 +80,11 @@ class ManifestOutputFileFactory {
       newManifestFullPath = ops.metadataFileLocation(generatePath(checkpointId));
     } else {
       newManifestFullPath =
-          String.format("%s/%s", stripTrailingSlash(flinkManifestDir), generatePath(checkpointId));
+          String.format(
+              Locale.ROOT,
+              "%s/%s",
+              stripTrailingSlash(flinkManifestDir),
+              generatePath(checkpointId));
     }
 
     return tableSupplier.get().io().newOutputFile(newManifestFullPath);
