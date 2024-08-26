@@ -28,6 +28,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import org.apache.flink.annotation.Experimental;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.source.Boundedness;
 import org.apache.flink.api.connector.source.Source;
 import org.apache.flink.api.connector.source.SourceReader;
@@ -37,6 +39,9 @@ import org.apache.flink.api.connector.source.SplitEnumeratorContext;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.Preconditions;
@@ -74,6 +79,7 @@ import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplitSerializer;
 import org.apache.iceberg.flink.source.split.SerializableComparator;
 import org.apache.iceberg.flink.source.split.SplitComparators;
+import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.ThreadPools;
@@ -96,6 +102,11 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
   private final SerializableComparator<IcebergSourceSplit> splitComparator;
   private final SerializableRecordEmitter<T> emitter;
   private final String tableName;
+
+  // cache the discovered splits by planSplitsForBatch, which can be called twice. And they come
+  // from two different threads: (1) source/stream construction by main thread (2) enumerator
+  // creation. Hence need volatile here.
+  private volatile List<IcebergSourceSplit> batchSplits;
 
   IcebergSource(
       TableLoader tableLoader,
@@ -132,16 +143,26 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     return tableName + "-" + UUID.randomUUID();
   }
 
+  /**
+   * Cache the enumerated splits for batch execution to avoid double planning as there are two code
+   * paths obtaining splits: (1) infer parallelism (2) enumerator creation.
+   */
   private List<IcebergSourceSplit> planSplitsForBatch(String threadName) {
+    if (batchSplits != null) {
+      return batchSplits;
+    }
+
     ExecutorService workerPool =
         ThreadPools.newWorkerPool(threadName, scanContext.planParallelism());
     try (TableLoader loader = tableLoader.clone()) {
       loader.open();
-      List<IcebergSourceSplit> splits =
+      this.batchSplits =
           FlinkSplitPlanner.planIcebergSourceSplits(loader.loadTable(), scanContext, workerPool);
       LOG.info(
-          "Discovered {} splits from table {} during job initialization", splits.size(), tableName);
-      return splits;
+          "Discovered {} splits from table {} during job initialization",
+          batchSplits.size(),
+          tableName);
+      return batchSplits;
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close table loader", e);
     } finally {
@@ -207,10 +228,33 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
         // Only do scan planning if nothing is restored from checkpoint state
         List<IcebergSourceSplit> splits = planSplitsForBatch(planningThreadName());
         assigner.onDiscoveredSplits(splits);
+        // clear the cached splits after enumerator creation as they won't be needed anymore
+        this.batchSplits = null;
       }
 
       return new StaticIcebergEnumerator(enumContext, assigner);
     }
+  }
+
+  private boolean shouldInferParallelism() {
+    return !scanContext.isStreaming();
+  }
+
+  private int inferParallelism(ReadableConfig flinkConf, StreamExecutionEnvironment env) {
+    int parallelism =
+        SourceUtil.inferParallelism(
+            flinkConf,
+            scanContext.limit(),
+            () -> {
+              List<IcebergSourceSplit> splits = planSplitsForBatch(planningThreadName());
+              return splits.size();
+            });
+
+    if (env.getMaxParallelism() > 0) {
+      parallelism = Math.min(parallelism, env.getMaxParallelism());
+    }
+
+    return parallelism;
   }
 
   /**
@@ -569,6 +613,41 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
           splitComparator,
           table,
           emitter);
+    }
+
+    /**
+     * Build the {@link IcebergSource} and create a {@link DataStream} from the source. Watermark
+     * strategy is set to {@link WatermarkStrategy#noWatermarks()}.
+     *
+     * @return data stream from the Iceberg source
+     */
+    public DataStream<T> buildStream(StreamExecutionEnvironment env) {
+      // buildStream should only be called with RowData or Converter paths.
+      Preconditions.checkState(
+          readerFunction == null,
+          "Cannot set reader function when building a data stream from the source");
+      IcebergSource<T> source = build();
+      TypeInformation<T> outputTypeInfo =
+          outputTypeInfo(converter, table.schema(), source.scanContext.project());
+      DataStreamSource<T> stream =
+          env.fromSource(source, WatermarkStrategy.noWatermarks(), source.name(), outputTypeInfo);
+      if (source.shouldInferParallelism()) {
+        stream = stream.setParallelism(source.inferParallelism(flinkConfig, env));
+      }
+
+      return stream;
+    }
+
+    private static <T> TypeInformation<T> outputTypeInfo(
+        RowDataConverter<T> converter, Schema tableSchema, Schema projected) {
+      if (converter != null) {
+        return converter.getProducedType();
+      } else {
+        // output type is RowData
+        Schema readSchema = projected != null ? projected : tableSchema;
+        return (TypeInformation<T>)
+            FlinkCompatibilityUtil.toTypeInfo(FlinkSchemaUtil.convert(readSchema));
+      }
     }
 
     private ReaderFunction<T> readerFunction(ScanContext context) {
