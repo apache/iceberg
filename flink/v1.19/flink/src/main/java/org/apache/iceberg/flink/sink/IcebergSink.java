@@ -424,7 +424,7 @@ public class IcebergSink
     /**
      * Set the uid suffix for IcebergSink operators. Note that IcebergSink internally consists of
      * multiple operators (like writer, committer, aggregator). Actual operator uid will be
-     * prepended with a prefix like "Sink Committer: $uidSuffix".
+     * appended with a suffix like "Sink Committer: $uidSuffix".
      *
      * <p>Flink auto generates operator uid if not set explicitly. It is a recommended <a
      * href="https://ci.apache.org/projects/flink/flink-docs-master/docs/ops/production_ready/">
