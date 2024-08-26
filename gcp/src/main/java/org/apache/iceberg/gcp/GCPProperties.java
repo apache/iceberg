@@ -26,6 +26,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class GCPProperties implements Serializable {
+  /** The GCP project ID. Required. */
+  public static final String PROJECT_ID = "gcp_project";
+
   // Service Options
   public static final String GCS_PROJECT_ID = "gcs.project-id";
   public static final String GCS_CLIENT_LIB_TOKEN = "gcs.client-lib-token";
@@ -51,6 +54,9 @@ public class GCPProperties implements Serializable {
    * a number below that. https://cloud.google.com/storage/docs/batch
    */
   public static final int GCS_DELETE_BATCH_SIZE_DEFAULT = 50;
+
+  /** The BIGQUERY GCP location (https://cloud.google.com/bigquery/docs/locations). Required. */
+  public static final String BIGQUERY_LOCATION = "gcp_location";
 
   private String projectId;
   private String clientLibToken;

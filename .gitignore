@@ -66,3 +66,6 @@ metastore_db/
 # Spark/metastore files
 spark-warehouse/
 derby.log
+
+# BigQuery/metastore files
+gcp/db_folder/
