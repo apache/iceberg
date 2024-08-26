@@ -385,10 +385,10 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
 
     Transformation firstTransformation = env.getTransformations().get(0);
     Transformation secondTransformation = env.getTransformations().get(1);
-    assertThat(firstTransformation.getUid()).isEqualTo("pre-write-mapper-icebergSink");
-    assertThat(firstTransformation.getName()).isEqualTo("Sink pre-write mapper: icebergSink");
-    assertThat(secondTransformation.getUid()).isEqualTo("sink-icebergSink");
-    assertThat(secondTransformation.getName()).isEqualTo("Sink: icebergSink");
+    assertThat(firstTransformation.getUid()).isEqualTo("Sink pre-writer mapper: hadoop.default.t");
+    assertThat(firstTransformation.getName()).isEqualTo("Sink pre-writer mapper: hadoop.default.t");
+    assertThat(secondTransformation.getUid()).isEqualTo("hadoop.default.t");
+    assertThat(secondTransformation.getName()).isEqualTo("hadoop.default.t");
   }
 
   @TestTemplate
@@ -408,10 +408,10 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
 
     Transformation firstTransformation = env.getTransformations().get(0);
     Transformation secondTransformation = env.getTransformations().get(1);
-    assertThat(firstTransformation.getUid()).isEqualTo("pre-write-mapper-mlpt-ingestion");
-    assertThat(firstTransformation.getName()).isEqualTo("Sink pre-write mapper: mlpt-ingestion");
-    assertThat(secondTransformation.getUid()).isEqualTo("sink-mlpt-ingestion");
-    assertThat(secondTransformation.getName()).isEqualTo("Sink: mlpt-ingestion");
+    assertThat(firstTransformation.getUid()).isEqualTo("Sink pre-writer mapper: mlpt-ingestion");
+    assertThat(firstTransformation.getName()).isEqualTo("Sink pre-writer mapper: mlpt-ingestion");
+    assertThat(secondTransformation.getUid()).isEqualTo("mlpt-ingestion");
+    assertThat(secondTransformation.getName()).isEqualTo("mlpt-ingestion");
   }
 
   private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)

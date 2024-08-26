@@ -230,10 +230,7 @@ public class IcebergSink
     TypeInformation<CommittableMessage<IcebergCommittable>> typeInformation =
         CommittableMessageTypeInfo.of(this::getCommittableSerializer);
 
-    String suffix = defaultSuffix(uidSuffix, "sink");
-    String operatorName =
-        String.format("%s-%s-%s-%s", "Sink pre-commit aggregator", sinkId, table.name(), suffix);
-
+    String suffix = defaultSuffix(uidSuffix, table.name());
     String preCommitAggregatorUid = String.format("Sink pre-commit aggregator: %s", suffix);
 
     // global forces all output records send to subtask 0 of the downstream committer operator.
@@ -242,7 +239,7 @@ public class IcebergSink
     // parallelism to 1, this can be removed.
     return writeResults
         .global()
-        .transform(operatorName, typeInformation, new IcebergWriteAggregator(tableLoader))
+        .transform(preCommitAggregatorUid, typeInformation, new IcebergWriteAggregator(tableLoader))
         .uid(preCommitAggregatorUid)
         .setParallelism(1)
         .setMaxParallelism(1)
@@ -297,9 +294,8 @@ public class IcebergSink
             SingleOutputStreamOperator<RowData> inputStream =
                 input.map(mapper, outputType).setParallelism(input.getParallelism());
             if (newUidSuffix != null) {
-              String name = "Sink pre-write mapper: " + newUidSuffix;
-              String uid = "pre-write-mapper-" + newUidSuffix;
-              inputStream.name(name).uid(uid);
+              String uid = String.format("Sink pre-writer mapper: %s", newUidSuffix);
+              inputStream.name(uid).uid(uid);
             }
             return inputStream;
           };
@@ -533,14 +529,13 @@ public class IcebergSink
      */
     public DataStreamSink<RowData> append() {
       IcebergSink sink = build();
-      String suffix = defaultSuffix(uidSuffix, "icebergSink");
+      String suffix = defaultSuffix(uidSuffix, table.name());
       DataStream<RowData> rowDataInput = inputCreator.apply(suffix);
       // Please note that V2 sink framework will apply the uid here to the framework created
       // operators like writer,
       // committer. E.g. "Sink writer: <uidSuffix>
-      String uid = "sink-" + suffix;
-      String name = "Sink: " + suffix;
-      DataStreamSink<RowData> rowDataDataStreamSink = rowDataInput.sinkTo(sink).uid(uid).name(name);
+      DataStreamSink<RowData> rowDataDataStreamSink =
+          rowDataInput.sinkTo(sink).uid(suffix).name(suffix);
 
       // Note that IcebergSink internally consists o multiple operators (like writer, committer,
       // aggregator).
