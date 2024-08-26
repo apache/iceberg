@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
+import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -31,49 +32,19 @@ public class Months<T> extends TimeTransform<T> {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
+  protected ChronoUnit granularity() {
+    return ChronoUnit.MONTHS;
+  }
+
+  @Override
   protected Transform<T, Integer> toEnum(Type type) {
-    switch (type.typeId()) {
-      case DATE:
-        return (Transform<T, Integer>) Dates.MONTH;
-      case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.MONTH_FROM_MICROS;
-      case TIMESTAMP_NANO:
-        return (Transform<T, Integer>) Timestamps.MONTH_FROM_NANOS;
-      default:
-        throw new IllegalArgumentException("Unsupported type: " + type);
-    }
+    return (Transform<T, Integer>)
+        fromSourceType(type, Dates.MONTH, Timestamps.MICROS_TO_MONTH, Timestamps.NANOS_TO_MONTH);
   }
 
   @Override
   public Type getResultType(Type sourceType) {
     return Types.IntegerType.get();
-  }
-
-  @Override
-  public boolean satisfiesOrderOf(Transform<?, ?> other) {
-    if (this == other) {
-      return true;
-    }
-
-    if (other instanceof Timestamps) {
-      Timestamps.ResultTypeUnit otherResultTypeUnit = ((Timestamps) other).resultTypeUnit();
-      switch (otherResultTypeUnit) {
-        case MICROS:
-          return Timestamps.MONTH_FROM_MICROS.satisfiesOrderOf(other);
-        case NANOS:
-          return Timestamps.MONTH_FROM_NANOS.satisfiesOrderOf(other);
-        default:
-          throw new UnsupportedOperationException(
-              "Unsupported timestamp unit: " + otherResultTypeUnit);
-      }
-    } else if (other instanceof Dates) {
-      return Dates.MONTH.satisfiesOrderOf(other);
-    } else if (other instanceof Months || other instanceof Years) {
-      return true;
-    }
-
-    return false;
   }
 
   @Override

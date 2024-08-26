@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.transforms;
 
+import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundTransform;
 import org.apache.iceberg.expressions.UnboundPredicate;
@@ -25,6 +26,24 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.SerializableFunction;
 
 abstract class TimeTransform<S> implements Transform<S, Integer> {
+  protected static <R> R fromSourceType(Type type, R dateResult, R microsResult, R nanosResult) {
+    switch (type.typeId()) {
+      case DATE:
+        if (dateResult != null) {
+          return dateResult;
+        }
+        break;
+      case TIMESTAMP:
+        return microsResult;
+      case TIMESTAMP_NANO:
+        return nanosResult;
+    }
+
+    throw new IllegalArgumentException("Unsupported type: " + type);
+  }
+
+  protected abstract ChronoUnit granularity();
+
   protected abstract Transform<S, Integer> toEnum(Type type);
 
   @Override
@@ -35,6 +54,23 @@ abstract class TimeTransform<S> implements Transform<S, Integer> {
   @Override
   public boolean preservesOrder() {
     return true;
+  }
+
+  @Override
+  public boolean satisfiesOrderOf(Transform<?, ?> other) {
+    if (this == other) {
+      return true;
+    }
+
+    if (other instanceof Dates) {
+      return TransformUtil.satisfiesOrderOf(granularity(), ((Dates) other).granularity());
+    } else if (other instanceof Timestamps) {
+      return TransformUtil.satisfiesOrderOf(granularity(), ((Timestamps) other).granularity());
+    } else if (other instanceof TimeTransform) {
+      return TransformUtil.satisfiesOrderOf(granularity(), ((TimeTransform<?>) other).granularity());
+    }
+
+    return false;
   }
 
   @Override
