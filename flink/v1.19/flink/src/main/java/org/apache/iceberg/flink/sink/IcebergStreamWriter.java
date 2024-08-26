@@ -96,9 +96,9 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<FlinkWriteResult>
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("table_name", fullTableName)
-        .add("subtask_id", subTaskId)
-        .add("attempt_id", attemptId)
+        .add("tableName", fullTableName)
+        .add("subTaskId", subTaskId)
+        .add("attemptId", attemptId)
         .toString();
   }
 

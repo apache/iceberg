@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
@@ -30,7 +29,6 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
@@ -38,13 +36,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.RegisterExtension;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
-  @RegisterExtension
-  static final HadoopCatalogExtension CATALOG_EXTENSION =
-      new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
+public class TestIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Branch {
 
   @Parameter(index = 0)
   private String branch;
@@ -117,7 +111,7 @@ public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
     String otherBranch =
         branch.equals(SnapshotRef.MAIN_BRANCH) ? "test-branch" : SnapshotRef.MAIN_BRANCH;
     if (otherBranch.equals(SnapshotRef.MAIN_BRANCH)) {
-      assertThat(table.currentSnapshot()).isNull();
+      assertThat(table.currentSnapshot());
     }
 
     assertThat(table.snapshot(otherBranch)).isNull();
