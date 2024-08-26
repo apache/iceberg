@@ -282,7 +282,7 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       case EQ:
         return term() + " == " + (rightTerm() == null ? literal() : rightTerm());
       case NOT_EQ:
-        return term() + " != " + literal();
+        return term() + " != " + (rightTerm() == null ? literal() : rightTerm());
       case STARTS_WITH:
         return term() + " startsWith \"" + literal() + "\"";
       case NOT_STARTS_WITH:
