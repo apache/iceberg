@@ -403,15 +403,15 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
         .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)
         .distributionMode(DistributionMode.HASH)
-        .uidSuffix("mlpt-ingestion")
+        .uidSuffix("data-ingestion")
         .append();
 
     Transformation firstTransformation = env.getTransformations().get(0);
     Transformation secondTransformation = env.getTransformations().get(1);
-    assertThat(firstTransformation.getUid()).isEqualTo("Sink pre-writer mapper: mlpt-ingestion");
-    assertThat(firstTransformation.getName()).isEqualTo("Sink pre-writer mapper: mlpt-ingestion");
-    assertThat(secondTransformation.getUid()).isEqualTo("mlpt-ingestion");
-    assertThat(secondTransformation.getName()).isEqualTo("mlpt-ingestion");
+    assertThat(firstTransformation.getUid()).isEqualTo("Sink pre-writer mapper: data-ingestion");
+    assertThat(firstTransformation.getName()).isEqualTo("Sink pre-writer mapper: data-ingestion");
+    assertThat(secondTransformation.getUid()).isEqualTo("data-ingestion");
+    assertThat(secondTransformation.getName()).isEqualTo("data-ingestion");
   }
 
   private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)
