@@ -44,13 +44,11 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.RowDelta;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotUpdate;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -187,7 +185,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       // it's safe to assign the max committed checkpoint id from restored flink job to the current
       // flink job.
       this.maxCommittedCheckpointId =
-          getMaxCommittedCheckpointId(table, restoredFlinkJobId, operatorUniqueId, branch);
+          SinkUtil.getMaxCommittedCheckpointId(table, restoredFlinkJobId, operatorUniqueId, branch);
 
       NavigableMap<Long, byte[]> uncommittedDataFiles =
           Maps.newTreeMap(checkpointsState.get().iterator().next())
@@ -280,7 +278,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     commitPendingResult(pendingResults, summary, newFlinkJobId, operatorId, checkpointId);
     committerMetrics.updateCommitSummary(summary);
     pendingMap.clear();
-    deleteCommittedManifests(manifests, newFlinkJobId, checkpointId);
+    FlinkManifestUtil.deleteCommittedManifests(table, manifests, newFlinkJobId, checkpointId);
   }
 
   private void commitPendingResult(
@@ -300,27 +298,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
       continuousEmptyCheckpoints = 0;
     } else {
       LOG.info("Skip commit for checkpoint {} due to no data files or delete files.", checkpointId);
-    }
-  }
-
-  private void deleteCommittedManifests(
-      List<ManifestFile> manifests, String newFlinkJobId, long checkpointId) {
-    for (ManifestFile manifest : manifests) {
-      try {
-        table.io().deleteFile(manifest.path());
-      } catch (Exception e) {
-        // The flink manifests cleaning failure shouldn't abort the completed checkpoint.
-        String details =
-            MoreObjects.toStringHelper(this)
-                .add("flinkJobId", newFlinkJobId)
-                .add("checkpointId", checkpointId)
-                .add("manifestPath", manifest.path())
-                .toString();
-        LOG.warn(
-            "The iceberg transaction has been committed, but we failed to clean the temporary flink manifests: {}",
-            details,
-            e);
-      }
     }
   }
 
@@ -488,29 +465,5 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
             PrimitiveArrayTypeInfo.BYTE_PRIMITIVE_ARRAY_TYPE_INFO,
             longComparator);
     return new ListStateDescriptor<>("iceberg-files-committer-state", sortedMapTypeInfo);
-  }
-
-  static long getMaxCommittedCheckpointId(
-      Table table, String flinkJobId, String operatorId, String branch) {
-    Snapshot snapshot = table.snapshot(branch);
-    long lastCommittedCheckpointId = INITIAL_CHECKPOINT_ID;
-
-    while (snapshot != null) {
-      Map<String, String> summary = snapshot.summary();
-      String snapshotFlinkJobId = summary.get(FLINK_JOB_ID);
-      String snapshotOperatorId = summary.get(OPERATOR_ID);
-      if (flinkJobId.equals(snapshotFlinkJobId)
-          && (snapshotOperatorId == null || snapshotOperatorId.equals(operatorId))) {
-        String value = summary.get(MAX_COMMITTED_CHECKPOINT_ID);
-        if (value != null) {
-          lastCommittedCheckpointId = Long.parseLong(value);
-          break;
-        }
-      }
-      Long parentSnapshotId = snapshot.parentId();
-      snapshot = parentSnapshotId != null ? table.snapshot(parentSnapshotId) : null;
-    }
-
-    return lastCommittedCheckpointId;
   }
 }
