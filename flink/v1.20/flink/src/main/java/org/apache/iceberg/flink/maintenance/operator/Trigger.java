@@ -23,7 +23,7 @@ import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 @Internal
-class Trigger {
+public class Trigger {
   private final long timestamp;
   private final SerializableTable table;
   private final Integer taskId;
@@ -36,7 +36,7 @@ class Trigger {
     this.isRecovery = isRecovery;
   }
 
-  static Trigger create(long timestamp, SerializableTable table, int taskId) {
+  public static Trigger create(long timestamp, SerializableTable table, int taskId) {
     return new Trigger(timestamp, table, taskId, false);
   }
 
@@ -44,7 +44,7 @@ class Trigger {
     return new Trigger(timestamp, null, null, true);
   }
 
-  long timestamp() {
+  public long timestamp() {
     return timestamp;
   }
 
@@ -52,7 +52,7 @@ class Trigger {
     return table;
   }
 
-  Integer taskId() {
+  public Integer taskId() {
     return taskId;
   }
 

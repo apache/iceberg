@@ -19,27 +19,41 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.apache.iceberg.flink.MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
+import java.io.IOException;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MetricOptions;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.core.execution.SavepointFormatType;
 import org.apache.flink.runtime.jobgraph.SavepointConfigOptions;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
+import org.apache.flink.streaming.api.transformations.SinkTransformation;
 import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.iceberg.flink.FlinkCatalogFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
-class OperatorTestBase {
+public class OperatorTestBase {
   private static final int NUMBER_TASK_MANAGERS = 1;
   private static final int SLOTS_PER_TASK_MANAGER = 8;
-  private static final TriggerLockFactory.Lock MAINTENANCE_LOCK = new MemoryLock();
-  private static final TriggerLockFactory.Lock RECOVERY_LOCK = new MemoryLock();
 
-  static final String TABLE_NAME = "test_table";
+  protected static final String UID_PREFIX = "UID-Dummy";
+  protected static final String SLOT_SHARING_GROUP = "SlotSharingGroup";
+  protected static final String TABLE_NAME = "test_table";
+  protected static final TriggerLockFactory LOCK_FACTORY = new MemoryLockFactory();
+
+  public static final String IGNORED_OPERATOR_NAME = "Ignore";
+
+  static final long EVENT_TIME = 10L;
+  static final long EVENT_TIME_2 = 11L;
+  protected static final String DUMMY_NAME = "dummy";
 
   @RegisterExtension
   protected static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
@@ -51,42 +65,21 @@ class OperatorTestBase {
               .build());
 
   @RegisterExtension
-  final FlinkSqlExtension sql =
+  public final FlinkSqlExtension sql =
       new FlinkSqlExtension(
           "catalog",
           ImmutableMap.of("type", "iceberg", FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop"),
           "db");
 
-  private static Configuration config() {
-    Configuration config = new Configuration(DISABLE_CLASSLOADER_CHECK_CONFIG);
-    MetricOptions.forReporter(config, "test_reporter")
-        .set(MetricOptions.REPORTER_FACTORY_CLASS, MetricsReporterFactoryForTests.class.getName());
-    return config;
+  @BeforeEach
+  void before() {
+    LOCK_FACTORY.open();
+    MetricsReporterFactoryForTests.reset();
   }
 
-  protected static TriggerLockFactory lockFactory() {
-    return new TriggerLockFactory() {
-      @Override
-      public void open() {
-        MAINTENANCE_LOCK.unlock();
-        RECOVERY_LOCK.unlock();
-      }
-
-      @Override
-      public Lock createLock() {
-        return MAINTENANCE_LOCK;
-      }
-
-      @Override
-      public Lock createRecoveryLock() {
-        return RECOVERY_LOCK;
-      }
-
-      @Override
-      public void close() {
-        // do nothing
-      }
-    };
+  @AfterEach
+  void after() throws IOException {
+    LOCK_FACTORY.close();
   }
 
   /**
@@ -98,7 +91,7 @@ class OperatorTestBase {
    *     stop without a savepoint.
    * @return configuration for restarting the job from the savepoint
    */
-  public static Configuration closeJobClient(JobClient jobClient, File savepointDir) {
+  protected static Configuration closeJobClient(JobClient jobClient, File savepointDir) {
     Configuration conf = new Configuration();
     if (jobClient != null) {
       if (savepointDir != null) {
@@ -126,12 +119,45 @@ class OperatorTestBase {
    *
    * @param jobClient the job to close
    */
-  public static void closeJobClient(JobClient jobClient) {
+  protected static void closeJobClient(JobClient jobClient) {
     closeJobClient(jobClient, null);
   }
 
+  protected static void checkUidsAreSet(StreamExecutionEnvironment env, String uidPrefix) {
+    env.getTransformations().stream()
+        .filter(
+            t -> !(t instanceof SinkTransformation) && !(t.getName().equals(IGNORED_OPERATOR_NAME)))
+        .forEach(
+            transformation -> {
+              assertThat(transformation.getUid()).isNotNull();
+              if (uidPrefix != null) {
+                assertThat(transformation.getUid()).contains(UID_PREFIX);
+              }
+            });
+  }
+
+  protected static void checkSlotSharingGroupsAreSet(StreamExecutionEnvironment env, String name) {
+    String nameToCheck = name != null ? name : StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP;
+
+    env.getTransformations().stream()
+        .filter(
+            t -> !(t instanceof SinkTransformation) && !(t.getName().equals(IGNORED_OPERATOR_NAME)))
+        .forEach(
+            t -> {
+              assertThat(t.getSlotSharingGroup()).isPresent();
+              assertThat(t.getSlotSharingGroup().get().getName()).isEqualTo(nameToCheck);
+            });
+  }
+
+  private static Configuration config() {
+    Configuration config = new Configuration(DISABLE_CLASSLOADER_CHECK_CONFIG);
+    MetricOptions.forReporter(config, "test_reporter")
+        .set(MetricOptions.REPORTER_FACTORY_CLASS, MetricsReporterFactoryForTests.class.getName());
+    return config;
+  }
+
   private static class MemoryLock implements TriggerLockFactory.Lock {
-    boolean locked = false;
+    volatile boolean locked = false;
 
     @Override
     public boolean tryLock() {
@@ -151,6 +177,32 @@ class OperatorTestBase {
     @Override
     public void unlock() {
       locked = false;
+    }
+  }
+
+  private static class MemoryLockFactory implements TriggerLockFactory {
+    private static final TriggerLockFactory.Lock MAINTENANCE_LOCK = new MemoryLock();
+    private static final TriggerLockFactory.Lock RECOVERY_LOCK = new MemoryLock();
+
+    @Override
+    public void open() {
+      MAINTENANCE_LOCK.unlock();
+      RECOVERY_LOCK.unlock();
+    }
+
+    @Override
+    public Lock createLock() {
+      return MAINTENANCE_LOCK;
+    }
+
+    @Override
+    public Lock createRecoveryLock() {
+      return RECOVERY_LOCK;
+    }
+
+    @Override
+    public void close() {
+      // do nothing
     }
   }
 }

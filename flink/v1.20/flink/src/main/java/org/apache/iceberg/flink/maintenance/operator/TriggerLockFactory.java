@@ -51,12 +51,11 @@ public interface TriggerLockFactory extends Serializable, Closeable {
      */
     boolean isHeld();
 
-    // TODO: Fix the link to the LockRemover when we have a final name and implementation
     /**
      * Releases the lock. Should not fail if the lock is not held by anyone.
      *
-     * <p>Called by LockRemover. Implementations could assume that are no concurrent calls for this
-     * method.
+     * <p>Called by {@link LockRemover}. Implementations could assume that are no concurrent calls
+     * for this method.
      */
     void unlock();
   }

@@ -125,6 +125,10 @@ public class FlinkSqlExtension implements BeforeEachCallback, AfterEachCallback 
     return tableLoader;
   }
 
+  public CatalogLoader catalogLoader() {
+    return catalogLoader;
+  }
+
   private static String toWithClause(Map<String, String> props) {
     return String.format(
         "(%s)",

@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import static org.apache.iceberg.flink.maintenance.operator.ConstantsForTests.DUMMY_NAME;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.FAILED_TASK_COUNTER;
+import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.LAST_RUN_DURATION_MS;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.SUCCEEDED_TASK_COUNTER;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -54,7 +54,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 @Timeout(value = 10)
 class TestLockRemover extends OperatorTestBase {
-  private static final String[] TASKS = new String[] {"task0", "task1"};
+  private static final String[] TASKS = new String[] {"task0", "task1", "task2"};
   private static final TriggerLockFactory.Lock LOCK = new TestingLock();
   private static final TriggerLockFactory.Lock RECOVERY_LOCK = new TestingLock();
 
@@ -135,15 +135,16 @@ class TestLockRemover extends OperatorTestBase {
         .setParallelism(1);
 
     JobClient jobClient = null;
+    long time = System.currentTimeMillis();
     try {
       jobClient = env.executeAsync();
       // Start the 2 successful and one failed result trigger for task1, and 3 successful for task2
-      processAndCheck(source, new TaskResult(0, 0L, true, Lists.newArrayList()));
-      processAndCheck(source, new TaskResult(1, 1L, true, Lists.newArrayList()));
-      processAndCheck(source, new TaskResult(1, 2L, true, Lists.newArrayList()));
-      processAndCheck(source, new TaskResult(0, 3L, false, Lists.newArrayList()));
-      processAndCheck(source, new TaskResult(0, 4L, true, Lists.newArrayList()));
-      processAndCheck(source, new TaskResult(1, 5L, true, Lists.newArrayList()));
+      processAndCheck(source, new TaskResult(0, time, true, Lists.newArrayList()));
+      processAndCheck(source, new TaskResult(1, 0L, true, Lists.newArrayList()));
+      processAndCheck(source, new TaskResult(1, 0L, true, Lists.newArrayList()));
+      processAndCheck(source, new TaskResult(0, time, false, Lists.newArrayList()));
+      processAndCheck(source, new TaskResult(0, time, true, Lists.newArrayList()));
+      processAndCheck(source, new TaskResult(1, 0L, true, Lists.newArrayList()));
 
       Awaitility.await()
           .until(
@@ -159,7 +160,22 @@ class TestLockRemover extends OperatorTestBase {
               .put(DUMMY_NAME + "." + TASKS[0] + "." + FAILED_TASK_COUNTER, 1L)
               .put(DUMMY_NAME + "." + TASKS[1] + "." + SUCCEEDED_TASK_COUNTER, 3L)
               .put(DUMMY_NAME + "." + TASKS[1] + "." + FAILED_TASK_COUNTER, 0L)
+              .put(DUMMY_NAME + "." + TASKS[2] + "." + SUCCEEDED_TASK_COUNTER, 0L)
+              .put(DUMMY_NAME + "." + TASKS[2] + "." + FAILED_TASK_COUNTER, 0L)
               .build());
+
+      assertThat(
+              MetricsReporterFactoryForTests.gauge(
+                  DUMMY_NAME + "." + TASKS[0] + "." + LAST_RUN_DURATION_MS))
+          .isPositive();
+      assertThat(
+              MetricsReporterFactoryForTests.gauge(
+                  DUMMY_NAME + "." + TASKS[1] + "." + LAST_RUN_DURATION_MS))
+          .isGreaterThan(time);
+      assertThat(
+              MetricsReporterFactoryForTests.gauge(
+                  DUMMY_NAME + "." + TASKS[2] + "." + LAST_RUN_DURATION_MS))
+          .isZero();
     } finally {
       closeJobClient(jobClient);
     }

@@ -57,7 +57,7 @@ import org.slf4j.LoggerFactory;
  * the timer functions are available, but the key is not used.
  */
 @Internal
-class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
+public class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
     implements CheckpointedFunction {
   private static final Logger LOG = LoggerFactory.getLogger(TriggerManager.class);
 
@@ -89,7 +89,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
   private transient int startsFrom = 0;
   private transient boolean triggered = false;
 
-  TriggerManager(
+  public TriggerManager(
       TableLoader tableLoader,
       TriggerLockFactory lockFactory,
       List<String> maintenanceTaskNames,

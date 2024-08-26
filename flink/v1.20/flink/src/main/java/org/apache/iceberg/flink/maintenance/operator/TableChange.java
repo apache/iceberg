@@ -28,7 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /** Event describing changes in an Iceberg table */
 @Internal
-class TableChange {
+public class TableChange {
   private int dataFileCount;
   private long dataFileSizeInBytes;
   private int posDeleteFileCount;
@@ -87,7 +87,7 @@ class TableChange {
     return new TableChange(0, 0L, 0, 0L, 0, 0L, 0);
   }
 
-  static Builder builder() {
+  public static Builder builder() {
     return new Builder();
   }
 
@@ -115,7 +115,7 @@ class TableChange {
     return eqDeleteRecordCount;
   }
 
-  public int commitCount() {
+  int commitCount() {
     return commitCount;
   }
 
@@ -183,7 +183,7 @@ class TableChange {
         commitCount);
   }
 
-  static class Builder {
+  public static class Builder {
     private int dataFileCount = 0;
     private long dataFileSizeInBytes = 0L;
     private int posDeleteFileCount = 0;

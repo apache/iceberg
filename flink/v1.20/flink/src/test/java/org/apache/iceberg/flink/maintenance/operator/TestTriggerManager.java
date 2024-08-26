@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import static org.apache.iceberg.flink.maintenance.operator.ConstantsForTests.DUMMY_NAME;
-import static org.apache.iceberg.flink.maintenance.operator.ConstantsForTests.EVENT_TIME;
-import static org.apache.iceberg.flink.maintenance.operator.ConstantsForTests.EVENT_TIME_2;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.CONCURRENT_RUN_THROTTLED;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.GROUP_VALUE_DEFAULT;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.NOTHING_TO_TRIGGER;
@@ -28,7 +25,6 @@ import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetr
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.TRIGGERED;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
@@ -47,7 +43,6 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.awaitility.Awaitility;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -56,28 +51,16 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 class TestTriggerManager extends OperatorTestBase {
   private static final long DELAY = 10L;
-  private static final String NAME_1 = "name1";
-  private static final String NAME_2 = "name2";
+  private static final String[] TASKS = new String[] {"task0", "task1"};
   private long processingTime = 0L;
-  private TriggerLockFactory lockFactory;
   private TriggerLockFactory.Lock lock;
   private TriggerLockFactory.Lock recoveringLock;
 
   @BeforeEach
   void before() {
     sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    this.lockFactory = lockFactory();
-    lockFactory.open();
-    this.lock = lockFactory.createLock();
-    this.recoveringLock = lockFactory.createRecoveryLock();
-    lock.unlock();
-    recoveringLock.unlock();
-    MetricsReporterFactoryForTests.reset();
-  }
-
-  @AfterEach
-  void after() throws IOException {
-    lockFactory.close();
+    this.lock = LOCK_FACTORY.createLock();
+    this.recoveringLock = LOCK_FACTORY.createRecoveryLock();
   }
 
   @Test
@@ -444,8 +427,8 @@ class TestTriggerManager extends OperatorTestBase {
     TriggerManager manager =
         new TriggerManager(
             tableLoader,
-            lockFactory,
-            Lists.newArrayList(NAME_1, NAME_2),
+            LOCK_FACTORY,
+            Lists.newArrayList(TASKS),
             Lists.newArrayList(
                 new TriggerEvaluator.Builder().commitCount(2).build(),
                 new TriggerEvaluator.Builder().commitCount(4).build()),
@@ -480,7 +463,7 @@ class TestTriggerManager extends OperatorTestBase {
       // Wait until we receive the trigger
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
       assertThat(
-              MetricsReporterFactoryForTests.counter(DUMMY_NAME + "." + NAME_1 + "." + TRIGGERED))
+              MetricsReporterFactoryForTests.counter(DUMMY_NAME + "." + TASKS[0] + "." + TRIGGERED))
           .isEqualTo(1L);
       lock.unlock();
 
@@ -492,10 +475,10 @@ class TestTriggerManager extends OperatorTestBase {
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
       lock.unlock();
       assertThat(
-              MetricsReporterFactoryForTests.counter(DUMMY_NAME + "." + NAME_1 + "." + TRIGGERED))
+              MetricsReporterFactoryForTests.counter(DUMMY_NAME + "." + TASKS[0] + "." + TRIGGERED))
           .isEqualTo(2L);
       assertThat(
-              MetricsReporterFactoryForTests.counter(DUMMY_NAME + "." + NAME_2 + "." + TRIGGERED))
+              MetricsReporterFactoryForTests.counter(DUMMY_NAME + "." + TASKS[1] + "." + TRIGGERED))
           .isEqualTo(1L);
 
       // Final check all the counters
@@ -503,8 +486,8 @@ class TestTriggerManager extends OperatorTestBase {
           new ImmutableMap.Builder<String, Long>()
               .put(DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + RATE_LIMITER_TRIGGERED, -1L)
               .put(DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + CONCURRENT_RUN_THROTTLED, -1L)
-              .put(DUMMY_NAME + "." + NAME_1 + "." + TRIGGERED, 2L)
-              .put(DUMMY_NAME + "." + NAME_2 + "." + TRIGGERED, 1L)
+              .put(DUMMY_NAME + "." + TASKS[0] + "." + TRIGGERED, 2L)
+              .put(DUMMY_NAME + "." + TASKS[1] + "." + TRIGGERED, 1L)
               .put(DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + NOTHING_TO_TRIGGER, 1L)
               .build());
     } finally {
@@ -618,7 +601,7 @@ class TestTriggerManager extends OperatorTestBase {
             .put(
                 DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + CONCURRENT_RUN_THROTTLED,
                 concurrentRunTrigger)
-            .put(DUMMY_NAME + "." + NAME_1 + "." + TRIGGERED, 1L)
+            .put(DUMMY_NAME + "." + TASKS[0] + "." + TRIGGERED, 1L)
             .put(DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + NOTHING_TO_TRIGGER, 0L)
             .build());
   }
@@ -644,15 +627,20 @@ class TestTriggerManager extends OperatorTestBase {
 
   private TriggerManager manager(TableLoader tableLoader, TriggerEvaluator evaluator) {
     return new TriggerManager(
-        tableLoader, lockFactory, Lists.newArrayList(NAME_1), Lists.newArrayList(evaluator), 1, 1);
+        tableLoader,
+        LOCK_FACTORY,
+        Lists.newArrayList(TASKS[0]),
+        Lists.newArrayList(evaluator),
+        1,
+        1);
   }
 
   private TriggerManager manager(
       TableLoader tableLoader, long minFireDelayMs, long lockCheckDelayMs) {
     return new TriggerManager(
         tableLoader,
-        lockFactory,
-        Lists.newArrayList(NAME_1),
+        LOCK_FACTORY,
+        Lists.newArrayList(TASKS[0]),
         Lists.newArrayList(new TriggerEvaluator.Builder().commitCount(2).build()),
         minFireDelayMs,
         lockCheckDelayMs);
