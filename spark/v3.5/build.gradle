@@ -50,7 +50,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
   }
 
   dependencies {
-    // compileOnly 'org.apache.spark:spark-sql_2.13:4.0.0-preview1'
+    // compileOnly 'org.apache.spark/spark-variant_2.13:4.0.0-preview1'
 
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
@@ -65,6 +65,10 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     if (scalaVersion == '2.12') {
       // scala-collection-compat_2.12 pulls scala 2.12.17 and we need 2.12.18 for JDK 21 support
       implementation 'org.scala-lang:scala-library:2.12.18'
+    }
+    if (scalaVersion == '2.13') {
+      // scala-collection-compat_2.12 pulls scala 2.12.17 and we need 2.12.18 for JDK 21 support
+      implementation 'org.scala-lang:scala-library:2.13.14'
     }
 
     compileOnly libs.errorprone.annotations
@@ -149,6 +153,10 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     if (scalaVersion == '2.12') {
       // scala-collection-compat_2.12 pulls scala 2.12.17 and we need 2.12.18 for JDK 21 support
       implementation 'org.scala-lang:scala-library:2.12.18'
+    }
+    if (scalaVersion == '2.13') {
+      // scala-collection-compat_2.12 pulls scala 2.12.17 and we need 2.12.18 for JDK 21 support
+      implementation 'org.scala-lang:scala-library:2.13.14'
     }
     implementation libs.roaringbitmap
 

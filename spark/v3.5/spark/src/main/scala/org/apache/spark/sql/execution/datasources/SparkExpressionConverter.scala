@@ -59,7 +59,7 @@ object SparkExpressionConverter {
       case filter: Filter => filter.condition
       case dummyRelation: DummyRelation => Literal.TrueLiteral
       case localRelation: LocalRelation => Literal.FalseLiteral
-    }.getOrElse(throw new AnalysisException("Failed to find filter expression"))
+    }.getOrElse(throw new AnalysisException("Failed to find filter expression", null))
   }
 
   case class DummyRelation(output: Seq[Attribute]) extends LeafNode

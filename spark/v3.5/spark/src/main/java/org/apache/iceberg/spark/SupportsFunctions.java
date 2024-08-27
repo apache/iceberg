@@ -60,6 +60,6 @@ interface SupportsFunctions extends FunctionCatalog {
     }
 
     throw new NoSuchFunctionException(
-        String.format("Cannot load function: %s.%s", name(), ident), Option.empty());
+        String.format("Cannot load function: %s.%s", name(), ident), "");
   }
 }

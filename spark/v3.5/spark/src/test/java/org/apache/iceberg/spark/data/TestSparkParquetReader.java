@@ -58,6 +58,7 @@ import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.VariantType;
 import org.junit.jupiter.api.Test;
 
 public class TestSparkParquetReader extends AvroDataTest {
@@ -163,6 +164,50 @@ public class TestSparkParquetReader extends AvroDataTest {
         // Int96 end to end.
         Table int96Table = tableFromInputFile(parquetInputFile, schema);
         List<Record> tableRecords = Lists.newArrayList(IcebergGenerics.read(int96Table).build());
+
+        assertThat(tableRecords).hasSameSizeAs(rows);
+
+        for (int i = 0; i < tableRecords.size(); i++) {
+            GenericsHelpers.assertEqualsUnsafe(schema.asStruct(), tableRecords.get(i), rows.get(i));
+        }
+    }
+
+    @Test
+    public void testVariant() throws IOException {
+        String outputFilePath = String.format("%s/%s", temp.toAbsolutePath(), "variant.parquet");
+        HadoopOutputFile outputFile =
+                HadoopOutputFile.fromPath(
+                        new org.apache.hadoop.fs.Path(outputFilePath), new Configuration());
+        Schema schema = new Schema(required(1, "v", Types.VariantType.get()));
+        StructType sparkSchema =
+                new StructType(
+                        new StructField[]{
+                                new StructField("v", DataTypes.VariantType, true, Metadata.empty())
+                        });
+        List<InternalRow> rows = Lists.newArrayList(RandomData.generateSpark(schema, 10, 0L));
+
+        try (ParquetWriter<InternalRow> writer =
+                     new NativeSparkWriterBuilder(outputFile)
+                             .set("org.apache.spark.sql.parquet.row.attributes", sparkSchema.json())
+                             .set("spark.sql.parquet.writeLegacyFormat", "false")
+                             .set("spark.sql.parquet.outputTimestampType", "INT96")
+                             .set("spark.sql.parquet.fieldId.write.enabled", "true")
+                             .build()) {
+            for (InternalRow row : rows) {
+                writer.write(row);
+            }
+        }
+
+        InputFile parquetInputFile = Files.localInput(outputFilePath);
+        List<InternalRow> readRows = rowsFromFile(parquetInputFile, schema);
+
+        assertThat(readRows).hasSameSizeAs(rows);
+        assertThat(readRows).isEqualTo(rows);
+
+        // Now we try to import that file as an Iceberg table to make sure Iceberg can read
+        // Variant end to end.
+        Table variantTable = tableFromInputFile(parquetInputFile, schema);
+        List<Record> tableRecords = Lists.newArrayList(IcebergGenerics.read(variantTable).build());
 
         assertThat(tableRecords).hasSameSizeAs(rows);
 

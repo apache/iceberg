@@ -16,23 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg;
+package org.apache.iceberg.util;
+
+import java.io.IOException;
+import org.apache.iceberg.Accessor;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.StructLike;
+import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.Test;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.math.BigDecimal;
-import java.nio.ByteBuffer;
-import java.util.UUID;
-import org.apache.iceberg.TestHelpers.Row;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.types.Type;
-import org.apache.iceberg.types.Types;
-import org.junit.jupiter.api.Test;
-
-public class TestAccessors {
+public class TestVariant {
 
   private static Accessor<StructLike> direct(Type type) {
     Schema schema = new Schema(required(17, "field_" + type.typeId(), type));
@@ -141,110 +140,7 @@ public class TestAccessors {
   }
 
   @Test
-  public void testBoolean() {
-    assertAccessorReturns(Types.BooleanType.get(), true);
-    assertAccessorReturns(Types.BooleanType.get(), false);
-  }
-
-  @Test
-  public void testInt() {
-    assertAccessorReturns(Types.IntegerType.get(), 123);
-  }
-
-  @Test
-  public void testLong() {
-    assertAccessorReturns(Types.LongType.get(), 123L);
-  }
-
-  @Test
-  public void testFloat() {
-    assertAccessorReturns(Types.FloatType.get(), 1.23f);
-  }
-
-  @Test
-  public void testDouble() {
-    assertAccessorReturns(Types.DoubleType.get(), 1.23d);
-  }
-
-  @Test
-  public void testDate() {
-    assertAccessorReturns(Types.DateType.get(), 123);
-  }
-
-  @Test
-  public void testTime() {
-    assertAccessorReturns(Types.TimeType.get(), 123L);
-  }
-
-  @Test
-  public void testTimestamp() {
-    assertAccessorReturns(Types.TimestampType.withoutZone(), 123L);
-    assertAccessorReturns(Types.TimestampType.withZone(), 123L);
-    assertAccessorReturns(Types.TimestampNanoType.withoutZone(), 123L);
-    assertAccessorReturns(Types.TimestampNanoType.withZone(), 123L);
-  }
-
-  @Test
-  public void testString() {
-    assertAccessorReturns(Types.StringType.get(), "abc");
-  }
-
-  @Test
-  public void testUuid() {
-    assertAccessorReturns(Types.UUIDType.get(), UUID.randomUUID());
-  }
-
-  @Test
-  public void testFixed() {
-    assertAccessorReturns(Types.FixedType.ofLength(3), ByteBuffer.wrap(new byte[] {1, 2, 3}));
-  }
-
-  @Test
-  public void testBinary() {
-    assertAccessorReturns(Types.BinaryType.get(), ByteBuffer.wrap(new byte[] {1, 2, 3}));
-  }
-
-  @Test
-  public void testDecimal() {
-    assertAccessorReturns(Types.DecimalType.of(5, 7), BigDecimal.valueOf(123.456));
-  }
-
-  @Test
-  public void testList() {
-    assertAccessorReturns(
-        Types.ListType.ofRequired(18, Types.IntegerType.get()), ImmutableList.of(1, 2, 3));
-    assertAccessorReturns(
-        Types.ListType.ofRequired(18, Types.StringType.get()), ImmutableList.of("a", "b", "c"));
-  }
-
-  @Test
-  public void testMap() {
-    assertAccessorReturns(
-        Types.MapType.ofRequired(18, 19, Types.StringType.get(), Types.IntegerType.get()),
-        ImmutableMap.of("a", 1, "b", 2));
-  }
-
-  @Test
-  public void testStructAsObject() {
-    assertAccessorReturns(
-        Types.StructType.of(
-            Types.NestedField.optional(18, "str19", Types.StringType.get()),
-            Types.NestedField.optional(19, "int19", Types.IntegerType.get())),
-        Row.of("a", 1));
-  }
-
-  @Test
-  public void testEmptyStructAsObject() {
-    assertAccessorReturns(
-        Types.StructType.of(Types.NestedField.optional(19, "int19", Types.IntegerType.get())),
-        Row.of());
-
-    assertAccessorReturns(Types.StructType.of(), Row.of());
-  }
-
-  @Test
-  public void testEmptySchema() {
-    Schema emptySchema = new Schema();
-    assertThat(emptySchema.accessorForField(17)).isNull();
+  public void testVariant() throws IOException {
+    assertAccessorReturns(Types.VariantType.get(), VariantUtil.encodeJSON("{\"name\": \"john\"}"));
   }
 }

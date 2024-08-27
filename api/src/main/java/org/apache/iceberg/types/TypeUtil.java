@@ -778,8 +778,12 @@ public class TypeUtil {
             new VisitFuture<>(map.keyType(), visitor),
             new VisitFuture<>(map.valueType(), visitor));
 
-      default:
-        return visitor.primitive(type.asPrimitiveType());
+      case VARIANT:
+        Types.VariantType variant = (Types.VariantType)type.asPrimitiveType();
+
+        return null;
+       default:
+                return visitor.primitive(type.asPrimitiveType());
     }
   }
 

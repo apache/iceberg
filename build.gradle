@@ -341,6 +341,7 @@ project(':iceberg-core') {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
+    implementation 'org.apache.spark:spark-variant_2.13:4.0.0-preview1'
     implementation libs.aircompressor
     implementation libs.httpcomponents.httpclient5
     implementation platform(libs.jackson.bom)
