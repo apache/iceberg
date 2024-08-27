@@ -139,8 +139,7 @@ public class TestIcebergFilesCommitter extends TestBase {
       assertMaxCommittedCheckpointId(jobId, operatorId, -1L);
 
       // It's better to advance the max-committed-checkpoint-id in iceberg snapshot, so that the
-      // future flink job
-      // failover won't fail.
+      // future flink job failover won't fail.
       for (int i = 1; i <= 3; i++) {
         harness.snapshot(++checkpointId, ++timestamp);
         assertFlinkManifests(0);
@@ -1079,8 +1078,8 @@ public class TestIcebergFilesCommitter extends TestBase {
   private void assertMaxCommittedCheckpointId(JobID jobID, OperatorID operatorID, long expectedId) {
     table.refresh();
     long actualId =
-        IcebergFilesCommitter.getMaxCommittedCheckpointId(
-            table, jobID.toString(), operatorID.toHexString(), branch);
+        SinkUtil.getMaxCommittedCheckpointId(
+            table, jobID.toString(), operatorID.toString(), branch);
     assertThat(actualId).isEqualTo(expectedId);
   }
 

@@ -71,6 +71,8 @@ class DeleteFileIndex {
   private final PartitionMap<EqualityDeletes> eqDeletesByPartition;
   private final PartitionMap<PositionDeletes> posDeletesByPartition;
   private final CharSequenceMap<PositionDeletes> posDeletesByPath;
+  private final boolean hasEqDeletes;
+  private final boolean hasPosDeletes;
   private final boolean isEmpty;
 
   private DeleteFileIndex(
@@ -82,13 +84,21 @@ class DeleteFileIndex {
     this.eqDeletesByPartition = eqDeletesByPartition;
     this.posDeletesByPartition = posDeletesByPartition;
     this.posDeletesByPath = posDeletesByPath;
-    boolean noEqDeletes = globalDeletes == null && eqDeletesByPartition == null;
-    boolean noPosDeletes = posDeletesByPartition == null && posDeletesByPath == null;
-    this.isEmpty = noEqDeletes && noPosDeletes;
+    this.hasEqDeletes = globalDeletes != null || eqDeletesByPartition != null;
+    this.hasPosDeletes = posDeletesByPartition != null || posDeletesByPath != null;
+    this.isEmpty = !hasEqDeletes && !hasPosDeletes;
   }
 
   public boolean isEmpty() {
     return isEmpty;
+  }
+
+  public boolean hasEqualityDeletes() {
+    return hasEqDeletes;
+  }
+
+  public boolean hasPositionDeletes() {
+    return hasPosDeletes;
   }
 
   public Iterable<DeleteFile> referencedDeleteFiles() {

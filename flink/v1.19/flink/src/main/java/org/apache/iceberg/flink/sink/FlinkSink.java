@@ -67,7 +67,6 @@ import org.apache.iceberg.flink.sink.shuffle.RangePartitioner;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecord;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
-import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -406,7 +405,8 @@ public class FlinkSink {
       flinkWriteConf = new FlinkWriteConf(table, writeOptions, readableConfig);
 
       // Find out the equality field id list based on the user-provided equality field column names.
-      List<Integer> equalityFieldIds = checkAndGetEqualityFieldIds();
+      List<Integer> equalityFieldIds =
+          SinkUtil.checkAndGetEqualityFieldIds(table, equalityFieldColumns);
 
       RowType flinkRowType = toFlinkRowType(table.schema(), tableSchema);
       int writerParallelism =
@@ -420,7 +420,7 @@ public class FlinkSink {
           distributeDataStream(rowDataInput, equalityFieldIds, flinkRowType, writerParallelism);
 
       // Add parallel writers that append rows to files
-      SingleOutputStreamOperator<WriteResult> writerStream =
+      SingleOutputStreamOperator<FlinkWriteResult> writerStream =
           appendWriter(distributeStream, flinkRowType, equalityFieldIds, writerParallelism);
 
       // Add single-parallelism committer that commits files
@@ -487,7 +487,7 @@ public class FlinkSink {
     }
 
     private SingleOutputStreamOperator<Void> appendCommitter(
-        SingleOutputStreamOperator<WriteResult> writerStream) {
+        SingleOutputStreamOperator<FlinkWriteResult> writerStream) {
       IcebergFilesCommitter filesCommitter =
           new IcebergFilesCommitter(
               tableLoader,
@@ -507,7 +507,7 @@ public class FlinkSink {
       return committerStream;
     }
 
-    private SingleOutputStreamOperator<WriteResult> appendWriter(
+    private SingleOutputStreamOperator<FlinkWriteResult> appendWriter(
         DataStream<RowData> input,
         RowType flinkRowType,
         List<Integer> equalityFieldIds,
@@ -545,11 +545,11 @@ public class FlinkSink {
       IcebergStreamWriter<RowData> streamWriter =
           createStreamWriter(tableSupplier, flinkWriteConf, flinkRowType, equalityFieldIds);
 
-      SingleOutputStreamOperator<WriteResult> writerStream =
+      SingleOutputStreamOperator<FlinkWriteResult> writerStream =
           input
               .transform(
                   operatorName(ICEBERG_STREAM_WRITER_NAME),
-                  TypeInformation.of(WriteResult.class),
+                  TypeInformation.of(FlinkWriteResult.class),
                   streamWriter)
               .setParallelism(writerParallelism);
       if (uidPrefix != null) {
