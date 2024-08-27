@@ -28,9 +28,7 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
   @Override
   public void beforeAll(ExtensionContext extensionContext) throws Exception {
     if (Boolean.parseBoolean(
-        extensionContext
-            .getConfigurationParameter(RCKUtils.RCK_LOCAL)
-            .orElse("true"))) {
+        extensionContext.getConfigurationParameter(RCKUtils.RCK_LOCAL).orElse("true"))) {
       this.localServer = new RESTCatalogServer();
       this.localServer.start(false);
     }
