@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.Counter;
@@ -28,7 +27,7 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,9 +40,9 @@ public class LockRemover extends AbstractStreamOperator<MaintenanceResult>
   private final TriggerLockFactory lockFactory;
   private final List<String> taskNames;
 
-  private transient Map<Integer, Counter> successfulStreamResultCounterMap;
-  private transient Map<Integer, Counter> failedStreamResultCounterMap;
-  private transient Map<Integer, AtomicLong> lastRunLength;
+  private transient List<Counter> succeededTaskResultCounterMap;
+  private transient List<Counter> failedTaskResultCounterMap;
+  private transient List<AtomicLong> lastRunDuration;
   private transient TriggerLockFactory.Lock lock;
   private transient TriggerLockFactory.Lock recoveryLock;
   private transient long lastProcessed = 0L;
@@ -60,29 +59,26 @@ public class LockRemover extends AbstractStreamOperator<MaintenanceResult>
   @Override
   public void open() throws Exception {
     super.open();
-    this.successfulStreamResultCounterMap = Maps.newHashMapWithExpectedSize(taskNames.size());
-    this.failedStreamResultCounterMap = Maps.newHashMapWithExpectedSize(taskNames.size());
-    this.lastRunLength = Maps.newHashMapWithExpectedSize(taskNames.size());
-    for (int i = 0; i < taskNames.size(); ++i) {
-      String name = taskNames.get(i);
-      successfulStreamResultCounterMap.put(
-          i,
+    this.succeededTaskResultCounterMap = Lists.newArrayListWithExpectedSize(taskNames.size());
+    this.failedTaskResultCounterMap = Lists.newArrayListWithExpectedSize(taskNames.size());
+    this.lastRunDuration = Lists.newArrayListWithExpectedSize(taskNames.size());
+    for (String name : taskNames) {
+      succeededTaskResultCounterMap.add(
           getRuntimeContext()
               .getMetricGroup()
               .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
-              .counter(TableMaintenanceMetrics.SUCCESSFUL_STREAM_COUNTER));
-      failedStreamResultCounterMap.put(
-          i,
+              .counter(TableMaintenanceMetrics.SUCCEEDED_TASK_COUNTER));
+      failedTaskResultCounterMap.add(
           getRuntimeContext()
               .getMetricGroup()
               .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
-              .counter(TableMaintenanceMetrics.FAILED_STREAM_COUNTER));
+              .counter(TableMaintenanceMetrics.FAILED_TASK_COUNTER));
       AtomicLong length = new AtomicLong(0);
-      lastRunLength.put(i, length);
+      lastRunDuration.add(length);
       getRuntimeContext()
           .getMetricGroup()
           .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
-          .gauge(TableMaintenanceMetrics.LAST_RUN_LENGTH, length::get);
+          .gauge(TableMaintenanceMetrics.LAST_RUN_DURATION_MS, length::get);
     }
 
     this.lock = lockFactory.createLock();
@@ -91,22 +87,26 @@ public class LockRemover extends AbstractStreamOperator<MaintenanceResult>
 
   @Override
   public void processElement(StreamRecord<TaskResult> element) {
-    TaskResult value = element.getValue();
-    LOG.debug("TaskResult {} arrived", value);
-    long length = System.currentTimeMillis() - value.startEpoch();
+    TaskResult taskResult = element.getValue();
+    LOG.debug("Processing task result: {}", taskResult);
+    long duration = System.currentTimeMillis() - taskResult.startEpoch();
     output.collect(
         new StreamRecord<>(
             new MaintenanceResult(
-                value.startEpoch(), value.taskId(), length, value.success(), value.exceptions())));
+                taskResult.startEpoch(),
+                taskResult.taskIndex(),
+                duration,
+                taskResult.success(),
+                taskResult.exceptions())));
     lock.unlock();
-    this.lastProcessed = value.startEpoch();
+    this.lastProcessed = taskResult.startEpoch();
 
     // Update the metrics
-    lastRunLength.get(value.taskId()).set(length);
-    if (value.success()) {
-      successfulStreamResultCounterMap.get(value.taskId()).inc();
+    lastRunDuration.get(taskResult.taskIndex()).set(duration);
+    if (taskResult.success()) {
+      succeededTaskResultCounterMap.get(taskResult.taskIndex()).inc();
     } else {
-      failedStreamResultCounterMap.get(value.taskId()).inc();
+      failedTaskResultCounterMap.get(taskResult.taskIndex()).inc();
     }
   }
 

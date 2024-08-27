@@ -19,21 +19,20 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import java.util.List;
-import java.util.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /** The output of the Maintenance Flow. */
 public class MaintenanceResult {
   private final long startEpoch;
-  private final int taskId;
+  private final int taskIndex;
   private final long length;
   private final boolean success;
   private final List<Exception> exceptions;
 
   public MaintenanceResult(
-      long startEpoch, int taskId, long length, boolean success, List<Exception> exceptions) {
+      long startEpoch, int taskIndex, long length, boolean success, List<Exception> exceptions) {
     this.startEpoch = startEpoch;
-    this.taskId = taskId;
+    this.taskIndex = taskIndex;
     this.length = length;
     this.success = success;
     this.exceptions = exceptions;
@@ -43,8 +42,8 @@ public class MaintenanceResult {
     return startEpoch;
   }
 
-  public int taskId() {
-    return taskId;
+  public int taskIndex() {
+    return taskIndex;
   }
 
   public long length() {
@@ -63,31 +62,10 @@ public class MaintenanceResult {
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("startEpoch", startEpoch)
-        .add("taskId", taskId)
+        .add("taskIndex", taskIndex)
         .add("length", length)
         .add("success", success)
         .add("exceptions", exceptions)
         .toString();
-  }
-
-  @Override
-  public boolean equals(Object other) {
-    if (this == other) {
-      return true;
-    } else if (other == null || getClass() != other.getClass()) {
-      return false;
-    }
-
-    MaintenanceResult that = (MaintenanceResult) other;
-    return this.startEpoch == that.startEpoch
-        && this.taskId == that.taskId
-        && this.length == that.length
-        && this.success == that.success
-        && this.exceptions.size() == that.exceptions.size();
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(startEpoch, taskId, length, success, exceptions.size());
   }
 }

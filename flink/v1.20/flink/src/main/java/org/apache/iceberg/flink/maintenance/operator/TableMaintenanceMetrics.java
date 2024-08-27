@@ -29,9 +29,9 @@ public class TableMaintenanceMetrics {
   public static final String NOTHING_TO_TRIGGER = "nothingToTrigger";
 
   // LockRemover metrics
-  public static final String SUCCESSFUL_STREAM_COUNTER = "successfulStream";
-  public static final String FAILED_STREAM_COUNTER = "failedStream";
-  public static final String LAST_RUN_LENGTH = "lastRunLength";
+  public static final String SUCCEEDED_TASK_COUNTER = "succeededTask";
+  public static final String FAILED_TASK_COUNTER = "failedTask";
+  public static final String LAST_RUN_DURATION_MS = "lastRunDurationMs";
 
   private TableMaintenanceMetrics() {
     // do not instantiate

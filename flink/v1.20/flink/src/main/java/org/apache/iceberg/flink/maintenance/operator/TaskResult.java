@@ -25,20 +25,20 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 /** The result of a single Maintenance Task. */
 @Internal
 public class TaskResult {
-  private final int taskId;
+  private final int taskIndex;
   private final long startEpoch;
   private final boolean success;
   private final List<Exception> exceptions;
 
-  public TaskResult(int taskId, long startEpoch, boolean success, List<Exception> exceptions) {
-    this.taskId = taskId;
+  public TaskResult(int taskIndex, long startEpoch, boolean success, List<Exception> exceptions) {
+    this.taskIndex = taskIndex;
     this.startEpoch = startEpoch;
     this.success = success;
     this.exceptions = exceptions;
   }
 
-  public int taskId() {
-    return taskId;
+  public int taskIndex() {
+    return taskIndex;
   }
 
   public long startEpoch() {
@@ -56,7 +56,7 @@ public class TaskResult {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("taskId", taskId)
+        .add("taskIndex", taskIndex)
         .add("startEpoch", startEpoch)
         .add("success", success)
         .add("exceptions", exceptions)
