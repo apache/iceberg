@@ -106,7 +106,7 @@ public class RESTCatalogServer {
     httpServer.setHandler(context);
     httpServer.start();
 
-    if(join) {
+    if (join) {
       httpServer.join();
     }
   }
