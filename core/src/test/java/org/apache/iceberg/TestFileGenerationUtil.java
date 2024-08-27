@@ -40,7 +40,7 @@ public class TestFileGenerationUtil {
           required(2, "long_col", Types.LongType.get()),
           required(3, "decimal_col", Types.DecimalType.of(10, 10)),
           required(4, "date_col", Types.DateType.get()),
-          required(5, "timestamp_col", Types.TimestampType.withZone()),
+          required(5, "timestamp_col", Types.TimestampType.withoutZone()),
           required(6, "timestamp_tz_col", Types.TimestampType.withZone()),
           required(7, "str_col", Types.StringType.get()));
 
@@ -66,7 +66,7 @@ public class TestFileGenerationUtil {
     NestedField intField = SCHEMA.findField("int_col");
     PrimitiveType type = intField.type().asPrimitiveType();
     ByteBuffer intLower = Conversions.toByteBuffer(type, 0);
-    ByteBuffer intUpper = Conversions.toByteBuffer(type, 0);
+    ByteBuffer intUpper = Conversions.toByteBuffer(type, Integer.MAX_VALUE);
     Metrics metrics =
         FileGenerationUtil.generateRandomMetrics(
             SCHEMA,
