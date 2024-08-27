@@ -117,6 +117,52 @@ public class TestEvaluator {
   }
 
   @Test
+  public void testRefCompareLessThan() {
+    Evaluator evaluator = new Evaluator(STRUCT, predicate(Expression.Operation.LT, "x", "z"));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, 7, null))).as("7 < 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, 7, null))).as("6 < 7 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, 7, null))).as("8 < 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, null, null)))
+        .as("6 < null => false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(null, 8, 8, null)))
+        .as("null < null => false")
+        .isFalse();
+
+    Evaluator structEvaluator =
+        new Evaluator(
+            STRUCT,
+            predicate(
+                Expression.Operation.LT, Expressions.ref("s1.s2.s3.s4.i"), Expressions.ref("x")));
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 < 7 => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 < 7 => true")
+        .isTrue();
+
+    assertThatThrownBy(
+            () ->
+                new Evaluator(STRUCT, predicate(Expression.Operation.LT, "x", "y"))
+                    .eval(TestHelpers.Row.of(6, 8, 8, null)))
+        .hasMessage("Cannot compare different types: int and double");
+  }
+
+  @Test
   public void testLessThanOrEqual() {
     Evaluator evaluator = new Evaluator(STRUCT, lessThanOrEqual("x", 7));
     assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null))).as("7 <= 7 => true").isTrue();
@@ -156,6 +202,64 @@ public class TestEvaluator {
                         TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
         .as("8 <= 7 => false")
         .isFalse();
+  }
+
+  @Test
+  public void testRefCompareLessThanOrEqual() {
+    Evaluator evaluator = new Evaluator(STRUCT, predicate(Expression.Operation.LT_EQ, "x", "z"));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, 7, null))).as("7 <= 7 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, 7, null))).as("6 <= 7 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, 7, null))).as("8 <= 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, null, null)))
+        .as("6 <= null => false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(null, 8, 8, null)))
+        .as("null <= null => false")
+        .isFalse();
+
+    Evaluator structEvaluator =
+        new Evaluator(
+            STRUCT,
+            predicate(
+                Expression.Operation.LT_EQ,
+                Expressions.ref("s1.s2.s3.s4.i"),
+                Expressions.ref("x")));
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 <= 7 => true")
+        .isTrue();
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 <= 7 => true")
+        .isTrue();
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
+        .as("8 <= 7 => false")
+        .isFalse();
+
+    assertThatThrownBy(
+            () ->
+                new Evaluator(STRUCT, predicate(Expression.Operation.LT_EQ, "x", "y"))
+                    .eval(TestHelpers.Row.of(6, 8, 8, null)))
+        .hasMessage("Cannot compare different types: int and double");
   }
 
   @Test
@@ -199,6 +303,62 @@ public class TestEvaluator {
   }
 
   @Test
+  public void testRefCompareGreaterThan() {
+    Evaluator evaluator = new Evaluator(STRUCT, predicate(Expression.Operation.GT, "x", "z"));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, 7, null))).as("7 > 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, 7, null))).as("6 > 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, 7, null))).as("8 > 7 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, null, null)))
+        .as("6 > null => false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(null, 8, 8, null)))
+        .as("null > null => false")
+        .isFalse();
+
+    Evaluator structEvaluator =
+        new Evaluator(
+            STRUCT,
+            predicate(
+                Expression.Operation.GT, Expressions.ref("s1.s2.s3.s4.i"), Expressions.ref("x")));
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 > 7 => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 > 7 => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
+        .as("8 > 7 => true")
+        .isTrue();
+
+    assertThatThrownBy(
+            () ->
+                new Evaluator(STRUCT, predicate(Expression.Operation.GT, "x", "y"))
+                    .eval(TestHelpers.Row.of(6, 8, 8, null)))
+        .hasMessage("Cannot compare different types: int and double");
+  }
+
+  @Test
   public void testGreaterThanOrEqual() {
     Evaluator evaluator = new Evaluator(STRUCT, greaterThanOrEqual("x", 7));
     assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, null))).as("7 >= 7 => true").isTrue();
@@ -239,6 +399,64 @@ public class TestEvaluator {
   }
 
   @Test
+  public void testRefCompareGreaterThanOrEqual() {
+    Evaluator evaluator = new Evaluator(STRUCT, predicate(Expression.Operation.GT_EQ, "x", "z"));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, 7, null))).as("7 >= 7 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, 7, null))).as("6 >= 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, 7, null))).as("8 >= 7 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, null, null)))
+        .as("6 >= null => false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(null, 8, 8, null)))
+        .as("null >= null => false")
+        .isFalse();
+
+    Evaluator structEvaluator =
+        new Evaluator(
+            STRUCT,
+            predicate(
+                Expression.Operation.GT_EQ,
+                Expressions.ref("s1.s2.s3.s4.i"),
+                Expressions.ref("x")));
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 >= 7 => true")
+        .isTrue();
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 >= 7 => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
+        .as("8 >= 7 => true")
+        .isTrue();
+
+    assertThatThrownBy(
+            () ->
+                new Evaluator(STRUCT, predicate(Expression.Operation.GT_EQ, "x", "y"))
+                    .eval(TestHelpers.Row.of(6, 8, 8, null)))
+        .hasMessage("Cannot compare different types: int and double");
+  }
+
+  @Test
   public void testEqual() {
     assertThat(equal("x", 5).literals().size()).isEqualTo(1);
 
@@ -270,6 +488,62 @@ public class TestEvaluator {
   }
 
   @Test
+  public void testRefCompareEqual() {
+    Evaluator evaluator = new Evaluator(STRUCT, predicate(Expression.Operation.EQ, "x", "z"));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, 7, null))).as("7 = 7 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, 7, null))).as("6 = 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, 7, null))).as("8 = 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, null, null)))
+        .as("6 = null => false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(null, 8, 8, null)))
+        .as("null = null => false")
+        .isFalse();
+
+    Evaluator structEvaluator =
+        new Evaluator(
+            STRUCT,
+            predicate(
+                Expression.Operation.EQ, Expressions.ref("s1.s2.s3.s4.i"), Expressions.ref("x")));
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 = 7 => true")
+        .isTrue();
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 = 7 => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
+        .as("8 = 7 => false")
+        .isFalse();
+
+    assertThatThrownBy(
+            () ->
+                new Evaluator(STRUCT, predicate(Expression.Operation.EQ, "x", "y"))
+                    .eval(TestHelpers.Row.of(6, 8, 8, null)))
+        .hasMessage("Cannot compare different types: int and double");
+  }
+
+  @Test
   public void testNotEqual() {
     assertThat(notEqual("x", 5).literals().size()).isEqualTo(1);
 
@@ -298,6 +572,64 @@ public class TestEvaluator {
                         TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
         .as("6 != 7 => true")
         .isTrue();
+  }
+
+  @Test
+  public void testRefCompareNotEqual() {
+    Evaluator evaluator = new Evaluator(STRUCT, predicate(Expression.Operation.NOT_EQ, "x", "z"));
+    assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, 7, null))).as("7 <> 7 => false").isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, 7, null))).as("6 <> 7 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, 7, null))).as("8 <> 7 => true").isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, null, null)))
+        .as("6 <> null => false")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(null, 8, 8, null)))
+        .as("null <> null => false")
+        .isFalse();
+
+    Evaluator structEvaluator =
+        new Evaluator(
+            STRUCT,
+            predicate(
+                Expression.Operation.NOT_EQ,
+                Expressions.ref("s1.s2.s3.s4.i"),
+                Expressions.ref("x")));
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(7)))))))
+        .as("7 <> 7 => false")
+        .isFalse();
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(6)))))))
+        .as("6 <> 7 => true")
+        .isTrue();
+    assertThat(
+            structEvaluator.eval(
+                TestHelpers.Row.of(
+                    7,
+                    8,
+                    null,
+                    TestHelpers.Row.of(
+                        TestHelpers.Row.of(TestHelpers.Row.of(TestHelpers.Row.of(8)))))))
+        .as("8 <> 7 => true")
+        .isTrue();
+
+    assertThatThrownBy(
+            () ->
+                new Evaluator(STRUCT, predicate(Expression.Operation.NOT_EQ, "x", "y"))
+                    .eval(TestHelpers.Row.of(6, 8, 8, null)))
+        .hasMessage("Cannot compare different types: int and double");
   }
 
   @Test
