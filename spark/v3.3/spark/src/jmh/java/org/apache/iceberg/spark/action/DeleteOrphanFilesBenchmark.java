@@ -22,6 +22,7 @@ import static org.apache.spark.sql.functions.lit;
 
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.AppendFiles;
@@ -111,7 +112,7 @@ public class DeleteOrphanFilesBenchmark {
   private void initTable() {
     spark.sql(
         String.format(
-                Locale.ROOT,
+            Locale.ROOT,
             "CREATE TABLE %s(id INT, name STRING)"
                 + " USING ICEBERG"
                 + " TBLPROPERTIES ( 'format-version' = '2')",
