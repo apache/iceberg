@@ -31,50 +31,79 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Manages locks and collect {@link org.apache.flink.metrics.Metric} for the Maintenance Tasks. */
+/**
+ * Manages locks and collect {@link org.apache.flink.metrics.Metric} for the Maintenance Tasks.
+ *
+ * <p>The assumptions about the locks are the following:
+ *
+ * <ul>
+ *   <li>Every {@link TaskResult} is followed by a {@link Watermark} for normal {@link Trigger}s
+ *   <li>For the {@link Trigger#recovery(long)} {@link Watermark} there is no element to process
+ * </ul>
+ *
+ * When processing the inputs there are 3 possibilities:
+ *
+ * <ul>
+ *   <li>Normal execution - we receive a {@link TaskResult} and then a {@link Watermark} - unlocking
+ *       the lock is handled by the {@link #processElement(StreamRecord)}
+ *   <li>Recovery without ongoing execution (unlocking the recoveryLock) - we receive the {@link
+ *       Trigger#recovery(long)} {@link Watermark} without any {@link TaskResult} - unlocking the
+ *       {@link TriggerLockFactory#createRecoveryLock()} and a possible {@link
+ *       TriggerLockFactory#createLock()} is handled by the {@link #processWatermark(Watermark)}
+ *       (the {@link #lastProcessedTaskStartEpoch} is 0 in this case)
+ *   <li>Recovery with an ongoing execution - we receive a {@link TaskResult} and then a {@link
+ *       Watermark} - unlocking the {@link TriggerLockFactory#createLock()} is handled by the {@link
+ *       #processElement(StreamRecord)}, unlocking the {@link
+ *       TriggerLockFactory#createRecoveryLock()} is handled by the {@link
+ *       #processWatermark(Watermark)} (the {@link #lastProcessedTaskStartEpoch} is the start time
+ *       of the old task)
+ * </ul>
+ */
 @Internal
 public class LockRemover extends AbstractStreamOperator<MaintenanceResult>
     implements OneInputStreamOperator<TaskResult, MaintenanceResult> {
   private static final Logger LOG = LoggerFactory.getLogger(LockRemover.class);
 
   private final TriggerLockFactory lockFactory;
-  private final List<String> taskNames;
+  private final List<String> maintenanceTaskNames;
 
-  private transient List<Counter> succeededTaskResultCounterMap;
-  private transient List<Counter> failedTaskResultCounterMap;
-  private transient List<AtomicLong> lastRunDuration;
+  private transient List<Counter> succeededTaskResultCounters;
+  private transient List<Counter> failedTaskResultCounters;
+  private transient List<AtomicLong> taskLastRunDurationMs;
   private transient TriggerLockFactory.Lock lock;
   private transient TriggerLockFactory.Lock recoveryLock;
-  private transient long lastProcessed = 0L;
+  private transient long lastProcessedTaskStartEpoch = 0L;
 
-  public LockRemover(TriggerLockFactory lockFactory, List<String> taskNames) {
+  public LockRemover(TriggerLockFactory lockFactory, List<String> maintenanceTaskNames) {
     Preconditions.checkNotNull(lockFactory, "Lock factory should no be null");
     Preconditions.checkArgument(
-        taskNames != null && !taskNames.isEmpty(), "Invalid task names: null or empty");
+        maintenanceTaskNames != null && !maintenanceTaskNames.isEmpty(),
+        "Invalid maintenance task names: null or empty");
 
     this.lockFactory = lockFactory;
-    this.taskNames = taskNames;
+    this.maintenanceTaskNames = maintenanceTaskNames;
   }
 
   @Override
   public void open() throws Exception {
     super.open();
-    this.succeededTaskResultCounterMap = Lists.newArrayListWithExpectedSize(taskNames.size());
-    this.failedTaskResultCounterMap = Lists.newArrayListWithExpectedSize(taskNames.size());
-    this.lastRunDuration = Lists.newArrayListWithExpectedSize(taskNames.size());
-    for (String name : taskNames) {
-      succeededTaskResultCounterMap.add(
+    this.succeededTaskResultCounters =
+        Lists.newArrayListWithExpectedSize(maintenanceTaskNames.size());
+    this.failedTaskResultCounters = Lists.newArrayListWithExpectedSize(maintenanceTaskNames.size());
+    this.taskLastRunDurationMs = Lists.newArrayListWithExpectedSize(maintenanceTaskNames.size());
+    for (String name : maintenanceTaskNames) {
+      succeededTaskResultCounters.add(
           getRuntimeContext()
               .getMetricGroup()
               .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
               .counter(TableMaintenanceMetrics.SUCCEEDED_TASK_COUNTER));
-      failedTaskResultCounterMap.add(
+      failedTaskResultCounters.add(
           getRuntimeContext()
               .getMetricGroup()
               .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
               .counter(TableMaintenanceMetrics.FAILED_TASK_COUNTER));
       AtomicLong length = new AtomicLong(0);
-      lastRunDuration.add(length);
+      taskLastRunDurationMs.add(length);
       getRuntimeContext()
           .getMetricGroup()
           .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
@@ -86,9 +115,12 @@ public class LockRemover extends AbstractStreamOperator<MaintenanceResult>
   }
 
   @Override
-  public void processElement(StreamRecord<TaskResult> element) {
-    TaskResult taskResult = element.getValue();
-    LOG.debug("Processing task result: {}", taskResult);
+  public void processElement(StreamRecord<TaskResult> streamRecord) {
+    TaskResult taskResult = streamRecord.getValue();
+    LOG.info(
+        "Processing result {} for task {}",
+        taskResult,
+        maintenanceTaskNames.get(taskResult.taskIndex()));
     long duration = System.currentTimeMillis() - taskResult.startEpoch();
     output.collect(
         new StreamRecord<>(
@@ -99,20 +131,20 @@ public class LockRemover extends AbstractStreamOperator<MaintenanceResult>
                 taskResult.success(),
                 taskResult.exceptions())));
     lock.unlock();
-    this.lastProcessed = taskResult.startEpoch();
+    this.lastProcessedTaskStartEpoch = taskResult.startEpoch();
 
     // Update the metrics
-    lastRunDuration.get(taskResult.taskIndex()).set(duration);
+    taskLastRunDurationMs.get(taskResult.taskIndex()).set(duration);
     if (taskResult.success()) {
-      succeededTaskResultCounterMap.get(taskResult.taskIndex()).inc();
+      succeededTaskResultCounters.get(taskResult.taskIndex()).inc();
     } else {
-      failedTaskResultCounterMap.get(taskResult.taskIndex()).inc();
+      failedTaskResultCounters.get(taskResult.taskIndex()).inc();
     }
   }
 
   @Override
   public void processWatermark(Watermark mark) {
-    if (mark.getTimestamp() > lastProcessed) {
+    if (mark.getTimestamp() > lastProcessedTaskStartEpoch) {
       lock.unlock();
       recoveryLock.unlock();
     }
