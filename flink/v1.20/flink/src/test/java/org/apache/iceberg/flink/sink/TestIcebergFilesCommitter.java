@@ -246,7 +246,8 @@ public class TestIcebergFilesCommitter extends TestBase {
       RowData row1 = SimpleDataUtil.createRowData(1, "hello");
       DataFile dataFile1 = writeDataFile("data-1", ImmutableList.of(row1));
 
-      harness.processElement(of(checkpoint, dataFile1), ++timestamp);
+      long firstCheckpointId = 1;
+      harness.processElement(of(firstCheckpointId, dataFile1), ++timestamp);
       assertMaxCommittedCheckpointId(jobId, operatorId, -1L);
 
       // 1. snapshotState for checkpoint#1
@@ -750,8 +751,7 @@ public class TestIcebergFilesCommitter extends TestBase {
       RowData row1 = SimpleDataUtil.createRowData(1, "hello");
       DataFile dataFile1 = writeDataFile("data-1", ImmutableList.of(row1));
 
-      long firstCheckpointId = 1;
-      harness.processElement(of(firstCheckpointId, dataFile1), ++timestamp);
+      harness.processElement(of(checkpoint, dataFile1), ++timestamp);
       assertMaxCommittedCheckpointId(jobId, operatorId, -1L);
 
       // 1. snapshotState for checkpoint#1
