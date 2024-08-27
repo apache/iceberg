@@ -19,27 +19,48 @@
 package org.apache.iceberg;
 
 import java.nio.ByteBuffer;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import org.apache.iceberg.MetricsModes.Counts;
+import org.apache.iceberg.MetricsModes.MetricsMode;
+import org.apache.iceberg.MetricsModes.None;
+import org.apache.iceberg.MetricsModes.Truncate;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.LocationProvider;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.Transforms;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.RandomUtil;
 
 public class FileGenerationUtil {
 
   private FileGenerationUtil() {}
 
   public static DataFile generateDataFile(Table table, StructLike partition) {
+    return generateDataFile(table, partition, ImmutableMap.of(), ImmutableMap.of());
+  }
+
+  public static DataFile generateDataFile(
+      Table table,
+      StructLike partition,
+      Map<Integer, ByteBuffer> lowerBounds,
+      Map<Integer, ByteBuffer> upperBounds) {
     Schema schema = table.schema();
     PartitionSpec spec = table.spec();
     LocationProvider locations = table.locationProvider();
     String path = locations.newDataLocation(spec, partition, generateFileName());
     long fileSize = generateFileSize();
-    Metrics metrics = generateRandomMetrics(schema);
+    MetricsConfig metricsConfig = MetricsConfig.forTable(table);
+    Metrics metrics = generateRandomMetrics(schema, metricsConfig, lowerBounds, upperBounds);
     return DataFiles.builder(spec)
         .withPath(path)
         .withPartition(partition)
@@ -91,7 +112,11 @@ public class FileGenerationUtil {
     return String.format("%d-%d-%s-%d.parquet", partitionId, taskId, operationId, fileCount);
   }
 
-  public static Metrics generateRandomMetrics(Schema schema) {
+  public static Metrics generateRandomMetrics(
+      Schema schema,
+      MetricsConfig metricsConfig,
+      Map<Integer, ByteBuffer> knownLowerBounds,
+      Map<Integer, ByteBuffer> knownUpperBounds) {
     long rowCount = generateRowCount();
     Map<Integer, Long> columnSizes = Maps.newHashMap();
     Map<Integer, Long> valueCounts = Maps.newHashMap();
@@ -106,12 +131,16 @@ public class FileGenerationUtil {
       valueCounts.put(fieldId, generateValueCount());
       nullValueCounts.put(fieldId, (long) random().nextInt(5));
       nanValueCounts.put(fieldId, (long) random().nextInt(5));
-      byte[] lower = new byte[16];
-      random().nextBytes(lower);
-      lowerBounds.put(fieldId, ByteBuffer.wrap(lower));
-      byte[] upper = new byte[16];
-      random().nextBytes(upper);
-      upperBounds.put(fieldId, ByteBuffer.wrap(upper));
+      if (knownLowerBounds.containsKey(fieldId) && knownUpperBounds.containsKey(fieldId)) {
+        lowerBounds.put(fieldId, knownLowerBounds.get(fieldId));
+        upperBounds.put(fieldId, knownUpperBounds.get(fieldId));
+      } else if (column.type().isPrimitiveType()) {
+        PrimitiveType type = column.type().asPrimitiveType();
+        MetricsMode metricsMode = metricsConfig.columnMode(column.name());
+        Pair<ByteBuffer, ByteBuffer> bounds = generateBounds(type, metricsMode);
+        lowerBounds.put(fieldId, bounds.first());
+        upperBounds.put(fieldId, bounds.second());
+      }
     }
 
     return new Metrics(
@@ -183,6 +212,37 @@ public class FileGenerationUtil {
 
   private static long generateFileSize() {
     return random().nextInt(50_000);
+  }
+
+  private static Pair<ByteBuffer, ByteBuffer> generateBounds(PrimitiveType type, MetricsMode mode) {
+    Comparator<Object> cmp = Comparators.forType(type);
+    Object value1 = generateBound(type, mode);
+    Object value2 = generateBound(type, mode);
+    if (cmp.compare(value1, value2) > 0) {
+      ByteBuffer lowerBuffer = Conversions.toByteBuffer(type, value2);
+      ByteBuffer upperBuffer = Conversions.toByteBuffer(type, value1);
+      return Pair.of(lowerBuffer, upperBuffer);
+    } else {
+      ByteBuffer lowerBuffer = Conversions.toByteBuffer(type, value1);
+      ByteBuffer upperBuffer = Conversions.toByteBuffer(type, value2);
+      return Pair.of(lowerBuffer, upperBuffer);
+    }
+  }
+
+  private static Object generateBound(PrimitiveType type, MetricsMode mode) {
+    if (mode instanceof None || mode instanceof Counts) {
+      return null;
+    } else if (mode instanceof Truncate) {
+      Object value = RandomUtil.generatePrimitive(type, random());
+      Transform<Object, Object> truncate = Transforms.truncate(((Truncate) mode).length());
+      if (truncate.canTransform(type)) {
+        return truncate.bind(type).apply(value);
+      } else {
+        return value;
+      }
+    } else {
+      return RandomUtil.generatePrimitive(type, random());
+    }
   }
 
   private static Random random() {
