@@ -79,6 +79,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       Preconditions.checkArgument(
           isValidIdentifier(identifier), "Invalid view identifier: %s", identifier);
       this.identifier = identifier;
+      this.properties.putAll(tableDefaultProperties());
     }
 
     @Override
@@ -155,6 +156,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       Preconditions.checkState(
           null != defaultNamespace, "Cannot create view without specifying a default namespace");
 
+      properties.putAll(tableOverrideProperties());
       ViewVersion viewVersion =
           ImmutableViewVersion.builder()
               .versionId(1)
@@ -190,6 +192,7 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       if (null == ops.current()) {
         throw new NoSuchViewException("View does not exist: %s", identifier);
       }
+      properties.putAll(tableOverrideProperties());
 
       Preconditions.checkState(
           !representations.isEmpty(), "Cannot replace view without specifying a query");
