@@ -66,6 +66,7 @@ HADOOP_HOME=`pwd`/hadoop-${HADOOP_VERSION}
 export HADOOP_CLASSPATH=`$HADOOP_HOME/bin/hadoop classpath`
 
 # Start the flink standalone cluster
+cd flink-${FLINK_VERSION}/
 ./bin/start-cluster.sh
 ```
 
