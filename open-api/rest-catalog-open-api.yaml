@@ -2320,6 +2320,7 @@ components:
           remove-statistics: '#/components/schemas/RemoveStatisticsUpdate'
           set-partition-statistics: '#/components/schemas/SetPartitionStatisticsUpdate'
           remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
+          remove-partition-specs: '#/components/schemas/RemovePartitionSpecsUpdate'
       type: object
       required:
         - action
@@ -2622,6 +2623,20 @@ components:
           type: integer
           format: int64
 
+    RemovePartitionSpecsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - spec-ids
+      properties:
+        action:
+          type: string
+          enum: [ "remove-partition-specs" ]
+        spec-ids:
+          type: array
+          items:
+            type: integer
+
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -2641,6 +2656,7 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
+        - $ref: '#/components/schemas/RemovePartitionSpecsUpdate'
 
     ViewUpdate:
       anyOf:
