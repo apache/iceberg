@@ -75,6 +75,7 @@ public class AppendBenchmark {
 
   @Param({"500000", "1000000", "2500000"})
   private int numFiles;
+
   @Param({"true", "false"})
   private boolean fast;
 
