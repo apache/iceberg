@@ -198,6 +198,36 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       if (!files.isEmpty()) {
         List<BlobMetadata> metadataList = (files.get(0)).blobMetadata();
 
+        Map<Integer, List<BlobMetadata>> groupedByField =
+            metadataList.stream()
+                .collect(
+                    Collectors.groupingBy(
+                        metadata -> metadata.fields().get(0), Collectors.toList()));
+
+        for (Map.Entry<Integer, List<BlobMetadata>> entry : groupedByField.entrySet()) {
+          String colName = table.schema().findColumnName(entry.getKey());
+          NamedReference ref = FieldReference.column(colName);
+          Long ndv = null;
+
+          for (BlobMetadata blobMetadata : entry.getValue()) {
+            if (blobMetadata
+                .type()
+                .equals(org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1)) {
+              String ndvStr = blobMetadata.properties().get(NDV_KEY);
+              if (!Strings.isNullOrEmpty(ndvStr)) {
+                ndv = Long.parseLong(ndvStr);
+              } else {
+                LOG.debug("ndv is not set in BlobMetadata for column {}", colName);
+              }
+            }
+
+            ColumnStatistics colStats =
+                new SparkColumnStatistics(ndv, null, null, null, null, null, null);
+
+            colStatsMap.put(ref, colStats);
+          }
+        }
+
         for (BlobMetadata blobMetadata : metadataList) {
           if (blobMetadata
               .type()
@@ -206,6 +236,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
             String colName = table.schema().findColumnName(id);
             NamedReference ref = FieldReference.column(colName);
             Long ndv = null;
+
             String ndvStr = blobMetadata.properties().get(NDV_KEY);
             if (!Strings.isNullOrEmpty(ndvStr)) {
               ndv = Long.parseLong(ndvStr);

@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1;
-import static org.apache.iceberg.puffin.StandardBlobTypes.PRESTO_SUM_DATA_SIZE_BYTES_V1;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createPartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.createUnpartitionedTable;
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToDayOrdinal;
@@ -82,6 +81,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkScan extends TestBaseWithCatalog {
+
+  private static final String DUMMY_BLOB_TYPE = "sum-data-size-bytes-v1";
 
   @Parameter(index = 3)
   private String format;
@@ -217,7 +218,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
             42,
             ImmutableList.of(
                 new GenericBlobMetadata(
-                    PRESTO_SUM_DATA_SIZE_BYTES_V1,
+                    DUMMY_BLOB_TYPE,
                     snapshotId,
                     1,
                     ImmutableList.of(1),
@@ -331,7 +332,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
                     ImmutableList.of(1),
                     ImmutableMap.of("ndv", "4")),
                 new GenericBlobMetadata(
-                    PRESTO_SUM_DATA_SIZE_BYTES_V1,
+                    DUMMY_BLOB_TYPE,
                     snapshotId,
                     1,
                     ImmutableList.of(1),
