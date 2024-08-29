@@ -220,12 +220,11 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
                 LOG.debug("ndv is not set in BlobMetadata for column {}", colName);
               }
             }
-
-            ColumnStatistics colStats =
-                new SparkColumnStatistics(ndv, null, null, null, null, null, null);
-
-            colStatsMap.put(ref, colStats);
           }
+          ColumnStatistics colStats =
+                  new SparkColumnStatistics(ndv, null, null, null, null, null, null);
+
+          colStatsMap.put(ref, colStats);
         }
       }
     }
