@@ -172,8 +172,7 @@ public interface RewriteDataFiles
   RewriteDataFiles filter(Expression expression);
 
   /**
-   * A user provided branch which the rewrite happens on the target branch can also be controlled
-   * via WAP(write-audit-publish)
+   * Specify the branch on which the rewrite will be performed. via WAP(write-audit-publish)
    *
    * @param branch the branch where the rewrite happens
    * @return this for chaining

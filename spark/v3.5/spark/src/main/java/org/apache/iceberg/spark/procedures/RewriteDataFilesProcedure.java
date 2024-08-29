@@ -137,20 +137,31 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     }
     return action;
   }
+  //
+  //  private RewriteDataFiles checkAndApplyBranch(
+  //      Table table, Identifier ident, RewriteDataFiles action) {
+  //    String branchIdent = Spark3Util.extractBranch(ident);
+  //    if (branchIdent != null) {
+  //      return action.targetBranch(branchIdent);
+  //    }
+  //    SparkWriteConf writeConf = new SparkWriteConf(spark(), table, Maps.newHashMap());
+  //    String targetBranch = writeConf.branch();
+  //    if (targetBranch != null) {
+  //      return action.targetBranch(targetBranch);
+  //    } else {
+  //      return action;
+  //    }
+  //  }
 
   private RewriteDataFiles checkAndApplyBranch(
       Table table, Identifier ident, RewriteDataFiles action) {
     String branchIdent = Spark3Util.extractBranch(ident);
-    if (branchIdent != null) {
-      return action.targetBranch(branchIdent);
-    }
-    SparkWriteConf writeConf = new SparkWriteConf(spark(), table, Maps.newHashMap());
+    SparkWriteConf writeConf = new SparkWriteConf(spark(), table, branchIdent, Maps.newHashMap());
     String targetBranch = writeConf.branch();
     if (targetBranch != null) {
-      return action.targetBranch(targetBranch);
-    } else {
-      return action;
+      action.targetBranch(targetBranch);
     }
+    return action;
   }
 
   private RewriteDataFiles checkAndApplyStrategy(

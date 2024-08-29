@@ -421,14 +421,14 @@ Rewrite the data files in table `db.sample` and select the files that may contai
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', where => 'id = 3 and name = "foo"');
 ```
 
-Rewrite the data files in table `db.sample` specifying target branch rewrite happens on using WAP
+Rewrite the data files in table `db.sample` specifying target branch using WAP
 ```sql
 ALTER TABLE db.table SET TBLPROPERTIES ('write.wap.enabled'='true')
 SET spark.wap.branch = audit
 CALL catalog_name.system.rewrite_data_files('db.sample');
 ```
 
-Rewrite the data files in table `db.sample` specifying target branch rewrite happens on using branch identifier
+Rewrite the data files in table `db.sample` specifying target branch using branch identifier
 ```sql
 CALL catalog_name.system.rewrite_data_files('db.sample.branch_audit');
 ```
