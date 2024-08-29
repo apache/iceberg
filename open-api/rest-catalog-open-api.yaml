@@ -565,8 +565,9 @@ paths:
 
         Responses must include a valid status
 
-        - When "completed" the planning operation has produced plan-tasks and
-          file-scan-tasks that must be returned in the response
+        - When "completed" the planning operation has produced plan tasks and
+          file scan tasks that must be returned in the response (not fetched
+          later by calling fetchPlanningResult)
 
         - When "submitted" the response must include a plan-id used to poll
           fetchPlanningResult to fetch the planning result when it is ready
