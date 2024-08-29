@@ -45,11 +45,10 @@ Writers create view metadata files optimistically, assuming that the current met
 ### Materialized Views
 
 Views have the option to be turned into materialized views by precomputing the data from the view query.
-Materialized views return the precomputed data when queried and push the cost of query execution to the precomputation step.
+When queried, materialized views return the precomputed data, shifting the cost of query execution to the precomputation step.
 
-Iceberg materialized views are realized as a combination of an Iceberg view with an underlying Iceberg table to store the precomputed data, referred to as the storage table.
-The metadata of the materialized view is an extension to the view metadata.
-In addition to the metadata of a common view, it stores a pointer to the precomputed data and freshness information to check if the precomputed data is still fresh.
+Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, known as the storage table, which stores the precomputed data.
+The metadata for a materialized view extends the common view metadata, adding a pointer to the precomputed data and freshness information to determine if the data is still fresh. 
 The storage table can have the states "fresh", "stale" or "invalid".
 The freshness information is composed of data about the so-called "source tables", which are the tables referenced in the query definition of the materialized view. 
 
@@ -59,6 +58,8 @@ The freshness information is composed of data about the so-called "source tables
 
 * **Schema** -- Names and types of fields in a view.
 * **Version** -- The state of a view at some point in time.
+* **Storage table** -- Iceberg table that stores the precomputed data of the materialized view.
+* **Source table** -- A table reference that occurs in the query definition of the materialized view. The materialized view depends on the data from the source tables.
 
 ### View Metadata
 
@@ -183,7 +184,7 @@ The full identifier holds a fully resolved reference for a table or view in the 
 | _required_  | `catalog` | A string specifying the catalog of the source table |
 | _required_  | `namespace`   | A list of namespace levels |
 | _required_  | `table`   | A string specifying the name of the source table |
-| _optional_  | `ref`   | Branch or Tag name of the source table that is being referenced in the view query  |
+| _optional_  | `ref`   | Branch name of the source table that is being referenced in the view query  |
 
 When 'ref' is `null` or not set, it defaults to “main”. This field is to be ignored if the referenced entity is a view.
 
@@ -214,6 +215,7 @@ A source table record captures the state of a source table at the time of the la
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
 | _required_  | `identifier` | A [full identifier](#full-identifier) for the source table | 
+| _required_  | `uuid` | The uuid of the source table | 
 | _required_  | `snapshot-id`   | Snapshot-id of when the last refresh operation was performed |
 
 #### Source view
@@ -223,6 +225,7 @@ A source view record captures the state of a source view at the time of the last
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
 | _required_  | `identifier` | A [full identifier](#full-identifier) for the source view | 
+| _required_  | `uuid` | The uuid of the source view | 
 | _required_  | `version-id`   | Version-id of when the last refresh operation was performed |
 
 ## Appendix A: An Example
