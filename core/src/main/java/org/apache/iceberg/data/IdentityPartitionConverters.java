@@ -60,6 +60,11 @@ public class IdentityPartitionConverters {
           return ByteBuffers.toByteArray((ByteBuffer) value);
         }
         return value;
+      case BINARY:
+        if (value instanceof byte[]) {
+          return ByteBuffer.wrap((byte[]) value);
+        }
+        return value;
       default:
     }
     return value;

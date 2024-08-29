@@ -18,180 +18,112 @@
  */
 package org.apache.iceberg;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.Tasks;
+import org.apache.iceberg.util.ThreadPools;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class PartitionStatsUtil {
 
   private PartitionStatsUtil() {}
 
-  public enum Column {
-    PARTITION,
-    SPEC_ID,
-    DATA_RECORD_COUNT,
-    DATA_FILE_COUNT,
-    TOTAL_DATA_FILE_SIZE_IN_BYTES,
-    POSITION_DELETE_RECORD_COUNT,
-    POSITION_DELETE_FILE_COUNT,
-    EQUALITY_DELETE_RECORD_COUNT,
-    EQUALITY_DELETE_FILE_COUNT,
-    TOTAL_RECORD_COUNT,
-    LAST_UPDATED_AT,
-    LAST_UPDATED_SNAPSHOT_ID
+  private static final Logger LOG = LoggerFactory.getLogger(PartitionStatsUtil.class);
+
+  /**
+   * Computes the partition stats for the given snapshot of the table.
+   *
+   * @param table the table for which partition stats to be computed.
+   * @param snapshot the snapshot for which partition stats is computed.
+   * @return iterable {@link PartitionStats}
+   */
+  public static Iterable<PartitionStats> computeStats(Table table, Snapshot snapshot) {
+    Preconditions.checkState(table != null, "table cannot be null");
+    Preconditions.checkState(snapshot != null, "snapshot cannot be null");
+
+    Types.StructType partitionType = Partitioning.partitionType(table);
+    Map<Record, PartitionStats> partitionEntryMap = Maps.newConcurrentMap();
+
+    List<ManifestFile> manifestFiles = snapshot.allManifests(table.io());
+    Tasks.foreach(manifestFiles)
+        .stopOnFailure()
+        .executeWith(ThreadPools.getWorkerPool())
+        .onFailure(
+            (file, thrown) ->
+                LOG.warn(
+                    "Failed to compute the partition stats for the manifest file: {}",
+                    file.path(),
+                    thrown))
+        .run(
+            manifest -> {
+              try (CloseableIterable<PartitionStats> entries =
+                  PartitionStatsUtil.fromManifest(table, manifest, partitionType)) {
+                entries.forEach(
+                    entry -> {
+                      Record partitionKey = entry.partition();
+                      partitionEntryMap.merge(
+                          partitionKey,
+                          entry,
+                          (existingEntry, newEntry) -> {
+                            existingEntry.appendStats(newEntry);
+                            return existingEntry;
+                          });
+                    });
+              } catch (IOException e) {
+                throw new UncheckedIOException(e);
+              }
+            });
+
+    return partitionEntryMap.values();
   }
 
   /**
-   * Generates the Partition Stats Files Schema based on a given partition type.
+   * Sorts the {@link PartitionStats} based on the partition data.
    *
-   * <p>Note: Provide the unified partition tuple as mentioned in the spec.
-   *
-   * @param partitionType the struct type that defines the structure of the partition.
-   * @return a schema that corresponds to the provided unified partition type.
+   * @param stats iterable {@link PartitionStats} which needs to be sorted.
+   * @param partitionType unified partition schema.
+   * @return Iterator of {@link PartitionStats}
    */
-  public static Schema schema(Types.StructType partitionType) {
-    Preconditions.checkState(
-        !partitionType.fields().isEmpty(), "getting schema for an unpartitioned table");
-
-    return new Schema(
-        Types.NestedField.required(1, Column.PARTITION.name(), partitionType),
-        Types.NestedField.required(2, Column.SPEC_ID.name(), Types.IntegerType.get()),
-        Types.NestedField.required(3, Column.DATA_RECORD_COUNT.name(), Types.LongType.get()),
-        Types.NestedField.required(4, Column.DATA_FILE_COUNT.name(), Types.IntegerType.get()),
-        Types.NestedField.required(
-            5, Column.TOTAL_DATA_FILE_SIZE_IN_BYTES.name(), Types.LongType.get()),
-        Types.NestedField.optional(
-            6, Column.POSITION_DELETE_RECORD_COUNT.name(), Types.LongType.get()),
-        Types.NestedField.optional(
-            7, Column.POSITION_DELETE_FILE_COUNT.name(), Types.IntegerType.get()),
-        Types.NestedField.optional(
-            8, Column.EQUALITY_DELETE_RECORD_COUNT.name(), Types.LongType.get()),
-        Types.NestedField.optional(
-            9, Column.EQUALITY_DELETE_FILE_COUNT.name(), Types.IntegerType.get()),
-        Types.NestedField.optional(10, Column.TOTAL_RECORD_COUNT.name(), Types.LongType.get()),
-        Types.NestedField.optional(11, Column.LAST_UPDATED_AT.name(), Types.LongType.get()),
-        Types.NestedField.optional(
-            12, Column.LAST_UPDATED_SNAPSHOT_ID.name(), Types.LongType.get()));
+  public static Iterator<PartitionStats> sortStats(
+      Iterable<PartitionStats> stats, Types.StructType partitionType) {
+    List<PartitionStats> entries = Lists.newArrayList(stats.iterator());
+    entries.sort(
+        Comparator.comparing(PartitionStats::partition, Comparators.forType(partitionType)));
+    return entries.iterator();
   }
 
-  /**
-   * Creates an iterable of partition stats records from a given manifest file, using the specified
-   * table and record schema.
-   *
-   * @param table the table from which the manifest file is derived.
-   * @param manifest the manifest file containing metadata about the records.
-   * @param recordSchema the schema defining the structure of the records.
-   * @return a CloseableIterable of partition stats records as defined by the manifest file and
-   *     record schema.
-   */
-  public static CloseableIterable<Record> fromManifest(
-      Table table, ManifestFile manifest, Schema recordSchema) {
-    Preconditions.checkState(
-        !recordSchema.findField(Column.PARTITION.name()).type().asStructType().fields().isEmpty(),
-        "record schema should not be unpartitioned");
-
+  private static CloseableIterable<PartitionStats> fromManifest(
+      Table table, ManifestFile manifest, Types.StructType partitionType) {
     return CloseableIterable.transform(
         ManifestFiles.open(manifest, table.io(), table.specs())
             .select(BaseScan.scanColumns(manifest.content()))
-            .liveEntries(),
-        entry -> fromManifestEntry(entry, table, recordSchema));
-  }
+            .entries(),
+        entry -> {
+          // partition data as per unified partition spec
+          Record partitionData = coercedPartitionData(entry.file(), table.specs(), partitionType);
+          PartitionStats partitionStats = new PartitionStats(partitionData);
+          if (entry.isLive()) {
+            partitionStats.liveEntry(entry.file(), table.snapshot(entry.snapshotId()));
+          } else {
+            partitionStats.deletedEntry(table.snapshot(entry.snapshotId()));
+          }
 
-  /**
-   * Appends statistics from one Record to another.
-   *
-   * @param toRecord the Record to which statistics will be appended.
-   * @param fromRecord the Record from which statistics will be sourced.
-   */
-  public static void appendStats(Record toRecord, Record fromRecord) {
-    Preconditions.checkState(toRecord != null, "Record to update cannot be null");
-    Preconditions.checkState(fromRecord != null, "Record to update from cannot be null");
-
-    toRecord.set(
-        Column.SPEC_ID.ordinal(),
-        Math.max(
-            (int) toRecord.get(Column.SPEC_ID.ordinal()),
-            (int) fromRecord.get(Column.SPEC_ID.ordinal())));
-    checkAndIncrementLong(toRecord, fromRecord, Column.DATA_RECORD_COUNT);
-    checkAndIncrementInt(toRecord, fromRecord, Column.DATA_FILE_COUNT);
-    checkAndIncrementLong(toRecord, fromRecord, Column.TOTAL_DATA_FILE_SIZE_IN_BYTES);
-    checkAndIncrementLong(toRecord, fromRecord, Column.POSITION_DELETE_RECORD_COUNT);
-    checkAndIncrementInt(toRecord, fromRecord, Column.POSITION_DELETE_FILE_COUNT);
-    checkAndIncrementLong(toRecord, fromRecord, Column.EQUALITY_DELETE_RECORD_COUNT);
-    checkAndIncrementInt(toRecord, fromRecord, Column.EQUALITY_DELETE_FILE_COUNT);
-    checkAndIncrementLong(toRecord, fromRecord, Column.TOTAL_RECORD_COUNT);
-    if (fromRecord.get(Column.LAST_UPDATED_AT.ordinal()) != null) {
-      if (toRecord.get(Column.LAST_UPDATED_AT.ordinal()) == null
-          || ((long) toRecord.get(Column.LAST_UPDATED_AT.ordinal())
-              < (long) fromRecord.get(Column.LAST_UPDATED_AT.ordinal()))) {
-        toRecord.set(
-            Column.LAST_UPDATED_AT.ordinal(), fromRecord.get(Column.LAST_UPDATED_AT.ordinal()));
-        toRecord.set(
-            Column.LAST_UPDATED_SNAPSHOT_ID.ordinal(),
-            fromRecord.get(Column.LAST_UPDATED_SNAPSHOT_ID.ordinal()));
-      }
-    }
-  }
-
-  private static Record fromManifestEntry(
-      ManifestEntry<?> entry, Table table, Schema recordSchema) {
-    GenericRecord record = GenericRecord.create(recordSchema);
-    Types.StructType partitionType =
-        recordSchema.findField(Column.PARTITION.name()).type().asStructType();
-    Record partitionData = coercedPartitionData(entry.file(), table.specs(), partitionType);
-    record.set(Column.PARTITION.ordinal(), partitionData);
-    record.set(Column.SPEC_ID.ordinal(), entry.file().specId());
-
-    Snapshot snapshot = table.snapshot(entry.snapshotId());
-    if (snapshot != null) {
-      record.set(Column.LAST_UPDATED_SNAPSHOT_ID.ordinal(), snapshot.snapshotId());
-      record.set(Column.LAST_UPDATED_AT.ordinal(), snapshot.timestampMillis());
-    }
-
-    switch (entry.file().content()) {
-      case DATA:
-        record.set(Column.DATA_RECORD_COUNT.ordinal(), entry.file().recordCount());
-        record.set(Column.DATA_FILE_COUNT.ordinal(), 1);
-        record.set(Column.TOTAL_DATA_FILE_SIZE_IN_BYTES.ordinal(), entry.file().fileSizeInBytes());
-        // default values
-        record.set(Column.POSITION_DELETE_RECORD_COUNT.ordinal(), 0L);
-        record.set(Column.POSITION_DELETE_FILE_COUNT.ordinal(), 0);
-        record.set(Column.EQUALITY_DELETE_RECORD_COUNT.ordinal(), 0L);
-        record.set(Column.EQUALITY_DELETE_FILE_COUNT.ordinal(), 0);
-        break;
-      case POSITION_DELETES:
-        record.set(Column.POSITION_DELETE_RECORD_COUNT.ordinal(), entry.file().recordCount());
-        record.set(Column.POSITION_DELETE_FILE_COUNT.ordinal(), 1);
-        // default values
-        record.set(Column.DATA_RECORD_COUNT.ordinal(), 0L);
-        record.set(Column.DATA_FILE_COUNT.ordinal(), 0);
-        record.set(Column.TOTAL_DATA_FILE_SIZE_IN_BYTES.ordinal(), 0L);
-        record.set(Column.EQUALITY_DELETE_RECORD_COUNT.ordinal(), 0L);
-        record.set(Column.EQUALITY_DELETE_FILE_COUNT.ordinal(), 0);
-        break;
-      case EQUALITY_DELETES:
-        record.set(Column.EQUALITY_DELETE_RECORD_COUNT.ordinal(), entry.file().recordCount());
-        record.set(Column.EQUALITY_DELETE_FILE_COUNT.ordinal(), 1);
-        // default values
-        record.set(Column.DATA_RECORD_COUNT.ordinal(), 0L);
-        record.set(Column.DATA_FILE_COUNT.ordinal(), 0);
-        record.set(Column.TOTAL_DATA_FILE_SIZE_IN_BYTES.ordinal(), 0L);
-        record.set(Column.POSITION_DELETE_RECORD_COUNT.ordinal(), 0L);
-        record.set(Column.POSITION_DELETE_FILE_COUNT.ordinal(), 0);
-        break;
-      default:
-        throw new UnsupportedOperationException(
-            "Unsupported file content type: " + entry.file().content());
-    }
-
-    // Note: Not computing the `TOTAL_RECORD_COUNT` for now as it needs scanning the data.
-    record.set(Column.TOTAL_RECORD_COUNT.ordinal(), 0L);
-
-    return record;
+          return partitionStats;
+        });
   }
 
   private static Record coercedPartitionData(
@@ -199,35 +131,15 @@ public class PartitionStatsUtil {
     // keep the partition data as per the unified spec by coercing
     StructLike partition =
         PartitionUtil.coercePartition(partitionType, specs.get(file.specId()), file.partition());
-    GenericRecord genericRecord = GenericRecord.create(partitionType);
+    GenericRecord record = GenericRecord.create(partitionType);
     for (int index = 0; index < partitionType.fields().size(); index++) {
-      genericRecord.set(
-          index,
-          partition.get(index, partitionType.fields().get(index).type().typeId().javaClass()));
+      Object val =
+          partition.get(index, partitionType.fields().get(index).type().typeId().javaClass());
+      if (val != null) {
+        record.set(index, val);
+      }
     }
 
-    return genericRecord;
-  }
-
-  private static void checkAndIncrementLong(Record toUpdate, Record fromRecord, Column column) {
-    if ((fromRecord.get(column.ordinal()) != null) && (toUpdate.get(column.ordinal()) != null)) {
-      toUpdate.set(
-          column.ordinal(),
-          toUpdate.get(column.ordinal(), Long.class)
-              + fromRecord.get(column.ordinal(), Long.class));
-    } else if (fromRecord.get(column.ordinal()) != null) {
-      toUpdate.set(column.ordinal(), fromRecord.get(column.ordinal(), Long.class));
-    }
-  }
-
-  private static void checkAndIncrementInt(Record toUpdate, Record fromRecord, Column column) {
-    if ((fromRecord.get(column.ordinal()) != null) && (toUpdate.get(column.ordinal()) != null)) {
-      toUpdate.set(
-          column.ordinal(),
-          toUpdate.get(column.ordinal(), Integer.class)
-              + fromRecord.get(column.ordinal(), Integer.class));
-    } else if (fromRecord.get(column.ordinal()) != null) {
-      toUpdate.set(column.ordinal(), fromRecord.get(column.ordinal(), Integer.class));
-    }
+    return record;
   }
 }

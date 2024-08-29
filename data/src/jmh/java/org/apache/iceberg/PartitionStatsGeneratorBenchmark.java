@@ -30,9 +30,8 @@ import java.util.Comparator;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.apache.iceberg.data.PartitionStatsGenerator;
-import org.apache.iceberg.data.PartitionStatsGeneratorUtil;
-import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.PartitionStatsHandler;
+import org.apache.iceberg.data.PartitionStatsRecord;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Types;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -119,15 +118,14 @@ public class PartitionStatsGeneratorBenchmark {
   public void benchmarkPartitionStats() throws IOException {
     Snapshot currentSnapshot = table.currentSnapshot();
 
-    PartitionStatsGenerator partitionStatsGenerator = new PartitionStatsGenerator(table);
-    PartitionStatisticsFile result = partitionStatsGenerator.generate();
+    PartitionStatisticsFile result = PartitionStatsHandler.computeAndWritePartitionStatsFile(table);
     table.updatePartitionStatistics().setPartitionStatistics(result).commit();
     assertThat(result.snapshotId()).isEqualTo(currentSnapshot.snapshotId());
 
     // validate row count
-    try (CloseableIterable<Record> recordIterator =
-        PartitionStatsGeneratorUtil.readPartitionStatsFile(
-            PartitionStatsUtil.schema(Partitioning.partitionType(table)),
+    try (CloseableIterable<PartitionStatsRecord> recordIterator =
+        PartitionStatsHandler.readPartitionStatsFile(
+            PartitionStatsHandler.schema(Partitioning.partitionType(table)),
             Files.localInput(result.path()))) {
       assertThat(recordIterator).hasSize(PARTITION_PER_MANIFEST);
     }
