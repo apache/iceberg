@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BlobMetadata;
@@ -39,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
+import org.apache.iceberg.spark.actions.NDVSketchUtil;
 import org.apache.iceberg.spark.source.metrics.EqualityDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.IndexedDeleteFiles;
 import org.apache.iceberg.spark.source.metrics.NumDeletes;
@@ -96,7 +98,6 @@ import org.slf4j.LoggerFactory;
 
 abstract class SparkScan implements Scan, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkScan.class);
-  private static final String NDV_KEY = "ndv";
 
   private final JavaSparkContext sparkContext;
   private final Table table;
@@ -194,9 +195,9 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     Map<NamedReference, ColumnStatistics> colStatsMap = Collections.emptyMap();
     if (readConf.reportColumnStats() && cboEnabled) {
       colStatsMap = Maps.newHashMap();
-      List<StatisticsFile> files = table.statisticsFiles();
-      if (!files.isEmpty()) {
-        List<BlobMetadata> metadataList = (files.get(0)).blobMetadata();
+      Optional<StatisticsFile> statisticsFile = statisticsFile(snapshot);
+      if (statisticsFile.isPresent()) {
+        List<BlobMetadata> metadataList = statisticsFile.get().blobMetadata();
 
         for (BlobMetadata blobMetadata : metadataList) {
           int id = blobMetadata.fields().get(0);
@@ -207,7 +208,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
           if (blobMetadata
               .type()
               .equals(org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1)) {
-            String ndvStr = blobMetadata.properties().get(NDV_KEY);
+            String ndvStr =
+                blobMetadata
+                    .properties()
+                    .get(NDVSketchUtil.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY);
             if (!Strings.isNullOrEmpty(ndvStr)) {
               ndv = Long.parseLong(ndvStr);
             } else {
@@ -240,6 +244,13 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
     long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
     return new Stats(sizeInBytes, rowsCount, colStatsMap);
+  }
+
+  private Optional<StatisticsFile> statisticsFile(Snapshot snapshot) {
+    long snapshotId = snapshot.snapshotId();
+    return table.statisticsFiles().stream()
+        .filter(statisticsFile -> statisticsFile.snapshotId() == snapshotId)
+        .findFirst();
   }
 
   private long totalRecords(Snapshot snapshot) {

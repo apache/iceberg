@@ -294,6 +294,73 @@ public class TestSparkScan extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testMultipleSnapshotsWithColStats() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "a"),
+            new SimpleRecord(4, "b"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+
+    spark
+        .createDataset(List.of(new SimpleRecord(5, "a")), Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+    table.refresh();
+    long snapshotId2 = table.currentSnapshot().snapshotId();
+
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId1,
+            "/test/statistics/file1.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId1,
+                    1,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", "4"))));
+    table.updateStatistics().setStatistics(snapshotId1, statisticsFile).commit();
+
+    statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId2,
+            "/test/statistics/file2.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId2,
+                    1,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", "5"))));
+    table.updateStatistics().setStatistics(snapshotId2, statisticsFile).commit();
+    Map<String, Long> expectedNDV = Maps.newHashMap();
+    expectedNDV.put("id", 5L);
+    withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 5L, expectedNDV));
+  }
+
+  @TestTemplate
   public void testUnpartitionedYears() throws Exception {
     createUnpartitionedTable(spark, tableName);
 
