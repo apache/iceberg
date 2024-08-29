@@ -227,28 +227,6 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
             colStatsMap.put(ref, colStats);
           }
         }
-
-        for (BlobMetadata blobMetadata : metadataList) {
-          if (blobMetadata
-              .type()
-              .equals(org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1)) {
-            int id = blobMetadata.fields().get(0);
-            String colName = table.schema().findColumnName(id);
-            NamedReference ref = FieldReference.column(colName);
-            Long ndv = null;
-
-            String ndvStr = blobMetadata.properties().get(NDV_KEY);
-            if (!Strings.isNullOrEmpty(ndvStr)) {
-              ndv = Long.parseLong(ndvStr);
-            } else {
-              LOG.debug("ndv is not set in BlobMetadata for column {}", colName);
-            }
-            ColumnStatistics colStats =
-                new SparkColumnStatistics(ndv, null, null, null, null, null, null);
-
-            colStatsMap.put(ref, colStats);
-          }
-        }
       }
     }
 
