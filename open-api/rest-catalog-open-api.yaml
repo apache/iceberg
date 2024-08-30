@@ -550,7 +550,7 @@ paths:
       tags:
         - Catalog API
       summary: Submit a scan for planning
-      description:
+      description: >
         Submits a scan for server-side planning.
 
 
@@ -642,7 +642,7 @@ paths:
         - Catalog API
       summary: Fetches the result of scan planning for a plan-id
       operationId: fetchPlanningResult
-      description:
+      description: >
         Fetches the result of scan planning for a plan-id.
 
 
@@ -700,7 +700,7 @@ paths:
         - Catalog API
       summary: Cancels scan planning for a plan-id
       operationId: cancelPlanning
-      description:
+      description: >
         Cancels scan planning for a plan-id.
 
 
