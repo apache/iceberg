@@ -105,8 +105,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
       spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
     }
 
-    this.tableName =
-        (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
+    this.tableName = tableName("table");
 
     sql("CREATE NAMESPACE IF NOT EXISTS default");
   }

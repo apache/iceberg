@@ -25,12 +25,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -45,19 +43,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestTagDDL extends ExtensionsTestBase {
   private static final String[] TIME_UNITS = {"DAYS", "HOURS", "MINUTES"};
 
-  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
-  public static Object[][] parameters() {
-    return new Object[][] {
-      {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties()
-      }
-    };
-  }
-
   @BeforeEach
   public void createTable() {
+    spark.conf().set("spark.sql.catalog." + catalogName + ".cache-enabled", "false");
     sql("CREATE TABLE %s (id INT, data STRING) USING iceberg", tableName);
   }
 
@@ -121,7 +109,7 @@ public class TestTagDDL extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Cannot complete create or replace tag operation on %s, main has no snapshot",
-            tableName);
+            catalogName.equals("spark_catalog") ? catalogName + "." + tableName : tableName);
   }
 
   @TestTemplate
