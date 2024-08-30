@@ -3096,44 +3096,99 @@ components:
           items:
             $ref: '#/components/schemas/PlanTask'
 
-    EmptyResult:
+    CompletedPlanningResult:
       type: object
-      description: Empty object result
-
-    PlanningResult:
-      type: object
-      description: Result of server-side scan planning
-      discriminator:
-        propertyName: status
-        mapping:
-          completed: '#/components/schemas/ScanTasks'
-          submitted: '#/components/schemas/EmptyResult'
-          cancelled: '#/components/schemas/EmptyResult'
-          failed: '#/components/schemas/IcebergErrorResponse'
-      oneOf:
+      description: Completed server-side planning result
+      allOf:
         - $ref: '#/components/schemas/ScanTasks'
+        - type: object
+          required:
+            - status
+          properties:
+            status:
+              $ref: '#/components/schemas/PlanStatus'
+              enum: ["completed"]
+
+    CompletedPlanningWithIDResult:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/CompletedPlanningResult'
+        - type: object
+          properties:
+            plan-id:
+              description: ID used to track a planning request
+              type: string
+
+    FailedPlanningResult:
+      type: object
+      description: Failed server-side planning result
+      allOf:
         - $ref: '#/components/schemas/IcebergErrorResponse'
-        - $ref: '#/components/schemas/EmptyResult'
+        - type: object
+          required:
+            - status
+          properties:
+            status:
+              $ref: '#/components/schemas/PlanStatus'
+              enum: ["failed"]
+
+    AsyncPlanningResult:
+      type: object
       required:
         - status
       properties:
         status:
           $ref: '#/components/schemas/PlanStatus'
+          enum: ["submitted"]
+        plan-id:
+          description: ID used to track a planning request
+          type: string
+
+    EmptyResult:
+      type: object
+      description: Empty server-side planning result
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/PlanStatus'
+          enum: ["submitted", "cancelled"]
 
     PlanStatus:
       description: Status of a server-side planning operation
       type: string
-      enum: [completed, submitted, cancelled, failed]
+      enum: ["completed", "submitted", "cancelled", "failed"]
+
+    FetchPlanningResult:
+      type: object
+      description: Result of server-side scan planning for fetchPlanningResult
+      discriminator:
+        propertyName: status
+        mapping:
+          completed: '#/components/schemas/CompletedPlanningResult'
+          submitted: '#/components/schemas/EmptyResult'
+          cancelled: '#/components/schemas/EmptyResult'
+          failed: '#/components/schemas/FailedPlanningResult'
+      oneOf:
+        - $ref: '#/components/schemas/CompletedPlanningResult'
+        - $ref: '#/components/schemas/FailedPlanningResult'
+        - $ref: '#/components/schemas/EmptyResult'
 
     PlanTableScanResult:
       type: object
-      description: Response schema for planTableScan
-      allOf:
-        - $ref: '#/components/schemas/PlanningResult'
-      properties:
-        plan-id:
-          description: ID used to track a planning request
-          type: string
+      description: Result of server-side scan planning for planTableScan
+      discriminator:
+        propertyName: status
+        mapping:
+          completed: '#/components/schemas/CompletedPlanningWithIDResult'
+          submitted: '#/components/schemas/AsyncPlanningResult'
+          cancelled: '#/components/schemas/EmptyResult'
+          failed: '#/components/schemas/FailedPlanningResult'
+      oneOf:
+        - $ref: '#/components/schemas/CompletedPlanningWithIDResult'
+        - $ref: '#/components/schemas/FailedPlanningResult'
+        - $ref: '#/components/schemas/AsyncPlanningResult'
+        - $ref: '#/components/schemas/EmptyResult'
 
     FetchScanTasksResult:
       type: object
@@ -4341,18 +4396,18 @@ components:
             $ref: '#/components/schemas/LoadTableResult'
 
     PlanTableScanResponse:
-      description: Result of planning a table scan
+      description: Result of submitting a table scan to plan
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/PlanTableScanResult'
 
     FetchPlanningResultResponse:
-      description: Result of checking status of a plan
+      description: Result of fetching a submitted scan planning operation
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/PlanningResult'
+            $ref: '#/components/schemas/FetchPlanningResult'
 
     FetchScanTasksResponse:
       description: Result of retrieving additional plan tasks and file scan tasks.

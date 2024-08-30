@@ -451,6 +451,12 @@ class AssertViewUUID(BaseModel):
     uuid: str
 
 
+class PlanStatus(BaseModel):
+    __root__: Literal['completed', 'submitted', 'cancelled', 'failed'] = Field(
+        ..., description='Status of a server-side planning operation'
+    )
+
+
 class RegisterTableRequest(BaseModel):
     name: str
     metadata_location: str = Field(..., alias='metadata-location')
@@ -818,35 +824,17 @@ class EqualityDeleteFile(ContentFile):
     )
 
 
-class GetTasksStatusRequest(BaseModel):
-    plan_id: str = Field(
-        ..., alias='plan-id', description='id used to track status of `planTable`'
-    )
-
-
-class CancelPlanRequest(BaseModel):
-    plan_id: str = Field(
-        ..., alias='plan-id', description='id used to cancel `planTable` operation'
-    )
-
-
 class FieldName(BaseModel):
     __root__: str = Field(
         ...,
-        description='A field name that follows the Iceberg naming standard, and can be used in APIs like Java `Schema#findField(String name)`.\nThe nested field name follows these rules - nested struct fields are named by concatenating field names at each struct level using dot (`.`) delimiter, e.g. employer.contact_info.address.zip_code - nested fields in a map key are named using the keyword `key`, e.g. employee_address_map.key.first_name - nested fields in a map value are named using the keyword `value`, e.g. employee_address_map.value.zip_code - nested fields in a list are named using the keyword `element`, e.g. employees.element.first_name',
+        description='A full field name (including parent field names), such as those passed in APIs like Java `Schema#findField(String name)`.\nThe nested field name follows these rules - Nested struct fields are named by concatenating field names at each struct level using dot (`.`) delimiter, e.g. employer.contact_info.address.zip_code - Nested fields in a map key are named using the keyword `key`, e.g. employee_address_map.key.first_name - Nested fields in a map value are named using the keyword `value`, e.g. employee_address_map.value.zip_code - Nested fields in a list are named using the keyword `element`, e.g. employees.element.first_name',
     )
 
 
 class PlanTask(BaseModel):
     """
-    An opaque JSON object that contains information provided by the REST server to be utilized by clients for distributed table scan planning; should be supplied as input in `RetrieveTasks` operation.
+    An opaque JSON object provided by the REST server that represents a unit of work to produce file scan tasks for scan planning.
     """
-
-
-class PlanStatus(BaseModel):
-    __root__: Literal['started', 'cancelled', 'failed'] = Field(
-        ..., description='Represents the current status of the `planTable` operation.'
-    )
 
 
 class CreateNamespaceRequest(BaseModel):
@@ -893,12 +881,27 @@ class ViewRequirement(BaseModel):
     __root__: AssertViewUUID = Field(..., discriminator='type')
 
 
-class CancelPlanResult(BaseModel):
+class FailedPlanningResult(IcebergErrorResponse):
     """
-    Used to indicate state of cancellation. If successful should return "cancelled" state.
+    Failed server-side planning result
     """
 
-    cancel_status: Optional[PlanStatus] = Field(None, alias='cancel-status')
+    status: Literal['failed']
+
+
+class AsyncPlanningResult(BaseModel):
+    status: Literal['submitted']
+    plan_id: Optional[str] = Field(
+        None, alias='plan-id', description='ID used to track a planning request'
+    )
+
+
+class EmptyResult(BaseModel):
+    """
+    Empty server-side planning result
+    """
+
+    status: Literal['cancelled']
 
 
 class ReportMetricsRequest2(CommitReport):
@@ -960,7 +963,7 @@ class DeleteFile(BaseModel):
     )
 
 
-class RetrieveTasksRequest(BaseModel):
+class FetchScanTasksRequest(BaseModel):
     plan_task: PlanTask = Field(..., alias='plan-task')
 
 
@@ -1172,35 +1175,47 @@ class LoadTableResult(BaseModel):
     config: Optional[Dict[str, str]] = None
 
 
-class PlanTableResult(BaseModel):
+class ScanTasks(BaseModel):
     """
-    If the plan has not finished return a `plan-id`. If finished, the response will contain a list of `FileScanTask`, a list of `PlanTask`, or both.
+    Scan and planning tasks for server-side scan planning
+
+    - `plan-tasks` contains opaque units of planning work
+    - `file-scan-tasks` contains a partial list of table scan tasks
+    - `delete-files` contains delete files referenced by file scan tasks
+
+    Each plan task must be passed to the fetchScanTasks endpoint to fetch the file scan tasks for the plan task.
+
+    The list of delete files must contain all delete files referenced by the file scan tasks.
     """
 
+    delete_files: Optional[List[DeleteFile]] = Field(
+        None,
+        alias='delete-files',
+        description='Delete files referenced by file scan tasks',
+    )
     file_scan_tasks: Optional[List[FileScanTask]] = Field(None, alias='file-scan-tasks')
     plan_tasks: Optional[List[PlanTask]] = Field(None, alias='plan-tasks')
-    plan_id: Optional[str] = Field(
-        None, alias='plan-id', description='id used to track progress of the plan'
+
+
+class FetchPlanningResult(BaseModel):
+    __root__: Union[CompletedPlanningResult, FailedPlanningResult, EmptyResult] = Field(
+        ...,
+        description='Result of server-side scan planning for fetchPlanningResult',
+        discriminator='status',
     )
 
 
-class GetTasksStatusResult(BaseModel):
-    """
-    If the plan has not finished return a `plan-status`. If the plan has finished can return a list of `FileScanTask`, a list of `PlanTask`, or both.
-    """
-
-    file_scan_tasks: Optional[List[FileScanTask]] = Field(None, alias='file-scan-tasks')
-    plan_tasks: Optional[List[PlanTask]] = Field(None, alias='plan-tasks')
-    plan_status: Optional[PlanStatus] = Field(None, alias='plan-status')
-
-
-class RetrieveTasksResult(BaseModel):
-    """
-    Used to fetch file scan tasks for a given `planTask`. Can also return additional plan-tasks.
-    """
-
-    file_scan_tasks: Optional[List[FileScanTask]] = Field(None, alias='file-scan-tasks')
-    plan_tasks: Optional[List[PlanTask]] = Field(None, alias='plan-tasks')
+class PlanTableScanResult(BaseModel):
+    __root__: Union[
+        CompletedPlanningWithIDResult,
+        FailedPlanningResult,
+        AsyncPlanningResult,
+        EmptyResult,
+    ] = Field(
+        ...,
+        description='Result of server-side scan planning for planTableScan',
+        discriminator='status',
+    )
 
 
 class CommitTableRequest(BaseModel):
@@ -1289,58 +1304,56 @@ class CommitTableResponse(BaseModel):
     metadata: TableMetadata
 
 
-class PlanTableRequest(BaseModel):
+class PlanTableScanRequest(BaseModel):
     snapshot_id: Optional[int] = Field(
         None,
         alias='snapshot-id',
-        description='The ID of the snapshot to use for the table scan.',
+        description='Identifier for the snapshot to scan in a point-in-time scan',
     )
     select: Optional[List[FieldName]] = Field(
-        None,
-        description='A list of fields in schema that are selected in a table scan. When not specified, all columns in the requested schema should be selected.',
+        None, description='List of selected schema fields'
     )
     filter: Optional[Expression] = Field(
-        None,
-        description='an unbounded expression to describe the filters to apply to a table scan,',
+        None, description='Expression used to filter the table data'
     )
     case_sensitive: Optional[bool] = Field(
         True,
         alias='case-sensitive',
-        description='If field selection and filtering should be case sensitive',
+        description='Enables case sensitive field matching for filter and select',
     )
     use_snapshot_schema: Optional[bool] = Field(
         False,
         alias='use-snapshot-schema',
-        description='If the client is performing time travel, the snapshot schema should be used. For clients performing a plan for a branch, should default to using the table schema.',
+        description='Whether to use the schema at the time the snapshot was written.\nWhen time travelling, the snapshot schema should be used (true). When scanning a branch, the table schema should be used (false).',
     )
     start_snapshot_id: Optional[int] = Field(
         None,
         alias='start-snapshot-id',
-        description='The ID of the starting snapshot of the incremental scan',
+        description='Starting snapshot ID for an incremental scan (exclusive)',
     )
     end_snapshot_id: Optional[int] = Field(
         None,
         alias='end-snapshot-id',
-        description='The ID of the inclusive ending snapshot of the incremental scan. If not specified, the snapshot at the main branch head will be used as the end snapshot.',
+        description='Ending snapshot ID for an incremental scan (inclusive).\nRequired when start-snapshot-id is specified.',
     )
     stats_fields: Optional[List[FieldName]] = Field(
         None,
         alias='stats-fields',
-        description='A list of fields that the client requests the server to send statistics in each `FileScanTask` returned in the response',
+        description='List of fields for which the service should send column stats.',
     )
 
 
 class FileScanTask(BaseModel):
     data_file: DataFile = Field(..., alias='data-file')
-    delete_files_references: Optional[List[int]] = Field(
+    delete_file_references: Optional[List[int]] = Field(
         None,
-        alias='delete-files-references',
-        description='A list of positional indices that correspond to a delete files array.',
+        alias='delete-file-references',
+        description='A list of indices in the delete files array (0-based)',
     )
     residual_filter: Optional[Expression] = Field(
         None,
         alias='residual-filter',
-        description='An optional filter to be applied to rows in this file scan task. If the residual is not present, the client should calculate this or the original filter should be used.',
+        description='An optional filter to be applied to rows in this file scan task.\nIf the residual is not present, the client must produce the residual or use the original filter.',
     )
 
 
@@ -1351,8 +1364,29 @@ class Schema(StructType):
     )
 
 
+class CompletedPlanningResult(ScanTasks):
+    """
+    Completed server-side planning result
+    """
+
+    status: Literal['completed']
+
+
+class FetchScanTasksResult(ScanTasks):
+    """
+    Response schema for fetchScanTasks
+    """
+
+
 class ReportMetricsRequest1(ScanReport):
     report_type: str = Field(..., alias='report-type')
+
+
+class CompletedPlanningWithIDResult(CompletedPlanningResult):
+    plan_id: Optional[str] = Field(
+        None, alias='plan-id', description='ID used to track a planning request'
+    )
+    status: Literal['completed']
 
 
 StructField.update_forward_refs()
@@ -1362,9 +1396,12 @@ Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
-PlanTableResult.update_forward_refs()
-GetTasksStatusResult.update_forward_refs()
-RetrieveTasksResult.update_forward_refs()
+ScanTasks.update_forward_refs()
+FetchPlanningResult.update_forward_refs()
+PlanTableScanResult.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
+CompletedPlanningResult.update_forward_refs()
+FetchScanTasksResult.update_forward_refs()
+CompletedPlanningWithIDResult.update_forward_refs()
