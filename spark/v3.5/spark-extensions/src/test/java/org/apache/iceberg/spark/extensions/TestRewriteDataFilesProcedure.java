@@ -88,7 +88,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testRewriteOnBranchWAP() throws Exception {
+  public void testRewriteOnBranchWap() throws Exception {
     createPartitionTable();
     // create 5 files for each partition (c2 = 'foo' and c2 = 'bar')
     insertData(10);
@@ -113,7 +113,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .as("branch ref should have changed")
         .isNotEqualTo(branchSnapshotId);
     assertThat(table.currentSnapshot().snapshotId())
-        .as("rewrite should happen on branch")
+        .as("main branch ref should not have changed")
         .isEqualTo(lastSnapshotId);
   }
 
@@ -143,7 +143,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .as("branch ref should have changed")
         .isNotEqualTo(branchSnapshotId);
     assertThat(table.currentSnapshot().snapshotId())
-        .as("rewrite should happen on branch")
+        .as("main branch ref should not have changed")
         .isEqualTo(lastSnapshotId);
   }
 
