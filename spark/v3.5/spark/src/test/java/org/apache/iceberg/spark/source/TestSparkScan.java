@@ -44,8 +44,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.functions.BucketFunction;
 import org.apache.iceberg.spark.functions.DaysFunction;
 import org.apache.iceberg.spark.functions.HoursFunction;
@@ -56,6 +58,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.FieldReference;
@@ -294,7 +297,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testMultipleSnapshotsWithColStats() throws NoSuchTableException {
+  public void testMultipleSnapshotsWithColStats() throws NoSuchTableException, ParseException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
 
     List<SimpleRecord> records =
@@ -310,6 +313,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
         .append();
     Table table = validationCatalog.loadTable(tableIdent);
     long snapshotId1 = table.currentSnapshot().snapshotId();
+    SparkActions.get().computeTableStats(table).execute();
 
     spark
         .createDataset(List.of(new SimpleRecord(5, "a")), Encoders.bean(SimpleRecord.class))
@@ -318,46 +322,44 @@ public class TestSparkScan extends TestBaseWithCatalog {
         .append();
     table.refresh();
     long snapshotId2 = table.currentSnapshot().snapshotId();
+    SparkActions.get().computeTableStats(table).execute();
 
-    SparkScanBuilder scanBuilder =
-        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
-    SparkScan scan = (SparkScan) scanBuilder.build();
+    spark
+        .createDataset(List.of(new SimpleRecord(6, "a")), Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+    table.refresh();
+    // No stats generated for this snapshot
+    long snapshotId3 = table.currentSnapshot().snapshotId();
+
+    SparkScan scan1 = buildScanForSnapshot(snapshotId1);
+    SparkScan scan2 = buildScanForSnapshot(snapshotId2);
+    SparkScan scan3 = buildScanForSnapshot(snapshotId3);
 
     Map<String, String> reportColStatsEnabled =
         ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+    withSQLConf(
+        reportColStatsEnabled,
+        () -> {
+          checkColStatisticsReported(scan1, 4, Map.of("id", 4L));
+          checkColStatisticsReported(scan2, 5, Map.of("id", 5L));
 
-    GenericStatisticsFile statisticsFile =
-        new GenericStatisticsFile(
-            snapshotId1,
-            "/test/statistics/file1.puffin",
-            100,
-            42,
-            ImmutableList.of(
-                new GenericBlobMetadata(
-                    APACHE_DATASKETCHES_THETA_V1,
-                    snapshotId1,
-                    1,
-                    ImmutableList.of(1),
-                    ImmutableMap.of("ndv", "4"))));
-    table.updateStatistics().setStatistics(snapshotId1, statisticsFile).commit();
+          Statistics statistics = scan3.estimateStatistics();
+          assertThat(statistics.columnStats()).isEmpty();
+        });
+  }
 
-    statisticsFile =
-        new GenericStatisticsFile(
-            snapshotId2,
-            "/test/statistics/file2.puffin",
-            100,
-            42,
-            ImmutableList.of(
-                new GenericBlobMetadata(
-                    APACHE_DATASKETCHES_THETA_V1,
-                    snapshotId2,
-                    1,
-                    ImmutableList.of(1),
-                    ImmutableMap.of("ndv", "5"))));
-    table.updateStatistics().setStatistics(snapshotId2, statisticsFile).commit();
-    Map<String, Long> expectedNDV = Maps.newHashMap();
-    expectedNDV.put("id", 5L);
-    withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 5L, expectedNDV));
+  private SparkScan buildScanForSnapshot(Long snapshotId)
+      throws NoSuchTableException, ParseException {
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(
+            spark,
+            table,
+            new CaseInsensitiveStringMap(
+                Map.of(SparkReadOptions.SNAPSHOT_ID, String.valueOf(snapshotId))));
+    return (SparkScan) scanBuilder.build();
   }
 
   @TestTemplate
