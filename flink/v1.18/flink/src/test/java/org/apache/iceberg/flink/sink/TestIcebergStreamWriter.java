@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.table.api.DataTypes;
@@ -102,7 +103,7 @@ public class TestIcebergStreamWriter {
   @TestTemplate
   public void testWritingTable() throws Exception {
     long checkpointId = 1L;
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+    try (OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> testHarness =
         createIcebergStreamWriter()) {
       // The first checkpoint
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
@@ -111,7 +112,8 @@ public class TestIcebergStreamWriter {
 
       testHarness.prepareSnapshotPreBarrier(checkpointId);
       int expectedDataFiles = partitioned ? 2 : 1;
-      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+      WriteResult result =
+          WriteResult.builder().addAll(getWriteResults(testHarness.extractOutputValues())).build();
       assertThat(result.deleteFiles()).isEmpty();
       assertThat(result.dataFiles()).hasSize(expectedDataFiles);
 
@@ -123,7 +125,8 @@ public class TestIcebergStreamWriter {
 
       testHarness.prepareSnapshotPreBarrier(checkpointId);
       expectedDataFiles = partitioned ? 4 : 2;
-      result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+      result =
+          WriteResult.builder().addAll(getWriteResults(testHarness.extractOutputValues())).build();
       assertThat(result.deleteFiles()).isEmpty();
       assertThat(result.dataFiles()).hasSize(expectedDataFiles);
 
@@ -148,14 +151,15 @@ public class TestIcebergStreamWriter {
   public void testSnapshotTwice() throws Exception {
     long checkpointId = 1;
     long timestamp = 1;
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+    try (OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> testHarness =
         createIcebergStreamWriter()) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), timestamp++);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), timestamp);
 
       testHarness.prepareSnapshotPreBarrier(checkpointId++);
       int expectedDataFiles = partitioned ? 2 : 1;
-      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+      WriteResult result =
+          WriteResult.builder().addAll(getWriteResults(testHarness.extractOutputValues())).build();
       assertThat(result.deleteFiles()).isEmpty();
       assertThat(result.dataFiles()).hasSize(expectedDataFiles);
 
@@ -163,7 +167,10 @@ public class TestIcebergStreamWriter {
       for (int i = 0; i < 5; i++) {
         testHarness.prepareSnapshotPreBarrier(checkpointId++);
 
-        result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+        result =
+            WriteResult.builder()
+                .addAll(getWriteResults(testHarness.extractOutputValues()))
+                .build();
         assertThat(result.deleteFiles()).isEmpty();
         assertThat(result.dataFiles()).hasSize(expectedDataFiles);
       }
@@ -172,14 +179,14 @@ public class TestIcebergStreamWriter {
 
   @TestTemplate
   public void testTableWithoutSnapshot() throws Exception {
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+    try (OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> testHarness =
         createIcebergStreamWriter()) {
       assertThat(testHarness.extractOutputValues()).isEmpty();
     }
     // Even if we closed the iceberg stream writer, there's no orphan data file.
     assertThat(scanDataFiles()).isEmpty();
 
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+    try (OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> testHarness =
         createIcebergStreamWriter()) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
       // Still not emit the data file yet, because there is no checkpoint.
@@ -212,7 +219,7 @@ public class TestIcebergStreamWriter {
 
   @TestTemplate
   public void testBoundedStreamCloseWithEmittingDataFiles() throws Exception {
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+    try (OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> testHarness =
         createIcebergStreamWriter()) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 2);
@@ -221,13 +228,15 @@ public class TestIcebergStreamWriter {
       ((BoundedOneInput) testHarness.getOneInputOperator()).endInput();
 
       int expectedDataFiles = partitioned ? 2 : 1;
-      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+      WriteResult result =
+          WriteResult.builder().addAll(getWriteResults(testHarness.extractOutputValues())).build();
       assertThat(result.deleteFiles()).isEmpty();
       assertThat(result.dataFiles()).hasSize(expectedDataFiles);
 
       ((BoundedOneInput) testHarness.getOneInputOperator()).endInput();
 
-      result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+      result =
+          WriteResult.builder().addAll(getWriteResults(testHarness.extractOutputValues())).build();
       assertThat(result.deleteFiles()).isEmpty();
       // Datafiles should not be sent again
       assertThat(result.dataFiles()).hasSize(expectedDataFiles);
@@ -236,7 +245,7 @@ public class TestIcebergStreamWriter {
 
   @TestTemplate
   public void testBoundedStreamTriggeredEndInputBeforeTriggeringCheckpoint() throws Exception {
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+    try (OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> testHarness =
         createIcebergStreamWriter()) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
       testHarness.processElement(SimpleDataUtil.createRowData(2, "world"), 2);
@@ -244,13 +253,15 @@ public class TestIcebergStreamWriter {
       testHarness.endInput();
 
       int expectedDataFiles = partitioned ? 2 : 1;
-      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+      WriteResult result =
+          WriteResult.builder().addAll(getWriteResults(testHarness.extractOutputValues())).build();
       assertThat(result.deleteFiles()).isEmpty();
       assertThat(result.dataFiles()).hasSize(expectedDataFiles);
 
       testHarness.prepareSnapshotPreBarrier(1L);
 
-      result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+      result =
+          WriteResult.builder().addAll(getWriteResults(testHarness.extractOutputValues())).build();
       assertThat(result.deleteFiles()).isEmpty();
       // It should be ensured that after endInput is triggered, when prepareSnapshotPreBarrier
       // is triggered, write should only send WriteResult once
@@ -275,7 +286,7 @@ public class TestIcebergStreamWriter {
       }
     }
 
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+    try (OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> testHarness =
         createIcebergStreamWriter()) {
       for (RowData row : rows) {
         testHarness.processElement(row, 1);
@@ -283,7 +294,8 @@ public class TestIcebergStreamWriter {
 
       // snapshot the operator.
       testHarness.prepareSnapshotPreBarrier(1);
-      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+      WriteResult result =
+          WriteResult.builder().addAll(getWriteResults(testHarness.extractOutputValues())).build();
       assertThat(result.deleteFiles()).isEmpty();
       assertThat(result.dataFiles()).hasSize(8);
 
@@ -346,13 +358,14 @@ public class TestIcebergStreamWriter {
             record.copy(ImmutableMap.of("tinyint", 2, "smallint", 0, "int", 102)),
             record.copy(ImmutableMap.of("tinyint", 3, "smallint", 32767, "int", 103)));
 
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+    try (OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> testHarness =
         createIcebergStreamWriter(icebergTable, flinkSchema)) {
       for (RowData row : rows) {
         testHarness.processElement(row, 1);
       }
       testHarness.prepareSnapshotPreBarrier(1);
-      WriteResult result = WriteResult.builder().addAll(testHarness.extractOutputValues()).build();
+      WriteResult result =
+          WriteResult.builder().addAll(getWriteResults(testHarness.extractOutputValues())).build();
       assertThat(result.deleteFiles()).isEmpty();
       assertThat(result.dataFiles()).hasSize(partitioned ? 3 : 1);
 
@@ -365,12 +378,18 @@ public class TestIcebergStreamWriter {
     SimpleDataUtil.assertTableRecords(location, expected);
   }
 
-  private OneInputStreamOperatorTestHarness<RowData, WriteResult> createIcebergStreamWriter()
+  private static List<WriteResult> getWriteResults(List<FlinkWriteResult> flinkWriteResults) {
+    return flinkWriteResults.stream()
+        .map(FlinkWriteResult::writeResult)
+        .collect(Collectors.toList());
+  }
+
+  private OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> createIcebergStreamWriter()
       throws Exception {
     return createIcebergStreamWriter(table, SimpleDataUtil.FLINK_SCHEMA);
   }
 
-  private OneInputStreamOperatorTestHarness<RowData, WriteResult> createIcebergStreamWriter(
+  private OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> createIcebergStreamWriter(
       Table icebergTable, TableSchema flinkSchema) throws Exception {
     RowType flinkRowType = FlinkSink.toFlinkRowType(icebergTable.schema(), flinkSchema);
     FlinkWriteConf flinkWriteConfig =
@@ -379,7 +398,7 @@ public class TestIcebergStreamWriter {
 
     IcebergStreamWriter<RowData> streamWriter =
         FlinkSink.createStreamWriter(() -> icebergTable, flinkWriteConfig, flinkRowType, null);
-    OneInputStreamOperatorTestHarness<RowData, WriteResult> harness =
+    OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> harness =
         new OneInputStreamOperatorTestHarness<>(streamWriter, 1, 1, 0);
 
     harness.setup();
