@@ -221,6 +221,11 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     }
   }
 
+  // there are no Maven artifacts so disable publishing tasks...
+  project.afterEvaluate {
+    project.tasks.matching { it.group == 'publishing' }.each {it.enabled = false}
+  }
+
   tasks.jar.enabled = false
 
   tasks.distTar.enabled = false
