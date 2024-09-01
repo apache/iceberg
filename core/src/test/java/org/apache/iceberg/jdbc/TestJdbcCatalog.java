@@ -850,6 +850,25 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
   }
 
   @Test
+  public void testDropNamespaceHierarchical() {
+    Namespace ns = Namespace.of("testDb", "ns");
+    Namespace ns1 = Namespace.of("testDb", "ns", "subns1");
+    Namespace ns2 = Namespace.of("testDb", "ns", "subns2");
+
+    catalog.createNamespace(ns1);
+    catalog.createNamespace(ns2);
+
+    assertThat(catalog.namespaceExists(ns1)).isTrue();
+
+    // Drop the parent one
+    catalog.dropNamespace(ns);
+
+    // Check that the child namespace still exists
+    assertThat(catalog.namespaceExists(ns1)).isTrue();
+  }
+
+
+  @Test
   public void testCreateNamespace() {
     Namespace testNamespace = Namespace.of("testDb", "ns1", "ns2");
     assertThat(catalog.namespaceExists(testNamespace)).isFalse();
