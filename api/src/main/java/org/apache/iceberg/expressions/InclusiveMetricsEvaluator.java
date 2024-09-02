@@ -439,11 +439,11 @@ public class InclusiveMetricsEvaluator {
         return ROWS_MIGHT_MATCH;
       }
 
-      if (checkLowerBounds(ref, ref2, id, id2, cmp -> cmp > 0)) {
+      if (checkLowerToUpperBounds(ref, ref2, id, id2, cmp -> cmp > 0)) {
         return ROWS_CANNOT_MATCH;
       }
 
-      if (checkUpperBounds(ref, ref2, id, id2, cmp -> cmp < 0)) {
+      if (checkUpperToLowerBounds(ref, ref2, id, id2, cmp -> cmp < 0)) {
         return ROWS_CANNOT_MATCH;
       }
 
@@ -530,30 +530,6 @@ public class InclusiveMetricsEvaluator {
 
         Comparator<Object> comparator = Comparators.forType(ref.type().asPrimitiveType());
         int cmp = comparator.compare(upper, lower);
-        if (compare.test(cmp)) {
-          return true;
-        }
-      }
-      return false;
-    }
-
-    private <T> boolean checkLowerBounds(
-        BoundReference<T> ref,
-        BoundReference<T> ref2,
-        Integer id,
-        Integer id2,
-        java.util.function.Predicate<Integer> compare) {
-      if (lowerBounds != null && lowerBounds.containsKey(id) && lowerBounds.containsKey(id2)) {
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
-        T lower2 = Conversions.fromByteBuffer(ref2.type(), lowerBounds.get(id2));
-
-        if (NaNUtil.isNaN(lower) || NaNUtil.isNaN(lower2)) {
-          // NaN indicates unreliable bounds. See the InclusiveMetricsEvaluator docs for more.
-          return false;
-        }
-
-        Comparator<Object> comparator = Comparators.forType(ref.type().asPrimitiveType());
-        int cmp = comparator.compare(lower, lower2);
         if (compare.test(cmp)) {
           return true;
         }
