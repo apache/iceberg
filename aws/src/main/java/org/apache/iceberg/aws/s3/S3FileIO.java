@@ -298,8 +298,13 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
     S3URI s3uri = new S3URI(prefix, s3FileIOProperties.bucketToAccessPointMapping());
+    String suffix = "";
+    if (S3Express.checkIfS3Express(s3uri.bucket()) && !prefix.endsWith("/")) {
+      suffix = "/";
+    }
+
     ListObjectsV2Request request =
-        ListObjectsV2Request.builder().bucket(s3uri.bucket()).prefix(s3uri.key()).build();
+        ListObjectsV2Request.builder().bucket(s3uri.bucket()).prefix(s3uri.key() + suffix).build();
 
     return () ->
         client().listObjectsV2Paginator(request).stream()

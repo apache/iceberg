@@ -20,6 +20,9 @@ package org.apache.iceberg.aws;
 
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.apache.iceberg.aws.s3.S3FileIO;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.slf4j.Logger;
@@ -106,7 +109,7 @@ public class AwsIntegTestUtil {
     return System.getenv("AWS_TEST_MULTI_REGION_ACCESS_POINT_ALIAS");
   }
 
-  public static void cleanS3Bucket(S3Client s3, String bucketName, String prefix) {
+  public static void cleanS3GeneralBucket(S3Client s3, String bucketName, String prefix) {
     ListObjectVersionsIterable response =
         s3.listObjectVersionsPaginator(
             ListObjectVersionsRequest.builder().bucket(bucketName).prefix(prefix).build());
@@ -125,6 +128,20 @@ public class AwsIntegTestUtil {
     if (!versionsToDelete.isEmpty()) {
       deleteObjectVersions(s3, bucketName, versionsToDelete);
     }
+  }
+
+  /**
+   * Method used to clean up S3 express bucket which doesn't care about versions
+   * @param s3FileIO an instance of s3FileIO to be used to list/delete objects
+   * @param bucketName name of the bucket
+   * @param prefix the path prefix we want to remove
+   */
+  public static void cleanS3ExpressBucket(S3FileIO s3FileIO, String prefix, String bucketName) {
+    String listPrefix = String.format("s3://%s/%s", bucketName, prefix);
+    Iterable<FileInfo> listResponse = s3FileIO.listPrefix(listPrefix);
+    List<String> objectsToDelete =  Lists.newArrayList();
+    listResponse.forEach(fileInfo -> objectsToDelete.add(fileInfo.location()));
+    s3FileIO.deleteFiles(objectsToDelete);
   }
 
   private static void deleteObjectVersions(

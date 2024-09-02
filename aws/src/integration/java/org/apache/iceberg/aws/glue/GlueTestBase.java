@@ -114,7 +114,7 @@ public class GlueTestBase {
   @AfterAll
   public static void afterClass() {
     AwsIntegTestUtil.cleanGlueCatalog(GLUE, NAMESPACES);
-    AwsIntegTestUtil.cleanS3Bucket(S3, TEST_BUCKET_NAME, TEST_PATH_PREFIX);
+    AwsIntegTestUtil.cleanS3GeneralBucket(S3, TEST_BUCKET_NAME, TEST_PATH_PREFIX);
   }
 
   public static String getRandomName() {
