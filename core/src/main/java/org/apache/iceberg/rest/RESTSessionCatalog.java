@@ -1200,6 +1200,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       checkViewIdentifierIsValid(identifier);
       this.identifier = identifier;
       this.context = context;
+      properties.putAll(
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.VIEW_DEFAULT_PREFIX));
     }
 
     @Override

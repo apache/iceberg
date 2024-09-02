@@ -21,6 +21,7 @@ package org.apache.iceberg.view;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.entry;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -107,6 +108,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(view.currentVersion().operation()).isEqualTo("create");
     assertThat(view.schemas()).hasSize(1).containsKey(0);
     assertThat(view.versions()).hasSize(1).containsExactly(view.currentVersion());
+    assertThat(view.properties()).contains(entry("key1", "catalog-default-key1"));
 
     assertThat(view.currentVersion())
         .isEqualTo(
@@ -871,6 +873,7 @@ public abstract class ViewCatalogTests<C extends ViewCatalog & SupportsNamespace
     assertThat(replacedView.name()).isEqualTo(ViewUtil.fullViewName(catalog().name(), identifier));
     assertThat(((BaseView) replacedView).operations().current().metadataFileLocation()).isNotNull();
     assertThat(replacedView.properties())
+        .containsEntry("key1", "catalog-default-key1")
         .containsEntry("prop1", "val1")
         .containsEntry("prop2", "val2")
         .containsEntry("replacedProp1", "val1")
