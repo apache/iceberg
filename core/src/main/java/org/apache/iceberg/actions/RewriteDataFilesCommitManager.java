@@ -65,6 +65,18 @@ public class RewriteDataFilesCommitManager {
       Table table,
       long startingSnapshotId,
       boolean useStartingSequenceNumber,
+      Map<String, String> snapshotProperties) {
+    this.table = table;
+    this.startingSnapshotId = startingSnapshotId;
+    this.useStartingSequenceNumber = useStartingSequenceNumber;
+    this.snapshotProperties = snapshotProperties;
+    this.targetBranch = SnapshotRef.MAIN_BRANCH;
+  }
+
+  public RewriteDataFilesCommitManager(
+      Table table,
+      long startingSnapshotId,
+      boolean useStartingSequenceNumber,
       Map<String, String> snapshotProperties,
       String branch) {
     this.table = table;
