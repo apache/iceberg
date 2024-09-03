@@ -3144,7 +3144,7 @@ components:
           description: ID used to track a planning request
           type: string
 
-    EmptyResult:
+    EmptyPlanningResult:
       type: object
       description: Empty server-side planning result
       required:
