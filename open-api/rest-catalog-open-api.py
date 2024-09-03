@@ -832,9 +832,10 @@ class FieldName(BaseModel):
 
 
 class PlanTask(BaseModel):
-    """
-    An opaque JSON object provided by the REST server that represents a unit of work to produce file scan tasks for scan planning.
-    """
+    __root__: str = Field(
+        ...,
+        description='An opaque string provided by the REST server that represents a unit of work to produce file scan tasks for scan planning.',
+    )
 
 
 class CreateNamespaceRequest(BaseModel):
@@ -896,7 +897,7 @@ class AsyncPlanningResult(BaseModel):
     )
 
 
-class EmptyResult(BaseModel):
+class EmptyPlanningResult(BaseModel):
     """
     Empty server-side planning result
     """
@@ -1198,7 +1199,9 @@ class ScanTasks(BaseModel):
 
 
 class FetchPlanningResult(BaseModel):
-    __root__: Union[CompletedPlanningResult, FailedPlanningResult, EmptyResult] = Field(
+    __root__: Union[
+        CompletedPlanningResult, FailedPlanningResult, EmptyPlanningResult
+    ] = Field(
         ...,
         description='Result of server-side scan planning for fetchPlanningResult',
         discriminator='status',
@@ -1210,7 +1213,7 @@ class PlanTableScanResult(BaseModel):
         CompletedPlanningWithIDResult,
         FailedPlanningResult,
         AsyncPlanningResult,
-        EmptyResult,
+        EmptyPlanningResult,
     ] = Field(
         ...,
         description='Result of server-side scan planning for planTableScan',

@@ -887,7 +887,7 @@ paths:
             The snapshots to return in the body of the metadata. Setting the value to `all` would
             return the full set of snapshots currently valid for the table. Setting the value to
             `refs` would load all snapshots referenced by branches or tags.
-
+            
             Default if no param is provided is `all`.
           required: false
           schema:
@@ -3166,13 +3166,13 @@ components:
         propertyName: status
         mapping:
           completed: '#/components/schemas/CompletedPlanningResult'
-          submitted: '#/components/schemas/EmptyResult'
-          cancelled: '#/components/schemas/EmptyResult'
+          submitted: '#/components/schemas/EmptyPlanningResult'
+          cancelled: '#/components/schemas/EmptyPlanningResult'
           failed: '#/components/schemas/FailedPlanningResult'
       oneOf:
         - $ref: '#/components/schemas/CompletedPlanningResult'
         - $ref: '#/components/schemas/FailedPlanningResult'
-        - $ref: '#/components/schemas/EmptyResult'
+        - $ref: '#/components/schemas/EmptyPlanningResult'
 
     PlanTableScanResult:
       type: object
@@ -3182,13 +3182,13 @@ components:
         mapping:
           completed: '#/components/schemas/CompletedPlanningWithIDResult'
           submitted: '#/components/schemas/AsyncPlanningResult'
-          cancelled: '#/components/schemas/EmptyResult'
+          cancelled: '#/components/schemas/EmptyPlanningResult'
           failed: '#/components/schemas/FailedPlanningResult'
       oneOf:
         - $ref: '#/components/schemas/CompletedPlanningWithIDResult'
         - $ref: '#/components/schemas/FailedPlanningResult'
         - $ref: '#/components/schemas/AsyncPlanningResult'
-        - $ref: '#/components/schemas/EmptyResult'
+        - $ref: '#/components/schemas/EmptyPlanningResult'
 
     FetchScanTasksResult:
       type: object
@@ -4154,9 +4154,9 @@ components:
 
     PlanTask:
       description:
-        An opaque JSON object provided by the REST server that represents a
+        An opaque string provided by the REST server that represents a
         unit of work to produce file scan tasks for scan planning.
-      type: object
+      type: string
 
     FileScanTask:
       type: object
