@@ -20,6 +20,7 @@ package org.apache.iceberg.connect;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.CatalogProperties;
@@ -51,6 +52,7 @@ public class TestContext {
   private TestContext() {
     ComposeContainer container =
         new ComposeContainer(new File("./docker/docker-compose.yml"))
+            .withStartupTimeout(Duration.ofMinutes(2))
             .waitingFor("connect", Wait.forHttp("/connectors"));
     container.start();
   }
