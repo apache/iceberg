@@ -61,6 +61,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -1626,5 +1627,55 @@ public class TestTableMetadata {
     assertThat(replacement.snapshotLog())
         .hasSize(2)
         .containsExactlyElementsOf(metadata.snapshotLog());
+  }
+
+  @Test
+  public void testConstructV3Metadata() {
+    TableMetadata.newTableMetadata(
+        TEST_SCHEMA,
+        PartitionSpec.unpartitioned(),
+        SortOrder.unsorted(),
+        TEST_LOCATION,
+        ImmutableMap.of(),
+        3);
+  }
+
+  @Test
+  public void testV3TimestampNanoTypeSupport() {
+    Schema v3Schema =
+        new Schema(
+            Types.NestedField.required(3, "id", Types.LongType.get()),
+            Types.NestedField.required(4, "data", Types.StringType.get()),
+            Types.NestedField.required(
+                5,
+                "struct",
+                Types.StructType.of(
+                    Types.NestedField.optional(
+                        6, "ts_nanos", Types.TimestampNanoType.withZone()))));
+
+    for (int unsupportedFormatVersion : ImmutableList.of(1, 2)) {
+      Assertions.assertThrows(
+          IllegalStateException.class,
+          () ->
+              TableMetadata.newTableMetadata(
+                  v3Schema,
+                  PartitionSpec.unpartitioned(),
+                  SortOrder.unsorted(),
+                  TEST_LOCATION,
+                  ImmutableMap.of(),
+                  unsupportedFormatVersion),
+          String.format(
+              "Invalid type in v%s schema: struct.ts_nanos timestamptz_ns is not supported until v3",
+              unsupportedFormatVersion));
+    }
+
+    // should be allowed in v3
+    TableMetadata.newTableMetadata(
+        v3Schema,
+        PartitionSpec.unpartitioned(),
+        SortOrder.unsorted(),
+        TEST_LOCATION,
+        ImmutableMap.of(),
+        3);
   }
 }
