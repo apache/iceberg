@@ -264,9 +264,9 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     sql("DELETE FROM %s WHERE id=1", tableName);
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
-    Assert.assertEquals("Should have 1 data manifest", 1, expectedDataManifests.size());
-    List<ManifestFile> expectedDeleteManifests = TestHelpers.deleteManifests(table);
+    List<ManifestFile> expectedDataManifests = TestHelpers.allDataManifests(table);
+    Assert.assertEquals("Should have 2 data manifests", 2, expectedDataManifests.size());
+    List<ManifestFile> expectedDeleteManifests = TestHelpers.allDeleteManifests(table);
     Assert.assertEquals("Should have 1 delete manifest", 1, expectedDeleteManifests.size());
 
     // Clear table to test whether 'all_files' can read past files
@@ -283,8 +283,8 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
 
     List<Record> expectedDataFiles =
         expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, null);
-    Assert.assertEquals("Should be one data file manifest entry", 1, expectedDataFiles.size());
-    Assert.assertEquals("Metadata table should return one data file", 1, actualDataFiles.size());
+    Assert.assertEquals("Should be two data file manifest entries", 2, expectedDataFiles.size());
+    Assert.assertEquals("Metadata table should return two data files", 2, actualDataFiles.size());
     TestHelpers.assertEqualsSafe(
         TestHelpers.nonDerivedSchema(actualDataFilesDs),
         expectedDataFiles.get(0),
@@ -311,7 +311,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     List<Row> actualFiles = actualFilesDs.collectAsList();
     List<Record> expectedFiles = ListUtils.union(expectedDataFiles, expectedDeleteFiles);
     expectedFiles.sort(Comparator.comparing(r -> ((Integer) r.get("content"))));
-    Assert.assertEquals("Metadata table should return two files", 2, actualFiles.size());
+    Assert.assertEquals("Metadata table should return three files", 3, actualFiles.size());
     TestHelpers.assertEqualsSafe(
         TestHelpers.nonDerivedSchema(actualFilesDs), expectedFiles, actualFiles);
   }
@@ -347,9 +347,9 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     sql("DELETE FROM %s WHERE id=1", tableName);
 
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
-    List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
-    Assert.assertEquals("Should have 2 data manifests", 2, expectedDataManifests.size());
-    List<ManifestFile> expectedDeleteManifests = TestHelpers.deleteManifests(table);
+    List<ManifestFile> expectedDataManifests = TestHelpers.allDataManifests(table);
+    Assert.assertEquals("Should have 5 data manifests", 5, expectedDataManifests.size());
+    List<ManifestFile> expectedDeleteManifests = TestHelpers.allDeleteManifests(table);
     Assert.assertEquals("Should have 1 delete manifest", 1, expectedDeleteManifests.size());
 
     // Clear table to test whether 'all_files' can read past files
@@ -366,8 +366,8 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
     List<Row> actualDataFiles = TestHelpers.selectNonDerived(actualDataFilesDs).collectAsList();
     List<Record> expectedDataFiles =
         expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, "a");
-    Assert.assertEquals("Should be one data file manifest entry", 1, expectedDataFiles.size());
-    Assert.assertEquals("Metadata table should return one data file", 1, actualDataFiles.size());
+    Assert.assertEquals("Should be three data file manifest entries", 3, expectedDataFiles.size());
+    Assert.assertEquals("Metadata table should return three data files", 3, actualDataFiles.size());
     TestHelpers.assertEqualsSafe(
         SparkSchemaUtil.convert(TestHelpers.selectNonDerived(actualDataFilesDs).schema())
             .asStruct(),
@@ -401,7 +401,7 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
 
     List<Record> expectedFiles = ListUtils.union(expectedDataFiles, expectedDeleteFiles);
     expectedFiles.sort(Comparator.comparing(r -> ((Integer) r.get("content"))));
-    Assert.assertEquals("Metadata table should return two files", 2, actualFiles.size());
+    Assert.assertEquals("Metadata table should return four files", 4, actualFiles.size());
     TestHelpers.assertEqualsSafe(
         TestHelpers.nonDerivedSchema(actualDataFilesDs), expectedFiles, actualFiles);
   }
@@ -536,12 +536,13 @@ public class TestMetadataTables extends SparkExtensionsTestBase {
                 + tableName
                 + ".files VERSION AS OF "
                 + currentSnapshotId
-                + " ORDER BY content");
+                + " ORDER BY file_path");
     List<Row> actualFiles = TestHelpers.selectNonDerived(actualFilesDs).collectAsList();
     Schema entriesTableSchema = Spark3Util.loadIcebergTable(spark, tableName + ".entries").schema();
     List<ManifestFile> expectedDataManifests = TestHelpers.dataManifests(table);
     List<Record> expectedFiles =
         expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, null);
+    expectedFiles.sort(Comparator.comparing(r -> r.get("file_path").toString()));
 
     Assert.assertEquals("actualFiles size should be 2", 2, actualFiles.size());
 

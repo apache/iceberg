@@ -751,8 +751,20 @@ public class TestHelpers {
     }
   }
 
+  public static List<ManifestFile> allDataManifests(Table table) {
+    return StreamSupport.stream(table.snapshots().spliterator(), false)
+        .flatMap(snapshot -> snapshot.dataManifests(table.io()).stream())
+        .collect(Collectors.toList());
+  }
+
   public static List<ManifestFile> dataManifests(Table table) {
     return table.currentSnapshot().dataManifests(table.io());
+  }
+
+  public static List<ManifestFile> allDeleteManifests(Table table) {
+    return StreamSupport.stream(table.snapshots().spliterator(), false)
+        .flatMap(snapshot -> snapshot.deleteManifests(table.io()).stream())
+        .collect(Collectors.toList());
   }
 
   public static List<ManifestFile> deleteManifests(Table table) {
