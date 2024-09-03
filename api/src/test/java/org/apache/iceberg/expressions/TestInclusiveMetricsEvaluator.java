@@ -114,18 +114,28 @@ public class TestInclusiveMetricsEvaluator {
               9, 0L),
           // lower bounds
           ImmutableMap.of(
-              1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
-              11, toByteBuffer(Types.FloatType.get(), Float.NaN),
-              12, toByteBuffer(Types.DoubleType.get(), Double.NaN),
-              14, toByteBuffer(Types.StringType.get(), ""),
-                  15, toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE - 25)),
+              1,
+              toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+              11,
+              toByteBuffer(Types.FloatType.get(), Float.NaN),
+              12,
+              toByteBuffer(Types.DoubleType.get(), Double.NaN),
+              14,
+              toByteBuffer(Types.StringType.get(), ""),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE - 25)),
           // upper bounds
           ImmutableMap.of(
-              1, toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
-              11, toByteBuffer(Types.FloatType.get(), Float.NaN),
-              12, toByteBuffer(Types.DoubleType.get(), Double.NaN),
-              14, toByteBuffer(Types.StringType.get(), "房东整租霍营小区二层两居室"),
-                  15, toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE + 25)));
+              1,
+              toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
+              11,
+              toByteBuffer(Types.FloatType.get(), Float.NaN),
+              12,
+              toByteBuffer(Types.DoubleType.get(), Double.NaN),
+              14,
+              toByteBuffer(Types.StringType.get(), "房东整租霍营小区二层两居室"),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE + 25)));
 
   private static final DataFile FILE_2 =
       new TestDataFile(
@@ -139,14 +149,21 @@ public class TestInclusiveMetricsEvaluator {
           // nan value counts
           null,
           // lower bounds
-          ImmutableMap.of(1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
-                  3, toByteBuffer(StringType.get(), "aa"),
-                  15, toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE + 25)
-                  ),
+          ImmutableMap.of(
+              1,
+              toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+              3,
+              toByteBuffer(StringType.get(), "aa"),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE + 25)),
           // upper bounds
-          ImmutableMap.of(1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE + 10),
-                  3, toByteBuffer(StringType.get(), "dC"),
-                  15, toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE + 50)));
+          ImmutableMap.of(
+              1,
+              toByteBuffer(IntegerType.get(), INT_MIN_VALUE + 10),
+              3,
+              toByteBuffer(StringType.get(), "dC"),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE + 50)));
 
   private static final DataFile FILE_3 =
       new TestDataFile(
@@ -160,14 +177,21 @@ public class TestInclusiveMetricsEvaluator {
           // nan value counts
           null,
           // lower bounds
-          ImmutableMap.of(1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
-                  3, toByteBuffer(StringType.get(), "1str1"),
-                  15, toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE - 25)),
+          ImmutableMap.of(
+              1,
+              toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+              3,
+              toByteBuffer(StringType.get(), "1str1"),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE - 25)),
           // upper bounds
-          ImmutableMap.of(1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE + 10),
-                  3, toByteBuffer(StringType.get(), "3str3"),
-                  15, toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE - 5)
-                  ));
+          ImmutableMap.of(
+              1,
+              toByteBuffer(IntegerType.get(), INT_MIN_VALUE + 10),
+              3,
+              toByteBuffer(StringType.get(), "3str3"),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE - 5)));
 
   private static final DataFile FILE_4 =
       new TestDataFile(
@@ -181,13 +205,21 @@ public class TestInclusiveMetricsEvaluator {
           // nan value counts
           null,
           // lower bounds
-          ImmutableMap.of(1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
-                  3, toByteBuffer(StringType.get(), "abc"),
-                  15, toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE)),
+          ImmutableMap.of(
+              1,
+              toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+              3,
+              toByteBuffer(StringType.get(), "abc"),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE)),
           // upper bounds
-          ImmutableMap.of(1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
-                  3, toByteBuffer(StringType.get(), "イロハニホヘト"),
-                  15, toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE)));
+          ImmutableMap.of(
+              1,
+              toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+              3,
+              toByteBuffer(StringType.get(), "イロハニホヘト"),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE)));
 
   @Test
   public void testAllNulls() {
@@ -451,18 +483,32 @@ public class TestInclusiveMetricsEvaluator {
   @Test
   public void testRefCompareIntegerLt() {
     boolean shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2")).eval(FILE);
-    assertThat(shouldRead).as("Should read: id range lower bound (30) is below upper bound id2 range (55)").isTrue();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2"))
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: id range lower bound (30) is below upper bound id2 range (55)")
+        .isTrue();
 
     shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2")).eval(FILE_2);
-    assertThat(shouldRead).as("Should read: id range lower bound (30) is below upper bound id2 range (80)").isTrue();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2"))
+            .eval(FILE_2);
+    assertThat(shouldRead)
+        .as("Should read: id range lower bound (30) is below upper bound id2 range (80)")
+        .isTrue();
 
-    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2")).eval(FILE_3);
-    assertThat(shouldRead).as("Should not read: id range lower bound (30) is not below upper bound id range (25)").isFalse();
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2"))
+            .eval(FILE_3);
+    assertThat(shouldRead)
+        .as("Should not read: id range lower bound (30) is not below upper bound id range (25)")
+        .isFalse();
 
-    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2")).eval(FILE_4);
-    assertThat(shouldRead).as("Should not read: id range lower bound (30) is not below upper bound id range (30)").isFalse();
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2"))
+            .eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should not read: id range lower bound (30) is not below upper bound id range (30)")
+        .isFalse();
   }
 
   @Test
@@ -487,18 +533,32 @@ public class TestInclusiveMetricsEvaluator {
   @Test
   public void testRefCompareIntegerLtEq() {
     boolean shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2")).eval(FILE);
-    assertThat(shouldRead).as("Should read: id range lower bound (30) is below upper bound id2 range (55)").isTrue();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2"))
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: id range lower bound (30) is below upper bound id2 range (55)")
+        .isTrue();
 
     shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2")).eval(FILE_2);
-    assertThat(shouldRead).as("Should read: id range lower bound (30) is below upper bound id2 range (80)").isTrue();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2"))
+            .eval(FILE_2);
+    assertThat(shouldRead)
+        .as("Should read: id range lower bound (30) is below upper bound id2 range (80)")
+        .isTrue();
 
-    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2")).eval(FILE_3);
-    assertThat(shouldRead).as("Should not read: id range lower bound (30) is not below upper bound id range (25)").isFalse();
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2"))
+            .eval(FILE_3);
+    assertThat(shouldRead)
+        .as("Should not read: id range lower bound (30) is not below upper bound id range (25)")
+        .isFalse();
 
-    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2")).eval(FILE_4);
-    assertThat(shouldRead).as("Should read: id range lower bound (30) can be equal to range (30)").isTrue();
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2"))
+            .eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should read: id range lower bound (30) can be equal to range (30)")
+        .isTrue();
   }
 
   @Test
@@ -524,18 +584,34 @@ public class TestInclusiveMetricsEvaluator {
   @Test
   public void testRefCompareIntegerGt() {
     boolean shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2")).eval(FILE);
-    assertThat(shouldRead).as("Should read: id range upper bound (79) is greater than lower bound id2 range (5)").isTrue();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2"))
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: id range upper bound (79) is greater than lower bound id2 range (5)")
+        .isTrue();
 
     shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2")).eval(FILE_2);
-    assertThat(shouldRead).as("Should not read: id range upper bound (40) is not greater than upper bound id2 range (80)").isFalse();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2"))
+            .eval(FILE_2);
+    assertThat(shouldRead)
+        .as(
+            "Should not read: id range upper bound (40) is not greater than upper bound id2 range (80)")
+        .isFalse();
 
-    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2")).eval(FILE_3);
-    assertThat(shouldRead).as("Should read: id range upper bound (40) is greater than lower bound id range (5)").isTrue();
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2"))
+            .eval(FILE_3);
+    assertThat(shouldRead)
+        .as("Should read: id range upper bound (40) is greater than lower bound id range (5)")
+        .isTrue();
 
-    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2")).eval(FILE_4);
-    assertThat(shouldRead).as("Should not read: id range upper bound (30) is not greater than upper bound id range (30)").isFalse();
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2"))
+            .eval(FILE_4);
+    assertThat(shouldRead)
+        .as(
+            "Should not read: id range upper bound (30) is not greater than upper bound id range (30)")
+        .isFalse();
   }
 
   @Test
@@ -563,18 +639,33 @@ public class TestInclusiveMetricsEvaluator {
   @Test
   public void testRefCompareIntegerGtEq() {
     boolean shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2")).eval(FILE);
-    assertThat(shouldRead).as("Should read: id range upper bound (79) is greater than lower bound id2 range (5)").isTrue();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2"))
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: id range upper bound (79) is greater than lower bound id2 range (5)")
+        .isTrue();
 
     shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2")).eval(FILE_2);
-    assertThat(shouldRead).as("Should not read: id range upper bound (40) is not greater than upper bound id2 range (80)").isFalse();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2"))
+            .eval(FILE_2);
+    assertThat(shouldRead)
+        .as(
+            "Should not read: id range upper bound (40) is not greater than upper bound id2 range (80)")
+        .isFalse();
 
-    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2")).eval(FILE_3);
-    assertThat(shouldRead).as("Should read: id range upper bound (40) is greater than lower bound id range (5)").isTrue();
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2"))
+            .eval(FILE_3);
+    assertThat(shouldRead)
+        .as("Should read: id range upper bound (40) is greater than lower bound id range (5)")
+        .isTrue();
 
-    shouldRead = new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2")).eval(FILE_4);
-    assertThat(shouldRead).as("Should not read: id range upper bound (30) is equal to upper bound id range (30)").isTrue();
+    shouldRead =
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2"))
+            .eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should not read: id range upper bound (30) is equal to upper bound id range (30)")
+        .isTrue();
   }
 
   @Test
@@ -605,20 +696,32 @@ public class TestInclusiveMetricsEvaluator {
   @Test
   public void testRefCompareIntegerEq() {
     boolean shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2")).eval(FILE);
-    assertThat(shouldRead).as("Should read: id range (30,79) can be equal to id2 range (5,55)").isTrue();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2"))
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: id range (30,79) can be equal to id2 range (5,55)")
+        .isTrue();
 
     shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2")).eval(FILE_2);
-    assertThat(shouldRead).as("Should not read: id range (30,40) can not be equal to id2 range (50,80)").isFalse();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2"))
+            .eval(FILE_2);
+    assertThat(shouldRead)
+        .as("Should not read: id range (30,40) can not be equal to id2 range (50,80)")
+        .isFalse();
 
     shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2")).eval(FILE_3);
-    assertThat(shouldRead).as("Should not read: id range (5,25) can not be equal to id2 range (30,40)").isFalse();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2"))
+            .eval(FILE_3);
+    assertThat(shouldRead)
+        .as("Should not read: id range (5,25) can not be equal to id2 range (30,40)")
+        .isFalse();
 
     shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2")).eval(FILE_4);
-    assertThat(shouldRead).as("Should read: id range (30,30) can be equal to id2 range (30,30)").isTrue();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2"))
+            .eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should read: id range (30,30) can be equal to id2 range (30,30)")
+        .isTrue();
   }
 
   @Test
@@ -653,20 +756,32 @@ public class TestInclusiveMetricsEvaluator {
   @Test
   public void testRefCompareIntegerNotEq() {
     boolean shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2")).eval(FILE);
-    assertThat(shouldRead).as("Should read: id range (30,79) can be equal to id2 range (5,55)").isTrue();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2"))
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should read: id range (30,79) can be equal to id2 range (5,55)")
+        .isTrue();
 
     shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2")).eval(FILE_2);
-    assertThat(shouldRead).as("Should read: id range (30,40) can be equal to id2 range (5,55)").isTrue();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2"))
+            .eval(FILE_2);
+    assertThat(shouldRead)
+        .as("Should read: id range (30,40) can be equal to id2 range (5,55)")
+        .isTrue();
 
     shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2")).eval(FILE_3);
-    assertThat(shouldRead).as("Should read: id range (30,35) can be equal to id2 range (25,30)").isTrue();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2"))
+            .eval(FILE_3);
+    assertThat(shouldRead)
+        .as("Should read: id range (30,35) can be equal to id2 range (25,30)")
+        .isTrue();
 
     shouldRead =
-            new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id2", "id")).eval(FILE_4);
-    assertThat(shouldRead).as("Should read: id range (20,25) can not be equal to id2 range (30,30)").isTrue();
+        new InclusiveMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id2", "id"))
+            .eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should read: id range (20,25) can not be equal to id2 range (30,30)")
+        .isTrue();
   }
 
   @Test

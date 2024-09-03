@@ -573,11 +573,6 @@ public class StrictMetricsEvaluator {
 
       if (hasUpperLowerBounds(id, id2)) {
 
-        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
-        T lower2 = Conversions.fromByteBuffer(ref2.type(), lowerBounds.get(id2));
-        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
-        T upper2 = Conversions.fromByteBuffer(ref2.type(), upperBounds.get(id2));
-
         if (checkUpperToLowerBounds(ref, ref2, id, id2, true, cmp -> cmp < 0)) {
           return ROWS_MUST_MATCH;
         }
@@ -585,8 +580,6 @@ public class StrictMetricsEvaluator {
         if (checkLowerToUpperBounds(ref, ref2, id, id2, true, cmp -> cmp > 0)) {
           return ROWS_MUST_MATCH;
         }
-
-        return ROWS_MUST_MATCH;
       }
 
       return ROWS_MIGHT_NOT_MATCH;
