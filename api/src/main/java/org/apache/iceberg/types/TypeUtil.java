@@ -522,6 +522,7 @@ public class TypeUtil {
       case DOUBLE:
       case TIME:
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
         // longs and doubles occupy 8 bytes
         // times and timestamps are internally represented as longs
         return 8;
