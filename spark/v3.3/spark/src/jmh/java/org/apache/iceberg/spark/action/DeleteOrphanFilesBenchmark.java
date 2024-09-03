@@ -22,6 +22,7 @@ import static org.apache.spark.sql.functions.lit;
 
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.AppendFiles;
@@ -111,6 +112,7 @@ public class DeleteOrphanFilesBenchmark {
   private void initTable() {
     spark.sql(
         String.format(
+            Locale.ROOT,
             "CREATE TABLE %s(id INT, name STRING)"
                 + " USING ICEBERG"
                 + " TBLPROPERTIES ( 'format-version' = '2')",
@@ -124,7 +126,7 @@ public class DeleteOrphanFilesBenchmark {
     for (int i = 0; i < NUM_SNAPSHOTS; i++) {
       AppendFiles appendFiles = table().newFastAppend();
       for (int j = 0; j < NUM_FILES; j++) {
-        String path = String.format("%s/path/to/data-%d-%d.parquet", location, i, j);
+        String path = String.format(Locale.ROOT, "%s/path/to/data-%d-%d.parquet", location, i, j);
         validAndOrphanPaths.add(path);
         DataFile dataFile =
             DataFiles.builder(partitionSpec)
@@ -144,7 +146,7 @@ public class DeleteOrphanFilesBenchmark {
     int orphanFileCount = (NUM_FILES * NUM_SNAPSHOTS) / 10;
     for (int i = 0; i < orphanFileCount; i++) {
       validAndOrphanPaths.add(
-          String.format("%s/path/to/data-%s.parquet", location, UUID.randomUUID()));
+          String.format(Locale.ROOT, "%s/path/to/data-%s.parquet", location, UUID.randomUUID()));
     }
   }
 

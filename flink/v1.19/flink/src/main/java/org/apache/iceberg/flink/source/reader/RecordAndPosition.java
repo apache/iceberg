@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.source.reader;
 
+import java.util.Locale;
 import org.apache.flink.annotation.Internal;
 
 /**
@@ -73,6 +74,6 @@ public class RecordAndPosition<T> {
 
   @Override
   public String toString() {
-    return String.format("%s @ %d + %d", record, fileOffset, recordOffset);
+    return String.format(Locale.ROOT, "%s @ %d + %d", record, fileOffset, recordOffset);
   }
 }

@@ -27,6 +27,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoUnit;
+import java.util.Locale;
 
 public class DateTimeUtil {
   private DateTimeUtil() {}
@@ -102,7 +103,7 @@ public class DateTimeUtil {
             .parseCaseInsensitive()
             .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
             .appendOffset("+HH:MM:ss", "+00:00")
-            .toFormatter();
+            .toFormatter(Locale.ROOT);
     return localDateTime.atOffset(ZoneOffset.UTC).format(zeroOffsetFormatter);
   }
 

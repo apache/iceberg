@@ -31,6 +31,7 @@ import java.sql.SQLTransientConnectionException;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -798,7 +799,11 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     }
 
     throw new IllegalStateException(
-        String.format("Failed to insert: %d of %d succeeded", insertedRecords, properties.size()));
+        String.format(
+            Locale.ROOT,
+            "Failed to insert: %d of %d succeeded",
+            insertedRecords,
+            properties.size()));
   }
 
   private boolean updateProperties(Namespace namespace, Map<String, String> properties) {
@@ -818,7 +823,11 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     }
 
     throw new IllegalStateException(
-        String.format("Failed to update: %d of %d succeeded", updatedRecords, properties.size()));
+        String.format(
+            Locale.ROOT,
+            "Failed to update: %d of %d succeeded",
+            updatedRecords,
+            properties.size()));
   }
 
   private boolean deleteProperties(Namespace namespace, Set<String> properties) {

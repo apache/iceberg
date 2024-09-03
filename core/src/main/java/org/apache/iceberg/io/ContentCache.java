@@ -28,6 +28,7 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -253,8 +254,10 @@ public class ContentCache {
           // IOException and let the caller fallback to non-caching input file.
           throw new IOException(
               String.format(
+                  Locale.ROOT,
                   "Failed to read %d bytes: %d bytes in stream",
-                  fileLength, fileLength - totalBytesToRead));
+                  fileLength,
+                  fileLength - totalBytesToRead));
         } else {
           buffers.add(ByteBuffer.wrap(buf));
         }

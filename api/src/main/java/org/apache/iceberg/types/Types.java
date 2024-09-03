@@ -317,7 +317,7 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("fixed[%d]", length);
+      return String.format(Locale.ROOT, "fixed[%d]", length);
     }
 
     @Override
@@ -388,7 +388,7 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("decimal(%d, %d)", precision, scale);
+      return String.format(Locale.ROOT, "decimal(%d, %d)", precision, scale);
     }
 
     @Override
@@ -497,7 +497,8 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("%d: %s: %s %s", id, name, isOptional ? "optional" : "required", type)
+      return String.format(
+              Locale.ROOT, "%d: %s: %s %s", id, name, isOptional ? "optional" : "required", type)
           + (doc != null ? " (" + doc + ")" : "");
     }
 
@@ -614,7 +615,7 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("struct<%s>", FIELD_SEP.join(fields));
+      return String.format(Locale.ROOT, "struct<%s>", FIELD_SEP.join(fields));
     }
 
     @Override
@@ -747,7 +748,7 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("list<%s>", elementField.type());
+      return String.format(Locale.ROOT, "list<%s>", elementField.type());
     }
 
     @Override
@@ -865,7 +866,7 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("map<%s, %s>", keyField.type(), valueField.type());
+      return String.format(Locale.ROOT, "map<%s, %s>", keyField.type(), valueField.type());
     }
 
     @Override

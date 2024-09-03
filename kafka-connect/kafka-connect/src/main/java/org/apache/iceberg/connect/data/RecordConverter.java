@@ -37,6 +37,7 @@ import java.time.temporal.Temporal;
 import java.util.Base64;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -70,7 +71,7 @@ class RecordConverter {
       new DateTimeFormatterBuilder()
           .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
           .appendOffset("+HHmm", "Z")
-          .toFormatter();
+          .toFormatter(Locale.ROOT);
 
   private final Schema tableSchema;
   private final NameMapping nameMapping;
