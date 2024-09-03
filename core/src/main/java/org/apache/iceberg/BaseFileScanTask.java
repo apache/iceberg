@@ -36,7 +36,18 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
       String schemaString,
       String specString,
       ResidualEvaluator residuals) {
-    super(file, schemaString, specString, residuals);
+    this(file, deletes, schemaString, specString, residuals, null, null);
+  }
+
+  public BaseFileScanTask(
+      DataFile file,
+      DeleteFile[] deletes,
+      String schemaString,
+      String specString,
+      ResidualEvaluator residuals,
+      Schema schema,
+      PartitionSpec partitionSpec) {
+    super(file, schemaString, specString, residuals, schema, partitionSpec);
     this.deletes = deletes != null ? deletes : new DeleteFile[0];
   }
 
