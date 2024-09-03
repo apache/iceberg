@@ -63,7 +63,7 @@ nav:
   - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
   - Databend: 
     - Apache Iceberg Catalog: https://docs.databend.com/guides/access-data-lake/iceberg/iceberg-catalog
-    - Apache Iceberg Table Engine: https://docs.databend.com/guides/access-data-lake/iceberg/iceberg-catalog
+    - Apache Iceberg Table Engine: https://docs.databend.com/guides/access-data-lake/iceberg/iceberg-engine
   - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
   - Doris: https://doris.apache.org/docs/dev/lakehouse/datalake-analytics/iceberg
   - Integrations:
