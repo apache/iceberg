@@ -1494,6 +1494,8 @@ public class TableMetadata implements Serializable {
           newLastColumnId,
           lastColumnId);
 
+      Schema.checkCompatibility(schema, formatVersion);
+
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
       boolean schemaFound = schemasById.containsKey(newSchemaId);
       if (schemaFound && newLastColumnId == lastColumnId) {

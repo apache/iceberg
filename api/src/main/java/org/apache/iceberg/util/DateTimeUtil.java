@@ -35,6 +35,15 @@ public class DateTimeUtil {
   public static final LocalDate EPOCH_DAY = EPOCH.toLocalDate();
   public static final long MICROS_PER_MILLIS = 1000L;
   public static final long MICROS_PER_SECOND = 1_000_000L;
+  private static final long NANOS_PER_SECOND = 1_000_000_000L;
+  private static final long NANOS_PER_MICRO = 1_000L;
+
+  private static final DateTimeFormatter FORMATTER =
+      new DateTimeFormatterBuilder()
+          .parseCaseInsensitive()
+          .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+          .appendOffset("+HH:MM:ss", "+00:00")
+          .toFormatter();
 
   public static LocalDate dateFromDays(int daysFromEpoch) {
     return ChronoUnit.DAYS.addTo(EPOCH_DAY, daysFromEpoch);
@@ -60,12 +69,20 @@ public class DateTimeUtil {
     return ChronoUnit.MICROS.addTo(EPOCH, microsFromEpoch).toLocalDateTime();
   }
 
+  public static LocalDateTime timestampFromNanos(long nanosFromEpoch) {
+    return ChronoUnit.NANOS.addTo(EPOCH, nanosFromEpoch).toLocalDateTime();
+  }
+
   public static long microsFromInstant(Instant instant) {
     return ChronoUnit.MICROS.between(EPOCH, instant.atOffset(ZoneOffset.UTC));
   }
 
   public static long microsFromTimestamp(LocalDateTime dateTime) {
     return ChronoUnit.MICROS.between(EPOCH, dateTime.atOffset(ZoneOffset.UTC));
+  }
+
+  public static long nanosFromTimestamp(LocalDateTime dateTime) {
+    return ChronoUnit.NANOS.between(EPOCH, dateTime.atOffset(ZoneOffset.UTC));
   }
 
   public static long microsToMillis(long micros) {
@@ -75,12 +92,24 @@ public class DateTimeUtil {
     return Math.floorDiv(micros, MICROS_PER_MILLIS);
   }
 
+  public static long nanosToMicros(long nanos) {
+    return Math.floorDiv(nanos, NANOS_PER_MICRO);
+  }
+
+  public static long microsToNanos(long micros) {
+    return Math.multiplyExact(micros, NANOS_PER_MICRO);
+  }
+
   public static OffsetDateTime timestamptzFromMicros(long microsFromEpoch) {
     return ChronoUnit.MICROS.addTo(EPOCH, microsFromEpoch);
   }
 
   public static long microsFromTimestamptz(OffsetDateTime dateTime) {
     return ChronoUnit.MICROS.between(EPOCH, dateTime);
+  }
+
+  public static long nanosFromTimestamptz(OffsetDateTime dateTime) {
+    return ChronoUnit.NANOS.between(EPOCH, dateTime);
   }
 
   public static String formatTimestampMillis(long millis) {
@@ -97,17 +126,21 @@ public class DateTimeUtil {
 
   public static String microsToIsoTimestamptz(long micros) {
     LocalDateTime localDateTime = timestampFromMicros(micros);
-    DateTimeFormatter zeroOffsetFormatter =
-        new DateTimeFormatterBuilder()
-            .parseCaseInsensitive()
-            .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-            .appendOffset("+HH:MM:ss", "+00:00")
-            .toFormatter();
-    return localDateTime.atOffset(ZoneOffset.UTC).format(zeroOffsetFormatter);
+    return localDateTime.atOffset(ZoneOffset.UTC).format(FORMATTER);
+  }
+
+  public static String nanosToIsoTimestamptz(long nanos) {
+    LocalDateTime localDateTime = timestampFromNanos(nanos);
+    return localDateTime.atOffset(ZoneOffset.UTC).format(FORMATTER);
   }
 
   public static String microsToIsoTimestamp(long micros) {
     LocalDateTime localDateTime = timestampFromMicros(micros);
+    return localDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+  }
+
+  public static String nanosToIsoTimestamp(long nanos) {
+    LocalDateTime localDateTime = timestampFromNanos(nanos);
     return localDateTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
   }
 
@@ -124,6 +157,11 @@ public class DateTimeUtil {
         OffsetDateTime.parse(timestampString, DateTimeFormatter.ISO_DATE_TIME));
   }
 
+  public static long isoTimestamptzToNanos(CharSequence timestampString) {
+    return nanosFromTimestamptz(
+        OffsetDateTime.parse(timestampString, DateTimeFormatter.ISO_DATE_TIME));
+  }
+
   public static boolean isUTCTimestamptz(String timestampString) {
     OffsetDateTime offsetDateTime =
         OffsetDateTime.parse(timestampString, DateTimeFormatter.ISO_DATE_TIME);
@@ -132,6 +170,11 @@ public class DateTimeUtil {
 
   public static long isoTimestampToMicros(String timestampString) {
     return microsFromTimestamp(
+        LocalDateTime.parse(timestampString, DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+  }
+
+  public static long isoTimestampToNanos(CharSequence timestampString) {
+    return nanosFromTimestamp(
         LocalDateTime.parse(timestampString, DateTimeFormatter.ISO_LOCAL_DATE_TIME));
   }
 
@@ -182,6 +225,36 @@ public class DateTimeUtil {
       long epochSecond = Math.floorDiv(micros, MICROS_PER_SECOND);
       long nanoAdjustment = Math.floorMod(micros + 1, MICROS_PER_SECOND) * 1000;
       return (int) granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment)) - 1;
+    }
+  }
+
+  public static int nanosToYears(long nanos) {
+    return Math.toIntExact(convertNanos(nanos, ChronoUnit.YEARS));
+  }
+
+  public static int nanosToMonths(long nanos) {
+    return Math.toIntExact(convertNanos(nanos, ChronoUnit.MONTHS));
+  }
+
+  public static int nanosToDays(long nanos) {
+    return Math.toIntExact(convertNanos(nanos, ChronoUnit.DAYS));
+  }
+
+  public static int nanosToHours(long nanos) {
+    return Math.toIntExact(convertNanos(nanos, ChronoUnit.HOURS));
+  }
+
+  private static long convertNanos(long nanos, ChronoUnit granularity) {
+    if (nanos >= 0) {
+      long epochSecond = Math.floorDiv(nanos, NANOS_PER_SECOND);
+      long nanoAdjustment = Math.floorMod(nanos, NANOS_PER_SECOND);
+      return granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment));
+    } else {
+      // add 1 nano to the value to account for the case where there is exactly 1 unit between
+      // the timestamp and epoch because the result will always be decremented.
+      long epochSecond = Math.floorDiv(nanos, NANOS_PER_SECOND);
+      long nanoAdjustment = Math.floorMod(nanos + 1, NANOS_PER_SECOND);
+      return granularity.between(EPOCH, toOffsetDateTime(epochSecond, nanoAdjustment)) - 1;
     }
   }
 
