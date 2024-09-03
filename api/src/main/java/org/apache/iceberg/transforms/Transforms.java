@@ -67,9 +67,7 @@ public class Transforms {
     return new UnknownTransform<>(transform);
   }
 
-  /**
-   * @deprecated use {@link #identity()} instead; will be removed in 2.0.0
-   */
+  /** @deprecated use {@link #identity()} instead; will be removed in 2.0.0 */
   @Deprecated
   public static Transform<?, ?> fromString(Type type, String transform) {
     Matcher widthMatcher = HAS_WIDTH.matcher(transform);
