@@ -317,19 +317,24 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
 
     filesTableSchema = filesTableSchema.select(columns);
 
-    List<Row> actualDataFiles = sql("SELECT %s FROM %s$data_files", names, TABLE_NAME);
+    List<Row> actualDataFiles =
+        sql("SELECT %s FROM %s$data_files ORDER BY file_path", names, TABLE_NAME);
     assertThat(actualDataFiles).as("Metadata table should return 2 data file").hasSize(2);
     List<GenericData.Record> expectedDataFiles =
         expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, null);
+    expectedDataFiles.sort(Comparator.comparing(r -> r.get("file_path").toString()));
+
     assertThat(expectedDataFiles).as("Should be 2 data file manifest entry").hasSize(2);
     TestHelpers.assertEquals(filesTableSchema, expectedDataFiles.get(0), actualDataFiles.get(0));
 
     // check all files table
-    List<Row> actualFiles = sql("SELECT %s FROM %s$files ORDER BY content", names, TABLE_NAME);
+    List<Row> actualFiles = sql("SELECT %s FROM %s$files ORDER BY file_path", names, TABLE_NAME);
     assertThat(actualFiles).as("Metadata table should return 3 files").hasSize(3);
     List<GenericData.Record> expectedFiles =
         Stream.concat(expectedDataFiles.stream(), expectedDeleteFiles.stream())
             .collect(Collectors.toList());
+    expectedFiles.sort(Comparator.comparing(r -> r.get("file_path").toString()));
+
     assertThat(expectedFiles).as("Should have 3 files manifest entriess").hasSize(3);
     TestHelpers.assertEquals(filesTableSchema, expectedFiles.get(0), actualFiles.get(0));
     TestHelpers.assertEquals(filesTableSchema, expectedFiles.get(1), actualFiles.get(1));
@@ -451,9 +456,9 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
             deleteRowSchema);
     table.newRowDelta().addDeletes(eqDeletes).commit();
 
-    List<ManifestFile> expectedDataManifests = dataManifests(table);
-    assertThat(expectedDataManifests).hasSize(2);
-    List<ManifestFile> expectedDeleteManifests = deleteManifests(table);
+    List<ManifestFile> expectedDataManifests = allDataManifests(table);
+    assertThat(expectedDataManifests).hasSize(5); // 3 + 2
+    List<ManifestFile> expectedDeleteManifests = allDeleteManifests(table);
     assertThat(expectedDeleteManifests).hasSize(1);
 
     // Clear table to test whether 'all_files' can read past files
@@ -478,12 +483,14 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
 
     // Check all data files table
     List<Row> actualDataFiles =
-        sql("SELECT %s FROM %s$all_data_files order by record_count ", names, TABLE_NAME);
+        sql("SELECT %s FROM %s$all_data_files order by file_path", names, TABLE_NAME);
 
     List<GenericData.Record> expectedDataFiles =
         expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, null);
-    assertThat(expectedDataFiles).hasSize(2);
-    assertThat(actualDataFiles).hasSize(2);
+    expectedDataFiles.sort(Comparator.comparing(r -> r.get("file_path").toString()));
+
+    assertThat(expectedDataFiles).hasSize(5);
+    assertThat(actualDataFiles).hasSize(5);
     TestHelpers.assertEquals(filesTableSchema, expectedDataFiles, actualDataFiles);
 
     // Check all delete files table
@@ -498,11 +505,11 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
 
     // Check all files table
     List<Row> actualFiles =
-        sql("SELECT %s FROM %s$all_files ORDER BY content, record_count asc", names, TABLE_NAME);
+        sql("SELECT %s FROM %s$all_files ORDER BY file_path", names, TABLE_NAME);
     List<GenericData.Record> expectedFiles =
         ListUtils.union(expectedDataFiles, expectedDeleteFiles);
-    expectedFiles.sort(Comparator.comparing(r -> ((Integer) r.get("content"))));
-    assertThat(actualFiles).hasSize(3);
+    expectedFiles.sort(Comparator.comparing(r -> r.get("file_path").toString()));
+    assertThat(actualFiles).hasSize(6); // 3 + 2 + 1
     TestHelpers.assertEquals(filesTableSchema, expectedFiles, actualFiles);
   }
 
@@ -535,9 +542,9 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
             deleteRowSchema);
     table.newRowDelta().addDeletes(eqDeletes).addDeletes(eqDeletes2).commit();
 
-    List<ManifestFile> expectedDataManifests = dataManifests(table);
-    assertThat(expectedDataManifests).hasSize(2);
-    List<ManifestFile> expectedDeleteManifests = deleteManifests(table);
+    List<ManifestFile> expectedDataManifests = allDataManifests(table);
+    assertThat(expectedDataManifests).hasSize(5);
+    List<ManifestFile> expectedDeleteManifests = allDeleteManifests(table);
     assertThat(expectedDeleteManifests).hasSize(1);
     // Clear table to test whether 'all_files' can read past files
     table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
@@ -564,8 +571,8 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
         sql("SELECT %s FROM %s$all_data_files WHERE `partition`.`data`='a'", names, TABLE_NAME);
     List<GenericData.Record> expectedDataFiles =
         expectedEntries(table, FileContent.DATA, entriesTableSchema, expectedDataManifests, "a");
-    assertThat(expectedDataFiles).hasSize(1);
-    assertThat(actualDataFiles).hasSize(1);
+    assertThat(expectedDataFiles).hasSize(3);
+    assertThat(actualDataFiles).hasSize(3);
     TestHelpers.assertEquals(filesTableSchema, expectedDataFiles.get(0), actualDataFiles.get(0));
 
     // Check all delete files table
@@ -587,7 +594,7 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
     List<GenericData.Record> expectedFiles =
         ListUtils.union(expectedDataFiles, expectedDeleteFiles);
     expectedFiles.sort(Comparator.comparing(r -> ((Integer) r.get("content"))));
-    assertThat(actualFiles).hasSize(2);
+    assertThat(actualFiles).hasSize(4); // 3 + 1
     TestHelpers.assertEquals(filesTableSchema, expectedFiles, actualFiles);
   }
 
@@ -809,5 +816,13 @@ public class TestFlinkMetaDataTable extends CatalogTestBase {
 
   private List<ManifestFile> deleteManifests(Table table) {
     return table.currentSnapshot().deleteManifests(table.io());
+  }
+
+  private List<ManifestFile> allDeleteManifests(Table table) {
+    List<ManifestFile> manifests = Lists.newArrayList();
+    for (Snapshot snapshot : table.snapshots()) {
+      manifests.addAll(snapshot.deleteManifests(table.io()));
+    }
+    return manifests;
   }
 }
