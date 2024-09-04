@@ -104,10 +104,7 @@ public class RowDataRewriter {
     private int subTaskId;
     private int attemptId;
 
-    private final Schema schema;
-    private final String nameMapping;
     private final FileIO io;
-    private final boolean caseSensitive;
     private final EncryptionManager encryptionManager;
     private final TaskWriterFactory<RowData> taskWriterFactory;
     private final RowDataFileScanTaskReader rowDataReader;
@@ -119,10 +116,7 @@ public class RowDataRewriter {
         boolean caseSensitive,
         EncryptionManager encryptionManager,
         TaskWriterFactory<RowData> taskWriterFactory) {
-      this.schema = schema;
-      this.nameMapping = nameMapping;
       this.io = io;
-      this.caseSensitive = caseSensitive;
       this.encryptionManager = encryptionManager;
       this.taskWriterFactory = taskWriterFactory;
       this.rowDataReader =

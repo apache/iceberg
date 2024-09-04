@@ -85,18 +85,16 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     private final ExecutorService workerPool;
     private final CompletableFuture<Optional<Task<T>>>[] taskFutures;
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
-    private final int maxQueueSize;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     private ParallelIterator(
         Iterable<? extends Iterable<T>> iterables, ExecutorService workerPool, int maxQueueSize) {
+      Preconditions.checkArgument(maxQueueSize > 0, "Max queue size must be greater than 0");
       this.tasks =
           Iterables.transform(
                   iterables, iterable -> new Task<>(iterable, queue, closed, maxQueueSize))
               .iterator();
       this.workerPool = workerPool;
-      Preconditions.checkArgument(maxQueueSize > 0, "Max queue size must be greater than 0");
-      this.maxQueueSize = maxQueueSize;
       // submit 2 tasks per worker at a time
       this.taskFutures = new CompletableFuture[2 * ThreadPools.WORKER_THREAD_POOL_SIZE];
     }

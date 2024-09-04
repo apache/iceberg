@@ -38,8 +38,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.glue.GlueClient;
 import software.amazon.awssdk.services.glue.model.Column;
 import software.amazon.awssdk.services.glue.model.GetTableRequest;
@@ -51,8 +49,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 @SuppressWarnings({"VisibilityModifier", "HideUtilityClassConstructor"})
 public class GlueTestBase {
-
-  private static final Logger LOG = LoggerFactory.getLogger(GlueTestBase.class);
 
   // the integration test requires the following env variables
   static final String TEST_BUCKET_NAME = AwsIntegTestUtil.testBucketName();

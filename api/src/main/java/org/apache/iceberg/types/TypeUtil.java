@@ -197,7 +197,6 @@ public class TypeUtil {
 
     IndexByName indexer = new IndexByName();
     visit(struct, indexer);
-    Map<String, Integer> byName = indexer.byName();
     Map<Integer, String> byId = indexer.byId();
 
     indexByName(struct)
