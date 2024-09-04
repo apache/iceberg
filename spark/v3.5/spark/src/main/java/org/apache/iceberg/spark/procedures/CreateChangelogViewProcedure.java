@@ -37,6 +37,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.OrderUtils;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -146,10 +147,16 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     Dataset<Row> df = loadRows(changelogTableIdent, options(input));
 
     boolean netChanges = input.asBoolean(NET_CHANGES, false);
+    String[] identifierColumns = identifierColumns(input, tableIdent);
+    Preconditions.checkArgument(
+        identifierColumns.length > 0
+            || Arrays.stream(df.schema().fields())
+                .allMatch(field -> OrderUtils.isOrderable(field.dataType())),
+        "Identifier field is required if table contains unorderable columns");
 
     if (shouldComputeUpdateImages(input)) {
       Preconditions.checkArgument(!netChanges, "Not support net changes with update images");
-      df = computeUpdateImages(identifierColumns(input, tableIdent), df);
+      df = computeUpdateImages(identifierColumns, df);
     } else {
       df = removeCarryoverRows(df, netChanges);
     }
