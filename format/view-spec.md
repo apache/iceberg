@@ -49,7 +49,7 @@ When queried, materialized views return the precomputed data, shifting the cost 
 
 Iceberg materialized views are implemented as a combination of an Iceberg view and an underlying Iceberg table, known as the storage table, which stores the precomputed data.
 The metadata for a materialized view extends the common view metadata, adding a pointer to the precomputed data and freshness information to determine if the data is still fresh. 
-The storage table can have the states "fresh", "stale" or "invalid".
+The storage table can be in the states of "fresh", "stale" or "invalid".
 The freshness information is composed of data about the so-called "source tables", which are the tables referenced in the query definition of the materialized view. 
 
 ## Specification
