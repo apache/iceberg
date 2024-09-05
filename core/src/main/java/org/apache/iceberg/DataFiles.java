@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptionKeyMetadata;
@@ -29,11 +30,15 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.util.ByteBuffers;
 
 public class DataFiles {
 
   private DataFiles() {}
+
+  static final BiFunction<String, Type, Object> DEFAULT_PARTITION_STRING_CONVERSION =
+      (partition, type) -> Conversions.fromPartitionString(type, partition);
 
   static PartitionData newPartitionData(PartitionSpec spec) {
     return new PartitionData(spec.partitionType());
@@ -57,7 +62,11 @@ public class DataFiles {
     return data;
   }
 
-  static PartitionData fillFromPath(PartitionSpec spec, String partitionPath, PartitionData reuse) {
+  static PartitionData fillFromPath(
+      PartitionSpec spec,
+      String partitionPath,
+      PartitionData reuse,
+      BiFunction<String, Type, Object> partitionPathConverter) {
     PartitionData data = reuse;
     if (data == null) {
       data = newPartitionData(spec);
@@ -83,7 +92,7 @@ public class DataFiles {
           "Invalid partition: %s",
           partitions[i]);
 
-      data.set(i, Conversions.fromPartitionString(data.getType(i), parts[1]));
+      data.set(i, partitionPathConverter.apply(parts[1], data.getType(i)));
     }
 
     return data;
@@ -110,7 +119,7 @@ public class DataFiles {
   }
 
   public static PartitionData data(PartitionSpec spec, String partitionPath) {
-    return fillFromPath(spec, partitionPath, null);
+    return fillFromPath(spec, partitionPath, null, DEFAULT_PARTITION_STRING_CONVERSION);
   }
 
   public static PartitionData copy(PartitionSpec spec, StructLike partition) {
@@ -259,11 +268,19 @@ public class DataFiles {
     }
 
     public Builder withPartitionPath(String newPartitionPath) {
+      return withPartitionPath(newPartitionPath, DEFAULT_PARTITION_STRING_CONVERSION);
+    }
+
+    public Builder withPartitionPath(
+        String newPartitionPath, BiFunction<String, Type, Object> partitionPathConverter) {
       Preconditions.checkArgument(
           isPartitioned || newPartitionPath.isEmpty(),
           "Cannot add partition data for an unpartitioned table");
+      Preconditions.checkArgument(
+          partitionPathConverter != null, "Partition path converter cannot be null");
       if (!newPartitionPath.isEmpty()) {
-        this.partitionData = fillFromPath(spec, newPartitionPath, partitionData);
+        this.partitionData =
+            fillFromPath(spec, newPartitionPath, partitionData, partitionPathConverter);
       }
       return this;
     }
