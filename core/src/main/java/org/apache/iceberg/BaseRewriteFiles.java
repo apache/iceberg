@@ -141,6 +141,11 @@ class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements 
     }
   }
 
+  @Override
+  protected Long startingSnapshotId() {
+    return startingSnapshotId;
+  }
+
   private void validateReplacedAndAddedFiles() {
     Preconditions.checkArgument(
         deletesDataFiles() || deletesDeleteFiles(), "Files to delete cannot be empty");

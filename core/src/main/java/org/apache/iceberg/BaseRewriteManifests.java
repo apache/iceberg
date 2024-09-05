@@ -194,6 +194,11 @@ public class BaseRewriteManifests extends SnapshotProducer<RewriteManifests>
     return apply;
   }
 
+  @Override
+  protected Long startingSnapshotId() {
+    return null;
+  }
+
   private boolean requiresRewrite(Set<ManifestFile> currentManifests) {
     if (clusterByFunc == null) {
       // manifests are deleted and added directly so don't perform a rewrite

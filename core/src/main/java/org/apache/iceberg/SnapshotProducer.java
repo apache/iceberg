@@ -51,6 +51,7 @@ import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
@@ -64,6 +65,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.Exceptions;
+import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -224,6 +226,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    */
   protected abstract List<ManifestFile> apply(TableMetadata metadataToUpdate, Snapshot snapshot);
 
+  protected abstract Long startingSnapshotId();
+
   @Override
   public Snapshot apply() {
     refresh();
@@ -232,7 +236,21 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     long sequenceNumber = base.nextSequenceNumber();
     Long parentSnapshotId = parentSnapshot == null ? null : parentSnapshot.snapshotId();
 
-    validate(base, parentSnapshot);
+    try {
+      validate(base, parentSnapshot);
+    } catch (ValidationException ve) {
+      if (shouldRollbackReplaceOnConflict()) {
+        parentSnapshotId = snapshotIdToRollbackToOnConflict(parentSnapshotId);
+        // re-throw the validation exception, if no snapshot found.
+        if (parentSnapshotId == null) {
+          throw ve;
+        }
+        parentSnapshot = base.snapshot(parentSnapshotId);
+      } else {
+        throw ve;
+      }
+    }
+
     List<ManifestFile> manifests = apply(base, parentSnapshot);
 
     OutputFile manifestList = manifestListPath();
@@ -653,5 +671,48 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         // ignore and do not add total
       }
     }
+  }
+
+  private Long snapshotIdToRollbackToOnConflict(Long parentSnapshotId) {
+    Long newParentSnapshotId = parentSnapshotId;
+    // add a set snapshot op on top of base to roll back to parent snapshot
+    boolean isCommitSuccessfullyApplied = false;
+    // Update parentSnapshot to it's grandParent
+    // provided parentSnapshot is of type replace and never rollback beyond startingSnapshotId
+    while (newParentSnapshotId != null
+        && DataOperations.REPLACE.equals(base.snapshot(newParentSnapshotId).operation())
+        && !newParentSnapshotId.equals(startingSnapshotId())) {
+      // create a tempTableOperation to pass base with rollback to validate of update
+      TableOperations tempTableOps = ops.temp(base);
+      newParentSnapshotId = base.snapshot(newParentSnapshotId).parentId();
+      if (newParentSnapshotId == null) {
+        return null;
+      }
+      Snapshot parentSnapshot = base.snapshot(newParentSnapshotId);
+
+      SetSnapshotOperation setSnapshotOp = new SetSnapshotOperation(tempTableOps);
+      setSnapshotOp.rollbackTo(newParentSnapshotId).commit();
+      try {
+        validate(tempTableOps.current(), parentSnapshot);
+        isCommitSuccessfullyApplied = true;
+      } catch (ValidationException validationException) {
+        // swallow the exception for re-trying
+        LOG.info(
+            "Rollback to {} and commit still failed", newParentSnapshotId, validationException);
+      }
+    }
+
+    if (!isCommitSuccessfullyApplied) {
+      return null;
+    }
+
+    return newParentSnapshotId;
+  }
+
+  private boolean shouldRollbackReplaceOnConflict() {
+    return PropertyUtil.propertyAsBoolean(
+        base.properties(),
+        TableProperties.COMMIT_ALLOW_REPLACE_ROLLBACK_ENABLED,
+        TableProperties.COMMIT_ALLOW_REPLACE_ROLLBACK_ENABLED_DEFAULT);
   }
 }

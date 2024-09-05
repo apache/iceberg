@@ -32,6 +32,7 @@ import org.apache.iceberg.ManifestEntry.Status;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
@@ -713,5 +714,102 @@ public class TestTransaction extends TestBase {
 
     assertThat(paths).isEqualTo(expectedPaths);
     assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);
+  }
+
+  @TestTemplate
+  public void testSimpleConcurrentTransactionWithCommitRollbackOnBranch() {
+    assumeThat(formatVersion == 2).isEqualTo(true);
+    Table table = load();
+    String branchName = "testBranch";
+    // add table property
+    table
+        .updateProperties()
+        .set(TableProperties.COMMIT_ALLOW_REPLACE_ROLLBACK_ENABLED, "true")
+        .commit();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    // create testBranch
+    table.manageSnapshots().createBranch(branchName, table.currentSnapshot().snapshotId()).commit();
+
+    // start a transaction
+    // apply updates to metadata so that they are not conflicting in themselves on the present base.
+    // on refreshing the base / current and then applying updates on top causes conflict
+    // add a new update to rollback snapshot to parent and then re-apply updates
+    Transaction transaction = table.newTransaction();
+
+    // position delete of FILE_A
+    transaction
+        .newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+        .toBranch(branchName)
+        .commit();
+
+    // don't close transaction
+    // remove FILE_A and rewrite FILE_B
+    table
+        .newRewrite()
+        .rewriteFiles(Sets.newHashSet(FILE_A), Sets.newHashSet(FILE_B))
+        .toBranch(branchName)
+        .commit();
+
+    // now commit transaction should conflict as FILE_A is deleted.
+    transaction.commitTransaction();
+
+    table.refresh();
+    Snapshot currentSnapshot = table.snapshot(table.refs().get(branchName).snapshotId());
+    int totalSnapshots = 1;
+    while (currentSnapshot.parentId() != null) {
+      // no snapshot in the hierarchy for REPLACE operations
+      assertThat(currentSnapshot.operation()).isNotEqualTo(DataOperations.REPLACE);
+      currentSnapshot = table.snapshot(currentSnapshot.parentId());
+      totalSnapshots += 1;
+    }
+
+    assertThat(totalSnapshots).isEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testSimpleConcurrentTransactionWithCommitRollback() {
+    assumeThat(formatVersion == 2).isEqualTo(true);
+    Table table = load();
+    // add table property
+    table
+        .updateProperties()
+        .set(TableProperties.COMMIT_ALLOW_REPLACE_ROLLBACK_ENABLED, "true")
+        .commit();
+    table.newAppend().appendFile(FILE_A).commit();
+
+    // start a transaction
+    // apply updates to metadata so that they are not conflicting in themselves on the present base.
+    // on refreshing the base / current and then applying updates on top causes conflict
+    // add a new update to rollback snapshot to parent and then re-apply updates
+    Transaction transaction = table.newTransaction();
+
+    // position delete of FILE_A
+    transaction
+        .newRowDelta()
+        .addDeletes(FILE_A_DELETES)
+        .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+        .commit();
+
+    // don't close transaction
+    // remove FILE_A and rewrite FILE_B
+    table.newRewrite().rewriteFiles(Sets.newHashSet(FILE_A), Sets.newHashSet(FILE_B)).commit();
+
+    // now commit transaction should conflict as FILE_A is deleted.
+    transaction.commitTransaction();
+
+    table.refresh();
+    Snapshot currentSnapshot = table.currentSnapshot();
+    int totalSnapshots = 1;
+    while (currentSnapshot.parentId() != null) {
+      // no snapshot in the hierarchy for REPLACE operations
+      assertThat(currentSnapshot.operation()).isNotEqualTo(DataOperations.REPLACE);
+      currentSnapshot = table.snapshot(currentSnapshot.parentId());
+      totalSnapshots += 1;
+    }
+
+    assertThat(totalSnapshots).isEqualTo(2);
   }
 }
