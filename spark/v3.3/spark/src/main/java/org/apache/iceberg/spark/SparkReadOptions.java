@@ -73,6 +73,9 @@ public class SparkReadOptions {
   public static final String STREAMING_SKIP_OVERWRITE_SNAPSHOTS =
       "streaming-skip-overwrite-snapshots";
   public static final boolean STREAMING_SKIP_OVERWRITE_SNAPSHOTS_DEFAULT = false;
+  public static final String STREAMING_SNAPSHOT_POLLING_INTERVAL_MS =
+      "streaming-snapshot-polling-interval-ms";
+  public static final long STREAMING_SNAPSHOT_POLLING_INTERVAL_MS_DEFAULT = 30000L;
 
   // Controls whether to allow reading timestamps without zone info
   public static final String HANDLE_TIMESTAMP_WITHOUT_TIMEZONE =
