@@ -68,6 +68,18 @@ class ProcedureInput {
     return args.isNullAt(ordinal) ? defaultValue : (Boolean) args.getBoolean(ordinal);
   }
 
+  public Integer asInt(ProcedureParameter param) {
+    Integer value = asInt(param, null);
+    Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());
+    return value;
+  }
+
+  public Integer asInt(ProcedureParameter param, Integer defaultValue) {
+    validateParamType(param, DataTypes.IntegerType);
+    int ordinal = ordinal(param);
+    return args.isNullAt(ordinal) ? defaultValue : (Integer) args.getInt(ordinal);
+  }
+
   public long asLong(ProcedureParameter param) {
     Long value = asLong(param, null);
     Preconditions.checkArgument(value != null, "Parameter '%s' is not set", param.name());

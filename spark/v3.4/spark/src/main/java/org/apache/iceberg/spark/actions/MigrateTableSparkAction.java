@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.actions;
 
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
@@ -59,6 +60,7 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
 
   private Identifier backupIdent;
   private boolean dropBackup = false;
+  private ExecutorService executorService;
 
   MigrateTableSparkAction(
       SparkSession spark, CatalogPlugin sourceCatalog, Identifier sourceTableIdent) {
@@ -109,6 +111,12 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
   }
 
   @Override
+  public MigrateTableSparkAction executeWith(ExecutorService service) {
+    this.executorService = service;
+    return this;
+  }
+
+  @Override
   public MigrateTable.Result execute() {
     String desc = String.format("Migrating table %s", destTableIdent().toString());
     JobGroupInfo info = newJobGroupInfo("MIGRATE-TABLE", desc);
@@ -137,7 +145,8 @@ public class MigrateTableSparkAction extends BaseTableCreationSparkAction<Migrat
       TableIdentifier v1BackupIdent = new TableIdentifier(backupIdent.name(), backupNamespace);
       String stagingLocation = getMetadataLocation(icebergTable);
       LOG.info("Generating Iceberg metadata for {} in {}", destTableIdent(), stagingLocation);
-      SparkTableUtil.importSparkTable(spark(), v1BackupIdent, icebergTable, stagingLocation);
+      SparkTableUtil.importSparkTable(
+          spark(), v1BackupIdent, icebergTable, stagingLocation, executorService);
 
       LOG.info("Committing staged changes to {}", destTableIdent());
       stagedTable.commitStagedChanges();
