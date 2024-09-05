@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -148,11 +149,16 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
 
     boolean netChanges = input.asBoolean(NET_CHANGES, false);
     String[] identifierColumns = identifierColumns(input, tableIdent);
+    Set<String> unorderableColumnNames =
+        Arrays.stream(df.schema().fields())
+            .filter(field -> !OrderUtils.isOrderable(field.dataType()))
+            .map(StructField::name)
+            .collect(Collectors.toSet());
+
     Preconditions.checkArgument(
-        identifierColumns.length > 0
-            || Arrays.stream(df.schema().fields())
-                .allMatch(field -> OrderUtils.isOrderable(field.dataType())),
-        "Identifier field is required if table contains unorderable columns");
+        identifierColumns.length > 0 || unorderableColumnNames.isEmpty(),
+        "Identifier field is required as table contains unorderable columns: %s",
+        unorderableColumnNames);
 
     if (shouldComputeUpdateImages(input)) {
       Preconditions.checkArgument(!netChanges, "Not support net changes with update images");

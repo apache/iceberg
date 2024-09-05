@@ -447,6 +447,7 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
             () ->
                 sql("CALL %s.system.create_changelog_view(table => '%s')", catalogName, tableName))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Identifier field is required if table contains unorderable columns");
+        .hasMessageContaining(
+            "Identifier field is required as table contains unorderable columns: [data]");
   }
 }
