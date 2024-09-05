@@ -981,6 +981,8 @@ project(':iceberg-open-api') {
     testFixturesImplementation libs.jetty.servlet
     testFixturesImplementation libs.jetty.server
     testFixturesImplementation libs.sqlite.jdbc
+
+    testFixturesCompileOnly libs.apiguardian
   }
 
   test {
