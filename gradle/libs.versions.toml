@@ -24,6 +24,7 @@ activation = "1.1.1"
 aliyun-sdk-oss = "3.10.2"
 antlr = "4.9.3"
 aircompressor = "0.27"
+apiguardian = "1.1.2"
 arrow = "15.0.2"
 avro = "1.12.0"
 assertj-core = "3.26.3"
@@ -177,6 +178,7 @@ slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 snowflake-jdbc = { module = "net.snowflake:snowflake-jdbc", version.ref = "snowflake-jdbc" }
 
 # test libraries
+apiguardian = { module = "org.apiguardian:apiguardian-api", version.ref = "apiguardian" }
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj-core" }
 awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
 delta-spark = { module = "io.delta:delta-spark_2.12", version.ref = "delta-spark" }
