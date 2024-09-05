@@ -45,7 +45,7 @@ The Apache Iceberg Sink Connector for Kafka Connect is a sink connector for writ
 
 The connector zip archive is created as part of the Iceberg build. You can run the build via:
 ```bash
-./gradlew -xtest -xintegrationTest clean build
+./gradlew -x test -x integrationTest clean build
 ```
 The zip archive will be found under `./kafka-connect/kafka-connect-runtime/build/distributions`. There is
 one distribution that bundles the Hive Metastore client and related dependencies, and one that does not.
