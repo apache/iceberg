@@ -146,7 +146,7 @@ using S3 for storage (the default is `HadoopFileIO` with `HiveCatalog`).
 
 ```
 "iceberg.catalog.catalog-impl": "org.apache.iceberg.nessie.NessieCatalog",
-"iceberg.catalog.uri": "http://localhost:19120/api/v1",
+"iceberg.catalog.uri": "http://localhost:19120/api/v2",
 "iceberg.catalog.ref": "main",
 "iceberg.catalog.warehouse": "s3a://bucket/warehouse",
 "iceberg.catalog.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
