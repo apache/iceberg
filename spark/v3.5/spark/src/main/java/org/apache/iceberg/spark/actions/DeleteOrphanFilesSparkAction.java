@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import org.apache.commons.collections4.trie.PatriciaTrie;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -233,7 +234,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     return String.format("Deleting orphan files (%s) from %s", optionsAsString, table.name());
   }
 
-  private void deleteFiles(SupportsBulkOperations io, List<String> paths) {
+  private void deleteFiles(SupportsBulkOperations io, Set<String> paths) {
     try {
       io.deleteFiles(paths);
       LOG.info("Deleted {} files using bulk deletes", paths.size());
@@ -247,7 +248,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     Dataset<FileURI> actualFileIdentDS = actualFileIdentDS();
     Dataset<FileURI> validFileIdentDS = validFileIdentDS();
 
-    List<String> orphanFiles =
+    Set<String> orphanFiles =
         findOrphanFiles(spark(), actualFileIdentDS, validFileIdentDS, prefixMismatchMode);
 
     if (deleteFunc == null && table.io() instanceof SupportsBulkOperations) {
@@ -300,8 +301,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   private Dataset<String> listedFileDS() {
-    List<String> subDirs = Lists.newArrayList();
-    List<String> matchingFiles = Lists.newArrayList();
+    PatriciaTrie<String> subDirs = new PatriciaTrie<>();
+    PatriciaTrie<String> matchingFiles = new PatriciaTrie<>();
 
     Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
     PathFilter pathFilter = PartitionAwareHiddenPathFilter.forSpecs(table.specs());
@@ -318,14 +319,16 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         pathFilter,
         matchingFiles);
 
-    JavaRDD<String> matchingFileRDD = sparkContext().parallelize(matchingFiles, 1);
+    JavaRDD<String> matchingFileRDD =
+        sparkContext().parallelize(Lists.newArrayList(matchingFiles.keySet()), 1);
 
     if (subDirs.isEmpty()) {
       return spark().createDataset(matchingFileRDD.rdd(), Encoders.STRING());
     }
 
     int parallelism = Math.min(subDirs.size(), listingParallelism);
-    JavaRDD<String> subDirRDD = sparkContext().parallelize(subDirs, parallelism);
+    JavaRDD<String> subDirRDD =
+        sparkContext().parallelize(Lists.newArrayList(subDirs.keySet()), parallelism);
 
     Broadcast<SerializableConfiguration> conf = sparkContext().broadcast(hadoopConf);
     ListDirsRecursively listDirs = new ListDirsRecursively(conf, olderThanTimestamp, pathFilter);
@@ -341,13 +344,13 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
       Configuration conf,
       int maxDepth,
       int maxDirectSubDirs,
-      List<String> remainingSubDirs,
+      PatriciaTrie<String> remainingSubDirs,
       PathFilter pathFilter,
-      List<String> matchingFiles) {
+      PatriciaTrie<String> matchingFiles) {
 
     // stop listing whenever we reach the max depth
     if (maxDepth <= 0) {
-      remainingSubDirs.add(dir);
+      remainingSubDirs.put(dir, null);
       return;
     }
 
@@ -361,13 +364,13 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
         if (file.isDirectory()) {
           subDirs.add(file.getPath().toString());
         } else if (file.isFile() && predicate.test(file)) {
-          matchingFiles.add(file.getPath().toString());
+          matchingFiles.put(file.getPath().toString(), null);
         }
       }
 
       // stop listing if the number of direct sub dirs is bigger than maxDirectSubDirs
       if (subDirs.size() > maxDirectSubDirs) {
-        remainingSubDirs.addAll(subDirs);
+        subDirs.forEach(subDir -> remainingSubDirs.put(subDir, null));
         return;
       }
 
@@ -388,7 +391,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
   }
 
   @VisibleForTesting
-  static List<String> findOrphanFiles(
+  static Set<String> findOrphanFiles(
       SparkSession spark,
       Dataset<FileURI> actualFileIdentDS,
       Dataset<FileURI> validFileIdentDS,
@@ -398,13 +401,13 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
     spark.sparkContext().register(conflicts);
 
     Column joinCond = actualFileIdentDS.col("path").equalTo(validFileIdentDS.col("path"));
-
-    List<String> orphanFiles =
+    PatriciaTrie<String> files = new PatriciaTrie<>();
+    Iterator<String> pathsIterator =
         actualFileIdentDS
             .joinWith(validFileIdentDS, joinCond, "leftouter")
             .mapPartitions(new FindOrphanFiles(prefixMismatchMode, conflicts), Encoders.STRING())
-            .collectAsList();
-
+            .toLocalIterator();
+    pathsIterator.forEachRemaining(path -> files.put(path, null));
     if (prefixMismatchMode == PrefixMismatchMode.ERROR && !conflicts.value().isEmpty()) {
       throw new ValidationException(
           "Unable to determine whether certain files are orphan. "
@@ -418,7 +421,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
           conflicts.value());
     }
 
-    return orphanFiles;
+    return files.keySet();
   }
 
   private static Map<String, String> flattenMap(Map<String, String> map) {
@@ -452,9 +455,8 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
 
     @Override
     public Iterator<String> call(Iterator<String> dirs) throws Exception {
-      List<String> subDirs = Lists.newArrayList();
-      List<String> files = Lists.newArrayList();
-
+      PatriciaTrie<String> subDirs = new PatriciaTrie<>();
+      PatriciaTrie<String> files = new PatriciaTrie<>();
       Predicate<FileStatus> predicate = file -> file.getModificationTime() < olderThanTimestamp;
 
       while (dirs.hasNext()) {
@@ -474,7 +476,7 @@ public class DeleteOrphanFilesSparkAction extends BaseSparkAction<DeleteOrphanFi
             "Could not list sub directories, reached maximum depth: " + MAX_EXECUTOR_LISTING_DEPTH);
       }
 
-      return files.iterator();
+      return files.keySet().iterator();
     }
   }
 
