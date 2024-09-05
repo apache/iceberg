@@ -198,9 +198,17 @@ public class SparkParquetReaders {
         Types.ListType expectedList, GroupType array, ParquetValueReader<?> elementReader) {
       String[] repeatedPath = currentPath();
 
-      int repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
-      int repeatedR = type.getMaxRepetitionLevel(repeatedPath) - 1;
+      int repeatedD;
+      int repeatedR;
 
+      if (type.isRepetition(Type.Repetition.REPEATED)) {
+        repeatedD = type.getMaxDefinitionLevel(repeatedPath);
+        repeatedR = type.getMaxRepetitionLevel(repeatedPath);
+      } else {
+        repeatedD = type.getMaxDefinitionLevel(repeatedPath) - 1;
+        repeatedR = type.getMaxRepetitionLevel(repeatedPath) - 1;
+      }
+      
       Type elementType = ParquetSchemaUtil.determineListElementType(array);
       int elementD = type.getMaxDefinitionLevel(path(elementType.getName())) - 1;
 
