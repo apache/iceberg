@@ -178,6 +178,15 @@ public interface ManifestFile {
   Long deletedRowsCount();
 
   /**
+   * Returns true if there are any added or existing files
+   *
+   * @return whether this manifest contains entries with ADDED and/or EXISTING
+   */
+  default boolean hasLiveFiles() {
+    return this.hasAddedFiles() || this.hasExistingFiles();
+  }
+
+  /**
    * Returns a list of {@link PartitionFieldSummary partition field summaries}.
    *
    * <p>Each summary corresponds to a field in the manifest file's partition spec, by ordinal. For
