@@ -312,6 +312,10 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 | `location`    |    | string    | Directory to look for files in (defaults to the table's location) |
 | `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false) |
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
+| `file_list_view` |    | string | Dataset to look for files in (skipping the directory listing) |
+| `equal_schemes` |    | map<string, string> | Mapping of file system schemes to be considered equal (defaults to `map('s3a,s3n','s3')`). Key can be a comma-separated list. |
+| `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key can be a comma-separated list. |
+| `prefix_mismatch_mode` |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul> |  
 
 #### Output
 
@@ -329,6 +333,40 @@ CALL catalog_name.system.remove_orphan_files(table => 'db.sample', dry_run => tr
 Remove any files in the `tablelocation/data` folder which are not known to the table `db.sample`.
 ```sql
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location => 'tablelocation/data');
+```
+
+Remove any files in the `files_view` view which are not known to the table `db.sample`.
+```java
+Dataset<Row> compareToFileList =
+    spark
+        .createDataFrame(allFiles, FilePathLastModifiedRecord.class)
+        .withColumnRenamed("filePath", "file_path")
+        .withColumnRenamed("lastModified", "last_modified");
+String fileListViewName = "files_view";
+compareToFileList.createOrReplaceTempView(fileListViewName);
+```
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', file_list_view => 'files_view');
+```
+
+When a file matches references in metadata files except for location prefix (scheme/authority), an error is thrown by default. 
+The error can be ignored and the file will be skipped by setting `prefix_mismatch_mode` to `IGNORE`.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_mismatch_mode => 'IGNORE');
+```
+
+The file can still be deleted by setting `prefix_mismatch_mode` to `DELETE`.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_mismatch_mode => 'DELETE');
+```
+
+The file can also be deleted by considering the mismatched prefixes equal.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_schemes => map('file', 'file1'));
+```
+
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_authorities => map('ns1', 'ns2'));
 ```
 
 ### `rewrite_data_files`
