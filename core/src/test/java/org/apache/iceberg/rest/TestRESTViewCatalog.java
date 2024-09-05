@@ -204,7 +204,16 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_VIEWS),
-            eq(ImmutableMap.of("pageToken", "", "pageSize", "10", "namespace", namespaceName)),
+            eq(
+                ImmutableMap.of(
+                    "pageToken",
+                    "",
+                    "pageSize",
+                    "10",
+                    "namespace",
+                    namespaceName,
+                    "separator",
+                    "%2E")),
             any(),
             eq(ListTablesResponse.class));
 
@@ -212,7 +221,16 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_VIEWS),
-            eq(ImmutableMap.of("pageToken", "10", "pageSize", "10", "namespace", namespaceName)),
+            eq(
+                ImmutableMap.of(
+                    "pageToken",
+                    "10",
+                    "pageSize",
+                    "10",
+                    "namespace",
+                    namespaceName,
+                    "separator",
+                    "%2E")),
             any(),
             eq(ListTablesResponse.class));
 
@@ -220,7 +238,16 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_VIEWS),
-            eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "namespace", namespaceName)),
+            eq(
+                ImmutableMap.of(
+                    "pageToken",
+                    "20",
+                    "pageSize",
+                    "10",
+                    "namespace",
+                    namespaceName,
+                    "separator",
+                    "%2E")),
             any(),
             eq(ListTablesResponse.class));
   }

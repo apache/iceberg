@@ -79,6 +79,7 @@ import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
@@ -994,7 +995,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .execute(
             eq(HTTPMethod.GET),
             eq(paths.table(TABLE)),
-            eq(ImmutableMap.of("snapshots", "refs")),
+            eq(ImmutableMap.of("snapshots", "refs", "separator", "%2E")),
             any(),
             eq(LoadTableResponse.class),
             any(),
@@ -1006,7 +1007,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .execute(
             eq(HTTPMethod.GET),
             eq(paths.table(TABLE)),
-            eq(ImmutableMap.of("snapshots", "all")),
+            eq(ImmutableMap.of("snapshots", "all", "separator", "%2E")),
             any(),
             eq(LoadTableResponse.class),
             any(),
@@ -1120,7 +1121,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .execute(
             eq(HTTPMethod.GET),
             eq(paths.table(TABLE)),
-            eq(ImmutableMap.of("snapshots", "refs")),
+            eq(ImmutableMap.of("snapshots", "refs", "separator", "%2E")),
             any(),
             eq(LoadTableResponse.class),
             any(),
@@ -1133,7 +1134,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .execute(
             eq(HTTPMethod.GET),
             eq(paths.table(TABLE)),
-            eq(ImmutableMap.of("snapshots", "all")),
+            eq(ImmutableMap.of("snapshots", "all", "separator", "%2E")),
             any(),
             eq(LoadTableResponse.class),
             any(),
@@ -2382,7 +2383,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
-            eq(ImmutableMap.of("pageToken", "", "pageSize", "10")),
+            eq(ImmutableMap.of("pageToken", "", "pageSize", "10", "separator", "%2E")),
             any(),
             eq(ListNamespacesResponse.class));
 
@@ -2390,7 +2391,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
-            eq(ImmutableMap.of("pageToken", "10", "pageSize", "10")),
+            eq(ImmutableMap.of("pageToken", "10", "pageSize", "10", "separator", "%2E")),
             any(),
             eq(ListNamespacesResponse.class));
 
@@ -2398,7 +2399,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_NAMESPACES),
-            eq(ImmutableMap.of("pageToken", "20", "pageSize", "10")),
+            eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "separator", "%2E")),
             any(),
             eq(ListNamespacesResponse.class));
   }
@@ -2446,7 +2447,16 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
-            eq(ImmutableMap.of("pageToken", "", "pageSize", "10", "namespace", namespaceName)),
+            eq(
+                ImmutableMap.of(
+                    "pageToken",
+                    "",
+                    "pageSize",
+                    "10",
+                    "namespace",
+                    namespaceName,
+                    "separator",
+                    "%2E")),
             any(),
             eq(ListTablesResponse.class));
 
@@ -2454,7 +2464,16 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
-            eq(ImmutableMap.of("pageToken", "10", "pageSize", "10", "namespace", namespaceName)),
+            eq(
+                ImmutableMap.of(
+                    "pageToken",
+                    "10",
+                    "pageSize",
+                    "10",
+                    "namespace",
+                    namespaceName,
+                    "separator",
+                    "%2E")),
             any(),
             eq(ListTablesResponse.class));
 
@@ -2462,7 +2481,16 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     Mockito.verify(adapter)
         .handleRequest(
             eq(RESTCatalogAdapter.Route.LIST_TABLES),
-            eq(ImmutableMap.of("pageToken", "20", "pageSize", "10", "namespace", namespaceName)),
+            eq(
+                ImmutableMap.of(
+                    "pageToken",
+                    "20",
+                    "pageSize",
+                    "10",
+                    "namespace",
+                    namespaceName,
+                    "separator",
+                    "%2E")),
             any(),
             eq(ListTablesResponse.class));
   }
@@ -2488,11 +2516,17 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
     Mockito.doThrow(new NotAuthorizedException("not authorized"))
         .when(adapter)
-        .post(any(), any(), any(), any(Map.class), any());
+        .post(any(), any(), any(Map.class), any(), any(Map.class), any());
     assertThatThrownBy(() -> catalog.loadTable(TABLE).newFastAppend().appendFile(file).commit())
         .isInstanceOf(NotAuthorizedException.class);
     verify(adapter, atLeastOnce())
-        .post(eq(RESOURCE_PATHS.table(TABLE)), captor.capture(), any(), any(Map.class), any());
+        .post(
+            eq(RESOURCE_PATHS.table(TABLE)),
+            captor.capture(),
+            any(Map.class),
+            any(),
+            any(Map.class),
+            any());
 
     // Extract the UpdateTableRequest to determine the path of the manifest list that should be
     // cleaned up
@@ -2517,11 +2551,17 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
     Mockito.doThrow(new ServiceFailureException("some service failure"))
         .when(adapter)
-        .post(any(), any(), any(), any(Map.class), any());
+        .post(any(), any(), any(Map.class), any(), any(Map.class), any());
     assertThatThrownBy(() -> catalog.loadTable(TABLE).newFastAppend().appendFile(FILE_A).commit())
         .isInstanceOf(ServiceFailureException.class);
     verify(adapter, atLeastOnce())
-        .post(eq(RESOURCE_PATHS.table(TABLE)), captor.capture(), any(), any(Map.class), any());
+        .post(
+            eq(RESOURCE_PATHS.table(TABLE)),
+            captor.capture(),
+            any(Map.class),
+            any(),
+            any(Map.class),
+            any());
 
     // Extract the UpdateTableRequest to determine the path of the manifest list that should still
     // exist even though the commit failed
@@ -2545,14 +2585,26 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
     Mockito.doThrow(new NotAuthorizedException("not authorized"))
         .when(adapter)
-        .post(eq(RESOURCE_PATHS.table(newTable)), any(), any(), any(Map.class), any());
+        .post(
+            eq(RESOURCE_PATHS.table(newTable)),
+            any(),
+            any(Map.class),
+            any(),
+            any(Map.class),
+            any());
 
     Transaction createTableTransaction = catalog.newCreateTableTransaction(newTable, SCHEMA);
     createTableTransaction.newAppend().appendFile(FILE_A).commit();
     assertThatThrownBy(createTableTransaction::commitTransaction)
         .isInstanceOf(NotAuthorizedException.class);
     verify(adapter, atLeastOnce())
-        .post(eq(RESOURCE_PATHS.table(newTable)), captor.capture(), any(), any(Map.class), any());
+        .post(
+            eq(RESOURCE_PATHS.table(newTable)),
+            captor.capture(),
+            any(Map.class),
+            any(),
+            any(Map.class),
+            any());
     UpdateTableRequest request = captor.getValue();
     Optional<MetadataUpdate> appendSnapshot =
         request.updates().stream()
@@ -2583,14 +2635,26 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     TableIdentifier newTable = TableIdentifier.of(TABLE.namespace(), "some_table");
     Mockito.doThrow(new ServiceFailureException("some service failure"))
         .when(adapter)
-        .post(eq(RESOURCE_PATHS.table(newTable)), any(), any(), any(Map.class), any());
+        .post(
+            eq(RESOURCE_PATHS.table(newTable)),
+            any(),
+            any(Map.class),
+            any(),
+            any(Map.class),
+            any());
     ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
     Transaction createTableTransaction = catalog.newCreateTableTransaction(newTable, SCHEMA);
     createTableTransaction.newAppend().appendFile(FILE_A).commit();
     assertThatThrownBy(createTableTransaction::commitTransaction)
         .isInstanceOf(ServiceFailureException.class);
     verify(adapter, atLeastOnce())
-        .post(eq(RESOURCE_PATHS.table(newTable)), captor.capture(), any(), any(Map.class), any());
+        .post(
+            eq(RESOURCE_PATHS.table(newTable)),
+            captor.capture(),
+            any(Map.class),
+            any(),
+            any(Map.class),
+            any());
     UpdateTableRequest request = captor.getValue();
     Optional<MetadataUpdate> appendSnapshot =
         request.updates().stream()
@@ -2621,14 +2685,20 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
     Mockito.doThrow(new NotAuthorizedException("not authorized"))
         .when(adapter)
-        .post(eq(RESOURCE_PATHS.table(TABLE)), any(), any(), any(Map.class), any());
+        .post(eq(RESOURCE_PATHS.table(TABLE)), any(), any(Map.class), any(), any(Map.class), any());
 
     Transaction replaceTableTransaction = catalog.newReplaceTableTransaction(TABLE, SCHEMA, false);
     replaceTableTransaction.newAppend().appendFile(FILE_A).commit();
     assertThatThrownBy(replaceTableTransaction::commitTransaction)
         .isInstanceOf(NotAuthorizedException.class);
     verify(adapter, atLeastOnce())
-        .post(eq(RESOURCE_PATHS.table(TABLE)), captor.capture(), any(), any(Map.class), any());
+        .post(
+            eq(RESOURCE_PATHS.table(TABLE)),
+            captor.capture(),
+            any(Map.class),
+            any(),
+            any(Map.class),
+            any());
     UpdateTableRequest request = captor.getValue();
     Optional<MetadataUpdate> appendSnapshot =
         request.updates().stream()
@@ -2658,14 +2728,20 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     catalog.createTable(TABLE, SCHEMA);
     Mockito.doThrow(new ServiceFailureException("some service failure"))
         .when(adapter)
-        .post(eq(RESOURCE_PATHS.table(TABLE)), any(), any(), any(Map.class), any());
+        .post(eq(RESOURCE_PATHS.table(TABLE)), any(), any(Map.class), any(), any(Map.class), any());
     ArgumentCaptor<UpdateTableRequest> captor = ArgumentCaptor.forClass(UpdateTableRequest.class);
     Transaction replaceTableTransaction = catalog.newReplaceTableTransaction(TABLE, SCHEMA, false);
     replaceTableTransaction.newAppend().appendFile(FILE_A).commit();
     assertThatThrownBy(replaceTableTransaction::commitTransaction)
         .isInstanceOf(ServiceFailureException.class);
     verify(adapter, atLeastOnce())
-        .post(eq(RESOURCE_PATHS.table(TABLE)), captor.capture(), any(), any(Map.class), any());
+        .post(
+            eq(RESOURCE_PATHS.table(TABLE)),
+            captor.capture(),
+            any(Map.class),
+            any(),
+            any(Map.class),
+            any());
     UpdateTableRequest request = captor.getValue();
     Optional<MetadataUpdate> appendSnapshot =
         request.updates().stream()
@@ -2681,6 +2757,111 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 .newInputFile(addSnapshot.snapshot().manifestListLocation())
                 .exists())
         .isTrue();
+  }
+
+  @Test
+  public void clientControlledNamespaceSeparator() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    String namespaceSeparator = "##";
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            CatalogProperties.URI,
+            "ignored",
+            RESTSessionCatalog.NAMESPACE_SEPARATOR,
+            namespaceSeparator));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.loadNamespaceMetadata(NS);
+
+    ResourcePaths paths =
+        ResourcePaths.forCatalogProperties(
+            ImmutableMap.of(RESTSessionCatalog.NAMESPACE_SEPARATOR, namespaceSeparator));
+
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq("v1/config"),
+            any(),
+            any(),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+
+    Mockito.verify(adapter, times(1))
+        .execute(
+            eq(HTTPMethod.POST),
+            eq("v1/namespaces"),
+            any(),
+            any(),
+            eq(CreateNamespaceResponse.class),
+            any(),
+            any());
+
+    verify(adapter, times(1))
+        .execute(
+            eq(HTTPMethod.GET),
+            eq(paths.namespace(NS)),
+            eq(ImmutableMap.of("separator", namespaceSeparator)),
+            any(),
+            eq(GetNamespaceResponse.class),
+            any(),
+            any());
+  }
+
+  @Test
+  public void serverControlledNamespaceSeparator() {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    // set by RESTCatalogAdapter as the default separator
+    String namespaceSeparator = "%2E";
+
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize("test", ImmutableMap.of(CatalogProperties.URI, "ignored"));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+
+    catalog.loadNamespaceMetadata(NS);
+
+    ResourcePaths paths = ResourcePaths.forCatalogProperties(ImmutableMap.of());
+
+    Mockito.verify(adapter)
+        .execute(
+            eq(HTTPMethod.GET),
+            eq("v1/config"),
+            any(),
+            any(),
+            eq(ConfigResponse.class),
+            any(),
+            any());
+
+    Mockito.verify(adapter, times(1))
+        .execute(
+            eq(HTTPMethod.POST),
+            eq("v1/namespaces"),
+            any(),
+            any(),
+            eq(CreateNamespaceResponse.class),
+            any(),
+            any());
+
+    verify(adapter, times(1))
+        .execute(
+            eq(HTTPMethod.GET),
+            eq(paths.namespace(NS)),
+            eq(ImmutableMap.of("separator", namespaceSeparator)),
+            any(),
+            eq(GetNamespaceResponse.class),
+            any(),
+            any());
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {

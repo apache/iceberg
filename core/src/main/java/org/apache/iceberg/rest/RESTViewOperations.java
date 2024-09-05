@@ -31,14 +31,20 @@ import org.apache.iceberg.view.ViewOperations;
 class RESTViewOperations implements ViewOperations {
   private final RESTClient client;
   private final String path;
+  private final Map<String, String> queryParams;
   private final Supplier<Map<String, String>> headers;
   private ViewMetadata current;
 
   RESTViewOperations(
-      RESTClient client, String path, Supplier<Map<String, String>> headers, ViewMetadata current) {
+      RESTClient client,
+      String path,
+      Map<String, String> queryParams,
+      Supplier<Map<String, String>> headers,
+      ViewMetadata current) {
     Preconditions.checkArgument(null != current, "Invalid view metadata: null");
     this.client = client;
     this.path = path;
+    this.queryParams = queryParams;
     this.headers = headers;
     this.current = current;
   }
@@ -65,7 +71,12 @@ class RESTViewOperations implements ViewOperations {
 
     LoadViewResponse response =
         client.post(
-            path, request, LoadViewResponse.class, headers, ErrorHandlers.viewCommitHandler());
+            path,
+            request,
+            queryParams,
+            LoadViewResponse.class,
+            headers,
+            ErrorHandlers.viewCommitHandler());
 
     updateCurrentMetadata(response);
   }
