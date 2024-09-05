@@ -344,9 +344,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
         () -> {
           checkColStatisticsReported(scan1, 4, Map.of("id", 4L));
           checkColStatisticsReported(scan2, 5, Map.of("id", 5L));
-
-          Statistics statistics = scan3.estimateStatistics();
-          assertThat(statistics.columnStats()).isEmpty();
+          checkColStatisticsNotReported(scan3, 6L);
         });
   }
 
