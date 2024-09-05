@@ -549,6 +549,34 @@ public class ParquetMetricsRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean endsWith(BoundReference<T> ref, Literal<T> lit) {
+      // because we cannot use a min or max value to determine
+      // if it ends with a certain value.
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEndsWith(BoundReference<T> ref, Literal<T> lit) {
+      // because we cannot use a min or max value to determine
+      // if it not ends with a certain value.
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean contains(BoundReference<T> ref, Literal<T> lit) {
+      // because we cannot use a min or max value to determine
+      // if it contains a certain value.
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notContains(BoundReference<T> ref, Literal<T> lit) {
+      // because we cannot use a min or max value to determine
+      // if it not contains with a certain value.
+      return ROWS_MIGHT_MATCH;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> T min(Statistics<?> statistics, int id) {
       return (T) conversions.get(id).apply(statistics.genericGetMin());
