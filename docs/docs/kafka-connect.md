@@ -21,7 +21,7 @@ title: "Kafka Connect"
 # Kafka Connect
 
 [Kafka Connect](https://docs.confluent.io/platform/current/connect/index.html) is a popular framework for moving data
-in and out of Kafka via connectors. There are many different different connectors available, such as the S3 sink
+in and out of Kafka via connectors. There are many different connectors available, such as the S3 sink
 for writing data from Kafka to S3 and Debezium source connectors for writing change data capture records from relational
 databases to Kafka.
 
