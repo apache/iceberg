@@ -99,6 +99,11 @@ public interface ExpireSnapshots extends Action<ExpireSnapshots, ExpireSnapshots
 
   /** The action result that contains a summary of the execution. */
   interface Result {
+    /** Return the number of deleted snapshots. */
+    default long deletedSnapshotsCount() {
+      return 0L;
+    }
+
     /** Returns the number of deleted data files. */
     long deletedDataFilesCount();
 
