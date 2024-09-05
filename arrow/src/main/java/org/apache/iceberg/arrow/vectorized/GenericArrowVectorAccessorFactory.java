@@ -178,6 +178,7 @@ public class GenericArrowVectorAccessorFactory<
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> getPlainVectorAccessor(
       FieldVector vector, PrimitiveType primitive) {
+    Preconditions.checkArgument(null != vector, "Invalid field vector: null");
     if (vector instanceof BitVector) {
       return new BooleanAccessor<>((BitVector) vector);
     } else if (vector instanceof IntVector) {
@@ -224,8 +225,7 @@ public class GenericArrowVectorAccessorFactory<
     } else if (vector instanceof NullVector) {
       return new NullAccessor<>((NullVector) vector);
     }
-    String vectorName = (vector == null) ? "null" : vector.getClass().toString();
-    throw new UnsupportedOperationException("Unsupported vector: " + vectorName);
+    throw new UnsupportedOperationException("Unsupported vector: " + vector.getClass());
   }
 
   private static boolean isDecimal(PrimitiveType primitive) {
@@ -252,11 +252,8 @@ public class GenericArrowVectorAccessorFactory<
           DecimalT, Utf8StringT, ArrayT, ChildVectorT extends AutoCloseable>
       extends ArrowVectorAccessor<DecimalT, Utf8StringT, ArrayT, ChildVectorT> {
 
-    private final NullVector vector;
-
     NullAccessor(NullVector vector) {
       super(vector);
-      this.vector = vector;
     }
   }
 

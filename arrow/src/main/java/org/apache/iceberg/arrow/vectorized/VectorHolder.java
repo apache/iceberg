@@ -19,6 +19,7 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.NullVector;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
@@ -131,20 +132,6 @@ public class VectorHolder {
     return vector == null;
   }
 
-  public static class NullVectorHolder extends VectorHolder {
-    private final int numRows;
-
-    public NullVectorHolder(FieldVector vec, Types.NestedField field, int numRows) {
-      super(vec, field, new NullabilityHolder(numRows));
-      this.numRows = numRows;
-    }
-
-    @Override
-    public int numValues() {
-      return this.numRows;
-    }
-  }
-
   /**
    * A Vector Holder which does not actually produce values, consumers of this class should use the
    * constantValue to populate their ColumnVector implementation.
@@ -152,16 +139,19 @@ public class VectorHolder {
   public static class ConstantVectorHolder<T> extends VectorHolder {
     private final T constantValue;
     private final int numRows;
+    private final FieldVector vector;
 
     public ConstantVectorHolder(int numRows) {
       this.numRows = numRows;
       this.constantValue = null;
+      this.vector = new NullVector("_dummy_", numRows);
     }
 
     public ConstantVectorHolder(Types.NestedField icebergField, int numRows, T constantValue) {
       super(icebergField);
       this.numRows = numRows;
       this.constantValue = constantValue;
+      this.vector = new NullVector(icebergField.name(), numRows);
     }
 
     @Override
@@ -171,6 +161,11 @@ public class VectorHolder {
 
     public Object getConstant() {
       return constantValue;
+    }
+
+    @Override
+    public FieldVector vector() {
+      return vector;
     }
   }
 

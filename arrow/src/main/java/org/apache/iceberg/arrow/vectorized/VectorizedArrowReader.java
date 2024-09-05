@@ -30,7 +30,6 @@ import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.NullVector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
@@ -452,6 +451,14 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     return columnDescriptor.toString();
   }
 
+  public static VectorizedArrowReader nulls() {
+    return NullVectorReader.INSTANCE;
+  }
+
+  public static VectorizedArrowReader nulls(Types.NestedField icebergField) {
+    return new NullVectorReader(icebergField);
+  }
+
   public static VectorizedArrowReader positions() {
     return new PositionVectorReader(false);
   }
@@ -460,16 +467,16 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     return new PositionVectorReader(true);
   }
 
-  public static final class NullVectorReader extends VectorizedArrowReader {
+  private static final class NullVectorReader extends VectorizedArrowReader {
+    private static final NullVectorReader INSTANCE = new NullVectorReader(null);
 
-    public NullVectorReader(Types.NestedField icebergField) {
+    private NullVectorReader(Types.NestedField icebergField) {
       super(icebergField);
     }
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      NullVector vector = new NullVector(icebergField().name(), numValsToRead);
-      return new VectorHolder.NullVectorHolder(vector, icebergField(), numValsToRead);
+      return new VectorHolder.ConstantVectorHolder<>(icebergField(), numValsToRead, null);
     }
 
     @Override
