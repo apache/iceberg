@@ -221,7 +221,7 @@ public class ErrorHandlers {
           throw new ServiceUnavailableException("Service unavailable: %s", error.message());
       }
 
-      throw new RESTException("Unable to process: %s", error.message());
+      throw new RESTException("Unable to process: %s", error.toString(false));
     }
   }
 
