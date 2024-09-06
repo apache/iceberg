@@ -43,8 +43,18 @@ public interface ContentFile<F> {
    */
   FileContent content();
 
-  /** Returns fully qualified path to the file, suitable for constructing a Hadoop Path. */
+  /**
+   * Returns fully qualified path to the file, suitable for constructing a Hadoop Path.
+   *
+   * @deprecated since 1.7.0, will be removed in 2.0.0 Use {@link #location()} instead.
+   */
+  @Deprecated
   CharSequence path();
+
+  /** Return the fully qualified path to the file, suitable for constructing a Hadoop Path */
+  default String location() {
+    return path().toString();
+  }
 
   /** Returns format of the file. */
   FileFormat format();
