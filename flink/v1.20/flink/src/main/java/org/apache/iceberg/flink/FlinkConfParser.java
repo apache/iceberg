@@ -53,6 +53,10 @@ class FlinkConfParser {
     return new LongConfParser();
   }
 
+  public DoubleConfParser doubleConf() {
+    return new DoubleConfParser();
+  }
+
   public <E extends Enum<E>> EnumConfParser<E> enumConfParser(Class<E> enumClass) {
     return new EnumConfParser<>(enumClass);
   }
@@ -132,6 +136,29 @@ class FlinkConfParser {
 
     public Long parseOptional() {
       return parse(Long::parseLong, null);
+    }
+  }
+
+  class DoubleConfParser extends ConfParser<DoubleConfParser, Double> {
+    private Double defaultValue;
+
+    @Override
+    protected DoubleConfParser self() {
+      return this;
+    }
+
+    public DoubleConfParser defaultValue(double value) {
+      this.defaultValue = value;
+      return self();
+    }
+
+    public double parse() {
+      Preconditions.checkArgument(defaultValue != null, "Default value cannot be null");
+      return parse(Double::parseDouble, defaultValue);
+    }
+
+    public Double parseOptional() {
+      return parse(Double::parseDouble, null);
     }
   }
 

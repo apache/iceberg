@@ -385,6 +385,18 @@ public class TestS3FileIO {
   }
 
   @Test
+  public void testResolvingFileIOLoadWithoutConf() {
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.initialize(ImmutableMap.of());
+    FileIO result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingFileIO)
+            .invoke("s3://foo/bar");
+    assertThat(result).isInstanceOf(S3FileIO.class);
+  }
+
+  @Test
   public void testInputFileWithDataFile() throws IOException {
     String location = "s3://bucket/path/to/data-file.parquet";
     DataFile dataFile =

@@ -939,6 +939,28 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
+  @Test
+  public void testAddFilesWithParallelism() {
+    createUnpartitionedHiveTable();
+
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
+
+    sql(createIceberg, tableName);
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files(table => '%s', source_table => '%s', parallelism => 2)",
+            catalogName, tableName, sourceTableName);
+
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT * FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
   private static final List<Object[]> EMPTY_QUERY_RESULT = Lists.newArrayList();
 
   private static final StructField[] STRUCT = {

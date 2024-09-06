@@ -248,20 +248,12 @@ public class TestIcebergConnector extends TestBase {
   public void testCatalogDatabaseConflictWithFlinkDatabase() {
     sql("CREATE DATABASE IF NOT EXISTS `%s`", databaseName());
     sql("USE `%s`", databaseName());
-
-    try {
-      testCreateConnectorTable();
-      // Ensure that the table was created under the specific database.
-      assertThatThrownBy(
-              () -> sql("CREATE TABLE `default_catalog`.`%s`.`%s`", databaseName(), TABLE_NAME))
-          .isInstanceOf(org.apache.flink.table.api.TableException.class)
-          .hasMessageStartingWith("Could not execute CreateTable in path");
-    } finally {
-      sql("DROP TABLE IF EXISTS `%s`.`%s`", databaseName(), TABLE_NAME);
-      if (!isDefaultDatabaseName()) {
-        sql("DROP DATABASE `%s`", databaseName());
-      }
-    }
+    testCreateConnectorTable();
+    // Ensure that the table was created under the specific database.
+    assertThatThrownBy(
+            () -> sql("CREATE TABLE `default_catalog`.`%s`.`%s`", databaseName(), TABLE_NAME))
+        .isInstanceOf(org.apache.flink.table.api.TableException.class)
+        .hasMessageStartingWith("Could not execute CreateTable in path");
   }
 
   @TestTemplate
@@ -325,10 +317,6 @@ public class TestIcebergConnector extends TestBase {
 
   private String databaseName() {
     return properties.getOrDefault("catalog-database", "default_database");
-  }
-
-  private String toWithClause(Map<String, String> props) {
-    return CatalogTestBase.toWithClause(props);
   }
 
   private String createWarehouse() {
