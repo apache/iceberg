@@ -100,6 +100,38 @@ paths:
 
         Common catalog configuration settings are documented at
         https://iceberg.apache.org/docs/latest/configuration/#catalog-properties
+
+
+        The catalog configuration also holds an optional `endpoints` field that contains information about the endpoints
+        supported by the server. If a server does not send the `endpoints` field, a default set of endpoints is assumed:
+
+          - GET /v1/{prefix}/namespaces
+
+          - POST /v1/{prefix}/namespaces
+
+          - GET /v1/{prefix}/namespaces/{namespace}
+
+          - DELETE /v1/{prefix}/namespaces/{namespace}
+
+          - POST /v1/{prefix}/namespaces/{namespace}/properties
+
+          - GET /v1/{prefix}/namespaces/{namespace}/tables
+
+          - POST /v1/{prefix}/namespaces/{namespace}/tables
+
+          - GET /v1/{prefix}/namespaces/{namespace}/tables/{table}
+
+          - POST /v1/{prefix}/namespaces/{namespace}/tables/{table}
+
+          - DELETE /v1/{prefix}/namespaces/{namespace}/tables/{table}
+
+          - POST /v1/{prefix}/namespaces/{namespace}/register
+
+          - POST /v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics
+
+          - POST /v1/{prefix}/tables/rename
+
+          - POST /v1/{prefix}/transactions/commit
         "
       responses:
         200:
@@ -114,7 +146,14 @@ paths:
                 },
                 "defaults": {
                   "clients": "4"
-                }
+                },
+                "endpoints": [
+                  "GET /v1/{prefix}/namespaces/{namespace}",
+                  "GET /v1/{prefix}/namespaces",
+                  "POST /v1/{prefix}/namespaces",
+                  "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+                  "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+                ]
               }
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
@@ -686,6 +725,8 @@ paths:
         Commits have two parts, requirements and updates. Requirements are assertions that will be validated
         before attempting to make and commit changes. For example, `assert-ref-snapshot-id` will check that a
         named ref's snapshot ID has a certain value.
+        Server implementations are required to fail with a 400 status code
+        if any unknown updates or requirements are received.
 
 
         Updates are changes to make to table metadata. For example, after asserting that the current main ref
@@ -986,7 +1027,8 @@ paths:
           A commit for a single table consists of a table identifier with requirements and updates.
           Requirements are assertions that will be validated before attempting to make and commit changes.
           For example, `assert-ref-snapshot-id` will check that a named ref's snapshot ID has a certain value.
-
+          Server implementations are required to fail with a 400 status code
+          if any unknown updates or requirements are received.
 
           Updates are changes to make to table metadata. For example, after asserting that the current main ref
           is at the expected snapshot, a commit may add a new child snapshot and set the ref to the new
@@ -1580,6 +1622,19 @@ components:
             type: string
           description:
             Properties that should be used as default configuration; applied before client configuration.
+        endpoints:
+          type: array
+          items:
+            type: string
+          description: A list of endpoints that the server supports. The format of each endpoint must be "<HTTP verb> <resource path from OpenAPI REST spec>".
+            The HTTP verb and the resource path must be separated by a space character.
+          example: [
+            "GET /v1/{prefix}/namespaces/{namespace}",
+            "GET /v1/{prefix}/namespaces",
+            "POST /v1/{prefix}/namespaces",
+            "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+            "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+          ]
 
     CreateNamespaceRequest:
       type: object
@@ -2265,6 +2320,7 @@ components:
           remove-statistics: '#/components/schemas/RemoveStatisticsUpdate'
           set-partition-statistics: '#/components/schemas/SetPartitionStatisticsUpdate'
           remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
+          remove-partition-specs: '#/components/schemas/RemovePartitionSpecsUpdate'
       type: object
       required:
         - action
@@ -2567,6 +2623,20 @@ components:
           type: integer
           format: int64
 
+    RemovePartitionSpecsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - spec-ids
+      properties:
+        action:
+          type: string
+          enum: [ "remove-partition-specs" ]
+        spec-ids:
+          type: array
+          items:
+            type: integer
+
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -2586,6 +2656,7 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
+        - $ref: '#/components/schemas/RemovePartitionSpecsUpdate'
 
     ViewUpdate:
       anyOf:

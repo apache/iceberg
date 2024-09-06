@@ -21,8 +21,10 @@ package org.apache.iceberg.io;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogUtil;
@@ -141,7 +143,7 @@ public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
   @Override
   public void serializeConfWith(
       Function<Configuration, SerializableSupplier<Configuration>> confSerializer) {
-    this.hadoopConf = confSerializer.apply(hadoopConf.get());
+    this.hadoopConf = confSerializer.apply(getConf());
   }
 
   @Override
@@ -151,7 +153,7 @@ public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
 
   @Override
   public Configuration getConf() {
-    return hadoopConf.get();
+    return Optional.ofNullable(hadoopConf).map(Supplier::get).orElse(null);
   }
 
   @VisibleForTesting
@@ -163,7 +165,7 @@ public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
         synchronized (io) {
           if (((HadoopConfigurable) io).getConf() == null) {
             // re-apply the config in case it's null after Kryo serialization
-            ((HadoopConfigurable) io).setConf(hadoopConf.get());
+            ((HadoopConfigurable) io).setConf(getConf());
           }
         }
       }
@@ -174,7 +176,7 @@ public class ResolvingFileIO implements HadoopConfigurable, DelegateFileIO {
     return ioInstances.computeIfAbsent(
         impl,
         key -> {
-          Configuration conf = hadoopConf.get();
+          Configuration conf = getConf();
           FileIO fileIO;
 
           try {

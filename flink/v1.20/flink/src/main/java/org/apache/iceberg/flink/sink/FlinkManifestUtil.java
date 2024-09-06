@@ -33,9 +33,14 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class FlinkManifestUtil {
+
+  private static final Logger LOG = LoggerFactory.getLogger(FlinkManifestUtil.class);
   private static final int FORMAT_V2 = 2;
   private static final Long DUMMY_SNAPSHOT_ID = 0L;
 
@@ -128,5 +133,27 @@ class FlinkManifestUtil {
     }
 
     return builder.addReferencedDataFiles(deltaManifests.referencedDataFiles()).build();
+  }
+
+  static void deleteCommittedManifests(
+      Table table, List<ManifestFile> manifests, String newFlinkJobId, long checkpointId) {
+    for (ManifestFile manifest : manifests) {
+      try {
+        table.io().deleteFile(manifest.path());
+      } catch (Exception e) {
+        // The flink manifests cleaning failure shouldn't abort the completed checkpoint.
+        String details =
+            MoreObjects.toStringHelper(FlinkManifestUtil.class)
+                .add("tableName", table.name())
+                .add("flinkJobId", newFlinkJobId)
+                .add("checkpointId", checkpointId)
+                .add("manifestPath", manifest.path())
+                .toString();
+        LOG.warn(
+            "The iceberg transaction has been committed, but we failed to clean the temporary flink manifests: {}",
+            details,
+            e);
+      }
+    }
   }
 }

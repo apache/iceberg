@@ -48,14 +48,20 @@ import org.apache.iceberg.flink.TestBase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
+/**
+ * There is a infinite sleep in the test. Add a timeout to the test to avoid stuck situation in case
+ * anything goes wrong unexpectedly.
+ */
+@Timeout(value = 60)
 public class TestIcebergSpeculativeExecutionSupport extends TestBase {
   private static final int NUM_TASK_MANAGERS = 1;
   private static final int NUM_TASK_SLOTS = 3;
 
   @RegisterExtension
-  public static MiniClusterExtension miniClusterResource =
+  public static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
       new MiniClusterExtension(
           new MiniClusterResourceConfiguration.Builder()
               .setNumberTaskManagers(NUM_TASK_MANAGERS)
@@ -103,7 +109,7 @@ public class TestIcebergSpeculativeExecutionSupport extends TestBase {
   public void after() {
     sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, INPUT_TABLE_NAME);
     sql("DROP TABLE IF EXISTS %s.%s", DATABASE_NAME, OUTPUT_TABLE_NAME);
-    sql("DROP DATABASE %s", DATABASE_NAME);
+    dropDatabase(DATABASE_NAME, true);
     dropCatalog(CATALOG_NAME, true);
   }
 
@@ -144,9 +150,9 @@ public class TestIcebergSpeculativeExecutionSupport extends TestBase {
   private static class TestingMap extends RichMapFunction<Row, Row> {
     @Override
     public Row map(Row row) throws Exception {
-      // Put the subtasks with the first attempt to sleep to trigger speculative
-      // execution
-      if (getRuntimeContext().getAttemptNumber() <= 0) {
+      // Simulate slow subtask 0 with attempt 0
+      if (getRuntimeContext().getIndexOfThisSubtask() == 0
+          && getRuntimeContext().getAttemptNumber() <= 0) {
         Thread.sleep(Integer.MAX_VALUE);
       }
 
@@ -169,6 +175,7 @@ public class TestIcebergSpeculativeExecutionSupport extends TestBase {
 
     // Use FLIP-27 source
     configuration.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE, true);
+    configuration.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
 
     // for speculative execution
     configuration.set(BatchExecutionOptions.SPECULATIVE_ENABLED, true);

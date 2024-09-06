@@ -819,7 +819,7 @@ that provide additional information about the changes being tracked. These colum
 Here is an example of corresponding results. It shows that the first snapshot inserted 2 records, and the
 second snapshot deleted 1 record. 
 
-|  id	| name	  |_change_type |	_change_ordinal	| _change_snapshot_id |
+|  id	| name	  |_change_type |	_change_ordinal	| _commit_snapshot_id |
 |---|--------|---|---|---|
 |1	| Alice	 |INSERT	|0	|5390529835796506035|
 |2	| Bob	   |INSERT	|0	|5390529835796506035|
@@ -839,7 +839,7 @@ CALL spark_catalog.system.create_changelog_view(
 
 With the net changes, the above changelog view only contains the following row since Alice was inserted in the first snapshot and deleted in the second snapshot.
 
-|  id	| name	  |_change_type |	_change_ordinal	| _change_snapshot_id |
+|  id	| name	  |_change_type |	_change_ordinal	| _commit_snapshot_id |
 |---|--------|---|---|---|
 |2	| Bob	   |INSERT	|0	|5390529835796506035|
 
