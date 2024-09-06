@@ -313,8 +313,8 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 | `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false) |
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
 | `file_list_view` |    | string | Dataset to look for files in (skipping the directory listing) |
-| `equal_schemes` |    | map<string, string> | Mapping of file system schemes to be considered equal (defaults to `map('s3a,s3n','s3')`). Key can be a comma-separated list. |
-| `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key can be a comma-separated list. |
+| `equal_schemes` |    | map<string, string> | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme (defaults to `map('s3a,s3n','s3')`). |
+| `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority. |
 | `prefix_mismatch_mode` |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul> |  
 
 #### Output
