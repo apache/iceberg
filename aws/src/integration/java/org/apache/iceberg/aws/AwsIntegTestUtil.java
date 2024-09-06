@@ -95,6 +95,17 @@ public class AwsIntegTestUtil {
     return System.getenv("AWS_TEST_ACCOUNT_ID");
   }
 
+  /**
+   * Set the environment variable AWS_TEST_MULTI_REGION_ACCESS_POINT_ALIAS for a default account to
+   * use for testing. Developers need to create a S3 multi region access point before running
+   * integration tests because creating it takes a few minutes
+   *
+   * @return The alias of S3 multi region access point route to the default S3 bucket
+   */
+  public static String testMultiRegionAccessPointAlias() {
+    return System.getenv("AWS_TEST_MULTI_REGION_ACCESS_POINT_ALIAS");
+  }
+
   public static void cleanS3Bucket(S3Client s3, String bucketName, String prefix) {
     ListObjectVersionsIterable response =
         s3.listObjectVersionsPaginator(

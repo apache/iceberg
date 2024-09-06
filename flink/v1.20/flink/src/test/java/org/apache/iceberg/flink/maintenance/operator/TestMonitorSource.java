@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
-import static org.apache.iceberg.flink.maintenance.operator.FlinkStreamingTestUtils.closeJobClient;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -35,6 +34,7 @@ import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -161,7 +161,12 @@ class TestMonitorSource extends OperatorTestBase {
                 }
 
                 // The first non-empty event should contain the expected value
-                return newEvent.equals(new TableChange(1, 0, size, 0L, 1));
+                return newEvent.equals(
+                    TableChange.builder()
+                        .dataFileCount(1)
+                        .dataFileSizeInBytes(size)
+                        .commitCount(1)
+                        .build());
               });
     } finally {
       closeJobClient(jobClient);
@@ -297,17 +302,17 @@ class TestMonitorSource extends OperatorTestBase {
         new MonitorSource.TableChangeIterator(tableLoader, null, 1);
 
     // For a single maxReadBack we only get a single change
-    assertThat(iterator.next().commitNum()).isEqualTo(1);
+    assertThat(iterator.next().commitCount()).isEqualTo(1);
 
     iterator = new MonitorSource.TableChangeIterator(tableLoader, null, 2);
 
     // Expecting 2 commits/snapshots for maxReadBack=2
-    assertThat(iterator.next().commitNum()).isEqualTo(2);
+    assertThat(iterator.next().commitCount()).isEqualTo(2);
 
     iterator = new MonitorSource.TableChangeIterator(tableLoader, null, Long.MAX_VALUE);
 
     // For maxReadBack Long.MAX_VALUE we get every change
-    assertThat(iterator.next().commitNum()).isEqualTo(3);
+    assertThat(iterator.next().commitCount()).isEqualTo(3);
   }
 
   @Test
@@ -322,7 +327,7 @@ class TestMonitorSource extends OperatorTestBase {
         new MonitorSource.TableChangeIterator(tableLoader, null, Long.MAX_VALUE);
 
     // Read the current snapshot
-    assertThat(iterator.next().commitNum()).isEqualTo(1);
+    assertThat(iterator.next().commitCount()).isEqualTo(1);
 
     // Create a DataOperations.REPLACE snapshot
     Table table = tableLoader.loadTable();
@@ -348,15 +353,19 @@ class TestMonitorSource extends OperatorTestBase {
     List<DeleteFile> deleteFiles =
         Lists.newArrayList(table.currentSnapshot().addedDeleteFiles(table.io()).iterator());
 
-    long dataSize = dataFiles.stream().mapToLong(d -> d.fileSizeInBytes()).sum();
-    long deleteSize = deleteFiles.stream().mapToLong(d -> d.fileSizeInBytes()).sum();
-    boolean hasDelete = table.currentSnapshot().addedDeleteFiles(table.io()).iterator().hasNext();
+    long dataSize = dataFiles.stream().mapToLong(ContentFile::fileSizeInBytes).sum();
+    long deleteRecordCount = deleteFiles.stream().mapToLong(DeleteFile::recordCount).sum();
 
-    return new TableChange(
-        previous.dataFileNum() + dataFiles.size(),
-        previous.deleteFileNum() + deleteFiles.size(),
-        previous.dataFileSize() + dataSize,
-        previous.deleteFileSize() + deleteSize,
-        previous.commitNum() + 1);
+    TableChange newChange = previous.copy();
+    newChange.merge(
+        TableChange.builder()
+            .dataFileCount(dataFiles.size())
+            .dataFileSizeInBytes(dataSize)
+            // Currently we only test with equality deletes
+            .eqDeleteFileCount(deleteFiles.size())
+            .eqDeleteRecordCount(deleteRecordCount)
+            .commitCount(1)
+            .build());
+    return newChange;
   }
 }

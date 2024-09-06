@@ -30,6 +30,7 @@ import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -184,11 +185,21 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         .hasMessage(
             "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
 
-    assertThatThrownBy(
-            () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
+    if (writeDistributionMode.equals(DistributionMode.RANGE.modeName()) && !partitioned) {
+      // validation error thrown from distributeDataStream
+      assertThatThrownBy(
+              () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Invalid write distribution mode: range. Need to define sort order or partition spec.");
+    } else {
+      // validation error thrown from appendWriter
+      assertThatThrownBy(
+              () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
+    }
   }
 
   @TestTemplate
