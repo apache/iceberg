@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
+import com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +45,14 @@ public abstract class CatalogTestBase extends TestBaseWithCatalog {
         SparkCatalogConfig.SPARK.catalogName(),
         SparkCatalogConfig.SPARK.implementation(),
         SparkCatalogConfig.SPARK.properties()
+      },
+      {
+        SparkCatalogConfig.REST.catalogName(),
+        SparkCatalogConfig.REST.implementation(),
+        ImmutableMap.builder()
+            .putAll(SparkCatalogConfig.REST.properties())
+            .put(CatalogProperties.URI, restCatalog.properties().get(CatalogProperties.URI))
+            .build()
       }
     };
   }

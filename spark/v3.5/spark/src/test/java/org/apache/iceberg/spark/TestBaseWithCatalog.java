@@ -18,6 +18,11 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.apache.iceberg.CatalogProperties.CATALOG_IMPL;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_HADOOP;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_REST;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
@@ -25,6 +30,7 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -36,6 +42,10 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
+import org.apache.iceberg.inmemory.InMemoryCatalog;
+import org.apache.iceberg.rest.RCKUtils;
+import org.apache.iceberg.rest.RESTCatalog;
+import org.apache.iceberg.rest.RESTCatalogServer;
 import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -46,6 +56,8 @@ import org.junit.jupiter.api.io.TempDir;
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestBaseWithCatalog extends TestBase {
   protected static File warehouse = null;
+  protected static RESTCatalogServer restServer;
+  protected static RESTCatalog restCatalog;
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
   protected static Object[][] parameters() {
@@ -59,17 +71,46 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   @BeforeAll
-  public static void createWarehouse() throws IOException {
+  public static void createWarehouseAndStartRest() throws IOException {
     TestBaseWithCatalog.warehouse = File.createTempFile("warehouse", null);
     assertThat(warehouse.delete()).isTrue();
+    try {
+      restServer = new RESTCatalogServer();
+      // prevent using already-in-use port when testing
+      System.setProperty("rest.port", String.valueOf(MetaStoreUtils.findFreePort()));
+      System.setProperty(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath());
+      // In-memory sqlite database by default is private to the connection that created it.
+      // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
+      // JdbcCatalog, then different jdbc connections could provide different views of table
+      // status even belonging to the same catalog. Reference:
+      // https://www.sqlite.org/inmemorydb.html
+      System.setProperty(CatalogProperties.CLIENT_POOL_SIZE, "1");
+      restServer.start(false);
+      restCatalog = RCKUtils.initCatalogClient();
+      System.clearProperty("rest.port");
+      System.clearProperty(CatalogProperties.WAREHOUSE_LOCATION);
+      System.clearProperty(CatalogProperties.CLIENT_POOL_SIZE);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @AfterAll
-  public static void dropWarehouse() throws IOException {
+  public static void dropWarehouseAndStopRest() throws IOException {
     if (warehouse != null && warehouse.exists()) {
       Path warehousePath = new Path(warehouse.getAbsolutePath());
       FileSystem fs = warehousePath.getFileSystem(hiveConf);
       assertThat(fs.delete(warehousePath, true)).as("Failed to delete " + warehousePath).isTrue();
+    }
+    try {
+      if (restCatalog != null) {
+        restCatalog.close();
+      }
+      if (restServer != null) {
+        restServer.stop();
+      }
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
   }
 
@@ -91,10 +132,30 @@ public abstract class TestBaseWithCatalog extends TestBase {
 
   @BeforeEach
   public void before() {
-    this.validationCatalog =
-        catalogName.equals("testhadoop")
-            ? new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse)
-            : catalog;
+    if (catalogConfig.containsKey(ICEBERG_CATALOG_TYPE)) {
+      switch (catalogConfig.get(ICEBERG_CATALOG_TYPE)) {
+        case ICEBERG_CATALOG_TYPE_HADOOP:
+          this.validationCatalog =
+              new HadoopCatalog(spark.sessionState().newHadoopConf(), "file:" + warehouse);
+          break;
+        case ICEBERG_CATALOG_TYPE_REST:
+          this.validationCatalog = restCatalog;
+          break;
+        case ICEBERG_CATALOG_TYPE_HIVE:
+          this.validationCatalog = catalog;
+          break;
+        default:
+          throw new IllegalArgumentException("Unknown catalog type");
+      }
+    } else if (catalogConfig.containsKey(CATALOG_IMPL)) {
+      switch (catalogConfig.get(CATALOG_IMPL)) {
+        case "org.apache.iceberg.inmemory.InMemoryCatalog":
+          this.validationCatalog = new InMemoryCatalog();
+          break;
+        default:
+          throw new IllegalArgumentException("Unknown catalog impl");
+      }
+    }
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
 
     spark.conf().set("spark.sql.catalog." + catalogName, implementation);
@@ -103,6 +164,10 @@ public abstract class TestBaseWithCatalog extends TestBase {
 
     if ("hadoop".equalsIgnoreCase(catalogConfig.get("type"))) {
       spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
+    }
+
+    if (!catalogName.equals("spark_catalog")) {
+      spark.conf().set("spark.sql.default.catalog", catalogName);
     }
 
     this.tableName =

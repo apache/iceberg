@@ -29,7 +29,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
-class RCKUtils {
+public class RCKUtils {
   private static final String CATALOG_ENV_PREFIX = "CATALOG_";
   static final String RCK_LOCAL = "rck.local";
   static final String RCK_PURGE_TEST_NAMESPACES = "rck.purge-test-namespaces";
@@ -76,15 +76,17 @@ class RCKUtils {
                 HashMap::new));
   }
 
-  static RESTCatalog initCatalogClient() {
+  public static RESTCatalog initCatalogClient() {
     Map<String, String> catalogProperties = Maps.newHashMap();
     catalogProperties.putAll(RCKUtils.environmentCatalogConfig());
     catalogProperties.putAll(Maps.fromProperties(System.getProperties()));
 
     // Set defaults
+    String port =
+        catalogProperties.getOrDefault(
+            RESTCatalogServer.REST_PORT, String.valueOf(RESTCatalogServer.REST_PORT_DEFAULT));
     catalogProperties.putIfAbsent(
-        CatalogProperties.URI,
-        String.format("http://localhost:%s/", RESTCatalogServer.REST_PORT_DEFAULT));
+        CatalogProperties.URI, String.format("http://localhost:%s/", port));
     catalogProperties.putIfAbsent(CatalogProperties.WAREHOUSE_LOCATION, "rck_warehouse");
 
     RESTCatalog catalog = new RESTCatalog();
