@@ -163,6 +163,11 @@ The 1.6.0 release contains fixes, dependency updates, and new features (like Kaf
 
 For more details, please visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.6.0).
 
+## Schedule
+
+- Regular release cycle is to provide quarterly releases.
+- Patch releases (for blocking issues or CVE for example) can be made at request independently of the release cycle.
+
 ## Past releases
 
 ### 1.5.2 release
