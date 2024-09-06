@@ -24,11 +24,12 @@ activation = "1.1.1"
 aliyun-sdk-oss = "3.10.2"
 antlr = "4.9.3"
 aircompressor = "0.27"
+apiguardian = "1.1.2"
 arrow = "15.0.2"
 avro = "1.12.0"
 assertj-core = "3.26.3"
 awaitility = "4.2.2"
-awssdk-bom = "2.27.2"
+awssdk-bom = "2.27.12"
 azuresdk-bom = "1.2.25"
 awssdk-s3accessgrants = "2.0.0"
 caffeine = "2.9.3"
@@ -37,13 +38,13 @@ datasketches = "6.0.0"
 delta-standalone = "3.2.0"
 delta-spark = "3.2.0"
 esotericsoftware-kryo = "4.0.3"
-errorprone-annotations = "2.30.0"
+errorprone-annotations = "2.31.0"
 findbugs-jsr305 = "3.0.2"
 flink118 =  { strictly = "1.18.1"}
 flink119 =  { strictly = "1.19.0"}
 flink120 = { strictly = "1.20.0"}
 google-libraries-bom = "26.44.0"
-guava = "33.2.1-jre"
+guava = "33.3.0-jre"
 hadoop2 = "2.7.3"
 hadoop3 = "3.3.6"
 httpcomponents-httpclient5 = "5.3.1"
@@ -60,8 +61,9 @@ jakarta-el-api = "3.0.3"
 jakarta-servlet-api = "6.1.0"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
-jetty = "11.0.22"
+jetty = "11.0.23"
 junit = "5.10.1"
+junit-platform = "1.10.3"
 kafka = "3.8.0"
 kryo-shaded = "4.0.3"
 microprofile-openapi-api = "3.1.1"
@@ -83,8 +85,8 @@ spark-hive33 = "3.3.4"
 spark-hive34 = "3.4.3"
 spark-hive35 = "3.5.2"
 spring-boot = "2.7.18"
-spring-web = "5.3.37"
-sqlite-jdbc = "3.46.0.1"
+spring-web = "5.3.39"
+sqlite-jdbc = "3.46.1.0"
 testcontainers = "1.20.1"
 tez010 = "0.10.3"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
@@ -176,6 +178,7 @@ slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 snowflake-jdbc = { module = "net.snowflake:snowflake-jdbc", version.ref = "snowflake-jdbc" }
 
 # test libraries
+apiguardian = { module = "org.apiguardian:apiguardian-api", version.ref = "apiguardian" }
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj-core" }
 awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }
 delta-spark = { module = "io.delta:delta-spark_2.12", version.ref = "delta-spark" }
@@ -202,6 +205,8 @@ jetty-server = { module = "org.eclipse.jetty:jetty-server", version.ref = "jetty
 jetty-servlet = { module = "org.eclipse.jetty:jetty-servlet", version.ref = "jetty" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
+junit-suite-api = { module = "org.junit.platform:junit-platform-suite-api", version.ref = "junit-platform" }
+junit-suite-engine = { module = "org.junit.platform:junit-platform-suite-engine", version.ref = "junit-platform" }
 junit-vintage-engine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit" }
 kryo-shaded = { module = "com.esotericsoftware:kryo-shaded", version.ref = "kryo-shaded" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }

@@ -73,7 +73,7 @@ subprojects {
   pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
       java {
-        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/jmh/java/**/*.java', 'src/integration/java/**/*.java'
+        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/testFixtures/java/**/*.java', 'src/jmh/java/**/*.java', 'src/integration/java/**/*.java'
         // we use an older version of google-java-format that is compatible with JDK 8
         googleJavaFormat("1.7")
         removeUnusedImports()
@@ -88,18 +88,32 @@ subprojects {
           // error-prone is slow, don't run on tests/generated-src/generated
           '-XepExcludedPaths:.*/(test|generated-src|generated)/.*',
           '-Xep:AnnotateFormatMethod:ERROR',
+          '-Xep:BadComparable:ERROR',
+          '-Xep:BadInstanceof:ERROR',
+          '-Xep:CatchFail:ERROR',
           '-Xep:CollectionUndefinedEquality:ERROR',
           // specific to Palantir - Uses name `log` but we use name `LOG`
           '-Xep:ConsistentLoggerName:OFF',
           '-Xep:DangerousJavaDeserialization:ERROR',
           '-Xep:DangerousThreadPoolExecutorUsage:OFF',
+          '-Xep:DefaultCharset:ERROR',
+          '-Xep:DefaultLocale:ERROR',
           // subclasses are not equal
           '-Xep:EqualsGetClass:OFF',
+          '-Xep:EqualsUnsafeCast:ERROR',
+          '-Xep:EqualsUsingHashCode:ERROR',
+          '-Xep:ExtendsObject:ERROR',
           // specific to Palantir
           '-Xep:FinalClass:OFF',
           '-Xep:FormatStringAnnotation:ERROR',
+          '-Xep:GetClassOnEnum:ERROR',
+          '-Xep:HidingField:ERROR',
+          '-Xep:ImmutableSetForContains:ERROR',
           '-Xep:ImmutablesReferenceEquality:ERROR',
+          '-Xep:InconsistentCapitalization:ERROR',
+          '-Xep:InconsistentHashCode:ERROR',
           '-Xep:IntLongMath:ERROR',
+          '-Xep:JdkObsolete:ERROR',
           // prefer method references over lambdas
           '-Xep:LambdaMethodReference:ERROR',
           // enforce logging conventions
@@ -109,8 +123,18 @@ subprojects {
           // Enforce missing override
           '-Xep:MissingOverride:ERROR',
           '-Xep:MissingSummary:ERROR',
+          '-Xep:ModifiedButNotUsed:ERROR',
+          '-Xep:MutablePublicArray:ERROR',
+          '-Xep:NarrowCalculation:ERROR',
+          '-Xep:NarrowingCompoundAssignment:ERROR',
+          '-Xep:NullOptional:ERROR',
+          '-Xep:NullableOptional:ERROR',
+          '-Xep:NullablePrimitive:ERROR',
+          '-Xep:ObjectEqualsForPrimitives:ERROR',
           // Enforce hashCode over hash
           '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
+          '-Xep:OrphanedFormatString:ERROR',
+          '-Xep:Overrides:ERROR',
           // Triggers false-positives whenever relocated @VisibleForTesting is used
           '-Xep:PreferCommonAnnotations:OFF',
           // specific to Palantir
@@ -132,6 +156,7 @@ subprojects {
           '-Xep:TypeParameterUnusedInFormals:OFF',
           // Palantir's UnnecessarilyQualified may throw during analysis
           '-Xep:UnnecessarilyQualified:OFF',
+          '-Xep:UnusedMethod:ERROR',
       )
     }
   }

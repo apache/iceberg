@@ -146,14 +146,56 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 ...
 ```
 
-| Flink option           | Default                                    | Description                                                  |
-| ---------------------- | ------------------------------------------ | ------------------------------------------------------------ |
-| write-format           | Table write.format.default                 | File format to use for this write operation; parquet, avro, or orc |
-| target-file-size-bytes | As per table property                      | Overrides this table's write.target-file-size-bytes          |
-| upsert-enabled         | Table write.upsert.enabled                 | Overrides this table's write.upsert.enabled                  |
-| overwrite-enabled      | false                                      | Overwrite the table's data, overwrite mode shouldn't be enable when configuring to use UPSERT data stream. |
-| distribution-mode      | Table write.distribution-mode              | Overrides this table's write.distribution-mode               |
-| compression-codec      | Table write.(fileformat).compression-codec | Overrides this table's compression codec for this write      |
-| compression-level      | Table write.(fileformat).compression-level | Overrides this table's compression level for Parquet and Avro tables for this write |
-| compression-strategy   | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write |
-| write-parallelism      | Upstream operator parallelism              | Overrides the writer parallelism                             |
+| Flink option                            | Default                                    | Description                                                                                                                                     |
+|-----------------------------------------|--------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| write-format                            | Table write.format.default                 | File format to use for this write operation; parquet, avro, or orc                                                                              |
+| target-file-size-bytes                  | As per table property                      | Overrides this table's write.target-file-size-bytes                                                                                             |
+| upsert-enabled                          | Table write.upsert.enabled                 | Overrides this table's write.upsert.enabled                                                                                                     |
+| overwrite-enabled                       | false                                      | Overwrite the table's data, overwrite mode shouldn't be enable when configuring to use UPSERT data stream.                                      |
+| distribution-mode                       | Table write.distribution-mode              | Overrides this table's write.distribution-mode. RANGE distribution is in experimental status.                                                   |
+| range-distribution-statistics-type      | Auto                                       | Range distribution data statistics collection type: Map, Sketch, Auto. See details [here](#range-distribution-statistics-type).                 |
+| range-distribution-sort-key-base-weight | 0.0 (double)                               | Base weight for every sort key relative to target traffic weight per writer task. See details [here](#range-distribution-sort-key-base-weight). |
+| compression-codec                       | Table write.(fileformat).compression-codec | Overrides this table's compression codec for this write                                                                                         |
+| compression-level                       | Table write.(fileformat).compression-level | Overrides this table's compression level for Parquet and Avro tables for this write                                                             |
+| compression-strategy                    | Table write.orc.compression-strategy       | Overrides this table's compression strategy for ORC tables for this write                                                                       |
+| write-parallelism                       | Upstream operator parallelism              | Overrides the writer parallelism                                                                                                                |
+
+#### Range distribution statistics type
+
+Config value is a enum type: `Map`, `Sketch`, `Auto`.
+<ul>
+<li>Map: collects accurate sampling count for every single key.
+It should be used for low cardinality scenarios (like hundreds or thousands).
+<li>Sketch: constructs a uniform random sampling via reservoir sampling.
+It fits well for high cardinality scenarios (like millions), as memory footprint is kept low.
+<li>Auto: starts with Maps statistics. But if cardinality is detected higher
+than a threshold (currently 10,000), statistics are automatically switched to Sketch.
+</ul>
+
+#### Range distribution sort key base weight
+
+`range-distribution-sort-key-base-weight`: `0.0`.
+
+If sort order contains partition columns, each sort key would map to one partition and data
+file. This relative weight can avoid placing too many small files for sort keys with low
+traffic. It is a double value that defines the minimal weight for each sort key. `0.02` means
+each key has a base weight of `2%` of the targeted traffic weight per writer task.
+
+E.g. the sink Iceberg table is partitioned daily by event time. Assume the data stream
+contains events from now up to 180 days ago. With event time, traffic weight distribution
+across different days typically has a long tail pattern. Current day contains the most
+traffic. The older days (long tail) contain less and less traffic. Assume writer parallelism
+is `10`. The total weight across all 180 days is `10,000`. Target traffic weight per writer
+task would be `1,000`. Assume the weight sum for the oldest 150 days is `1,000`. Normally,
+the range partitioner would put all the oldest 150 days in one writer task. That writer task
+would write to 150 small files (one per day). Keeping 150 open files can potentially consume
+large amount of memory. Flushing and uploading 150 files (however small) at checkpoint time
+can also be potentially slow. If this config is set to `0.02`. It means every sort key has a
+base weight of `2%` of targeted weight of `1,000` for every write task. It would essentially
+avoid placing more than `50` data files (one per day) on one writer task no matter how small
+they are.
+
+This is only applicable to {@link StatisticsType#Map} for low-cardinality scenario. For
+{@link StatisticsType#Sketch} high-cardinality sort columns, they are usually not used as
+partition columns. Otherwise, too many partitions and small files may be generated during
+write. Sketch range partitioner simply splits high-cardinality keys into ordered ranges.

@@ -80,6 +80,12 @@ public class TestComparators {
   }
 
   @Test
+  public void testTimestampNanos() {
+    assertComparesCorrectly(Comparators.forType(Types.TimestampNanoType.withoutZone()), 111, 222);
+    assertComparesCorrectly(Comparators.forType(Types.TimestampNanoType.withZone()), 111, 222);
+  }
+
+  @Test
   public void testString() {
     assertComparesCorrectly(Comparators.forType(Types.StringType.get()), "a", "b");
   }
