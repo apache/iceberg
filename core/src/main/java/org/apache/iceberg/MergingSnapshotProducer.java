@@ -984,11 +984,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                 writer.close();
               }
               this.cachedNewDataManifests.addAll(writer.toManifestFiles());
-              this.hasNewDataFiles = false;
             } catch (IOException e) {
               throw new RuntimeIOException(e, "Failed to close manifest writer");
             }
           });
+      this.hasNewDataFiles = false;
     }
 
     return cachedNewDataManifests;
