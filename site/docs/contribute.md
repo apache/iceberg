@@ -388,6 +388,34 @@ When passing boolean arguments to existing or external methods, use inline comme
   dropTable(identifier, purge);
 ```
 
+#### Accessing instance variables
+
+Use `this` when assigning values to instance variables, making it clear when the object's state is being changed. Omit `this` when reading instance variables to keep lines shorter. 
+
+```java
+  private String value;
+
+  // BAD: unnecessary `this` during reads
+  public String value() {
+    return this.value;
+  }
+
+  // GOOD: no `this` when reading instance variables
+  public String value() {
+     return value;
+  }
+
+  // BAD: missing `this` in assignments
+  public void value(String newValue) {
+     value = newValue;
+  }
+
+  // GOOD: use `this` in assignments
+  public void value(String newValue) {
+     this.value = newValue;
+  }
+```
+
 #### Config naming
 
 1. Use `-` to link words in one concept
