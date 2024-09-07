@@ -200,13 +200,14 @@ For that the additional field "refresh-state" is introduced as an opaque record 
 
 #### Refresh state
 
-The refresh state record captures the state of all source tables and source views in the fully expanded query tree of the materialized view. It has the following fields:
+The refresh state record captures the state of all source tables and source views in the fully expanded query tree of the materialized view, including indirect references. It has the following fields:
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
 | _required_  | `refresh-version-id` | The `version-id` of the materialized view when the refresh operation was performed  | 
-| _required_  | `source-table-states`   | A list of [source table](#soure-table) records  |
-| _required_  | `source-view-states`   | A list of [source view](#soure-view) records  |
+| _required_  | `source-table-states`   | A list of [source table](#soure-table) records for all tables that are directly or indirectly referenced in the materialized view query |
+| _required_  | `source-view-states`   | A list of [source view](#soure-view) records for all views that are directly or indirectly referenced in the materialized view query |
+| _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
 
 #### Source table
 
