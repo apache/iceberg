@@ -21,6 +21,7 @@ package org.apache.iceberg.connect.data;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
@@ -33,6 +34,7 @@ import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.Tasks;
 import org.apache.kafka.connect.errors.DataException;
@@ -83,7 +85,15 @@ class IcebergWriterFactory {
       structType = SchemaUtils.toIcebergType(sample.valueSchema(), config).asStructType();
     }
 
-    org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(structType.fields());
+    List<NestedField> fields = structType.fields();
+
+    if (config.schemaForceColumnsToLowercase()) {
+      fields = fields.stream()
+          .map(field -> NestedField.of(field.fieldId(), field.isOptional(), field.name().toLowerCase(), field.type()))
+          .collect(Collectors.toList());
+    }
+
+    org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(fields);
     TableIdentifier identifier = TableIdentifier.parse(tableName);
 
     createNamespaceIfNotExist(catalog, identifier.namespace());
