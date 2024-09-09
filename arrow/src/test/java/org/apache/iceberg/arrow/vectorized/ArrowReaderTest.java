@@ -271,11 +271,12 @@ public class ArrowReaderTest {
     tables = new HadoopTables();
 
     List<Field> expectedFields =
-            ImmutableList.of(
-                    new Field("a", new FieldType(false, MinorType.INT.getType(), null), null),
-                    new Field("b", new FieldType(true, MinorType.INT.getType(), null), null),
-                    new Field("z", new FieldType(true, MinorType.INT.getType(), null), null));
-    org.apache.arrow.vector.types.pojo.Schema expectedSchema = new org.apache.arrow.vector.types.pojo.Schema(expectedFields);
+        ImmutableList.of(
+            new Field("a", new FieldType(false, MinorType.INT.getType(), null), null),
+            new Field("b", new FieldType(true, MinorType.INT.getType(), null), null),
+            new Field("z", new FieldType(true, MinorType.INT.getType(), null), null));
+    org.apache.arrow.vector.types.pojo.Schema expectedSchema =
+        new org.apache.arrow.vector.types.pojo.Schema(expectedFields);
 
     Schema schema =
         new Schema(
@@ -350,12 +351,12 @@ public class ArrowReaderTest {
         rowIndex += 1;
       }
     }
+
     // Read the data and verify that the returned Arrow VectorSchemaRoots match expected rows.
     Set<String> columnSet = ImmutableSet.copyOf(columns);
     int rowIndex1 = 0;
     int totalRows = 0;
-    try (VectorizedTableScanIterable itr =
-        new VectorizedTableScanIterable(scan, 1, false)) {
+    try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, 1, false)) {
       for (ColumnarBatch batch : itr) {
         List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex1, rowIndex1 + 1);
         VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
