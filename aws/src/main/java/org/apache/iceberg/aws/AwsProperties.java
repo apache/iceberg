@@ -31,8 +31,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -45,8 +43,6 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 
 public class AwsProperties implements Serializable {
-
-  private static final Logger LOG = LoggerFactory.getLogger(AwsProperties.class);
 
   /**
    * The ID of the Glue Data Catalog where the tables reside. If none is provided, Glue
@@ -210,7 +206,6 @@ public class AwsProperties implements Serializable {
    */
   public static final String REST_SESSION_TOKEN = "rest.session-token";
 
-  private static final String HTTP_CLIENT_PREFIX = "http-client.";
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
   private final String clientAssumeRoleArn;

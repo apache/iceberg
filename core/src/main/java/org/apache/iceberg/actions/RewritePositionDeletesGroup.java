@@ -127,7 +127,7 @@ public class RewritePositionDeletesGroup {
         return Comparator.comparing(
             RewritePositionDeletesGroup::numRewrittenDeleteFiles, Comparator.reverseOrder());
       default:
-        return (fileGroupOne, fileGroupTwo) -> 0;
+        return (unused, unused2) -> 0;
     }
   }
 }

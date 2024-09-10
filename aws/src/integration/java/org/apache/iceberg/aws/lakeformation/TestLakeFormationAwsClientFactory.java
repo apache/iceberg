@@ -52,7 +52,6 @@ public class TestLakeFormationAwsClientFactory {
 
   private static final Logger LOG =
       LoggerFactory.getLogger(TestLakeFormationAwsClientFactory.class);
-  private static final int IAM_PROPAGATION_DELAY = 10000;
   private static final int ASSUME_ROLE_SESSION_DURATION = 3600;
 
   private IamClient iam;
