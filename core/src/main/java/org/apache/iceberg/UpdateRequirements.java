@@ -124,7 +124,7 @@ public class UpdateRequirements {
       }
     }
 
-    private void update(MetadataUpdate.AddSchema update) {
+    private void update(MetadataUpdate.AddSchema unused) {
       if (!addedSchema) {
         if (base != null) {
           require(new UpdateRequirement.AssertLastAssignedFieldId(base.lastColumnId()));
@@ -133,7 +133,7 @@ public class UpdateRequirements {
       }
     }
 
-    private void update(MetadataUpdate.SetCurrentSchema update) {
+    private void update(MetadataUpdate.SetCurrentSchema unused) {
       if (!setSchemaId) {
         if (base != null && !isReplace) {
           // require that the current schema has not changed
@@ -143,7 +143,7 @@ public class UpdateRequirements {
       }
     }
 
-    private void update(MetadataUpdate.AddPartitionSpec update) {
+    private void update(MetadataUpdate.AddPartitionSpec unused) {
       if (!addedSpec) {
         if (base != null) {
           require(
@@ -153,7 +153,7 @@ public class UpdateRequirements {
       }
     }
 
-    private void update(MetadataUpdate.SetDefaultPartitionSpec update) {
+    private void update(MetadataUpdate.SetDefaultPartitionSpec unused) {
       if (!setSpecId) {
         if (base != null && !isReplace) {
           // require that the default spec has not changed
@@ -163,7 +163,7 @@ public class UpdateRequirements {
       }
     }
 
-    private void update(MetadataUpdate.SetDefaultSortOrder update) {
+    private void update(MetadataUpdate.SetDefaultSortOrder unused) {
       if (!setOrderId) {
         if (base != null && !isReplace) {
           // require that the default write order has not changed

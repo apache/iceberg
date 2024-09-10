@@ -44,7 +44,6 @@ public class ExpressionUtil {
       Transforms.bucket(Integer.MAX_VALUE).bind(Types.StringType.get());
   private static final OffsetDateTime EPOCH = Instant.ofEpochSecond(0).atOffset(ZoneOffset.UTC);
   private static final long FIVE_MINUTES_IN_MICROS = TimeUnit.MINUTES.toMicros(5);
-  private static final long FIVE_MINUTES_IN_NANOS = TimeUnit.MINUTES.toNanos(5);
   private static final long THREE_DAYS_IN_HOURS = TimeUnit.DAYS.toHours(3);
   private static final long NINETY_DAYS_IN_HOURS = TimeUnit.DAYS.toHours(90);
   private static final Pattern DATE = Pattern.compile("\\d{4}-\\d{2}-\\d{2}");

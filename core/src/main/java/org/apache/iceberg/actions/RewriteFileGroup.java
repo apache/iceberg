@@ -106,7 +106,7 @@ public class RewriteFileGroup {
       case FILES_DESC:
         return Comparator.comparing(RewriteFileGroup::numFiles, Comparator.reverseOrder());
       default:
-        return (fileGroupOne, fileGroupTwo) -> 0;
+        return (unused, unused2) -> 0;
     }
   }
 }

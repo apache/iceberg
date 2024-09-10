@@ -76,7 +76,6 @@ public class TestS3FileIOIntegration {
   private static S3Client s3;
   private static S3ControlClient s3Control;
   private static S3ControlClient crossRegionS3Control;
-  private static S3ControlClient multiRegionS3Control;
   private static KmsClient kms;
   private static String bucketName;
   private static String crossRegionBucketName;
