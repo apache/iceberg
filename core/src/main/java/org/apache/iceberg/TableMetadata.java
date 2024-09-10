@@ -935,7 +935,7 @@ public class TableMetadata implements Serializable {
       this.base = base;
       this.formatVersion = base.formatVersion;
       this.uuid = base.uuid;
-      this.lastUpdatedMillis = null;
+      this.lastUpdatedMillis = base.lastUpdatedMillis;
       this.location = base.location;
       this.lastSequenceNumber = base.lastSequenceNumber;
       this.lastColumnId = base.lastColumnId;
