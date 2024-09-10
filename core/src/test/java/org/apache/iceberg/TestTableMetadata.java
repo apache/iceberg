@@ -64,7 +64,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -1662,19 +1661,19 @@ public class TestTableMetadata {
                         6, "ts_nanos", Types.TimestampNanoType.withZone()))));
 
     for (int unsupportedFormatVersion : ImmutableList.of(1, 2)) {
-      Assertions.assertThrows(
-          IllegalStateException.class,
-          () ->
-              TableMetadata.newTableMetadata(
-                  v3Schema,
-                  PartitionSpec.unpartitioned(),
-                  SortOrder.unsorted(),
-                  TEST_LOCATION,
-                  ImmutableMap.of(),
-                  unsupportedFormatVersion),
-          String.format(
+      assertThatThrownBy(
+              () ->
+                  TableMetadata.newTableMetadata(
+                      v3Schema,
+                      PartitionSpec.unpartitioned(),
+                      SortOrder.unsorted(),
+                      TEST_LOCATION,
+                      ImmutableMap.of(),
+                      unsupportedFormatVersion))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
               "Invalid type in v%s schema: struct.ts_nanos timestamptz_ns is not supported until v3",
-              unsupportedFormatVersion));
+              unsupportedFormatVersion);
     }
 
     // should be allowed in v3
