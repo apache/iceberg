@@ -563,7 +563,7 @@ paths:
         point-in-time scan of the latest snapshot in the table's main branch.
 
 
-        Responses must include a valid status
+        Responses must include a valid status listed below. A "cancelled" status is considered invalid for this endpoint.  
 
         - When "completed" the planning operation has produced plan tasks and
           file scan tasks that must be returned in the response (not fetched
@@ -573,9 +573,6 @@ paths:
           fetchPlanningResult to fetch the planning result when it is ready
 
         - When "failed" the response must be a valid error response
-
-        - Status "cancelled" is not a valid status from this endpoint
-
 
         The response for a "completed" planning operation includes two types of
         tasks (file scan tasks and plan tasks) and both may be included in the
@@ -3064,13 +3061,13 @@ components:
 
     ScanTasks:
       type: object
-      description:
+      description: >
         Scan and planning tasks for server-side scan planning
 
 
         - `plan-tasks` contains opaque units of planning work
 
-        - `file-scan-tasks` contains a partial list of table scan tasks
+        - `file-scan-tasks` contains a partial or complete list of table scan tasks
 
         - `delete-files` contains delete files referenced by file scan tasks
 
@@ -4155,7 +4152,8 @@ components:
     PlanTask:
       description:
         An opaque string provided by the REST server that represents a
-        unit of work to produce file scan tasks for scan planning.
+        unit of work to produce file scan tasks for scan planning. This allows 
+        clients to fetch tasks across multiple requests to accommodate large result sets.
       type: string
 
     FileScanTask:

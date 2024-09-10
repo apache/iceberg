@@ -834,7 +834,7 @@ class FieldName(BaseModel):
 class PlanTask(BaseModel):
     __root__: str = Field(
         ...,
-        description='An opaque string provided by the REST server that represents a unit of work to produce file scan tasks for scan planning.',
+        description='An opaque string provided by the REST server that represents a unit of work to produce file scan tasks for scan planning. This allows clients to fetch tasks across multiple requests to accommodate large result sets.',
     )
 
 
@@ -1181,12 +1181,13 @@ class ScanTasks(BaseModel):
     Scan and planning tasks for server-side scan planning
 
     - `plan-tasks` contains opaque units of planning work
-    - `file-scan-tasks` contains a partial list of table scan tasks
+    - `file-scan-tasks` contains a partial or complete list of table scan tasks
     - `delete-files` contains delete files referenced by file scan tasks
 
     Each plan task must be passed to the fetchScanTasks endpoint to fetch the file scan tasks for the plan task.
 
     The list of delete files must contain all delete files referenced by the file scan tasks.
+
     """
 
     delete_files: Optional[List[DeleteFile]] = Field(
