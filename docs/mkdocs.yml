@@ -64,6 +64,7 @@ nav:
   - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
   - Doris: https://doris.apache.org/docs/dev/lakehouse/datalake-analytics/iceberg
   - Druid: https://druid.apache.org/docs/latest/development/extensions-contrib/iceberg/
+  - Kafka Connect: kafka-connect.md
   - Integrations:
     - aws.md
     - dell.md
