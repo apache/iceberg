@@ -60,8 +60,8 @@ import org.slf4j.LoggerFactory;
  * </ul>
  */
 @Internal
-public class LockRemover extends AbstractStreamOperator<MaintenanceResult>
-    implements OneInputStreamOperator<TaskResult, MaintenanceResult> {
+public class LockRemover extends AbstractStreamOperator<Void>
+    implements OneInputStreamOperator<TaskResult, Void> {
   private static final Logger LOG = LoggerFactory.getLogger(LockRemover.class);
 
   private final TriggerLockFactory lockFactory;
@@ -102,12 +102,12 @@ public class LockRemover extends AbstractStreamOperator<MaintenanceResult>
               .getMetricGroup()
               .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
               .counter(TableMaintenanceMetrics.FAILED_TASK_COUNTER));
-      AtomicLong length = new AtomicLong(0);
-      taskLastRunDurationMs.add(length);
+      AtomicLong duration = new AtomicLong(0);
+      taskLastRunDurationMs.add(duration);
       getRuntimeContext()
           .getMetricGroup()
           .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
-          .gauge(TableMaintenanceMetrics.LAST_RUN_DURATION_MS, length::get);
+          .gauge(TableMaintenanceMetrics.LAST_RUN_DURATION_MS, duration::get);
     }
 
     this.lock = lockFactory.createLock();
@@ -122,14 +122,6 @@ public class LockRemover extends AbstractStreamOperator<MaintenanceResult>
         taskResult,
         maintenanceTaskNames.get(taskResult.taskIndex()));
     long duration = System.currentTimeMillis() - taskResult.startEpoch();
-    output.collect(
-        new StreamRecord<>(
-            new MaintenanceResult(
-                taskResult.startEpoch(),
-                taskResult.taskIndex(),
-                duration,
-                taskResult.success(),
-                taskResult.exceptions())));
     lock.unlock();
     this.lastProcessedTaskStartEpoch = taskResult.startEpoch();
 
