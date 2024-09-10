@@ -96,6 +96,17 @@ public interface Transaction {
   RewriteFiles newRewrite();
 
   /**
+   * Create a new {@link StreamingUpdate streaming update API} to append sequential upserts to the
+   * table.
+   *
+   * @return a new {@link StreamingUpdate}
+   */
+  default StreamingUpdate newStreamingUpdate() {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement newStreamingUpdate()");
+  }
+
+  /**
    * Create a new {@link RewriteManifests rewrite manifests API} to replace manifests for this
    * table.
    *

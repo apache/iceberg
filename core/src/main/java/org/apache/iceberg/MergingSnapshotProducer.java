@@ -43,7 +43,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
@@ -81,11 +80,12 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final ManifestFilterManager<DeleteFile> deleteFilterManager;
 
   // update data
-  private final Map<PartitionSpec, List<DataFile>> newDataFilesBySpec = Maps.newHashMap();
+  private final Map<PartitionSpec, List<FileHolder<DataFile>>> newDataFilesBySpec =
+      Maps.newHashMap();
   private final CharSequenceSet newDataFilePaths = CharSequenceSet.empty();
   private final CharSequenceSet newDeleteFilePaths = CharSequenceSet.empty();
   private Long newDataFilesDataSequenceNumber;
-  private final Map<Integer, List<DeleteFileHolder>> newDeleteFilesBySpec = Maps.newHashMap();
+  private final Map<Integer, List<FileHolder<DeleteFile>>> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
@@ -161,11 +161,10 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   protected List<DataFile> addedDataFiles() {
     return ImmutableList.copyOf(
-        newDataFilesBySpec.values().stream().flatMap(List::stream).collect(Collectors.toList()));
-  }
-
-  protected Map<PartitionSpec, List<DataFile>> addedDataFilesBySpec() {
-    return ImmutableMap.copyOf(newDataFilesBySpec);
+        newDataFilesBySpec.values().stream()
+            .flatMap(List::stream)
+            .map(x -> x.file)
+            .collect(Collectors.toList()));
   }
 
   protected void failAnyDelete() {
@@ -235,6 +234,16 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /** Add a data file to the new snapshot. */
   protected void add(DataFile file) {
     Preconditions.checkNotNull(file, "Invalid data file: null");
+    addDataFile(new FileHolder<>(file));
+  }
+
+  protected void add(DataFile file, long dataSequenceNumber) {
+    Preconditions.checkNotNull(file, "Invalid delete file: null");
+    addDataFile(new FileHolder<>(file, dataSequenceNumber));
+  }
+
+  private void addDataFile(FileHolder<DataFile> fileHolder) {
+    DataFile file = fileHolder.file;
     if (newDataFilePaths.add(file.path())) {
       PartitionSpec fileSpec = ops.current().spec(file.specId());
       Preconditions.checkArgument(
@@ -245,35 +254,45 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
       addedFilesSummary.addedFile(fileSpec, file);
       hasNewDataFiles = true;
-      List<DataFile> newDataFiles =
+      List<FileHolder<DataFile>> newDataFiles =
           newDataFilesBySpec.computeIfAbsent(fileSpec, ignored -> Lists.newArrayList());
-      newDataFiles.add(file);
+      newDataFiles.add(fileHolder);
     }
   }
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file) {
     Preconditions.checkNotNull(file, "Invalid delete file: null");
-    add(new DeleteFileHolder(file));
+    addDelete(new FileHolder<>(file));
   }
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file, long dataSequenceNumber) {
     Preconditions.checkNotNull(file, "Invalid delete file: null");
-    add(new DeleteFileHolder(file, dataSequenceNumber));
+    addDelete(new FileHolder<>(file, dataSequenceNumber));
   }
 
-  private void add(DeleteFileHolder fileHolder) {
-    int specId = fileHolder.deleteFile().specId();
+  private void addDelete(FileHolder<DeleteFile> fileHolder) {
+    int specId = fileHolder.file().specId();
     PartitionSpec fileSpec = ops.current().spec(specId);
-    List<DeleteFileHolder> deleteFiles =
+    List<FileHolder<DeleteFile>> deleteFiles =
         newDeleteFilesBySpec.computeIfAbsent(specId, s -> Lists.newArrayList());
 
-    if (newDeleteFilePaths.add(fileHolder.deleteFile().path())) {
+    if (newDeleteFilePaths.add(fileHolder.file().path())) {
       deleteFiles.add(fileHolder);
-      addedFilesSummary.addedFile(fileSpec, fileHolder.deleteFile());
+      addedFilesSummary.addedFile(fileSpec, fileHolder.file());
       hasNewDeleteFiles = true;
     }
+  }
+
+  protected void clearFiles() {
+    newDataFilePaths.clear();
+    newDataFilesBySpec.clear();
+    newDeleteFilePaths.clear();
+    newDeleteFilesBySpec.clear();
+    addedFilesSummary.clear();
+    hasNewDataFiles = false;
+    hasNewDeleteFiles = false;
   }
 
   /** Add all files in a manifest to the new snapshot. */
@@ -976,9 +995,23 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
               RollingManifestWriter<DataFile> writer = newRollingManifestWriter(dataSpec);
               try {
                 if (newDataFilesDataSequenceNumber == null) {
-                  newDataFiles.forEach(writer::add);
+                  newDataFiles.forEach(
+                      f -> {
+                        if (f.dataSequenceNumber() == null) {
+                          writer.add(f.file());
+                        } else {
+                          writer.add(f.file(), f.dataSequenceNumber);
+                        }
+                      });
                 } else {
-                  newDataFiles.forEach(f -> writer.add(f, newDataFilesDataSequenceNumber));
+                  newDataFiles.forEach(
+                      f -> {
+                        if (f.dataSequenceNumber() == null) {
+                          writer.add(f.file(), newDataFilesDataSequenceNumber);
+                        } else {
+                          writer.add(f.file(), f.dataSequenceNumber);
+                        }
+                      });
                 }
               } finally {
                 writer.close();
@@ -1022,9 +1055,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                 deleteFiles.forEach(
                     df -> {
                       if (df.dataSequenceNumber() != null) {
-                        writer.add(df.deleteFile(), df.dataSequenceNumber());
+                        writer.add(df.file(), df.dataSequenceNumber());
                       } else {
-                        writer.add(df.deleteFile());
+                        writer.add(df.file());
                       }
                     });
               } finally {
@@ -1148,33 +1181,33 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
-  private static class DeleteFileHolder {
-    private final DeleteFile deleteFile;
+  private static class FileHolder<T extends ContentFile<?>> {
+    private final T file;
     private final Long dataSequenceNumber;
 
     /**
      * Wrap a delete file for commit with a given data sequence number
      *
-     * @param deleteFile delete file
+     * @param file content file
      * @param dataSequenceNumber data sequence number to apply
      */
-    DeleteFileHolder(DeleteFile deleteFile, long dataSequenceNumber) {
-      this.deleteFile = deleteFile;
+    FileHolder(T file, long dataSequenceNumber) {
+      this.file = file;
       this.dataSequenceNumber = dataSequenceNumber;
     }
 
     /**
      * Wrap a delete file for commit with the latest sequence number
      *
-     * @param deleteFile delete file
+     * @param file the content fle
      */
-    DeleteFileHolder(DeleteFile deleteFile) {
-      this.deleteFile = deleteFile;
+    FileHolder(T file) {
+      this.file = file;
       this.dataSequenceNumber = null;
     }
 
-    public DeleteFile deleteFile() {
-      return deleteFile;
+    public T file() {
+      return file;
     }
 
     public Long dataSequenceNumber() {
