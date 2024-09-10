@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -349,7 +350,24 @@ public class TestBase {
       Long fileSequenceNumber,
       F file) {
 
-    GenericManifestEntry<F> entry = new GenericManifestEntry<>(table.spec().partitionType());
+    Schema manifestEntrySchema;
+    switch (table.ops().current().formatVersion()) {
+      case 1:
+        manifestEntrySchema = V1Metadata.entrySchema(table.spec().partitionType());
+        break;
+      case 2:
+        manifestEntrySchema = V2Metadata.entrySchema(table.spec().partitionType());
+        break;
+      case 3:
+        manifestEntrySchema = V3Metadata.entrySchema(table.spec().partitionType());
+        break;
+      default:
+        throw new IllegalArgumentException(
+            "Unsupported format version: " + table.ops().current().formatVersion());
+    }
+
+    GenericManifestEntry<F> entry =
+        new GenericManifestEntry<>(AvroSchemaUtil.convert(manifestEntrySchema, "manifest_entry"));
     switch (status) {
       case ADDED:
         if (dataSequenceNumber != null && dataSequenceNumber != 0) {
