@@ -84,6 +84,25 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
             });
   }
 
+  @Override
+  public UpdatePartitionSpec fromSpec(PartitionSpec partitionSpec) {
+    for (PartitionField field : partitionSpec.fields()) {
+      if (this.nameToField.get(field.name()) == null) {
+        addField(
+            field.name(),
+            Expressions.transform(schema.findField(field.sourceId()).name(), field.transform()));
+      }
+    }
+
+    for (PartitionField alreadyAddedField : nameToField.values()) {
+      if (!partitionSpec.fields().contains(alreadyAddedField)) {
+        removeField(alreadyAddedField.name());
+      }
+    }
+
+    return this;
+  }
+
   /** For testing only. */
   @VisibleForTesting
   BaseUpdatePartitionSpec(int formatVersion, PartitionSpec spec) {
