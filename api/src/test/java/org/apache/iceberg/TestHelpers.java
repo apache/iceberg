@@ -222,6 +222,7 @@ public class TestHelpers {
       return obj;
     }
   }
+
   /**
    * Serializes an {@link Object} to a byte array for storage/serialization.
    *

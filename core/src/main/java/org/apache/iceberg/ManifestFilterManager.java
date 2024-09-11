@@ -289,7 +289,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     cleanUncommitted(SnapshotProducer.EMPTY_SET);
   }
 
-  /** @return a ManifestReader that is a filtered version of the input manifest. */
+  /**
+   * @return a ManifestReader that is a filtered version of the input manifest.
+   */
   private ManifestFile filterManifest(Schema tableSchema, ManifestFile manifest) {
     ManifestFile cached = filteredManifests.get(manifest);
     if (cached != null) {

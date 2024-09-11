@@ -73,6 +73,7 @@ public final class ORCSchemaUtil {
    * to an ORC binary type. The values for this attribute are denoted in {@code BinaryType}.
    */
   public static final String ICEBERG_BINARY_TYPE_ATTRIBUTE = "iceberg.binary-type";
+
   /**
    * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg type corresponding
    * to an ORC long type. The values for this attribute are denoted in {@code LongType}.

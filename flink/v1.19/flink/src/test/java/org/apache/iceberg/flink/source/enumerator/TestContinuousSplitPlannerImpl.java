@@ -80,7 +80,9 @@ public class TestContinuousSplitPlannerImpl {
     snapshot2 = TABLE_RESOURCE.table().currentSnapshot();
   }
 
-  /** @return the last enumerated snapshot id */
+  /**
+   * @return the last enumerated snapshot id
+   */
   private CycleResult verifyOneCycle(
       ContinuousSplitPlannerImpl splitPlanner, IcebergEnumeratorPosition lastPosition)
       throws Exception {
