@@ -41,7 +41,6 @@ include 'gcp-bundle'
 include 'dell'
 include 'snowflake'
 include 'delta-lake'
-include 'kafka-connect'
 include 'open-api'
 
 project(':bom').name = 'iceberg-bom'
@@ -67,7 +66,6 @@ project(':gcp-bundle').name = 'iceberg-gcp-bundle'
 project(':dell').name = 'iceberg-dell'
 project(':snowflake').name = 'iceberg-snowflake'
 project(':delta-lake').name = 'iceberg-delta-lake'
-project(':kafka-connect').name = 'iceberg-kafka-connect'
 project(':open-api').name = 'iceberg-open-api'
 
 if (null != System.getProperty("allModules")) {
@@ -201,6 +199,9 @@ if (hiveVersions.contains("3")) {
 }
 
 if (kafkaVersions.contains("3")) {
+  include 'kafka-connect'
+  project(':kafka-connect').name = 'iceberg-kafka-connect'
+
   include ":iceberg-kafka-connect:kafka-connect-events"
   project(":iceberg-kafka-connect:kafka-connect-events").projectDir = file('kafka-connect/kafka-connect-events')
   project(":iceberg-kafka-connect:kafka-connect-events").name = "iceberg-kafka-connect-events"
