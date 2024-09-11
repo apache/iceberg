@@ -95,7 +95,9 @@ import org.apache.orc.storage.ql.exec.vector.VectorizedRowBatch;
 @SuppressWarnings("checkstyle:AbbreviationAsWordInName")
 public class ORC {
 
-  /** @deprecated use {@link TableProperties#ORC_WRITE_BATCH_SIZE} instead */
+  /**
+   * @deprecated use {@link TableProperties#ORC_WRITE_BATCH_SIZE} instead
+   */
   @Deprecated private static final String VECTOR_ROW_BATCH_SIZE = "iceberg.orc.vectorbatch.size";
 
   private ORC() {}

@@ -124,7 +124,9 @@ public class FlinkSource {
       return this;
     }
 
-    /** @deprecated Use {@link #setAll} instead. */
+    /**
+     * @deprecated Use {@link #setAll} instead.
+     */
     @Deprecated
     public Builder properties(Map<String, String> properties) {
       readOptions.putAll(properties);
