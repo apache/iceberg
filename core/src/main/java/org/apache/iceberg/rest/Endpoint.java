@@ -19,9 +19,9 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import org.apache.hc.core5.http.Method;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
@@ -79,7 +79,7 @@ public class Endpoint {
     Preconditions.checkArgument(
         !Strings.isNullOrEmpty(httpMethod), "Invalid HTTP method: null or empty");
     Preconditions.checkArgument(!Strings.isNullOrEmpty(path), "Invalid path: null or empty");
-    this.httpMethod = httpMethod.toUpperCase(Locale.ROOT);
+    this.httpMethod = Method.normalizedValueOf(httpMethod).toString();
     this.path = path;
   }
 

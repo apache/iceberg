@@ -29,7 +29,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 public class TestEndpoint {
   @Test
-  public void nullOrEmptyValues() {
+  public void invalidValues() {
     assertThatThrownBy(() -> Endpoint.create(null, "endpoint"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid HTTP method: null or empty");
@@ -45,6 +45,10 @@ public class TestEndpoint {
     assertThatThrownBy(() -> Endpoint.create("GET", ""))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid path: null or empty");
+
+    assertThatThrownBy(() -> Endpoint.create("invalid", "/"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("No enum constant org.apache.hc.core5.http.Method.INVALID");
   }
 
   @ParameterizedTest
