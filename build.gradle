@@ -944,6 +944,9 @@ project(':iceberg-snowflake') {
 
 project(':iceberg-open-api') {
   apply plugin: 'java-test-fixtures'
+  apply plugin: 'com.gradleup.shadow'
+
+  build.dependsOn shadowJar
 
   dependencies {
     testImplementation project(':iceberg-api')
@@ -967,11 +970,9 @@ project(':iceberg-open-api') {
     testFixturesImplementation project(':iceberg-gcp')
     testFixturesImplementation project(':iceberg-azure')
     testFixturesImplementation(libs.hadoop3.common) {
-      exclude group: 'log4j'
       exclude group: 'org.slf4j'
       exclude group: 'ch.qos.reload4j'
       exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'com.fasterxml.woodstox'
       exclude group: 'com.google.guava'
       exclude group: 'com.google.protobuf'
       exclude group: 'org.apache.curator'
@@ -980,7 +981,6 @@ project(':iceberg-open-api') {
       exclude group: 'org.apache.hadoop', module: 'hadoop-auth'
       exclude group: 'org.apache.commons', module: 'commons-configuration2'
       exclude group: 'org.apache.hadoop.thirdparty', module: 'hadoop-shaded-protobuf_3_7'
-      exclude group: 'org.codehaus.woodstox'
       exclude group: 'org.eclipse.jetty'
     }
     testFixturesImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -1014,6 +1014,28 @@ project(':iceberg-open-api') {
     recommend.set(true)
   }
   check.dependsOn('validateRESTCatalogSpec')
+
+  shadowJar {
+    archiveBaseName.set("iceberg-open-api-test-fixtures-runtime")
+    archiveClassifier.set(null)
+    configurations = [project.configurations.testFixturesRuntimeClasspath]
+    from sourceSets.testFixtures.output
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the runtime Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    manifest {
+      attributes 'Main-Class': 'org.apache.iceberg.rest.RESTCatalogServer'
+    }
+  }
+
+  jar {
+    enabled = false
+  }
 }
 
 @Memoized
