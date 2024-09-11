@@ -20,7 +20,6 @@ package org.apache.iceberg.arrow.vectorized;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.setMaxStackTraceElementsDisplayed;
 
 import java.io.File;
 import java.io.IOException;
@@ -266,7 +265,6 @@ public class ArrowReaderTest {
 
   @Test
   public void testReadColumnThatDoesNotExistInParquetSchema() throws Exception {
-    setMaxStackTraceElementsDisplayed(15);
     rowsWritten = Lists.newArrayList();
     tables = new HadoopTables();
 
