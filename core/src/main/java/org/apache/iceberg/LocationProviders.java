@@ -27,7 +27,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.hash.HashCode;
 import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
-import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
@@ -108,10 +107,11 @@ public class LocationProviders {
   static class ObjectStoreLocationProvider implements LocationProvider {
 
     private static final HashFunction HASH_FUNC = Hashing.murmur3_32_fixed();
-    private static final BaseEncoding BASE64_ENCODER = BaseEncoding.base64Url().omitPadding();
-    private static final ThreadLocal<byte[]> TEMP = ThreadLocal.withInitial(() -> new byte[4]);
+    // the starting index of the lower 20-bits of a 32-bit binary string
+    private static final int HASH_BINARY_STRING_START_INDEX = 12;
     private final String storageLocation;
     private final String context;
+    private final boolean includePartitionPaths;
 
     ObjectStoreLocationProvider(String tableLocation, Map<String, String> properties) {
       this.storageLocation =
@@ -123,6 +123,11 @@ public class LocationProviders {
       } else {
         this.context = pathContext(tableLocation);
       }
+      this.includePartitionPaths =
+          PropertyUtil.propertyAsBoolean(
+              properties,
+              TableProperties.WRITE_OBJECT_STORE_PARTITIONED_PATHS,
+              TableProperties.WRITE_OBJECT_STORE_PARTITIONED_PATHS_DEFAULT);
     }
 
     private static String dataLocation(Map<String, String> properties, String tableLocation) {
@@ -141,7 +146,12 @@ public class LocationProviders {
 
     @Override
     public String newDataLocation(PartitionSpec spec, StructLike partitionData, String filename) {
-      return newDataLocation(String.format("%s/%s", spec.partitionToPath(partitionData), filename));
+      if (includePartitionPaths) {
+        return newDataLocation(
+            String.format("%s/%s", spec.partitionToPath(partitionData), filename));
+      } else {
+        return newDataLocation(filename);
+      }
     }
 
     @Override
@@ -172,10 +182,12 @@ public class LocationProviders {
     }
 
     private String computeHash(String fileName) {
-      byte[] bytes = TEMP.get();
-      HashCode hash = HASH_FUNC.hashString(fileName, StandardCharsets.UTF_8);
-      hash.writeBytesTo(bytes, 0, 4);
-      return BASE64_ENCODER.encode(bytes);
+      HashCode hashCode = HASH_FUNC.hashString(fileName, StandardCharsets.UTF_8);
+
+      // {@link Integer#toBinaryString} excludes leading zeros, which we want to preserve.
+      // force the first bit to be set to get around that.
+      String hashAsBinaryString = Integer.toBinaryString(hashCode.asInt() | Integer.MIN_VALUE);
+      return hashAsBinaryString.substring(HASH_BINARY_STRING_START_INDEX);
     }
   }
 }
