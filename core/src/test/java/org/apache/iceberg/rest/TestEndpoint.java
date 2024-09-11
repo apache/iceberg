@@ -79,30 +79,26 @@ public class TestEndpoint {
   @Test
   public void supportedEndpoints() {
     assertThatCode(
-            () ->
-                Endpoint.check(
-                    ImmutableSet.of(ResourcePaths.V1_LOAD_TABLE), ResourcePaths.V1_LOAD_TABLE))
+            () -> Endpoint.check(ImmutableSet.of(Endpoint.V1_LOAD_TABLE), Endpoint.V1_LOAD_TABLE))
         .doesNotThrowAnyException();
 
     assertThatCode(
             () ->
                 Endpoint.check(
-                    ImmutableSet.of(ResourcePaths.V1_LOAD_TABLE, ResourcePaths.V1_LOAD_VIEW),
-                    ResourcePaths.V1_LOAD_TABLE))
+                    ImmutableSet.of(Endpoint.V1_LOAD_TABLE, Endpoint.V1_LOAD_VIEW),
+                    Endpoint.V1_LOAD_TABLE))
         .doesNotThrowAnyException();
   }
 
   @Test
   public void unsupportedEndpoints() {
-    assertThatThrownBy(() -> Endpoint.check(ImmutableSet.of(), ResourcePaths.V1_LOAD_TABLE))
+    assertThatThrownBy(() -> Endpoint.check(ImmutableSet.of(), Endpoint.V1_LOAD_TABLE))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Server does not support endpoint: %s", ResourcePaths.V1_LOAD_TABLE);
+        .hasMessage("Server does not support endpoint: %s", Endpoint.V1_LOAD_TABLE);
 
     assertThatThrownBy(
-            () ->
-                Endpoint.check(
-                    ImmutableSet.of(ResourcePaths.V1_LOAD_VIEW), ResourcePaths.V1_LOAD_TABLE))
+            () -> Endpoint.check(ImmutableSet.of(Endpoint.V1_LOAD_VIEW), Endpoint.V1_LOAD_TABLE))
         .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Server does not support endpoint: %s", ResourcePaths.V1_LOAD_TABLE);
+        .hasMessage("Server does not support endpoint: %s", Endpoint.V1_LOAD_TABLE);
   }
 }

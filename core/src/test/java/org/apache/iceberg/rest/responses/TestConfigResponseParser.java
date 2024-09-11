@@ -27,7 +27,6 @@ import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.Endpoint;
-import org.apache.iceberg.rest.ResourcePaths;
 import org.junit.jupiter.api.Test;
 
 public class TestConfigResponseParser {
@@ -114,9 +113,7 @@ public class TestConfigResponseParser {
   public void endpointsOnly() {
     List<Endpoint> endpoints =
         ImmutableList.of(
-            ResourcePaths.V1_LOAD_NAMESPACE,
-            ResourcePaths.V1_LIST_NAMESPACES,
-            ResourcePaths.V1_CREATE_NAMESPACE);
+            Endpoint.V1_LOAD_NAMESPACE, Endpoint.V1_LIST_NAMESPACES, Endpoint.V1_CREATE_NAMESPACE);
     ConfigResponse response = ConfigResponse.builder().withEndpoints(endpoints).build();
 
     String expectedJson =
@@ -196,8 +193,7 @@ public class TestConfigResponseParser {
         ConfigResponse.builder()
             .withDefaults(defaults)
             .withOverrides(overrides)
-            .withEndpoints(
-                ImmutableList.of(ResourcePaths.V1_LOAD_TABLE, ResourcePaths.V1_LOAD_VIEW))
+            .withEndpoints(ImmutableList.of(Endpoint.V1_LOAD_TABLE, Endpoint.V1_LOAD_VIEW))
             .build();
 
     String expectedJson =

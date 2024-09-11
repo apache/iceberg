@@ -102,14 +102,14 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
-    Endpoint.check(endpoints, ResourcePaths.V1_LOAD_TABLE);
+    Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     return updateCurrentMetadata(
         client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
   }
 
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
-    Endpoint.check(endpoints, ResourcePaths.V1_UPDATE_TABLE);
+    Endpoint.check(endpoints, Endpoint.V1_UPDATE_TABLE);
     Consumer<ErrorResponse> errorHandler;
     List<UpdateRequirement> requirements;
     List<MetadataUpdate> updates;
