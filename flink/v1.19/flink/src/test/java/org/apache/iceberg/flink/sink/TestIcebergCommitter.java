@@ -1442,5 +1442,4 @@ class TestIcebergCommitter extends TestBase {
       return null;
     }
   }
-  ;
 }
