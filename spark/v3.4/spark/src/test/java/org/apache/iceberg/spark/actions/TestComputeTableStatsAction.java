@@ -21,11 +21,9 @@ package org.apache.iceberg.spark.actions;
 import static org.apache.iceberg.spark.actions.NDVSketchUtil.APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.util.List;
@@ -60,7 +58,6 @@ import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.types.StructType;
 import org.junit.After;
 import org.junit.Test;
-import org.junit.jupiter.api.Assertions;
 
 public class TestComputeTableStatsAction extends SparkCatalogTestBase {
 
@@ -107,19 +104,18 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     SparkActions actions = SparkActions.get();
     ComputeTableStats.Result results =
         actions.computeTableStats(table).columns("id", "data").execute();
-    assertNotNull(results);
+    assertThat(results).isNotNull();
 
     List<StatisticsFile> statisticsFiles = table.statisticsFiles();
-    Assertions.assertEquals(statisticsFiles.size(), 1);
+    assertThat(statisticsFiles.size()).isEqualTo(1);
 
     StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertNotEquals(statisticsFile.fileSizeInBytes(), 0);
-    Assertions.assertEquals(statisticsFile.blobMetadata().size(), 2);
+    assertThat(statisticsFile.fileSizeInBytes()).isNotEqualTo(0);
+    assertThat(statisticsFile.blobMetadata().size()).isEqualTo(2);
 
     BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
-    Assertions.assertEquals(
-        blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY),
-        String.valueOf(4));
+    assertThat(blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY))
+        .isEqualTo(String.valueOf(4));
   }
 
   @Test
@@ -141,28 +137,28 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
     ComputeTableStats.Result results = actions.computeTableStats(table).execute();
-    assertNotNull(results);
+    assertThat(results).isNotNull();
 
-    Assertions.assertEquals(1, table.statisticsFiles().size());
+    assertThat(table.statisticsFiles().size()).isEqualTo(1);
     StatisticsFile statisticsFile = table.statisticsFiles().get(0);
-    Assertions.assertEquals(2, statisticsFile.blobMetadata().size());
-    assertNotEquals(0, statisticsFile.fileSizeInBytes());
-    Assertions.assertEquals(
-        4,
-        Long.parseLong(
-            statisticsFile
-                .blobMetadata()
-                .get(0)
-                .properties()
-                .get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY)));
-    Assertions.assertEquals(
-        4,
-        Long.parseLong(
-            statisticsFile
-                .blobMetadata()
-                .get(1)
-                .properties()
-                .get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY)));
+    assertThat(statisticsFile.blobMetadata().size()).isEqualTo(2);
+    assertThat(statisticsFile.fileSizeInBytes()).isNotEqualTo(0);
+    assertThat(
+            Long.parseLong(
+                statisticsFile
+                    .blobMetadata()
+                    .get(0)
+                    .properties()
+                    .get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY)))
+        .isEqualTo(4);
+    assertThat(
+            Long.parseLong(
+                statisticsFile
+                    .blobMetadata()
+                    .get(1)
+                    .properties()
+                    .get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY)))
+        .isEqualTo(4);
   }
 
   @Test
@@ -172,12 +168,9 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     sql("INSERT into %s values(1, 'abcd')", tableName);
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
-    IllegalArgumentException exception =
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> actions.computeTableStats(table).columns("id1").execute());
-    String message = exception.getMessage();
-    assertTrue(message.contains("Can't find column id1 in table"));
+    assertThatThrownBy(() -> actions.computeTableStats(table).columns("id1").execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Can't find column id1 in table");
   }
 
   @Test
@@ -186,7 +179,7 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
     ComputeTableStats.Result result = actions.computeTableStats(table).columns("id").execute();
-    Assertions.assertNull(result.statisticsFile());
+    assertThat(result.statisticsFile()).isNull();
   }
 
   @Test
@@ -207,19 +200,18 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
     SparkActions actions = SparkActions.get();
     ComputeTableStats.Result results = actions.computeTableStats(table).columns("data").execute();
-    assertNotNull(results);
+    assertThat(results).isNotNull();
 
     List<StatisticsFile> statisticsFiles = table.statisticsFiles();
-    Assertions.assertEquals(statisticsFiles.size(), 1);
+    assertThat(statisticsFiles.size()).isEqualTo(1);
 
     StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertNotEquals(statisticsFile.fileSizeInBytes(), 0);
-    Assertions.assertEquals(statisticsFile.blobMetadata().size(), 1);
+    assertThat(statisticsFile.fileSizeInBytes()).isNotEqualTo(0);
+    assertThat(statisticsFile.blobMetadata().size()).isEqualTo(1);
 
     BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
-    Assertions.assertEquals(
-        blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY),
-        String.valueOf(4));
+    assertThat(blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY))
+        .isEqualTo(String.valueOf(4));
   }
 
   @Test
@@ -233,7 +225,8 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     // Snapshot id not specified
     Table table = Spark3Util.loadIcebergTable(spark, tableName);
 
-    assertDoesNotThrow(() -> actions.computeTableStats(table).columns("data").execute());
+    assertThatCode(() -> actions.computeTableStats(table).columns("data").execute())
+        .doesNotThrowAnyException();
 
     sql("ALTER TABLE %s DROP COLUMN %s", tableName, "data");
     // Append data to create snapshot
@@ -242,15 +235,14 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     long snapshotId2 = Spark3Util.loadIcebergTable(spark, tableName).currentSnapshot().snapshotId();
 
     // Snapshot id specified
-    assertDoesNotThrow(
-        () -> actions.computeTableStats(table).snapshot(snapshotId1).columns("data").execute());
+    assertThatCode(
+            () -> actions.computeTableStats(table).snapshot(snapshotId1).columns("data").execute())
+        .doesNotThrowAnyException();
 
-    IllegalArgumentException exception =
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> actions.computeTableStats(table).snapshot(snapshotId2).columns("data").execute());
-    String message = exception.getMessage();
-    assertTrue(message.contains("Can't find column data in table"));
+    assertThatThrownBy(
+            () -> actions.computeTableStats(table).snapshot(snapshotId2).columns("data").execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Can't find column data in table");
   }
 
   @Test
@@ -263,19 +255,18 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     SparkActions actions = SparkActions.get();
     ComputeTableStats.Result results = actions.computeTableStats(table).columns("data").execute();
 
-    assertNotNull(results);
+    assertThat(results).isNotNull();
 
     List<StatisticsFile> statisticsFiles = table.statisticsFiles();
-    Assertions.assertEquals(statisticsFiles.size(), 1);
+    assertThat(statisticsFiles.size()).isEqualTo(1);
 
     StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertNotEquals(statisticsFile.fileSizeInBytes(), 0);
-    Assertions.assertEquals(statisticsFile.blobMetadata().size(), 1);
+    assertThat(statisticsFile.fileSizeInBytes()).isNotEqualTo(0);
+    assertThat(statisticsFile.blobMetadata().size()).isEqualTo(1);
 
     BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
-    Assertions.assertEquals(
-        blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY),
-        String.valueOf(1));
+    assertThat(blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY))
+        .isEqualTo(String.valueOf(1));
   }
 
   @Test
@@ -298,10 +289,10 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
 
     tbl.refresh();
     List<StatisticsFile> statisticsFiles = tbl.statisticsFiles();
-    Assertions.assertEquals(statisticsFiles.size(), 1);
+    assertThat(statisticsFiles.size()).isEqualTo(1);
     StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertNotEquals(statisticsFile.fileSizeInBytes(), 0);
-    Assertions.assertEquals(statisticsFile.blobMetadata().size(), 1);
+    assertThat(statisticsFile.fileSizeInBytes()).isNotEqualTo(0);
+    assertThat(statisticsFile.blobMetadata().size()).isEqualTo(1);
   }
 
   @Test
@@ -316,10 +307,9 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
 
     table.refresh();
     SparkActions actions = SparkActions.get();
-    IllegalArgumentException exception =
-        assertThrows(
-            IllegalArgumentException.class, () -> actions.computeTableStats(table).execute());
-    Assertions.assertEquals(exception.getMessage(), "No columns found to compute stats");
+    assertThatThrownBy(() -> actions.computeTableStats(table).execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("No columns found to compute stats");
   }
 
   @Test
@@ -380,18 +370,18 @@ public class TestComputeTableStatsAction extends SparkCatalogTestBase {
     table.refresh();
     ComputeTableStats.Result results =
         actions.computeTableStats(table).columns(columnName).execute();
-    assertNotNull(results);
+    assertThat(results).isNotNull();
 
     List<StatisticsFile> statisticsFiles = table.statisticsFiles();
-    Assertions.assertEquals(statisticsFiles.size(), 1);
+    assertThat(statisticsFiles.size()).isEqualTo(1);
 
     StatisticsFile statisticsFile = statisticsFiles.get(0);
-    assertNotEquals(statisticsFile.fileSizeInBytes(), 0);
-    Assertions.assertEquals(statisticsFile.blobMetadata().size(), 1);
+    assertThat(statisticsFile.fileSizeInBytes()).isNotEqualTo(0);
+    assertThat(statisticsFile.blobMetadata().size()).isEqualTo(1);
 
     BlobMetadata blobMetadata = statisticsFile.blobMetadata().get(0);
-    Assertions.assertNotNull(
-        blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY));
+    assertThat(blobMetadata.properties().get(APACHE_DATASKETCHES_THETA_V1_NDV_PROPERTY))
+        .isNotNull();
   }
 
   private GenericRecord createNestedRecord() {
