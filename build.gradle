@@ -636,21 +636,20 @@ project(':iceberg-delta-lake') {
   }
 }
 
-project(':iceberg-gcp') {
+project(':iceberg-bigquery') {
   test {
     useJUnitPlatform()
   }
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation project(':iceberg-gcp')
+
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
 
     implementation("com.google.apis:google-api-services-bigquery:v2-rev20240602-2.0.0")
-
-    compileOnly platform(libs.google.libraries.bom)
-    compileOnly "com.google.cloud:google-cloud-storage"
 
     compileOnly('org.apache.hive:hive-metastore:4.0.0') {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -669,13 +668,30 @@ project(':iceberg-gcp') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
 
-    testImplementation "com.google.cloud:google-cloud-nio"
-
-    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 
     testImplementation 'org.apache.hadoop:hadoop-common:3.4.0'
     testImplementation 'org.mockito:mockito-core:5.12.0'
+  }
+}
+
+project(':iceberg-gcp') {
+  test {
+    useJUnitPlatform()
+  }
+
+  dependencies {
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    implementation project(':iceberg-core')
+
+    compileOnly platform(libs.google.libraries.bom)
+    compileOnly "com.google.cloud:google-cloud-storage"
+
+    testImplementation "com.google.cloud:google-cloud-nio"
+
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
 
     testImplementation(libs.hadoop2.common) {
       exclude group: 'org.apache.avro', module: 'avro'
