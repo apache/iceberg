@@ -67,7 +67,7 @@ subprojects {
       java {
         target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/testFixtures/java/**/*.java', 'src/jmh/java/**/*.java', 'src/integration/java/**/*.java'
         // we use an older version of google-java-format that is compatible with JDK 8
-        googleJavaFormat("1.17.0")
+        googleJavaFormat("1.23.0")
         removeUnusedImports()
         licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
       }
