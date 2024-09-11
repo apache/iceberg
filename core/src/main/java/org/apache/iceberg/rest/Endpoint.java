@@ -19,6 +19,7 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
@@ -41,7 +42,7 @@ public class Endpoint {
     Preconditions.checkArgument(
         !Strings.isNullOrEmpty(httpMethod), "Invalid HTTP method: null or empty");
     Preconditions.checkArgument(!Strings.isNullOrEmpty(path), "Invalid path: null or empty");
-    this.httpMethod = httpMethod;
+    this.httpMethod = httpMethod.toUpperCase(Locale.ROOT);
     this.path = path;
   }
 
@@ -66,7 +67,7 @@ public class Endpoint {
     List<String> elements = ENDPOINT_SPLITTER.splitToList(endpoint);
     Preconditions.checkArgument(
         elements.size() == 2,
-        "Invalid endpoint (must consist of two elements separated by space): %s",
+        "Invalid endpoint (must consist of two elements separated by a single space): %s",
         endpoint);
     return create(elements.get(0), elements.get(1));
   }
@@ -74,13 +75,13 @@ public class Endpoint {
   /**
    * Checks if the set of endpoints support the given {@link Endpoint}.
    *
-   * @param endpoints The set of endpoints to check
-   * @param endpoint The endpoint to check against the set of endpoints
+   * @param supportedEndpoints The set of supported endpoints to check
+   * @param endpoint The endpoint to check against the set of supported endpoints
    * @throws UnsupportedOperationException if the given {@link Endpoint} is not included in the set
    *     of endpoints.
    */
-  public static void checkEndpointSupported(Set<Endpoint> endpoints, Endpoint endpoint) {
-    if (!endpoints.contains(endpoint)) {
+  public static void check(Set<Endpoint> supportedEndpoints, Endpoint endpoint) {
+    if (!supportedEndpoints.contains(endpoint)) {
       throw new UnsupportedOperationException(
           String.format(
               "Server does not support endpoint: %s %s", endpoint.httpMethod(), endpoint.path()));
@@ -92,9 +93,11 @@ public class Endpoint {
     if (this == o) {
       return true;
     }
+
     if (!(o instanceof Endpoint)) {
       return false;
     }
+
     Endpoint endpoint = (Endpoint) o;
     return Objects.equals(httpMethod, endpoint.httpMethod) && Objects.equals(path, endpoint.path);
   }

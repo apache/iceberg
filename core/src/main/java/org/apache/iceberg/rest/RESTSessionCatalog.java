@@ -389,7 +389,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean dropTable(SessionContext context, TableIdentifier identifier) {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_DELETE_TABLE);
+    Endpoint.check(endpoints, ResourcePaths.V1_DELETE_TABLE);
     checkIdentifierIsValid(identifier);
 
     try {
@@ -403,7 +403,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean purgeTable(SessionContext context, TableIdentifier identifier) {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_DELETE_TABLE);
+    Endpoint.check(endpoints, ResourcePaths.V1_DELETE_TABLE);
     checkIdentifierIsValid(identifier);
 
     try {
@@ -421,7 +421,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public void renameTable(SessionContext context, TableIdentifier from, TableIdentifier to) {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_RENAME_TABLE);
+    Endpoint.check(endpoints, ResourcePaths.V1_RENAME_TABLE);
     checkIdentifierIsValid(from);
     checkIdentifierIsValid(to);
 
@@ -434,7 +434,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   private LoadTableResponse loadInternal(
       SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_LOAD_TABLE);
+    Endpoint.check(endpoints, ResourcePaths.V1_LOAD_TABLE);
     return client.get(
         paths.table(identifier),
         mode.params(),
@@ -549,7 +549,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public Table registerTable(
       SessionContext context, TableIdentifier ident, String metadataFileLocation) {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_REGISTER_TABLE);
+    Endpoint.check(endpoints, ResourcePaths.V1_REGISTER_TABLE);
     checkIdentifierIsValid(ident);
 
     Preconditions.checkArgument(
@@ -590,7 +590,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public void createNamespace(
       SessionContext context, Namespace namespace, Map<String, String> metadata) {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_CREATE_NAMESPACE);
+    Endpoint.check(endpoints, ResourcePaths.V1_CREATE_NAMESPACE);
     CreateNamespaceRequest request =
         CreateNamespaceRequest.builder().withNamespace(namespace).setProperties(metadata).build();
 
@@ -638,7 +638,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public Map<String, String> loadNamespaceMetadata(SessionContext context, Namespace ns) {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_LOAD_NAMESPACE);
+    Endpoint.check(endpoints, ResourcePaths.V1_LOAD_NAMESPACE);
     checkNamespaceIsValid(ns);
 
     // TODO: rename to LoadNamespaceResponse?
@@ -653,7 +653,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean dropNamespace(SessionContext context, Namespace ns) {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_DELETE_NAMESPACE);
+    Endpoint.check(endpoints, ResourcePaths.V1_DELETE_NAMESPACE);
     checkNamespaceIsValid(ns);
 
     try {
@@ -668,7 +668,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   @Override
   public boolean updateNamespaceMetadata(
       SessionContext context, Namespace ns, Map<String, String> updates, Set<String> removals) {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_UPDATE_NAMESPACE);
+    Endpoint.check(endpoints, ResourcePaths.V1_UPDATE_NAMESPACE);
     checkNamespaceIsValid(ns);
 
     UpdateNamespacePropertiesRequest request =
@@ -785,7 +785,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public Table create() {
-      Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_CREATE_TABLE);
+      Endpoint.check(endpoints, ResourcePaths.V1_CREATE_TABLE);
       CreateTableRequest request =
           CreateTableRequest.builder()
               .withName(ident.name())
@@ -822,7 +822,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public Transaction createTransaction() {
-      Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_CREATE_TABLE);
+      Endpoint.check(endpoints, ResourcePaths.V1_CREATE_TABLE);
       LoadTableResponse response = stageCreate();
       String fullName = fullTableName(ident);
 
@@ -848,7 +848,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public Transaction replaceTransaction() {
-      Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_UPDATE_TABLE);
+      Endpoint.check(endpoints, ResourcePaths.V1_UPDATE_TABLE);
       if (viewExists(context, ident)) {
         throw new AlreadyExistsException("View with same name already exists: %s", ident);
       }
@@ -1150,7 +1150,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   }
 
   public void commitTransaction(SessionContext context, List<TableCommit> commits) {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_COMMIT_TRANSACTION);
+    Endpoint.check(endpoints, ResourcePaths.V1_COMMIT_TRANSACTION);
     List<UpdateTableRequest> tableChanges = Lists.newArrayListWithCapacity(commits.size());
 
     for (TableCommit commit : commits) {
@@ -1228,7 +1228,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public boolean dropView(SessionContext context, TableIdentifier identifier) {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_DELETE_VIEW);
+    Endpoint.check(endpoints, ResourcePaths.V1_DELETE_VIEW);
     checkViewIdentifierIsValid(identifier);
 
     try {
@@ -1242,7 +1242,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public void renameView(SessionContext context, TableIdentifier from, TableIdentifier to) {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_RENAME_VIEW);
+    Endpoint.check(endpoints, ResourcePaths.V1_RENAME_VIEW);
     checkViewIdentifierIsValid(from);
     checkViewIdentifierIsValid(to);
 
@@ -1314,7 +1314,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     @Override
     public View create() {
-      Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_CREATE_VIEW);
+      Endpoint.check(endpoints, ResourcePaths.V1_CREATE_VIEW);
       Preconditions.checkState(
           !representations.isEmpty(), "Cannot create view without specifying a query");
       Preconditions.checkState(null != schema, "Cannot create view without specifying schema");
@@ -1388,7 +1388,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     private View replace(LoadViewResponse response) {
-      Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_UPDATE_VIEW);
+      Endpoint.check(endpoints, ResourcePaths.V1_UPDATE_VIEW);
       Preconditions.checkState(
           !representations.isEmpty(), "Cannot replace view without specifying a query");
       Preconditions.checkState(null != schema, "Cannot replace view without specifying schema");

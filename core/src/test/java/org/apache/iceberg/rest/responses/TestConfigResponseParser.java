@@ -171,7 +171,7 @@ public class TestConfigResponseParser {
                     "{\"endpoints\":[\"GET_v1/namespaces/{namespace}\"]}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Invalid endpoint (must consist of two elements separated by space): GET_v1/namespaces/{namespace}");
+            "Invalid endpoint (must consist of two elements separated by a single space): GET_v1/namespaces/{namespace}");
 
     assertThatThrownBy(
             () ->
@@ -179,7 +179,7 @@ public class TestConfigResponseParser {
                     "{\"endpoints\":[\"GET v1/namespaces/{namespace} INVALID\"]}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Invalid endpoint (must consist of two elements separated by space): GET v1/namespaces/{namespace} INVALID");
+            "Invalid endpoint (must consist of two elements separated by a single space): GET v1/namespaces/{namespace} INVALID");
   }
 
   @Test

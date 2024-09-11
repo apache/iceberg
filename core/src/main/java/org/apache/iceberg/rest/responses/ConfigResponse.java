@@ -173,11 +173,6 @@ public class ConfigResponse implements RESTResponse {
       return this;
     }
 
-    public Builder withEndpoint(Endpoint endpoint) {
-      endpoints.add(endpoint);
-      return this;
-    }
-
     public Builder withEndpoints(List<Endpoint> endpointsToAdd) {
       endpoints.addAll(endpointsToAdd);
       return this;

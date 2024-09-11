@@ -53,7 +53,8 @@ public class TestEndpoint {
     assertThatThrownBy(() -> Endpoint.fromString(endpoint))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
-            "Invalid endpoint (must consist of two elements separated by space): %s", endpoint);
+            "Invalid endpoint (must consist of two elements separated by a single space): %s",
+            endpoint);
   }
 
   @Test
@@ -69,6 +70,7 @@ public class TestEndpoint {
         .asString()
         .isEqualTo("POST /path/of/resource");
     assertThat(Endpoint.create("GET", "/")).asString().isEqualTo("GET /");
+    assertThat(Endpoint.create("PuT", "/")).asString().isEqualTo("PUT /");
     assertThat(Endpoint.create("PUT", "/namespaces/{namespace}/{x}"))
         .asString()
         .isEqualTo("PUT /namespaces/{namespace}/{x}");
@@ -78,13 +80,13 @@ public class TestEndpoint {
   public void supportedEndpoints() {
     assertThatCode(
             () ->
-                Endpoint.checkEndpointSupported(
+                Endpoint.check(
                     ImmutableSet.of(ResourcePaths.V1_LOAD_TABLE), ResourcePaths.V1_LOAD_TABLE))
         .doesNotThrowAnyException();
 
     assertThatCode(
             () ->
-                Endpoint.checkEndpointSupported(
+                Endpoint.check(
                     ImmutableSet.of(ResourcePaths.V1_LOAD_TABLE, ResourcePaths.V1_LOAD_VIEW),
                     ResourcePaths.V1_LOAD_TABLE))
         .doesNotThrowAnyException();
@@ -92,14 +94,13 @@ public class TestEndpoint {
 
   @Test
   public void unsupportedEndpoints() {
-    assertThatThrownBy(
-            () -> Endpoint.checkEndpointSupported(ImmutableSet.of(), ResourcePaths.V1_LOAD_TABLE))
+    assertThatThrownBy(() -> Endpoint.check(ImmutableSet.of(), ResourcePaths.V1_LOAD_TABLE))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Server does not support endpoint: %s", ResourcePaths.V1_LOAD_TABLE);
 
     assertThatThrownBy(
             () ->
-                Endpoint.checkEndpointSupported(
+                Endpoint.check(
                     ImmutableSet.of(ResourcePaths.V1_LOAD_VIEW), ResourcePaths.V1_LOAD_TABLE))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Server does not support endpoint: %s", ResourcePaths.V1_LOAD_TABLE);

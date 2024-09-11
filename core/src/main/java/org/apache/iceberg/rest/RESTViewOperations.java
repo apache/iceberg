@@ -57,15 +57,14 @@ class RESTViewOperations implements ViewOperations {
 
   @Override
   public ViewMetadata refresh() {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_LOAD_VIEW);
+    Endpoint.check(endpoints, ResourcePaths.V1_LOAD_VIEW);
     return updateCurrentMetadata(
         client.get(path, LoadViewResponse.class, headers, ErrorHandlers.viewErrorHandler()));
   }
 
   @Override
   public void commit(ViewMetadata base, ViewMetadata metadata) {
-    Endpoint.checkEndpointSupported(endpoints, ResourcePaths.V1_UPDATE_VIEW);
-
+    Endpoint.check(endpoints, ResourcePaths.V1_UPDATE_VIEW);
     // this is only used for replacing view metadata
     Preconditions.checkState(base != null, "Invalid base metadata: null");
 
