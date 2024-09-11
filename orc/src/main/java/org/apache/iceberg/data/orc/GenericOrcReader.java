@@ -100,9 +100,9 @@ public class GenericOrcReader implements OrcRowReader<Record> {
         case BOOLEAN:
           return OrcValueReaders.booleans();
         case BYTE:
-        // Iceberg does not have a byte type. Use int
+          // Iceberg does not have a byte type. Use int
         case SHORT:
-        // Iceberg does not have a short type. Use int
+          // Iceberg does not have a short type. Use int
         case INT:
           return OrcValueReaders.ints();
         case LONG:
