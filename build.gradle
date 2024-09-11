@@ -677,13 +677,13 @@ project(':iceberg-gcp') {
     testImplementation 'org.apache.hadoop:hadoop-common:3.4.0'
     testImplementation 'org.mockito:mockito-core:5.12.0'
 
-    testImplementation libs.esotericsoftware.kryo
     testImplementation(libs.hadoop2.common) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'javax.servlet', module: 'servlet-api'
       exclude group: 'com.google.code.gson', module: 'gson'
     }
+    testImplementation libs.esotericsoftware.kryo
   }
 }
 

@@ -202,7 +202,8 @@ public class BigQueryTableOperationsTest {
         .thenReturn(
             new Dataset()
                 .setExternalCatalogDatasetOptions(
-                    new ExternalCatalogDatasetOptions().setDefaultStorageLocationUri("db_folder")));
+                    new ExternalCatalogDatasetOptions()
+                        .setDefaultStorageLocationUri("build/db_folder")));
 
     Schema schema = BigQueryMetastoreTestUtils.getTestSchema();
     bigQueryMetastoreCatalog.createTable(SPARK_TABLE_ID, schema, PartitionSpec.unpartitioned());

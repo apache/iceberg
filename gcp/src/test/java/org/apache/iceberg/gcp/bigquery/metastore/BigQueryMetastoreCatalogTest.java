@@ -103,10 +103,11 @@ public class BigQueryMetastoreCatalogTest {
         .thenReturn(
             new Dataset()
                 .setExternalCatalogDatasetOptions(
-                    new ExternalCatalogDatasetOptions().setDefaultStorageLocationUri("db_folder")));
+                    new ExternalCatalogDatasetOptions()
+                        .setDefaultStorageLocationUri("build/db_folder")));
 
     assertEquals(
-        "db_folder/table",
+        "build/db_folder/table",
         bigQueryMetastoreCatalog.defaultWarehouseLocation(TableIdentifier.of(DATASET_ID, "table")));
   }
 
