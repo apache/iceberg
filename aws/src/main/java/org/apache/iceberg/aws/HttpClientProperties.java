@@ -44,6 +44,7 @@ public class HttpClientProperties implements Serializable {
   public static final String CLIENT_TYPE_APACHE = "apache";
 
   private static final String CLIENT_PREFIX = "http-client.";
+
   /**
    * If this is set under {@link #CLIENT_TYPE}, {@link
    * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient} will be used as the HTTP
@@ -59,6 +60,7 @@ public class HttpClientProperties implements Serializable {
    * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}
    */
   public static final String PROXY_ENDPOINT = "http-client.proxy-endpoint";
+
   /**
    * Used to configure the connection timeout in milliseconds for {@link
    * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder}. This flag only
@@ -69,6 +71,7 @@ public class HttpClientProperties implements Serializable {
    */
   public static final String URLCONNECTION_CONNECTION_TIMEOUT_MS =
       "http-client.urlconnection.connection-timeout-ms";
+
   /**
    * Used to configure the socket timeout in milliseconds for {@link
    * software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient.Builder}. This flag only
@@ -79,6 +82,7 @@ public class HttpClientProperties implements Serializable {
    */
   public static final String URLCONNECTION_SOCKET_TIMEOUT_MS =
       "http-client.urlconnection.socket-timeout-ms";
+
   /**
    * Used to configure the connection timeout in milliseconds for {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
@@ -89,6 +93,7 @@ public class HttpClientProperties implements Serializable {
    */
   public static final String APACHE_CONNECTION_TIMEOUT_MS =
       "http-client.apache.connection-timeout-ms";
+
   /**
    * Used to configure the socket timeout in milliseconds for {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
@@ -98,6 +103,7 @@ public class HttpClientProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String APACHE_SOCKET_TIMEOUT_MS = "http-client.apache.socket-timeout-ms";
+
   /**
    * Used to configure the connection acquisition timeout in milliseconds for {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
@@ -108,6 +114,7 @@ public class HttpClientProperties implements Serializable {
    */
   public static final String APACHE_CONNECTION_ACQUISITION_TIMEOUT_MS =
       "http-client.apache.connection-acquisition-timeout-ms";
+
   /**
    * Used to configure the connection max idle time in milliseconds for {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
@@ -118,6 +125,7 @@ public class HttpClientProperties implements Serializable {
    */
   public static final String APACHE_CONNECTION_MAX_IDLE_TIME_MS =
       "http-client.apache.connection-max-idle-time-ms";
+
   /**
    * Used to configure the connection time to live in milliseconds for {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
@@ -128,6 +136,7 @@ public class HttpClientProperties implements Serializable {
    */
   public static final String APACHE_CONNECTION_TIME_TO_LIVE_MS =
       "http-client.apache.connection-time-to-live-ms";
+
   /**
    * Used to configure whether to enable the expect continue setting for {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
@@ -140,6 +149,7 @@ public class HttpClientProperties implements Serializable {
    */
   public static final String APACHE_EXPECT_CONTINUE_ENABLED =
       "http-client.apache.expect-continue-enabled";
+
   /**
    * Used to configure the max connections number for {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
@@ -149,6 +159,7 @@ public class HttpClientProperties implements Serializable {
    * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/http/apache/ApacheHttpClient.Builder.html
    */
   public static final String APACHE_MAX_CONNECTIONS = "http-client.apache.max-connections";
+
   /**
    * Used to configure whether to enable the tcp keep alive setting for {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link
@@ -161,6 +172,7 @@ public class HttpClientProperties implements Serializable {
    */
   public static final String APACHE_TCP_KEEP_ALIVE_ENABLED =
       "http-client.apache.tcp-keep-alive-enabled";
+
   /**
    * Used to configure whether to use idle connection reaper for {@link
    * software.amazon.awssdk.http.apache.ApacheHttpClient.Builder}. This flag only works when {@link

@@ -1441,5 +1441,6 @@ class TestIcebergCommitter extends TestBase {
     public TypeSerializerSnapshot<CommittableMessage<IcebergCommittable>> snapshotConfiguration() {
       return null;
     }
-  };
+  }
+  ;
 }
