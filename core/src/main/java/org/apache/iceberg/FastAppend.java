@@ -215,14 +215,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     }
 
     if (newManifests == null && !newFiles.isEmpty()) {
-      RollingManifestWriter<DataFile> writer = newRollingManifestWriter(spec);
-      try {
-        newFiles.forEach(writer::add);
-      } finally {
-        writer.close();
-      }
-
-      this.newManifests = writer.toManifestFiles();
+      this.newManifests = writeDataManifests(newFiles, spec);
       hasNewFiles = false;
     }
 

@@ -34,15 +34,18 @@ import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
+import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.events.CreateSnapshotEvent;
@@ -59,10 +62,14 @@ import org.apache.iceberg.metrics.ImmutableCommitReport;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.Timer.Timed;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.relocated.com.google.common.math.IntMath;
 import org.apache.iceberg.util.Exceptions;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.Tasks;
@@ -73,6 +80,7 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings("UnnecessaryAnonymousClass")
 abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
+  static final int MIN_FILE_GROUP_SIZE = 10_000;
   static final Set<ManifestFile> EMPTY_SET = Sets.newHashSet();
 
   /** Default callback used to delete files. */
@@ -554,6 +562,88 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return true;
   }
 
+  protected List<ManifestFile> writeDataManifests(List<DataFile> files, PartitionSpec spec) {
+    return writeDataManifests(files, null /* inherit data seq */, spec);
+  }
+
+  protected List<ManifestFile> writeDataManifests(
+      List<DataFile> files, Long dataSeq, PartitionSpec spec) {
+    return writeManifests(files, group -> writeDataFileGroup(group, dataSeq, spec));
+  }
+
+  private List<ManifestFile> writeDataFileGroup(
+      List<DataFile> files, Long dataSeq, PartitionSpec spec) {
+    RollingManifestWriter<DataFile> writer = newRollingManifestWriter(spec);
+
+    try (RollingManifestWriter<DataFile> closableWriter = writer) {
+      if (dataSeq != null) {
+        files.forEach(file -> closableWriter.add(file, dataSeq));
+      } else {
+        files.forEach(closableWriter::add);
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write data manifests");
+    }
+
+    return writer.toManifestFiles();
+  }
+
+  protected List<ManifestFile> writeDeleteManifests(
+      List<DeleteFileHolder> files, PartitionSpec spec) {
+    return writeManifests(files, group -> writeDeleteFileGroup(group, spec));
+  }
+
+  private List<ManifestFile> writeDeleteFileGroup(
+      List<DeleteFileHolder> files, PartitionSpec spec) {
+    RollingManifestWriter<DeleteFile> writer = newRollingDeleteManifestWriter(spec);
+
+    try (RollingManifestWriter<DeleteFile> closableWriter = writer) {
+      for (DeleteFileHolder file : files) {
+        if (file.dataSequenceNumber() != null) {
+          closableWriter.add(file.deleteFile(), file.dataSequenceNumber());
+        } else {
+          closableWriter.add(file.deleteFile());
+        }
+      }
+    } catch (IOException e) {
+      throw new RuntimeIOException(e, "Failed to write delete manifests");
+    }
+
+    return writer.toManifestFiles();
+  }
+
+  private static <F> List<ManifestFile> writeManifests(
+      List<F> files, Function<List<F>, List<ManifestFile>> writeFunc) {
+    int parallelism = manifestWriterCount(ThreadPools.WORKER_THREAD_POOL_SIZE, files.size());
+    List<List<F>> groups = divide(files, parallelism);
+    Queue<ManifestFile> manifests = Queues.newConcurrentLinkedQueue();
+    Tasks.foreach(groups)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(ThreadPools.getWorkerPool())
+        .run(group -> manifests.addAll(writeFunc.apply(group)));
+    return ImmutableList.copyOf(manifests);
+  }
+
+  private static <T> List<List<T>> divide(List<T> list, int groupCount) {
+    int groupSize = IntMath.divide(list.size(), groupCount, RoundingMode.CEILING);
+    return Lists.partition(list, groupSize);
+  }
+
+  /**
+   * Calculates how many manifest writers can be used to concurrently to handle the given number of
+   * files without creating too small manifests.
+   *
+   * @param workerPoolSize the size of the available worker pool
+   * @param fileCount the total number of files to be processed
+   * @return the number of manifest writers that can be used concurrently
+   */
+  @VisibleForTesting
+  static int manifestWriterCount(int workerPoolSize, int fileCount) {
+    int limit = IntMath.divide(fileCount, MIN_FILE_GROUP_SIZE, RoundingMode.HALF_UP);
+    return Math.max(1, Math.min(workerPoolSize, limit));
+  }
+
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
     try (ManifestReader<DataFile> reader =
         ManifestFiles.read(manifest, ops.io(), ops.current().specsById())) {
@@ -652,6 +742,40 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       } catch (NumberFormatException e) {
         // ignore and do not add total
       }
+    }
+  }
+
+  protected static class DeleteFileHolder {
+    private final DeleteFile deleteFile;
+    private final Long dataSequenceNumber;
+
+    /**
+     * Wrap a delete file for commit with a given data sequence number.
+     *
+     * @param deleteFile delete file
+     * @param dataSequenceNumber data sequence number to apply
+     */
+    DeleteFileHolder(DeleteFile deleteFile, long dataSequenceNumber) {
+      this.deleteFile = deleteFile;
+      this.dataSequenceNumber = dataSequenceNumber;
+    }
+
+    /**
+     * Wrap a delete file for commit with the latest sequence number.
+     *
+     * @param deleteFile delete file
+     */
+    DeleteFileHolder(DeleteFile deleteFile) {
+      this.deleteFile = deleteFile;
+      this.dataSequenceNumber = null;
+    }
+
+    public DeleteFile deleteFile() {
+      return deleteFile;
+    }
+
+    public Long dataSequenceNumber() {
+      return dataSequenceNumber;
     }
   }
 }
