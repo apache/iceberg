@@ -579,7 +579,10 @@ public class TestRowDelta extends V2TableTestBase {
 
   @TestTemplate
   public void testDeleteDataFileWithDeleteFile() {
-    commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()), branch);
+    commit(
+        table,
+        table.newRowDelta().addRows(FILE_A).addDeletes(fileADeletes()).addDeletes(fileBDeletes()),
+        branch);
 
     long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
@@ -604,18 +607,18 @@ public class TestRowDelta extends V2TableTestBase {
     assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
     validateDeleteManifest(
         deleteSnap.deleteManifests(table.io()).get(0),
-        dataSeqs(1L),
-        fileSeqs(1L),
-        ids(deltaSnapshotId),
-        files(fileADeletes()),
-        statuses(Status.ADDED));
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(deltaSnapshotId, deltaSnapshotId),
+        files(fileADeletes(), fileBDeletes()),
+        statuses(Status.ADDED, Status.ADDED));
 
     // the manifest that removed FILE_A will be dropped next commit, causing the min sequence number
     // of all data files
     // to be 2, the largest known sequence number. this will cause FILE_A_DELETES to be removed
     // because it is too old
     // to apply to any data files.
-    commit(table, table.newDelete().deleteFile("no-such-file"), branch);
+    commit(table, table.newRowDelta().removeDeletes(FILE_B_DELETES), branch);
 
     Snapshot nextSnap = latestSnapshot(table, branch);
     assertThat(nextSnap.sequenceNumber()).isEqualTo(3);
@@ -625,11 +628,11 @@ public class TestRowDelta extends V2TableTestBase {
     assertThat(nextSnap.deleteManifests(table.io())).hasSize(1);
     validateDeleteManifest(
         nextSnap.deleteManifests(table.io()).get(0),
-        dataSeqs(1L),
-        fileSeqs(1L),
-        ids(nextSnap.snapshotId()),
-        files(fileADeletes()),
-        statuses(Status.DELETED));
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(nextSnap.snapshotId(), nextSnap.snapshotId()),
+        files(fileADeletes(), fileBDeletes()),
+        statuses(Status.DELETED, Status.DELETED));
   }
 
   @TestTemplate
@@ -1446,6 +1449,7 @@ public class TestRowDelta extends V2TableTestBase {
 
   @TestTemplate
   public void testRewrittenDeleteFilesReadFromManifest() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
     DataFile dataFile = newDataFile("data_bucket=0");
     DeleteFile deleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
     RowDelta baseRowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
@@ -1563,6 +1567,7 @@ public class TestRowDelta extends V2TableTestBase {
 
   @TestTemplate
   public void testConcurrentManifestRewriteWithDeleteFileRemoval() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
     // Manifest rewrite isn't supported on branches currently
     assumeThat(branch).isEqualTo("main");
 

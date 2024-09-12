@@ -33,6 +33,7 @@ import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.GenericBlobMetadata;
 import org.apache.iceberg.GenericStatisticsFile;
 import org.apache.iceberg.PartitionStatisticsFile;
@@ -298,8 +299,8 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         "Should have 1 delete manifest", 1, TestHelpers.deleteManifests(table).size());
     Assert.assertEquals("Should have 1 delete file", 1, TestHelpers.deleteFiles(table).size());
     Path deleteManifestPath = new Path(TestHelpers.deleteManifests(table).iterator().next().path());
-    Path deleteFilePath =
-        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().path()));
+    DeleteFile deleteFile = TestHelpers.deleteFiles(table).iterator().next();
+    Path deleteFilePath = new Path(String.valueOf(deleteFile.path()));
 
     sql(
         "CALL %s.system.rewrite_data_files("
@@ -310,9 +311,10 @@ public class TestExpireSnapshotsProcedure extends SparkExtensionsTestBase {
         catalogName, tableIdent);
     table.refresh();
 
-    sql(
-        "INSERT INTO TABLE %s VALUES (5, 'e')",
-        tableName); // this txn moves the file to the DELETED state
+    table
+        .newRowDelta()
+        .removeDeletes(deleteFile)
+        .commit(); // this txn moves the file to the DELETED state
     sql("INSERT INTO TABLE %s VALUES (6, 'f')", tableName); // this txn removes the file reference
     table.refresh();
 

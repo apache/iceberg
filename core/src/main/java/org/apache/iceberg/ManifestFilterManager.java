@@ -70,7 +70,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final Map<Integer, PartitionSpec> specsById;
   private final PartitionSet deleteFilePartitions;
   private final Set<F> deleteFiles = newFileSet();
-  private final Set<String> manifestsReferencedForDeletes = Sets.newHashSet();
+  private final Set<String> manifestsWithDeletes = Sets.newHashSet();
   private final PartitionSet dropPartitions;
   private final CharSequenceSet deletePaths = CharSequenceSet.empty();
   private Expression deleteExpression = Expressions.alwaysFalse();
@@ -80,7 +80,6 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private int duplicateDeleteCount = 0;
   private boolean caseSensitive = true;
   private boolean allDeletesReferenceManifests = true;
-  private boolean trustReferencedManifests = false;
 
   // cache filtered manifests to avoid extra work when commits fail.
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
@@ -164,7 +163,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     if (file.manifestLocation() == null) {
       this.allDeletesReferenceManifests = false;
     } else {
-      manifestsReferencedForDeletes.add(file.manifestLocation());
+      manifestsWithDeletes.add(file.manifestLocation());
     }
 
     deleteFiles.add(file);
@@ -180,8 +179,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   boolean containsDeletes() {
-    return !manifestsReferencedForDeletes.isEmpty()
-        || !deletePaths.isEmpty()
+    return !deletePaths.isEmpty()
         || !deleteFiles.isEmpty()
         || deleteExpression != Expressions.alwaysFalse()
         || !dropPartitions.isEmpty();
@@ -200,13 +198,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       return ImmutableList.of();
     }
 
-    // The current set of referenced manifests can be trusted if it is a subset of the manifests
-    // being filtered. If a single referenced manifest is not in the set of manifests being filtered
-    // this indicates that the referenced manifests are stale and cannot be trusted.
-    Set<String> manifestLocations =
-        manifests.stream().map(ManifestFile::path).collect(Collectors.toSet());
-    trustReferencedManifests = manifestLocations.containsAll(manifestsReferencedForDeletes);
-
+    boolean trustManifestReferences = canTrustManifestReferences(manifests);
     ManifestFile[] filtered = new ManifestFile[manifests.size()];
     // open all of the manifest files in parallel, use index to avoid reordering
     Tasks.range(filtered.length)
@@ -215,13 +207,24 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
         .executeWith(workerPoolSupplier.get())
         .run(
             index -> {
-              ManifestFile manifest = filterManifest(tableSchema, manifests.get(index));
+              ManifestFile manifest =
+                  filterManifest(tableSchema, manifests.get(index), trustManifestReferences);
               filtered[index] = manifest;
             });
 
     validateRequiredDeletes(filtered);
 
     return Arrays.asList(filtered);
+  }
+
+  // Use the current set of referenced manifests as a source of truth when it's a subset of all
+  // manifests and all removals which were performed reference manifests.
+  // If a manifest without live files is not in the trusted referenced set, this means that the
+  // manifest has no deleted entries and does not need to be rewritten.
+  private boolean canTrustManifestReferences(List<ManifestFile> manifests) {
+    Set<String> manifestLocations =
+        manifests.stream().map(ManifestFile::path).collect(Collectors.toSet());
+    return allDeletesReferenceManifests && manifestLocations.containsAll(manifestsWithDeletes);
   }
 
   /**
@@ -329,14 +332,14 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   /**
    * @return a ManifestReader that is a filtered version of the input manifest.
    */
-  private ManifestFile filterManifest(Schema tableSchema, ManifestFile manifest) {
+  private ManifestFile filterManifest(
+      Schema tableSchema, ManifestFile manifest, boolean trustManifestReferences) {
     ManifestFile cached = filteredManifests.get(manifest);
     if (cached != null) {
       return cached;
     }
 
-    boolean hasLiveFiles = manifest.hasAddedFiles() || manifest.hasExistingFiles();
-    if (!hasLiveFiles || !canContainDeletedFiles(manifest)) {
+    if (!canContainDeletedFiles(manifest, trustManifestReferences)) {
       filteredManifests.put(manifest, manifest);
       return manifest;
     }
@@ -345,37 +348,36 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       PartitionSpec spec = reader.spec();
       PartitionAndMetricsEvaluator evaluator =
           new PartitionAndMetricsEvaluator(tableSchema, spec, deleteExpression);
-      boolean hasDeletedFiles = manifestsReferencedForDeletes.contains(manifest.path());
-      if (hasDeletedFiles) {
-        return filterManifestWithDeletedFiles(evaluator, manifest, reader);
-      }
-
       // this assumes that the manifest doesn't have files to remove and streams through the
       // manifest without copying data. if a manifest does have a file to remove, this will break
       // out of the loop and move on to filtering the manifest.
-      hasDeletedFiles = manifestHasDeletedFiles(evaluator, reader);
-      if (!hasDeletedFiles) {
+      if (manifestHasDeletedFiles(evaluator, manifest, reader)) {
+        return filterManifestWithDeletedFiles(evaluator, manifest, reader);
+      } else {
         filteredManifests.put(manifest, manifest);
         return manifest;
       }
-
-      return filterManifestWithDeletedFiles(evaluator, manifest, reader);
-
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to close manifest: %s", manifest);
     }
   }
 
-  private boolean canContainDeletedFiles(ManifestFile manifest) {
-    return canContainDropBySeq(manifest)
+  private boolean canContainDeletedFiles(ManifestFile manifest, boolean trustManifestReferences) {
+    if (hasNoLiveFiles(manifest)) {
+      return false;
+    }
+
+    if (trustManifestReferences) {
+      return manifestsWithDeletes.contains(manifest.path());
+    }
+
+    return canContainDroppedFiles(manifest)
         || canContainExpressionDeletes(manifest)
-        || canContainDroppedPartitions(manifest)
-        || canContainDroppedFiles(manifest);
+        || canContainDroppedPartitions(manifest);
   }
 
-  private boolean canContainDropBySeq(ManifestFile manifest) {
-    return manifest.content() == ManifestContent.DELETES
-        && manifest.minSequenceNumber() < minSequenceNumber;
+  private boolean hasNoLiveFiles(ManifestFile manifest) {
+    return !manifest.hasAddedFiles() && !manifest.hasExistingFiles();
   }
 
   private boolean canContainExpressionDeletes(ManifestFile manifest) {
@@ -398,18 +400,22 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   private boolean canContainDroppedFiles(ManifestFile manifest) {
-    if (manifestsReferencedForDeletes.contains(manifest.path()) || !deletePaths.isEmpty()) {
+    if (!deletePaths.isEmpty()) {
       return true;
-    } else if (allDeletesReferenceManifests && trustReferencedManifests) {
-      return false;
-    } else {
+    } else if (!deleteFiles.isEmpty()) {
       return ManifestFileUtil.canContainAny(manifest, deleteFilePartitions, specsById);
     }
+
+    return false;
   }
 
   @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
   private boolean manifestHasDeletedFiles(
-      PartitionAndMetricsEvaluator evaluator, ManifestReader<F> reader) {
+      PartitionAndMetricsEvaluator evaluator, ManifestFile manifest, ManifestReader<F> reader) {
+    if (manifestsWithDeletes.contains(manifest.path())) {
+      return true;
+    }
+
     boolean isDelete = reader.isDeleteManifestReader();
 
     for (ManifestEntry<F> entry : reader.liveEntries()) {

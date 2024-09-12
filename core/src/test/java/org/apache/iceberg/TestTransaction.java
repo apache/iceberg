@@ -732,7 +732,7 @@ public class TestTransaction extends TestBase {
 
   @TestTemplate
   public void testRowDeltaWithConcurrentManifestRewrite() throws IOException {
-    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    assumeThat(formatVersion).isEqualTo(2);
     String branch = "main";
     RowDelta rowDelta = table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES);
     Snapshot first = commit(table, rowDelta, branch);

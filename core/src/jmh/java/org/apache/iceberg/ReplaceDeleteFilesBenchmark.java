@@ -102,6 +102,7 @@ public class ReplaceDeleteFilesBenchmark {
     deleteFilesToReplace.forEach(rowDelta::removeDeletes);
     pendingDeleteFiles.forEach(rowDelta::addDeletes);
     rowDelta.commit();
+    table.manageSnapshots().rollbackTo(currentSnapshot.snapshotId()).commit();
   }
 
   private void initTable() {
