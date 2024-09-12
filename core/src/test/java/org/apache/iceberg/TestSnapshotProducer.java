@@ -48,13 +48,13 @@ public class TestSnapshotProducer {
         4 /* worker pool size */,
         (int) (1.25 * SnapshotProducer.MIN_FILE_GROUP_SIZE) /* file count */,
         1 /* manifest writer count */,
-        "Must use 1 writer when remainder is < 50% of min group size");
+        "Must use 1 writer when file count is < 1.5 * min group size");
 
     assertManifestWriterCount(
         4 /* worker pool size */,
         (int) (1.5 * SnapshotProducer.MIN_FILE_GROUP_SIZE) /* file count */,
         2 /* manifest writer count */,
-        "Must use 2 writers when remainder is >= 50% of min group size");
+        "Must use 2 writers when file count is >= 1.5 * min group size");
 
     assertManifestWriterCount(
         3 /* worker pool size */,
