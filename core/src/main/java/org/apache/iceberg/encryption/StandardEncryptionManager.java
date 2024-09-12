@@ -54,7 +54,8 @@ public class StandardEncryptionManager implements EncryptionManager {
       this.encryptionKeys = Maps.newLinkedHashMap();
       this.unwrappedKeyCache =
           Caffeine.newBuilder()
-              .expireAfterWrite(1, TimeUnit.MINUTES)
+              .maximumSize(1000)
+              .expireAfterWrite(1, TimeUnit.DAYS)
               .build(wrappedKey -> kmsClient.unwrapKey(wrappedKey, tableKeyId));
       this.currentEncryptionKey = null;
     }
