@@ -16,31 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.responses;
+package org.apache.iceberg.rest.credentials;
 
-import java.util.List;
-import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.rest.RESTResponse;
-import org.apache.iceberg.rest.credentials.Credential;
-import org.apache.iceberg.view.ViewMetadata;
+import java.time.Instant;
 import org.immutables.value.Value;
 
 @Value.Immutable
-public interface LoadViewResponse extends RESTResponse {
-  String metadataLocation();
-
-  ViewMetadata metadata();
-
-  Map<String, String> config();
-
+public interface GcsCredential extends Credential {
   @Value.Default
-  default List<Credential> credentials() {
-    return ImmutableList.of();
+  default String scheme() {
+    return "gs";
   }
 
-  @Override
-  default void validate() {
-    // nothing to validate as it's not possible to create an invalid instance
-  }
+  String token();
+
+  Instant expiresAt();
 }

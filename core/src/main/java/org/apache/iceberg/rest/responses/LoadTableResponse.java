@@ -18,13 +18,17 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.RESTResponse;
+import org.apache.iceberg.rest.credentials.Credential;
 
 /**
  * A REST response that is used when a table is successfully loaded.
@@ -40,16 +44,21 @@ public class LoadTableResponse implements RESTResponse {
   private TableMetadata metadata;
   private Map<String, String> config;
   private TableMetadata metadataWithLocation;
+  private List<Credential> credentials;
 
   public LoadTableResponse() {
     // Required for Jackson deserialization
   }
 
   private LoadTableResponse(
-      String metadataLocation, TableMetadata metadata, Map<String, String> config) {
+      String metadataLocation,
+      TableMetadata metadata,
+      Map<String, String> config,
+      List<Credential> credentials) {
     this.metadataLocation = metadataLocation;
     this.metadata = metadata;
     this.config = config;
+    this.credentials = credentials;
   }
 
   @Override
@@ -74,12 +83,17 @@ public class LoadTableResponse implements RESTResponse {
     return config != null ? config : ImmutableMap.of();
   }
 
+  public List<Credential> credentials() {
+    return credentials != null ? credentials : ImmutableList.of();
+  }
+
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("metadataLocation", metadataLocation)
         .add("metadata", metadata)
         .add("config", config)
+        .add("credentials", credentials)
         .toString();
   }
 
@@ -91,6 +105,7 @@ public class LoadTableResponse implements RESTResponse {
     private String metadataLocation;
     private TableMetadata metadata;
     private final Map<String, String> config = Maps.newHashMap();
+    private final List<Credential> credentials = Lists.newArrayList();
 
     private Builder() {}
 
@@ -110,9 +125,19 @@ public class LoadTableResponse implements RESTResponse {
       return this;
     }
 
+    public Builder addCredential(Credential credential) {
+      credentials.add(credential);
+      return this;
+    }
+
+    public Builder addAllCredentials(List<Credential> credentialsToAdd) {
+      credentials.addAll(credentialsToAdd);
+      return this;
+    }
+
     public LoadTableResponse build() {
       Preconditions.checkNotNull(metadata, "Invalid metadata: null");
-      return new LoadTableResponse(metadataLocation, metadata, config);
+      return new LoadTableResponse(metadataLocation, metadata, config, credentials);
     }
   }
 }

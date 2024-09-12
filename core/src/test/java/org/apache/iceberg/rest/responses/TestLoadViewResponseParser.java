@@ -22,9 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.time.Instant;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.credentials.ImmutableAdlsCredential;
+import org.apache.iceberg.rest.credentials.ImmutableGcsCredential;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.view.ImmutableViewVersion;
 import org.apache.iceberg.view.ViewMetadata;
@@ -244,5 +247,184 @@ public class TestLoadViewResponseParser {
     // can't do an equality comparison because Schema doesn't implement equals/hashCode
     assertThat(LoadViewResponseParser.toJson(LoadViewResponseParser.fromJson(json), true))
         .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void roundTripSerdeWithCredentials() {
+    String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
+    ViewMetadata viewMetadata =
+        ViewMetadata.builder()
+            .assignUUID(uuid)
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(
+                ImmutableViewVersion.builder()
+                    .schemaId(0)
+                    .versionId(1)
+                    .timestampMillis(23L)
+                    .defaultNamespace(Namespace.of("ns1"))
+                    .build())
+            .setCurrentVersionId(1)
+            .build();
+
+    LoadViewResponse response =
+        ImmutableLoadViewResponse.builder()
+            .metadata(viewMetadata)
+            .metadataLocation("custom-location")
+            .addCredentials(
+                ImmutableGcsCredential.builder()
+                    .token("gcsToken")
+                    .expiresAt(Instant.ofEpochMilli(1000))
+                    .build())
+            .addCredentials(
+                ImmutableGcsCredential.builder()
+                    .scheme("gs://custom-uri")
+                    .token("token")
+                    .expiresAt(Instant.ofEpochMilli(1000))
+                    .build())
+            .addCredentials(
+                ImmutableAdlsCredential.builder()
+                    .sasToken("sasToken")
+                    .expiresAt(Instant.ofEpochMilli(1000))
+                    .build())
+            .build();
+
+    String expectedJson =
+        "{\n"
+            + "  \"metadata-location\" : \"custom-location\",\n"
+            + "  \"metadata\" : {\n"
+            + "    \"view-uuid\" : \"386b9f01-002b-4d8c-b77f-42c3fd3b7c9b\",\n"
+            + "    \"format-version\" : 1,\n"
+            + "    \"location\" : \"location\",\n"
+            + "    \"schemas\" : [ {\n"
+            + "      \"type\" : \"struct\",\n"
+            + "      \"schema-id\" : 0,\n"
+            + "      \"fields\" : [ {\n"
+            + "        \"id\" : 1,\n"
+            + "        \"name\" : \"x\",\n"
+            + "        \"required\" : true,\n"
+            + "        \"type\" : \"long\"\n"
+            + "      } ]\n"
+            + "    } ],\n"
+            + "    \"current-version-id\" : 1,\n"
+            + "    \"versions\" : [ {\n"
+            + "      \"version-id\" : 1,\n"
+            + "      \"timestamp-ms\" : 23,\n"
+            + "      \"schema-id\" : 0,\n"
+            + "      \"summary\" : { },\n"
+            + "      \"default-namespace\" : [ \"ns1\" ],\n"
+            + "      \"representations\" : [ ]\n"
+            + "    } ],\n"
+            + "    \"version-log\" : [ {\n"
+            + "      \"timestamp-ms\" : 23,\n"
+            + "      \"version-id\" : 1\n"
+            + "    } ]\n"
+            + "  },\n"
+            + "  \"storage-credentials\" : [ {\n"
+            + "    \"type\" : \"gcs\",\n"
+            + "    \"scheme\" : \"gs\",\n"
+            + "    \"token\" : \"gcsToken\",\n"
+            + "    \"expires-at-ms\" : 1000\n"
+            + "  }, {\n"
+            + "    \"type\" : \"gcs\",\n"
+            + "    \"scheme\" : \"gs://custom-uri\",\n"
+            + "    \"token\" : \"token\",\n"
+            + "    \"expires-at-ms\" : 1000\n"
+            + "  }, {\n"
+            + "    \"type\" : \"adls\",\n"
+            + "    \"scheme\" : \"afbs\",\n"
+            + "    \"sas-token\" : \"sasToken\",\n"
+            + "    \"expires-at-ms\" : 1000\n"
+            + "  } ]\n"
+            + "}";
+
+    String json = LoadViewResponseParser.toJson(response, true);
+    assertThat(json).isEqualTo(expectedJson);
+    // can't do an equality comparison because Schema doesn't implement equals/hashCode
+    assertThat(LoadViewResponseParser.toJson(LoadViewResponseParser.fromJson(json), true))
+        .isEqualTo(expectedJson);
+  }
+
+  @Test
+  public void unknownCredentials() {
+    String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
+    ViewMetadata viewMetadata =
+        ViewMetadata.builder()
+            .assignUUID(uuid)
+            .setLocation("location")
+            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
+            .addVersion(
+                ImmutableViewVersion.builder()
+                    .schemaId(0)
+                    .versionId(1)
+                    .timestampMillis(23L)
+                    .defaultNamespace(Namespace.of("ns1"))
+                    .build())
+            .setCurrentVersionId(1)
+            .build();
+
+    LoadViewResponse expected =
+        ImmutableLoadViewResponse.builder()
+            .metadata(viewMetadata)
+            .metadataLocation("custom-location")
+            .addCredentials(
+                ImmutableAdlsCredential.builder()
+                    .sasToken("sasToken")
+                    .expiresAt(Instant.ofEpochMilli(1000))
+                    .build())
+            .build();
+
+    String json =
+        "{\n"
+            + "  \"metadata-location\" : \"custom-location\",\n"
+            + "  \"metadata\" : {\n"
+            + "    \"view-uuid\" : \"386b9f01-002b-4d8c-b77f-42c3fd3b7c9b\",\n"
+            + "    \"format-version\" : 1,\n"
+            + "    \"location\" : \"location\",\n"
+            + "    \"schemas\" : [ {\n"
+            + "      \"type\" : \"struct\",\n"
+            + "      \"schema-id\" : 0,\n"
+            + "      \"fields\" : [ {\n"
+            + "        \"id\" : 1,\n"
+            + "        \"name\" : \"x\",\n"
+            + "        \"required\" : true,\n"
+            + "        \"type\" : \"long\"\n"
+            + "      } ]\n"
+            + "    } ],\n"
+            + "    \"current-version-id\" : 1,\n"
+            + "    \"versions\" : [ {\n"
+            + "      \"version-id\" : 1,\n"
+            + "      \"timestamp-ms\" : 23,\n"
+            + "      \"schema-id\" : 0,\n"
+            + "      \"summary\" : { },\n"
+            + "      \"default-namespace\" : [ \"ns1\" ],\n"
+            + "      \"representations\" : [ ]\n"
+            + "    } ],\n"
+            + "    \"version-log\" : [ {\n"
+            + "      \"timestamp-ms\" : 23,\n"
+            + "      \"version-id\" : 1\n"
+            + "    } ]\n"
+            + "  },\n"
+            + "  \"storage-credentials\" : [ {\n"
+            + "    \"type\" : \"unknown1\",\n"
+            + "    \"scheme\" : \"gs\",\n"
+            + "    \"token\" : \"gcsToken\",\n"
+            + "    \"expires-at-ms\" : 1000\n"
+            + "  }, {\n"
+            + "    \"type\" : \"unknown2\",\n"
+            + "    \"scheme\" : \"gs://custom-uri\",\n"
+            + "    \"token\" : \"token\",\n"
+            + "    \"expires-at-ms\" : 1000\n"
+            + "  }, {\n"
+            + "    \"type\" : \"adls\",\n"
+            + "    \"scheme\" : \"afbs\",\n"
+            + "    \"sas-token\" : \"sasToken\",\n"
+            + "    \"expires-at-ms\" : 1000\n"
+            + "  } ]\n"
+            + "}";
+
+    assertThat(LoadViewResponseParser.fromJson(json).credentials())
+        .hasSize(1)
+        .isEqualTo(expected.credentials());
   }
 }
