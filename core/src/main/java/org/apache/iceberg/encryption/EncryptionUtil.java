@@ -107,7 +107,8 @@ public class EncryptionUtil {
         "Invalid data key length: %s (must be 16, 24, or 32)",
         dataKeyLength);
 
-    return new StandardEncryptionManager(tableKeyId, dataKeyLength, ImmutableList.of(), kmsClient, writerKekTimeout);
+    return new StandardEncryptionManager(
+        tableKeyId, dataKeyLength, ImmutableList.of(), kmsClient, writerKekTimeout);
   }
 
   public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {
