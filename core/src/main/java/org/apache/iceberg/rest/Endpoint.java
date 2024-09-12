@@ -26,6 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
+import org.apache.iceberg.relocated.com.google.common.base.Supplier;
 
 /**
  * Holds an endpoint definition that consists of the HTTP method (GET, POST, DELETE, ...) and the
@@ -120,8 +121,22 @@ public class Endpoint {
   public static void check(Set<Endpoint> supportedEndpoints, Endpoint endpoint) {
     if (!supportedEndpoints.contains(endpoint)) {
       throw new UnsupportedOperationException(
-          String.format(
-              "Server does not support endpoint: %s %s", endpoint.httpMethod(), endpoint.path()));
+          String.format("Server does not support endpoint: %s", endpoint));
+    }
+  }
+
+  /**
+   * Checks if the set of endpoints support the given {@link Endpoint}.
+   *
+   * @param supportedEndpoints The set of supported endpoints to check
+   * @param endpoint The endpoint to check against the set of supported endpoints
+   * @param supplier The supplier throwing a {@link RuntimeException} if the given {@link Endpoint}
+   *     is not included in the set of endpoints.
+   */
+  public static void check(
+      Set<Endpoint> supportedEndpoints, Endpoint endpoint, Supplier<RuntimeException> supplier) {
+    if (!supportedEndpoints.contains(endpoint)) {
+      throw supplier.get();
     }
   }
 

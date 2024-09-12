@@ -445,9 +445,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public Table loadTable(SessionContext context, TableIdentifier identifier) {
-    if (!endpoints.contains(Endpoint.V1_LOAD_TABLE)) {
-      throw new NoSuchTableException("Unable to load table %s.%s", name(), identifier);
-    }
+    Endpoint.check(
+        endpoints,
+        Endpoint.V1_LOAD_TABLE,
+        () ->
+            new NoSuchTableException(
+                "Unable to load table %s.%s: Server does not support endpoint %s",
+                name(), identifier, Endpoint.V1_LOAD_TABLE));
 
     checkIdentifierIsValid(identifier);
 
@@ -1198,9 +1202,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
   @Override
   public View loadView(SessionContext context, TableIdentifier identifier) {
-    if (!endpoints.contains(Endpoint.V1_LOAD_VIEW)) {
-      throw new NoSuchViewException("Unable to load view %s.%s", name(), identifier);
-    }
+    Endpoint.check(
+        endpoints,
+        Endpoint.V1_LOAD_VIEW,
+        () ->
+            new NoSuchViewException(
+                "Unable to load view %s.%s: Server does not support endpoint %s",
+                name(), identifier, Endpoint.V1_LOAD_VIEW));
 
     checkViewIdentifierIsValid(identifier);
 
@@ -1376,9 +1384,13 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     }
 
     private LoadViewResponse loadView() {
-      if (!endpoints.contains(Endpoint.V1_LOAD_VIEW)) {
-        throw new NoSuchViewException("Unable to load view %s.%s", name(), identifier);
-      }
+      Endpoint.check(
+          endpoints,
+          Endpoint.V1_LOAD_VIEW,
+          () ->
+              new NoSuchViewException(
+                  "Unable to load view %s.%s: Server does not support endpoint %s",
+                  name(), identifier, Endpoint.V1_LOAD_VIEW));
 
       return client.get(
           paths.view(identifier),
