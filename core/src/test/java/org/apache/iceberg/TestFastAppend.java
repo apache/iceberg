@@ -43,6 +43,25 @@ public class TestFastAppend extends TestBase {
   }
 
   @TestTemplate
+  public void testAddManyFiles() {
+    assertThat(listManifestFiles()).as("Table should start empty").isEmpty();
+
+    List<DataFile> dataFiles = Lists.newArrayList();
+
+    for (int ordinal = 0; ordinal < 2 * SnapshotProducer.MIN_FILE_GROUP_SIZE; ordinal++) {
+      StructLike partition = TestHelpers.Row.of(ordinal % 2);
+      DataFile dataFile = FileGenerationUtil.generateDataFile(table, partition);
+      dataFiles.add(dataFile);
+    }
+
+    AppendFiles append = table.newAppend();
+    dataFiles.forEach(append::appendFile);
+    append.commit();
+
+    validateTableFiles(table, dataFiles);
+  }
+
+  @TestTemplate
   public void appendNullFile() {
     assertThatThrownBy(() -> table.newFastAppend().appendFile(null).commit())
         .isInstanceOf(NullPointerException.class)

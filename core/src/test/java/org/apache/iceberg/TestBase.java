@@ -27,6 +27,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -460,6 +461,10 @@ public class TestBase {
   }
 
   void validateTableFiles(Table tbl, DataFile... expectedFiles) {
+    validateTableFiles(tbl, Arrays.asList(expectedFiles));
+  }
+
+  void validateTableFiles(Table tbl, Collection<DataFile> expectedFiles) {
     Set<CharSequence> expectedFilePaths = Sets.newHashSet();
     for (DataFile file : expectedFiles) {
       expectedFilePaths.add(file.path());
