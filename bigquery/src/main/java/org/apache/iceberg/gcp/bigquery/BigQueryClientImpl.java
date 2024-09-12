@@ -125,6 +125,7 @@ public final class BigQueryClientImpl implements BigQueryClient {
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         throw new NoSuchNamespaceException(response.getStatusMessage());
       }
+
       return convertExceptionIfUnsuccessful(response).parseAs(Dataset.class);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -143,6 +144,7 @@ public final class BigQueryClientImpl implements BigQueryClient {
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         throw new NoSuchNamespaceException(response.getStatusMessage());
       }
+
       convertExceptionIfUnsuccessful(response);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -241,6 +243,7 @@ public final class BigQueryClientImpl implements BigQueryClient {
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         throw new NoSuchTableException(response.getStatusMessage());
       }
+
       return validateTable(convertExceptionIfUnsuccessful(response).parseAs(Table.class));
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -281,8 +284,10 @@ public final class BigQueryClientImpl implements BigQueryClient {
         if (responseString.toLowerCase(Locale.ROOT).contains("not found: connection")) {
           throw new BadRequestException(responseString);
         }
+
         throw new NoSuchTableException(response.getStatusMessage());
       }
+
       return convertExceptionIfUnsuccessful(response).parseAs(Table.class);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -316,6 +321,7 @@ public final class BigQueryClientImpl implements BigQueryClient {
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         throw new NoSuchTableException(response.getStatusMessage());
       }
+
       return convertExceptionIfUnsuccessful(response).parseAs(Table.class);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -340,6 +346,7 @@ public final class BigQueryClientImpl implements BigQueryClient {
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         throw new NoSuchTableException(response.getStatusMessage());
       }
+
       convertExceptionIfUnsuccessful(response);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -363,6 +370,7 @@ public final class BigQueryClientImpl implements BigQueryClient {
         if (pageResponse.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
           throw new NoSuchNamespaceException(pageResponse.getStatusMessage());
         }
+
         TableList result = convertExceptionIfUnsuccessful(pageResponse).parseAs(TableList.class);
         nextPageToken = result.getNextPageToken();
         Stream<Tables> tablesPageStream = result.getTables().stream();
@@ -408,6 +416,7 @@ public final class BigQueryClientImpl implements BigQueryClient {
       if (response.getStatusCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND) {
         throw new NoSuchNamespaceException(response.getStatusMessage());
       }
+
       return convertExceptionIfUnsuccessful(response).parseAs(Dataset.class);
     } catch (IOException e) {
       throw new RuntimeIOException(e);
@@ -440,6 +449,7 @@ public final class BigQueryClientImpl implements BigQueryClient {
     if (!isValidIcebergTable(table)) {
       throw new NoSuchIcebergTableException("This table is not a valid Iceberg table: %s", table);
     }
+
     return table;
   }
 
@@ -452,6 +462,7 @@ public final class BigQueryClientImpl implements BigQueryClient {
     if (response.isSuccessStatusCode()) {
       return response;
     }
+
     String errorMessage =
         String.format(
             "%s\n%s",

@@ -83,6 +83,7 @@ public final class BigQueryMetastoreTestUtils {
         return Optional.of(file.getCanonicalPath());
       }
     }
+
     return Optional.empty();
   }
 }

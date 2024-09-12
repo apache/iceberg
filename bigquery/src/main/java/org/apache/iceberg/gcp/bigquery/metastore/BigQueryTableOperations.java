@@ -72,6 +72,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
         throw e;
       }
     }
+
     refreshFromMetadataLocation(metadataLocation);
   }
 
@@ -91,6 +92,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
       } else {
         updateTable(base.metadataFileLocation(), newMetadataLocation, metadata);
       }
+
       commitStatus = CommitStatus.SUCCESS;
     } catch (CommitFailedException | CommitStateUnknownException e) {
       throw e;
@@ -100,6 +102,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
       if (commitStatus == CommitStatus.FAILURE) {
         throw new CommitFailedException(e, "Failed to commit");
       }
+
       if (commitStatus == CommitStatus.UNKNOWN) {
         throw new CommitStateUnknownException(e);
       }
@@ -151,6 +154,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
               + " recreate and retry",
           tableName());
     }
+
     ExternalCatalogTableOptions options = table.getExternalCatalogTableOptions();
     addConnectionIfProvided(table, metadata.properties());
 
@@ -202,9 +206,11 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
     if (metadata.uuid() != null) {
       parameters.put(TableProperties.UUID, metadata.uuid());
     }
+
     if (currentMetadataLocation() != null && !currentMetadataLocation().isEmpty()) {
       parameters.put(PREVIOUS_METADATA_LOCATION_PROP, currentMetadataLocation());
     }
+
     parameters.put(METADATA_LOCATION_PROP, metadataFileLocation);
     parameters.put(TABLE_TYPE_PROP, ICEBERG_TABLE_TYPE_VALUE);
     // Follow HMS to use the EXTERNAL type.
@@ -230,9 +236,11 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
     if (summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP) != null) {
       parameters.put(StatsSetupConst.NUM_FILES, summary.get(SnapshotSummary.TOTAL_DATA_FILES_PROP));
     }
+
     if (summary.get(SnapshotSummary.TOTAL_RECORDS_PROP) != null) {
       parameters.put(StatsSetupConst.ROW_COUNT, summary.get(SnapshotSummary.TOTAL_RECORDS_PROP));
     }
+
     if (summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP) != null) {
       parameters.put(StatsSetupConst.TOTAL_SIZE, summary.get(SnapshotSummary.TOTAL_FILE_SIZE_PROP));
     }
@@ -244,6 +252,7 @@ public final class BigQueryTableOperations extends BaseMetastoreTableOperations 
           "Table %s is not a valid BigQuery Metastore Iceberg table, metadata location not found",
           tableName());
     }
+
     return tableOptions.getParameters().get(METADATA_LOCATION_PROP);
   }
 }

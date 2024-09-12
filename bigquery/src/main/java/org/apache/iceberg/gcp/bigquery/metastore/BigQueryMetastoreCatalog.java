@@ -88,6 +88,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     if (!properties.containsKey(GCPProperties.PROJECT_ID)) {
       throw new ValidationException("GCP project must be specified");
     }
+
     this.projectId = properties.get(GCPProperties.PROJECT_ID);
     this.location = properties.getOrDefault(GCPProperties.BIGQUERY_LOCATION, DEFAULT_GCP_LOCATION);
     BigQueryClient bigQueryClient;
@@ -98,6 +99,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     } catch (GeneralSecurityException e) {
       throw new ValidationException(e, "Creating BigQuery client failed due to a security issue");
     }
+
     initialize(inputName, properties, projectId, location, bigQueryClient);
   }
 
@@ -155,6 +157,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     if (dataset != null && dataset.getExternalCatalogDatasetOptions() != null) {
       locationUri = dataset.getExternalCatalogDatasetOptions().getDefaultStorageLocationUri();
     }
+
     return String.format(
         "%s/%s",
         Strings.isNullOrEmpty(locationUri)
@@ -184,9 +187,11 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
       if (purge && lastMetadata != null) {
         CatalogUtil.dropTableData(ops.io(), lastMetadata);
       }
+
     } catch (NoSuchTableException e) { // Not catching a NoSuchIcebergTableException on purpose
       return false; // The documentation says just return false in this case
     }
+
     return true;
   }
 
@@ -195,6 +200,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
     if (!from.namespace().equals(to.namespace())) {
       throw new ValidationException("New table name must be in the same namespace");
     }
+
     // TODO(b/354981675): Enable once supported by the API.
     throw new ServiceFailureException(
         "Table rename operation is unsupported. Try the SQL operation directly on BigQuery: \"ALTER TABLE %s RENAME TO %s;\"",
@@ -226,6 +232,7 @@ public final class BigQueryMetastoreCatalog extends BaseMetastoreCatalog
       // well), returns empty to unblock deletion.
       return ImmutableList.of();
     }
+
     return client.listDatasets(projectId).stream()
         .map(BigQueryMetastoreCatalog::getNamespace)
         .collect(ImmutableList.toImmutableList());
