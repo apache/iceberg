@@ -640,8 +640,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
    */
   @VisibleForTesting
   static int manifestWriterCount(int workerPoolSize, int fileCount) {
-    int limit = Math.max(1, IntMath.divide(fileCount, MIN_FILE_GROUP_SIZE, RoundingMode.HALF_UP));
-    return Math.min(workerPoolSize, limit);
+    int limit = IntMath.divide(fileCount, MIN_FILE_GROUP_SIZE, RoundingMode.HALF_UP);
+    return Math.max(1, Math.min(workerPoolSize, limit));
   }
 
   private static ManifestFile addMetadata(TableOperations ops, ManifestFile manifest) {
