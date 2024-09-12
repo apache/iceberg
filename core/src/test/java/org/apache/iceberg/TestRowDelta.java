@@ -573,7 +573,10 @@ public class TestRowDelta extends V2TableTestBase {
 
   @TestTemplate
   public void testDeleteDataFileWithDeleteFile() {
-    commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES), branch);
+    commit(
+        table,
+        table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES),
+        branch);
 
     long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
@@ -598,18 +601,18 @@ public class TestRowDelta extends V2TableTestBase {
     assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
     validateDeleteManifest(
         deleteSnap.deleteManifests(table.io()).get(0),
-        dataSeqs(1L),
-        fileSeqs(1L),
-        ids(deltaSnapshotId),
-        files(FILE_A_DELETES),
-        statuses(Status.ADDED));
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(deltaSnapshotId, deltaSnapshotId),
+        files(FILE_A_DELETES, FILE_B_DELETES),
+        statuses(Status.ADDED, Status.ADDED));
 
     // the manifest that removed FILE_A will be dropped next commit, causing the min sequence number
     // of all data files
     // to be 2, the largest known sequence number. this will cause FILE_A_DELETES to be removed
     // because it is too old
     // to apply to any data files.
-    commit(table, table.newDelete().deleteFile("no-such-file"), branch);
+    commit(table, table.newRowDelta().removeDeletes(FILE_B_DELETES), branch);
 
     Snapshot nextSnap = latestSnapshot(table, branch);
     assertThat(nextSnap.sequenceNumber()).isEqualTo(3);
@@ -619,11 +622,11 @@ public class TestRowDelta extends V2TableTestBase {
     assertThat(nextSnap.deleteManifests(table.io())).hasSize(1);
     validateDeleteManifest(
         nextSnap.deleteManifests(table.io()).get(0),
-        dataSeqs(1L),
-        fileSeqs(1L),
-        ids(nextSnap.snapshotId()),
-        files(FILE_A_DELETES),
-        statuses(Status.DELETED));
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(nextSnap.snapshotId(), nextSnap.snapshotId()),
+        files(FILE_A_DELETES, FILE_B_DELETES),
+        statuses(Status.DELETED, Status.DELETED));
   }
 
   @TestTemplate
