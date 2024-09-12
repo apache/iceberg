@@ -30,6 +30,7 @@ import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -1439,6 +1440,58 @@ public class TestRowDelta extends V2TableTestBase {
         statuses(Status.ADDED));
 
     List<ManifestFile> deleteManifests = snapshot.deleteManifests(table.io());
+    assertThat(deleteManifests).hasSize(2);
+    validateDeleteManifest(
+        deleteManifests.get(0),
+        dataSeqs(2L),
+        fileSeqs(2L),
+        ids(snapshot.snapshotId()),
+        files(newDeleteFile),
+        statuses(Status.ADDED));
+    validateDeleteManifest(
+        deleteManifests.get(1),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(snapshot.snapshotId()),
+        files(deleteFile),
+        statuses(Status.DELETED));
+  }
+
+  @TestTemplate
+  public void testRewrittenDeleteFilesReadFromManifest() throws IOException {
+    DataFile dataFile = newDataFile("data_bucket=0");
+    DeleteFile deleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta baseRowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
+    Snapshot baseSnapshot = commit(table, baseRowDelta, branch);
+    assertThat(baseSnapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    List<ManifestFile> deleteManifests = baseSnapshot.deleteManifests(table.io());
+    try (ManifestReader<DeleteFile> deleteReader =
+        ManifestFiles.readDeleteManifest(deleteManifests.get(0), table.io(), table.specs())) {
+      deleteFile = deleteReader.iterator().next();
+    }
+
+    assertThat(deleteFile.manifestLocation()).isEqualTo(deleteManifests.get(0).path());
+    DeleteFile newDeleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .removeDeletes(deleteFile)
+            .addDeletes(newDeleteFile)
+            .validateFromSnapshot(baseSnapshot.snapshotId());
+    Snapshot snapshot = commit(table, rowDelta, branch);
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.DELETE);
+
+    List<ManifestFile> dataManifests = snapshot.dataManifests(table.io());
+    assertThat(dataManifests).hasSize(1);
+    validateManifest(
+        dataManifests.get(0),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(baseSnapshot.snapshotId()),
+        files(dataFile),
+        statuses(Status.ADDED));
+
+    deleteManifests = snapshot.deleteManifests(table.io());
     assertThat(deleteManifests).hasSize(2);
     validateDeleteManifest(
         deleteManifests.get(0),
