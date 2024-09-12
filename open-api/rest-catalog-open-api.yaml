@@ -141,20 +141,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/CatalogConfig'
               example: {
-                "overrides": {
-                  "warehouse": "s3://bucket/warehouse/"
-                },
-                "defaults": {
-                  "clients": "4"
-                },
-                "endpoints": [
-                  "GET /v1/{prefix}/namespaces/{namespace}",
-                  "GET /v1/{prefix}/namespaces",
-                  "POST /v1/{prefix}/namespaces",
-                  "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
-                  "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
-                ]
-              }
+                  "overrides": {
+                    "warehouse": "s3://bucket/warehouse/"
+                  },
+                  "defaults": {
+                    "clients": "4"
+                  },
+                  "endpoints": [
+                    "GET /v1/{prefix}/namespaces/{namespace}",
+                    "GET /v1/{prefix}/namespaces",
+                    "POST /v1/{prefix}/namespaces",
+                    "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+                    "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+                  ]
+                }
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -1035,12 +1035,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Internal Server Error",
-                  "type": "CommitStateUnknownException",
-                  "code": 500
+                  "error": {
+                    "message": "Internal Server Error",
+                    "type": "CommitStateUnknownException",
+                    "code": 500
+                  }
                 }
-              }
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         502:
@@ -1051,12 +1051,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Invalid response from the upstream server",
-                  "type": "CommitStateUnknownException",
-                  "code": 502
+                  "error": {
+                    "message": "Invalid response from the upstream server",
+                    "type": "CommitStateUnknownException",
+                    "code": 502
+                  }
                 }
-              }
         504:
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
@@ -1065,12 +1065,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Gateway timed out during commit",
-                  "type": "CommitStateUnknownException",
-                  "code": 504
+                  "error": {
+                    "message": "Gateway timed out during commit",
+                    "type": "CommitStateUnknownException",
+                    "code": 504
+                  }
                 }
-              }
         5XX:
           description:
             A server-side problem that might not be addressable on the client.
@@ -1079,12 +1079,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Bad Gateway",
-                  "type": "InternalServerError",
-                  "code": 502
+                  "error": {
+                    "message": "Bad Gateway",
+                    "type": "InternalServerError",
+                    "code": 502
+                  }
                 }
-              }
 
     delete:
       tags:
@@ -1329,12 +1329,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Internal Server Error",
-                  "type": "CommitStateUnknownException",
-                  "code": 500
+                  "error": {
+                    "message": "Internal Server Error",
+                    "type": "CommitStateUnknownException",
+                    "code": 500
+                  }
                 }
-              }
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         502:
@@ -1345,12 +1345,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Invalid response from the upstream server",
-                  "type": "CommitStateUnknownException",
-                  "code": 502
+                  "error": {
+                    "message": "Invalid response from the upstream server",
+                    "type": "CommitStateUnknownException",
+                    "code": 502
+                  }
                 }
-              }
         504:
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
@@ -1359,12 +1359,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Gateway timed out during commit",
-                  "type": "CommitStateUnknownException",
-                  "code": 504
+                  "error": {
+                    "message": "Gateway timed out during commit",
+                    "type": "CommitStateUnknownException",
+                    "code": 504
+                  }
                 }
-              }
         5XX:
           description:
             A server-side problem that might not be addressable on the client.
@@ -1373,12 +1373,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Bad Gateway",
-                  "type": "InternalServerError",
-                  "code": 502
+                  "error": {
+                    "message": "Bad Gateway",
+                    "type": "InternalServerError",
+                    "code": 502
+                  }
                 }
-              }
 
   /v1/{prefix}/namespaces/{namespace}/views:
     parameters:
@@ -1567,12 +1567,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               example: {
-                "error": {
-                  "message": "Internal Server Error",
-                  "type": "CommitStateUnknownException",
-                  "code": 500
+                  "error": {
+                    "message": "Internal Server Error",
+                    "type": "CommitStateUnknownException",
+                    "code": 500
+                  }
                 }
-              }
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         502:
@@ -1583,12 +1583,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               example: {
-                "error": {
-                  "message": "Invalid response from the upstream server",
-                  "type": "CommitStateUnknownException",
-                  "code": 502
+                  "error": {
+                    "message": "Invalid response from the upstream server",
+                    "type": "CommitStateUnknownException",
+                    "code": 502
+                  }
                 }
-              }
         504:
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
@@ -1597,12 +1597,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               example: {
-                "error": {
-                  "message": "Gateway timed out during commit",
-                  "type": "CommitStateUnknownException",
-                  "code": 504
+                  "error": {
+                    "message": "Gateway timed out during commit",
+                    "type": "CommitStateUnknownException",
+                    "code": 504
+                  }
                 }
-              }
         5XX:
           description:
             A server-side problem that might not be addressable on the client.
@@ -1611,12 +1611,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               example: {
-                "error": {
-                  "message": "Bad Gateway",
-                  "type": "InternalServerError",
-                  "code": 502
+                  "error": {
+                    "message": "Bad Gateway",
+                    "type": "InternalServerError",
+                    "code": 502
+                  }
                 }
-              }
 
     delete:
       tags:
@@ -1892,12 +1892,12 @@ components:
           description: A list of endpoints that the server supports. The format of each endpoint must be "<HTTP verb> <resource path from OpenAPI REST spec>".
             The HTTP verb and the resource path must be separated by a space character.
           example: [
-            "GET /v1/{prefix}/namespaces/{namespace}",
-            "GET /v1/{prefix}/namespaces",
-            "POST /v1/{prefix}/namespaces",
-            "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
-            "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
-          ]
+              "GET /v1/{prefix}/namespaces/{namespace}",
+              "GET /v1/{prefix}/namespaces",
+              "POST /v1/{prefix}/namespaces",
+              "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+              "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+            ]
 
     CreateNamespaceRequest:
       type: object
@@ -3546,44 +3546,45 @@ components:
       type: object
       additionalProperties:
         $ref: '#/components/schemas/MetricResult'
-      example:
-        "metrics": {
-          "total-planning-duration": {
-            "count": 1,
-            "time-unit": "nanoseconds",
-            "total-duration": 2644235116
-          },
-          "result-data-files": {
-            "unit": "count",
-            "value": 1,
-          },
-          "result-delete-files": {
-            "unit": "count",
-            "value": 0,
-          },
-          "total-data-manifests": {
-            "unit": "count",
-            "value": 1,
-          },
-          "total-delete-manifests": {
-            "unit": "count",
-            "value": 0,
-          },
-          "scanned-data-manifests": {
-            "unit": "count",
-            "value": 1,
-          },
-          "skipped-data-manifests": {
-            "unit": "count",
-            "value": 0,
-          },
-          "total-file-size-bytes": {
-            "unit": "bytes",
-            "value": 10,
-          },
-          "total-delete-file-size-bytes": {
-            "unit": "bytes",
-            "value": 0,
+      example: {
+          "metrics": {
+            "total-planning-duration": {
+              "count": 1,
+              "time-unit": "nanoseconds",
+              "total-duration": 2644235116
+            },
+            "result-data-files": {
+              "unit": "count",
+              "value": 1,
+            },
+            "result-delete-files": {
+              "unit": "count",
+              "value": 0,
+            },
+            "total-data-manifests": {
+              "unit": "count",
+              "value": 1,
+            },
+            "total-delete-manifests": {
+              "unit": "count",
+              "value": 0,
+            },
+            "scanned-data-manifests": {
+              "unit": "count",
+              "value": 1,
+            },
+            "skipped-data-manifests": {
+              "unit": "count",
+              "value": 0,
+            },
+            "total-file-size-bytes": {
+              "unit": "bytes",
+              "value": 10,
+            },
+            "total-delete-file-size-bytes": {
+              "unit": "bytes",
+              "value": 0,
+            }
           }
         }
 
@@ -4315,12 +4316,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-            "error": {
-              "message": "Malformed request",
-              "type": "BadRequestException",
-              "code": 400
+              "error": {
+                "message": "Malformed request",
+                "type": "BadRequestException",
+                "code": 400
+              }
             }
-          }
 
     #  Note that this is a representative example response for use as a shorthand in the spec.
     #  The fields `message` and `type` as indicated here are not presently prescriptive.
@@ -4332,12 +4333,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-            "error": {
-              "message": "Not authorized to make this request",
-              "type": "NotAuthorizedException",
-              "code": 401
+              "error": {
+                "message": "Not authorized to make this request",
+                "type": "NotAuthorizedException",
+                "code": 401
+              }
             }
-          }
 
     #  Note that this is a representative example response for use as a shorthand in the spec.
     #  The fields `message` and `type` as indicated here are not presently prescriptive.
@@ -4348,12 +4349,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-            "error": {
-              "message": "Not authorized to make this request",
-              "type": "NotAuthorizedException",
-              "code": 403
+              "error": {
+                "message": "Not authorized to make this request",
+                "type": "NotAuthorizedException",
+                "code": 403
+              }
             }
-          }
 
     #  Note that this is a representative example response for use as a shorthand in the spec.
     #  The fields `message` and `type` as indicated here are not presently prescriptive.
@@ -4364,12 +4365,12 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorModel'
           example: {
-            "error": {
-              "message": "The server does not support this operation",
-              "type": "UnsupportedOperationException",
-              "code": 406
+              "error": {
+                "message": "The server does not support this operation",
+                "type": "UnsupportedOperationException",
+                "code": 406
+              }
             }
-          }
 
     IcebergErrorResponse:
       description: JSON wrapper for all error responses (non-2xx)
@@ -4395,9 +4396,9 @@ components:
           schema:
             $ref: '#/components/schemas/CreateNamespaceResponse'
           example: {
-            "namespace": ["accounting", "tax"],
-            "properties": { "owner": "Ralph", "created_at": "1452120468" }
-          }
+              "namespace": ["accounting", "tax"],
+              "properties": { "owner": "Ralph", "created_at": "1452120468" }
+            }
 
     GetNamespaceResponse:
       description:
@@ -4440,12 +4441,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-            "error": {
-              "message": "Credentials have timed out",
-              "type": "AuthenticationTimeoutException",
-              "code": 419
+              "error": {
+                "message": "Credentials have timed out",
+                "type": "AuthenticationTimeoutException",
+                "code": 419
+              }
             }
-          }
 
     ServiceUnavailableResponse:
       description:
@@ -4458,12 +4459,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-            "error": {
-              "message": "Slow down",
-              "type": "SlowDownException",
-              "code": 503
+              "error": {
+                "message": "Slow down",
+                "type": "SlowDownException",
+                "code": 503
+              }
             }
-          }
 
     ServerErrorResponse:
       description:
@@ -4475,12 +4476,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-            "error": {
-              "message": "Internal Server Error",
-              "type": "InternalServerError",
-              "code": 500
+              "error": {
+                "message": "Internal Server Error",
+                "type": "InternalServerError",
+                "code": 500
+              }
             }
-          }
 
     UpdateNamespacePropertiesResponse:
       description: JSON data response for a synchronous update properties request.
@@ -4489,10 +4490,10 @@ components:
           schema:
             $ref: '#/components/schemas/UpdateNamespacePropertiesResponse'
           example: {
-            "updated": [ "owner" ],
-            "removed": [ "foo" ],
-            "missing": [ "bar" ]
-          }
+              "updated": [ "owner" ],
+              "removed": [ "foo" ],
+              "missing": [ "bar" ]
+            }
 
     CreateTableResponse:
       description: Table metadata result after creating a table
@@ -4554,32 +4555,32 @@ components:
     ListTablesEmptyExample:
       summary: An empty list for a namespace with no tables
       value: {
-        "identifiers": [ ]
-      }
+          "identifiers": [ ]
+        }
 
     ListNamespacesEmptyExample:
       summary: An empty list of namespaces
       value: {
-        "namespaces": [ ]
-      }
+          "namespaces": [ ]
+        }
 
     ListNamespacesNonEmptyExample:
       summary: A non-empty list of namespaces
       value: {
-        "namespaces": [
-          ["accounting", "tax"],
-          ["accounting", "credits"]
-        ]
-      }
+          "namespaces": [
+            ["accounting", "tax"],
+            ["accounting", "credits"]
+          ]
+        }
 
     ListTablesNonEmptyExample:
       summary: A non-empty list of table identifiers
       value: {
-        "identifiers": [
-          { "namespace": ["accounting", "tax"], "name": "paid" },
-          { "namespace": ["accounting", "tax"], "name": "owed" }
-        ]
-      }
+          "identifiers": [
+            { "namespace": ["accounting", "tax"], "name": "paid" },
+            { "namespace": ["accounting", "tax"], "name": "owed" }
+          ]
+        }
 
     MultipartNamespaceAsPathVariable:
       summary: A multi-part namespace, as represented in a path parameter
@@ -4592,96 +4593,96 @@ components:
     NamespaceAlreadyExistsError:
       summary: The requested namespace already exists
       value: {
-        "error": {
-          "message": "The given namespace already exists",
-          "type": "AlreadyExistsException",
-          "code": 409
+          "error": {
+            "message": "The given namespace already exists",
+            "type": "AlreadyExistsException",
+            "code": 409
+          }
         }
-      }
 
     NoSuchPlanIdError:
       summary: The plan id does not exist
       value: {
-        "error": {
-          "message": "The plan id does not exist",
-          "type": "NoSuchPlanIdException",
-          "code": 404
+          "error": {
+            "message": "The plan id does not exist",
+            "type": "NoSuchPlanIdException",
+            "code": 404
+          }
         }
-      }
 
     NoSuchPlanTaskError:
       summary: The plan task does not exist
       value: {
-        "error": {
-          "message": "The plan task does not exist",
-          "type": "NoSuchPlanTaskException",
-          "code": 404
+          "error": {
+            "message": "The plan task does not exist",
+            "type": "NoSuchPlanTaskException",
+            "code": 404
+          }
         }
-      }
 
     NoSuchTableError:
       summary: The requested table does not exist
       value: {
-        "error": {
-          "message": "The given table does not exist",
-          "type": "NoSuchTableException",
-          "code": 404
+          "error": {
+            "message": "The given table does not exist",
+            "type": "NoSuchTableException",
+            "code": 404
+          }
         }
-      }
 
     NoSuchViewError:
       summary: The requested view does not exist
       value: {
-        "error": {
-          "message": "The given view does not exist",
-          "type": "NoSuchViewException",
-          "code": 404
+          "error": {
+            "message": "The given view does not exist",
+            "type": "NoSuchViewException",
+            "code": 404
+          }
         }
-      }
 
     NoSuchNamespaceError:
       summary: The requested namespace does not exist
       value: {
-        "error": {
-          "message": "The given namespace does not exist",
-          "type": "NoSuchNamespaceException",
-          "code": 404
+          "error": {
+            "message": "The given namespace does not exist",
+            "type": "NoSuchNamespaceException",
+            "code": 404
+          }
         }
-      }
 
     RenameTableSameNamespace:
       summary: Rename a table in the same namespace
       value: {
-        "source": { "namespace": ["accounting", "tax"], "name": "paid" },
-        "destination": { "namespace": ["accounting", "tax"], "name": "owed" }
-      }
+          "source": { "namespace": ["accounting", "tax"], "name": "paid" },
+          "destination": { "namespace": ["accounting", "tax"], "name": "owed" }
+        }
 
     RenameViewSameNamespace:
       summary: Rename a view in the same namespace
       value: {
-        "source": { "namespace": [ "accounting", "tax" ], "name": "paid-view" },
-        "destination": { "namespace": [ "accounting", "tax" ], "name": "owed-view" }
-      }
+          "source": { "namespace": [ "accounting", "tax" ], "name": "paid-view" },
+          "destination": { "namespace": [ "accounting", "tax" ], "name": "owed-view" }
+        }
 
     TableAlreadyExistsError:
       summary: The requested table identifier already exists
       value: {
-        "error": {
-          "message": "The given table already exists",
-          "type": "AlreadyExistsException",
-          "code": 409
+          "error": {
+            "message": "The given table already exists",
+            "type": "AlreadyExistsException",
+            "code": 409
+          }
         }
-      }
 
     ViewAlreadyExistsError:
       summary: The requested view identifier already exists
       value: {
-        "error": {
-          "message": "The given view already exists",
-          "type": "AlreadyExistsException",
-          "code": 409
+          "error": {
+            "message": "The given view already exists",
+            "type": "AlreadyExistsException",
+            "code": 409
+          }
         }
-      }
 
     # This is an example response and is not meant to be prescriptive regarding the message or type.
     UnprocessableEntityDuplicateKey:
@@ -4689,19 +4690,19 @@ components:
         The request body either has the same key multiple times in what should be a map with unique keys
         or the request body has keys in two or more fields which should be disjoint sets.
       value: {
-        "error": {
-          "message": "The request cannot be processed as there is a key present multiple times",
-          "type": "UnprocessableEntityException",
-          "code": 422
+          "error": {
+            "message": "The request cannot be processed as there is a key present multiple times",
+            "type": "UnprocessableEntityException",
+            "code": 422
+          }
         }
-      }
 
     UpdateAndRemoveNamespacePropertiesRequest:
       summary: An update namespace properties request with both properties to remove and properties to upsert.
       value: {
-        "removals": [ "foo", "bar" ],
-        "updates": { "owner": "Raoul" }
-      }
+          "removals": [ "foo", "bar" ],
+          "updates": { "owner": "Raoul" }
+        }
 
   securitySchemes:
     OAuth2:
