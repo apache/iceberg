@@ -24,7 +24,6 @@ import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetr
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
-import java.time.Duration;
 import java.util.Collection;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -100,8 +99,8 @@ class TestLockRemover extends OperatorTestBase {
     Configuration config = new Configuration();
     config.set(CheckpointingOptions.CHECKPOINT_STORAGE, "filesystem");
     config.set(CheckpointingOptions.CHECKPOINTS_DIRECTORY, "file://" + checkpointDir.getPath());
-    config.set(CheckpointingOptions.CHECKPOINTING_INTERVAL, Duration.ofMillis(10));
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(config);
+    env.enableCheckpointing(10);
     ManualSource<TaskResult> source = new ManualSource<>(env, TypeInformation.of(TaskResult.class));
     source.dataStream().global().sinkTo(new SinkTest()).name(sinkName).setParallelism(1);
 
