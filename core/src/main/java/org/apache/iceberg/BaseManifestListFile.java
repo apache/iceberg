@@ -32,10 +32,7 @@ class BaseManifestListFile implements ManifestListFile, Serializable {
   private final byte[] encryptedKeyMetadata;
 
   BaseManifestListFile(
-      String location,
-      long snapshotId,
-      String keyMetadataKeyID,
-      ByteBuffer encryptedKeyMetadata) {
+      String location, long snapshotId, String keyMetadataKeyID, ByteBuffer encryptedKeyMetadata) {
     this.location = location;
     this.snapshotId = snapshotId;
     this.encryptedKeyMetadata = ByteBuffers.toByteArray(encryptedKeyMetadata);
@@ -59,6 +56,10 @@ class BaseManifestListFile implements ManifestListFile, Serializable {
 
   @Override
   public ByteBuffer encryptedKeyMetadata() {
+    if (encryptedKeyMetadata == null) {
+      return null;
+    }
+
     return ByteBuffer.wrap(encryptedKeyMetadata);
   }
 
