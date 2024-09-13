@@ -430,6 +430,11 @@ public class Types {
     }
 
     @Override
+    public boolean isVariantType() {
+      return true;
+    }
+
+    @Override
     public boolean equals(Object o) {
       if (this == o) {
         return true;
