@@ -160,7 +160,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
     TableIdentifier invalidFrom = TableIdentifier.of(Namespace.of("l1", "l2"), "table1");
     TableIdentifier validTo = TableIdentifier.of(Namespace.of("l1"), "renamedTable");
     assertThatThrownBy(() -> catalog.renameTable(invalidFrom, validTo))
-        .isInstanceOf(NoSuchTableException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Invalid identifier: " + invalidFrom);
 
     TableIdentifier validFrom = TableIdentifier.of(Namespace.of("l1"), "table1");

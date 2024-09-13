@@ -337,14 +337,7 @@ public class HiveCatalog extends BaseMetastoreViewCatalog
       TableIdentifier from,
       TableIdentifier originalTo,
       HiveOperationsBase.ContentType contentType) {
-    if (!isValidIdentifier(from)) {
-      switch (contentType) {
-        case TABLE:
-          throw new NoSuchTableException("Invalid identifier: %s", from);
-        case VIEW:
-          throw new NoSuchViewException("Invalid identifier: %s", from);
-      }
-    }
+    Preconditions.checkArgument(isValidIdentifier(from), "Invalid identifier: %s", from);
 
     TableIdentifier to = removeCatalogName(originalTo);
     Preconditions.checkArgument(isValidIdentifier(to), "Invalid identifier: %s", to);

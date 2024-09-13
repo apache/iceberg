@@ -147,7 +147,12 @@ public class CatalogUtil {
    * @param metadata the last valid ViewMetadata instance for a dropped view.
    */
   public static void dropViewMetadata(FileIO io, ViewMetadata metadata) {
-    deleteFile(io, metadata.metadataFileLocation(), "metadata");
+    boolean gcEnabled =
+        PropertyUtil.propertyAsBoolean(metadata.properties(), GC_ENABLED, GC_ENABLED_DEFAULT);
+
+    if (gcEnabled) {
+      deleteFile(io, metadata.metadataFileLocation(), "metadata");
+    }
   }
 
   @SuppressWarnings("DangerousStringInternUsage")

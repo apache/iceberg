@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
@@ -32,14 +33,15 @@ import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
-import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.ViewCatalogTests;
 import org.apache.thrift.TException;
 import org.junit.jupiter.api.AfterEach;
@@ -194,7 +196,7 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
     TableIdentifier invalidFrom = TableIdentifier.of(Namespace.of("l1", "l2"), "view");
     TableIdentifier validTo = TableIdentifier.of(Namespace.of("l1"), "renamedView");
     assertThatThrownBy(() -> catalog.renameView(invalidFrom, validTo))
-        .isInstanceOf(NoSuchViewException.class)
+        .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Invalid identifier: " + invalidFrom);
 
     TableIdentifier validFrom = TableIdentifier.of(Namespace.of("l1"), "view");
@@ -202,6 +204,80 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
     assertThatThrownBy(() -> catalog.renameView(validFrom, invalidTo))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Invalid identifier: " + invalidTo);
+  }
+
+  @Test
+  public void dropViewShouldNotDropMetadataFileIfGcNotEnabled() throws IOException {
+    String dbName = "hivedb";
+    Namespace ns = Namespace.of(dbName);
+    TableIdentifier identifier = TableIdentifier.of(ns, "test_iceberg_drop_view_gc_disabled");
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    BaseView view =
+        (BaseView)
+            catalog
+                .buildView(identifier)
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(ns)
+                .withQuery("hive", "select * from hivedb.tbl")
+                .withProperty(TableProperties.GC_ENABLED, "false")
+                .create();
+
+    assertThat(catalog.viewExists(identifier)).isTrue();
+
+    Path viewLocation = new Path(view.location());
+    String currentMetadataLocation = view.operations().current().metadataFileLocation();
+
+    catalog.dropView(identifier);
+
+    assertThat(
+            viewLocation
+                .getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf())
+                .exists(new Path(currentMetadataLocation)))
+        .isTrue();
+    assertThat(catalog.viewExists(identifier)).isFalse();
+  }
+
+  @Test
+  public void dropViewShouldDropMetadataFileIfGcEnabled() throws IOException {
+    String dbName = "hivedb";
+    Namespace ns = Namespace.of(dbName);
+    TableIdentifier identifier = TableIdentifier.of(ns, "test_iceberg_drop_view_gc_enabled");
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    BaseView view =
+        (BaseView)
+            catalog
+                .buildView(identifier)
+                .withSchema(SCHEMA)
+                .withDefaultNamespace(ns)
+                .withQuery("hive", "select * from hivedb.tbl")
+                .withProperty(TableProperties.GC_ENABLED, "true")
+                .create();
+
+    assertThat(catalog.viewExists(identifier)).isTrue();
+
+    Path viewLocation = new Path(view.location());
+    String currentMetadataLocation = view.operations().current().metadataFileLocation();
+
+    assertThat(
+            viewLocation
+                .getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf())
+                .exists(new Path(currentMetadataLocation)))
+        .isTrue();
+
+    catalog.dropView(identifier);
+
+    assertThat(
+            viewLocation
+                .getFileSystem(HIVE_METASTORE_EXTENSION.hiveConf())
+                .exists(new Path(currentMetadataLocation)))
+        .isFalse();
+    assertThat(catalog.viewExists(identifier)).isFalse();
   }
 
   private Table createHiveView(String hiveViewName, String dbName, String location) {
