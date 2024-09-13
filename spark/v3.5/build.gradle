@@ -50,8 +50,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
   }
 
   dependencies {
-    // compileOnly 'org.apache.spark/spark-variant_2.13:4.0.0-preview1'
-
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
     implementation project(':iceberg-common')
@@ -115,8 +113,6 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation libs.sqlite.jdbc
     testImplementation libs.awaitility
-
-
   }
 
   test {

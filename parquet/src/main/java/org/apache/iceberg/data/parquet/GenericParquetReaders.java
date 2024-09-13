@@ -100,8 +100,8 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
   }
 
   /**
-   * Variant reader to read Value and Metadata binaries from Parquet file and convert to a record. A record is used to model Variant data.
-   *  TODO:
+   * Variant reader to read Value and Metadata binaries from Parquet file and convert to a record. 
+   * TODO: return A record to model Variant data.
    */
   public static class VariantReader extends RecordReader {
     // TODO: Use Record to model Variant data?

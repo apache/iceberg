@@ -141,6 +141,7 @@ public class TypeWithSchemaVisitor<T> {
             } finally {
               visitor.fieldNames.pop();
             }
+
           default:
         }
       } else if (iType instanceof Types.VariantType) {
