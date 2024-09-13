@@ -205,7 +205,7 @@ final class HiveViewOperations extends BaseViewOperations implements HiveOperati
         if (e.getMessage() != null
             && e.getMessage()
                 .contains(
-                    "The view has been modified. The parameter value for key '"
+                    "The table has been modified. The parameter value for key '"
                         + BaseMetastoreTableOperations.METADATA_LOCATION_PROP
                         + "' is")) {
           throw new CommitFailedException(

@@ -39,6 +39,7 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -110,12 +111,12 @@ public class TestHiveViewCommits {
   public void testSuppressUnlockExceptions() {
     HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
     ViewMetadata metadataV1 = ops.current();
-    assertThat(ops.current().properties()).hasSize(0);
+    assertThat(metadataV1.properties()).hasSize(0);
 
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
     ViewMetadata metadataV2 = ops.current();
-    assertThat(ops.current().properties()).hasSize(1).containsEntry("k1", "v1");
+    assertThat(metadataV2.properties()).hasSize(1).containsEntry("k1", "v1");
 
     HiveViewOperations spyOps = spy(ops);
 
@@ -140,7 +141,7 @@ public class TestHiveViewCommits {
     ops.refresh();
 
     // the commit must succeed
-    assertThat(ops.current().properties()).hasSize(0);
+    assertThat(ops.current().properties()).hasSize(0).isEqualTo(metadataV1.properties());
   }
 
   /**
@@ -152,22 +153,27 @@ public class TestHiveViewCommits {
   public void testThriftExceptionUnknownStateIfNotInHistoryFailureOnCommit()
       throws TException, InterruptedException {
     HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
-    assertThat(ops.current().properties()).hasSize(0);
+    ViewMetadata metadataV1 = ops.current();
+    assertThat(metadataV1.properties()).hasSize(0);
 
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
     ViewMetadata metadataV2 = ops.current();
-    assertThat(ops.current().properties()).hasSize(1).containsEntry("k1", "v1");
+    assertThat(metadataV2.properties()).hasSize(1).containsEntry("k1", "v1");
 
     HiveViewOperations spyOps = spy(ops);
 
     failCommitAndThrowException(spyOps);
 
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith("Datacenter on fire");
+
     ops.refresh();
 
     assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
     assertThat(metadataFileExists(metadataV2)).as("Current metadata should still exist").isTrue();
-    assertThat(metadataFileCount(ops.current()))
+    assertThat(metadataFileCount(metadataV2))
         .as(
             "New metadata files should still exist, new location not in history but"
                 + " the commit may still succeed")
@@ -180,12 +186,12 @@ public class TestHiveViewCommits {
     HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
 
     ViewMetadata metadataV1 = ops.current();
-    assertThat(ops.current().properties()).hasSize(0);
+    assertThat(metadataV1.properties()).hasSize(0);
 
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
-    assertThat(ops.current().properties()).hasSize(1).containsEntry("k1", "v1");
     ViewMetadata metadataV2 = ops.current();
+    assertThat(metadataV2.properties()).hasSize(1).containsEntry("k1", "v1");
 
     HiveViewOperations spyOps = spy(ops);
 
@@ -194,7 +200,7 @@ public class TestHiveViewCommits {
     spyOps.commit(metadataV2, metadataV1);
 
     assertThat(ops.current()).as("Current metadata should have not changed").isEqualTo(metadataV2);
-    assertThat(metadataFileExists(ops.current()))
+    assertThat(metadataFileExists(metadataV2))
         .as("Current metadata file should still exist")
         .isTrue();
   }
@@ -207,12 +213,12 @@ public class TestHiveViewCommits {
   public void testThriftExceptionUnknownFailedCommit() throws TException, InterruptedException {
     HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
     ViewMetadata metadataV1 = ops.current();
-    assertThat(ops.current().properties()).hasSize(0);
+    assertThat(metadataV1.properties()).hasSize(0);
 
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
     ViewMetadata metadataV2 = ops.current();
-    assertThat(ops.current().properties()).hasSize(1).containsEntry("k1", "v1");
+    assertThat(metadataV2.properties()).hasSize(1).containsEntry("k1", "v1");
 
     HiveViewOperations spyOps = spy(ops);
 
@@ -226,7 +232,7 @@ public class TestHiveViewCommits {
     ops.refresh();
 
     assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
-    assertThat(metadataFileExists(ops.current()))
+    assertThat(metadataFileExists(metadataV2))
         .as("Current metadata file should still exist")
         .isTrue();
   }
@@ -253,12 +259,12 @@ public class TestHiveViewCommits {
   public void testThriftExceptionConcurrentCommit() throws TException, InterruptedException {
     HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
     ViewMetadata metadataV1 = ops.current();
-    assertThat(ops.current().properties()).hasSize(0);
+    assertThat(metadataV1.properties()).hasSize(0);
 
     view.updateProperties().set("k0", "v0").commit();
     ops.refresh();
     ViewMetadata metadataV2 = ops.current();
-    assertThat(ops.current().properties()).hasSize(1).containsEntry("k0", "v0");
+    assertThat(metadataV2.properties()).hasSize(1).containsEntry("k0", "v0");
 
     HiveViewOperations spyOps = spy(ops);
 
@@ -273,21 +279,21 @@ public class TestHiveViewCommits {
 
     concurrentCommitAndThrowException(ops, spyOps, (BaseView) view, lock);
 
-    /*
-    This commit should fail and concurrent commit should succeed even though this commit throws an exception
-    after the persist operation succeeds
-     */
+    //    This commit should fail and concurrent commit should succeed even though this commit
+    //    throws an exception after the persist operation succeeds
+
     assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageContaining("Datacenter on fire");
 
     ops.refresh();
+    ViewMetadata metadataV3 = ops.current();
 
-    assertThat(ops.current()).as("Current metadata should have changed").isNotEqualTo(metadataV2);
-    assertThat(metadataFileExists(ops.current()))
+    assertThat(metadataV3).as("Current metadata should have changed").isNotEqualTo(metadataV2);
+    assertThat(metadataFileExists(metadataV3))
         .as("Current metadata file should still exist")
         .isTrue();
-    assertThat(ops.current().properties())
+    assertThat(metadataV3.properties())
         .as("The new properties from the concurrent commit should have been successful")
         .hasSize(2);
   }
@@ -304,19 +310,20 @@ public class TestHiveViewCommits {
                     .withQuery("hive", "select * from ns.tbl")
                     .create())
         .isInstanceOf(ValidationException.class)
-        .hasMessage(String.format("Invalid Hive object for %s.%s", DB_NAME, "`test_iceberg_view`"));
+        .hasMessage("Invalid Hive object for " + DB_NAME + "." + "`test_iceberg_view`");
   }
 
   /** Uses NoLock and pretends we throw an error because of a concurrent commit */
   @Test
   public void testNoLockThriftExceptionConcurrentCommit() throws TException, InterruptedException {
     HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
-    assertThat(ops.current().properties()).hasSize(0);
+    ViewMetadata metadataV1 = ops.current();
+    assertThat(metadataV1.properties()).hasSize(0);
 
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
     ViewMetadata metadataV2 = ops.current();
-    assertThat(ops.current().properties()).hasSize(1).containsEntry("k1", "v1");
+    assertThat(metadataV2.properties()).hasSize(1).containsEntry("k1", "v1");
 
     HiveViewOperations spyOps = spy(ops);
 
@@ -330,25 +337,30 @@ public class TestHiveViewCommits {
         .when(spyOps)
         .persistTable(any(), anyBoolean(), any());
 
+    // Should throw a CommitFailedException so the commit could be retried
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessageContaining("The view hivedb.test_iceberg_view has been modified concurrently");
+
     ops.refresh();
 
     assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
     assertThat(metadataFileExists(metadataV2)).as("Current metadata should still exist").isTrue();
-    assertThat(metadataFileCount(ops.current()))
+    assertThat(metadataFileCount(metadataV2))
         .as("New metadata files should not exist")
-        .isEqualTo(2);
+        .isEqualTo(1);
   }
 
   @Test
   public void testLockExceptionUnknownSuccessCommit() throws TException, InterruptedException {
     HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
     ViewMetadata metadataV1 = ops.current();
-    assertThat(ops.current().properties()).hasSize(0);
+    assertThat(metadataV1.properties()).hasSize(0);
 
     view.updateProperties().set("k1", "v1").commit();
     ops.refresh();
     ViewMetadata metadataV2 = ops.current();
-    assertThat(ops.current().properties()).hasSize(1).containsEntry("k1", "v1");
+    assertThat(metadataV2.properties()).hasSize(1).containsEntry("k1", "v1");
 
     HiveViewOperations spyOps = spy(ops);
 
@@ -370,12 +382,30 @@ public class TestHiveViewCommits {
 
     ops.refresh();
 
-    assertThat(ops.current().location())
+    assertThat(metadataV2.location())
         .as("Current metadata should have changed to metadata V1")
         .isEqualTo(metadataV1.location());
-    assertThat(metadataFileExists(ops.current()))
+    assertThat(metadataFileExists(metadataV2))
         .as("Current metadata file should still exist")
         .isTrue();
+  }
+
+  @Test
+  public void testCommitExceptionWithoutMessage() throws TException, InterruptedException {
+    HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
+    ViewMetadata metadataV1 = ops.current();
+    assertThat(metadataV1.properties()).hasSize(0);
+
+    view.updateProperties().set("k1", "v1").commit();
+
+    ops.refresh();
+
+    HiveViewOperations spyOps = spy(ops);
+    doThrow(new RuntimeException()).when(spyOps).persistTable(any(), anyBoolean(), any());
+
+    assertThatThrownBy(() -> spyOps.commit(ops.current(), metadataV1))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith("null\nCannot determine whether the commit was successful or not");
   }
 
   private void commitAndThrowException(
