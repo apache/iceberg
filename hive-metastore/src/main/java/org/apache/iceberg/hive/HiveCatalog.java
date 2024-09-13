@@ -119,8 +119,8 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   @Override
   public List<TableIdentifier> listTables(Namespace namespace) {
-    Preconditions.checkArgument(
-        isValidateNamespace(namespace), "Missing database in namespace: %s", namespace);
+    checkNamespaceIsValid(namespace);
+
     String database = namespace.level(0);
 
     try {
@@ -301,12 +301,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   @Override
   public void createNamespace(Namespace namespace, Map<String, String> meta) {
-    Preconditions.checkArgument(
-        !namespace.isEmpty(), "Cannot create namespace with invalid name: %s", namespace);
-    Preconditions.checkArgument(
-        isValidateNamespace(namespace),
-        "Cannot support multi part namespace in Hive Metastore: %s",
-        namespace);
+    checkNamespaceIsValid(namespace);
     Preconditions.checkArgument(
         meta.get(HMS_DB_OWNER_TYPE) == null || meta.get(HMS_DB_OWNER) != null,
         "Create namespace setting %s without setting %s is not allowed",
@@ -336,9 +331,13 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     }
   }
 
+  /**
+   * if namespace is empty, return all the namespaces if namespace is valid means of level one, then
+   * return an empty list in all the other cases throw error
+   */
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
-    if (!isValidateNamespace(namespace) && !namespace.isEmpty()) {
+    if (!isValidNamespace(namespace) && !namespace.isEmpty()) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
     if (!namespace.isEmpty()) {
@@ -366,7 +365,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   @Override
   public boolean dropNamespace(Namespace namespace) {
-    if (!isValidateNamespace(namespace)) {
+    if (!isValidNamespace(namespace)) {
       return false;
     }
 
@@ -465,7 +464,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
 
   @Override
   public Map<String, String> loadNamespaceMetadata(Namespace namespace) {
-    if (!isValidateNamespace(namespace)) {
+    if (!isValidNamespace(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
@@ -508,8 +507,15 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     return to;
   }
 
-  private boolean isValidateNamespace(Namespace namespace) {
+  private boolean isValidNamespace(Namespace namespace) {
     return namespace.levels().length == 1;
+  }
+
+  private void checkNamespaceIsValid(Namespace namespace) {
+    Preconditions.checkArgument(
+        isValidNamespace(namespace),
+        "Cannot support empty or multi part namespace in Hive Metastore: %s",
+        namespace);
   }
 
   @Override
@@ -583,7 +589,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   }
 
   Database convertToDatabase(Namespace namespace, Map<String, String> meta) {
-    if (!isValidateNamespace(namespace)) {
+    if (!isValidNamespace(namespace)) {
       throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
     }
 
