@@ -40,7 +40,11 @@ public class TestManifestReader extends TestBase {
   private static final RecursiveComparisonConfiguration FILE_COMPARISON_CONFIG =
       RecursiveComparisonConfiguration.builder()
           .withIgnoredFields(
-              "dataSequenceNumber", "fileOrdinal", "fileSequenceNumber", "fromProjectionPos")
+              "dataSequenceNumber",
+              "fileOrdinal",
+              "fileSequenceNumber",
+              "fromProjectionPos",
+              "manifestLocation")
           .build();
 
   @TestTemplate
@@ -134,6 +138,16 @@ public class TestManifestReader extends TestBase {
   }
 
   @TestTemplate
+  public void testDataFileManifestPaths() throws IOException {
+    ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+      for (DataFile file : reader) {
+        assertThat(file.manifestLocation()).isEqualTo(manifest.path());
+      }
+    }
+  }
+
+  @TestTemplate
   public void testDeleteFilePositions() throws IOException {
     assumeThat(formatVersion).as("Delete files only work for format version 2").isEqualTo(2);
     ManifestFile manifest =
@@ -147,6 +161,21 @@ public class TestManifestReader extends TestBase {
             .as("Position from field index should match")
             .isEqualTo(expectedPos);
         expectedPos += 1;
+      }
+    }
+  }
+
+  @TestTemplate
+  public void testDeleteFileManifestPaths() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files only work for format version 2 or higher")
+        .isGreaterThanOrEqualTo(2);
+    ManifestFile manifest =
+        writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES, FILE_B_DELETES);
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, null)) {
+      for (DeleteFile file : reader) {
+        assertThat(file.manifestLocation()).isEqualTo(manifest.path());
       }
     }
   }

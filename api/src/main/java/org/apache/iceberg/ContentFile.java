@@ -30,6 +30,14 @@ import java.util.Set;
  */
 public interface ContentFile<F> {
   /**
+   * Returns the path of the manifest which this file is referenced in or null if it was not read
+   * from a manifest.
+   */
+  default String manifestLocation() {
+    return null;
+  }
+
+  /**
    * Returns the ordinal position of the file in a manifest, or null if it was not read from a
    * manifest.
    */
