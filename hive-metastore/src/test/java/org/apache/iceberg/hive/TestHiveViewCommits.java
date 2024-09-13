@@ -203,6 +203,9 @@ public class TestHiveViewCommits {
     assertThat(metadataFileExists(metadataV2))
         .as("Current metadata file should still exist")
         .isTrue();
+    assertThat(metadataFileCount(metadataV2))
+        .as("Commit should have been successful and new metadata file should be made")
+        .isEqualTo(2);
   }
 
   /**
@@ -235,6 +238,47 @@ public class TestHiveViewCommits {
     assertThat(metadataFileExists(metadataV2))
         .as("Current metadata file should still exist")
         .isTrue();
+    assertThat(metadataFileCount(metadataV2))
+        .as("Client could not determine outcome so new metadata file should also exist")
+        .isEqualTo(2);
+  }
+
+  /**
+   * Pretends we throw an exception while persisting and don't know what happened, can't check to
+   * find out, but in reality the commit succeeded
+   */
+  @Test
+  public void testThriftExceptionsUnknownSuccessCommit() throws TException, InterruptedException {
+    HiveViewOperations ops = (HiveViewOperations) ((BaseView) view).operations();
+    ViewMetadata metadataV1 = ops.current();
+    assertThat(metadataV1.properties()).hasSize(0);
+
+    view.updateProperties().set("k1", "v1").commit();
+    ops.refresh();
+
+    ViewMetadata metadataV2 = ops.current();
+
+    assertThat(metadataV2.properties()).hasSize(1);
+
+    HiveViewOperations spyOps = spy(ops);
+
+    commitAndThrowException(ops, spyOps);
+    breakFallbackCatalogCommitCheck(spyOps);
+
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+        .isInstanceOf(CommitStateUnknownException.class)
+        .hasMessageStartingWith("Datacenter on fire");
+
+    ops.refresh();
+    ViewMetadata metadataV3 = ops.current();
+
+    assertThat(metadataV3).as("Current metadata should have changed").isNotEqualTo(metadataV2);
+    assertThat(metadataFileExists(metadataV3))
+        .as("Current metadata file should still exist")
+        .isTrue();
+    assertThat(metadataFileCount(metadataV3))
+        .as("Commit should have been successful with updated properties at metadataV2")
+        .isEqualTo(2);
   }
 
   /**
@@ -281,7 +325,6 @@ public class TestHiveViewCommits {
 
     //    This commit should fail and concurrent commit should succeed even though this commit
     //    throws an exception after the persist operation succeeds
-
     assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageContaining("Datacenter on fire");
@@ -388,6 +431,7 @@ public class TestHiveViewCommits {
     assertThat(metadataFileExists(metadataV2))
         .as("Current metadata file should still exist")
         .isTrue();
+    assertThat(metadataFileCount(metadataV2)).as("New metadata file should exist").isEqualTo(2);
   }
 
   @Test
