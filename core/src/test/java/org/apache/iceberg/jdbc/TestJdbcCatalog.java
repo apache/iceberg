@@ -217,7 +217,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     JdbcCatalog jdbcCatalog = new JdbcCatalog();
     jdbcCatalog.setConf(conf);
     jdbcCatalog.initialize("test_catalog_with_retryable_status_codes", properties);
-    JdbcClientPool jdbcClientPool = jdbcCatalog.connectionPool();
+    JdbcClientPool jdbcClientPool = (JdbcClientPool) jdbcCatalog.connectionPool();
     List<SQLException> expectedRetryableExceptions =
         Lists.newArrayList(
             new SQLException("operator_intervention", "57000"),
@@ -236,7 +236,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     // Test the same retryable status codes but with spaces in the configuration
     properties.put(JdbcUtil.RETRYABLE_STATUS_CODES, "57000, 57P03, 57P04");
     jdbcCatalog.initialize("test_catalog_with_retryable_status_codes_with_spaces", properties);
-    JdbcClientPool updatedClientPool = jdbcCatalog.connectionPool();
+    JdbcClientPool updatedClientPool = (JdbcClientPool) jdbcCatalog.connectionPool();
     expectedRetryableExceptions.forEach(
         exception -> {
           assertThat(updatedClientPool.isConnectionException(exception))
@@ -254,7 +254,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
     JdbcCatalog jdbcCatalog = new JdbcCatalog();
     jdbcCatalog.setConf(conf);
     jdbcCatalog.initialize("test_catalog_with_retryable_status_codes", properties);
-    JdbcClientPool jdbcClientPool = jdbcCatalog.connectionPool();
+    JdbcClientPool jdbcClientPool = (JdbcClientPool) jdbcCatalog.connectionPool();
     assertThat(
             jdbcClientPool.isConnectionException(
                 new SQLNonTransientConnectionException("Failed to authenticate")))

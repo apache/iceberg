@@ -83,10 +83,10 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   private String catalogName = "jdbc";
   private String warehouseLocation;
   private Object conf;
-  private JdbcClientPool connections;
+  private ConnectionClientPool connections;
   private Map<String, String> catalogProperties;
   private final Function<Map<String, String>, FileIO> ioBuilder;
-  private final Function<Map<String, String>, JdbcClientPool> clientPoolBuilder;
+  private final Function<Map<String, String>, ConnectionClientPool> clientPoolBuilder;
   private boolean initializeCatalogTables;
   private CloseableGroup closeableGroup;
   private JdbcUtil.SchemaVersion schemaVersion = JdbcUtil.SchemaVersion.V0;
@@ -97,7 +97,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
   public JdbcCatalog(
       Function<Map<String, String>, FileIO> ioBuilder,
-      Function<Map<String, String>, JdbcClientPool> clientPoolBuilder,
+      Function<Map<String, String>, ConnectionClientPool> clientPoolBuilder,
       boolean initializeCatalogTables) {
     this.ioBuilder = ioBuilder;
     this.clientPoolBuilder = clientPoolBuilder;
@@ -701,7 +701,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   }
 
   @VisibleForTesting
-  JdbcClientPool connectionPool() {
+  ConnectionClientPool connectionPool() {
     return connections;
   }
 

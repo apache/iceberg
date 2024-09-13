@@ -47,12 +47,12 @@ class JdbcTableOperations extends BaseMetastoreTableOperations {
   private final String catalogName;
   private final TableIdentifier tableIdentifier;
   private final FileIO fileIO;
-  private final JdbcClientPool connections;
+  private final ConnectionClientPool connections;
   private final Map<String, String> catalogProperties;
   private final JdbcUtil.SchemaVersion schemaVersion;
 
   protected JdbcTableOperations(
-      JdbcClientPool dbConnPool,
+      ConnectionClientPool dbConnPool,
       FileIO fileIO,
       String catalogName,
       TableIdentifier tableIdentifier,

@@ -526,7 +526,7 @@ final class JdbcUtil {
   private static int update(
       boolean isTable,
       SchemaVersion schemaVersion,
-      JdbcClientPool connections,
+      ConnectionClientPool connections,
       String catalogName,
       TableIdentifier identifier,
       String newMetadataLocation,
@@ -555,7 +555,7 @@ final class JdbcUtil {
 
   static int updateTable(
       SchemaVersion schemaVersion,
-      JdbcClientPool connections,
+      ConnectionClientPool connections,
       String catalogName,
       TableIdentifier tableIdentifier,
       String newMetadataLocation,
@@ -572,7 +572,7 @@ final class JdbcUtil {
   }
 
   static int updateView(
-      JdbcClientPool connections,
+      ConnectionClientPool connections,
       String catalogName,
       TableIdentifier viewIdentifier,
       String newMetadataLocation,
@@ -591,7 +591,7 @@ final class JdbcUtil {
   private static Map<String, String> tableOrView(
       boolean isTable,
       SchemaVersion schemaVersion,
-      JdbcClientPool connections,
+      ConnectionClientPool connections,
       String catalogName,
       TableIdentifier identifier)
       throws SQLException, InterruptedException {
@@ -630,7 +630,7 @@ final class JdbcUtil {
 
   static Map<String, String> loadTable(
       SchemaVersion schemaVersion,
-      JdbcClientPool connections,
+      ConnectionClientPool connections,
       String catalogName,
       TableIdentifier identifier)
       throws SQLException, InterruptedException {
@@ -639,7 +639,7 @@ final class JdbcUtil {
 
   static Map<String, String> loadView(
       SchemaVersion schemaVersion,
-      JdbcClientPool connections,
+      ConnectionClientPool connections,
       String catalogName,
       TableIdentifier identifier)
       throws SQLException, InterruptedException {
@@ -649,7 +649,7 @@ final class JdbcUtil {
   private static int doCommitCreate(
       boolean isTable,
       SchemaVersion schemaVersion,
-      JdbcClientPool connections,
+      ConnectionClientPool connections,
       String catalogName,
       Namespace namespace,
       TableIdentifier identifier,
@@ -677,7 +677,7 @@ final class JdbcUtil {
 
   static int doCommitCreateTable(
       SchemaVersion schemaVersion,
-      JdbcClientPool connections,
+      ConnectionClientPool connections,
       String catalogName,
       Namespace namespace,
       TableIdentifier tableIdentifier,
@@ -694,7 +694,7 @@ final class JdbcUtil {
   }
 
   static int doCommitCreateView(
-      JdbcClientPool connections,
+      ConnectionClientPool connections,
       String catalogName,
       Namespace namespace,
       TableIdentifier viewIdentifier,
@@ -711,7 +711,7 @@ final class JdbcUtil {
   }
 
   static boolean viewExists(
-      String catalogName, JdbcClientPool connections, TableIdentifier viewIdentifier) {
+      String catalogName, ConnectionClientPool connections, TableIdentifier viewIdentifier) {
     return exists(
         connections,
         GET_VIEW_SQL,
@@ -723,7 +723,7 @@ final class JdbcUtil {
   static boolean tableExists(
       SchemaVersion schemaVersion,
       String catalogName,
-      JdbcClientPool connections,
+      ConnectionClientPool connections,
       TableIdentifier tableIdentifier) {
     return exists(
         connections,
@@ -782,7 +782,7 @@ final class JdbcUtil {
   }
 
   static boolean namespaceExists(
-      String catalogName, JdbcClientPool connections, Namespace namespace) {
+      String catalogName, ConnectionClientPool connections, Namespace namespace) {
 
     String namespaceEquals = JdbcUtil.namespaceToString(namespace);
     // when namespace has sub-namespace then additionally checking it with LIKE statement.
@@ -802,7 +802,7 @@ final class JdbcUtil {
   }
 
   @SuppressWarnings("checkstyle:NestedTryDepth")
-  private static boolean exists(JdbcClientPool connections, String sql, String... args) {
+  private static boolean exists(ConnectionClientPool connections, String sql, String... args) {
     try {
       return connections.run(
           conn -> {

@@ -48,11 +48,11 @@ public class JdbcViewOperations extends BaseViewOperations {
   private final String catalogName;
   private final TableIdentifier viewIdentifier;
   private final FileIO fileIO;
-  private final JdbcClientPool connections;
+  private final ConnectionClientPool connections;
   private final Map<String, String> catalogProperties;
 
   protected JdbcViewOperations(
-      JdbcClientPool dbConnPool,
+      ConnectionClientPool dbConnPool,
       FileIO fileIO,
       String catalogName,
       TableIdentifier viewIdentifier,
