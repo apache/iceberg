@@ -42,6 +42,7 @@ public class SchemaParser {
   private static final String STRUCT = "struct";
   private static final String LIST = "list";
   private static final String MAP = "map";
+  private static final String VARIANT = "variant";
   private static final String FIELDS = "fields";
   private static final String ELEMENT = "element";
   private static final String KEY = "key";
@@ -145,6 +146,8 @@ public class SchemaParser {
   static void toJson(Type type, JsonGenerator generator) throws IOException {
     if (type.isPrimitiveType()) {
       toJson(type.asPrimitiveType(), generator);
+    } else if (type.isVariantType()) {
+      generator.writeString(type.toString());
     } else {
       Type.NestedType nested = type.asNestedType();
       switch (type.typeId()) {
@@ -179,6 +182,10 @@ public class SchemaParser {
 
   private static Type typeFromJson(JsonNode json) {
     if (json.isTextual()) {
+      if (VARIANT.equalsIgnoreCase(json.asText())) {
+        return Types.VariantType.get();
+      }
+
       return Types.fromPrimitiveString(json.asText());
     } else if (json.isObject()) {
       JsonNode typeObj = json.get(TYPE);
