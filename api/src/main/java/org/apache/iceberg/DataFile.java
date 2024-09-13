@@ -99,22 +99,6 @@ public interface DataFile extends ContentFile<DataFile> {
       optional(140, "sort_order_id", IntegerType.get(), "Sort order ID");
   Types.NestedField SPEC_ID = optional(141, "spec_id", IntegerType.get(), "Partition spec ID");
 
-
-  StructType columnStatsType = StructType.of(
-          required(152, "column_id", LongType.get(), "Column ID"),
-          required(153, "subcolumn_path", StringType.get(), "UTF-8 String of subcolumn path"),
-          required(154, "subcolumn_data_type", StringType.get(), "data type of this subcolumn for this file"),
-          required(155, "column_value_count", LongType.get(), "column value count"),
-          required(156, "column_null_value_count", LongType.get(), "column null value count"),
-          required(157, "column_nan_value_count", LongType.get(), "column nan value count"),
-          required(158, "column_distinct_count", LongType.get(), "column distinct value count"),
-          required(159, "column_lower_bound", LongType.get(), "column lower bound value"),
-          required(160, "column_upper_bound", LongType.get(), "column upper bound value"));
-  Types.NestedField COLUMN_STATS =
-          optional(
-                  162, "column_stats", ListType.ofRequired(161, columnStatsType), "Column stats");
-
-
   int PARTITION_ID = 102;
   String PARTITION_NAME = "partition";
   String PARTITION_DOC = "Partition data tuple, schema based on the partition spec";

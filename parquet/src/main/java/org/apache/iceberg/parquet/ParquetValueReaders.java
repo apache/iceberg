@@ -19,6 +19,7 @@
 package org.apache.iceberg.parquet;
 
 import static java.util.Collections.emptyIterator;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
@@ -27,12 +28,15 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class ParquetValueReaders {

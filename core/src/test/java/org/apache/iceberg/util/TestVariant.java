@@ -19,12 +19,17 @@
 package org.apache.iceberg.util;
 
 import java.io.IOException;
+import java.util.List;
 import org.apache.iceberg.Accessor;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.TestHelpers.Row;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.Record;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.types.variant.Variant;
+import org.apache.spark.types.variant.VariantBuilder;
 import org.junit.jupiter.api.Test;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -32,6 +37,21 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestVariant {
+  @Test
+  public void testVariant() throws IOException {
+    // TODO make sure the test is reasonable
+    assertAccessorReturns(Types.VariantType.get(), encodeJSON("{\"name\": \"john\"}"));
+  }
+
+  private static Record encodeJSON(String json) throws IOException {
+    Variant variant = VariantBuilder.parseJson(json);
+
+    Types.NestedField valueType = required(1, "Value", Types.BinaryType.get());
+    Types.NestedField metadataType = required(2, "Metadata", Types.BinaryType.get());
+
+    Schema schema = new Schema(List.of(valueType, metadataType));
+    return GenericRecord.create(schema).copy("Value", variant.getValue(), "Metadata", variant.getMetadata());
+  }
 
   private static Accessor<StructLike> direct(Type type) {
     Schema schema = new Schema(required(17, "field_" + type.typeId(), type));
@@ -137,10 +157,5 @@ public class TestVariant {
     assertThat(nested4(type).get(Row.of(Row.of(Row.of(Row.of(Row.of(value))))))).isEqualTo(value);
 
     assertThat(nested3optional(type).get(Row.of(Row.of(Row.of(Row.of(value)))))).isEqualTo(value);
-  }
-
-  @Test
-  public void testVariant() throws IOException {
-    assertAccessorReturns(Types.VariantType.get(), VariantUtil.encodeJSON("{\"name\": \"john\"}"));
   }
 }

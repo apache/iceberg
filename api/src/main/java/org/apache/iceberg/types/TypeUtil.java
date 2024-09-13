@@ -781,7 +781,7 @@ public class TypeUtil {
       case VARIANT:
         Types.VariantType variant = (Types.VariantType)type.asPrimitiveType();
 
-        return null;
+        return visitor.primitive(variant);
        default:
                 return visitor.primitive(type.asPrimitiveType());
     }

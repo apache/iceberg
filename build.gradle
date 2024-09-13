@@ -297,6 +297,8 @@ project(':iceberg-api') {
     testImplementation libs.avro.avro
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.awaitility
+    testImplementation 'org.apache.spark:spark-variant_2.13:4.0.0-preview1'
+    testImplementation 'org.apache.spark:spark-unsafe_2.13:4.0.0-preview1'
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
@@ -790,6 +792,7 @@ project(':iceberg-parquet') {
     api project(':iceberg-api')
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
+    implementation 'org.apache.spark:spark-variant_2.13:4.0.0-preview1'
 
     implementation(libs.parquet.avro) {
       exclude group: 'org.apache.avro', module: 'avro'

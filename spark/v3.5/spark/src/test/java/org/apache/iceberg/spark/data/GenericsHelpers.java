@@ -47,7 +47,9 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.unsafe.types.ByteArray;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.unsafe.types.VariantVal;
 import scala.collection.Seq;
 
 public class GenericsHelpers {
@@ -309,6 +311,14 @@ public class GenericsHelpers {
         assertThat(expected).as("Should expect a ByteBuffer").isInstanceOf(ByteBuffer.class);
         assertThat(actual).as("Should be a byte[]").isInstanceOf(byte[].class);
         assertThat(actual).as("Bytes should match").isEqualTo(((ByteBuffer) expected).array());
+        break;
+      case VARIANT:
+        assertThat(expected).as("Should expect a Record").isInstanceOf(Record.class);
+        assertThat(actual).as("Should be a VariantVal").isInstanceOf(VariantVal.class);
+        assertThat(actual).as("Variant should match").isEqualTo(
+                new VariantVal(
+                        ((Record)expected).get(0, ByteBuffer.class).array(),
+                        ((Record)expected).get(1, ByteBuffer.class).array()));
         break;
       case DECIMAL:
         assertThat(expected).as("Should expect a BigDecimal").isInstanceOf(BigDecimal.class);
