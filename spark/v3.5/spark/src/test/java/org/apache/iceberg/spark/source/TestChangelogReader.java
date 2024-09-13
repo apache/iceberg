@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ChangelogOperation;
@@ -554,17 +555,10 @@ public class TestChangelogReader extends TestBase {
 
     // order by change ordinal, change type, data, id
     rows.sort(
-        (r1, r2) -> {
-          if (r1.getInt(3) != r2.getInt(3)) {
-            return r1.getInt(3) - r2.getInt(3);
-          } else if (!r1.getUTF8String(2).equals(r2.getUTF8String(2))) {
-            return r1.getUTF8String(2).compareTo(r2.getUTF8String(2));
-          } else if (!r1.getUTF8String(1).equals(r2.getUTF8String(1))) {
-            return r1.getUTF8String(1).compareTo(r2.getUTF8String(1));
-          } else {
-            return r1.getInt(0) - r2.getInt(0);
-          }
-        });
+        Comparator.comparingInt((InternalRow r) -> r.getInt(3))
+            .thenComparing((InternalRow r) -> r.getUTF8String(2))
+            .thenComparing((InternalRow r) -> r.getUTF8String(1))
+            .thenComparingInt((InternalRow r) -> r.getInt(0)));
 
     return rows;
   }

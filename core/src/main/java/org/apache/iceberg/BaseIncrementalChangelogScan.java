@@ -209,7 +209,9 @@ class BaseIncrementalChangelogScan
               entry -> {
                 long entrySnapshotId = entry.snapshotId();
                 DataFile dataFile = entry.file().copy(context.shouldKeepStats());
-                DeleteFile[] addedDeleteFiles = filterAdded(context.deletes().forEntry(entry));
+                DeleteFile[] deleteFiles = context.deletes().forEntry(entry);
+                DeleteFile[] addedDeleteFiles = filterAdded(deleteFiles);
+                DeleteFile[] existingDeleteFiles = filterExisting(deleteFiles);
 
                 switch (entry.status()) {
                   case ADDED:
@@ -232,7 +234,7 @@ class BaseIncrementalChangelogScan
                             snapshotId,
                             dataFile,
                             addedDeleteFiles,
-                            filterExisting(context.deletes().forEntry(entry)),
+                            existingDeleteFiles,
                             context.schemaAsString(),
                             context.specAsString(),
                             context.residuals());
@@ -245,7 +247,7 @@ class BaseIncrementalChangelogScan
                           changeOrdinal,
                           snapshotId,
                           dataFile,
-                          filterExisting(context.deletes().forEntry(entry)),
+                          existingDeleteFiles,
                           context.schemaAsString(),
                           context.specAsString(),
                           context.residuals());
@@ -262,7 +264,7 @@ class BaseIncrementalChangelogScan
                           snapshotId,
                           dataFile,
                           addedDeleteFiles,
-                          filterExisting(context.deletes().forEntry(entry)),
+                          existingDeleteFiles,
                           context.schemaAsString(),
                           context.specAsString(),
                           context.residuals());
@@ -273,7 +275,7 @@ class BaseIncrementalChangelogScan
                         "Unexpected entry status: " + entry.status());
                 }
               });
-      return CloseableIterable.filter(tasks, task -> !(task instanceof DummyChangelogScanTask));
+      return CloseableIterable.filter(tasks, task -> (task != DummyChangelogScanTask.INSTANCE));
     }
   }
 }
