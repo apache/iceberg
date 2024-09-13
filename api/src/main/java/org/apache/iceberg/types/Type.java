@@ -98,6 +98,10 @@ public interface Type extends Serializable {
     return false;
   }
 
+  default boolean isVariantType() {
+    return false;
+  }
+
   default NestedType asNestedType() {
     throw new IllegalArgumentException("Not a nested type: " + this);
   }

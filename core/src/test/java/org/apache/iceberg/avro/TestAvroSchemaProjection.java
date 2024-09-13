@@ -18,11 +18,13 @@
  */
 package org.apache.iceberg.avro;
 
+import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
 import org.apache.avro.SchemaBuilder;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
 public class TestAvroSchemaProjection {
@@ -149,5 +151,17 @@ public class TestAvroSchemaProjection {
     assertThat(AvroSchemaUtil.missingIds(projectedAvroSchema))
         .as("Result of buildAvroProjection is missing some IDs")
         .isFalse();
+  }
+
+  @Test
+  public void testVariantConversion() {
+    Schema schema = new Schema(required(1, "variantCol", Types.VariantType.get()));
+    org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
+
+    org.apache.avro.Schema variantSchema = avroSchema.getField("variantCol").schema();
+    assertThat(variantSchema.getType()).isEqualTo(org.apache.avro.Schema.Type.RECORD);
+    assertThat(variantSchema.getFields().size()).isEqualTo(2);
+    assertThat(variantSchema.getField("metadata")).isNotNull();
+    assertThat(variantSchema.getField("value")).isNotNull();
   }
 }
