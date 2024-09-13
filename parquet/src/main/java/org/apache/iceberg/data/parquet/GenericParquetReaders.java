@@ -28,6 +28,7 @@ import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.schema.MessageType;
+import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
 public class GenericParquetReaders extends BaseParquetReaders<Record> {
@@ -55,6 +56,12 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
   @Override
   protected Object convertConstant(org.apache.iceberg.types.Type type, Object value) {
     return GenericDataUtil.internalToGeneric(type, value);
+  }
+
+  @Override
+  protected ParquetValueReader<Record> createVariantReader(
+      List<ParquetValueReader<?>> fieldReaders) {
+    return new VariantReader(fieldReaders);
   }
 
   private static class RecordReader extends StructReader<Record, Record> {
@@ -90,6 +97,28 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     @Override
     protected void set(Record struct, int pos, Object value) {
       struct.set(pos, value);
+    }
+  }
+
+  /**
+   * Variant reader to read metadata and value binaries from Parquet file and convert to a record.
+   */
+  public static class VariantReader extends RecordReader {
+    private static final List<Type> types =
+        List.of(
+            new PrimitiveType(
+                Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "value"),
+            new PrimitiveType(
+                Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "metadata"));
+
+    VariantReader(List<ParquetValueReader<?>> readers) {
+      super(types, readers, null);
+    }
+
+    @Override
+    protected Record buildStruct(Record struct) {
+      // struct is of Value + Metadata binaries
+      return struct;
     }
   }
 }

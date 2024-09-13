@@ -144,6 +144,11 @@ public class TypeWithSchemaVisitor<T> {
         }
       }
 
+      if (iType instanceof Types.VariantType) {
+        // Handle Variant type
+        return visitor.variant(group);
+      }
+
       Types.StructType struct = iType != null ? iType.asStructType() : null;
       return visitor.struct(struct, group, visitFields(struct, group, visitor));
     }
@@ -214,6 +219,10 @@ public class TypeWithSchemaVisitor<T> {
   }
 
   public T map(Types.MapType iMap, GroupType map, T key, T value) {
+    return null;
+  }
+
+  public T variant(GroupType variant) {
     return null;
   }
 

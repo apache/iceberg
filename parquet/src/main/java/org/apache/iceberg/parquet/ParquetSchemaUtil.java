@@ -144,7 +144,7 @@ public class ParquetSchemaUtil {
     @Override
     public Boolean struct(GroupType struct, List<Boolean> hasIds) {
       for (Boolean hasId : hasIds) {
-        if (hasId) {
+        if (hasId != null && hasId) {
           return true;
         }
       }

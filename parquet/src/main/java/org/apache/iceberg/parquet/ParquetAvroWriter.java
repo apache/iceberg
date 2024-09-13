@@ -18,12 +18,14 @@
  */
 package org.apache.iceberg.parquet;
 
+import java.nio.ByteBuffer;
 import java.util.List;
 import org.apache.avro.generic.GenericData.Fixed;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.variants.Variant;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
@@ -101,6 +103,11 @@ public class ParquetAvroWriter {
           repeatedR,
           ParquetValueWriters.option(keyType, keyD, keyWriter),
           ParquetValueWriters.option(valueType, valueD, valueWriter));
+    }
+
+    @Override
+    public ParquetValueWriter<?> variant(GroupType variant) {
+      return new VariantWriter(variant);
     }
 
     @Override
@@ -188,6 +195,42 @@ public class ParquetAvroWriter {
     @Override
     protected Object get(IndexedRecord struct, int index) {
       return struct.get(index);
+    }
+  }
+
+  private static class VariantWriter extends StructWriter<Variant> {
+    private VariantWriter(GroupType variant) {
+      super(
+          List.of(
+              ParquetValueWriters.byteBuffers(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "value"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "value"),
+                      0,
+                      0)),
+              ParquetValueWriters.byteBuffers(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "metadata"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "metadata"),
+                      0,
+                      0))));
+    }
+
+    @Override
+    protected ByteBuffer get(Variant variant, int index) {
+      if (index == 0) {
+        return ByteBuffer.wrap(variant.getValue());
+      } else if (index == 1) {
+        return ByteBuffer.wrap(variant.getMetadata());
+      }
+
+      throw new IllegalArgumentException("Invalid index: " + index + " for variant");
     }
   }
 }
