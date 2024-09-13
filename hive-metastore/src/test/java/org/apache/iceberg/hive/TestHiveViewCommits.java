@@ -58,13 +58,13 @@ public class TestHiveViewCommits {
 
   private static final String VIEW_NAME = "test_iceberg_view";
   private static final String DB_NAME = "hivedb";
-  private static final Namespace ns = Namespace.of(DB_NAME);
+  private static final Namespace NS = Namespace.of(DB_NAME);
   private static final Schema SCHEMA =
       new Schema(
           5,
           required(3, "id", Types.IntegerType.get(), "unique ID"),
           required(4, "data", Types.StringType.get()));
-  private static final TableIdentifier VIEW_IDENTIFIER = TableIdentifier.of(ns, VIEW_NAME);
+  private static final TableIdentifier VIEW_IDENTIFIER = TableIdentifier.of(NS, VIEW_NAME);
 
   @RegisterExtension
   protected static final HiveMetastoreExtension HIVE_METASTORE_EXTENSION =
@@ -94,7 +94,7 @@ public class TestHiveViewCommits {
         catalog
             .buildView(VIEW_IDENTIFIER)
             .withSchema(SCHEMA)
-            .withDefaultNamespace(ns)
+            .withDefaultNamespace(NS)
             .withQuery("hive", "select * from ns.tbl")
             .create();
     viewLocation = new Path(view.location());
@@ -300,7 +300,7 @@ public class TestHiveViewCommits {
                 catalog
                     .buildView(badTi)
                     .withSchema(SCHEMA)
-                    .withDefaultNamespace(ns)
+                    .withDefaultNamespace(NS)
                     .withQuery("hive", "select * from ns.tbl")
                     .create())
         .isInstanceOf(ValidationException.class)

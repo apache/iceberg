@@ -1056,7 +1056,7 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
         .doesNotContainKey(CURRENT_SNAPSHOT_ID)
         .doesNotContainKey(CURRENT_SNAPSHOT_TIMESTAMP);
 
-    ops.setSchema(metadata, parameters);
+    ops.setSchema(metadata.schema(), parameters);
     assertThat(parameters).doesNotContainKey(CURRENT_SCHEMA);
 
     ops.setPartitionSpec(metadata, parameters);
