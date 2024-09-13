@@ -146,22 +146,23 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     }
   }
 
-  CloseableIterable<InternalRow> openAddedRowsScanTask(AddedRowsScanTask task) {
+  private InternalRow projectRow(InternalRow row, int[] indexes) {
+    InternalRow expectedRow = new GenericInternalRow(columns.length);
+
+    for (int i = 0; i < columns.length; i++) {
+      expectedRow.update(i, row.get(indexes[i], sparkColumnTypes[i]));
+    }
+
+    return expectedRow;
+  }
+
+  private CloseableIterable<InternalRow> openAddedRowsScanTask(AddedRowsScanTask task) {
     String filePath = task.file().location();
     SparkDeleteFilter deletes = new SparkDeleteFilter(filePath, task.deletes(), counter(), true);
     int[] indexes = indexesInRow(deletes.requiredSchema());
 
     return CloseableIterable.transform(
-        deletes.filter(rows(task, deletes.requiredSchema())),
-        row -> {
-          InternalRow expectedRow = new GenericInternalRow(columns.length);
-
-          for (int i = 0; i < columns.length; i++) {
-            expectedRow.update(i, row.get(indexes[i], sparkColumnTypes[i]));
-          }
-
-          return expectedRow;
-        });
+        deletes.filter(rows(task, deletes.requiredSchema())), row -> projectRow(row, indexes));
   }
 
   private CloseableIterable<InternalRow> openDeletedDataFileScanTask(DeletedDataFileScanTask task) {
@@ -171,16 +172,7 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
     int[] indexes = indexesInRow(deletes.requiredSchema());
 
     return CloseableIterable.transform(
-        deletes.filter(rows(task, deletes.requiredSchema())),
-        row -> {
-          InternalRow expectedRow = new GenericInternalRow(columns.length);
-
-          for (int i = 0; i < columns.length; i++) {
-            expectedRow.update(i, row.get(indexes[i], sparkColumnTypes[i]));
-          }
-
-          return expectedRow;
-        });
+        deletes.filter(rows(task, deletes.requiredSchema())), row -> projectRow(row, indexes));
   }
 
   private CloseableIterable<InternalRow> openDeletedRowsScanTask(DeletedRowsScanTask task) {
@@ -189,24 +181,15 @@ class ChangelogRowReader extends BaseRowReader<ChangelogScanTask>
         new SparkDeleteFilter(filePath, task.existingDeletes(), counter(), true);
     SparkDeleteFilter newDeletes =
         new SparkDeleteFilter(filePath, task.addedDeletes(), counter(), true);
-    Schema schema1 = existingDeletes.requiredSchema();
-    Schema schema2 = newDeletes.requiredSchema();
-    Schema requiredSchema = TypeUtil.join(schema1, schema2);
+    Schema requiredSchema =
+        TypeUtil.join(existingDeletes.requiredSchema(), newDeletes.requiredSchema());
     int[] indexes = indexesInRow(requiredSchema);
 
     return CloseableIterable.transform(
         // first, apply the existing deletes and get the rows remaining
         // then, see what rows are deleted by applying the new deletes
         newDeletes.filterDeleted(existingDeletes.filter(rows(task, requiredSchema))),
-        row -> {
-          InternalRow expectedRow = new GenericInternalRow(columns.length);
-
-          for (int i = 0; i < columns.length; i++) {
-            expectedRow.update(i, row.get(indexes[i], sparkColumnTypes[i]));
-          }
-
-          return expectedRow;
-        });
+        row -> projectRow(row, indexes));
   }
 
   private CloseableIterable<InternalRow> rows(ContentScanTask<DataFile> task, Schema readSchema) {

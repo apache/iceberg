@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.MANIFEST_MIN_MERGE_COUNT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -128,6 +129,139 @@ public class TestBaseIncrementalChangelogScan
     assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
     assertThat(t1.file().location()).as("Data file must match").isEqualTo(FILE_A.location());
     assertThat(t1.existingDeletes()).as("Must be no deletes").isEmpty();
+  }
+
+  @TestTemplate
+  public void testPositionDeletes() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    assertThat(tasks).as("Must have 1 task").hasSize(1);
+
+    DeletedRowsScanTask t1 = (DeletedRowsScanTask) Iterables.get(tasks, 0);
+    assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
+    assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
+    assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_A.path());
+    assertThat(t1.addedDeletes().get(0).path())
+        .as("Added delete file must match")
+        .isEqualTo(FILE_A_DELETES.path());
+    assertThat(t1.existingDeletes()).as("Must be no existing deletes").isEmpty();
+  }
+
+  @TestTemplate
+  public void testEqualityDeletes() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_A2).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    table.newRowDelta().addDeletes(FILE_A2_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    assertThat(tasks).as("Must have 2 tasks").hasSize(2);
+
+    DeletedRowsScanTask t1 = (DeletedRowsScanTask) Iterables.get(tasks, 0);
+    assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
+    assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
+    assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_A2.path());
+    assertThat(t1.addedDeletes().get(0).path())
+        .as("Added delete file must match")
+        .isEqualTo(FILE_A2_DELETES.path());
+    assertThat(t1.existingDeletes()).as("Must be no existing deletes").isEmpty();
+
+    DeletedRowsScanTask t2 = (DeletedRowsScanTask) Iterables.get(tasks, 1);
+    assertThat(t2.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
+    assertThat(t2.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
+    assertThat(t2.file().path()).as("Data file must match").isEqualTo(FILE_A.path());
+    assertThat(t2.addedDeletes().get(0).path())
+        .as("Added delete file must match")
+        .isEqualTo(FILE_A2_DELETES.path());
+    assertThat(t2.existingDeletes()).as("Must be no existing deletes").isEmpty();
+  }
+
+  @TestTemplate
+  public void testMixOfPositionAndEqualityDeletes() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_A2).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    assertThat(tasks).as("Must have 2 tasks").hasSize(2);
+
+    DeletedRowsScanTask t1 = (DeletedRowsScanTask) Iterables.get(tasks, 0);
+    assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
+    assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
+    assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_A2.path());
+    assertThat(t1.addedDeletes().size()).as("Number of added delete files must match").isEqualTo(2);
+    assertThat(t1.addedDeletes().get(0).path())
+        .as("Added delete file must match")
+        .isEqualTo(FILE_A2_DELETES.path());
+    assertThat(t1.addedDeletes().get(1).path())
+        .as("Added delete file must match")
+        .isEqualTo(FILE_A_DELETES.path());
+    assertThat(t1.existingDeletes()).as("Must be no existing deletes").isEmpty();
+
+    DeletedRowsScanTask t2 = (DeletedRowsScanTask) Iterables.get(tasks, 1);
+    assertThat(t2.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
+    assertThat(t2.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
+    assertThat(t2.file().path()).as("Data file must match").isEqualTo(FILE_A.path());
+    assertThat(t2.addedDeletes().size()).as("Number of added delete files must match").isEqualTo(2);
+    assertThat(t2.addedDeletes().get(0).path())
+        .as("Added delete file must match")
+        .isEqualTo(FILE_A2_DELETES.path());
+    assertThat(t2.addedDeletes().get(1).path())
+        .as("Added delete file must match")
+        .isEqualTo(FILE_A_DELETES.path());
+    assertThat(t2.existingDeletes()).as("Must be no existing deletes").isEmpty();
+  }
+
+  @TestTemplate
+  public void testAddingAndDeletingInSameCommit() {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Snapshot snap1 = table.currentSnapshot();
+
+    table.newRowDelta().addRows(FILE_B).addDeletes(FILE_B_DELETES).commit();
+    Snapshot snap2 = table.currentSnapshot();
+
+    IncrementalChangelogScan scan =
+        newScan().fromSnapshotExclusive(snap1.snapshotId()).toSnapshot(snap2.snapshotId());
+
+    List<ChangelogScanTask> tasks = plan(scan);
+
+    assertThat(tasks).as("Must have 1 tasks").hasSize(1);
+
+    AddedRowsScanTask t1 = (AddedRowsScanTask) Iterables.get(tasks, 0);
+    assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
+    assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
+    assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_B.path());
+    assertThat(t1.deletes().get(0).path())
+        .as("Delete file must match")
+        .isEqualTo(FILE_B_DELETES.path());
   }
 
   @TestTemplate
