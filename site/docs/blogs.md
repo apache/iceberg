@@ -22,6 +22,155 @@ title: "Blogs"
 
 Here is a list of company blogs that talk about Iceberg. The blogs are ordered from most recent to oldest.
 
+<!-- markdown-link-check-disable-next-line -->
+### [What Apache Iceberg REST Catalog is and isn't](https://main.datalakehousehub.com/blog/2024-8-what-apache-iceberg-rest-catalog-is-and-isnt/)
+**Date**: August 18th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [ACID Guarantees and Apache Iceberg: Turning Any Storage into a Data Warehouse](https://medium.com/data-engineering-with-dremio/acid-guarantees-and-apache-iceberg-turning-any-storage-into-a-data-warehouse-e8db577de11c)
+**Date**: August 16th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Guide to Maintaining an Apache Iceberg Lakehouse](https://www.dremio.com/blog/guide-to-maintaining-an-apache-iceberg-lakehouse/)
+**Date**: August 12th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Migration Guide for Apache Iceberg Lakehouses](https://www.dremio.com/blog/migration-guide-for-apache-iceberg-lakehouses/)
+**Date**: August 8th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Getting Hands-on with Polaris OSS, Apache Iceberg and Apache Spark](https://www.dremio.com/blog/getting-hands-on-with-polaris-oss-apache-iceberg-and-apache-spark/)
+**Date**: August 1st, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Understanding the Polaris Iceberg Catalog and Its Architecture](https://medium.com/data-engineering-with-dremio/understanding-the-polaris-iceberg-catalog-and-its-architecture-dfd4469b050c)
+**Date**: July 31st, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Comparing Apache Iceberg to Other Data Lakehouse Solutions](https://www.dremio.com/blog/comparing-apache-iceberg-to-other-data-lakehouse-solutions/)
+**Date**: July 22nd, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Apache Iceberg Crash Course: What is a Data Lakehouse and a Table Format?](https://www.dremio.com/blog/apache-iceberg-crash-course-what-is-a-data-lakehouse-and-a-table-format/)
+**Date**: July 11th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Despite Uniform and Apache XTable, your choice of Table Format still matters (Apache Iceberg, Apache Hudi, and Delta Lake)](https://medium.com/data-engineering-with-dremio/despite-uniform-and-apache-xtable-your-choice-of-table-format-still-matters-apache-iceberg-28fa4122d9a1)
+**Date**: June 28th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Clustering vs Partitioning your Apache Iceberg Tables](https://medium.com/data-engineering-with-dremio/clustering-vs-partitioning-your-apache-iceberg-tables-64274a72213c)
+**Date**: June 21st, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [3 Reasons to Create Hybrid Apache Iceberg Data Lakehouses](https://www.dremio.com/blog/3-reasons-to-create-hybrid-apache-iceberg-data-lakehouses/)
+**Date**: June 12th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [How Apache Iceberg is Built for Open Optimized Performance](https://www.dremio.com/blog/how-apache-iceberg-is-built-for-open-optimized-performance/)
+**Date**: June 12th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Summarizing Recent Wins for Apache Iceberg Table Format](https://medium.com/data-engineering-with-dremio/summarizing-recent-wins-for-apache-iceberg-table-format-7a60f0803d86)
+**Date**: June 6th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Partitioning with Apache Iceberg: A Deep Dive](https://medium.com/data-engineering-with-dremio/partitioning-with-apache-iceberg-a-deep-dive-a20b6e438b60)
+**Date**: May 29th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [The Nessie Ecosystem and the Reach of Git for Data for Apache Iceberg](https://www.dremio.com/blog/the-nessie-ecosystem-and-the-reach-of-git-for-data-for-apache-iceberg/)
+**Date**: May 28th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [The Who, What and Why of Data Reflections and Apache Iceberg for Query Acceleration](https://www.dremio.com/blog/from-apache-druid-to-dashboards-with-dremio-and-apache-iceberg/)
+**Date**: May 28th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [The Evolution of Apache Iceberg Catalogs](https://www.dremio.com/blog/the-evolution-of-apache-iceberg-catalogs/)
+**Date**: May 24th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [3 Reasons Data Engineers Should Embrace Apache Iceberg](https://medium.com/data-engineering-with-dremio/3-reasons-data-engineers-should-embrace-apache-iceberg-e792774ec842)
+**Date**: May 15th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [From JSON, CSV and Parquet to Dashboards with Apache Iceberg and Dremio](https://www.dremio.com/blog/from-json-csv-and-parquet-to-dashboards-with-apache-iceberg-and-dremio/)
+**Date**: May 13th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [From Apache Druid to Dashboards with Dremio and Apache Iceberg](https://www.dremio.com/blog/from-apache-druid-to-dashboards-with-dremio-and-apache-iceberg/)
+**Date**: May 13th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Ingesting Data into Nessie & Apache Iceberg with kafka-connect and querying it with Dremio](https://www.dremio.com/blog/ingesting-data-into-nessie-apache-iceberg-with-kafka-connect-and-querying-it-with-dremio/)
+**Date**: May 10th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [From MySQL to Dashboards with Dremio and Apache Iceberg](https://www.dremio.com/blog/from-mysql-to-dashboards-with-dremio-and-apache-iceberg/)
+**Date**: May 7th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [From Elasticsearch to Dashboards with Dremio and Apache Iceberg](https://www.dremio.com/blog/from-elasticsearch-to-dashboards-with-dremio-and-apache-iceberg/)
+**Date**: May 7th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [Experience the Dremio Lakehouse: Hands-on with Dremio, Nessie, Iceberg, Data-as-Code and dbt](https://www.dremio.com/blog/experience-the-dremio-lakehouse-hands-on-with-dremio-nessie-iceberg-data-as-code-and-dbt/)
+**Date**: April 25th, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [A Deep Intro to Apache Iceberg and Resources for Learning More](https://medium.com/data-engineering-with-dremio/a-deep-intro-to-apache-iceberg-and-resources-for-learning-more-be51535cff74)
+**Date**: April 22nd, 2024, **Company**: Dremio
+
+**Author**: [Alex Merced](https://www.linkedin.com/in/alexmerced/)
 
 <!-- markdown-link-check-disable-next-line -->
 ### [Sending Data to Apache Iceberg from Apache Kafka with Apache Flink](https://www.decodable.co/blog/kafka-to-iceberg-with-flink)
