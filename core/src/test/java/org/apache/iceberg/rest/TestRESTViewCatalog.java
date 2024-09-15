@@ -160,7 +160,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
 
-    int numberOfItems = 30;
+    int numberOfItems = 29;
     String namespaceName = "newdb";
     String viewName = "newview";
 

@@ -2347,7 +2347,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
-    int numberOfItems = 30;
+    int numberOfItems = 27;
     String namespaceName = "newdb";
 
     // create several namespaces for listing and verify
@@ -2409,7 +2409,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
-    int numberOfItems = 30;
+    int numberOfItems = 28;
     String namespaceName = "newdb";
     String tableName = "newtable";
     catalog.createNamespace(Namespace.of(namespaceName));
