@@ -108,7 +108,7 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
       val newIdent = Spark3Util.catalogAndIdentifier(spark, newName.toList.asJava)
       if (oldCatalog.name != newIdent.catalog().name()) {
         throw new AnalysisException(
-          s"Cannot move view between catalogs: from=${oldCatalog.name} and to=${newIdent.catalog().name()}")
+          s"Cannot move view between catalogs: from=${oldCatalog.name} and to=${newIdent.catalog().name()}", null)
       }
       RenameV2ViewExec(oldCatalog, oldIdent, newIdent.identifier()) :: Nil
 
@@ -136,7 +136,7 @@ case class ExtendedDataSourceV2Strategy(spark: SparkSession) extends Strategy wi
     case ShowTableProperties(ResolvedV2View(catalog, ident), propertyKey, output) =>
       ShowV2ViewPropertiesExec(output, catalog.loadView(ident), propertyKey) :: Nil
 
-    case ShowIcebergViews(ResolvedNamespace(catalog: ViewCatalog, namespace), pattern, output) =>
+    case ShowIcebergViews(ResolvedNamespace(catalog: ViewCatalog, namespace, _), pattern, output) =>
       ShowV2ViewsExec(output, catalog, namespace, pattern) :: Nil
 
     case ShowCreateTable(ResolvedV2View(catalog, ident), _, output) =>

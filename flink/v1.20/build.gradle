@@ -19,6 +19,7 @@
 
 String flinkMajorVersion = '1.20'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+scalaVersion = "2.12"
 
 project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
