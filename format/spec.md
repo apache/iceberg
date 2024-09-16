@@ -308,8 +308,8 @@ The set of metadata columns is:
 | **`2147483546  file_path`**       | `string`      | Path of a file, used in position-based delete files                           |
 | **`2147483545  pos`**             | `long`        | Ordinal position of a row, used in position-based delete files                |
 | **`2147483544  row`**             | `struct<...>` | Deleted row values, used in position-based delete files                       |
-| **`2147483545  _row_identifier`** | `long`        | A unique long assigned when row-lineage is enabled see [Row Lineage](#row-lineage) |
-| **`2147483545  _last_update`**    | `long`        | The sequence number which last updated this row when row-lineage is enabled [Row Lineage](#row-lineage)  |
+| **`2147483543  _row_identifier`** | `long`        | A unique long assigned when row-lineage is enabled see [Row Lineage](#row-lineage) |
+| **`2147483542  _last_update`**    | `long`        | The sequence number which last updated this row when row-lineage is enabled [Row Lineage](#row-lineage)  |
 
 ### Row Lineage
 
