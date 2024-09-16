@@ -135,14 +135,6 @@ public class CatalogHandlers {
     List<Namespace> subResults;
     String nextToken = null;
 
-
-    if (parent.isEmpty()) {
-      results = catalog.listNamespaces();
-    } else {
-      results = catalog.listNamespaces(parent);
-    }
-
-
     if (parent.isEmpty()) {
       results = catalog.listNamespaces();
     } else {
