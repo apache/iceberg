@@ -42,19 +42,15 @@ subprojects {
     apply plugin: 'com.palantir.baseline-error-prone'
   }
   apply plugin: 'com.palantir.baseline-class-uniqueness'
-  apply plugin: 'com.palantir.baseline-reproducibility'
+  // What 'com.palantir.baseline-reproducibility' used to do, except the check for the
+  // `sourceCompatibility` Java compile option, which conflicts with the `release` compile option.
+  tasks.withType(AbstractArchiveTask.class).configureEach(t -> {
+    t.setPreserveFileTimestamps(false);
+    t.setReproducibleFileOrder(true);
+    t.setDuplicatesStrategy(DuplicatesStrategy.WARN);
+  });
   apply plugin: 'com.palantir.baseline-exact-dependencies'
-  apply plugin: 'com.palantir.baseline-release-compatibility'
-  // We need to update Google Java Format to 1.17.0+ to run spotless on JDK 8, but that requires dropping support for JDK 8.
-  if (JavaVersion.current() == JavaVersion.VERSION_21) {
-    task spotlessApply {
-      doLast {
-        throw new GradleException("Spotless plugin is currently disabled when running on JDK 21 (until we drop JDK 8). To run spotlessApply please use a different JDK version.")
-      }
-    }
-  } else {
-    apply plugin: 'com.diffplug.spotless'
-  }
+  apply plugin: 'com.diffplug.spotless'
 
   pluginManager.withPlugin('com.palantir.baseline-checkstyle') {
     checkstyle {
@@ -68,9 +64,10 @@ subprojects {
   pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
       java {
-        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/jmh/java/**/*.java', 'src/integration/java/**/*.java'
-        // we use an older version of google-java-format that is compatible with JDK 8
-        googleJavaFormat("1.7")
+        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/testFixtures/java/**/*.java', 'src/jmh/java/**/*.java', 'src/integration/java/**/*.java'
+        // 1.23.0 has an issue in formatting comments https://github.com/google/google-java-format/issues/1155
+        // so we stick to 1.22.0 to produce consistent result for JDK 11/17/21
+        googleJavaFormat("1.22.0")
         removeUnusedImports()
         licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
       }
@@ -83,15 +80,32 @@ subprojects {
           // error-prone is slow, don't run on tests/generated-src/generated
           '-XepExcludedPaths:.*/(test|generated-src|generated)/.*',
           '-Xep:AnnotateFormatMethod:ERROR',
+          '-Xep:BadComparable:ERROR',
+          '-Xep:BadInstanceof:ERROR',
+          '-Xep:CatchFail:ERROR',
           '-Xep:CollectionUndefinedEquality:ERROR',
           // specific to Palantir - Uses name `log` but we use name `LOG`
           '-Xep:ConsistentLoggerName:OFF',
+          '-Xep:DangerousJavaDeserialization:ERROR',
           '-Xep:DangerousThreadPoolExecutorUsage:OFF',
+          '-Xep:DefaultCharset:ERROR',
+          '-Xep:DefaultLocale:ERROR',
           // subclasses are not equal
           '-Xep:EqualsGetClass:OFF',
+          '-Xep:EqualsUnsafeCast:ERROR',
+          '-Xep:EqualsUsingHashCode:ERROR',
+          '-Xep:ExtendsObject:ERROR',
           // specific to Palantir
           '-Xep:FinalClass:OFF',
+          '-Xep:FormatStringAnnotation:ERROR',
+          '-Xep:GetClassOnEnum:ERROR',
+          '-Xep:HidingField:ERROR',
+          '-Xep:ImmutableSetForContains:ERROR',
+          '-Xep:ImmutablesReferenceEquality:ERROR',
+          '-Xep:InconsistentCapitalization:ERROR',
+          '-Xep:InconsistentHashCode:ERROR',
           '-Xep:IntLongMath:ERROR',
+          '-Xep:JdkObsolete:ERROR',
           // prefer method references over lambdas
           '-Xep:LambdaMethodReference:ERROR',
           // enforce logging conventions
@@ -101,8 +115,20 @@ subprojects {
           // Enforce missing override
           '-Xep:MissingOverride:ERROR',
           '-Xep:MissingSummary:ERROR',
+          '-Xep:ModifiedButNotUsed:ERROR',
+          '-Xep:MutablePublicArray:ERROR',
+          '-Xep:NarrowCalculation:ERROR',
+          '-Xep:NarrowingCompoundAssignment:ERROR',
+          '-Xep:NullOptional:ERROR',
+          '-Xep:NullableOptional:ERROR',
+          '-Xep:NullablePrimitive:ERROR',
+          '-Xep:ObjectEqualsForPrimitives:ERROR',
           // Enforce hashCode over hash
           '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
+          '-Xep:OrphanedFormatString:ERROR',
+          '-Xep:Overrides:ERROR',
+          // Triggers false-positives whenever relocated @VisibleForTesting is used
+          '-Xep:PreferCommonAnnotations:OFF',
           // specific to Palantir
           '-Xep:PreferSafeLoggableExceptions:OFF',
           '-Xep:PreferSafeLogger:OFF',
@@ -120,6 +146,10 @@ subprojects {
           '-Xep:StringSplitter:ERROR',
           '-Xep:TypeParameterShadowing:OFF',
           '-Xep:TypeParameterUnusedInFormals:OFF',
+          // Palantir's UnnecessarilyQualified may throw during analysis
+          '-Xep:UnnecessarilyQualified:OFF',
+          '-Xep:UnusedMethod:ERROR',
+          '-Xep:UnusedVariable:ERROR',
       )
     }
   }

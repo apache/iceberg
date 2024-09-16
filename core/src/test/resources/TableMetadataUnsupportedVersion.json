@@ -1,5 +1,5 @@
 {
-  "format-version": 3,
+  "format-version": 4,
   "table-uuid": "d20125c8-7284-442c-9aea-15fee620737c",
   "location": "s3://bucket/test/location",
   "last-updated-ms": 1602638573874,

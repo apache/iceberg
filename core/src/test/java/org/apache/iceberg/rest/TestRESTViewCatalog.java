@@ -57,11 +57,11 @@ import org.mockito.Mockito;
 public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
   private static final ObjectMapper MAPPER = RESTObjectMapper.mapper();
 
-  @TempDir private Path temp;
+  @TempDir protected Path temp;
 
-  private RESTCatalog restCatalog;
-  private InMemoryCatalog backendCatalog;
-  private Server httpServer;
+  protected RESTCatalog restCatalog;
+  protected InMemoryCatalog backendCatalog;
+  protected Server httpServer;
 
   @BeforeEach
   public void createCatalog() throws Exception {
@@ -92,15 +92,11 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
           }
         };
 
-    RESTCatalogServlet servlet = new RESTCatalogServlet(adaptor);
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
     servletContext.setContextPath("/");
-    ServletHolder servletHolder = new ServletHolder(servlet);
-    servletHolder.setInitParameter("javax.ws.rs.Application", "ServiceListPublic");
-    servletContext.addServlet(servletHolder, "/*");
-    servletContext.setVirtualHosts(null);
-    servletContext.setGzipHandler(new GzipHandler());
+    servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
+    servletContext.setHandler(new GzipHandler());
 
     this.httpServer = new Server(0);
     httpServer.setHandler(servletContext);

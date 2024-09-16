@@ -48,6 +48,7 @@ interface ManifestEntry<F extends ContentFile<F>> {
   Types.NestedField FILE_SEQUENCE_NUMBER =
       optional(4, "file_sequence_number", Types.LongType.get());
   int DATA_FILE_ID = 2;
+
   // next ID to assign: 5
 
   static Schema getSchema(StructType partitionType) {

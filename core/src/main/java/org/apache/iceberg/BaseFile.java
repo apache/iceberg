@@ -59,6 +59,7 @@ abstract class BaseFile<F>
   private Types.StructType partitionType;
 
   private Long fileOrdinal = null;
+  private String manifestLocation = null;
   private int partitionSpecId = -1;
   private FileContent content = FileContent.DATA;
   private String filePath = null;
@@ -178,6 +179,7 @@ abstract class BaseFile<F>
    */
   BaseFile(BaseFile<F> toCopy, boolean copyStats, Set<Integer> requestedColumnIds) {
     this.fileOrdinal = toCopy.fileOrdinal;
+    this.manifestLocation = toCopy.manifestLocation;
     this.partitionSpecId = toCopy.partitionSpecId;
     this.content = toCopy.content;
     this.filePath = toCopy.filePath;
@@ -238,6 +240,10 @@ abstract class BaseFile<F>
 
   public void setDataSequenceNumber(Long dataSequenceNumber) {
     this.dataSequenceNumber = dataSequenceNumber;
+  }
+
+  void setManifestLocation(String manifestLocation) {
+    this.manifestLocation = manifestLocation;
   }
 
   @Override
@@ -395,6 +401,11 @@ abstract class BaseFile<F>
   @Override
   public Long pos() {
     return fileOrdinal;
+  }
+
+  @Override
+  public String manifestLocation() {
+    return manifestLocation;
   }
 
   @Override

@@ -20,13 +20,9 @@ package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -40,13 +36,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMultiset;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Multiset;
+import org.apache.iceberg.util.ParallelIterable.ParallelIterator;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
 public class TestParallelIterable {
   @Test
-  public void closeParallelIteratorWithoutCompleteIteration()
-      throws IOException, IllegalAccessException, NoSuchFieldException {
+  public void closeParallelIteratorWithoutCompleteIteration() {
     ExecutorService executor = Executors.newFixedThreadPool(1);
 
     Iterable<CloseableIterable<Integer>> transform =
@@ -64,25 +60,21 @@ public class TestParallelIterable {
                 });
 
     ParallelIterable<Integer> parallelIterable = new ParallelIterable<>(transform, executor);
-    CloseableIterator<Integer> iterator = parallelIterable.iterator();
-    Field queueField = iterator.getClass().getDeclaredField("queue");
-    queueField.setAccessible(true);
-    ConcurrentLinkedQueue<?> queue = (ConcurrentLinkedQueue<?>) queueField.get(iterator);
+    ParallelIterator<Integer> iterator = (ParallelIterator<Integer>) parallelIterable.iterator();
 
     assertThat(iterator.hasNext()).isTrue();
     assertThat(iterator.next()).isNotNull();
     Awaitility.await("Queue is populated")
         .atMost(5, TimeUnit.SECONDS)
-        .untilAsserted(() -> queueHasElements(iterator, queue));
+        .untilAsserted(() -> queueHasElements(iterator));
     iterator.close();
     Awaitility.await("Queue is cleared")
         .atMost(5, TimeUnit.SECONDS)
-        .untilAsserted(() -> assertThat(queue).isEmpty());
+        .untilAsserted(() -> assertThat(iterator.queueSize()).isEqualTo(0));
   }
 
   @Test
-  public void closeMoreDataParallelIteratorWithoutCompleteIteration()
-      throws IOException, IllegalAccessException, NoSuchFieldException {
+  public void closeMoreDataParallelIteratorWithoutCompleteIteration() {
     ExecutorService executor = Executors.newFixedThreadPool(1);
     Iterator<Integer> integerIterator =
         new Iterator<Integer>() {
@@ -124,25 +116,25 @@ public class TestParallelIterable {
                 });
 
     ParallelIterable<Integer> parallelIterable = new ParallelIterable<>(transform, executor);
-    CloseableIterator<Integer> iterator = parallelIterable.iterator();
-    Field queueField = iterator.getClass().getDeclaredField("queue");
-    queueField.setAccessible(true);
-    ConcurrentLinkedQueue<?> queue = (ConcurrentLinkedQueue<?>) queueField.get(iterator);
+    ParallelIterator<Integer> iterator = (ParallelIterator<Integer>) parallelIterable.iterator();
 
     assertThat(iterator.hasNext()).isTrue();
     assertThat(iterator.next()).isNotNull();
     Awaitility.await("Queue is populated")
         .atMost(5, TimeUnit.SECONDS)
-        .untilAsserted(() -> queueHasElements(iterator, queue));
+        .untilAsserted(() -> queueHasElements(iterator));
     iterator.close();
     Awaitility.await("Queue is cleared")
         .atMost(5, TimeUnit.SECONDS)
-        .untilAsserted(() -> assertThat(queue).as("Queue is not empty after cleaning").isEmpty());
+        .untilAsserted(
+            () ->
+                assertThat(iterator.queueSize())
+                    .as("Queue is not empty after cleaning")
+                    .isEqualTo(0));
   }
 
   @Test
-  public void limitQueueSize() throws IOException, IllegalAccessException, NoSuchFieldException {
-
+  public void limitQueueSize() {
     List<Iterable<Integer>> iterables =
         ImmutableList.of(
             () -> IntStream.range(0, 100).iterator(),
@@ -159,17 +151,14 @@ public class TestParallelIterable {
     ExecutorService executor = Executors.newCachedThreadPool();
     ParallelIterable<Integer> parallelIterable =
         new ParallelIterable<>(iterables, executor, maxQueueSize);
-    CloseableIterator<Integer> iterator = parallelIterable.iterator();
-    Field queueField = iterator.getClass().getDeclaredField("queue");
-    queueField.setAccessible(true);
-    ConcurrentLinkedQueue<?> queue = (ConcurrentLinkedQueue<?>) queueField.get(iterator);
+    ParallelIterator<Integer> iterator = (ParallelIterator<Integer>) parallelIterable.iterator();
 
     Multiset<Integer> actualValues = HashMultiset.create();
 
     while (iterator.hasNext()) {
-      assertThat(queue)
-          .as("iterator internal queue")
-          .hasSizeLessThanOrEqualTo(maxQueueSize + iterables.size());
+      assertThat(iterator.queueSize())
+          .as("iterator internal queue size")
+          .isLessThanOrEqualTo(maxQueueSize + iterables.size());
       actualValues.add(iterator.next());
     }
 
@@ -181,9 +170,44 @@ public class TestParallelIterable {
     executor.shutdownNow();
   }
 
-  private void queueHasElements(CloseableIterator<Integer> iterator, Queue queue) {
+  @Test
+  public void queueSizeOne() {
+    List<Iterable<Integer>> iterables =
+        ImmutableList.of(
+            () -> IntStream.range(0, 100).iterator(),
+            () -> IntStream.range(0, 100).iterator(),
+            () -> IntStream.range(0, 100).iterator());
+
+    Multiset<Integer> expectedValues =
+        IntStream.range(0, 100)
+            .boxed()
+            .flatMap(i -> Stream.of(i, i, i))
+            .collect(ImmutableMultiset.toImmutableMultiset());
+
+    ExecutorService executor = Executors.newCachedThreadPool();
+    ParallelIterable<Integer> parallelIterable = new ParallelIterable<>(iterables, executor, 1);
+    ParallelIterator<Integer> iterator = (ParallelIterator<Integer>) parallelIterable.iterator();
+
+    Multiset<Integer> actualValues = HashMultiset.create();
+
+    while (iterator.hasNext()) {
+      assertThat(iterator.queueSize())
+          .as("iterator internal queue size")
+          .isLessThanOrEqualTo(1 + iterables.size());
+      actualValues.add(iterator.next());
+    }
+
+    assertThat(actualValues)
+        .as("multiset of values returned by the iterator")
+        .isEqualTo(expectedValues);
+
+    iterator.close();
+    executor.shutdownNow();
+  }
+
+  private void queueHasElements(ParallelIterator<Integer> iterator) {
     assertThat(iterator.hasNext()).isTrue();
     assertThat(iterator.next()).isNotNull();
-    assertThat(queue).isNotEmpty();
+    assertThat(iterator.queueSize()).as("queue size").isGreaterThan(0);
   }
 }

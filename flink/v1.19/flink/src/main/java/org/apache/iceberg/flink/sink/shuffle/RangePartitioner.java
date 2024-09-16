@@ -23,12 +23,13 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.functions.Partitioner;
 import org.apache.flink.table.data.RowData;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** The wrapper class */
+/** This custom partitioner implements the {@link DistributionMode#RANGE} for Flink sink. */
 @Internal
 public class RangePartitioner implements Partitioner<StatisticsOrRecord> {
   private static final Logger LOG = LoggerFactory.getLogger(RangePartitioner.class);
@@ -94,9 +95,8 @@ public class RangePartitioner implements Partitioner<StatisticsOrRecord> {
     if (numPartitionsStatsCalculation <= numPartitions) {
       // no rescale or scale-up case.
       // new subtasks are ignored and not assigned any keys, which is sub-optimal and only
-      // transient.
-      // when rescale is detected, operator requests new statistics from coordinator upon
-      // initialization.
+      // transient. when rescale is detected, operator requests new statistics from
+      // coordinator upon initialization.
       return partition;
     } else {
       // scale-down case.

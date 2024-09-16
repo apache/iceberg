@@ -35,6 +35,7 @@ import java.util.function.Supplier;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.io.Closer;
@@ -77,28 +78,29 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
     return iter;
   }
 
-  private static class ParallelIterator<T> implements CloseableIterator<T> {
+  @VisibleForTesting
+  static class ParallelIterator<T> implements CloseableIterator<T> {
     private final Iterator<Task<T>> tasks;
     private final Deque<Task<T>> yieldedTasks = new ArrayDeque<>();
     private final ExecutorService workerPool;
     private final CompletableFuture<Optional<Task<T>>>[] taskFutures;
     private final ConcurrentLinkedQueue<T> queue = new ConcurrentLinkedQueue<>();
-    private final int maxQueueSize;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     private ParallelIterator(
         Iterable<? extends Iterable<T>> iterables, ExecutorService workerPool, int maxQueueSize) {
+      Preconditions.checkArgument(maxQueueSize > 0, "Max queue size must be greater than 0");
       this.tasks =
           Iterables.transform(
                   iterables, iterable -> new Task<>(iterable, queue, closed, maxQueueSize))
               .iterator();
       this.workerPool = workerPool;
-      this.maxQueueSize = maxQueueSize;
       // submit 2 tasks per worker at a time
       this.taskFutures = new CompletableFuture[2 * ThreadPools.WORKER_THREAD_POOL_SIZE];
     }
 
     @Override
+    @SuppressWarnings("FutureReturnValueIgnored")
     public void close() {
       // close first, avoid new task submit
       this.closed.set(true);
@@ -192,12 +194,9 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
       // If the consumer is processing records more slowly than the producers, the producers will
       // eventually fill the queue and yield, returning continuations. Continuations and new tasks
       // are started by checkTasks(). The check here prevents us from restarting continuations or
-      // starting new tasks too early (when queue is almost full) or too late (when queue is already
-      // emptied). Restarting too early would lead to tasks yielding very quickly (CPU waste on
-      // scheduling). Restarting too late would mean the consumer may need to wait for the tasks
-      // to produce new items. A consumer slower than producers shouldn't need to wait.
-      int queueLowWaterMark = maxQueueSize / 2;
-      if (queue.size() > queueLowWaterMark) {
+      // starting new tasks before the queue is emptied. Restarting too early would lead to tasks
+      // yielding very quickly (CPU waste on scheduling).
+      if (!queue.isEmpty()) {
         return true;
       }
 
@@ -228,6 +227,11 @@ public class ParallelIterable<T> extends CloseableGroup implements CloseableIter
         throw new NoSuchElementException();
       }
       return queue.poll();
+    }
+
+    @VisibleForTesting
+    int queueSize() {
+      return queue.size();
     }
   }
 
