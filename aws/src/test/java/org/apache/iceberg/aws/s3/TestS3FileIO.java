@@ -81,6 +81,7 @@ import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
@@ -384,6 +385,18 @@ public class TestS3FileIO {
   }
 
   @Test
+  public void testResolvingFileIOLoadWithoutConf() {
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.initialize(ImmutableMap.of());
+    FileIO result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingFileIO)
+            .invoke("s3://foo/bar");
+    assertThat(result).isInstanceOf(S3FileIO.class);
+  }
+
+  @Test
   public void testInputFileWithDataFile() throws IOException {
     String location = "s3://bucket/path/to/data-file.parquet";
     DataFile dataFile =
@@ -447,7 +460,7 @@ public class TestS3FileIO {
   private void createBucket(String bucketName) {
     try {
       s3.get().createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
-    } catch (BucketAlreadyExistsException e) {
+    } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException e) {
       // do nothing
     }
   }

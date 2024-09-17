@@ -97,6 +97,10 @@ enum Dates implements Transform<Integer, Integer> {
     return Types.IntegerType.get();
   }
 
+  ChronoUnit granularity() {
+    return granularity;
+  }
+
   @Override
   public boolean preservesOrder() {
     return true;
@@ -109,11 +113,11 @@ enum Dates implements Transform<Integer, Integer> {
     }
 
     if (other instanceof Dates) {
-      // test the granularity, in days. day(ts) => 1 day, months(ts) => 30 days, and day satisfies
-      // the order of months
-      Dates otherTransform = (Dates) other;
-      return granularity.getDuration().toDays()
-          <= otherTransform.granularity.getDuration().toDays();
+      return TransformUtil.satisfiesOrderOf(granularity, ((Dates) other).granularity());
+    } else if (other instanceof Timestamps) {
+      return TransformUtil.satisfiesOrderOf(granularity, ((Timestamps) other).granularity());
+    } else if (other instanceof TimeTransform) {
+      return TransformUtil.satisfiesOrderOf(granularity, ((TimeTransform<?>) other).granularity());
     }
 
     return false;

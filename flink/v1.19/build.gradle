@@ -119,7 +119,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
     testImplementation libs.awaitility
     testImplementation libs.assertj.core
-    testImplementation libs.junit.vintage.engine
+    testImplementation libs.sqlite.jdbc
   }
 
   test {

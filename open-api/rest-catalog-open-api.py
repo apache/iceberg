@@ -54,6 +54,17 @@ class CatalogConfig(BaseModel):
         ...,
         description='Properties that should be used as default configuration; applied before client configuration.',
     )
+    endpoints: Optional[List[str]] = Field(
+        None,
+        description='A list of endpoints that the server supports. The format of each endpoint must be "<HTTP verb> <resource path from OpenAPI REST spec>". The HTTP verb and the resource path must be separated by a space character.',
+        example=[
+            'GET /v1/{prefix}/namespaces/{namespace}',
+            'GET /v1/{prefix}/namespaces',
+            'POST /v1/{prefix}/namespaces',
+            'GET /v1/{prefix}/namespaces/{namespace}/tables/{table}',
+            'GET /v1/{prefix}/namespaces/{namespace}/views/{view}',
+        ],
+    )
 
 
 class UpdateNamespacePropertiesRequest(BaseModel):
@@ -360,6 +371,11 @@ class RemovePartitionStatisticsUpdate(BaseUpdate):
     snapshot_id: int = Field(..., alias='snapshot-id')
 
 
+class RemovePartitionSpecsUpdate(BaseUpdate):
+    action: Optional[Literal['remove-partition-specs']] = None
+    spec_ids: List[int] = Field(..., alias='spec-ids')
+
+
 class AssertCreate(BaseModel):
     """
     The table must not already exist; used for create transactions
@@ -462,6 +478,8 @@ class TokenType(BaseModel):
 
 class OAuthClientCredentialsRequest(BaseModel):
     """
+    The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec, see description of the endpoint.
+
     OAuth2 client credentials request
 
     See https://datatracker.ietf.org/doc/html/rfc6749#section-4.4
@@ -481,6 +499,8 @@ class OAuthClientCredentialsRequest(BaseModel):
 
 class OAuthTokenExchangeRequest(BaseModel):
     """
+    The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec, see description of the endpoint.
+
     OAuth2 token exchange request
 
     See https://datatracker.ietf.org/doc/html/rfc8693
@@ -500,7 +520,10 @@ class OAuthTokenExchangeRequest(BaseModel):
 
 
 class OAuthTokenRequest(BaseModel):
-    __root__: Union[OAuthClientCredentialsRequest, OAuthTokenExchangeRequest]
+    __root__: Union[OAuthClientCredentialsRequest, OAuthTokenExchangeRequest] = Field(
+        ...,
+        description='The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec, see description of the endpoint.',
+    )
 
 
 class CounterResult(BaseModel):
@@ -532,6 +555,10 @@ class CommitReport(BaseModel):
 
 
 class OAuthError(BaseModel):
+    """
+    The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec, see description of the endpoint.
+    """
+
     error: Literal[
         'invalid_request',
         'invalid_client',
@@ -545,6 +572,10 @@ class OAuthError(BaseModel):
 
 
 class OAuthTokenResponse(BaseModel):
+    """
+    The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this spec, see description of the endpoint.
+    """
+
     access_token: str = Field(
         ..., description='The access token, for client credentials or token exchange'
     )
@@ -622,7 +653,7 @@ class BlobMetadata(BaseModel):
     snapshot_id: int = Field(..., alias='snapshot-id')
     sequence_number: int = Field(..., alias='sequence-number')
     fields: List[int]
-    properties: Optional[Dict[str, Any]] = None
+    properties: Optional[Dict[str, str]] = None
 
 
 class PartitionStatisticsFile(BaseModel):
@@ -1009,11 +1040,9 @@ class TableMetadata(BaseModel):
     last_sequence_number: Optional[int] = Field(None, alias='last-sequence-number')
     snapshot_log: Optional[SnapshotLog] = Field(None, alias='snapshot-log')
     metadata_log: Optional[MetadataLog] = Field(None, alias='metadata-log')
-    statistics_files: Optional[List[StatisticsFile]] = Field(
-        None, alias='statistics-files'
-    )
-    partition_statistics_files: Optional[List[PartitionStatisticsFile]] = Field(
-        None, alias='partition-statistics-files'
+    statistics: Optional[List[StatisticsFile]] = None
+    partition_statistics: Optional[List[PartitionStatisticsFile]] = Field(
+        None, alias='partition-statistics'
     )
 
 
@@ -1057,6 +1086,7 @@ class TableUpdate(BaseModel):
         RemovePropertiesUpdate,
         SetStatisticsUpdate,
         RemoveStatisticsUpdate,
+        RemovePartitionSpecsUpdate,
     ]
 
 

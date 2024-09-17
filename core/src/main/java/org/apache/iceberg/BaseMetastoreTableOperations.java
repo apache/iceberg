@@ -31,8 +31,10 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Tasks;
@@ -283,17 +285,6 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   }
 
   /**
-   * @deprecated since 1.6.0, will be removed in 1.7.0; Use {@link
-   *     BaseMetastoreOperations.CommitStatus} instead
-   */
-  @Deprecated
-  protected enum CommitStatus {
-    FAILURE,
-    SUCCESS,
-    UNKNOWN
-  }
-
-  /**
    * Attempt to load the table and see if any current or past metadata location matches the one we
    * were attempting to set. This is used as a last resort when we are dealing with exceptions that
    * may indicate the commit has failed but are not proof that this is the case. Past locations must
@@ -387,14 +378,21 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
       // the log, thus we don't include metadata.previousFiles() for deletion - everything else can
       // be removed
       removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
-      Tasks.foreach(removedPreviousMetadataFiles)
-          .noRetry()
-          .suppressFailureWhenFinished()
-          .onFailure(
-              (previousMetadataFile, exc) ->
-                  LOG.warn(
-                      "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
-          .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+      if (io() instanceof SupportsBulkOperations) {
+        ((SupportsBulkOperations) io())
+            .deleteFiles(
+                Iterables.transform(
+                    removedPreviousMetadataFiles, TableMetadata.MetadataLogEntry::file));
+      } else {
+        Tasks.foreach(removedPreviousMetadataFiles)
+            .noRetry()
+            .suppressFailureWhenFinished()
+            .onFailure(
+                (previousMetadataFile, exc) ->
+                    LOG.warn(
+                        "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
+            .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
+      }
     }
   }
 }

@@ -116,7 +116,7 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     final Table icebergTable = catalog.loadTable(TABLE_IDENTIFIER);
     // Iceberg schema should match the loaded table
-    assertThat(icebergTable.schema().asStruct()).isEqualTo(schema.asStruct());
+    assertThat(icebergTable.schema().asStruct()).isEqualTo(SCHEMA.asStruct());
   }
 
   @Test
@@ -172,7 +172,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     Table table = catalog.loadTable(TABLE_IDENTIFIER);
 
     GenericRecordBuilder recordBuilder =
-        new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
+        new GenericRecordBuilder(AvroSchemaUtil.convert(SCHEMA, "test"));
     List<GenericData.Record> records =
         Lists.newArrayList(
             recordBuilder.set("id", 1L).build(),
@@ -181,7 +181,7 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     String location1 = table.location().replace("file:", "") + "/data/file1.avro";
     try (FileAppender<GenericData.Record> writer =
-        Avro.write(Files.localOutput(location1)).schema(schema).named("test").build()) {
+        Avro.write(Files.localOutput(location1)).schema(SCHEMA).named("test").build()) {
       for (GenericData.Record rec : records) {
         writer.add(rec);
       }
@@ -189,7 +189,7 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     String location2 = table.location().replace("file:", "") + "/data/file2.avro";
     try (FileAppender<GenericData.Record> writer =
-        Avro.write(Files.localOutput(location2)).schema(schema).named("test").build()) {
+        Avro.write(Files.localOutput(location2)).schema(SCHEMA).named("test").build()) {
       for (GenericData.Record rec : records) {
         writer.add(rec);
       }
@@ -257,14 +257,14 @@ public class HiveTableTest extends HiveTableBaseTest {
     // Only 2 snapshotFile Should exist and no manifests should exist
     assertThat(metadataVersionFiles(TABLE_NAME)).hasSize(2);
     assertThat(manifestFiles(TABLE_NAME)).hasSize(0);
-    assertThat(icebergTable.schema().asStruct()).isEqualTo(altered.asStruct());
+    assertThat(icebergTable.schema().asStruct()).isEqualTo(ALTERED.asStruct());
 
     final org.apache.hadoop.hive.metastore.api.Table table =
         HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
     final List<String> hiveColumns =
         table.getSd().getCols().stream().map(FieldSchema::getName).collect(Collectors.toList());
     final List<String> icebergColumns =
-        altered.columns().stream().map(Types.NestedField::name).collect(Collectors.toList());
+        ALTERED.columns().stream().map(Types.NestedField::name).collect(Collectors.toList());
     assertThat(hiveColumns).isEqualTo(icebergColumns);
   }
 
@@ -378,7 +378,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     catalog.setListAllTables(false); // reset to default.
 
     // create an iceberg table with the same name
-    assertThatThrownBy(() -> catalog.createTable(identifier, schema, PartitionSpec.unpartitioned()))
+    assertThatThrownBy(() -> catalog.createTable(identifier, SCHEMA, PartitionSpec.unpartitioned()))
         .isInstanceOf(NoSuchIcebergTableException.class)
         .hasMessageStartingWith(String.format("Not an iceberg table: hive.%s", identifier));
 
@@ -444,7 +444,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     assertThat("file:" + nonDefaultLocation.getPath()).isEqualTo(namespaceMeta.get("location"));
 
     TableIdentifier tableIdentifier = TableIdentifier.of(namespace, TABLE_NAME);
-    catalog.createTable(tableIdentifier, schema);
+    catalog.createTable(tableIdentifier, SCHEMA);
 
     // Let's check the location loaded through the catalog
     Table table = catalog.loadTable(tableIdentifier);
@@ -492,7 +492,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     TableIdentifier identifier = TableIdentifier.of(DB_NAME, "table1");
     Table table =
         hadoopCatalog.createTable(
-            identifier, schema, PartitionSpec.unpartitioned(), Maps.newHashMap());
+            identifier, SCHEMA, PartitionSpec.unpartitioned(), Maps.newHashMap());
     // insert some data
     String file1Location = appendData(table, "file1");
     List<FileScanTask> tasks = Lists.newArrayList(table.newScan().planFiles());
@@ -534,7 +534,7 @@ public class HiveTableTest extends HiveTableBaseTest {
 
   private String appendData(Table table, String fileName) throws IOException {
     GenericRecordBuilder recordBuilder =
-        new GenericRecordBuilder(AvroSchemaUtil.convert(schema, "test"));
+        new GenericRecordBuilder(AvroSchemaUtil.convert(SCHEMA, "test"));
     List<GenericData.Record> records =
         Lists.newArrayList(
             recordBuilder.set("id", 1L).build(),
@@ -543,7 +543,7 @@ public class HiveTableTest extends HiveTableBaseTest {
 
     String fileLocation = table.location().replace("file:", "") + "/data/" + fileName + ".avro";
     try (FileAppender<GenericData.Record> writer =
-        Avro.write(Files.localOutput(fileLocation)).schema(schema).named("test").build()) {
+        Avro.write(Files.localOutput(fileLocation)).schema(SCHEMA).named("test").build()) {
       for (GenericData.Record rec : records) {
         writer.add(rec);
       }
@@ -589,7 +589,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     // Unset in hive-conf
     catalog.getConf().unset(ConfigProperties.ENGINE_HIVE_ENABLED);
 
-    catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned());
+    catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned());
     org.apache.hadoop.hive.metastore.api.Table hmsTable =
         HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
 
@@ -604,7 +604,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     // Enable by hive-conf
     catalog.getConf().set(ConfigProperties.ENGINE_HIVE_ENABLED, "true");
 
-    catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned());
+    catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned());
     org.apache.hadoop.hive.metastore.api.Table hmsTable =
         HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
 
@@ -615,7 +615,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     // Disable by hive-conf
     catalog.getConf().set(ConfigProperties.ENGINE_HIVE_ENABLED, "false");
 
-    catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned());
+    catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned());
     hmsTable = HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
 
     assertHiveEnabled(hmsTable, false);
@@ -631,7 +631,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true");
     catalog.getConf().set(ConfigProperties.ENGINE_HIVE_ENABLED, "false");
 
-    catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned(), tableProperties);
+    catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned(), tableProperties);
     org.apache.hadoop.hive.metastore.api.Table hmsTable =
         HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
 
@@ -643,7 +643,7 @@ public class HiveTableTest extends HiveTableBaseTest {
     tableProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "false");
     catalog.getConf().set(ConfigProperties.ENGINE_HIVE_ENABLED, "true");
 
-    catalog.createTable(TABLE_IDENTIFIER, schema, PartitionSpec.unpartitioned(), tableProperties);
+    catalog.createTable(TABLE_IDENTIFIER, SCHEMA, PartitionSpec.unpartitioned(), tableProperties);
     hmsTable = HIVE_METASTORE_EXTENSION.metastoreClient().getTable(DB_NAME, TABLE_NAME);
 
     assertHiveEnabled(hmsTable, false);

@@ -44,9 +44,7 @@ public class IcebergSinkConnector extends SinkConnector {
 
   @Override
   public Class<? extends Task> taskClass() {
-    // FIXME: update this when the connector channel is added
-    //  return IcebergSinkTask.class;
-    return null;
+    return IcebergSinkTask.class;
   }
 
   @Override

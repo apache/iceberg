@@ -32,7 +32,7 @@ public class TestSnapshotSummary extends TestBase {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
-    return Arrays.asList(1, 2);
+    return Arrays.asList(1, 2, 3);
   }
 
   @TestTemplate

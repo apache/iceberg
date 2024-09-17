@@ -113,6 +113,16 @@ To clear all build files, run `clean`.
 make clean
 ```
 
+#### Testing local changes on versioned docs
+
+When you build the docs as described above, by default the versioned docs are mounted from the upstream remote repositiory called `iceberg_docs`. One exception is the `nightly` version that is a soft link to the local `docs/` folder.
+
+When you make changes to some of the historical versioned docs in a local git branch you can mount this git branch instead of the remote one by setting the following environment variables:
+
+`ICEBERG_VERSIONED_DOCS_BRANCH` for the `docs/` folder
+
+`ICEBERG_VERSIONED_JAVADOC_BRANCH` for the `javadoc/` folder
+
 #### Offline mode
 
 One of the great advantages to the MkDocs material plugin is the [offline feature](https://squidfunk.github.io/mkdocs-material/plugins/offline). You can view the Iceberg docs without the need of a server. To enable OFFLINE builds, add theOFFLINE environment variable to either `build` or `serve` recipes.

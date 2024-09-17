@@ -18,10 +18,10 @@
  */
 package org.apache.iceberg.flink.source;
 
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -30,10 +30,12 @@ import org.apache.flink.formats.avro.typeutils.GenericRecordAvroTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.types.logical.RowType;
-import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.CloseableIterator;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -43,68 +45,64 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.flink.FlinkConfigOptions;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.apache.iceberg.flink.HadoopCatalogResource;
-import org.apache.iceberg.flink.MiniClusterResource;
+import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.flink.data.RowDataToRowMapper;
 import org.apache.iceberg.flink.sink.AvroGenericRecordToRowDataMapper;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
+import org.apache.iceberg.flink.source.reader.AvroGenericRecordConverter;
 import org.apache.iceberg.flink.source.reader.AvroGenericRecordReaderFunction;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
-import org.junit.ClassRule;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.io.TempDir;
 
-@RunWith(Parameterized.class)
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestIcebergSourceBoundedGenericRecord {
-  @ClassRule
-  public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
-      MiniClusterResource.createWithClassloaderCheckDisabled();
+  @TempDir protected Path temporaryFolder;
 
-  @ClassRule public static final TemporaryFolder TEMPORARY_FOLDER = new TemporaryFolder();
+  @RegisterExtension
+  private static final HadoopCatalogExtension CATALOG_EXTENSION =
+      new HadoopCatalogExtension(TestFixtures.DATABASE, TestFixtures.TABLE);
 
-  @Rule
-  public final HadoopCatalogResource catalogResource =
-      new HadoopCatalogResource(TEMPORARY_FOLDER, TestFixtures.DATABASE, TestFixtures.TABLE);
-
-  @Parameterized.Parameters(name = "format={0}, parallelism = {1}")
+  @Parameters(name = "format={0}, parallelism = {1}, useConverter = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"avro", 2},
-      {"parquet", 2},
-      {"orc", 2}
+      {FileFormat.AVRO, 2, true},
+      {FileFormat.PARQUET, 2, true},
+      {FileFormat.PARQUET, 2, false},
+      {FileFormat.ORC, 2, true}
     };
   }
 
-  private final FileFormat fileFormat;
-  private final int parallelism;
+  @Parameter(index = 0)
+  private FileFormat fileFormat;
 
-  public TestIcebergSourceBoundedGenericRecord(String format, int parallelism) {
-    this.fileFormat = FileFormat.valueOf(format.toUpperCase(Locale.ENGLISH));
-    this.parallelism = parallelism;
-  }
+  @Parameter(index = 1)
+  private int parallelism;
 
-  @Test
+  @Parameter(index = 2)
+  private boolean useConverter;
+
+  @TestTemplate
   public void testUnpartitionedTable() throws Exception {
     Table table =
-        catalogResource.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
-    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER).appendToTable(expectedRecords);
+    new GenericAppenderHelper(table, fileFormat, temporaryFolder).appendToTable(expectedRecords);
     TestHelpers.assertRecords(run(), expectedRecords, TestFixtures.SCHEMA);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedTable() throws Exception {
     String dateStr = "2020-03-20";
     Table table =
-        catalogResource
+        CATALOG_EXTENSION
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
@@ -112,19 +110,19 @@ public class TestIcebergSourceBoundedGenericRecord {
       expectedRecords.get(i).setField("dt", dateStr);
     }
 
-    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER)
+    new GenericAppenderHelper(table, fileFormat, temporaryFolder)
         .appendToTable(org.apache.iceberg.TestHelpers.Row.of(dateStr, 0), expectedRecords);
     TestHelpers.assertRecords(run(), expectedRecords, TestFixtures.SCHEMA);
   }
 
-  @Test
+  @TestTemplate
   public void testProjection() throws Exception {
     Table table =
-        catalogResource
+        CATALOG_EXTENSION
             .catalog()
             .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.SCHEMA, TestFixtures.SPEC);
     List<Record> expectedRecords = RandomGenericData.generate(TestFixtures.SCHEMA, 2, 0L);
-    new GenericAppenderHelper(table, fileFormat, TEMPORARY_FOLDER)
+    new GenericAppenderHelper(table, fileFormat, temporaryFolder)
         .appendToTable(org.apache.iceberg.TestHelpers.Row.of("2020-03-20", 0), expectedRecords);
     // select the "data" field (fieldId == 1)
     Schema projectedSchema = TypeUtil.select(TestFixtures.SCHEMA, Sets.newHashSet(1));
@@ -149,29 +147,20 @@ public class TestIcebergSourceBoundedGenericRecord {
     Configuration config = new Configuration();
     config.setInteger(FlinkConfigOptions.SOURCE_READER_FETCH_BATCH_RECORD_COUNT, 128);
     Table table;
-    try (TableLoader tableLoader = catalogResource.tableLoader()) {
+    try (TableLoader tableLoader = CATALOG_EXTENSION.tableLoader()) {
       tableLoader.open();
       table = tableLoader.loadTable();
     }
 
-    AvroGenericRecordReaderFunction readerFunction =
-        new AvroGenericRecordReaderFunction(
-            TestFixtures.TABLE_IDENTIFIER.name(),
-            new Configuration(),
-            table.schema(),
-            null,
-            null,
-            false,
-            table.io(),
-            table.encryption(),
-            filters);
+    Schema readSchema = projectedSchema != null ? projectedSchema : table.schema();
+    IcebergSource.Builder<GenericRecord> sourceBuilder;
+    if (useConverter) {
+      sourceBuilder = createSourceBuilderWithConverter(table, readSchema, config);
+    } else {
+      sourceBuilder =
+          createSourceBuilderWithReaderFunction(table, projectedSchema, filters, config);
+    }
 
-    IcebergSource.Builder<GenericRecord> sourceBuilder =
-        IcebergSource.<GenericRecord>builder()
-            .tableLoader(catalogResource.tableLoader())
-            .readerFunction(readerFunction)
-            .assignerFactory(new SimpleSplitAssignerFactory())
-            .flinkConfig(config);
     if (projectedSchema != null) {
       sourceBuilder.project(projectedSchema);
     }
@@ -179,7 +168,6 @@ public class TestIcebergSourceBoundedGenericRecord {
     sourceBuilder.filters(filters);
     sourceBuilder.setAll(options);
 
-    Schema readSchema = projectedSchema != null ? projectedSchema : table.schema();
     RowType rowType = FlinkSchemaUtil.convert(readSchema);
     org.apache.avro.Schema avroSchema =
         AvroSchemaUtil.convert(readSchema, TestFixtures.TABLE_IDENTIFIER.name());
@@ -199,5 +187,36 @@ public class TestIcebergSourceBoundedGenericRecord {
     try (CloseableIterator<Row> iter = stream.executeAndCollect()) {
       return Lists.newArrayList(iter);
     }
+  }
+
+  private IcebergSource.Builder<GenericRecord> createSourceBuilderWithReaderFunction(
+      Table table, Schema projected, List<Expression> filters, Configuration config) {
+    AvroGenericRecordReaderFunction readerFunction =
+        new AvroGenericRecordReaderFunction(
+            TestFixtures.TABLE_IDENTIFIER.name(),
+            new Configuration(),
+            table.schema(),
+            projected,
+            null,
+            false,
+            table.io(),
+            table.encryption(),
+            filters);
+
+    return IcebergSource.<GenericRecord>builder()
+        .tableLoader(CATALOG_EXTENSION.tableLoader())
+        .readerFunction(readerFunction)
+        .assignerFactory(new SimpleSplitAssignerFactory())
+        .flinkConfig(config);
+  }
+
+  private IcebergSource.Builder<GenericRecord> createSourceBuilderWithConverter(
+      Table table, Schema readSchema, Configuration config) {
+    AvroGenericRecordConverter converter =
+        AvroGenericRecordConverter.fromIcebergSchema(readSchema, table.name());
+    return IcebergSource.forOutputType(converter)
+        .tableLoader(CATALOG_EXTENSION.tableLoader())
+        .assignerFactory(new SimpleSplitAssignerFactory())
+        .flinkConfig(config);
   }
 }

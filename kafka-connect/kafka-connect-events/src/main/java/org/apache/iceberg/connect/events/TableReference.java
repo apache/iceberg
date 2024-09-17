@@ -20,6 +20,7 @@ package org.apache.iceberg.connect.events;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
@@ -119,5 +120,24 @@ public class TableReference implements IndexedRecord {
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + i);
     }
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    TableReference that = (TableReference) o;
+    return Objects.equals(catalog, that.catalog)
+        && Objects.equals(namespace, that.namespace)
+        && Objects.equals(name, that.name);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(catalog, namespace, name);
   }
 }

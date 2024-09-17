@@ -262,6 +262,107 @@ INSERT INTO tableName /*+ OPTIONS('upsert-enabled'='true') */
 
 Check out all the options here: [write-options](flink-configuration.md#write-options) 
 
+## Distribution mode
+
+Flink streaming writer supports both `HASH` and `RANGE` distribution mode.
+You can enable it via `FlinkSink#Builder#distributionMode(DistributionMode)`
+or via [write-options](flink-configuration.md#write-options).
+
+### Hash distribution
+
+HASH distribution shuffles data by partition key (partitioned table) or
+equality fields (non-partitioned table). It simply leverages Flink's
+`DataStream#keyBy` to distribute the data.
+
+HASH distribution has a few limitations.
+<ul>
+<li>It doesn't handle skewed data well. E.g. some partitions have a lot more data than others.
+<li>It can result in unbalanced traffic distribution if cardinality of the partition key or
+equality fields is low as demonstrated by [PR 4228](https://github.com/apache/iceberg/pull/4228).
+<li>Writer parallelism is limited to the cardinality of the hash key.
+If the cardinality is 10, only at most 10 writer tasks would get the traffic.
+Having higher writer parallelism (even if traffic volume requires) won't help.
+</ul>
+
+### Range distribution (experimental)
+
+RANGE distribution shuffles data by partition key or sort order via a custom range partitioner.
+Range distribution collects traffic statistics to guide the range partitioner to
+evenly distribute traffic to writer tasks.
+
+Range distribution only shuffle the data via range partitioner. Rows are *not* sorted within
+a data file, which Flink streaming writer doesn't support yet.
+
+#### Use cases
+
+RANGE distribution can be applied to an Iceberg table that either is partitioned or
+has SortOrder defined. For a partitioned table without SortOrder, partition columns
+are used as sort order. If SortOrder is explicitly defined for the table, it is used by
+the range partitioner.
+
+Range distribution can handle skewed data. E.g.
+<ul>
+<li>Table is partitioned by event time. Typically, recent hours have more data,
+while the long-tail hours have less and less data.
+<li>Table is partitioned by country code, where some countries (like US) have
+a lot more traffic and smaller countries have a lot less data
+<li>Table is partitioned by event type, where some types have a lot more data than others.
+</ul>
+
+Range distribution can also cluster data on non-partition columns.
+E.g., table is partitioned hourly on ingestion time. Queries often include
+predicate on a non-partition column like `device_id` or `country_code`.
+Range partition would improve the query performance by clustering on the non-partition column
+when table `SortOrder` is defined with the non-partition column.
+
+#### Traffic statistics
+
+Statistics are collected by every shuffle operator subtask and aggregated by the coordinator
+for every checkpoint cycle. Aggregated statistics are broadcast to all subtasks and
+applied to the range partitioner in the next checkpoint. So it may take up to two checkpoint
+cycles to detect traffic distribution change and apply the new statistics to range partitioner.
+
+Range distribution can work with low cardinality (like `country_code`)
+or high cardinality (like `device_id`) scenarios.
+<ul>
+<li>For low cardinality scenario (like hundreds or thousands),
+HashMap is used to track traffic distribution for every key.
+If a new sort key value shows up, range partitioner would just
+round-robin it to the writer tasks before traffic distribution has been learned
+about the new key.
+<li>For high cardinality scenario (like millions or billions),
+uniform random sampling (reservoir sampling) is used to compute range bounds
+that split the sort key space evenly.
+It keeps the memory footprint and network exchange low.
+Reservoir sampling work well if key distribution is relatively even.
+If a single hot key has unbalanced large share of the traffic,
+range split by uniform sampling probably won't work very well.
+</ul>
+
+#### Usage
+
+Here is how to enable range distribution in Java. There are two optional advanced configs. Default should
+work well for most cases. See [write-options](flink-configuration.md#write-options) for details.
+```java
+FlinkSink.forRowData(input)
+    ...
+    .distributionMode(DistributionMode.RANGE)
+    .rangeDistributionStatisticsType(StatisticsType.Auto)
+    .rangeDistributionSortKeyBaseWeight(0.0d)
+    .append();
+```
+
+### Overhead
+
+Data shuffling (hash or range) has computational overhead of serialization/deserialization 
+and network I/O. Expect some increase of CPU utilization.
+
+Range distribution also collect and aggregate data distribution statistics.
+That would also incur some CPU overhead. Memory overhead is typically
+small if using default statistics type of `Auto`. Don't use `Map` statistics
+type if key cardinality is high. That could result in significant memory footprint
+and large network exchange for statistics aggregation.
+
 ## Notes
 
 Flink streaming write jobs rely on snapshot summary to keep the last committed checkpoint ID, and

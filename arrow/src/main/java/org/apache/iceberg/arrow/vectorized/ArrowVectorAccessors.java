@@ -28,10 +28,10 @@ import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.Str
 
 final class ArrowVectorAccessors {
 
-  private static final GenericArrowVectorAccessorFactory<?, String, ?, ?> factory;
+  private static final GenericArrowVectorAccessorFactory<?, String, ?, ?> FACTORY;
 
   static {
-    factory =
+    FACTORY =
         new GenericArrowVectorAccessorFactory<>(
             JavaDecimalFactory::new,
             JavaStringFactory::new,
@@ -51,7 +51,7 @@ final class ArrowVectorAccessors {
   }
 
   static ArrowVectorAccessor<?, String, ?, ?> getVectorAccessor(VectorHolder holder) {
-    return factory.getVectorAccessor(holder);
+    return FACTORY.getVectorAccessor(holder);
   }
 
   private static final class JavaStringFactory implements StringFactory<String> {

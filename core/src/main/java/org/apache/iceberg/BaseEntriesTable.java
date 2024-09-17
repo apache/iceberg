@@ -33,7 +33,6 @@ import org.apache.iceberg.expressions.ManifestEvaluator;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -92,15 +91,9 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
                 evalCache.get(manifest.partitionSpecId()).eval(manifest)
                     && manifestContentEvaluator.eval(manifest));
 
-    String schemaString = SchemaParser.toJson(projectedSchema);
-    String specString = PartitionSpecParser.toJson(PartitionSpec.unpartitioned());
-    ResidualEvaluator residuals = ResidualEvaluator.unpartitioned(filter);
-
     return CloseableIterable.transform(
         filteredManifests,
-        manifest ->
-            new ManifestReadTask(
-                table, manifest, projectedSchema, schemaString, specString, residuals));
+        manifest -> new ManifestReadTask(table, manifest, projectedSchema, filter));
   }
 
   /**
@@ -292,7 +285,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
         return ref.fieldId() == DataFile.CONTENT.fieldId();
       }
 
-      private <T> boolean contentMatch(Integer fileContentId) {
+      private boolean contentMatch(Integer fileContentId) {
         if (FileContent.DATA.id() == fileContentId) {
           return ManifestContent.DATA.id() == manifestContentId;
         } else if (FileContent.EQUALITY_DELETES.id() == fileContentId
@@ -313,19 +306,29 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     private final ManifestFile manifest;
     private final Map<Integer, PartitionSpec> specsById;
 
+    private ManifestReadTask(
+        Table table, ManifestFile manifest, Schema projection, Expression filter) {
+      this(table.schema(), table.io(), table.specs(), manifest, projection, filter);
+    }
+
     ManifestReadTask(
-        Table table,
+        Schema dataTableSchema,
+        FileIO io,
+        Map<Integer, PartitionSpec> specsById,
         ManifestFile manifest,
         Schema projection,
-        String schemaString,
-        String specString,
-        ResidualEvaluator residuals) {
-      super(DataFiles.fromManifest(manifest), null, schemaString, specString, residuals);
+        Expression filter) {
+      super(
+          DataFiles.fromManifest(manifest),
+          null,
+          SchemaParser.toJson(projection),
+          PartitionSpecParser.toJson(PartitionSpec.unpartitioned()),
+          ResidualEvaluator.unpartitioned(filter));
       this.projection = projection;
-      this.io = table.io();
+      this.io = io;
       this.manifest = manifest;
-      this.specsById = Maps.newHashMap(table.specs());
-      this.dataTableSchema = table.schema();
+      this.specsById = Maps.newHashMap(specsById);
+      this.dataTableSchema = dataTableSchema;
 
       Type fileProjectionType = projection.findType("data_file");
       this.fileProjection =
@@ -334,7 +337,13 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
               : new Schema();
     }
 
-    @VisibleForTesting
+    @Override
+    public long estimatedRowsCount() {
+      return (long) manifest.addedFilesCount()
+          + (long) manifest.deletedFilesCount()
+          + (long) manifest.existingFilesCount();
+    }
+
     ManifestFile manifest() {
       return manifest;
     }
@@ -425,6 +434,22 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     @Override
     public Iterable<FileScanTask> split(long splitSize) {
       return ImmutableList.of(this); // don't split
+    }
+
+    FileIO io() {
+      return io;
+    }
+
+    Map<Integer, PartitionSpec> specsById() {
+      return specsById;
+    }
+
+    Schema dataTableSchema() {
+      return dataTableSchema;
+    }
+
+    Schema projection() {
+      return projection;
     }
   }
 }

@@ -38,6 +38,10 @@ project(":iceberg-gcp-bundle") {
       include 'NOTICE'
     }
 
+    dependencies {
+      exclude(dependency('org.slf4j:slf4j-api'))
+    }
+
     // relocate GCP-specific versions
     relocate 'com.fasterxml.jackson', 'org.apache.iceberg.gcp.shaded.com.fasterxml.jackson'
     relocate 'com.google.common', 'org.apache.iceberg.gcp.shaded.com.google.common'

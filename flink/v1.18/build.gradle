@@ -66,6 +66,8 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
       exclude group: 'org.slf4j'
     }
 
+    implementation libs.datasketches
+
     testImplementation libs.flink118.connector.test.utils
     testImplementation libs.flink118.core
     testImplementation libs.flink118.runtime
@@ -117,7 +119,6 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 
     testImplementation libs.awaitility
     testImplementation libs.assertj.core
-    testImplementation libs.junit.vintage.engine
   }
 
   test {
