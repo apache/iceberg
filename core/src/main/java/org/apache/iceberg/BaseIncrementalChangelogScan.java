@@ -26,6 +26,7 @@ import org.apache.iceberg.ManifestGroup.CreateTasksFunction;
 import org.apache.iceberg.ManifestGroup.TaskContext;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.FluentIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
@@ -62,11 +63,6 @@ class BaseIncrementalChangelogScan
 
     Map<Long, Integer> snapshotOrdinals = computeSnapshotOrdinals(changelogSnapshots);
 
-    // map of delete file to the snapshot where the delete file is added
-    // the delete file is keyed by its path, and the snapshot is represented by the snapshot ordinal
-    Map<String, Integer> deleteFileToSnapshotOrdinal =
-        computeDeleteFileToSnapshotOrdinal(changelogSnapshots, snapshotOrdinals);
-
     Iterable<CloseableIterable<ChangelogScanTask>> plans =
         FluentIterable.from(changelogSnapshots)
             .transform(
@@ -91,9 +87,10 @@ class BaseIncrementalChangelogScan
                   }
 
                   long snapshotId = snapshot.snapshotId();
+                  long sequenceNumber = snapshot.sequenceNumber();
+                  int changeOrdinal = snapshotOrdinals.get(snapshotId);
                   return manifestGroup.plan(
-                      new CreateDataFileChangeTasks(
-                          snapshotId, snapshotOrdinals, deleteFileToSnapshotOrdinal));
+                      new CreateDataFileChangeTasks(snapshotId, sequenceNumber, changeOrdinal));
                 });
 
     return CloseableIterable.concat(plans);
@@ -131,21 +128,6 @@ class BaseIncrementalChangelogScan
     return snapshotOrdinals;
   }
 
-  private Map<String, Integer> computeDeleteFileToSnapshotOrdinal(
-      Deque<Snapshot> snapshots, Map<Long, Integer> snapshotOrdinals) {
-    Map<String, Integer> deleteFileToSnapshotOrdinal = Maps.newHashMap();
-
-    for (Snapshot snapshot : snapshots) {
-      Iterable<DeleteFile> deleteFiles = snapshot.addedDeleteFiles(table().io());
-      for (DeleteFile deleteFile : deleteFiles) {
-        deleteFileToSnapshotOrdinal.put(
-            deleteFile.path().toString(), snapshotOrdinals.get(snapshot.snapshotId()));
-      }
-    }
-
-    return deleteFileToSnapshotOrdinal;
-  }
-
   private static class DummyChangelogScanTask implements ChangelogScanTask {
     public static final DummyChangelogScanTask INSTANCE = new DummyChangelogScanTask();
 
@@ -169,34 +151,13 @@ class BaseIncrementalChangelogScan
 
   private static class CreateDataFileChangeTasks implements CreateTasksFunction<ChangelogScanTask> {
     private final long snapshotId;
+    private final long sequenceNumber;
     private final int changeOrdinal;
-    private final Map<Long, Integer> snapshotOrdinals;
-    private final Map<String, Integer> deleteFileToSnapshotOrdinal;
 
-    CreateDataFileChangeTasks(
-        long snapshotId,
-        Map<Long, Integer> snapshotOrdinals,
-        Map<String, Integer> deleteFileToSnapshotOrdinal) {
+    CreateDataFileChangeTasks(long snapshotId, long sequenceNumber, int changeOrdinal) {
       this.snapshotId = snapshotId;
-      this.snapshotOrdinals = snapshotOrdinals;
-      this.deleteFileToSnapshotOrdinal = deleteFileToSnapshotOrdinal;
-      this.changeOrdinal = this.snapshotOrdinals.get(snapshotId);
-    }
-
-    private DeleteFile[] filterAdded(DeleteFile[] deleteFiles) {
-      return FluentIterable.from(deleteFiles)
-          .filter(
-              deleteFile ->
-                  deleteFileToSnapshotOrdinal.get(deleteFile.path().toString()) == changeOrdinal)
-          .toArray(DeleteFile.class);
-    }
-
-    private DeleteFile[] filterExisting(DeleteFile[] deleteFiles) {
-      return FluentIterable.from(deleteFiles)
-          .filter(
-              deleteFile ->
-                  deleteFileToSnapshotOrdinal.get(deleteFile.path().toString()) < changeOrdinal)
-          .toArray(DeleteFile.class);
+      this.sequenceNumber = sequenceNumber;
+      this.changeOrdinal = changeOrdinal;
     }
 
     @Override
@@ -210,8 +171,17 @@ class BaseIncrementalChangelogScan
                 long entrySnapshotId = entry.snapshotId();
                 DataFile dataFile = entry.file().copy(context.shouldKeepStats());
                 DeleteFile[] deleteFiles = context.deletes().forEntry(entry);
-                DeleteFile[] addedDeleteFiles = filterAdded(deleteFiles);
-                DeleteFile[] existingDeleteFiles = filterExisting(deleteFiles);
+                List<DeleteFile> added = Lists.newArrayList();
+                List<DeleteFile> existing = Lists.newArrayList();
+                for (DeleteFile deleteFile : deleteFiles) {
+                  if (sequenceNumber == deleteFile.dataSequenceNumber()) {
+                    added.add(deleteFile);
+                  } else {
+                    existing.add(deleteFile);
+                  }
+                }
+                DeleteFile[] addedDeleteFiles = added.toArray(new DeleteFile[0]);
+                DeleteFile[] existingDeleteFiles = existing.toArray(new DeleteFile[0]);
 
                 switch (entry.status()) {
                   case ADDED:
