@@ -78,6 +78,15 @@ public class CatalogProperties {
 
   public static final boolean IO_MANIFEST_CACHE_ENABLED_DEFAULT = false;
 
+
+  /**
+   * Controls if client-side purging of files is enabled.
+   *
+   * When set to false, the client will not
+   */
+  public static final String IO_CLIENT_SIDE_PURGE_ENABLED = "io.client-side.purge-enabled";
+  public static final boolean IO_CLIENT_SIDE_PURGE_ENABLED_DEFAULT = true;
+
   /**
    * Controls the maximum duration for which an entry stays in the manifest cache.
    *
