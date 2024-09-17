@@ -2341,13 +2341,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 RESTSessionCatalog.REST_PAGE_SIZE));
   }
 
-  @Test
-  public void testPaginationForListNamespaces() {
+  @ParameterizedTest
+  @ValueSource(ints = {21, 25, 29, 30})
+  public void testPaginationForListNamespaces(int numberOfItems) {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
-    int numberOfItems = 27;
     String namespaceName = "newdb";
 
     // create several namespaces for listing and verify
@@ -2403,13 +2403,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(ListNamespacesResponse.class));
   }
 
-  @Test
-  public void testPaginationForListTables() {
+  @ParameterizedTest
+  @ValueSource(ints = {21, 25, 29, 30})
+  public void testPaginationForListTables(int numberOfItems) {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
-    int numberOfItems = 28;
     String namespaceName = "newdb";
     String tableName = "newtable";
     catalog.createNamespace(Namespace.of(namespaceName));
