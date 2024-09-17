@@ -44,7 +44,7 @@ public class OperatorTestBase {
   private static final int NUMBER_TASK_MANAGERS = 1;
   private static final int SLOTS_PER_TASK_MANAGER = 8;
 
-  protected static final String UID_PREFIX = "UID-Dummy";
+  protected static final String UID_SUFFIX = "UID-Dummy";
   protected static final String SLOT_SHARING_GROUP = "SlotSharingGroup";
   protected static final String TABLE_NAME = "test_table";
   protected static final TriggerLockFactory LOCK_FACTORY = new MemoryLockFactory();
@@ -131,7 +131,7 @@ public class OperatorTestBase {
             transformation -> {
               assertThat(transformation.getUid()).isNotNull();
               if (uidPrefix != null) {
-                assertThat(transformation.getUid()).contains(UID_PREFIX);
+                assertThat(transformation.getUid()).contains(UID_SUFFIX);
               }
             });
   }

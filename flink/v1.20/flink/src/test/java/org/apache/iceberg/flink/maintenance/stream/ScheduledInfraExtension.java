@@ -56,7 +56,7 @@ class ScheduledInfraExtension implements BeforeEachCallback {
     triggerStream =
         source
             .dataStream()
-            .assignTimestampsAndWatermarks(new TableMaintenance.WindowClosingWatermarkStrategy())
+            .assignTimestampsAndWatermarks(new TableMaintenance.PunctuatedWatermarkStrategy())
             .name(IGNORED_OPERATOR_NAME)
             .forceNonParallel();
     sink = new CollectingSink<>();

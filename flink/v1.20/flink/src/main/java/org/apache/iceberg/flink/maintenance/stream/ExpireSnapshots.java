@@ -25,6 +25,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.async.AsyncRetryStrategy;
 import org.apache.flink.streaming.util.retryable.AsyncRetryStrategies;
+import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.flink.maintenance.operator.AsyncDeleteFiles;
 import org.apache.iceberg.flink.maintenance.operator.ExpireSnapshotsProcessor;
 import org.apache.iceberg.flink.maintenance.operator.TaskResult;
@@ -37,9 +38,7 @@ public class ExpireSnapshots {
   private static final long DELETE_MAX_RETRY_DELAY_MS = 1000L;
   private static final double DELETE_BACKOFF_MULTIPLIER = 1.5;
   private static final long DELETE_TIMEOUT_MS = 10000L;
-  private static final int DELETE_PLANNING_WORKER_POOL_SIZE_DEFAULT = 10;
   private static final int DELETE_ATTEMPT_NUM = 10;
-  private static final int DELETE_WORKER_POOL_SIZE_DEFAULT = 10;
   private static final String EXECUTOR_TASK_NAME = "ES Executor";
   @VisibleForTesting static final String DELETE_FILES_TASK_NAME = "Delete file";
 
@@ -53,20 +52,20 @@ public class ExpireSnapshots {
   }
 
   public static class Builder extends MaintenanceTaskBuilder<ExpireSnapshots.Builder> {
-    private Duration minAge = null;
+    private Duration maxSnapshotAge = null;
     private Integer retainLast = null;
-    private int planningWorkerPoolSize = DELETE_PLANNING_WORKER_POOL_SIZE_DEFAULT;
+    private int planningWorkerPoolSize = SystemConfigs.WORKER_THREAD_POOL_SIZE.value();
     private int deleteAttemptNum = DELETE_ATTEMPT_NUM;
-    private int deleteWorkerPoolSize = DELETE_WORKER_POOL_SIZE_DEFAULT;
+    private int deleteWorkerPoolSize = SystemConfigs.DELETE_WORKER_THREAD_POOL_SIZE.value();
 
     /**
      * The snapshots newer than this age will not be removed.
      *
-     * @param newMinAge of the files to be removed
+     * @param newMaxSnapshotAge of the snapshots to be removed
      * @return for chained calls
      */
-    public Builder minAge(Duration newMinAge) {
-      this.minAge = newMinAge;
+    public Builder maxSnapshotAge(Duration newMaxSnapshotAge) {
+      this.maxSnapshotAge = newMaxSnapshotAge;
       return this;
     }
 
@@ -116,7 +115,7 @@ public class ExpireSnapshots {
     }
 
     @Override
-    DataStream<TaskResult> buildInternal(DataStream<Trigger> trigger) {
+    DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       Preconditions.checkNotNull(tableLoader(), "TableLoader should not be null");
 
       SingleOutputStreamOperator<TaskResult> result =
@@ -124,11 +123,11 @@ public class ExpireSnapshots {
               .process(
                   new ExpireSnapshotsProcessor(
                       tableLoader(),
-                      minAge == null ? null : minAge.toMillis(),
+                      maxSnapshotAge == null ? null : maxSnapshotAge.toMillis(),
                       retainLast,
                       planningWorkerPoolSize))
               .name(EXECUTOR_TASK_NAME)
-              .uid(uidPrefix() + "-expire-snapshots")
+              .uid("expire-snapshots-" + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
               .forceNonParallel();
 
@@ -149,7 +148,7 @@ public class ExpireSnapshots {
               deleteWorkerPoolSize,
               retryStrategy)
           .name(DELETE_FILES_TASK_NAME)
-          .uid(uidPrefix() + "-delete-expired-files")
+          .uid("delete-expired-files-" + uidSuffix())
           .slotSharingGroup(slotSharingGroup())
           .setParallelism(parallelism());
 

@@ -30,7 +30,6 @@ import org.apache.flink.api.common.eventtime.WatermarkGenerator;
 import org.apache.flink.api.common.eventtime.WatermarkGeneratorSupplier;
 import org.apache.flink.api.common.eventtime.WatermarkOutput;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.source.util.ratelimit.RateLimiterStrategy;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -38,7 +37,6 @@ import org.apache.flink.streaming.api.datastream.DataStreamUtils;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
-import org.apache.flink.util.Collector;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.operator.LockRemover;
 import org.apache.iceberg.flink.maintenance.operator.MonitorSource;
@@ -71,7 +69,7 @@ public class TableMaintenance {
    * @param lockFactory used for preventing concurrent task runs
    * @return builder for the maintenance stream
    */
-  public static Builder builder(
+  public static Builder forChangeStream(
       DataStream<TableChange> changeStream,
       TableLoader tableLoader,
       TriggerLockFactory lockFactory) {
@@ -91,7 +89,7 @@ public class TableMaintenance {
    * @param lockFactory used for preventing concurrent task runs
    * @return builder for the maintenance stream
    */
-  public static Builder builder(
+  public static Builder forTable(
       StreamExecutionEnvironment env, TableLoader tableLoader, TriggerLockFactory lockFactory) {
     Preconditions.checkNotNull(env, "StreamExecutionEnvironment should not be null");
     Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
@@ -102,33 +100,33 @@ public class TableMaintenance {
 
   public static class Builder {
     private final StreamExecutionEnvironment env;
-    private final DataStream<TableChange> changeStream;
+    private final DataStream<TableChange> inputStream;
     private final TableLoader tableLoader;
     private final List<MaintenanceTaskBuilder<?>> taskBuilders;
     private final TriggerLockFactory lockFactory;
 
-    private String uidPrefix = "TableMaintenance-" + UUID.randomUUID();
+    private String uidSuffix = "TableMaintenance-" + UUID.randomUUID();
     private String slotSharingGroup = StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP;
     private Duration rateLimit = Duration.ofMillis(1);
-    private Duration concurrentCheckDelay = Duration.ofSeconds(30);
+    private Duration lockCheckDelay = Duration.ofSeconds(30);
     private Integer parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
     private int maxReadBack = 100;
 
     private Builder(
         StreamExecutionEnvironment env, TableLoader tableLoader, TriggerLockFactory lockFactory) {
       this.env = env;
-      this.changeStream = null;
+      this.inputStream = null;
       this.tableLoader = tableLoader;
       this.lockFactory = lockFactory;
       this.taskBuilders = Lists.newArrayListWithCapacity(4);
     }
 
     private Builder(
-        DataStream<TableChange> changeStream,
+        DataStream<TableChange> inputStream,
         TableLoader tableLoader,
         TriggerLockFactory lockFactory) {
       this.env = null;
-      this.changeStream = changeStream;
+      this.inputStream = inputStream;
       this.tableLoader = tableLoader;
       this.lockFactory = lockFactory;
       this.taskBuilders = Lists.newArrayListWithCapacity(4);
@@ -137,11 +135,11 @@ public class TableMaintenance {
     /**
      * The prefix used for the generated {@link org.apache.flink.api.dag.Transformation}'s uid.
      *
-     * @param newUidPrefix for the transformations
+     * @param newUidSuffix for the transformations
      * @return for chained calls
      */
-    public Builder uidPrefix(String newUidPrefix) {
-      this.uidPrefix = newUidPrefix;
+    public Builder uidSuffix(String newUidSuffix) {
+      this.uidSuffix = newUidSuffix;
       return this;
     }
 
@@ -172,11 +170,11 @@ public class TableMaintenance {
     /**
      * Sets the delay for checking lock availability when a concurrent run is detected.
      *
-     * @param newConcurrentCheckDelay firing frequency
+     * @param newLockCheckDelay lock checking frequency
      * @return for chained calls
      */
-    public Builder concurrentCheckDelay(Duration newConcurrentCheckDelay) {
-      this.concurrentCheckDelay = newConcurrentCheckDelay;
+    public Builder lockCheckDelay(Duration newLockCheckDelay) {
+      this.lockCheckDelay = newLockCheckDelay;
       return this;
     }
 
@@ -194,14 +192,16 @@ public class TableMaintenance {
 
     /**
      * Maximum number of snapshots checked when started with an embedded {@link MonitorSource} at
-     * the first time. Only available when the {@link MonitorSource} is generated by the builder.
+     * the first time. Only available when the {@link
+     * TableMaintenance#forTable(StreamExecutionEnvironment, TableLoader, TriggerLockFactory)} is
+     * used.
      *
      * @param newMaxReadBack snapshots to consider when initializing
      * @return for chained calls
      */
     public Builder maxReadBack(int newMaxReadBack) {
       Preconditions.checkArgument(
-          changeStream == null, "Can't set maxReadBack when change stream is provided");
+          inputStream == null, "Can't set maxReadBack when change stream is provided");
       this.maxReadBack = newMaxReadBack;
       return this;
     }
@@ -220,26 +220,8 @@ public class TableMaintenance {
     /** Builds the task graph for the maintenance tasks. */
     public void append() {
       Preconditions.checkArgument(!taskBuilders.isEmpty(), "Provide at least one task");
-      Preconditions.checkNotNull(uidPrefix, "Uid prefix should no be null");
+      Preconditions.checkNotNull(uidSuffix, "Uid suffix should no be null");
 
-      DataStream<TableChange> sourceStream;
-      if (changeStream == null) {
-        // Create a monitor source to provide the TableChange stream
-        MonitorSource source =
-            new MonitorSource(
-                tableLoader,
-                RateLimiterStrategy.perSecond(1.0 / rateLimit.getSeconds()),
-                maxReadBack);
-        sourceStream =
-            env.fromSource(source, WatermarkStrategy.noWatermarks(), SOURCE_NAME)
-                .uid(uidPrefix + "-monitor-source")
-                .slotSharingGroup(slotSharingGroup)
-                .forceNonParallel();
-      } else {
-        sourceStream = changeStream.global();
-      }
-
-      // Chain the TriggerManager
       List<String> taskNames = Lists.newArrayListWithCapacity(taskBuilders.size());
       List<TriggerEvaluator> evaluators = Lists.newArrayListWithCapacity(taskBuilders.size());
       for (int i = 0; i < taskBuilders.size(); ++i) {
@@ -248,8 +230,7 @@ public class TableMaintenance {
       }
 
       DataStream<Trigger> triggers =
-          // Add TriggerManager to schedule the tasks
-          DataStreamUtils.reinterpretAsKeyedStream(sourceStream, unused -> true)
+          DataStreamUtils.reinterpretAsKeyedStream(changeStream(), unused -> true)
               .process(
                   new TriggerManager(
                       tableLoader,
@@ -257,36 +238,36 @@ public class TableMaintenance {
                       taskNames,
                       evaluators,
                       rateLimit.toMillis(),
-                      concurrentCheckDelay.toMillis()))
+                      lockCheckDelay.toMillis()))
               .name(TRIGGER_MANAGER_TASK_NAME)
-              .uid(uidPrefix + "-trigger-manager")
+              .uid("trigger-manager-" + uidSuffix)
               .slotSharingGroup(slotSharingGroup)
               .forceNonParallel()
-              // Add a watermark after every trigger
-              .assignTimestampsAndWatermarks(new WindowClosingWatermarkStrategy())
+              .assignTimestampsAndWatermarks(new PunctuatedWatermarkStrategy())
               .name("Watermark Assigner")
-              .uid(uidPrefix + "-watermark-assigner")
+              .uid("watermark-assigner-" + uidSuffix)
               .slotSharingGroup(slotSharingGroup)
               .forceNonParallel();
 
       // Add the specific tasks
       DataStream<TaskResult> unioned = null;
       for (int i = 0; i < taskBuilders.size(); ++i) {
+        int finalIndex = i;
         DataStream<Trigger> filtered =
             triggers
-                .flatMap(new TaskFilter(i))
+                .filter(t -> t.taskId() != null && t.taskId() == finalIndex)
                 .name("Filter " + i)
                 .forceNonParallel()
-                .uid(uidPrefix + "-filter-" + i)
+                .uid("filter-" + i + "-" + uidSuffix)
                 .slotSharingGroup(slotSharingGroup);
         MaintenanceTaskBuilder<?> builder = taskBuilders.get(i);
         DataStream<TaskResult> result =
-            builder.build(
+            builder.append(
                 filtered,
                 i,
                 taskNames.get(i),
                 tableLoader,
-                uidPrefix,
+                uidSuffix,
                 slotSharingGroup,
                 parallelism);
         if (unioned == null) {
@@ -304,8 +285,25 @@ public class TableMaintenance {
               TypeInformation.of(Void.class),
               new LockRemover(lockFactory, taskNames))
           .forceNonParallel()
-          .uid(uidPrefix + "-lock-remover")
+          .uid("lock-remover-" + uidSuffix)
           .slotSharingGroup(slotSharingGroup);
+    }
+
+    private DataStream<TableChange> changeStream() {
+      if (inputStream == null) {
+        // Create a monitor source to provide the TableChange stream
+        MonitorSource source =
+            new MonitorSource(
+                tableLoader,
+                RateLimiterStrategy.perSecond(1.0 / rateLimit.getSeconds()),
+                maxReadBack);
+        return env.fromSource(source, WatermarkStrategy.noWatermarks(), SOURCE_NAME)
+            .uid("monitor-source-" + uidSuffix)
+            .slotSharingGroup(slotSharingGroup)
+            .forceNonParallel();
+      } else {
+        return inputStream.global();
+      }
     }
   }
 
@@ -314,7 +312,7 @@ public class TableMaintenance {
   }
 
   @Internal
-  public static class WindowClosingWatermarkStrategy implements WatermarkStrategy<Trigger> {
+  public static class PunctuatedWatermarkStrategy implements WatermarkStrategy<Trigger> {
     @Override
     public WatermarkGenerator<Trigger> createWatermarkGenerator(
         WatermarkGeneratorSupplier.Context context) {
@@ -335,22 +333,6 @@ public class TableMaintenance {
     public TimestampAssigner<Trigger> createTimestampAssigner(
         TimestampAssignerSupplier.Context context) {
       return (element, unused) -> element.timestamp();
-    }
-  }
-
-  @Internal
-  private static class TaskFilter implements FlatMapFunction<Trigger, Trigger> {
-    private final int taskId;
-
-    private TaskFilter(int taskId) {
-      this.taskId = taskId;
-    }
-
-    @Override
-    public void flatMap(Trigger trigger, Collector<Trigger> out) {
-      if (trigger.taskId() != null && trigger.taskId() == taskId) {
-        out.collect(trigger);
-      }
     }
   }
 }

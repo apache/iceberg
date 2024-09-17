@@ -29,15 +29,15 @@ import org.apache.iceberg.flink.maintenance.operator.TriggerEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
-  private int id;
+  private int index;
   private String name;
   private TableLoader tableLoader;
-  private String uidPrefix = null;
+  private String uidSuffix = null;
   private String slotSharingGroup = null;
   private Integer parallelism = null;
   private TriggerEvaluator.Builder triggerEvaluator = new TriggerEvaluator.Builder();
 
-  abstract DataStream<TaskResult> buildInternal(DataStream<Trigger> sourceStream);
+  abstract DataStream<TaskResult> append(DataStream<Trigger> sourceStream);
 
   /**
    * After a given number of Iceberg table commits since the last run, starts the downstream job.
@@ -79,7 +79,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * @param posDeleteFileCount after the downstream job should be started
    * @return for chained calls
    */
-  public T schedulerOnPosDeleteFileCount(int posDeleteFileCount) {
+  public T scheduleOnPosDeleteFileCount(int posDeleteFileCount) {
     triggerEvaluator.posDeleteFileCount(posDeleteFileCount);
     return (T) this;
   }
@@ -91,7 +91,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * @param posDeleteRecordCount after the downstream job should be started
    * @return for chained calls
    */
-  public T schedulerOnPosDeleteRecordCount(long posDeleteRecordCount) {
+  public T scheduleOnPosDeleteRecordCount(long posDeleteRecordCount) {
     triggerEvaluator.posDeleteRecordCount(posDeleteRecordCount);
     return (T) this;
   }
@@ -123,22 +123,22 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
   /**
    * After a given time since the last run, starts the downstream job.
    *
-   * @param time after the downstream job should be started
+   * @param interval after the downstream job should be started
    * @return for chained calls
    */
-  public T scheduleOnTime(Duration time) {
-    triggerEvaluator.timeout(time);
+  public T scheduleOnInterval(Duration interval) {
+    triggerEvaluator.timeout(interval);
     return (T) this;
   }
 
   /**
-   * The prefix used for the generated {@link org.apache.flink.api.dag.Transformation}'s uid.
+   * The suffix used for the generated {@link org.apache.flink.api.dag.Transformation}'s uid.
    *
-   * @param newUidPrefix for the transformations
+   * @param newUidSuffix for the transformations
    * @return for chained calls
    */
-  public T uidPrefix(String newUidPrefix) {
-    this.uidPrefix = newUidPrefix;
+  public T uidSuffix(String newUidSuffix) {
+    this.uidSuffix = newUidSuffix;
     return (T) this;
   }
 
@@ -167,7 +167,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
 
   @Internal
   int id() {
-    return id;
+    return index;
   }
 
   @Internal
@@ -181,8 +181,8 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
   }
 
   @Internal
-  String uidPrefix() {
-    return uidPrefix;
+  String uidSuffix() {
+    return uidSuffix;
   }
 
   @Internal
@@ -201,26 +201,26 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
   }
 
   @Internal
-  DataStream<TaskResult> build(
+  DataStream<TaskResult> append(
       DataStream<Trigger> sourceStream,
-      int newId,
-      String newName,
+      int maintenanceTaskIndex,
+      String maintainanceTaskName,
       TableLoader newTableLoader,
-      String mainUidPrefix,
+      String mainUidSuffix,
       String mainSlotSharingGroup,
       int mainParallelism) {
     Preconditions.checkArgument(
         parallelism == null || parallelism == -1 || parallelism > 0,
         "Parallelism should be left to default (-1/null) or greater than 0");
-    Preconditions.checkNotNull(newName, "Name should not be null");
+    Preconditions.checkNotNull(maintainanceTaskName, "Name should not be null");
     Preconditions.checkNotNull(newTableLoader, "TableLoader should not be null");
 
-    this.id = newId;
-    this.name = newName;
+    this.index = maintenanceTaskIndex;
+    this.name = maintainanceTaskName;
     this.tableLoader = newTableLoader;
 
-    if (uidPrefix == null) {
-      uidPrefix = mainUidPrefix + "_" + name + "_" + id;
+    if (uidSuffix == null) {
+      uidSuffix = name + "_" + index + "_" + mainUidSuffix;
     }
 
     if (parallelism == null) {
@@ -233,6 +233,6 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
 
     tableLoader.open();
 
-    return buildInternal(sourceStream);
+    return append(sourceStream);
   }
 }

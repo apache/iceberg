@@ -104,9 +104,9 @@ class TestTableMaintenance extends OperatorTestBase {
         new ManualSource<>(env, TypeInformation.of(TableChange.class));
 
     TableMaintenance.Builder streamBuilder =
-        TableMaintenance.builder(schedulerSource.dataStream(), tableLoader, LOCK_FACTORY)
+        TableMaintenance.forChangeStream(schedulerSource.dataStream(), tableLoader, LOCK_FACTORY)
             .rateLimit(Duration.ofMillis(2))
-            .concurrentCheckDelay(Duration.ofSeconds(3))
+            .lockCheckDelay(Duration.ofSeconds(3))
             .add(
                 new MaintenanceTaskBuilderForTest(true)
                     .scheduleOnCommitCount(1)
@@ -114,9 +114,9 @@ class TestTableMaintenance extends OperatorTestBase {
                     .scheduleOnDataFileSize(3L)
                     .scheduleOnEqDeleteFileCount(4)
                     .scheduleOnEqDeleteRecordCount(5L)
-                    .schedulerOnPosDeleteFileCount(6)
-                    .schedulerOnPosDeleteRecordCount(7L)
-                    .scheduleOnTime(Duration.ofHours(1)));
+                    .scheduleOnPosDeleteFileCount(6)
+                    .scheduleOnPosDeleteRecordCount(7L)
+                    .scheduleOnInterval(Duration.ofHours(1)));
 
     sendEvents(schedulerSource, streamBuilder, ImmutableList.of(Tuple2.of(DUMMY_CHANGE, 1)));
   }
@@ -135,7 +135,7 @@ class TestTableMaintenance extends OperatorTestBase {
 
     env.enableCheckpointing(10);
 
-    TableMaintenance.builder(env, tableLoader, LOCK_FACTORY)
+    TableMaintenance.forTable(env, tableLoader, LOCK_FACTORY)
         .rateLimit(Duration.ofMillis(2))
         .maxReadBack(2)
         .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(2))
@@ -146,7 +146,7 @@ class TestTableMaintenance extends OperatorTestBase {
         new ManualSource<>(env, InternalTypeInfo.of(FlinkSchemaUtil.convert(table.schema())));
     FlinkSink.forRowData(insertSource.dataStream())
         .tableLoader(tableLoader)
-        .uidPrefix(UID_PREFIX + "-iceberg-sink")
+        .uidPrefix(UID_SUFFIX + "-iceberg-sink")
         .append();
 
     JobClient jobClient = null;
@@ -175,7 +175,7 @@ class TestTableMaintenance extends OperatorTestBase {
         new ManualSource<>(env, TypeInformation.of(TableChange.class));
 
     TableMaintenance.Builder streamBuilder =
-        TableMaintenance.builder(schedulerSource.dataStream(), tableLoader, LOCK_FACTORY)
+        TableMaintenance.forChangeStream(schedulerSource.dataStream(), tableLoader, LOCK_FACTORY)
             .rateLimit(Duration.ofMillis(2))
             .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1));
 
@@ -197,9 +197,9 @@ class TestTableMaintenance extends OperatorTestBase {
         new ManualSource<>(env, TypeInformation.of(TableChange.class));
 
     TableMaintenance.Builder streamBuilder =
-        TableMaintenance.builder(schedulerSource.dataStream(), tableLoader, LOCK_FACTORY)
+        TableMaintenance.forChangeStream(schedulerSource.dataStream(), tableLoader, LOCK_FACTORY)
             .rateLimit(Duration.ofMillis(2))
-            .concurrentCheckDelay(Duration.ofMillis(2))
+            .lockCheckDelay(Duration.ofMillis(2))
             .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1))
             .add(new MaintenanceTaskBuilderForTest(false).scheduleOnCommitCount(2));
 
@@ -251,20 +251,20 @@ class TestTableMaintenance extends OperatorTestBase {
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
     tableLoader.open();
 
-    TableMaintenance.builder(
+    TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
             tableLoader,
             LOCK_FACTORY)
-        .uidPrefix(UID_PREFIX)
+        .uidSuffix(UID_SUFFIX)
         .slotSharingGroup(SLOT_SHARING_GROUP)
         .add(
             new MaintenanceTaskBuilderForTest(true)
                 .scheduleOnCommitCount(1)
-                .uidPrefix(UID_PREFIX)
+                .uidSuffix(UID_SUFFIX)
                 .slotSharingGroup(SLOT_SHARING_GROUP))
         .append();
 
-    checkUidsAreSet(env, UID_PREFIX);
+    checkUidsAreSet(env, UID_SUFFIX);
     checkSlotSharingGroupsAreSet(env, SLOT_SHARING_GROUP);
   }
 
@@ -276,7 +276,7 @@ class TestTableMaintenance extends OperatorTestBase {
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
     tableLoader.open();
 
-    TableMaintenance.builder(
+    TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
             tableLoader,
             LOCK_FACTORY)
@@ -295,16 +295,16 @@ class TestTableMaintenance extends OperatorTestBase {
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
     tableLoader.open();
 
-    TableMaintenance.builder(
+    TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
             tableLoader,
             LOCK_FACTORY)
-        .uidPrefix(UID_PREFIX)
+        .uidSuffix(UID_SUFFIX)
         .slotSharingGroup(SLOT_SHARING_GROUP)
         .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1))
         .append();
 
-    checkUidsAreSet(env, UID_PREFIX);
+    checkUidsAreSet(env, UID_SUFFIX);
     checkSlotSharingGroupsAreSet(env, SLOT_SHARING_GROUP);
   }
 
@@ -318,16 +318,16 @@ class TestTableMaintenance extends OperatorTestBase {
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
     tableLoader.open();
 
-    TableMaintenance.builder(
+    TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
             tableLoader,
             LOCK_FACTORY)
-        .uidPrefix(UID_PREFIX)
+        .uidSuffix(UID_SUFFIX)
         .slotSharingGroup(SLOT_SHARING_GROUP)
         .add(
             new MaintenanceTaskBuilderForTest(true)
                 .scheduleOnCommitCount(1)
-                .uidPrefix(anotherUid)
+                .uidSuffix(anotherUid)
                 .slotSharingGroup(anotherSlotSharingGroup))
         .append();
 
@@ -337,7 +337,7 @@ class TestTableMaintenance extends OperatorTestBase {
             .filter(t -> t.getName().equals("Trigger manager"))
             .findFirst()
             .orElseThrow();
-    assertThat(schedulerTransformation.getUid()).contains(UID_PREFIX);
+    assertThat(schedulerTransformation.getUid()).contains(UID_SUFFIX);
     assertThat(schedulerTransformation.getSlotSharingGroup()).isPresent();
     assertThat(schedulerTransformation.getSlotSharingGroup().get().getName())
         .isEqualTo(SLOT_SHARING_GROUP);
@@ -363,23 +363,23 @@ class TestTableMaintenance extends OperatorTestBase {
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
     tableLoader.open();
 
-    TableMaintenance.builder(env, tableLoader, LOCK_FACTORY)
-        .uidPrefix(UID_PREFIX)
+    TableMaintenance.forTable(env, tableLoader, LOCK_FACTORY)
+        .uidSuffix(UID_SUFFIX)
         .slotSharingGroup(SLOT_SHARING_GROUP)
         .add(
             new MaintenanceTaskBuilderForTest(true)
                 .scheduleOnCommitCount(1)
-                .uidPrefix(UID_PREFIX)
+                .uidSuffix(UID_SUFFIX)
                 .slotSharingGroup(SLOT_SHARING_GROUP))
         .append();
 
     Transformation<?> source = monitorSource();
     assertThat(source).isNotNull();
-    assertThat(source.getUid()).contains(UID_PREFIX);
+    assertThat(source.getUid()).contains(UID_SUFFIX);
     assertThat(source.getSlotSharingGroup()).isPresent();
     assertThat(source.getSlotSharingGroup().get().getName()).isEqualTo(SLOT_SHARING_GROUP);
 
-    checkUidsAreSet(env, UID_PREFIX);
+    checkUidsAreSet(env, UID_SUFFIX);
     checkSlotSharingGroupsAreSet(env, SLOT_SHARING_GROUP);
   }
 
@@ -429,12 +429,12 @@ class TestTableMaintenance extends OperatorTestBase {
     }
 
     @Override
-    DataStream<TaskResult> buildInternal(DataStream<Trigger> trigger) {
+    DataStream<TaskResult> append(DataStream<Trigger> trigger) {
       String name = TASKS[id];
       return trigger
           .map(new DummyMaintenanceTask(success))
           .name(name)
-          .uid(uidPrefix() + "-test-mapper-" + name)
+          .uid(uidSuffix() + "-test-mapper-" + name)
           .slotSharingGroup(slotSharingGroup())
           .forceNonParallel();
     }

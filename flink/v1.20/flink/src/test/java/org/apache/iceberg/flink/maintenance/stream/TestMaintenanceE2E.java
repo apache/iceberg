@@ -43,14 +43,14 @@ class TestMaintenanceE2E extends OperatorTestBase {
 
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
 
-    TableMaintenance.builder(env, tableLoader, LOCK_FACTORY)
-        .uidPrefix("E2eTestUID")
+    TableMaintenance.forTable(env, tableLoader, LOCK_FACTORY)
+        .uidSuffix("E2eTestUID")
         .rateLimit(Duration.ofMinutes(10))
-        .concurrentCheckDelay(Duration.ofSeconds(10))
+        .lockCheckDelay(Duration.ofSeconds(10))
         .add(
             ExpireSnapshots.builder()
                 .scheduleOnCommitCount(10)
-                .minAge(Duration.ofMinutes(10))
+                .maxSnapshotAge(Duration.ofMinutes(10))
                 .retainLast(5)
                 .deleteWorkerPoolSize(5)
                 .parallelism(8))

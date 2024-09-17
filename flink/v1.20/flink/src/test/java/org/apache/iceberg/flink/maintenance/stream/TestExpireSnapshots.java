@@ -67,10 +67,10 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
         .planningWorkerPoolSize(2)
         .deleteAttemptNum(2)
         .deleteWorkerPoolSize(5)
-        .minAge(Duration.ZERO)
+        .maxSnapshotAge(Duration.ZERO)
         .retainLast(1)
-        .uidPrefix(UID_PREFIX)
-        .build(
+        .uidSuffix(UID_SUFFIX)
+        .append(
             infra.triggerStream(),
             0,
             DUMMY_NAME,
@@ -106,12 +106,12 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
     SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
 
     ExpireSnapshots.builder()
-        .build(
+        .append(
             infra.triggerStream(),
             0,
             DUMMY_NAME,
             tableLoader,
-            UID_PREFIX,
+            UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             1)
         .sinkTo(infra.sink());
@@ -156,18 +156,18 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
 
     ExpireSnapshots.builder()
         .slotSharingGroup(SLOT_SHARING_GROUP)
-        .uidPrefix(UID_PREFIX)
-        .build(
+        .uidSuffix(UID_SUFFIX)
+        .append(
             infra.triggerStream(),
             0,
             DUMMY_NAME,
             tableLoader,
-            UID_PREFIX,
+            UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             1)
         .sinkTo(infra.sink());
 
-    checkUidsAreSet(infra.env(), UID_PREFIX);
+    checkUidsAreSet(infra.env(), UID_SUFFIX);
     checkSlotSharingGroupsAreSet(infra.env(), SLOT_SHARING_GROUP);
   }
 
@@ -177,12 +177,12 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
     TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
 
     ExpireSnapshots.builder()
-        .build(
+        .append(
             infra.triggerStream(),
             0,
             DUMMY_NAME,
             tableLoader,
-            UID_PREFIX,
+            UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             1)
         .sinkTo(infra.sink());
@@ -201,15 +201,15 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
     Table table = tableLoader.loadTable();
 
     ExpireSnapshots.builder()
-        .minAge(Duration.ZERO)
+        .maxSnapshotAge(Duration.ZERO)
         .retainLast(1)
         .parallelism(1)
-        .build(
+        .append(
             infra.triggerStream(),
             0,
             DUMMY_NAME,
             tableLoader,
-            UID_PREFIX,
+            UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             1)
         .sinkTo(infra.sink());
