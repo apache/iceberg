@@ -437,7 +437,7 @@ public class ExpressionUtil {
       }
     }
 
-    private static <T> String termPredicate(Predicate pred, String term) {
+    private static String termPredicate(Predicate pred, String term) {
       String rightTerm = describe(pred.rightTerm());
       switch (pred.op()) {
         case LT:

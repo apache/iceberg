@@ -349,10 +349,7 @@ public class AllManifestsTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean lt(BoundReference<T> ref, BoundReference<T> ref2) {
-        if (ref.type().typeId() != ref2.type().typeId()) {
-          return ROWS_MIGHT_MATCH;
-        }
-        return compareSnapshotRef(ref, ref2, compareResult -> compareResult < 0);
+        return ROWS_MIGHT_MATCH;
       }
 
       @Override
@@ -362,10 +359,7 @@ public class AllManifestsTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean ltEq(BoundReference<T> ref, BoundReference<T> ref2) {
-        if (ref.type().typeId() != ref2.type().typeId()) {
-          return ROWS_MIGHT_MATCH;
-        }
-        return compareSnapshotRef(ref, ref2, compareResult -> compareResult <= 0);
+        return ROWS_MIGHT_MATCH;
       }
 
       @Override
@@ -375,10 +369,7 @@ public class AllManifestsTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean gt(BoundReference<T> ref, BoundReference<T> ref2) {
-        if (ref.type().typeId() != ref2.type().typeId()) {
-          return ROWS_MIGHT_MATCH;
-        }
-        return compareSnapshotRef(ref, ref2, compareResult -> compareResult > 0);
+        return ROWS_MIGHT_MATCH;
       }
 
       @Override
@@ -388,10 +379,7 @@ public class AllManifestsTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean gtEq(BoundReference<T> ref, BoundReference<T> ref2) {
-        if (ref.type().typeId() != ref2.type().typeId()) {
-          return ROWS_MIGHT_MATCH;
-        }
-        return compareSnapshotRef(ref, ref2, compareResult -> compareResult >= 0);
+        return ROWS_MIGHT_MATCH;
       }
 
       @Override
@@ -401,10 +389,7 @@ public class AllManifestsTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean eq(BoundReference<T> ref, BoundReference<T> ref2) {
-        if (ref.type().typeId() != ref2.type().typeId()) {
-          return ROWS_MIGHT_MATCH;
-        }
-        return compareSnapshotRef(ref, ref2, compareResult -> compareResult == 0);
+        return ROWS_MIGHT_MATCH;
       }
 
       @Override
@@ -414,10 +399,7 @@ public class AllManifestsTable extends BaseMetadataTable {
 
       @Override
       public <T> Boolean notEq(BoundReference<T> ref, BoundReference<T> ref2) {
-        if (ref.type().typeId() != ref2.type().typeId()) {
-          return ROWS_MIGHT_MATCH;
-        }
-        return compareSnapshotRef(ref, ref2, compareResult -> compareResult != 0);
+        return ROWS_MIGHT_MATCH;
       }
 
       @Override
@@ -469,22 +451,6 @@ public class AllManifestsTable extends BaseMetadataTable {
             return ROWS_CANNOT_MATCH;
           }
         }
-        return ROWS_MIGHT_MATCH;
-      }
-
-      /**
-       * Comparison of snapshot reference and literal, using long comparator.
-       *
-       * @param ref bound reference, comparison attempted only if reference is for
-       *     reference_snapshot_id
-       * @param ref2 l bound reference, comparison attempted only if reference is for
-       *     reference_snapshot_id
-       * @param desiredResult function to apply to long comparator result, returns true if result is
-       *     as expected.
-       * @return false if comparator does not achieve desired result, true otherwise
-       */
-      private <T> Boolean compareSnapshotRef(
-          BoundReference<T> ref, BoundReference<T> ref2, Function<Integer, Boolean> desiredResult) {
         return ROWS_MIGHT_MATCH;
       }
 
