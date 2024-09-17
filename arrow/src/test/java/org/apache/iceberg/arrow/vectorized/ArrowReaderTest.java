@@ -71,6 +71,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -276,29 +277,45 @@ public class ArrowReaderTest {
     org.apache.arrow.vector.types.pojo.Schema expectedSchema =
         new org.apache.arrow.vector.types.pojo.Schema(expectedFields);
 
-    Schema schema =
+    Schema originalSchema =
         new Schema(
             Types.NestedField.required(1, "a", Types.IntegerType.get()),
             Types.NestedField.optional(2, "b", Types.IntegerType.get()));
 
-    PartitionSpec spec = PartitionSpec.builderFor(schema).build();
-    Table table1 = tables.create(schema, spec, tableLocation);
+    PartitionSpec spec = PartitionSpec.builderFor(originalSchema).build();
+    Table table = tables.create(originalSchema, spec, tableLocation);
 
     // Add one record to the table
-    GenericRecord rec = GenericRecord.create(schema);
-    rec.setField("a", 1);
-    List<GenericRecord> genericRecords = Lists.newArrayList();
-    genericRecords.add(rec);
+    {
+      GenericRecord rec = GenericRecord.create(originalSchema);
+      rec.setField("a", 1);
+      List<GenericRecord> genericRecords = Lists.newArrayList();
+      genericRecords.add(rec);
 
-    AppendFiles appendFiles = table1.newAppend();
-    appendFiles.appendFile(writeParquetFile(table1, genericRecords));
-    appendFiles.commit();
+      AppendFiles appendFiles = table.newAppend();
+      appendFiles.appendFile(writeParquetFile(table, genericRecords));
+      appendFiles.commit();
+    }
 
     // Alter the table schema by adding a new, optional column.
-    // Do not add any data for this new column in the one existing row in the table
-    // and do not insert any new rows into the table.
-    Table table = tables.load(tableLocation);
-    table.updateSchema().addColumn("z", Types.IntegerType.get()).commit();
+    // Do not add any data for this new column in the one existing row in the table, i.e. no default value
+    UpdateSchema updateSchema = table.updateSchema().addColumn("z", Types.IntegerType.get());
+    Schema newSchema = updateSchema.apply();
+    updateSchema.commit();
+
+    // Add one more record to the table
+    {
+      GenericRecord rec = GenericRecord.create(newSchema);
+      rec.setField("a", 2);
+      rec.setField("b", 2);
+      rec.setField("z", 2);
+      List<GenericRecord> genericRecords = Lists.newArrayList();
+      genericRecords.add(rec);
+
+      AppendFiles appendFiles = table.newAppend();
+      appendFiles.appendFile(writeParquetFile(table, genericRecords));
+      appendFiles.commit();
+    }
 
     // Select all columns, all rows from the table
     TableScan scan = table.newScan().select("*");
@@ -331,7 +348,7 @@ public class ArrowReaderTest {
             columns,
             "b",
             (records, i) -> records.get(i).getField("b"),
-            (array, i) -> array.isNullAt(i) ? null : array.getInt(i));
+            (columnVector, i) -> columnVector.isNullAt(i) ? null : columnVector.getInt(i));
         checkColumnarArrayValues(
             1,
             expectedRows,
@@ -340,7 +357,7 @@ public class ArrowReaderTest {
             columns,
             "z",
             (records, i) -> records.get(i).getField("z"),
-            (array, i) -> array.isNullAt(i) ? null : array.getInt(i));
+            (columnVector, i) -> columnVector.isNullAt(i) ? null : columnVector.getInt(i));
       }
     }
 
