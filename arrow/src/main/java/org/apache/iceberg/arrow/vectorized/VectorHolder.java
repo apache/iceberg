@@ -139,19 +139,22 @@ public class VectorHolder {
   public static class ConstantVectorHolder<T> extends VectorHolder {
     private final T constantValue;
     private final int numRows;
-    private final FieldVector vector;
 
     public ConstantVectorHolder(int numRows) {
+      super(new NullVector("_dummy_", numRows), null, new NullabilityHolder(numRows));
+      nullabilityHolder().setNulls(0, numRows);
       this.numRows = numRows;
       this.constantValue = null;
-      this.vector = new NullVector("_dummy_", numRows);
     }
 
     public ConstantVectorHolder(Types.NestedField icebergField, int numRows, T constantValue) {
-      super(icebergField);
+      super(
+          new NullVector(icebergField.name(), numRows),
+          icebergField,
+          new NullabilityHolder(numRows));
+      nullabilityHolder().setNulls(0, numRows);
       this.numRows = numRows;
       this.constantValue = constantValue;
-      this.vector = new NullVector(icebergField.name(), numRows);
     }
 
     @Override
@@ -161,11 +164,6 @@ public class VectorHolder {
 
     public Object getConstant() {
       return constantValue;
-    }
-
-    @Override
-    public FieldVector vector() {
-      return vector;
     }
   }
 

@@ -272,7 +272,7 @@ public class ArrowReaderTest {
         ImmutableList.of(
             new Field("a", new FieldType(false, MinorType.INT.getType(), null), null),
             new Field("b", new FieldType(true, MinorType.INT.getType(), null), null),
-            new Field("z", new FieldType(true, MinorType.INT.getType(), null), null));
+            new Field("z", new FieldType(true, MinorType.NULL.getType(), null), null));
     org.apache.arrow.vector.types.pojo.Schema expectedSchema =
         new org.apache.arrow.vector.types.pojo.Schema(expectedFields);
 
@@ -303,18 +303,13 @@ public class ArrowReaderTest {
     // Select all columns, all rows from the table
     TableScan scan = table.newScan().select("*");
 
-    List<String> columns = ImmutableList.of("a", "b", "z");
+    Set<String> columns = ImmutableSet.of("a", "b", "z");
     // Read the data and verify that the returned ColumnarBatches match expected rows.
-    int rowIndex = 0;
     try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, 1, false)) {
+      int rowIndex = 0;
       for (ColumnarBatch batch : itr) {
         List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + 1);
-
-        Map<String, Integer> columnNameToIndex = Maps.newHashMap();
-        for (int i = 0; i < columns.size(); i++) {
-          columnNameToIndex.put(columns.get(i), i);
-        }
-        Set<String> columnSet = columnNameToIndex.keySet();
+        rowIndex++;
 
         assertThat(batch.numRows()).isEqualTo(1);
         assertThat(batch.numCols()).isEqualTo(columns.size());
@@ -324,7 +319,7 @@ public class ArrowReaderTest {
             expectedRows,
             batch,
             0,
-            columnSet,
+            columns,
             "a",
             (records, i) -> records.get(i).getField("a"),
             ColumnVector::getInt);
@@ -333,7 +328,7 @@ public class ArrowReaderTest {
             expectedRows,
             batch,
             1,
-            columnSet,
+            columns,
             "b",
             (records, i) -> records.get(i).getField("b"),
             (array, i) -> array.isNullAt(i) ? null : array.getInt(i));
@@ -342,30 +337,28 @@ public class ArrowReaderTest {
             expectedRows,
             batch,
             2,
-            columnSet,
+            columns,
             "z",
             (records, i) -> records.get(i).getField("z"),
             (array, i) -> array.isNullAt(i) ? null : array.getInt(i));
-        rowIndex += 1;
       }
     }
 
     // Read the data and verify that the returned Arrow VectorSchemaRoots match expected rows.
-    Set<String> columnSet = ImmutableSet.copyOf(columns);
-    int rowIndex1 = 0;
-    int totalRows = 0;
     try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, 1, false)) {
+      int totalRows = 0;
+      int rowIndex = 0;
       for (ColumnarBatch batch : itr) {
-        List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex1, rowIndex1 + 1);
+        List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + 1);
+        rowIndex++;
         VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
         assertThat(root.getSchema()).isEqualTo(expectedSchema);
-        checkAllVectorTypes(root, columnSet);
-        checkAllVectorValues(1, expectedRows, root, columnSet);
-        rowIndex1 += 1;
+        checkAllVectorTypes(root, columns);
+        checkAllVectorValues(1, expectedRows, root, columns);
         totalRows += root.getRowCount();
+        assertThat(totalRows).isEqualTo(1);
       }
     }
-    assertThat(totalRows).isEqualTo(1);
   }
 
   /**
