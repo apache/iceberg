@@ -23,7 +23,7 @@ import org.immutables.value.Value;
 @Value.Enclosing
 @SuppressWarnings("ImmutablesStyle")
 @Value.Style(
-        typeImmutableEnclosing = "Immutable v",
+        typeImmutableEnclosing = "ImmutableRewriteTablePath",
         visibilityString = "PUBLIC",
         builderVisibilityString = "PUBLIC")
 interface BaseRewriteTablePath extends RewriteTablePath {
