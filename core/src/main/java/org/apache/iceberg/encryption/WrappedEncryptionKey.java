@@ -21,6 +21,10 @@ package org.apache.iceberg.encryption;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
+/**
+ * This class keeps a wrapped (KMS-encrypted) version of the keys used to encrypt manifest list key
+ * metadata. These keys have an ID and a creation timestamp.
+ */
 public class WrappedEncryptionKey implements Serializable {
   private final String keyID;
   private final ByteBuffer wrappedKey;

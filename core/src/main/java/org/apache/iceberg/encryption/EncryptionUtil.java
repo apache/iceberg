@@ -25,6 +25,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.ManifestListFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.common.DynConstructors;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -77,7 +78,7 @@ public class EncryptionUtil {
 
   /**
    * @deprecated will be removed in 2.0.0. use {@link #createEncryptionManager(String, int,
-   *     KeyManagementClient, long)} instead.
+   *     KeyManagementClient)} instead.
    */
   @Deprecated
   public static EncryptionManager createEncryptionManager(
@@ -89,12 +90,11 @@ public class EncryptionUtil {
             TableProperties.ENCRYPTION_DEK_LENGTH,
             TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT);
 
-    return createEncryptionManager(
-        tableKeyId, dataKeyLength, kmsClient, CatalogProperties.WRITER_KEK_TIMEOUT_SEC_DEFAULT);
+    return createEncryptionManager(tableKeyId, dataKeyLength, kmsClient);
   }
 
   public static EncryptionManager createEncryptionManager(
-      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient, long writerKekTimeout) {
+      String tableKeyId, int dataKeyLength, KeyManagementClient kmsClient) {
     Preconditions.checkArgument(kmsClient != null, "Invalid KMS client: null");
 
     if (null == tableKeyId) {
@@ -107,8 +107,7 @@ public class EncryptionUtil {
         "Invalid data key length: %s (must be 16, 24, or 32)",
         dataKeyLength);
 
-    return new StandardEncryptionManager(
-        tableKeyId, dataKeyLength, ImmutableList.of(), kmsClient, writerKekTimeout);
+    return new StandardEncryptionManager(tableKeyId, dataKeyLength, ImmutableList.of(), kmsClient);
   }
 
   public static EncryptedOutputFile plainAsEncryptedOutput(OutputFile encryptingOutputFile) {
