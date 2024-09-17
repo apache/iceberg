@@ -254,34 +254,34 @@ public abstract class BaseMetastoreCatalog implements Catalog, Closeable {
         return Transactions.replaceTableTransaction(identifier.toString(), ops, metadata);
       }
     }
-  }
 
-  /**
-   * Get default table properties set at Catalog level through catalog properties.
-   *
-   * @return default table properties specified in catalog properties
-   */
-  protected Map<String, String> tableDefaultProperties() {
-    Map<String, String> tableDefaultProperties =
-        PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_DEFAULT_PREFIX);
-    LOG.info(
-        "Table properties set at catalog level through catalog properties: {}",
-        tableDefaultProperties);
-    return tableDefaultProperties;
-  }
+    /**
+     * Get default table properties set at Catalog level through catalog properties.
+     *
+     * @return default table properties specified in catalog properties
+     */
+    private Map<String, String> tableDefaultProperties() {
+      Map<String, String> tableDefaultProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_DEFAULT_PREFIX);
+      LOG.info(
+          "Table properties set at catalog level through catalog properties: {}",
+          tableDefaultProperties);
+      return tableDefaultProperties;
+    }
 
-  /**
-   * Get table properties that are enforced at Catalog level through catalog properties.
-   *
-   * @return default table properties enforced through catalog properties
-   */
-  protected Map<String, String> tableOverrideProperties() {
-    Map<String, String> tableOverrideProperties =
-        PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_OVERRIDE_PREFIX);
-    LOG.info(
-        "Table properties enforced at catalog level through catalog properties: {}",
-        tableOverrideProperties);
-    return tableOverrideProperties;
+    /**
+     * Get table properties that are enforced at Catalog level through catalog properties.
+     *
+     * @return default table properties enforced through catalog properties
+     */
+    private Map<String, String> tableOverrideProperties() {
+      Map<String, String> tableOverrideProperties =
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.TABLE_OVERRIDE_PREFIX);
+      LOG.info(
+          "Table properties enforced at catalog level through catalog properties: {}",
+          tableOverrideProperties);
+      return tableOverrideProperties;
+    }
   }
 
   protected static String fullTableName(String catalogName, TableIdentifier identifier) {

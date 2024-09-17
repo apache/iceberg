@@ -1186,7 +1186,7 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
 
   @Test
   public void testViewPropsDefinedAtCatalogLevel() throws IOException {
-    TableIdentifier viewIdent = TableIdentifier.of("db", "ns1");
+    TableIdentifier identifier = TableIdentifier.of("db", "ns1");
     ImmutableMap<String, String> catalogProps =
         ImmutableMap.of(
             CatalogProperties.WAREHOUSE_LOCATION,
@@ -1195,22 +1195,22 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
             "jdbc:sqlite:file::memory:?icebergDBV0",
             JdbcUtil.SCHEMA_VERSION_PROPERTY,
             JdbcUtil.SchemaVersion.V1.name(),
-            "table-default.key1",
+            "view-default.key1",
             "catalog-default-key1",
-            "table-default.key2",
+            "view-default.key2",
             "catalog-default-key2",
-            "table-default.key3",
+            "view-default.key3",
             "catalog-default-key3",
-            "table-override.key3",
+            "view-override.key3",
             "catalog-override-key3",
-            "table-override.key4",
+            "view-override.key4",
             "catalog-override-key4");
     JdbcCatalog jdbcCatalog = new JdbcCatalog();
     jdbcCatalog.setConf(conf);
     jdbcCatalog.initialize("v0catalog", catalogProps);
     View view =
         jdbcCatalog
-            .buildView(viewIdent)
+            .buildView(identifier)
             .withQuery("spark", "SELECT * FROM t1")
             .withSchema(SCHEMA)
             .withDefaultNamespace(Namespace.of("db"))
@@ -1220,22 +1220,22 @@ public class TestJdbcCatalog extends CatalogTests<JdbcCatalog> {
             .create();
 
     assertThat(view.properties().get("key1"))
-        .as("Table defaults set for the catalog must be added to the view properties.")
+        .as("View defaults set for the catalog must be added to the view properties.")
         .isEqualTo("catalog-default-key1");
     assertThat(view.properties().get("key2"))
-        .as("View property must override table default properties set at catalog level.")
+        .as("View property must override view default properties set at catalog level.")
         .isEqualTo("view-key2");
     assertThat(view.properties().get("key3"))
         .as(
-            "View property override set at catalog level must override table default"
-                + " properties set at catalog level and table property specified.")
+            "View property override set at catalog level must override view default"
+                + " properties set at catalog level and view property specified.")
         .isEqualTo("catalog-override-key3");
     assertThat(view.properties().get("key4"))
-        .as("Table override not in table props or defaults should be added to view properties")
+        .as("Table override not in view props or defaults should be added to view properties")
         .isEqualTo("catalog-override-key4");
     assertThat(view.properties().get("key5"))
         .as(
-            "Table properties without any catalog level default or override should be added to view"
+            "View properties without any catalog level default or override should be added to view"
                 + " properties.")
         .isEqualTo("view-key5");
   }

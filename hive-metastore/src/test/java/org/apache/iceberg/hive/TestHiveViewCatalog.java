@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.view.BaseView;
+import org.apache.iceberg.view.View;
 import org.apache.iceberg.view.ViewCatalogTests;
 import org.apache.thrift.TException;
 import org.junit.jupiter.api.AfterEach;
@@ -278,6 +279,66 @@ public class TestHiveViewCatalog extends ViewCatalogTests<HiveCatalog> {
                 .exists(new Path(currentMetadataLocation)))
         .isFalse();
     assertThat(catalog.viewExists(identifier)).isFalse();
+  }
+
+  @Test
+  public void testViewPropsDefinedAtCatalogLevel() {
+    TableIdentifier identifier = TableIdentifier.of("db", "ns1");
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(identifier.namespace());
+    }
+
+    ImmutableMap<String, String> catalogProps =
+        ImmutableMap.of(
+            CatalogProperties.CLIENT_POOL_CACHE_EVICTION_INTERVAL_MS,
+            String.valueOf(TimeUnit.SECONDS.toMillis(10)),
+            "view-default.key1",
+            "catalog-default-key1",
+            "view-default.key2",
+            "catalog-default-key2",
+            "view-default.key3",
+            "catalog-default-key3",
+            "view-override.key3",
+            "catalog-override-key3",
+            "view-override.key4",
+            "catalog-override-key4");
+    HiveCatalog hiveCatalog =
+        (HiveCatalog)
+            CatalogUtil.loadCatalog(
+                HiveCatalog.class.getName(),
+                CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE,
+                catalogProps,
+                HIVE_METASTORE_EXTENSION.hiveConf());
+    View view =
+        hiveCatalog
+            .buildView(identifier)
+            .withQuery("spark", "SELECT * FROM t1")
+            .withSchema(SCHEMA)
+            .withDefaultNamespace(Namespace.of("db"))
+            .withProperty("key2", "view-key2")
+            .withProperty("key3", "view-key3")
+            .withProperty("key5", "view-key5")
+            .create();
+
+    assertThat(view.properties().get("key1"))
+        .as("View defaults set for the catalog must be added to the view properties.")
+        .isEqualTo("catalog-default-key1");
+    assertThat(view.properties().get("key2"))
+        .as("View property must override view default properties set at catalog level.")
+        .isEqualTo("view-key2");
+    assertThat(view.properties().get("key3"))
+        .as(
+            "View property override set at catalog level must override view default"
+                + " properties set at catalog level and view property specified.")
+        .isEqualTo("catalog-override-key3");
+    assertThat(view.properties().get("key4"))
+        .as("Table override not in view props or defaults should be added to view properties")
+        .isEqualTo("catalog-override-key4");
+    assertThat(view.properties().get("key5"))
+        .as(
+            "View properties without any catalog level default or override should be added to view"
+                + " properties.")
+        .isEqualTo("view-key5");
   }
 
   private Table createHiveView(String hiveViewName, String dbName, String location) {
