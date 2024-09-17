@@ -49,7 +49,7 @@ class SparkBinPackDataRewriter extends SparkSizeBasedDataRewriter {
             .option(SparkReadOptions.SCAN_TASK_SET_ID, groupId)
             .option(SparkReadOptions.SPLIT_SIZE, splitSize(inputSize(group)))
             .option(SparkReadOptions.FILE_OPEN_COST, "0")
-            .load(groupId);
+            .load(table().name());
 
     // write the packed data into new files where each split becomes a new file
     scanDF
@@ -60,7 +60,7 @@ class SparkBinPackDataRewriter extends SparkSizeBasedDataRewriter {
         .option(SparkWriteOptions.DISTRIBUTION_MODE, distributionMode(group).modeName())
         .option(SparkWriteOptions.OUTPUT_SPEC_ID, outputSpecId())
         .mode("append")
-        .save(groupId);
+        .save(table().name());
   }
 
   // invoke a shuffle if the original spec does not match the output spec
