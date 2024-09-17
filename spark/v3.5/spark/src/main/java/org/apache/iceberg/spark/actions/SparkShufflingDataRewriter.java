@@ -124,7 +124,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
             .read()
             .format("iceberg")
             .option(SparkReadOptions.SCAN_TASK_SET_ID, groupId)
-            .load(table().name());
+            .load(groupId);
 
     Dataset<Row> sortedDF = sortedDF(scanDF, sortFunction(group));
 
@@ -136,7 +136,7 @@ abstract class SparkShufflingDataRewriter extends SparkSizeBasedDataRewriter {
         .option(SparkWriteOptions.USE_TABLE_DISTRIBUTION_AND_ORDERING, "false")
         .option(SparkWriteOptions.OUTPUT_SPEC_ID, outputSpecId())
         .mode("append")
-        .save(table().name());
+        .save(groupId);
   }
 
   private Function<Dataset<Row>, Dataset<Row>> sortFunction(List<FileScanTask> group) {

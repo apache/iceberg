@@ -103,7 +103,7 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
             .option(SparkReadOptions.SCAN_TASK_SET_ID, groupId)
             .option(SparkReadOptions.SPLIT_SIZE, splitSize(inputSize(group)))
             .option(SparkReadOptions.FILE_OPEN_COST, "0")
-            .load(table().name());
+            .load(groupId);
 
     // keep only valid position deletes
     Dataset<Row> dataFiles = dataFiles(partitionType, partition);
@@ -118,7 +118,7 @@ class SparkBinPackPositionDeletesRewriter extends SizeBasedPositionDeletesRewrit
         .option(SparkWriteOptions.REWRITTEN_FILE_SCAN_TASK_SET_ID, groupId)
         .option(SparkWriteOptions.TARGET_DELETE_FILE_SIZE_BYTES, writeMaxFileSize())
         .mode("append")
-        .save(table().name());
+        .save(groupId);
   }
 
   /** Returns entries of {@link DataFilesTable} of specified partition */
