@@ -24,6 +24,7 @@ import org.apache.iceberg.DataOperations;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
@@ -116,39 +117,36 @@ class RevertDeleteProcedure extends BaseProcedure {
 
   private Snapshot findSnapshot(Table table, long snapshotId) {
     Snapshot snapshot = table.snapshot(snapshotId);
-    if (snapshot == null) {
-      throw new IllegalArgumentException(
-          String.format("Snapshot %d in table %s was not found", snapshotId, table.name()));
-    }
+    Preconditions.checkNotNull(
+        snapshot, "Snapshot %s in table %s was not found", snapshotId, table.name());
 
-    if (!SnapshotUtil.isAncestorOf(table, snapshotId)) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Snapshot %d in table %s is not an ancestor of the current table state",
-              snapshotId, table.name()));
-    }
+    Preconditions.checkState(
+        SnapshotUtil.isAncestorOf(table, snapshotId),
+        "Snapshot %s in table %s is not an ancestor of the current table state",
+        snapshotId,
+        table.name());
 
     return snapshot;
   }
 
   private void checkSnapshotIsDelete(Table table, Snapshot snapshot) {
-    // only allow DELETE operations...
-    if (!snapshot.operation().equals(DataOperations.DELETE)) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Snapshot %d in table %s is not a delete operation",
-              snapshot.snapshotId(), table.name()));
-    }
+    // only allow delete operations...
+    Preconditions.checkArgument(
+        snapshot.operation().equals(DataOperations.DELETE),
+        "Snapshot %s in table %s is not a delete operation",
+        snapshot.snapshotId(),
+        table.name());
 
-    // Ensure we don't have deltas...
+    // Ensure that the snapshot does not involve delete files
     String addedDeleteFiles =
         snapshot.summary().getOrDefault(SnapshotSummary.ADDED_DELETE_FILES_PROP, "0");
-    if (!"0".equals(addedDeleteFiles)) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Snapshot %d in table %s contains delete files, which is not supported",
-              snapshot.snapshotId(), table.name()));
-    }
+    String removedDeleteFiles =
+        snapshot.summary().getOrDefault(SnapshotSummary.REMOVED_DELETE_FILES_PROP, "0");
+    Preconditions.checkArgument(
+        "0".equals(addedDeleteFiles) && "0".equals(removedDeleteFiles),
+        "Snapshot %s in table %s involves delete files, which is not supported",
+        snapshot.snapshotId(),
+        table.name());
   }
 
   private void checkForPreviousRevertDelete(Table table, long snapshotId) {
@@ -158,14 +156,13 @@ class RevertDeleteProcedure extends BaseProcedure {
         .iterator()
         .forEachRemaining(
             snap -> {
-              if (snap.summary()
-                  .getOrDefault(RECOVERED_FROM_PROP, "")
-                  .equals(Long.toString(snapshotId))) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        "Snapshot %d in table %s has already been reverted",
-                        snapshotId, table.name()));
-              }
+              Preconditions.checkState(
+                  !snap.summary()
+                      .getOrDefault(RECOVERED_FROM_PROP, "")
+                      .equals(Long.toString(snapshotId)),
+                  "Snapshot %s in table %s has already been reverted",
+                  snapshotId,
+                  table.name());
             });
   }
 
@@ -177,11 +174,11 @@ class RevertDeleteProcedure extends BaseProcedure {
         .removedDataFiles(table.io())
         .forEach(
             file -> {
-              if (!table.io().newInputFile(file.path().toString()).exists()) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        "File %s from table %s does not exist", file.path(), table.name()));
-              }
+              Preconditions.checkState(
+                  table.io().newInputFile(file.path().toString()).exists(),
+                  "File %s from table %s does not exist",
+                  file.path(),
+                  table.name());
               LOG.debug("Appending file {} back to table {}", file.path(), table.name());
               append.appendFile(file);
               counter.incrementAndGet();

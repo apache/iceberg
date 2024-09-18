@@ -74,7 +74,7 @@ public class TestRevertDeleteProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () ->
                 sql("CALL %s.system.revert_delete('%s', %d)", catalogName, tableIdent, snapshotId))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(IllegalStateException.class)
         .hasMessageEndingWith("has already been reverted");
 
     // make sure nothing changed...
@@ -134,7 +134,7 @@ public class TestRevertDeleteProcedure extends ExtensionsTestBase {
                 sql(
                     "CALL %s.system.revert_delete('%s', %d)",
                     catalogName, tableIdent, table.currentSnapshot().snapshotId()))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(IllegalStateException.class)
         .hasMessageEndingWith("does not exist");
 
     // make sure nothing changed...
@@ -199,7 +199,7 @@ public class TestRevertDeleteProcedure extends ExtensionsTestBase {
                 sql(
                     "CALL %s.system.revert_delete('%s', %d)",
                     catalogName, tableIdent, deleteSnapshotId))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(IllegalStateException.class)
         .hasMessageEndingWith("not an ancestor of the current table state");
 
     // make sure nothing changed...
