@@ -27,6 +27,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -145,7 +146,7 @@ public class TestRevertDeleteProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testRevertDeleteMergeOnRead() throws Exception {
+  public void testRevertDeleteMergeOnRead() throws NoSuchTableException {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg"
             + " TBLPROPERTIES('write.delete.mode'='merge-on-read')",
@@ -181,7 +182,7 @@ public class TestRevertDeleteProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testRevertStagedDelete() throws Exception {
+  public void testRevertStagedDelete() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
     sql("INSERT INTO %s VALUES (1, 'a')", tableName);
     Table table = validationCatalog.loadTable(tableIdent);
