@@ -966,6 +966,15 @@ public class TableMetadata implements Serializable {
 
     public Builder withMetadataLocation(String newMetadataLocation) {
       this.metadataLocation = newMetadataLocation;
+      if (null != base) {
+        // carry over lastUpdatedMillis from base and set previousFileLocation to null to avoid
+        // writing a new metadata log entry
+        // this is safe since setting metadata location doesn't cause any changes and no other
+        // changes can be added when metadata location is configured
+        this.lastUpdatedMillis = base.lastUpdatedMillis();
+        this.previousFileLocation = null;
+      }
+
       return this;
     }
 
