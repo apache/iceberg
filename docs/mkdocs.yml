@@ -69,7 +69,7 @@ nav:
   - Kafka Connect: kafka-connect.md
   - Integrations:
     - aws.md
-    - gcp.md
+    - gcp-bigquery.md
     - dell.md
     - jdbc.md
     - nessie.md
