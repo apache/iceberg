@@ -54,8 +54,7 @@ public class AllManifestsTable extends BaseMetadataTable {
       Types.NestedField.required(18, MetricsUtil.REF_SNAPSHOT_ID, Types.LongType.get());
 
   public static final Types.NestedField REF_SNAPSHOT_TIMESTAMP_MILLIS =
-      Types.NestedField.required(
-          19, MetricsUtil.REF_SNAPSHOT_TIMESTAMP_MILLIS, Types.LongType.get());
+      Types.NestedField.required(19, "reference_snapshot_timestamp_millis", Types.LongType.get());
 
   @VisibleForTesting
   static final Schema MANIFEST_FILE_SCHEMA =

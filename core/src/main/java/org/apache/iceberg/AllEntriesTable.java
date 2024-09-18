@@ -59,7 +59,7 @@ public class AllEntriesTable extends BaseEntriesTable {
                 baseSchema.highestFieldId() + 1, MetricsUtil.REF_SNAPSHOT_ID, Types.LongType.get()),
             optional(
                 baseSchema.highestFieldId() + 2,
-                MetricsUtil.REF_SNAPSHOT_TIMESTAMP_MILLIS,
+                "reference_snapshot_timestamp_millis",
                 Types.LongType.get())));
   }
 

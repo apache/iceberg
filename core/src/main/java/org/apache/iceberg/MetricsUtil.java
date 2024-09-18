@@ -176,7 +176,6 @@ public class MetricsUtil {
 
   public static final String READABLE_METRICS = "readable_metrics";
   public static final String REF_SNAPSHOT_ID = "reference_snapshot_id";
-  public static final String REF_SNAPSHOT_TIMESTAMP_MILLIS = "reference_snapshot_timestamp_millis";
 
   /**
    * Fixed definition of a readable metric column, ie a mapping of a raw metric to a readable metric

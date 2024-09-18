@@ -338,7 +338,7 @@ abstract class BaseEntriesTable extends BaseMetadataTable {
     public CloseableIterable<StructLike> rows() {
       Types.NestedField refSnapshotIdField = projection.findField(MetricsUtil.REF_SNAPSHOT_ID);
       Types.NestedField refSnapshotTimestampMillisField =
-          projection.findField(MetricsUtil.REF_SNAPSHOT_TIMESTAMP_MILLIS);
+          projection.findField("reference_snapshot_timestamp_millis");
       Types.NestedField readableMetricsField = projection.findField(MetricsUtil.READABLE_METRICS);
 
       Schema actualProjection =
