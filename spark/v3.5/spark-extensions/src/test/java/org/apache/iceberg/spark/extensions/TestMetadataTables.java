@@ -403,11 +403,6 @@ public class TestMetadataTables extends ExtensionsTestBase {
 
   @TestTemplate
   public void testMetadataLogEntries() throws Exception {
-    if (Set.of(ICEBERG_CATALOG_TYPE_REST).contains(catalogConfig.get(ICEBERG_CATALOG_TYPE))) {
-      // need to fix https://github.com/apache/iceberg/issues/11103 before enabling this test on
-      // rest catalog
-      return;
-    }
     // Create table and insert data
     sql(
         "CREATE TABLE %s (id bigint, data string) "
