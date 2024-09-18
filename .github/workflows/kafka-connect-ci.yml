@@ -17,7 +17,7 @@
 # under the License.
 #
 
-name: "Java CI"
+name: "Kafka Connect CI"
 on:
   push:
     branches:
@@ -34,8 +34,8 @@ on:
     - '.github/workflows/delta-conversion-ci.yml'
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/hive-ci.yml'
+    - '.github/workflows/java-ci.yml'
     - '.github/workflows/jmh-benchmarks-ci.yml'
-    - '.github/workflows/kafka-connect-ci.yml'
     - '.github/workflows/labeler.yml'
     - '.github/workflows/licence-check.yml'
     - '.github/workflows/open-api.yml'
@@ -47,6 +47,13 @@ on:
     - '.gitignore'
     - '.asf.yml'
     - 'dev/**'
+    - 'mr/**'
+    - 'flink/**'
+    - 'hive3/**'
+    - 'hive3-orc-bundle/**'
+    - 'hive-runtime/**'
+    - 'spark/**'
+    - 'pig/**'
     - 'docs/**'
     - 'site/**'
     - 'open-api/**'
@@ -62,7 +69,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  core-tests:
+
+  kafka-connect-tests:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
@@ -83,36 +91,15 @@ jobs:
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-    - run: ./gradlew check -DsparkVersions= -DhiveVersions= -DflinkVersions= -DkafkaVersions= -Pquick=true -x javadoc
+    - run: |
+        ./gradlew -DsparkVersions= -DhiveVersions= -DflinkVersions= -DkafkaVersions=3 \
+          :iceberg-kafka-connect:iceberg-kafka-connect-events:check \
+          :iceberg-kafka-connect:iceberg-kafka-connect:check \
+          :iceberg-kafka-connect:iceberg-kafka-connect-runtime:check \
+          -Pquick=true -x javadoc
     - uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: test logs
         path: |
           **/build/testlogs
-
-  build-checks:
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        jvm: [11, 17, 21]
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-java@v4
-      with:
-        distribution: zulu
-        java-version: ${{ matrix.jvm }}
-    - run: ./gradlew -DallModules build -x test -x javadoc -x integrationTest
-
-  build-javadoc:
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        jvm: [11, 17, 21]
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-java@v4
-      with:
-        distribution: zulu
-        java-version: ${{ matrix.jvm }}
-    - run: ./gradlew -Pquick=true javadoc
