@@ -146,7 +146,7 @@ public class TypeWithSchemaVisitor<T> {
         }
       } else if (iType instanceof Types.VariantType) {
         // Handle Variant type
-        return visitor.variant(group, visitVariantFields(group, visitor));
+        return visitor.variant(group, visitVariantFields((Types.VariantType)iType, group, visitor));
       }
 
       Types.StructType struct = iType != null ? iType.asStructType() : null;
@@ -207,11 +207,15 @@ public class TypeWithSchemaVisitor<T> {
   }
 
   private static <T> List<T> visitVariantFields(
-          GroupType group, TypeWithSchemaVisitor<T> visitor) {
+          Types.VariantType variant,
+          GroupType group,
+          TypeWithSchemaVisitor<T> visitor) {
     // assert to be 2
     List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
-    results.add(visitField(required(1, "Value", Types.BinaryType.get()), group.getFields().get(0), visitor));
-    results.add(visitField(required(2, "Metadata", Types.BinaryType.get()), group.getFields().get(1), visitor));
+    Type valueType = group.getFields().get(group.getFieldIndex("Value"));
+    Type metadataType = group.getFields().get(group.getFieldIndex("Metadata"));
+    results.add(visitField(required(valueType.getId().intValue(), "Value", Types.BinaryType.get()), valueType, visitor));
+    results.add(visitField(required(metadataType.getId().intValue(), "Metadata", Types.BinaryType.get()), metadataType, visitor));
     return results;
   }
 

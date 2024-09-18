@@ -57,6 +57,7 @@ import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.unsafe.types.VariantVal;
 
 public class SparkParquetWriters {
   private SparkParquetWriters() {}
@@ -93,6 +94,21 @@ public class SparkParquetWriters {
       }
       return new InternalRowWriter(writers, sparkTypes);
     }
+
+    @Override
+    public ParquetValueWriter<?> variant(
+            StructType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
+      List<Type> fields = struct.getFields();
+      StructField[] sparkFields = sStruct.fields();
+      List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
+      List<DataType> sparkTypes = Lists.newArrayList();
+      for (int i = 0; i < fields.size(); i += 1) {
+        writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
+        sparkTypes.add(sparkFields[i].dataType());
+      }
+      return new VariantWriter(writers, sparkTypes);
+    }
+
 
     @Override
     public ParquetValueWriter<?> list(
@@ -566,6 +582,20 @@ public class SparkParquetWriters {
     @Override
     protected Object get(InternalRow struct, int index) {
       return struct.get(index, types[index]);
+    }
+  }
+
+  private static class VariantWriter extends ParquetValueWriters.StructWriter<VariantVal> {
+    private final DataType[] types;
+
+    private VariantWriter(List<ParquetValueWriter<?>> writers, List<DataType> types) {
+      super(writers);
+      this.types = types.toArray(new DataType[0]);
+    }
+
+    @Override
+    protected Object get(VariantVal struct, int index) {
+      return index == 0 ? struct.getValue() : struct.getMetadata();
     }
   }
 }

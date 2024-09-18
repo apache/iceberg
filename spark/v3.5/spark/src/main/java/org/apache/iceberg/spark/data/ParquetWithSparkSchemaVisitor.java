@@ -30,11 +30,13 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Type.Repetition;
 import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.VariantType;
 
 /**
  * Visitor for traversing a Parquet type with a companion Spark type.
@@ -160,6 +162,14 @@ public class ParquetWithSparkSchemaVisitor<T> {
 
           default:
         }
+      } else if (sType instanceof VariantType) {
+        StructField valueField = new StructField("Value", new BinaryType(), false, Metadata.empty());
+        StructField metadataField =
+                new StructField(
+                        "Metadata", new BinaryType(), false, Metadata.empty());
+
+        StructType struct = new StructType(new StructField[]{valueField, metadataField});
+        return visitor.variant(struct, group, visitFields(struct, group, visitor));
       }
 
       Preconditions.checkArgument(
@@ -204,6 +214,10 @@ public class ParquetWithSparkSchemaVisitor<T> {
   }
 
   public T struct(StructType sStruct, GroupType struct, List<T> fields) {
+    return null;
+  }
+
+  public T variant(StructType sStruct, GroupType struct, List<T> fields) {
     return null;
   }
 

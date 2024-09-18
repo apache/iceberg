@@ -783,7 +783,7 @@ public class TypeUtil {
 
         return visitor.primitive(variant);
        default:
-                return visitor.primitive(type.asPrimitiveType());
+         return visitor.primitive(type.asPrimitiveType());
     }
   }
 

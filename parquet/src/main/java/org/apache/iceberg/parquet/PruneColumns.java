@@ -150,6 +150,11 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
   }
 
   @Override
+  public Type variant(GroupType variant) {
+    return null;
+  }
+
+  @Override
   public Type primitive(PrimitiveType primitive) {
     return null;
   }
