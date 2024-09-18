@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.actions;
 
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -29,6 +28,7 @@ import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.actions.RewriteDataFiles.FileGroupInfo;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.util.DataFileSet;
 
 /**
  * Container class representing a set of files to be rewritten by a RewriteAction and the new files
@@ -38,7 +38,7 @@ public class RewriteFileGroup {
   private final FileGroupInfo info;
   private final List<FileScanTask> fileScanTasks;
 
-  private Set<DataFile> addedFiles = Collections.emptySet();
+  private DataFileSet addedFiles = DataFileSet.create();
 
   public RewriteFileGroup(FileGroupInfo info, List<FileScanTask> fileScanTasks) {
     this.info = info;
@@ -54,11 +54,13 @@ public class RewriteFileGroup {
   }
 
   public void setOutputFiles(Set<DataFile> files) {
-    addedFiles = files;
+    addedFiles = DataFileSet.of(files);
   }
 
   public Set<DataFile> rewrittenFiles() {
-    return fileScans().stream().map(FileScanTask::file).collect(Collectors.toSet());
+    return fileScans().stream()
+        .map(FileScanTask::file)
+        .collect(Collectors.toCollection(DataFileSet::create));
   }
 
   public Set<DataFile> addedFiles() {

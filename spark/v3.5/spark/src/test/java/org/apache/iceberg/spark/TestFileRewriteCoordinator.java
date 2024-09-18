@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.source.SimpleRecord;
+import org.apache.iceberg.util.DataFileSet;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
@@ -93,7 +94,7 @@ public class TestFileRewriteCoordinator extends CatalogTestBase {
       Set<DataFile> rewrittenFiles =
           taskSetManager.fetchTasks(table, fileSetID).stream()
               .map(t -> t.asFileScanTask().file())
-              .collect(Collectors.toSet());
+              .collect(Collectors.toCollection(DataFileSet::create));
       Set<DataFile> addedFiles = rewriteCoordinator.fetchNewFiles(table, fileSetID);
       table.newRewrite().rewriteFiles(rewrittenFiles, addedFiles).commit();
     }
@@ -165,7 +166,7 @@ public class TestFileRewriteCoordinator extends CatalogTestBase {
       Set<DataFile> rewrittenFiles =
           taskSetManager.fetchTasks(table, fileSetID).stream()
               .map(t -> t.asFileScanTask().file())
-              .collect(Collectors.toSet());
+              .collect(Collectors.toCollection(DataFileSet::create));
       Set<DataFile> addedFiles = rewriteCoordinator.fetchNewFiles(table, fileSetID);
       table.newRewrite().rewriteFiles(rewrittenFiles, addedFiles).commit();
     }
@@ -247,7 +248,7 @@ public class TestFileRewriteCoordinator extends CatalogTestBase {
     Set<DataFile> addedFiles =
         fileSetIDs.stream()
             .flatMap(fileSetID -> rewriteCoordinator.fetchNewFiles(table, fileSetID).stream())
-            .collect(Collectors.toSet());
+            .collect(Collectors.toCollection(DataFileSet::create));
     table.newRewrite().rewriteFiles(rewrittenFiles, addedFiles).commit();
 
     table.refresh();

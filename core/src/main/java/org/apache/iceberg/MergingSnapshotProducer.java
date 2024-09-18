@@ -50,6 +50,8 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.DataFileSet;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -81,8 +83,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   // update data
   private final Map<PartitionSpec, List<DataFile>> newDataFilesBySpec = Maps.newHashMap();
-  private final CharSequenceSet newDataFilePaths = CharSequenceSet.empty();
-  private final CharSequenceSet newDeleteFilePaths = CharSequenceSet.empty();
+  private final DataFileSet newDataFiles = DataFileSet.create();
+  private final DeleteFileSet newDeleteFiles = DeleteFileSet.create();
   private Long newDataFilesDataSequenceNumber;
   private final Map<Integer, List<DeleteFileHolder>> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
@@ -234,7 +236,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /** Add a data file to the new snapshot. */
   protected void add(DataFile file) {
     Preconditions.checkNotNull(file, "Invalid data file: null");
-    if (newDataFilePaths.add(file.path())) {
+    if (newDataFiles.add(file)) {
       PartitionSpec fileSpec = ops.current().spec(file.specId());
       Preconditions.checkArgument(
           fileSpec != null,
@@ -244,9 +246,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
       addedFilesSummary.addedFile(fileSpec, file);
       hasNewDataFiles = true;
-      List<DataFile> newDataFiles =
+      List<DataFile> dataFiles =
           newDataFilesBySpec.computeIfAbsent(fileSpec, ignored -> Lists.newArrayList());
-      newDataFiles.add(file);
+      dataFiles.add(file);
     }
   }
 
@@ -268,7 +270,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     List<DeleteFileHolder> deleteFiles =
         newDeleteFilesBySpec.computeIfAbsent(specId, s -> Lists.newArrayList());
 
-    if (newDeleteFilePaths.add(fileHolder.deleteFile().path())) {
+    if (newDeleteFiles.add(fileHolder.deleteFile())) {
       deleteFiles.add(fileHolder);
       addedFilesSummary.addedFile(fileSpec, fileHolder.deleteFile());
       hasNewDeleteFiles = true;
@@ -970,9 +972,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     if (cachedNewDataManifests.isEmpty()) {
       newDataFilesBySpec.forEach(
-          (dataSpec, newDataFiles) -> {
+          (dataSpec, dataFiles) -> {
             List<ManifestFile> newDataManifests =
-                writeDataManifests(newDataFiles, newDataFilesDataSequenceNumber, dataSpec);
+                writeDataManifests(dataFiles, newDataFilesDataSequenceNumber, dataSpec);
             cachedNewDataManifests.addAll(newDataManifests);
           });
       this.hasNewDataFiles = false;
