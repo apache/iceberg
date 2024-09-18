@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -39,6 +40,7 @@ import org.slf4j.LoggerFactory;
  * Calls the {@link ExpireSnapshots} to remove the old snapshots and emits the filenames which could
  * be removed in the {@link #DELETE_STREAM} side output.
  */
+@Internal
 public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResult> {
   private static final Logger LOG = LoggerFactory.getLogger(ExpireSnapshotsProcessor.class);
   public static final OutputTag<String> DELETE_STREAM =
@@ -46,18 +48,18 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
 
   private final TableLoader tableLoader;
   private final Long maxSnapshotAgeMs;
-  private final Integer retainLast;
+  private final Integer numSnapshots;
   private final int plannerPoolSize;
   private transient ExecutorService plannerPool;
   private transient Table table;
 
   public ExpireSnapshotsProcessor(
-      TableLoader tableLoader, Long maxSnapshotAgeMs, Integer retainLast, int plannerPoolSize) {
+      TableLoader tableLoader, Long maxSnapshotAgeMs, Integer numSnapshots, int plannerPoolSize) {
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
 
     this.tableLoader = tableLoader;
     this.maxSnapshotAgeMs = maxSnapshotAgeMs;
-    this.retainLast = retainLast;
+    this.numSnapshots = numSnapshots;
     this.plannerPoolSize = plannerPoolSize;
   }
 
@@ -78,8 +80,8 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
         expireSnapshots = expireSnapshots.expireOlderThan(ctx.timestamp() - maxSnapshotAgeMs);
       }
 
-      if (retainLast != null) {
-        expireSnapshots = expireSnapshots.retainLast(retainLast);
+      if (numSnapshots != null) {
+        expireSnapshots = expireSnapshots.retainLast(numSnapshots);
       }
 
       AtomicLong deleteFileCounter = new AtomicLong(0L);
@@ -101,7 +103,7 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
       out.collect(
           new TaskResult(trigger.taskId(), trigger.timestamp(), true, Collections.emptyList()));
     } catch (Exception e) {
-      LOG.info("Exception expiring snapshots for {} at {}", table, ctx.timestamp(), e);
+      LOG.error("Failed to expiring snapshots for {} at {}", table, ctx.timestamp(), e);
       out.collect(
           new TaskResult(trigger.taskId(), trigger.timestamp(), false, Lists.newArrayList(e)));
     }

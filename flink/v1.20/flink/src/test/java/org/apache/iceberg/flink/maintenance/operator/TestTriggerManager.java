@@ -58,7 +58,7 @@ class TestTriggerManager extends OperatorTestBase {
 
   @BeforeEach
   void before() {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
+    createTable();
     this.lock = LOCK_FACTORY.createLock();
     this.recoveringLock = LOCK_FACTORY.createRecoveryLock();
   }
@@ -66,7 +66,7 @@ class TestTriggerManager extends OperatorTestBase {
   @Test
   void testCommitCount() throws Exception {
     TriggerManager manager =
-        manager(sql.tableLoader(TABLE_NAME), new TriggerEvaluator.Builder().commitCount(3).build());
+        manager(tableLoader(), new TriggerEvaluator.Builder().commitCount(3).build());
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
       testHarness.open();
@@ -87,8 +87,7 @@ class TestTriggerManager extends OperatorTestBase {
   @Test
   void testDataFileCount() throws Exception {
     TriggerManager manager =
-        manager(
-            sql.tableLoader(TABLE_NAME), new TriggerEvaluator.Builder().dataFileCount(3).build());
+        manager(tableLoader(), new TriggerEvaluator.Builder().dataFileCount(3).build());
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
       testHarness.open();
@@ -109,9 +108,7 @@ class TestTriggerManager extends OperatorTestBase {
   @Test
   void testDataFileSizeInBytes() throws Exception {
     TriggerManager manager =
-        manager(
-            sql.tableLoader(TABLE_NAME),
-            new TriggerEvaluator.Builder().dataFileSizeInBytes(3).build());
+        manager(tableLoader(), new TriggerEvaluator.Builder().dataFileSizeInBytes(3).build());
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
       testHarness.open();
@@ -130,9 +127,7 @@ class TestTriggerManager extends OperatorTestBase {
   @Test
   void testPosDeleteFileCount() throws Exception {
     TriggerManager manager =
-        manager(
-            sql.tableLoader(TABLE_NAME),
-            new TriggerEvaluator.Builder().posDeleteFileCount(3).build());
+        manager(tableLoader(), new TriggerEvaluator.Builder().posDeleteFileCount(3).build());
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
       testHarness.open();
@@ -153,9 +148,7 @@ class TestTriggerManager extends OperatorTestBase {
   @Test
   void testPosDeleteRecordCount() throws Exception {
     TriggerManager manager =
-        manager(
-            sql.tableLoader(TABLE_NAME),
-            new TriggerEvaluator.Builder().posDeleteRecordCount(3).build());
+        manager(tableLoader(), new TriggerEvaluator.Builder().posDeleteRecordCount(3).build());
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
       testHarness.open();
@@ -179,9 +172,7 @@ class TestTriggerManager extends OperatorTestBase {
   @Test
   void testEqDeleteFileCount() throws Exception {
     TriggerManager manager =
-        manager(
-            sql.tableLoader(TABLE_NAME),
-            new TriggerEvaluator.Builder().eqDeleteFileCount(3).build());
+        manager(tableLoader(), new TriggerEvaluator.Builder().eqDeleteFileCount(3).build());
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
       testHarness.open();
@@ -202,9 +193,7 @@ class TestTriggerManager extends OperatorTestBase {
   @Test
   void testEqDeleteRecordCount() throws Exception {
     TriggerManager manager =
-        manager(
-            sql.tableLoader(TABLE_NAME),
-            new TriggerEvaluator.Builder().eqDeleteRecordCount(3).build());
+        manager(tableLoader(), new TriggerEvaluator.Builder().eqDeleteRecordCount(3).build());
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
       testHarness.open();
@@ -224,8 +213,7 @@ class TestTriggerManager extends OperatorTestBase {
   void testTimeout() throws Exception {
     TriggerManager manager =
         manager(
-            sql.tableLoader(TABLE_NAME),
-            new TriggerEvaluator.Builder().timeout(Duration.ofSeconds(1)).build());
+            tableLoader(), new TriggerEvaluator.Builder().timeout(Duration.ofSeconds(1)).build());
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
       testHarness.open();
@@ -264,7 +252,7 @@ class TestTriggerManager extends OperatorTestBase {
 
   @Test
   void testStateRestore() throws Exception {
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
+    TableLoader tableLoader = tableLoader();
     TriggerManager manager = manager(tableLoader);
     OperatorSubtaskState state;
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
@@ -302,7 +290,7 @@ class TestTriggerManager extends OperatorTestBase {
 
   @Test
   void testMinFireDelay() throws Exception {
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
+    TableLoader tableLoader = tableLoader();
     TriggerManager manager = manager(tableLoader, DELAY, 1);
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
@@ -322,7 +310,7 @@ class TestTriggerManager extends OperatorTestBase {
 
   @Test
   void testLockCheckDelay() throws Exception {
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
+    TableLoader tableLoader = tableLoader();
     TriggerManager manager = manager(tableLoader, 1, DELAY);
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
         harness(manager)) {
@@ -355,7 +343,7 @@ class TestTriggerManager extends OperatorTestBase {
   @ParameterizedTest
   @MethodSource("parametersForTestRecovery")
   void testRecovery(boolean locked, boolean runningTask) throws Exception {
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
+    TableLoader tableLoader = tableLoader();
     TriggerManager manager = manager(tableLoader);
     OperatorSubtaskState state;
     try (KeyedOneInputStreamOperatorTestHarness<Boolean, TableChange, Trigger> testHarness =
@@ -417,7 +405,7 @@ class TestTriggerManager extends OperatorTestBase {
 
   @Test
   void testTriggerMetrics() throws Exception {
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
+    TableLoader tableLoader = tableLoader();
 
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     ManualSource<TableChange> source =
@@ -497,7 +485,7 @@ class TestTriggerManager extends OperatorTestBase {
 
   @Test
   void testRateLimiterMetrics() throws Exception {
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
+    TableLoader tableLoader = tableLoader();
 
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     ManualSource<TableChange> source =
@@ -543,7 +531,7 @@ class TestTriggerManager extends OperatorTestBase {
 
   @Test
   void testConcurrentRunMetrics() throws Exception {
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
+    TableLoader tableLoader = tableLoader();
 
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     ManualSource<TableChange> source =

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.stream;
+package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
 import java.util.List;
@@ -32,6 +32,7 @@ import org.apache.flink.api.common.eventtime.WatermarkOutput;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.source.util.ratelimit.RateLimiterStrategy;
+import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamUtils;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -46,15 +47,18 @@ import org.apache.iceberg.flink.maintenance.operator.Trigger;
 import org.apache.iceberg.flink.maintenance.operator.TriggerEvaluator;
 import org.apache.iceberg.flink.maintenance.operator.TriggerLockFactory;
 import org.apache.iceberg.flink.maintenance.operator.TriggerManager;
+import org.apache.iceberg.flink.sink.IcebergSink;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /** Creates the table maintenance graph. */
 public class TableMaintenance {
   private static final String TASK_NAME_FORMAT = "%s [%d]";
-  static final String SOURCE_NAME = "Monitor source";
-  static final String TRIGGER_MANAGER_TASK_NAME = "Trigger manager";
-  static final String LOCK_REMOVER_TASK_NAME = "Lock remover";
+  static final String SOURCE_OPERATOR_NAME = "Monitor source";
+  static final String TRIGGER_MANAGER_OPERATOR_NAME = "Trigger manager";
+  static final String WATERMARK_ASSIGNER_OPERATOR_NAME = "Watermark Assigner";
+  static final String FILTER_OPERATOR_NAME_PREFIX = "Filter ";
+  static final String LOCK_REMOVER_OPERATOR_NAME = "Lock remover";
 
   private TableMaintenance() {
     // Do not instantiate directly
@@ -62,7 +66,7 @@ public class TableMaintenance {
 
   /**
    * Use when the change stream is already provided, like in the {@link
-   * org.apache.iceberg.flink.sink.IcebergSink#addPostCommitTopology(DataStream)}.
+   * IcebergSink#addPostCommitTopology(DataStream)}.
    *
    * @param changeStream the table changes
    * @param tableLoader used for accessing the table
@@ -81,8 +85,8 @@ public class TableMaintenance {
   }
 
   /**
-   * Creates the default monitor source for collecting the table changes and returns a builder for
-   * the maintenance stream.
+   * Use this for standalone maintenance job. It creates a monitor source that detect table changes
+   * and build the maintenance pipelines afterwards.
    *
    * @param env used to register the monitor source
    * @param tableLoader used for accessing the table
@@ -107,7 +111,7 @@ public class TableMaintenance {
 
     private String uidSuffix = "TableMaintenance-" + UUID.randomUUID();
     private String slotSharingGroup = StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP;
-    private Duration rateLimit = Duration.ofMillis(1);
+    private Duration rateLimit = Duration.ofMinutes(1);
     private Duration lockCheckDelay = Duration.ofSeconds(30);
     private Integer parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
     private int maxReadBack = 100;
@@ -133,10 +137,9 @@ public class TableMaintenance {
     }
 
     /**
-     * The prefix used for the generated {@link org.apache.flink.api.dag.Transformation}'s uid.
+     * The prefix used for the generated {@link Transformation}'s uid.
      *
      * @param newUidSuffix for the transformations
-     * @return for chained calls
      */
     public Builder uidSuffix(String newUidSuffix) {
       this.uidSuffix = newUidSuffix;
@@ -148,7 +151,6 @@ public class TableMaintenance {
      * generated stream. Could be used to separate the resources used by this task.
      *
      * @param newSlotSharingGroup to be used for the operators
-     * @return for chained calls
      */
     public Builder slotSharingGroup(String newSlotSharingGroup) {
       this.slotSharingGroup = newSlotSharingGroup;
@@ -159,7 +161,6 @@ public class TableMaintenance {
      * Limits the firing frequency for the task triggers.
      *
      * @param newRateLimit firing frequency
-     * @return for chained calls
      */
     public Builder rateLimit(Duration newRateLimit) {
       Preconditions.checkNotNull(rateLimit.toMillis() > 0, "Rate limit should be greater than 0");
@@ -171,7 +172,6 @@ public class TableMaintenance {
      * Sets the delay for checking lock availability when a concurrent run is detected.
      *
      * @param newLockCheckDelay lock checking frequency
-     * @return for chained calls
      */
     public Builder lockCheckDelay(Duration newLockCheckDelay) {
       this.lockCheckDelay = newLockCheckDelay;
@@ -179,13 +179,13 @@ public class TableMaintenance {
     }
 
     /**
-     * Sets the global parallelism of maintenance tasks. Could be overwritten by the {@link
+     * Sets the default parallelism of maintenance tasks. Could be overwritten by the {@link
      * MaintenanceTaskBuilder#parallelism(int)}.
      *
      * @param newParallelism task parallelism
-     * @return for chained calls
      */
     public Builder parallelism(int newParallelism) {
+      Preconditions.checkArgument(newParallelism > 0, "Parallelism should be greater than 0");
       this.parallelism = newParallelism;
       return this;
     }
@@ -197,7 +197,6 @@ public class TableMaintenance {
      * used.
      *
      * @param newMaxReadBack snapshots to consider when initializing
-     * @return for chained calls
      */
     public Builder maxReadBack(int newMaxReadBack) {
       Preconditions.checkArgument(
@@ -210,7 +209,6 @@ public class TableMaintenance {
      * Adds a specific task with the given schedule.
      *
      * @param task to add
-     * @return for chained calls
      */
     public Builder add(MaintenanceTaskBuilder<?> task) {
       taskBuilders.add(task);
@@ -239,13 +237,13 @@ public class TableMaintenance {
                       evaluators,
                       rateLimit.toMillis(),
                       lockCheckDelay.toMillis()))
-              .name(TRIGGER_MANAGER_TASK_NAME)
-              .uid("trigger-manager-" + uidSuffix)
+              .name(TRIGGER_MANAGER_OPERATOR_NAME)
+              .uid(TRIGGER_MANAGER_OPERATOR_NAME + uidSuffix)
               .slotSharingGroup(slotSharingGroup)
               .forceNonParallel()
               .assignTimestampsAndWatermarks(new PunctuatedWatermarkStrategy())
-              .name("Watermark Assigner")
-              .uid("watermark-assigner-" + uidSuffix)
+              .name(WATERMARK_ASSIGNER_OPERATOR_NAME)
+              .uid(WATERMARK_ASSIGNER_OPERATOR_NAME + uidSuffix)
               .slotSharingGroup(slotSharingGroup)
               .forceNonParallel();
 
@@ -256,9 +254,9 @@ public class TableMaintenance {
         DataStream<Trigger> filtered =
             triggers
                 .filter(t -> t.taskId() != null && t.taskId() == finalIndex)
-                .name("Filter " + i)
+                .name(FILTER_OPERATOR_NAME_PREFIX + i)
                 .forceNonParallel()
-                .uid("filter-" + i + "-" + uidSuffix)
+                .uid(FILTER_OPERATOR_NAME_PREFIX + i + "-" + uidSuffix)
                 .slotSharingGroup(slotSharingGroup);
         MaintenanceTaskBuilder<?> builder = taskBuilders.get(i);
         DataStream<TaskResult> result =
@@ -279,9 +277,8 @@ public class TableMaintenance {
 
       // Add the LockRemover to the end
       unioned
-          .global()
           .transform(
-              LOCK_REMOVER_TASK_NAME,
+              LOCK_REMOVER_OPERATOR_NAME,
               TypeInformation.of(Void.class),
               new LockRemover(lockFactory, taskNames))
           .forceNonParallel()
@@ -297,8 +294,8 @@ public class TableMaintenance {
                 tableLoader,
                 RateLimiterStrategy.perSecond(1.0 / rateLimit.getSeconds()),
                 maxReadBack);
-        return env.fromSource(source, WatermarkStrategy.noWatermarks(), SOURCE_NAME)
-            .uid("monitor-source-" + uidSuffix)
+        return env.fromSource(source, WatermarkStrategy.noWatermarks(), SOURCE_OPERATOR_NAME)
+            .uid(SOURCE_OPERATOR_NAME + uidSuffix)
             .slotSharingGroup(slotSharingGroup)
             .forceNonParallel();
       } else {

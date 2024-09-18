@@ -16,12 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.stream;
+package org.apache.iceberg.flink.maintenance.api;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.createRecord;
+import static org.apache.iceberg.flink.maintenance.api.ExpireSnapshots.DELETE_FILES_OPERATOR_NAME;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.DELETE_FILE_FAILED_COUNTER;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.DELETE_FILE_SUCCEEDED_COUNTER;
-import static org.apache.iceberg.flink.maintenance.stream.ExpireSnapshots.DELETE_FILES_TASK_NAME;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
@@ -31,9 +31,8 @@ import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.flink.SimpleDataUtil;
-import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTests;
 import org.apache.iceberg.flink.maintenance.operator.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -43,30 +42,30 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-class TestExpireSnapshots extends ScheduledBuilderTestBase {
+class TestExpireSnapshots extends MaintenanceTaskTestBase {
+  private Table table;
+
   @BeforeEach
   void before() {
     MetricsReporterFactoryForTests.reset();
+    this.table = createTable();
   }
 
   @Test
   void testExpireSnapshots() throws Exception {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (2, 'b')", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (3, 'c')", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (4, 'd')", TABLE_NAME);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+    insert(table, 3, "c");
+    insert(table, 4, "d");
 
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    Table table = tableLoader.loadTable();
     Set<Snapshot> snapshots = Sets.newHashSet(table.snapshots());
     assertThat(snapshots).hasSize(4);
 
     ExpireSnapshots.builder()
         .parallelism(1)
         .planningWorkerPoolSize(2)
-        .deleteAttemptNum(2)
-        .deleteWorkerPoolSize(5)
+        .deleteBatchSize(3)
+        .deleteParallelism(1)
         .maxSnapshotAge(Duration.ZERO)
         .retainLast(1)
         .uidSuffix(UID_SUFFIX)
@@ -74,7 +73,7 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
             infra.triggerStream(),
             0,
             DUMMY_NAME,
-            tableLoader,
+            tableLoader(),
             "OTHER",
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             1)
@@ -83,9 +82,9 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
     runAndWaitForSuccess(
         infra.env(), infra.source(), infra.sink(), () -> checkDeleteFinished(3L), table);
 
-    // Check that the table data not changed
     table.refresh();
     assertThat(Sets.newHashSet(table.snapshots())).hasSize(1);
+    // Check that the table data not changed
     SimpleDataUtil.assertTableRecords(
         table,
         ImmutableList.of(
@@ -97,12 +96,9 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
 
   @Test
   void testFailure() throws Exception {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (2, 'b')", TABLE_NAME);
+    insert(table, 1, "a");
+    insert(table, 2, "b");
 
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    Table table = tableLoader.loadTable();
     SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
 
     ExpireSnapshots.builder()
@@ -110,7 +106,7 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
             infra.triggerStream(),
             0,
             DUMMY_NAME,
-            tableLoader,
+            tableLoader(),
             UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             1)
@@ -130,7 +126,7 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
       assertThat(infra.sink().poll(Duration.ofSeconds(5)).success()).isTrue();
 
       // Drop the table, so it will cause an exception
-      sql.catalogLoader().loadCatalog().dropTable(TableIdentifier.of(DB_NAME, TABLE_NAME));
+      CATALOG_EXTENSION.catalogLoader().loadCatalog().dropTable(TestFixtures.TABLE_IDENTIFIER);
 
       // Failed run
       infra.source().sendRecord(Trigger.create(time + 1, serializableTable, 1), time + 1);
@@ -143,17 +139,17 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
     // Check the metrics
     MetricsReporterFactoryForTests.assertCounters(
         new ImmutableMap.Builder<String, Long>()
-            .put(DELETE_FILES_TASK_NAME + "." + DUMMY_NAME + "." + DELETE_FILE_FAILED_COUNTER, 0L)
             .put(
-                DELETE_FILES_TASK_NAME + "." + DUMMY_NAME + "." + DELETE_FILE_SUCCEEDED_COUNTER, 0L)
+                DELETE_FILES_OPERATOR_NAME + "." + DUMMY_NAME + "." + DELETE_FILE_FAILED_COUNTER,
+                0L)
+            .put(
+                DELETE_FILES_OPERATOR_NAME + "." + DUMMY_NAME + "." + DELETE_FILE_SUCCEEDED_COUNTER,
+                0L)
             .build());
   }
 
   @Test
   void testUidAndSlotSharingGroup() {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-
     ExpireSnapshots.builder()
         .slotSharingGroup(SLOT_SHARING_GROUP)
         .uidSuffix(UID_SUFFIX)
@@ -161,7 +157,7 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
             infra.triggerStream(),
             0,
             DUMMY_NAME,
-            tableLoader,
+            tableLoader(),
             UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             1)
@@ -173,15 +169,12 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
 
   @Test
   void testUidAndSlotSharingGroupUnset() {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-
     ExpireSnapshots.builder()
         .append(
             infra.triggerStream(),
             0,
             DUMMY_NAME,
-            tableLoader,
+            tableLoader(),
             UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             1)
@@ -193,12 +186,8 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
 
   @Test
   void testMetrics() throws Exception {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (2, 'b')", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    Table table = tableLoader.loadTable();
+    insert(table, 1, "a");
+    insert(table, 2, "b");
 
     ExpireSnapshots.builder()
         .maxSnapshotAge(Duration.ZERO)
@@ -208,7 +197,7 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
             infra.triggerStream(),
             0,
             DUMMY_NAME,
-            tableLoader,
+            tableLoader(),
             UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             1)
@@ -224,14 +213,14 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
                 MetricsReporterFactoryForTests.assertCounters(
                     new ImmutableMap.Builder<String, Long>()
                         .put(
-                            DELETE_FILES_TASK_NAME
+                            DELETE_FILES_OPERATOR_NAME
                                 + "."
                                 + DUMMY_NAME
                                 + "."
                                 + DELETE_FILE_FAILED_COUNTER,
                             0L)
                         .put(
-                            DELETE_FILES_TASK_NAME
+                            DELETE_FILES_OPERATOR_NAME
                                 + "."
                                 + DUMMY_NAME
                                 + "."
@@ -243,6 +232,6 @@ class TestExpireSnapshots extends ScheduledBuilderTestBase {
   private static boolean checkDeleteFinished(Long expectedDeleteNum) {
     return expectedDeleteNum.equals(
         MetricsReporterFactoryForTests.counter(
-            DELETE_FILES_TASK_NAME + "." + DUMMY_NAME + "." + DELETE_FILE_SUCCEEDED_COUNTER));
+            DELETE_FILES_OPERATOR_NAME + "." + DUMMY_NAME + "." + DELETE_FILE_SUCCEEDED_COUNTER));
   }
 }

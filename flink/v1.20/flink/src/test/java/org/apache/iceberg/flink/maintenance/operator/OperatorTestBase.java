@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.MetricOptions;
 import org.apache.flink.core.execution.JobClient;
@@ -33,20 +34,38 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.transformations.SinkTransformation;
 import org.apache.flink.test.junit5.MiniClusterExtension;
-import org.apache.iceberg.flink.FlinkCatalogFactory;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.data.GenericAppenderHelper;
+import org.apache.iceberg.flink.HadoopCatalogExtension;
+import org.apache.iceberg.flink.SimpleDataUtil;
+import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.api.io.TempDir;
 
 public class OperatorTestBase {
   private static final int NUMBER_TASK_MANAGERS = 1;
   private static final int SLOTS_PER_TASK_MANAGER = 8;
+  private static final Schema SCHEMA_WITH_PRIMARY_KEY =
+      new Schema(
+          Lists.newArrayList(
+              Types.NestedField.required(1, "id", Types.IntegerType.get()),
+              Types.NestedField.optional(2, "data", Types.StringType.get())),
+          ImmutableMap.of(),
+          ImmutableSet.of(SimpleDataUtil.SCHEMA.columns().get(0).fieldId()));
 
   protected static final String UID_SUFFIX = "UID-Dummy";
   protected static final String SLOT_SHARING_GROUP = "SlotSharingGroup";
-  protected static final String TABLE_NAME = "test_table";
   protected static final TriggerLockFactory LOCK_FACTORY = new MemoryLockFactory();
 
   public static final String IGNORED_OPERATOR_NAME = "Ignore";
@@ -64,15 +83,14 @@ public class OperatorTestBase {
               .setConfiguration(config())
               .build());
 
+  @TempDir private Path warehouseDir;
+
   @RegisterExtension
-  public final FlinkSqlExtension sql =
-      new FlinkSqlExtension(
-          "catalog",
-          ImmutableMap.of("type", "iceberg", FlinkCatalogFactory.ICEBERG_CATALOG_TYPE, "hadoop"),
-          "db");
+  private static final HadoopCatalogExtension CATALOG_EXTENSION =
+      new HadoopCatalogExtension(TestFixtures.DATABASE, TestFixtures.TABLE);
 
   @BeforeEach
-  void before() {
+  void before() throws IOException {
     LOCK_FACTORY.open();
     MetricsReporterFactoryForTests.reset();
   }
@@ -80,6 +98,38 @@ public class OperatorTestBase {
   @AfterEach
   void after() throws IOException {
     LOCK_FACTORY.close();
+  }
+
+  protected static Table createTable() {
+    return CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TestFixtures.TABLE_IDENTIFIER,
+            SimpleDataUtil.SCHEMA,
+            PartitionSpec.unpartitioned(),
+            null,
+            ImmutableMap.of("flink.max-continuous-empty-commits", "100000"));
+  }
+
+  protected static Table createTableWithDelete() {
+    return CATALOG_EXTENSION
+        .catalog()
+        .createTable(
+            TestFixtures.TABLE_IDENTIFIER,
+            SCHEMA_WITH_PRIMARY_KEY,
+            PartitionSpec.unpartitioned(),
+            null,
+            ImmutableMap.of("format-version", "2", "write.upsert.enabled", "true"));
+  }
+
+  protected void insert(Table table, Integer id, String data) throws IOException {
+    new GenericAppenderHelper(table, FileFormat.PARQUET, warehouseDir)
+        .appendToTable(Lists.newArrayList(SimpleDataUtil.createRecord(id, data)));
+    table.refresh();
+  }
+
+  protected TableLoader tableLoader() {
+    return CATALOG_EXTENSION.tableLoader();
   }
 
   /**
@@ -123,14 +173,14 @@ public class OperatorTestBase {
     closeJobClient(jobClient, null);
   }
 
-  protected static void checkUidsAreSet(StreamExecutionEnvironment env, String uidPrefix) {
+  protected static void checkUidsAreSet(StreamExecutionEnvironment env, String uidSuffix) {
     env.getTransformations().stream()
         .filter(
             t -> !(t instanceof SinkTransformation) && !(t.getName().equals(IGNORED_OPERATOR_NAME)))
         .forEach(
             transformation -> {
               assertThat(transformation.getUid()).isNotNull();
-              if (uidPrefix != null) {
+              if (uidSuffix != null) {
                 assertThat(transformation.getUid()).contains(UID_SUFFIX);
               }
             });

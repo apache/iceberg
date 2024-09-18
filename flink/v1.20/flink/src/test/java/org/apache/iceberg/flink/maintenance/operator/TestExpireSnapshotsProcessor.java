@@ -29,7 +29,7 @@ import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -38,24 +38,21 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
   void testExpire(boolean success) throws Exception {
-    sql.exec("CREATE TABLE %s (id int, data varchar, spec varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a', 'p1')", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (2, 'b', 'p2')", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    Table table = tableLoader.loadTable();
+    Table table = createTable();
+    insert(table, 1, "a");
+    insert(table, 2, "b");
     SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
 
     List<TaskResult> actual;
     Queue<StreamRecord<String>> deletes;
     try (OneInputStreamOperatorTestHarness<Trigger, TaskResult> testHarness =
         ProcessFunctionTestHarnesses.forProcessFunction(
-            new ExpireSnapshotsProcessor(tableLoader, 0L, 1, 10))) {
+            new ExpireSnapshotsProcessor(tableLoader(), 0L, 1, 10))) {
       testHarness.open();
 
       if (!success) {
         // Cause an exception
-        sql.exec("DROP TABLE IF EXISTS %s", TABLE_NAME);
+        CATALOG_EXTENSION.catalogLoader().loadCatalog().dropTable(TestFixtures.TABLE_IDENTIFIER);
       }
 
       testHarness.processElement(
@@ -79,7 +76,6 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
       assertThat(deletes).hasSize(1);
     } else {
       assertThat(result.exceptions()).isNotNull().hasSize(1);
-
       assertThat(deletes).isNull();
     }
   }

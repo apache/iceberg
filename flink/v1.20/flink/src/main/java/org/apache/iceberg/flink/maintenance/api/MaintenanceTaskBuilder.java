@@ -16,10 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.stream;
+package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.iceberg.flink.TableLoader;
@@ -28,7 +29,8 @@ import org.apache.iceberg.flink.maintenance.operator.Trigger;
 import org.apache.iceberg.flink.maintenance.operator.TriggerEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
+@PublicEvolving
+abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
   private int index;
   private String name;
   private TableLoader tableLoader;
@@ -43,7 +45,6 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * After a given number of Iceberg table commits since the last run, starts the downstream job.
    *
    * @param commitCount after the downstream job should be started
-   * @return for chained calls
    */
   public T scheduleOnCommitCount(int commitCount) {
     triggerEvaluator.commitCount(commitCount);
@@ -54,7 +55,6 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * After a given number of new data files since the last run, starts the downstream job.
    *
    * @param dataFileCount after the downstream job should be started
-   * @return for chained calls
    */
   public T scheduleOnDataFileCount(int dataFileCount) {
     triggerEvaluator.dataFileCount(dataFileCount);
@@ -65,7 +65,6 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * After a given aggregated data file size since the last run, starts the downstream job.
    *
    * @param dataFileSizeInBytes after the downstream job should be started
-   * @return for chained calls
    */
   public T scheduleOnDataFileSize(long dataFileSizeInBytes) {
     triggerEvaluator.dataFileSizeInBytes(dataFileSizeInBytes);
@@ -77,7 +76,6 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * job.
    *
    * @param posDeleteFileCount after the downstream job should be started
-   * @return for chained calls
    */
   public T scheduleOnPosDeleteFileCount(int posDeleteFileCount) {
     triggerEvaluator.posDeleteFileCount(posDeleteFileCount);
@@ -89,7 +87,6 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * job.
    *
    * @param posDeleteRecordCount after the downstream job should be started
-   * @return for chained calls
    */
   public T scheduleOnPosDeleteRecordCount(long posDeleteRecordCount) {
     triggerEvaluator.posDeleteRecordCount(posDeleteRecordCount);
@@ -101,7 +98,6 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * job.
    *
    * @param eqDeleteFileCount after the downstream job should be started
-   * @return for chained calls
    */
   public T scheduleOnEqDeleteFileCount(int eqDeleteFileCount) {
     triggerEvaluator.eqDeleteFileCount(eqDeleteFileCount);
@@ -113,7 +109,6 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * job.
    *
    * @param eqDeleteRecordCount after the downstream job should be started
-   * @return for chained calls
    */
   public T scheduleOnEqDeleteRecordCount(long eqDeleteRecordCount) {
     triggerEvaluator.eqDeleteRecordCount(eqDeleteRecordCount);
@@ -124,7 +119,6 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * After a given time since the last run, starts the downstream job.
    *
    * @param interval after the downstream job should be started
-   * @return for chained calls
    */
   public T scheduleOnInterval(Duration interval) {
     triggerEvaluator.timeout(interval);
@@ -135,7 +129,6 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * The suffix used for the generated {@link org.apache.flink.api.dag.Transformation}'s uid.
    *
    * @param newUidSuffix for the transformations
-   * @return for chained calls
    */
   public T uidSuffix(String newUidSuffix) {
     this.uidSuffix = newUidSuffix;
@@ -147,7 +140,6 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * generated stream. Could be used to separate the resources used by this task.
    *
    * @param newSlotSharingGroup to be used for the operators
-   * @return for chained calls
    */
   public T slotSharingGroup(String newSlotSharingGroup) {
     this.slotSharingGroup = newSlotSharingGroup;
@@ -158,15 +150,15 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * Sets the parallelism for the stream.
    *
    * @param newParallelism the required parallelism
-   * @return for chained calls
    */
   public T parallelism(int newParallelism) {
+    Preconditions.checkArgument(newParallelism > 0, "Parallelism should be greater than 0");
     this.parallelism = newParallelism;
     return (T) this;
   }
 
   @Internal
-  int id() {
+  int index() {
     return index;
   }
 
@@ -190,8 +182,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
     return slotSharingGroup;
   }
 
-  @Internal
-  Integer parallelism() {
+  protected Integer parallelism() {
     return parallelism;
   }
 
@@ -204,19 +195,16 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
   DataStream<TaskResult> append(
       DataStream<Trigger> sourceStream,
       int maintenanceTaskIndex,
-      String maintainanceTaskName,
+      String maintenanceTaskName,
       TableLoader newTableLoader,
       String mainUidSuffix,
       String mainSlotSharingGroup,
       int mainParallelism) {
-    Preconditions.checkArgument(
-        parallelism == null || parallelism == -1 || parallelism > 0,
-        "Parallelism should be left to default (-1/null) or greater than 0");
-    Preconditions.checkNotNull(maintainanceTaskName, "Name should not be null");
+    Preconditions.checkNotNull(maintenanceTaskName, "Name should not be null");
     Preconditions.checkNotNull(newTableLoader, "TableLoader should not be null");
 
     this.index = maintenanceTaskIndex;
-    this.name = maintainanceTaskName;
+    this.name = maintenanceTaskName;
     this.tableLoader = newTableLoader;
 
     if (uidSuffix == null) {

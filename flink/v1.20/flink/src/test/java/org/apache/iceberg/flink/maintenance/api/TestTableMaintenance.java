@@ -16,9 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.stream;
+package org.apache.iceberg.flink.maintenance.api;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.createRowData;
+import static org.apache.iceberg.flink.maintenance.api.TableMaintenance.LOCK_REMOVER_OPERATOR_NAME;
+import static org.apache.iceberg.flink.maintenance.api.TableMaintenance.SOURCE_OPERATOR_NAME;
+import static org.apache.iceberg.flink.maintenance.api.TableMaintenance.TRIGGER_MANAGER_OPERATOR_NAME;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.CONCURRENT_RUN_THROTTLED;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.FAILED_TASK_COUNTER;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.GROUP_VALUE_DEFAULT;
@@ -26,12 +29,10 @@ import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetr
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.RATE_LIMITER_TRIGGERED;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.SUCCEEDED_TASK_COUNTER;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.TRIGGERED;
-import static org.apache.iceberg.flink.maintenance.stream.TableMaintenance.LOCK_REMOVER_TASK_NAME;
-import static org.apache.iceberg.flink.maintenance.stream.TableMaintenance.SOURCE_NAME;
-import static org.apache.iceberg.flink.maintenance.stream.TableMaintenance.TRIGGER_MANAGER_TASK_NAME;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.Collections;
@@ -79,32 +80,30 @@ class TestTableMaintenance extends OperatorTestBase {
       Collections.synchronizedList(Lists.newArrayListWithCapacity(1));
 
   private StreamExecutionEnvironment env;
+  private Table table;
 
   @TempDir private File checkpointDir;
 
   @BeforeEach
-  public void beforeEach() {
+  public void beforeEach() throws IOException {
     Configuration config = new Configuration();
     config.set(CheckpointingOptions.CHECKPOINT_STORAGE, "filesystem");
     config.set(CheckpointingOptions.CHECKPOINTS_DIRECTORY, "file://" + checkpointDir.getPath());
-    env = StreamExecutionEnvironment.getExecutionEnvironment(config);
+    this.env = StreamExecutionEnvironment.getExecutionEnvironment(config);
+    this.table = createTable();
+    insert(table, 1, "a");
+
     PROCESSED.clear();
     MaintenanceTaskBuilderForTest.counter = 0;
   }
 
   @Test
-  void testFromStream() throws Exception {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
-
+  void testForChangeStream() throws Exception {
     ManualSource<TableChange> schedulerSource =
         new ManualSource<>(env, TypeInformation.of(TableChange.class));
 
     TableMaintenance.Builder streamBuilder =
-        TableMaintenance.forChangeStream(schedulerSource.dataStream(), tableLoader, LOCK_FACTORY)
+        TableMaintenance.forChangeStream(schedulerSource.dataStream(), tableLoader(), LOCK_FACTORY)
             .rateLimit(Duration.ofMillis(2))
             .lockCheckDelay(Duration.ofSeconds(3))
             .add(
@@ -122,16 +121,8 @@ class TestTableMaintenance extends OperatorTestBase {
   }
 
   @Test
-  void testFromEnv() throws Exception {
-    sql.exec(
-        "CREATE TABLE %s (id int, data varchar)"
-            + "WITH ('flink.max-continuous-empty-commits'='100000')",
-        TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
-    Table table = tableLoader.loadTable();
+  void testForTable() throws Exception {
+    TableLoader tableLoader = tableLoader();
 
     env.enableCheckpointing(10);
 
@@ -163,19 +154,13 @@ class TestTableMaintenance extends OperatorTestBase {
 
   @Test
   void testLocking() throws Exception {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
-
     TriggerLockFactory.Lock lock = LOCK_FACTORY.createLock();
 
     ManualSource<TableChange> schedulerSource =
         new ManualSource<>(env, TypeInformation.of(TableChange.class));
 
     TableMaintenance.Builder streamBuilder =
-        TableMaintenance.forChangeStream(schedulerSource.dataStream(), tableLoader, LOCK_FACTORY)
+        TableMaintenance.forChangeStream(schedulerSource.dataStream(), tableLoader(), LOCK_FACTORY)
             .rateLimit(Duration.ofMillis(2))
             .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1));
 
@@ -187,17 +172,11 @@ class TestTableMaintenance extends OperatorTestBase {
 
   @Test
   void testMetrics() throws Exception {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
-
     ManualSource<TableChange> schedulerSource =
         new ManualSource<>(env, TypeInformation.of(TableChange.class));
 
     TableMaintenance.Builder streamBuilder =
-        TableMaintenance.forChangeStream(schedulerSource.dataStream(), tableLoader, LOCK_FACTORY)
+        TableMaintenance.forChangeStream(schedulerSource.dataStream(), tableLoader(), LOCK_FACTORY)
             .rateLimit(Duration.ofMillis(2))
             .lockCheckDelay(Duration.ofMillis(2))
             .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1))
@@ -212,29 +191,33 @@ class TestTableMaintenance extends OperatorTestBase {
         .until(
             () ->
                 MetricsReporterFactoryForTests.counter(
-                        LOCK_REMOVER_TASK_NAME + "." + TASKS[0] + "." + SUCCEEDED_TASK_COUNTER)
+                        LOCK_REMOVER_OPERATOR_NAME + "." + TASKS[0] + "." + SUCCEEDED_TASK_COUNTER)
                     .equals(2L));
 
     MetricsReporterFactoryForTests.assertCounters(
         new ImmutableMap.Builder<String, Long>()
-            .put(LOCK_REMOVER_TASK_NAME + "." + TASKS[0] + "." + SUCCEEDED_TASK_COUNTER, 2L)
-            .put(LOCK_REMOVER_TASK_NAME + "." + TASKS[0] + "." + FAILED_TASK_COUNTER, 0L)
-            .put(TRIGGER_MANAGER_TASK_NAME + "." + TASKS[0] + "." + TRIGGERED, 2L)
-            .put(LOCK_REMOVER_TASK_NAME + "." + TASKS[1] + "." + SUCCEEDED_TASK_COUNTER, 0L)
-            .put(LOCK_REMOVER_TASK_NAME + "." + TASKS[1] + "." + FAILED_TASK_COUNTER, 1L)
-            .put(TRIGGER_MANAGER_TASK_NAME + "." + TASKS[1] + "." + TRIGGERED, 1L)
+            .put(LOCK_REMOVER_OPERATOR_NAME + "." + TASKS[0] + "." + SUCCEEDED_TASK_COUNTER, 2L)
+            .put(LOCK_REMOVER_OPERATOR_NAME + "." + TASKS[0] + "." + FAILED_TASK_COUNTER, 0L)
+            .put(TRIGGER_MANAGER_OPERATOR_NAME + "." + TASKS[0] + "." + TRIGGERED, 2L)
+            .put(LOCK_REMOVER_OPERATOR_NAME + "." + TASKS[1] + "." + SUCCEEDED_TASK_COUNTER, 0L)
+            .put(LOCK_REMOVER_OPERATOR_NAME + "." + TASKS[1] + "." + FAILED_TASK_COUNTER, 1L)
+            .put(TRIGGER_MANAGER_OPERATOR_NAME + "." + TASKS[1] + "." + TRIGGERED, 1L)
             .put(
-                TRIGGER_MANAGER_TASK_NAME + "." + GROUP_VALUE_DEFAULT + "." + NOTHING_TO_TRIGGER,
+                TRIGGER_MANAGER_OPERATOR_NAME
+                    + "."
+                    + GROUP_VALUE_DEFAULT
+                    + "."
+                    + NOTHING_TO_TRIGGER,
                 -1L)
             .put(
-                TRIGGER_MANAGER_TASK_NAME
+                TRIGGER_MANAGER_OPERATOR_NAME
                     + "."
                     + GROUP_VALUE_DEFAULT
                     + "."
                     + CONCURRENT_RUN_THROTTLED,
                 -1L)
             .put(
-                TRIGGER_MANAGER_TASK_NAME
+                TRIGGER_MANAGER_OPERATOR_NAME
                     + "."
                     + GROUP_VALUE_DEFAULT
                     + "."
@@ -245,15 +228,9 @@ class TestTableMaintenance extends OperatorTestBase {
 
   @Test
   void testUidAndSlotSharingGroup() {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
-
     TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
-            tableLoader,
+            tableLoader(),
             LOCK_FACTORY)
         .uidSuffix(UID_SUFFIX)
         .slotSharingGroup(SLOT_SHARING_GROUP)
@@ -270,15 +247,9 @@ class TestTableMaintenance extends OperatorTestBase {
 
   @Test
   void testUidAndSlotSharingGroupUnset() {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
-
     TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
-            tableLoader,
+            tableLoader(),
             LOCK_FACTORY)
         .add(new MaintenanceTaskBuilderForTest(true).scheduleOnCommitCount(1))
         .append();
@@ -289,15 +260,9 @@ class TestTableMaintenance extends OperatorTestBase {
 
   @Test
   void testUidAndSlotSharingGroupInherit() {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
-
     TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
-            tableLoader,
+            tableLoader(),
             LOCK_FACTORY)
         .uidSuffix(UID_SUFFIX)
         .slotSharingGroup(SLOT_SHARING_GROUP)
@@ -312,15 +277,9 @@ class TestTableMaintenance extends OperatorTestBase {
   void testUidAndSlotSharingGroupOverWrite() {
     String anotherUid = "Another-UID";
     String anotherSlotSharingGroup = "Another-SlotSharingGroup";
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
-
     TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
-            tableLoader,
+            tableLoader(),
             LOCK_FACTORY)
         .uidSuffix(UID_SUFFIX)
         .slotSharingGroup(SLOT_SHARING_GROUP)
@@ -331,7 +290,7 @@ class TestTableMaintenance extends OperatorTestBase {
                 .slotSharingGroup(anotherSlotSharingGroup))
         .append();
 
-    // Something from the scheduler
+    // Choose an operator from the scheduler part of the graph
     Transformation<?> schedulerTransformation =
         env.getTransformations().stream()
             .filter(t -> t.getName().equals("Trigger manager"))
@@ -342,7 +301,7 @@ class TestTableMaintenance extends OperatorTestBase {
     assertThat(schedulerTransformation.getSlotSharingGroup().get().getName())
         .isEqualTo(SLOT_SHARING_GROUP);
 
-    // Something from the scheduled stream
+    // Choose an operator from the maintenance task part of the graph
     Transformation<?> scheduledTransformation =
         env.getTransformations().stream()
             .filter(
@@ -356,14 +315,8 @@ class TestTableMaintenance extends OperatorTestBase {
   }
 
   @Test
-  void testUidAndSlotSharingGroupForMonitor() {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
-
-    TableMaintenance.forTable(env, tableLoader, LOCK_FACTORY)
+  void testUidAndSlotSharingGroupForMonitorSource() {
+    TableMaintenance.forTable(env, tableLoader(), LOCK_FACTORY)
         .uidSuffix(UID_SUFFIX)
         .slotSharingGroup(SLOT_SHARING_GROUP)
         .add(
@@ -416,6 +369,27 @@ class TestTableMaintenance extends OperatorTestBase {
     }
   }
 
+  /**
+   * Finds the {@link org.apache.iceberg.flink.maintenance.operator.MonitorSource} for testing
+   * purposes by parsing the transformation tree.
+   *
+   * @return The monitor source if we found it
+   */
+  private Transformation<?> monitorSource() {
+    assertThat(env.getTransformations()).isNotEmpty();
+    assertThat(env.getTransformations().get(0).getInputs()).isNotEmpty();
+    assertThat(env.getTransformations().get(0).getInputs().get(0).getInputs()).isNotEmpty();
+
+    Transformation<?> result =
+        env.getTransformations().get(0).getInputs().get(0).getInputs().get(0);
+
+    // Some checks to make sure this is the transformation we are looking for
+    assertThat(result).isInstanceOf(SourceTransformation.class);
+    assertThat(result.getName()).isEqualTo(SOURCE_OPERATOR_NAME);
+
+    return result;
+  }
+
   private static class MaintenanceTaskBuilderForTest
       extends MaintenanceTaskBuilder<MaintenanceTaskBuilderForTest> {
     private final boolean success;
@@ -438,27 +412,6 @@ class TestTableMaintenance extends OperatorTestBase {
           .slotSharingGroup(slotSharingGroup())
           .forceNonParallel();
     }
-  }
-
-  /**
-   * Finds the {@link org.apache.iceberg.flink.maintenance.operator.MonitorSource} for testing
-   * purposes by parsing the transformation tree.
-   *
-   * @return The monitor source if we found it
-   */
-  private Transformation<?> monitorSource() {
-    assertThat(env.getTransformations()).isNotEmpty();
-    assertThat(env.getTransformations().get(0).getInputs()).isNotEmpty();
-    assertThat(env.getTransformations().get(0).getInputs().get(0).getInputs()).isNotEmpty();
-
-    Transformation<?> result =
-        env.getTransformations().get(0).getInputs().get(0).getInputs().get(0);
-
-    // Some checks to make sure this is the transformation we are looking for
-    assertThat(result).isInstanceOf(SourceTransformation.class);
-    assertThat(result.getName()).isEqualTo(SOURCE_NAME);
-
-    return result;
   }
 
   private static class DummyMaintenanceTask

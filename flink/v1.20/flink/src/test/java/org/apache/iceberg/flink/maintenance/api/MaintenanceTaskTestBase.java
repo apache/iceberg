@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.stream;
+package org.apache.iceberg.flink.maintenance.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -34,12 +34,11 @@ import org.apache.iceberg.flink.maintenance.operator.Trigger;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
-class ScheduledBuilderTestBase extends OperatorTestBase {
+class MaintenanceTaskTestBase extends OperatorTestBase {
   private static final int TESTING_TASK_ID = 0;
   private static final Duration POLL_DURATION = Duration.ofSeconds(5);
-  static final String DB_NAME = "db";
 
-  @RegisterExtension ScheduledInfraExtension infra = new ScheduledInfraExtension();
+  @RegisterExtension MaintenanceTaskInfraExtension infra = new MaintenanceTaskInfraExtension();
 
   /**
    * Triggers a maintenance tasks and waits for the successful result. The {@link Table} is
@@ -48,6 +47,7 @@ class ScheduledBuilderTestBase extends OperatorTestBase {
    * @param env used for testing
    * @param triggerSource used for manually emitting the trigger
    * @param collectingSink used for collecting the result
+   * @param waitForCondition used to wait until target condition is reached before stopping the job
    * @param table used for generating the payload
    * @throws Exception if any
    */
@@ -55,7 +55,7 @@ class ScheduledBuilderTestBase extends OperatorTestBase {
       StreamExecutionEnvironment env,
       ManualSource<Trigger> triggerSource,
       CollectingSink<TaskResult> collectingSink,
-      Supplier<Boolean> checkSideEffect,
+      Supplier<Boolean> waitForCondition,
       Table table)
       throws Exception {
     table.refresh();
@@ -75,7 +75,7 @@ class ScheduledBuilderTestBase extends OperatorTestBase {
       assertThat(result.success()).isTrue();
       assertThat(result.taskIndex()).isEqualTo(TESTING_TASK_ID);
 
-      Awaitility.await().until(() -> checkSideEffect.get());
+      Awaitility.await().until(() -> waitForCondition.get());
     } finally {
       closeJobClient(jobClient);
     }

@@ -16,14 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.stream;
+package org.apache.iceberg.flink.maintenance.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
 import java.time.Duration;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.iceberg.flink.TableLoader;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.operator.OperatorTestBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,18 +33,15 @@ class TestMaintenanceE2E extends OperatorTestBase {
   private StreamExecutionEnvironment env;
 
   @BeforeEach
-  public void beforeEach() {
-    env = StreamExecutionEnvironment.getExecutionEnvironment();
+  public void beforeEach() throws IOException {
+    this.env = StreamExecutionEnvironment.getExecutionEnvironment();
+    Table table = createTable();
+    insert(table, 1, "a");
   }
 
   @Test
   void testE2e() throws Exception {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-
-    TableMaintenance.forTable(env, tableLoader, LOCK_FACTORY)
+    TableMaintenance.forTable(env, tableLoader(), LOCK_FACTORY)
         .uidSuffix("E2eTestUID")
         .rateLimit(Duration.ofMinutes(10))
         .lockCheckDelay(Duration.ofSeconds(10))
@@ -52,7 +50,7 @@ class TestMaintenanceE2E extends OperatorTestBase {
                 .scheduleOnCommitCount(10)
                 .maxSnapshotAge(Duration.ofMinutes(10))
                 .retainLast(5)
-                .deleteWorkerPoolSize(5)
+                .deleteBatchSize(5)
                 .parallelism(8))
         .append();
 

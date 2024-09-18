@@ -16,31 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.stream;
+package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
-import java.util.concurrent.TimeUnit;
-import org.apache.flink.streaming.api.datastream.AsyncDataStream;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.streaming.api.functions.async.AsyncRetryStrategy;
-import org.apache.flink.streaming.util.retryable.AsyncRetryStrategies;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SystemConfigs;
-import org.apache.iceberg.flink.maintenance.operator.AsyncDeleteFiles;
+import org.apache.iceberg.flink.maintenance.operator.DeleteFilesProcessor;
 import org.apache.iceberg.flink.maintenance.operator.ExpireSnapshotsProcessor;
 import org.apache.iceberg.flink.maintenance.operator.TaskResult;
 import org.apache.iceberg.flink.maintenance.operator.Trigger;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
+/** Deletes expired snapshots and the corresponding files. */
 public class ExpireSnapshots {
-  private static final long DELETE_INITIAL_DELAY_MS = 10L;
-  private static final long DELETE_MAX_RETRY_DELAY_MS = 1000L;
-  private static final double DELETE_BACKOFF_MULTIPLIER = 1.5;
-  private static final long DELETE_TIMEOUT_MS = 10000L;
-  private static final int DELETE_ATTEMPT_NUM = 10;
-  private static final String EXECUTOR_TASK_NAME = "ES Executor";
-  @VisibleForTesting static final String DELETE_FILES_TASK_NAME = "Delete file";
+  private static final int DELETE_BATCH_SIZE_DEFAULT = 10;
+  private static final String EXECUTOR_OPERATOR_NAME = "Expire Snapshot";
+  @VisibleForTesting static final String DELETE_FILES_OPERATOR_NAME = "Delete file";
 
   private ExpireSnapshots() {
     // Do not instantiate directly
@@ -53,16 +48,15 @@ public class ExpireSnapshots {
 
   public static class Builder extends MaintenanceTaskBuilder<ExpireSnapshots.Builder> {
     private Duration maxSnapshotAge = null;
-    private Integer retainLast = null;
+    private Integer numSnapshots = null;
     private int planningWorkerPoolSize = SystemConfigs.WORKER_THREAD_POOL_SIZE.value();
-    private int deleteAttemptNum = DELETE_ATTEMPT_NUM;
-    private int deleteWorkerPoolSize = SystemConfigs.DELETE_WORKER_THREAD_POOL_SIZE.value();
+    private int deleteBatchSize = DELETE_BATCH_SIZE_DEFAULT;
+    private int deleteParallelism = 1;
 
     /**
-     * The snapshots newer than this age will not be removed.
+     * The snapshots older than this age will be removed.
      *
      * @param newMaxSnapshotAge of the snapshots to be removed
-     * @return for chained calls
      */
     public Builder maxSnapshotAge(Duration newMaxSnapshotAge) {
       this.maxSnapshotAge = newMaxSnapshotAge;
@@ -70,14 +64,13 @@ public class ExpireSnapshots {
     }
 
     /**
-     * The minimum {@link org.apache.iceberg.Snapshot}s to retain. For more details description see
-     * {@link org.apache.iceberg.ExpireSnapshots#retainLast(int)}.
+     * The minimum number of {@link Snapshot}s to retain. For more details description see {@link
+     * org.apache.iceberg.ExpireSnapshots#retainLast(int)}.
      *
-     * @param newRetainLast number of snapshots to retain
-     * @return for chained calls
+     * @param newNumSnapshots number of snapshots to retain
      */
-    public Builder retainLast(int newRetainLast) {
-      this.retainLast = newRetainLast;
+    public Builder retainLast(int newNumSnapshots) {
+      this.numSnapshots = newNumSnapshots;
       return this;
     }
 
@@ -85,7 +78,6 @@ public class ExpireSnapshots {
      * The worker pool size used to calculate the files to delete.
      *
      * @param newPlanningWorkerPoolSize for planning files to delete
-     * @return for chained calls
      */
     public Builder planningWorkerPoolSize(int newPlanningWorkerPoolSize) {
       this.planningWorkerPoolSize = newPlanningWorkerPoolSize;
@@ -93,24 +85,22 @@ public class ExpireSnapshots {
     }
 
     /**
-     * The number of retries on the failed delete attempts.
+     * Size of the batch used to deleting the files.
      *
-     * @param newDeleteAttemptNum number of retries
-     * @return for chained calls
+     * @param newDeleteBatchSize used for deleting
      */
-    public Builder deleteAttemptNum(int newDeleteAttemptNum) {
-      this.deleteAttemptNum = newDeleteAttemptNum;
+    public Builder deleteBatchSize(int newDeleteBatchSize) {
+      this.deleteBatchSize = newDeleteBatchSize;
       return this;
     }
 
     /**
-     * The worker pool size used for deleting files.
+     * The number of subtasks which are doing the deletes.
      *
-     * @param newDeleteWorkerPoolSize for scanning
-     * @return for chained calls
+     * @param newDeleteParallelism used for deleting
      */
-    public Builder deleteWorkerPoolSize(int newDeleteWorkerPoolSize) {
-      this.deleteWorkerPoolSize = newDeleteWorkerPoolSize;
+    public Builder deleteParallelism(int newDeleteParallelism) {
+      this.deleteParallelism = newDeleteParallelism;
       return this;
     }
 
@@ -124,36 +114,26 @@ public class ExpireSnapshots {
                   new ExpireSnapshotsProcessor(
                       tableLoader(),
                       maxSnapshotAge == null ? null : maxSnapshotAge.toMillis(),
-                      retainLast,
+                      numSnapshots,
                       planningWorkerPoolSize))
-              .name(EXECUTOR_TASK_NAME)
-              .uid("expire-snapshots-" + uidSuffix())
+              .name(EXECUTOR_OPERATOR_NAME)
+              .uid(EXECUTOR_OPERATOR_NAME + uidSuffix())
               .slotSharingGroup(slotSharingGroup())
               .forceNonParallel();
 
-      AsyncRetryStrategy<Boolean> retryStrategy =
-          new AsyncRetryStrategies.ExponentialBackoffDelayRetryStrategyBuilder<Boolean>(
-                  deleteAttemptNum,
-                  DELETE_INITIAL_DELAY_MS,
-                  DELETE_MAX_RETRY_DELAY_MS,
-                  DELETE_BACKOFF_MULTIPLIER)
-              .ifResult(AsyncDeleteFiles.FAILED_PREDICATE)
-              .build();
-
-      AsyncDataStream.unorderedWaitWithRetry(
-              result.getSideOutput(ExpireSnapshotsProcessor.DELETE_STREAM).rebalance(),
-              new AsyncDeleteFiles(name(), tableLoader(), deleteWorkerPoolSize),
-              DELETE_TIMEOUT_MS,
-              TimeUnit.MILLISECONDS,
-              deleteWorkerPoolSize,
-              retryStrategy)
-          .name(DELETE_FILES_TASK_NAME)
-          .uid("delete-expired-files-" + uidSuffix())
+      result
+          .getSideOutput(ExpireSnapshotsProcessor.DELETE_STREAM)
+          .rebalance()
+          .transform(
+              DELETE_FILES_OPERATOR_NAME,
+              TypeInformation.of(Void.class),
+              new DeleteFilesProcessor(name(), tableLoader(), deleteBatchSize))
+          .name(DELETE_FILES_OPERATOR_NAME)
+          .uid(DELETE_FILES_OPERATOR_NAME + uidSuffix())
           .slotSharingGroup(slotSharingGroup())
-          .setParallelism(parallelism());
+          .setParallelism(deleteParallelism);
 
-      // Deleting the files is asynchronous, so we ignore the results when calculating the return
-      // value
+      // Ignore the file deletion result and return the DataStream<TaskResult> directly
       return result;
     }
   }

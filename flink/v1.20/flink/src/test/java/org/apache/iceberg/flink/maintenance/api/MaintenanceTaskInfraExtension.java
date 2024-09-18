@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.stream;
+package org.apache.iceberg.flink.maintenance.api;
 
 import static org.apache.iceberg.flink.maintenance.operator.OperatorTestBase.IGNORED_OPERATOR_NAME;
 
@@ -42,7 +42,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
  *       maintenance tasks
  * </ul>
  */
-class ScheduledInfraExtension implements BeforeEachCallback {
+class MaintenanceTaskInfraExtension implements BeforeEachCallback {
   private StreamExecutionEnvironment env;
   private ManualSource<Trigger> source;
   private DataStream<Trigger> triggerStream;
