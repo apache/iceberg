@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.google.common.collect.ImmutableSet;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
@@ -33,6 +32,7 @@ import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -46,12 +46,10 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
           "metadata/.v1.metadata.json.crc");
 
   private Table table;
-  private TableLoader tableLoader;
 
   @BeforeEach
-  void before() throws IOException {
+  void before() {
     this.table = createTable();
-    this.tableLoader = tableLoader();
   }
 
   @Test
@@ -66,7 +64,7 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
         .contains(DUMMY_FILE_NAME)
         .hasSize(TABLE_FILES.size() + 1);
 
-    deleteFile(tableLoader, dummyFile.toString());
+    deleteFile(tableLoader(), dummyFile.toString());
 
     assertThat(listFiles(table)).isEqualTo(TABLE_FILES);
   }
@@ -76,14 +74,14 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
     Path dummyFile =
         FileSystems.getDefault().getPath(table.location().substring(5), DUMMY_FILE_NAME);
 
-    deleteFile(tableLoader, dummyFile.toString());
+    deleteFile(tableLoader(), dummyFile.toString());
 
     assertThat(listFiles(table)).isEqualTo(TABLE_FILES);
   }
 
   @Test
   void testInvalidURIScheme() throws Exception {
-    deleteFile(tableLoader, "wrong://");
+    deleteFile(tableLoader(), "wrong://");
 
     assertThat(listFiles(table)).isEqualTo(TABLE_FILES);
   }

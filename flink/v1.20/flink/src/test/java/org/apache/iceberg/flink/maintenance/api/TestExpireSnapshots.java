@@ -32,7 +32,6 @@ import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.SimpleDataUtil;
-import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.maintenance.operator.MetricsReporterFactoryForTests;
 import org.apache.iceberg.flink.maintenance.operator.Trigger;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -126,7 +125,7 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
       assertThat(infra.sink().poll(Duration.ofSeconds(5)).success()).isTrue();
 
       // Drop the table, so it will cause an exception
-      CATALOG_EXTENSION.catalogLoader().loadCatalog().dropTable(TestFixtures.TABLE_IDENTIFIER);
+      dropTable();
 
       // Failed run
       infra.source().sendRecord(Trigger.create(time + 1, serializableTable, 1), time + 1);

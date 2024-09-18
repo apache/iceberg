@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.flink.maintenance.operator;
 
+import java.io.Serializable;
 import java.util.List;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 /** The result of a single Maintenance Task. */
 @Internal
-public class TaskResult {
+public class TaskResult implements Serializable {
   private final int taskIndex;
   private final long startEpoch;
   private final boolean success;

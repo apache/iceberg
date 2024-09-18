@@ -21,7 +21,6 @@ package org.apache.iceberg.flink.maintenance.operator;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.Counter;
-import org.apache.flink.shaded.guava31.com.google.common.collect.Sets;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -32,10 +31,11 @@ import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Delete the files using the {@link FileIO}. */
+/** Delete the files using the {@link FileIO} which implements {@link SupportsBulkOperations}. */
 @Internal
 public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
     implements OneInputStreamOperator<String, Void> {
@@ -116,7 +116,8 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
           "Deleted only {} of {} files from table {} using bulk deletes",
           deletedFilesCount,
           filesToDelete.size(),
-          tableName);
+          tableName,
+          e);
       succeededCounter.inc(deletedFilesCount);
       failedCounter.inc(e.numberFailedObjects());
     }

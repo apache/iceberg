@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.maintenance.api;
 import java.time.Duration;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.PublicEvolving;
+import org.apache.flink.api.common.operators.util.OperatorValidationUtils;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.iceberg.flink.TableLoader;
@@ -152,7 +153,7 @@ abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
    * @param newParallelism the required parallelism
    */
   public T parallelism(int newParallelism) {
-    Preconditions.checkArgument(newParallelism > 0, "Parallelism should be greater than 0");
+    OperatorValidationUtils.validateParallelism(newParallelism);
     this.parallelism = newParallelism;
     return (T) this;
   }

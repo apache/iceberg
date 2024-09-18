@@ -29,7 +29,6 @@ import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -52,7 +51,7 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
 
       if (!success) {
         // Cause an exception
-        CATALOG_EXTENSION.catalogLoader().loadCatalog().dropTable(TestFixtures.TABLE_IDENTIFIER);
+        dropTable();
       }
 
       testHarness.processElement(

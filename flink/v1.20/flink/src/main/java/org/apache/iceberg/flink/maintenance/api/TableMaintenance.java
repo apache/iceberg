@@ -30,6 +30,7 @@ import org.apache.flink.api.common.eventtime.WatermarkGenerator;
 import org.apache.flink.api.common.eventtime.WatermarkGeneratorSupplier;
 import org.apache.flink.api.common.eventtime.WatermarkOutput;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.operators.util.OperatorValidationUtils;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.source.util.ratelimit.RateLimiterStrategy;
 import org.apache.flink.api.dag.Transformation;
@@ -53,7 +54,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /** Creates the table maintenance graph. */
 public class TableMaintenance {
-  private static final String TASK_NAME_FORMAT = "%s [%d]";
   static final String SOURCE_OPERATOR_NAME = "Monitor source";
   static final String TRIGGER_MANAGER_OPERATOR_NAME = "Trigger manager";
   static final String WATERMARK_ASSIGNER_OPERATOR_NAME = "Watermark Assigner";
@@ -113,7 +113,7 @@ public class TableMaintenance {
     private String slotSharingGroup = StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP;
     private Duration rateLimit = Duration.ofMinutes(1);
     private Duration lockCheckDelay = Duration.ofSeconds(30);
-    private Integer parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
+    private int parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
     private int maxReadBack = 100;
 
     private Builder(
@@ -185,7 +185,7 @@ public class TableMaintenance {
      * @param newParallelism task parallelism
      */
     public Builder parallelism(int newParallelism) {
-      Preconditions.checkArgument(newParallelism > 0, "Parallelism should be greater than 0");
+      OperatorValidationUtils.validateParallelism(newParallelism);
       this.parallelism = newParallelism;
       return this;
     }
@@ -305,7 +305,7 @@ public class TableMaintenance {
   }
 
   private static String nameFor(MaintenanceTaskBuilder<?> streamBuilder, int taskId) {
-    return String.format(TASK_NAME_FORMAT, streamBuilder.getClass().getSimpleName(), taskId);
+    return String.format("%s [%d]", streamBuilder.getClass().getSimpleName(), taskId);
   }
 
   @Internal

@@ -128,6 +128,10 @@ public class OperatorTestBase {
     table.refresh();
   }
 
+  protected void dropTable() {
+    CATALOG_EXTENSION.catalogLoader().loadCatalog().dropTable(TestFixtures.TABLE_IDENTIFIER);
+  }
+
   protected TableLoader tableLoader() {
     return CATALOG_EXTENSION.tableLoader();
   }

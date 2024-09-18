@@ -33,7 +33,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /** Deletes expired snapshots and the corresponding files. */
 public class ExpireSnapshots {
-  private static final int DELETE_BATCH_SIZE_DEFAULT = 10;
+  private static final int DELETE_BATCH_SIZE_DEFAULT = 1000;
   private static final String EXECUTOR_OPERATOR_NAME = "Expire Snapshot";
   @VisibleForTesting static final String DELETE_FILES_OPERATOR_NAME = "Delete file";
 
