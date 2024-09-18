@@ -274,4 +274,17 @@ public class TestMetricsTruncation {
             "Test input with multiple 4 byte UTF-8 character where the first unicode character should be incremented")
         .isEqualTo(0);
   }
+
+  @Test
+  public void testTruncateStringMaxUpperBound() {
+    String max = "abcdefghigklmno" + (char) (Character.MIN_SURROGATE - 1) + "p";
+    String expectedUpper = "abcdefghigklmno" + (char) (Character.MAX_SURROGATE + 1);
+    Comparator<CharSequence> cmp = Literal.of(max).comparator();
+    CharSequence truncatedUpper = truncateStringMax(Literal.of(max), 16).value();
+    assertThat(cmp.compare(truncatedUpper, max))
+        .as("Truncated upper bound should be greater than the input max")
+        .isGreaterThan(1);
+
+    assertThat(truncatedUpper).usingComparator(cmp).isEqualTo(expectedUpper);
+  }
 }
