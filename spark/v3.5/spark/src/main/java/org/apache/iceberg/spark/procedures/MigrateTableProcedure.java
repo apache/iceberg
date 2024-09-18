@@ -22,6 +22,7 @@ import java.util.Map;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.actions.MigrateTableSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
@@ -110,7 +111,7 @@ class MigrateTableProcedure extends BaseProcedure {
       int parallelism = args.getInt(4);
       Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
       migrateTableSparkAction =
-          migrateTableSparkAction.executeWith(executorService(parallelism, "table-migration"));
+          migrateTableSparkAction.executeWith(SparkTableUtil.executorService(parallelism));
     }
 
     MigrateTable.Result result = migrateTableSparkAction.execute();

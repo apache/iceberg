@@ -22,6 +22,7 @@ import java.util.Map;
 import org.apache.iceberg.actions.SnapshotTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -106,7 +107,7 @@ class SnapshotTableProcedure extends BaseProcedure {
     if (!args.isNullAt(4)) {
       int parallelism = args.getInt(4);
       Preconditions.checkArgument(parallelism > 0, "Parallelism should be larger than 0");
-      action = action.executeWith(executorService(parallelism, "table-snapshot"));
+      action = action.executeWith(SparkTableUtil.executorService(parallelism));
     }
 
     SnapshotTable.Result result = action.tableProperties(properties).execute();

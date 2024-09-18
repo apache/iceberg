@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -263,6 +264,7 @@ public class TableMigrationUtil {
    * <p><b>Important:</b> Callers are responsible for shutting down the returned executor service
    * when it is no longer needed to prevent resource leaks.
    */
+  @Nullable
   public static ExecutorService migrationService(int parallelism) {
     return parallelism == 1 ? null : ThreadPools.newFixedThreadPool("table-migration", parallelism);
   }
