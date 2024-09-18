@@ -237,6 +237,17 @@ public class Expressions {
     return predicate(op, name, Literals.from(value));
   }
 
+  public static <T> UnboundPredicate<T> predicate(Operation op, String name, String rightName) {
+    Preconditions.checkArgument(
+        op != Operation.IS_NULL
+            && op != Operation.NOT_NULL
+            && op != Operation.IS_NAN
+            && op != Operation.NOT_NAN,
+        "Cannot create %s predicate with a comparison column",
+        op);
+    return new UnboundPredicate<T>(op, ref(name), ref(rightName));
+  }
+
   public static <T> UnboundPredicate<T> predicate(Operation op, String name, Literal<T> lit) {
     Preconditions.checkArgument(
         op != Operation.IS_NULL
@@ -266,6 +277,11 @@ public class Expressions {
   public static <T> UnboundPredicate<T> predicate(
       Operation op, UnboundTerm<T> expr, Iterable<T> values) {
     return new UnboundPredicate<>(op, expr, values);
+  }
+
+  public static <T> UnboundPredicate<T> predicate(
+      Operation op, UnboundTerm<T> expr, UnboundTerm<T> rightExpr) {
+    return new UnboundPredicate<>(op, expr, rightExpr);
   }
 
   public static <T> UnboundPredicate<T> predicate(Operation op, UnboundTerm<T> expr) {

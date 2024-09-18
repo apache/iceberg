@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.Set;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundVisitor;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 
@@ -108,9 +109,33 @@ public class Evaluator implements Serializable {
     }
 
     @Override
+    public <T> Boolean lt(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      validateDataTypes(valueExpr, valueExpr2);
+      T value = valueExpr.eval(struct);
+      T value2 = valueExpr2.eval(struct);
+      if (value == null || value2 == null) {
+        return false;
+      }
+      Comparator<T> cmp = Comparators.forType(valueExpr.ref().type().asPrimitiveType());
+      return cmp.compare(value, value2) < 0;
+    }
+
+    @Override
     public <T> Boolean ltEq(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
       return cmp.compare(valueExpr.eval(struct), lit.value()) <= 0;
+    }
+
+    @Override
+    public <T> Boolean ltEq(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      validateDataTypes(valueExpr, valueExpr2);
+      T value = valueExpr.eval(struct);
+      T value2 = valueExpr2.eval(struct);
+      if (value == null || value2 == null) {
+        return false;
+      }
+      Comparator<T> cmp = Comparators.forType(valueExpr.ref().type().asPrimitiveType());
+      return cmp.compare(value, value2) <= 0;
     }
 
     @Override
@@ -120,9 +145,33 @@ public class Evaluator implements Serializable {
     }
 
     @Override
+    public <T> Boolean gt(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      validateDataTypes(valueExpr, valueExpr2);
+      T value = valueExpr.eval(struct);
+      T value2 = valueExpr2.eval(struct);
+      if (value == null || value2 == null) {
+        return false;
+      }
+      Comparator<T> cmp = Comparators.forType(valueExpr.ref().type().asPrimitiveType());
+      return cmp.compare(value, value2) > 0;
+    }
+
+    @Override
     public <T> Boolean gtEq(Bound<T> valueExpr, Literal<T> lit) {
       Comparator<T> cmp = lit.comparator();
       return cmp.compare(valueExpr.eval(struct), lit.value()) >= 0;
+    }
+
+    @Override
+    public <T> Boolean gtEq(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      validateDataTypes(valueExpr, valueExpr2);
+      T value = valueExpr.eval(struct);
+      T value2 = valueExpr2.eval(struct);
+      if (value == null || value2 == null) {
+        return false;
+      }
+      Comparator<T> cmp = Comparators.forType(valueExpr.ref().type().asPrimitiveType());
+      return cmp.compare(value, value2) >= 0;
     }
 
     @Override
@@ -132,8 +181,32 @@ public class Evaluator implements Serializable {
     }
 
     @Override
+    public <T> Boolean eq(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      validateDataTypes(valueExpr, valueExpr2);
+      T value = valueExpr.eval(struct);
+      T value2 = valueExpr2.eval(struct);
+      if (value == null || value2 == null) {
+        return false;
+      }
+      Comparator<T> cmp = Comparators.forType(valueExpr.ref().type().asPrimitiveType());
+      return cmp.compare(value, value2) == 0;
+    }
+
+    @Override
     public <T> Boolean notEq(Bound<T> valueExpr, Literal<T> lit) {
       return !eq(valueExpr, lit);
+    }
+
+    @Override
+    public <T> Boolean notEq(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      validateDataTypes(valueExpr, valueExpr2);
+      T value = valueExpr.eval(struct);
+      T value2 = valueExpr2.eval(struct);
+      if (value == null || value2 == null) {
+        return false;
+      }
+      Comparator<T> cmp = Comparators.forType(valueExpr.ref().type().asPrimitiveType());
+      return !(cmp.compare(value, value2) == 0);
     }
 
     @Override
@@ -155,6 +228,16 @@ public class Evaluator implements Serializable {
     @Override
     public <T> Boolean notStartsWith(Bound<T> valueExpr, Literal<T> lit) {
       return !startsWith(valueExpr, lit);
+    }
+
+    private <T> void validateDataTypes(Bound<T> valueExpr, Bound<T> valueExpr2) {
+      if (valueExpr.ref().type().typeId() != valueExpr2.ref().type().typeId()) {
+        throw new IllegalArgumentException(
+            "Cannot compare different types: "
+                + valueExpr.ref().type()
+                + " and "
+                + valueExpr2.ref().type());
+      }
     }
   }
 }

@@ -22,6 +22,7 @@ import static org.apache.iceberg.expressions.Expressions.rewriteNot;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -30,6 +31,7 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
@@ -219,6 +221,36 @@ public class StrictMetricsEvaluator {
     }
 
     @Override
+    public <T> Boolean lt(BoundReference<T> ref, BoundReference<T> ref2) {
+      // Rows must match when: <----------Max---Min2------>
+      Integer id = ref.fieldId();
+      Integer id2 = ref2.fieldId();
+
+      Types.NestedField field = struct.field(id);
+      Types.NestedField field2 = struct.field(id2);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      Preconditions.checkNotNull(
+          field2, "Cannot filter by nested column: %s", schema.findField(id2));
+
+      if (canContainNulls(id)
+          || canContainNaNs(id)
+          || canContainNulls(id2)
+          || canContainNaNs(id2)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (checkUpperToLowerBounds(ref, ref2, id, id2, false, cmp -> cmp < 0)) {
+        return ROWS_MUST_MATCH;
+      }
+
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <----------Min----Max---X------->
       Integer id = ref.fieldId();
@@ -236,6 +268,43 @@ public class StrictMetricsEvaluator {
         if (cmp <= 0) {
           return ROWS_MUST_MATCH;
         }
+      }
+
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean ltEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      // Rows must match when: <--------Max---Min2------>
+      Integer id = ref.fieldId();
+      Integer id2 = ref2.fieldId();
+
+      Types.NestedField field = struct.field(id);
+      Types.NestedField field2 = struct.field(id2);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      Preconditions.checkNotNull(
+          field2, "Cannot filter by nested column: %s", schema.findField(id2));
+
+      if (canContainNulls(id)
+          || canContainNaNs(id)
+          || canContainNulls(id2)
+          || canContainNaNs(id2)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (containsNullsOnly(id)
+          || containsNaNsOnly(id)
+          || containsNullsOnly(id2)
+          || containsNaNsOnly(id2)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (checkUpperToLowerBounds(ref, ref2, id, id2, false, cmp -> cmp <= 0)) {
+        return ROWS_MUST_MATCH;
       }
 
       return ROWS_MIGHT_NOT_MATCH;
@@ -270,6 +339,43 @@ public class StrictMetricsEvaluator {
     }
 
     @Override
+    public <T> Boolean gt(BoundReference<T> ref, BoundReference<T> ref2) {
+      // Rows must match when: <-------Max2---Min---------->
+      Integer id = ref.fieldId();
+      Integer id2 = ref2.fieldId();
+
+      Types.NestedField field = struct.field(id);
+      Types.NestedField field2 = struct.field(id2);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      Preconditions.checkNotNull(
+          field2, "Cannot filter by nested column: %s", schema.findField(id2));
+
+      if (canContainNulls(id)
+          || canContainNaNs(id)
+          || canContainNulls(id2)
+          || canContainNaNs(id2)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (containsNullsOnly(id)
+          || containsNaNsOnly(id)
+          || containsNullsOnly(id2)
+          || containsNaNsOnly(id2)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (checkLowerToUpperBounds(ref, ref2, id, id2, true, cmp -> cmp > 0)) {
+        return ROWS_MUST_MATCH;
+      }
+
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       // Rows must match when: <-------X---Min----Max---------->
       Integer id = ref.fieldId();
@@ -292,6 +398,44 @@ public class StrictMetricsEvaluator {
         if (cmp >= 0) {
           return ROWS_MUST_MATCH;
         }
+      }
+
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean gtEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      // Rows must match when: <-------Max2---Min---------->
+      Integer id = ref.fieldId();
+      Integer id2 = ref2.fieldId();
+
+      Types.NestedField field = struct.field(id);
+      Types.NestedField field2 = struct.field(id2);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      Preconditions.checkNotNull(
+          field2, "Cannot filter by nested column: %s", schema.findField(id2));
+
+      if (canContainNulls(id)
+          || canContainNaNs(id)
+          || canContainNulls(id2)
+          || canContainNaNs(id2)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (containsNullsOnly(id)
+          || containsNaNsOnly(id)
+          || containsNullsOnly(id2)
+          || containsNaNsOnly(id2)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (checkLowerToUpperBounds(ref, ref2, id, id2, true, cmp -> cmp >= 0)) {
+        // check nan
+        return ROWS_MUST_MATCH;
       }
 
       return ROWS_MIGHT_NOT_MATCH;
@@ -323,6 +467,41 @@ public class StrictMetricsEvaluator {
 
         cmp = lit.comparator().compare(upper, lit.value());
         if (cmp != 0) {
+          return ROWS_MIGHT_NOT_MATCH;
+        }
+
+        return ROWS_MUST_MATCH;
+      }
+
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean eq(BoundReference<T> ref, BoundReference<T> ref2) {
+      // Rows must match when Min == Min2 == Max or Max == Max2 == Min
+      Integer id = ref.fieldId();
+      Integer id2 = ref2.fieldId();
+
+      Types.NestedField field = struct.field(id);
+      Types.NestedField field2 = struct.field(id2);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      Preconditions.checkNotNull(
+          field2, "Cannot filter by nested column: %s", schema.findField(id2));
+
+      if (canContainNulls(id)
+          || canContainNaNs(id)
+          || canContainNulls(id2)
+          || canContainNaNs(id2)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (hasUpperLowerBounds(id, id2)) {
+
+        if (checkLowerAndUpperBounds(ref, ref2, id, id2, cmp -> cmp != 0)) {
           return ROWS_MIGHT_NOT_MATCH;
         }
 
@@ -367,6 +546,148 @@ public class StrictMetricsEvaluator {
       }
 
       return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      // Rows must match when Max2 < Min or Max < Min2 because it is not in the range
+      Integer id = ref.fieldId();
+      Integer id2 = ref2.fieldId();
+
+      Types.NestedField field = struct.field(id);
+      Types.NestedField field2 = struct.field(id2);
+      Preconditions.checkNotNull(field, "Cannot filter by nested column: %s", schema.findField(id));
+      Preconditions.checkNotNull(
+          field2, "Cannot filter by nested column: %s", schema.findField(id2));
+
+      if (canContainNulls(id)
+          || canContainNaNs(id)
+          || canContainNulls(id2)
+          || canContainNaNs(id2)) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_NOT_MATCH;
+      }
+
+      if (hasUpperLowerBounds(id, id2)) {
+
+        if (checkUpperToLowerBounds(ref, ref2, id, id2, true, cmp -> cmp < 0)) {
+          return ROWS_MUST_MATCH;
+        }
+
+        if (checkLowerToUpperBounds(ref, ref2, id, id2, true, cmp -> cmp > 0)) {
+          return ROWS_MUST_MATCH;
+        }
+      }
+
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    private boolean hasUpperLowerBounds(Integer id, Integer id2) {
+      return lowerBounds != null
+          && lowerBounds.containsKey(id)
+          && lowerBounds.containsKey(id2)
+          && upperBounds != null
+          && upperBounds.containsKey(id)
+          && upperBounds.containsKey(id2);
+    }
+
+    private <T> boolean checkLowerToUpperBounds(
+        BoundReference<T> ref,
+        BoundReference<T> ref2,
+        Integer id,
+        Integer id2,
+        boolean checkNan,
+        java.util.function.Predicate<Integer> compare) {
+      if (lowerBounds != null
+          && upperBounds != null
+          && lowerBounds.containsKey(id)
+          && upperBounds.containsKey(id2)) {
+        T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+        T upper = Conversions.fromByteBuffer(ref2.type(), upperBounds.get(id2));
+
+        if (checkNan) {
+          if (NaNUtil.isNaN(lower) || NaNUtil.isNaN(upper)) {
+            // NaN indicates unreliable bounds. See the StrictMetricsEvaluator docs for more.
+            return false;
+          }
+        }
+
+        Comparator<Object> comparator = Comparators.forType(ref.type().asPrimitiveType());
+        int cmp = comparator.compare(lower, upper);
+        if (compare.test(cmp)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    private <T> boolean checkUpperToLowerBounds(
+        BoundReference<T> ref,
+        BoundReference<T> ref2,
+        Integer id,
+        Integer id2,
+        boolean checkNan,
+        java.util.function.Predicate<Integer> compare) {
+      if (lowerBounds != null
+          && upperBounds != null
+          && upperBounds.containsKey(id)
+          && lowerBounds.containsKey(id2)) {
+        T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+        T lower = Conversions.fromByteBuffer(ref2.type(), lowerBounds.get(id2));
+
+        if (checkNan) {
+          if (NaNUtil.isNaN(upper) || NaNUtil.isNaN(lower)) {
+            // NaN indicates unreliable bounds. See the StrictMetricsEvaluator docs for more.
+            return false;
+          }
+        }
+
+        Comparator<Object> comparator = Comparators.forType(ref.type().asPrimitiveType());
+        int cmp = comparator.compare(upper, lower);
+        if (compare.test(cmp)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    private <T> boolean checkLowerAndUpperBounds(
+        BoundReference<T> ref,
+        BoundReference<T> ref2,
+        Integer id,
+        Integer id2,
+        java.util.function.Predicate<Integer> compare) {
+      // caller checks lower and upper existing for ref and ref2
+      T lower = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+      T lower2 = Conversions.fromByteBuffer(ref2.type(), lowerBounds.get(id2));
+      T upper = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+      T upper2 = Conversions.fromByteBuffer(ref2.type(), upperBounds.get(id2));
+
+      Comparator<Object> comparator = Comparators.forType(ref.type().asPrimitiveType());
+      int cmp = comparator.compare(lower, lower2);
+      if (compare.test(cmp)) {
+        return true;
+      }
+
+      cmp = comparator.compare(upper, upper2);
+      if (compare.test(cmp)) {
+        return true;
+      }
+
+      cmp = comparator.compare(lower, upper2);
+      if (compare.test(cmp)) {
+        return true;
+      }
+
+      cmp = comparator.compare(upper, lower2);
+      if (compare.test(cmp)) {
+        return true;
+      }
+
+      return false;
     }
 
     @Override

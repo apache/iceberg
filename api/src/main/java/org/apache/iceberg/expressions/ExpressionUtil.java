@@ -310,6 +310,9 @@ public class ExpressionUtil {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Expression predicate(UnboundPredicate<T> pred) {
+      if (pred.rightTerm() != null) {
+        return new UnboundPredicate<>(pred.op(), pred.term(), pred.rightTerm());
+      }
       switch (pred.op()) {
         case IS_NULL:
         case NOT_NULL:
@@ -382,6 +385,9 @@ public class ExpressionUtil {
     @Override
     public <T> String predicate(BoundPredicate<T> pred) {
       String term = describe(pred.term());
+      if (pred.rightTerm() != null) {
+        return termPredicate(pred, term);
+      }
       switch (pred.op()) {
         case IS_NULL:
           return term + " IS NULL";
@@ -431,9 +437,33 @@ public class ExpressionUtil {
       }
     }
 
+    private static String termPredicate(Predicate pred, String term) {
+      String rightTerm = describe(pred.rightTerm());
+      switch (pred.op()) {
+        case LT:
+          return term + " < " + rightTerm;
+        case LT_EQ:
+          return term + " <= " + rightTerm;
+        case GT:
+          return term + " > " + rightTerm;
+        case GT_EQ:
+          return term + " >= " + rightTerm;
+        case EQ:
+          return term + " = " + rightTerm;
+        case NOT_EQ:
+          return term + " != " + rightTerm;
+        default:
+          throw new UnsupportedOperationException(
+              "Cannot sanitize unsupported predicate type: " + pred.op());
+      }
+    }
+
     @Override
     public <T> String predicate(UnboundPredicate<T> pred) {
       String term = describe(pred.term());
+      if (pred.rightTerm() != null) {
+        return termPredicate(pred, term);
+      }
       switch (pred.op()) {
         case IS_NULL:
           return term + " IS NULL";

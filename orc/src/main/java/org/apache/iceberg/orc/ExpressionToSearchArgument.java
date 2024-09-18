@@ -165,12 +165,32 @@ class ExpressionToSearchArgument
   }
 
   @Override
+  public <T> Action lt(Bound<T> expr, Bound<T> expr2) {
+    validateDataTypes(expr, expr2);
+    return () ->
+        this.builder.lessThan(
+            idToColumnName.get(expr.ref().fieldId()),
+            type(expr.ref().type()),
+            idToColumnName.get(expr.ref().fieldId()));
+  }
+
+  @Override
   public <T> Action ltEq(Bound<T> expr, Literal<T> lit) {
     return () ->
         this.builder.lessThanEquals(
             idToColumnName.get(expr.ref().fieldId()),
             type(expr.ref().type()),
             literal(expr.ref().type(), lit.value()));
+  }
+
+  @Override
+  public <T> Action ltEq(Bound<T> expr, Bound<T> expr2) {
+    validateDataTypes(expr, expr2);
+    return () ->
+        this.builder.lessThanEquals(
+            idToColumnName.get(expr.ref().fieldId()),
+            type(expr.ref().type()),
+            idToColumnName.get(expr.ref().fieldId()));
   }
 
   @Override
@@ -184,6 +204,21 @@ class ExpressionToSearchArgument
                 idToColumnName.get(expr.ref().fieldId()),
                 type(expr.ref().type()),
                 literal(expr.ref().type(), lit.value()))
+            .end();
+  }
+
+  @Override
+  public <T> Action gt(Bound<T> expr, Bound<T> expr2) {
+    validateDataTypes(expr, expr2);
+    // ORC SearchArguments do not have a greaterThan predicate, so we use not(lessThanOrEquals)
+    // e.g. x > 5 => not(x <= 5)
+    return () ->
+        this.builder
+            .startNot()
+            .lessThanEquals(
+                idToColumnName.get(expr.ref().fieldId()),
+                type(expr.ref().type()),
+                idToColumnName.get(expr.ref().fieldId()))
             .end();
   }
 
@@ -202,12 +237,37 @@ class ExpressionToSearchArgument
   }
 
   @Override
+  public <T> Action gtEq(Bound<T> expr, Bound<T> expr2) {
+    validateDataTypes(expr, expr2);
+    // ORC SearchArguments do not have a greaterThanOrEquals predicate, so we use not(lessThan)
+    // e.g. x >= 5 => not(x < 5)
+    return () ->
+        this.builder
+            .startNot()
+            .lessThan(
+                idToColumnName.get(expr.ref().fieldId()),
+                type(expr.ref().type()),
+                idToColumnName.get(expr.ref().fieldId()))
+            .end();
+  }
+
+  @Override
   public <T> Action eq(Bound<T> expr, Literal<T> lit) {
     return () ->
         this.builder.equals(
             idToColumnName.get(expr.ref().fieldId()),
             type(expr.ref().type()),
             literal(expr.ref().type(), lit.value()));
+  }
+
+  @Override
+  public <T> Action eq(Bound<T> expr, Bound<T> expr2) {
+    validateDataTypes(expr, expr2);
+    return () ->
+        this.builder.equals(
+            idToColumnName.get(expr.ref().fieldId()),
+            type(expr.ref().type()),
+            idToColumnName.get(expr.ref().fieldId()));
   }
 
   @Override
@@ -225,6 +285,29 @@ class ExpressionToSearchArgument
       this.builder.end(); // end NOT
       this.builder.end(); // end OR
     };
+  }
+
+  @Override
+  public <T> Action notEq(Bound<T> expr, Bound<T> expr2) {
+    validateDataTypes(expr, expr2);
+    return () -> {
+      this.builder.startOr();
+      isNull(expr).invoke();
+      this.builder.startNot();
+      eq(expr, expr2).invoke();
+      this.builder.end(); // end NOT
+      this.builder.end(); // end OR
+    };
+  }
+
+  private <T> void validateDataTypes(Bound<T> valueExpr, Bound<T> valueExpr2) {
+    if (valueExpr.ref().type().typeId() != valueExpr2.ref().type().typeId()) {
+      throw new IllegalArgumentException(
+          "Cannot compare different types: "
+              + valueExpr.ref().type()
+              + " and "
+              + valueExpr2.ref().type());
+    }
   }
 
   @Override

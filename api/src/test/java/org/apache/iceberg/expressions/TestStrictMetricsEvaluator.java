@@ -33,6 +33,7 @@ import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.predicate;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -66,7 +67,8 @@ public class TestStrictMetricsEvaluator {
           optional(11, "all_nulls_double", Types.DoubleType.get()),
           optional(12, "all_nans_v1_stats", Types.FloatType.get()),
           optional(13, "nan_and_null_only", Types.DoubleType.get()),
-          optional(14, "no_nan_stats", Types.DoubleType.get()));
+          optional(14, "no_nan_stats", Types.DoubleType.get()),
+          optional(15, "id2", Types.IntegerType.get()));
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
@@ -108,13 +110,20 @@ public class TestStrictMetricsEvaluator {
               1, toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
               7, toByteBuffer(IntegerType.get(), 5),
               12, toByteBuffer(Types.FloatType.get(), Float.NaN),
-              13, toByteBuffer(Types.DoubleType.get(), Double.NaN)),
+              13, toByteBuffer(Types.DoubleType.get(), Double.NaN),
+              15, toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE - 25)),
           // upper bounds
           ImmutableMap.of(
-              1, toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
-              7, toByteBuffer(IntegerType.get(), 5),
-              12, toByteBuffer(Types.FloatType.get(), Float.NaN),
-              13, toByteBuffer(Types.DoubleType.get(), Double.NaN)));
+              1,
+              toByteBuffer(IntegerType.get(), INT_MAX_VALUE),
+              7,
+              toByteBuffer(IntegerType.get(), 5),
+              12,
+              toByteBuffer(Types.FloatType.get(), Float.NaN),
+              13,
+              toByteBuffer(Types.DoubleType.get(), Double.NaN),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE + 25)));
 
   private static final DataFile FILE_2 =
       new TestDataFile(
@@ -135,9 +144,21 @@ public class TestStrictMetricsEvaluator {
           // nan value counts
           null,
           // lower bounds
-          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
+          ImmutableMap.of(
+              1,
+              toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+              5,
+              toByteBuffer(StringType.get(), "bbb"),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE + 25)),
           // upper bounds
-          ImmutableMap.of(5, toByteBuffer(StringType.get(), "eee")));
+          ImmutableMap.of(
+              1,
+              toByteBuffer(IntegerType.get(), INT_MIN_VALUE + 10),
+              5,
+              toByteBuffer(StringType.get(), "eee"),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE + 50)));
 
   private static final DataFile FILE_3 =
       new TestDataFile(
@@ -157,9 +178,49 @@ public class TestStrictMetricsEvaluator {
           // nan value counts
           null,
           // lower bounds
-          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")),
+          ImmutableMap.of(
+              1,
+              toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+              5,
+              toByteBuffer(StringType.get(), "bbb"),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE - 25)),
           // upper bounds
-          ImmutableMap.of(5, toByteBuffer(StringType.get(), "bbb")));
+          ImmutableMap.of(
+              1,
+              toByteBuffer(IntegerType.get(), INT_MIN_VALUE + 10),
+              5,
+              toByteBuffer(StringType.get(), "bbb"),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE - 5)));
+
+  private static final DataFile FILE_4 =
+      new TestDataFile(
+          "file_4.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(3, 20L),
+          // null value counts
+          ImmutableMap.of(3, 2L),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(
+              1,
+              toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+              3,
+              toByteBuffer(StringType.get(), "abc"),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE)),
+          // upper bounds
+          ImmutableMap.of(
+              1,
+              toByteBuffer(IntegerType.get(), INT_MIN_VALUE),
+              3,
+              toByteBuffer(StringType.get(), "イロハニホヘト"),
+              15,
+              toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE)));
 
   @Test
   public void testAllNulls() {
@@ -421,6 +482,37 @@ public class TestStrictMetricsEvaluator {
   }
 
   @Test
+  public void testRefCompareIntegerLt() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2"))
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should not match: id range upper bound (79) is not below lower bound id2 range (5)")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2"))
+            .eval(FILE_2);
+    assertThat(shouldRead)
+        .as("Should match: id range upper bound (40) is below lower bound id2 range (55)")
+        .isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2"))
+            .eval(FILE_3);
+    assertThat(shouldRead)
+        .as("Should not match: id range upper bound (40) is not below lower bound id range (5)")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2"))
+            .eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should not match: id range upper bound (30) is not below lower bound id range (30)")
+        .isFalse();
+  }
+
+  @Test
   public void testIntegerLtEq() {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("id", INT_MIN_VALUE - 1)).eval(FILE);
@@ -437,6 +529,35 @@ public class TestStrictMetricsEvaluator {
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, lessThanOrEqual("id", INT_MAX_VALUE + 1)).eval(FILE);
     assertThat(shouldRead).as("Should match: all values in range").isTrue();
+  }
+
+  @Test
+  public void testRefCompareIntegerLtEq() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2"))
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should not match: id range upper bound (79) is not below lower bound id2 range (5)")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2"))
+            .eval(FILE_2);
+    assertThat(shouldRead)
+        .as("Should match: id range upper bound (40) is below lower bound id2 range (55)")
+        .isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2"))
+            .eval(FILE_3);
+    assertThat(shouldRead)
+        .as("Should not match: id range upper bound (40) is not below lower bound id range (5)")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2"))
+            .eval(FILE_4);
+    assertThat(shouldRead).as("Should match: id range upper bound (30) is equal to (30)").isTrue();
   }
 
   @Test
@@ -458,6 +579,40 @@ public class TestStrictMetricsEvaluator {
   }
 
   @Test
+  public void testRefCompareIntegerGt() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2"))
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as(
+            "Should not match: id range lower bound (30) is not greater than upper bound id2 range (55)")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2"))
+            .eval(FILE_2);
+    assertThat(shouldRead)
+        .as(
+            "Should not match: id range lower bound (30) is not greater than upper bound id2 range (80)")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2"))
+            .eval(FILE_3);
+    assertThat(shouldRead)
+        .as("Should match: id range lower bound (30) is greater than upper bound id2 range (25)")
+        .isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2"))
+            .eval(FILE_4);
+    assertThat(shouldRead)
+        .as(
+            "Should not match: id range lower bound (30) is not greater than upper bound id2 range (30)")
+        .isFalse();
+  }
+
+  @Test
   public void testIntegerGtEq() {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("id", INT_MAX_VALUE + 1)).eval(FILE);
@@ -474,6 +629,39 @@ public class TestStrictMetricsEvaluator {
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, greaterThanOrEqual("id", INT_MIN_VALUE)).eval(FILE);
     assertThat(shouldRead).as("Should match: all values in range").isTrue();
+  }
+
+  @Test
+  public void testRefCompareIntegerGtEq() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2"))
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as(
+            "Should not match: id range lower bound (30) is not greater than upper bound id2 range (55)")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2"))
+            .eval(FILE_2);
+    assertThat(shouldRead)
+        .as(
+            "Should not match: id range lower bound (30) is not greater than upper bound id2 range (80)")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2"))
+            .eval(FILE_3);
+    assertThat(shouldRead)
+        .as("Should match: id range lower bound (30) is greater than upper bound id2 range (25)")
+        .isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2"))
+            .eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should match: id range lower bound (30) is equal to upper bound id2 range (30)")
+        .isTrue();
   }
 
   @Test
@@ -500,6 +688,37 @@ public class TestStrictMetricsEvaluator {
   }
 
   @Test
+  public void testRefCompareIntegerEq() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2"))
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should not match: id (30,79) is not equal to id2 range (5,55)")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2"))
+            .eval(FILE_2);
+    assertThat(shouldRead)
+        .as("Should not match: id range (30,40) can not be equal to id2 range (50,80)")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2"))
+            .eval(FILE_3);
+    assertThat(shouldRead)
+        .as("Should not match: id range (5,25) can not be equal to id2 range (30,40)")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2"))
+            .eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should match: id range (30,30) can be equal to id2 range (30,30)")
+        .isTrue();
+  }
+
+  @Test
   public void testIntegerNotEq() {
     boolean shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MIN_VALUE - 25)).eval(FILE);
@@ -522,6 +741,37 @@ public class TestStrictMetricsEvaluator {
 
     shouldRead = new StrictMetricsEvaluator(SCHEMA, notEqual("id", INT_MAX_VALUE + 6)).eval(FILE);
     assertThat(shouldRead).as("Should read: no values == 85").isTrue();
+  }
+
+  @Test
+  public void testRefCompareIntegerNotEq() {
+    boolean shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2"))
+            .eval(FILE);
+    assertThat(shouldRead)
+        .as("Should not match: id (30,79) cannot be equal to id2 range (5,55)")
+        .isFalse();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2"))
+            .eval(FILE_2);
+    assertThat(shouldRead)
+        .as("Should match: id range (30,40) can be equal to id2 range (50,80)")
+        .isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2"))
+            .eval(FILE_3);
+    assertThat(shouldRead)
+        .as("Should match: id range (5,25) cannot be equal to id2 range (30,40)")
+        .isTrue();
+
+    shouldRead =
+        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2"))
+            .eval(FILE_4);
+    assertThat(shouldRead)
+        .as("Should not match: id range (30,30) can be equal to id2 range (30,30)")
+        .isFalse();
   }
 
   @Test
