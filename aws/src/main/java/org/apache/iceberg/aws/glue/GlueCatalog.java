@@ -415,15 +415,19 @@ public class GlueCatalog extends BaseMetastoreCatalog
             .tableType(fromTable.tableType())
             .parameters(fromTable.parameters())
             .storageDescriptor(fromTable.storageDescriptor());
-
-    glue.createTable(
-        CreateTableRequest.builder()
-            .catalogId(awsProperties.glueCatalogId())
-            .databaseName(toTableDbName)
-            .tableInput(tableInputBuilder.name(toTableName).build())
-            .build());
-    LOG.info("created rename destination table {}", to);
-
+    try {
+        glue.createTable(
+            CreateTableRequest.builder()
+                .catalogId(awsProperties.glueCatalogId())
+                .databaseName(toTableDbName)
+                .tableInput(tableInputBuilder.name(toTableName).build())
+                .build());
+        LOG.info("created rename destination table {}", to);
+    } catch (software.amazon.awssdk.services.glue.model.AlreadyExistsException e) {
+    // Catch AWS Glue exception and rethrow it as Iceberg's AlreadyExistsException
+    throw new org.apache.iceberg.exceptions.AlreadyExistsException("Table already exists: " + toTableName, e);
+    }
+      
     try {
       dropTable(from, false);
     } catch (Exception e) {
