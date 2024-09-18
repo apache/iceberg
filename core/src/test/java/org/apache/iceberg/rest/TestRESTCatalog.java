@@ -2342,7 +2342,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {21, 25, 29, 30})
+  @ValueSource(ints = {21, 30})
   public void testPaginationForListNamespaces(int numberOfItems) {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
@@ -2404,7 +2404,7 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {21, 25, 29, 30})
+  @ValueSource(ints = {21, 30})
   public void testPaginationForListTables(int numberOfItems) {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =

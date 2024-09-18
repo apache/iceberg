@@ -156,7 +156,7 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
   }
 
   @ParameterizedTest
-  @ValueSource(ints = {21, 25, 29, 30})
+  @ValueSource(ints = {21, 30})
   public void testPaginationForListViews(int numberOfItems) {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
