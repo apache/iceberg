@@ -82,7 +82,8 @@ class InternalReaders {
   private static class RecordReader extends ValueReaders.PlannedStructReader<GenericRecord> {
     private final Types.StructType structType;
 
-    private RecordReader(List<Pair<Integer, ValueReader<?>>> readPlan, Types.StructType structType) {
+    private RecordReader(
+        List<Pair<Integer, ValueReader<?>>> readPlan, Types.StructType structType) {
       super(readPlan);
       this.structType = structType;
     }
