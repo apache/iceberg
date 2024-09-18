@@ -72,6 +72,7 @@ import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.spark.sql.AnalysisException;
@@ -1576,7 +1577,7 @@ public class TestPositionDeletesTable extends CatalogTestBase {
     Set<DeleteFile> rewrittenFiles =
         ScanTaskSetManager.get().fetchTasks(posDeletesTable, fileSetID).stream()
             .map(t -> ((PositionDeletesScanTask) t).file())
-            .collect(Collectors.toSet());
+            .collect(Collectors.toCollection(DeleteFileSet::create));
     Set<DeleteFile> addedFiles = rewriteCoordinator.fetchNewFiles(posDeletesTable, fileSetID);
 
     // Assert new files and old files are equal in number but different in paths
