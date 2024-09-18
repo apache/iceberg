@@ -38,7 +38,8 @@ import org.testcontainers.containers.wait.strategy.Wait;
 
 public class TestContext {
 
-  public static final TestContext INSTANCE = new TestContext();
+  private static volatile TestContext instance;
+
   public static final ObjectMapper MAPPER = new ObjectMapper();
   public static final int CONNECT_PORT = 8083;
 
@@ -48,6 +49,13 @@ public class TestContext {
   private static final String AWS_ACCESS_KEY = "minioadmin";
   private static final String AWS_SECRET_KEY = "minioadmin";
   private static final String AWS_REGION = "us-east-1";
+
+  public static synchronized TestContext instance() {
+    if (instance == null) {
+      instance = new TestContext();
+    }
+    return instance;
+  }
 
   private TestContext() {
     ComposeContainer container =

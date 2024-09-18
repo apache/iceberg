@@ -40,11 +40,13 @@ import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.assertj.core.api.Condition;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 
 public class IntegrationTestBase {
 
-  private final TestContext context = TestContext.INSTANCE;
+  private static TestContext context;
+
   private Catalog catalog;
   private Admin admin;
   private String connectorName;
@@ -70,12 +72,16 @@ public class IntegrationTestBase {
     return testTopic;
   }
 
+  @BeforeAll
+  public static void baseBeforeAll() {
+    context = TestContext.instance();
+  }
+
   @BeforeEach
   public void baseBefore() {
-    catalog = context.initLocalCatalog();
-    producer = context.initLocalProducer();
-    admin = context.initLocalAdmin();
-
+    this.catalog = context.initLocalCatalog();
+    this.producer = context.initLocalProducer();
+    this.admin = context.initLocalAdmin();
     this.connectorName = "test_connector-" + UUID.randomUUID();
     this.testTopic = "test-topic-" + UUID.randomUUID();
   }
@@ -98,7 +104,7 @@ public class IntegrationTestBase {
     Map<String, String> props = latestSnapshot(table, branch).summary();
     assertThat(props)
         .hasKeySatisfying(
-            new Condition<String>() {
+            new Condition<>() {
               @Override
               public boolean matches(String str) {
                 return str.startsWith("kafka.connect.offsets.");
