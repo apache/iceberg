@@ -59,7 +59,12 @@ public class DataFilesTable extends BaseFilesTable {
     }
 
     @Override
-    protected CloseableIterable<Pair<Snapshot, ManifestFile>> manifests() {
+    protected CloseableIterable<ManifestFile> manifests() {
+      return CloseableIterable.withNoopClose(snapshot().dataManifests(table().io()));
+    }
+
+    @Override
+    protected CloseableIterable<Pair<Snapshot, ManifestFile>> snapshotManifestPairs() {
       return CloseableIterable.withNoopClose(
           snapshot().dataManifests(table().io()).stream()
               .map(manifestFile -> Pair.of(snapshot(), manifestFile))

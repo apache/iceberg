@@ -65,8 +65,13 @@ public class AllFilesTable extends BaseFilesTable {
     }
 
     @Override
-    protected CloseableIterable<Pair<Snapshot, ManifestFile>> manifests() {
-      return reachableManifests(
+    protected CloseableIterable<ManifestFile> manifests() {
+      return reachableManifests(snapshot -> snapshot.allManifests(table().io()));
+    }
+
+    @Override
+    protected CloseableIterable<Pair<Snapshot, ManifestFile>> snapshotManifestPairs() {
+      return reachableSnapshotManifestPairs(
           snapshot ->
               snapshot.allManifests(table().io()).stream()
                   .map(manifestFile -> Pair.of(snapshot, manifestFile))

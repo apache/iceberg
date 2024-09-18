@@ -100,11 +100,18 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
 
     /** Returns an iterable of manifest files to explore for this files metadata table scan */
-    protected abstract CloseableIterable<Pair<Snapshot, ManifestFile>> manifests();
+    protected abstract CloseableIterable<ManifestFile> manifests();
+
+    /**
+     * Returns an iterable of (reference_snapshot, manifest file) pairs to explore for this files
+     * metadata table scan
+     */
+    protected abstract CloseableIterable<Pair<Snapshot, ManifestFile>> snapshotManifestPairs();
 
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
-      return BaseFilesTable.planFiles(table(), manifests(), tableSchema(), schema(), context());
+      return BaseFilesTable.planFiles(
+          table(), snapshotManifestPairs(), tableSchema(), schema(), context());
     }
   }
 
@@ -120,11 +127,18 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
 
     /** Returns an iterable of manifest files to explore for this all files metadata table scan */
-    protected abstract CloseableIterable<Pair<Snapshot, ManifestFile>> manifests();
+    protected abstract CloseableIterable<ManifestFile> manifests();
+
+    /**
+     * Returns an iterable of (reference_snapshot, manifest file) pairs to explore for this all
+     * files metadata table scan
+     */
+    protected abstract CloseableIterable<Pair<Snapshot, ManifestFile>> snapshotManifestPairs();
 
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
-      return BaseFilesTable.planFiles(table(), manifests(), tableSchema(), schema(), context());
+      return BaseFilesTable.planFiles(
+          table(), snapshotManifestPairs(), tableSchema(), schema(), context());
     }
   }
 

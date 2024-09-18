@@ -72,7 +72,21 @@ abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
     return doPlanFiles();
   }
 
-  protected CloseableIterable<Pair<Snapshot, ManifestFile>> reachableManifests(
+  protected CloseableIterable<ManifestFile> reachableManifests(
+      Function<Snapshot, Iterable<ManifestFile>> toManifests) {
+    Iterable<Snapshot> snapshots = table().snapshots();
+    Iterable<Iterable<ManifestFile>> manifestIterables =
+        Iterables.transform(snapshots, toManifests);
+
+    try (CloseableIterable<ManifestFile> iterable =
+        new ParallelIterable<>(manifestIterables, planExecutor())) {
+      return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close parallel iterable", e);
+    }
+  }
+
+  protected CloseableIterable<Pair<Snapshot, ManifestFile>> reachableSnapshotManifestPairs(
       Function<Snapshot, Iterable<Pair<Snapshot, ManifestFile>>> toManifests) {
     Iterable<Snapshot> snapshots = table().snapshots();
     Iterable<Iterable<Pair<Snapshot, ManifestFile>>> manifestIterables =

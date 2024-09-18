@@ -86,7 +86,7 @@ public class AllEntriesTable extends BaseEntriesTable {
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
       CloseableIterable<Pair<Snapshot, ManifestFile>> snapshotManifestPairs =
-          reachableManifests(
+          reachableSnapshotManifestPairs(
               snapshot ->
                   snapshot.allManifests(table().io()).stream()
                       .map(manifestFile -> Pair.of(snapshot, manifestFile))
