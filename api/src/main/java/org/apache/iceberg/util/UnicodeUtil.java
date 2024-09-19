@@ -18,10 +18,6 @@
  */
 package org.apache.iceberg.util;
 
-import static java.lang.Character.MAX_CODE_POINT;
-import static java.lang.Character.MAX_SURROGATE;
-import static java.lang.Character.MIN_SURROGATE;
-
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
@@ -103,14 +99,14 @@ public class UnicodeUtil {
     // any UTF-8 byte sequence that would otherwise map to code points U+D800..U+DFFF is ill-formed.
     // see https://www.unicode.org/versions/Unicode16.0.0/core-spec/chapter-3/#G27288
     Preconditions.checkArgument(
-        codePoint < MIN_SURROGATE || codePoint > MAX_SURROGATE,
+        codePoint < Character.MIN_SURROGATE || codePoint > Character.MAX_SURROGATE,
         "invalid code point: %s",
         codePoint);
 
     if (codePoint == Character.MIN_SURROGATE - 1) {
       // increment to the next Unicode scalar value
-      return MAX_SURROGATE + 1;
-    } else if (codePoint == MAX_CODE_POINT) {
+      return Character.MAX_SURROGATE + 1;
+    } else if (codePoint == Character.MAX_CODE_POINT) {
       // overflow
       return 0;
     } else {
