@@ -277,45 +277,42 @@ public class ArrowReaderTest {
     org.apache.arrow.vector.types.pojo.Schema expectedSchema =
         new org.apache.arrow.vector.types.pojo.Schema(expectedFields);
 
-    Schema originalSchema =
+    Schema tableSchemaV1 =
         new Schema(
             Types.NestedField.required(1, "a", Types.IntegerType.get()),
             Types.NestedField.optional(2, "b", Types.IntegerType.get()));
 
-    PartitionSpec spec = PartitionSpec.builderFor(originalSchema).build();
-    Table table = tables.create(originalSchema, spec, tableLocation);
+    PartitionSpec spec = PartitionSpec.builderFor(tableSchemaV1).build();
+    Table table = tables.create(tableSchemaV1, spec, tableLocation);
 
     // Add one record to the table
-    {
-      GenericRecord rec = GenericRecord.create(originalSchema);
-      rec.setField("a", 1);
-      List<GenericRecord> genericRecords = Lists.newArrayList();
-      genericRecords.add(rec);
+    GenericRecord rec1 = GenericRecord.create(tableSchemaV1);
+    rec1.setField("a", 1);
+    List<GenericRecord> genericRecords1 = Lists.newArrayList();
+    genericRecords1.add(rec1);
 
-      AppendFiles appendFiles = table.newAppend();
-      appendFiles.appendFile(writeParquetFile(table, genericRecords));
-      appendFiles.commit();
-    }
+    AppendFiles appendFiles1 = table.newAppend();
+    appendFiles1.appendFile(writeParquetFile(table, genericRecords1));
+    appendFiles1.commit();
 
     // Alter the table schema by adding a new, optional column.
-    // Do not add any data for this new column in the one existing row in the table, i.e. no default value
+    // Do not add any data for this new column in the one existing row in the table, i.e. no default
+    // value
     UpdateSchema updateSchema = table.updateSchema().addColumn("z", Types.IntegerType.get());
-    Schema newSchema = updateSchema.apply();
+    Schema tableSchemaV2 = updateSchema.apply();
     updateSchema.commit();
 
     // Add one more record to the table
-    {
-      GenericRecord rec = GenericRecord.create(newSchema);
-      rec.setField("a", 2);
-      rec.setField("b", 2);
-      rec.setField("z", 2);
-      List<GenericRecord> genericRecords = Lists.newArrayList();
-      genericRecords.add(rec);
+    GenericRecord rec2 = GenericRecord.create(tableSchemaV2);
+    rec2.setField("a", 2);
+    rec2.setField("b", 2);
+    rec2.setField("z", 2);
+    List<GenericRecord> genericRecords2 = Lists.newArrayList();
+    genericRecords2.add(rec2);
 
-      AppendFiles appendFiles = table.newAppend();
-      appendFiles.appendFile(writeParquetFile(table, genericRecords));
-      appendFiles.commit();
-    }
+    AppendFiles appendFiles2 = table.newAppend();
+    appendFiles2.appendFile(writeParquetFile(table, genericRecords2));
+    appendFiles2.commit();
 
     // Select all columns, all rows from the table
     TableScan scan = table.newScan().select("*");
