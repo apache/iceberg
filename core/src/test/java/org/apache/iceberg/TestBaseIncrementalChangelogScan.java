@@ -167,44 +167,44 @@ public class TestBaseIncrementalChangelogScan
     assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
     assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_B.path());
-    assertThat(t1.addedDeletes().get(0).path())
-        .as("Added delete file must match")
-        .isEqualTo(FILE_B_DELETES.path());
+    assertThat(t1.addedDeletes())
+        .hasSize(1)
+        .extracting(DeleteFile::path)
+        .as("Added delete files must match")
+        .containsExactly(FILE_B_DELETES.path());
     assertThat(t1.existingDeletes()).as("Must be no existing deletes").isEmpty();
 
     DeletedRowsScanTask t2 = (DeletedRowsScanTask) tasks.get(1);
     assertThat(t2.changeOrdinal()).as("Ordinal must match").isEqualTo(1);
     assertThat(t2.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap3.snapshotId());
     assertThat(t2.file().path()).as("Data file must match").isEqualTo(FILE_C.path());
-    assertThat(t2.addedDeletes().get(0).path())
-        .as("Added delete file must match")
-        .isEqualTo(FILE_C2_DELETES.path());
+    assertThat(t2.addedDeletes())
+        .hasSize(1)
+        .extracting(DeleteFile::path)
+        .as("Added delete files must match")
+        .containsExactly(FILE_C2_DELETES.path());
     assertThat(t2.existingDeletes()).as("Must be no existing deletes").isEmpty();
 
     DeletedRowsScanTask t3 = (DeletedRowsScanTask) tasks.get(2);
     assertThat(t3.changeOrdinal()).as("Ordinal must match").isEqualTo(2);
     assertThat(t3.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap4.snapshotId());
     assertThat(t3.file().path()).as("Data file must match").isEqualTo(FILE_A2.path());
-    assertThat(t3.addedDeletes().size()).as("Number of added delete files must match").isEqualTo(2);
-    assertThat(t3.addedDeletes().get(0).path())
-        .as("Added delete file must match")
-        .isEqualTo(FILE_A2_DELETES.path());
-    assertThat(t3.addedDeletes().get(1).path())
-        .as("Added delete file must match")
-        .isEqualTo(FILE_A_DELETES.path());
+    assertThat(t3.addedDeletes())
+        .hasSize(2)
+        .extracting(DeleteFile::path)
+        .as("Added delete files must match")
+        .containsExactlyInAnyOrder(FILE_A2_DELETES.path(), FILE_A_DELETES.path());
     assertThat(t3.existingDeletes()).as("Must be no existing deletes").isEmpty();
 
     DeletedRowsScanTask t4 = (DeletedRowsScanTask) tasks.get(3);
     assertThat(t4.changeOrdinal()).as("Ordinal must match").isEqualTo(2);
     assertThat(t4.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap4.snapshotId());
     assertThat(t4.file().path()).as("Data file must match").isEqualTo(FILE_A.path());
-    assertThat(t4.addedDeletes().size()).as("Number of added delete files must match").isEqualTo(2);
-    assertThat(t4.addedDeletes().get(0).path())
-        .as("Added delete file must match")
-        .isEqualTo(FILE_A2_DELETES.path());
-    assertThat(t4.addedDeletes().get(1).path())
-        .as("Added delete file must match")
-        .isEqualTo(FILE_A_DELETES.path());
+    assertThat(t4.addedDeletes())
+        .hasSize(2)
+        .extracting(DeleteFile::path)
+        .as("Added delete files must match")
+        .containsExactlyInAnyOrder(FILE_A2_DELETES.path(), FILE_A_DELETES.path());
     assertThat(t4.existingDeletes()).as("Must be no existing deletes").isEmpty();
   }
 
@@ -229,9 +229,11 @@ public class TestBaseIncrementalChangelogScan
     assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap2.snapshotId());
     assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_B.path());
-    assertThat(t1.deletes().get(0).path())
-        .as("Delete file must match")
-        .isEqualTo(FILE_B_DELETES.path());
+    assertThat(t1.deletes())
+        .hasSize(1)
+        .extracting(DeleteFile::path)
+        .as("Delete files must match")
+        .containsExactly(FILE_B_DELETES.path());
   }
 
   @TestTemplate
@@ -258,16 +260,16 @@ public class TestBaseIncrementalChangelogScan
     assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap3.snapshotId());
     assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_A.path());
-    assertThat(t1.addedDeletes().size()).as("Number of added delete files must match").isEqualTo(1);
-    assertThat(t1.addedDeletes().get(0).path())
-        .as("Added delete file must match")
-        .isEqualTo(FILE_A2_DELETES.path());
-    assertThat(t1.existingDeletes().size())
-        .as("Number of existing delete files must match")
-        .isEqualTo(1);
-    assertThat(t1.existingDeletes().get(0).path())
-        .as("Existing delete file must match")
-        .isEqualTo(FILE_A_DELETES.path());
+    assertThat(t1.addedDeletes())
+        .hasSize(1)
+        .extracting(DeleteFile::path)
+        .as("Added delete files must match")
+        .containsExactly(FILE_A2_DELETES.path());
+    assertThat(t1.existingDeletes())
+        .hasSize(1)
+        .extracting(DeleteFile::path)
+        .as("Existing delete files must match")
+        .containsExactly(FILE_A_DELETES.path());
   }
 
   @TestTemplate
@@ -294,10 +296,11 @@ public class TestBaseIncrementalChangelogScan
     assertThat(t1.changeOrdinal()).as("Ordinal must match").isEqualTo(0);
     assertThat(t1.commitSnapshotId()).as("Snapshot must match").isEqualTo(snap3.snapshotId());
     assertThat(t1.file().path()).as("Data file must match").isEqualTo(FILE_B.path());
-    assertThat(t1.existingDeletes()).hasSize(1);
-    assertThat(t1.existingDeletes().get(0).path())
-        .as("Existing delete file must match")
-        .isEqualTo(FILE_B_DELETES.path());
+    assertThat(t1.existingDeletes())
+        .hasSize(1)
+        .extracting(DeleteFile::path)
+        .as("Existing delete files must match")
+        .containsExactly(FILE_B_DELETES.path());
   }
 
   @TestTemplate
