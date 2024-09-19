@@ -221,8 +221,7 @@ public class GenericArrowVectorAccessorFactory<
       return new FixedSizeBinaryAccessor<>(
           (FixedSizeBinaryVector) vector, stringFactorySupplier.get());
     }
-    String vectorName = (vector == null) ? "null" : vector.getClass().toString();
-    throw new UnsupportedOperationException("Unsupported vector: " + vectorName);
+    throw new UnsupportedOperationException("Unsupported vector: " + vector.getClass());
   }
 
   private static boolean isDecimal(PrimitiveType primitive) {
