@@ -94,11 +94,12 @@ Each version in `versions` is a struct with the following fields:
 | _required_  | `representations`   | A list of [representations](#representations) for the view definition         |
 | _optional_  | `default-catalog`   | Catalog name to use when a reference in the SELECT does not contain a catalog |
 | _required_  | `default-namespace` | Namespace to use when a reference in the SELECT is a single identifier        |
-| _optional_  | `storage-table`   | A [full identifier](#full-identifier) of the storage table |
+| _optional_  | `storage-table`   | A [partial identifier](#partial-identifier) of the storage table |
 
 When `default-catalog` is `null` or not set, the catalog in which the view is stored must be used as the default catalog.
 
-When 'storage-table' is `null` or not set, the entity is a common view, otherwise it is a materialized view.
+When 'storage-table' is `null` or not set, the entity is a common view, otherwise it is a materialized view. 
+The catalog of the storage table must be same as the one of the materialized view.
 
 #### Summary
 
@@ -175,18 +176,14 @@ Each entry in `version-log` is a struct with the following fields:
 | _required_  | `timestamp-ms` | Timestamp when the view's `current-version-id` was updated (ms from epoch) |
 | _required_  | `version-id`   | ID that `current-version-id` was set to |
 
-#### Full identifier
+#### Partial identifier
 
-The full identifier holds a fully resolved reference for a table or view in the catalog.
+The partial identifier holds a reference, containing a namespace and a name, of a table or view in the catalog.
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _required_  | `catalog` | A string specifying the catalog of the source table |
 | _required_  | `namespace`   | A list of namespace levels |
-| _required_  | `table`   | A string specifying the name of the source table |
-| _optional_  | `ref`   | Branch name of the source table that is being referenced in the view query  |
-
-When 'ref' is `null` or not set, it defaults to “main”. This field is to be ignored if the referenced entity is a view.
+| _required_  | `name`   | A string specifying the name of the source table |
 
 ### Materialized View Metadata stored as part of the Table Metadata
 
@@ -196,7 +193,7 @@ For that the additional field "refresh-state" is introduced as an opaque record 
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _required_  | `refresh-state` | A [refresh state](#refresh-state) record stored as a JSON-encoded string. | 
+| _required_  | `refresh-state` | A [refresh state](#refresh-state) record stored as a JSON-encoded string | 
 
 #### Refresh state
 
@@ -215,9 +212,11 @@ A source table record captures the state of a source table at the time of the la
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _required_  | `identifier` | A [full identifier](#full-identifier) for the source table | 
 | _required_  | `uuid` | The uuid of the source table | 
 | _required_  | `snapshot-id`   | Snapshot-id of when the last refresh operation was performed |
+| _optional_  | `ref` | Branch name of the source table being referenced in the view query |
+
+When `ref` is `null` or not set, it default to "main".
 
 #### Source view
 
@@ -225,7 +224,6 @@ A source view record captures the state of a source view at the time of the last
 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
-| _required_  | `identifier` | A [full identifier](#full-identifier) for the source view | 
 | _required_  | `uuid` | The uuid of the source view | 
 | _required_  | `version-id`   | Version-id of when the last refresh operation was performed |
 
