@@ -1246,7 +1246,7 @@ Name mapping is serialized as a list of field mapping JSON Objects which are ser
 |Field mapping field|JSON representation|Example|
 |--- |--- |--- |
 |**`names`**|`JSON list of strings`|`["latitude", "lat"]`|
-|**`field_id`**|`JSON int`|`1`|
+|**`field-id`**|`JSON int`|`1`|
 |**`fields`**|`JSON field mappings (list of objects)`|`[{ `<br />&nbsp;&nbsp;`"field-id": 4,`<br />&nbsp;&nbsp;`"names": ["latitude", "lat"]`<br />`}, {`<br />&nbsp;&nbsp;`"field-id": 5,`<br />&nbsp;&nbsp;`"names": ["longitude", "long"]`<br />`}]`|
 
 Example
