@@ -50,8 +50,6 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 public abstract class BaseParquetReaders<T> {
   protected BaseParquetReaders() {}
 
@@ -399,17 +397,27 @@ public abstract class BaseParquetReaders<T> {
 
     @Override
     public ParquetValueReader<?> variant(GroupType variant) {
-        // TODO: Use Record to model Variant data?
-        return createVariantReader(
-                List.of(
-                new ParquetValueReaders.ByteArrayReader(
-                        new ColumnDescriptor(new String[] {variant.getName(), "Value"},
-                                new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Value"),
-                                0, 0)),
-                new ParquetValueReaders.ByteArrayReader(
-                        new ColumnDescriptor(new String[] {variant.getName(), "Metadata"},
-                                new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Metadata"),
-                                0, 0))));
+      // TODO: Use Record to model Variant data?
+      return createVariantReader(
+          List.of(
+              new ParquetValueReaders.ByteArrayReader(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "Value"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "Value"),
+                      0,
+                      0)),
+              new ParquetValueReaders.ByteArrayReader(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "Metadata"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "Metadata"),
+                      0,
+                      0))));
     }
 
     MessageType type() {

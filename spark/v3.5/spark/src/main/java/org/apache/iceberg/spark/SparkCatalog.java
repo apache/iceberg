@@ -566,7 +566,8 @@ public class SparkCatalog extends BaseCatalog
   }
 
   @Override
-  public View createView(ViewInfo viewInfo) throws ViewAlreadyExistsException, NoSuchNamespaceException {
+  public View createView(ViewInfo viewInfo)
+      throws ViewAlreadyExistsException, NoSuchNamespaceException {
     if (null != asViewCatalog) {
       Schema icebergSchema = SparkSchemaUtil.convert(viewInfo.schema());
 

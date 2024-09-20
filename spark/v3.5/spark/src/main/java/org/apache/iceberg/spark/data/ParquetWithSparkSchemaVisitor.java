@@ -30,7 +30,6 @@ import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Type.Repetition;
 import org.apache.spark.sql.types.ArrayType;
-import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.Metadata;

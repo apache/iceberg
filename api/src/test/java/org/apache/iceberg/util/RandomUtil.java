@@ -234,11 +234,11 @@ public class RandomUtil {
   }
 
   private static VariantVal randomVariant() {
-      try {
-          Variant variant = VariantBuilder.parseJson("{\"name\": \"john\"}");
-          return new VariantVal(variant.getValue(), variant.getMetadata());
-      } catch (IOException e) {
-          throw new RuntimeException(e);
-      }
+    try {
+      Variant variant = VariantBuilder.parseJson("{\"name\": \"john\"}");
+      return new VariantVal(variant.getValue(), variant.getMetadata());
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 }

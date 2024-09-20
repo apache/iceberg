@@ -196,16 +196,26 @@ public class SparkParquetReaders {
 
     @Override
     public ParquetValueReader<?> variant(GroupType variant) {
-        return new VariantReader(
-                List.of(
-                        new ParquetValueReaders.ByteArrayReader(
-                          new ColumnDescriptor(new String[] {variant.getName(), "Value"},
-                          new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Value"),
-                          0, 0)),
-                        new ParquetValueReaders.ByteArrayReader(
-                          new ColumnDescriptor(new String[] {variant.getName(), "Metadata"},
-                          new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Metadata"),
-                          0, 0))));
+      return new VariantReader(
+          List.of(
+              new ParquetValueReaders.ByteArrayReader(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "Value"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "Value"),
+                      0,
+                      0)),
+              new ParquetValueReaders.ByteArrayReader(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "Metadata"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "Metadata"),
+                      0,
+                      0))));
     }
 
     @Override
@@ -560,35 +570,39 @@ public class SparkParquetReaders {
   }
 
   private static class VariantReader extends StructReader<VariantVal, GenericInternalRow> {
-      protected VariantReader(List<ParquetValueReader<?>> readers) {
-          super(List.of(
-                  new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Value"),
-                  new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Metadata")), readers);
-      }
-
-      @Override
-      protected GenericInternalRow newStructData(VariantVal reuse) {
-          return new GenericInternalRow(2);
-      }
-
-      @Override
-      protected Object getField(GenericInternalRow intermediate, int pos) {
-          return intermediate.genericGet(pos);
-      }
-
-      @Override
-      protected VariantVal buildStruct(GenericInternalRow struct) {
-          return new VariantVal(struct.getBinary(0), struct.getBinary(1));
-      }
-
-      @Override
-      protected void set(GenericInternalRow row, int pos, Object value) {
-          row.update(pos, value);
-      }
+    protected VariantReader(List<ParquetValueReader<?>> readers) {
+      super(
+          List.of(
+              new PrimitiveType(
+                  Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Value"),
+              new PrimitiveType(
+                  Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Metadata")),
+          readers);
     }
 
-    private static class InternalRowReader extends StructReader<InternalRow, GenericInternalRow> {
-        private final int numFields;
+    @Override
+    protected GenericInternalRow newStructData(VariantVal reuse) {
+      return new GenericInternalRow(2);
+    }
+
+    @Override
+    protected Object getField(GenericInternalRow intermediate, int pos) {
+      return intermediate.genericGet(pos);
+    }
+
+    @Override
+    protected VariantVal buildStruct(GenericInternalRow struct) {
+      return new VariantVal(struct.getBinary(0), struct.getBinary(1));
+    }
+
+    @Override
+    protected void set(GenericInternalRow row, int pos, Object value) {
+      row.update(pos, value);
+    }
+  }
+
+  private static class InternalRowReader extends StructReader<InternalRow, GenericInternalRow> {
+    private final int numFields;
 
     InternalRowReader(List<Type> types, List<ParquetValueReader<?>> readers) {
       super(types, readers);

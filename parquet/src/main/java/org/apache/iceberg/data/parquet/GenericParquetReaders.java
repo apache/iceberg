@@ -18,7 +18,8 @@
  */
 package org.apache.iceberg.data.parquet;
 
-import java.nio.ByteBuffer;
+import static org.apache.iceberg.types.Types.NestedField.required;
+
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.Schema;
@@ -31,9 +32,6 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-import org.apache.spark.types.variant.Variant;
-
-import static org.apache.iceberg.types.Types.NestedField.required;
 
 public class GenericParquetReaders extends BaseParquetReaders<Record> {
 
@@ -59,7 +57,7 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
 
   @Override
   protected ParquetValueReader<Record> createVariantReader(
-          List<ParquetValueReader<?>> fieldReaders) {
+      List<ParquetValueReader<?>> fieldReaders) {
     return new VariantReader(fieldReaders);
   }
 
@@ -100,34 +98,25 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
   }
 
   /**
-   * Variant reader to read Value and Metadata binaries from Parquet file and convert to a record. 
-   * TODO: return A record to model Variant data.
+   * Variant reader to read Value and Metadata binaries from Parquet file and convert to a record.
+   * TODO: Aihua return A record to model Variant data.
    */
   public static class VariantReader extends RecordReader {
-    // TODO: Use Record to model Variant data?
-    private final static List<Type> types = List.of(
-            new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Value"),
-            new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Metadata"));
-    private final static Types.StructType struct = Types.StructType.of(
-            required(1, "Value", Types.BinaryType.get()),
-            required(2, "Metadata", Types.BinaryType.get()));
+    private static final List<Type> types =
+        List.of(
+            new PrimitiveType(
+                Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Value"),
+            new PrimitiveType(
+                Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Metadata"));
 
     VariantReader(List<ParquetValueReader<?>> readers) {
-      super(types, readers, struct);
+      super(types, readers, null);
     }
 
     @Override
     protected Record buildStruct(Record struct) {
       // struct is of Value + Metadata binaries
-      // TODO: convert into a variant => json => record
-      // byte[] value = struct.get(0, ByteBuffer.class).array();
-      // byte[] metadata = struct.get(1, ByteBuffer.class).array();
-      // Variant variant = new Variant(value, metadata);
       return struct;
     }
-
   }
-
-
-
 }

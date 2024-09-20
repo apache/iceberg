@@ -18,14 +18,12 @@
  */
 package org.apache.iceberg.parquet;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -80,7 +78,9 @@ public class ParquetSchemaUtil {
   public static MessageType pruneColumns(MessageType fileSchema, Schema expectedSchema) {
     // column order must match the incoming type, so it doesn't matter that the ids are unordered
     Set<Integer> selectedIds = TypeUtil.getProjectedIds(expectedSchema);
-    return (MessageType) TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema, new PruneColumns(selectedIds));
+    return (MessageType)
+        TypeWithSchemaVisitor.visit(
+            expectedSchema.asStruct(), fileSchema, new PruneColumns(selectedIds));
   }
 
   /**

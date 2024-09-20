@@ -690,7 +690,7 @@ class Literals {
 
   static class VariantLiteral extends BaseLiteral<ByteBuffer> {
     private static final Comparator<ByteBuffer> CMP =
-            Comparators.<ByteBuffer>nullsFirst().thenComparing(Comparators.unsignedBytes());
+        Comparators.<ByteBuffer>nullsFirst().thenComparing(Comparators.unsignedBytes());
 
     VariantLiteral(ByteBuffer value) {
       super(value);

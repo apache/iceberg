@@ -315,7 +315,8 @@ class IcebergParseException(
     builder ++= "\n" ++= message
     start match {
       case Origin(
-          Some(l), Some(p), Some(startIndex), Some(stopIndex), Some(sqlText), Some(objectType), Some(objectName), Some(stackTrace), Some(pysparkErrorContext)) =>
+          Some(l), Some(p), Some(startIndex), Some(stopIndex), Some(sqlText), Some(objectType),
+          Some(objectName), Some(stackTrace), Some(pysparkErrorContext)) =>
         builder ++= s"(line $l, pos $p)\n"
         command.foreach { cmd =>
           val (above, below) = cmd.split("\n").splitAt(l)

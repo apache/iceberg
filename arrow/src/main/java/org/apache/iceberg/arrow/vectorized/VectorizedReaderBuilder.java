@@ -119,8 +119,8 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
 
   @Override
   public VectorizedReader<?> variant(GroupType variant) {
-      throw new UnsupportedOperationException(
-              "Vectorized reads are not supported yet for variant fields");
+    throw new UnsupportedOperationException(
+        "Vectorized reads are not supported yet for variant fields");
   }
 
   @Override

@@ -48,7 +48,8 @@ object CheckViews extends (LogicalPlan => Unit) {
         }
 
       case AlterViewAs(ResolvedV2View(_, _), _, _) =>
-        throw new AnalysisException("ALTER VIEW <viewName> AS is not supported. Use CREATE OR REPLACE VIEW instead", null)
+        throw new AnalysisException("ALTER VIEW <viewName> AS is not supported. Use CREATE OR REPLACE VIEW instead",
+        null)
 
       case _ => // OK
     }

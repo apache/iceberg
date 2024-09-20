@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.parquet;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BOOLEAN;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
@@ -32,7 +31,6 @@ import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types.BinaryType;
 import org.apache.iceberg.types.Types.DecimalType;
 import org.apache.iceberg.types.Types.FixedType;
 import org.apache.iceberg.types.Types.ListType;
@@ -45,7 +43,6 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.LogicalTypeAnnotation.TimeUnit;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
-import org.apache.parquet.schema.TypeVisitor;
 import org.apache.parquet.schema.Types;
 
 public class TypeToMessageType {
@@ -74,9 +71,13 @@ public class TypeToMessageType {
     Types.GroupBuilder<GroupType> builder = Types.buildGroup(repetition);
 
     return builder
-            .addField(new org.apache.parquet.schema.PrimitiveType(Type.Repetition.REQUIRED, BINARY, "Value"))
-            .addField(new org.apache.parquet.schema.PrimitiveType(Type.Repetition.REQUIRED, BINARY, "Metadata"))
-            .id(id).named(AvroSchemaUtil.makeCompatibleName(name));
+        .addField(
+            new org.apache.parquet.schema.PrimitiveType(Type.Repetition.REQUIRED, BINARY, "Value"))
+        .addField(
+            new org.apache.parquet.schema.PrimitiveType(
+                Type.Repetition.REQUIRED, BINARY, "Metadata"))
+        .id(id)
+        .named(AvroSchemaUtil.makeCompatibleName(name));
   }
 
   public GroupType struct(StructType struct, Type.Repetition repetition, int id, String name) {

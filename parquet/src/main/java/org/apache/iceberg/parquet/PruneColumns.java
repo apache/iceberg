@@ -24,14 +24,14 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Types.ListType;
+import org.apache.iceberg.types.Types.MapType;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
-import org.apache.iceberg.types.Types.ListType;
-import org.apache.iceberg.types.Types.MapType;
-import org.apache.iceberg.types.Types.StructType;
 
 class PruneColumns extends TypeWithSchemaVisitor<Type> {
   private final Set<Integer> selectedIds;

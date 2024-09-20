@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.util;
 
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.IOException;
 import java.util.List;
 import org.apache.iceberg.Accessor;
@@ -31,10 +35,6 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.types.variant.Variant;
 import org.apache.spark.types.variant.VariantBuilder;
 import org.junit.jupiter.api.Test;
-
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.assertj.core.api.Assertions.assertThat;
 
 public class TestVariant {
   @Test
@@ -50,7 +50,8 @@ public class TestVariant {
     Types.NestedField metadataType = required(2, "Metadata", Types.BinaryType.get());
 
     Schema schema = new Schema(List.of(valueType, metadataType));
-    return GenericRecord.create(schema).copy("Value", variant.getValue(), "Metadata", variant.getMetadata());
+    return GenericRecord.create(schema)
+        .copy("Value", variant.getValue(), "Metadata", variant.getMetadata());
   }
 
   private static Accessor<StructLike> direct(Type type) {

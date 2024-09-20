@@ -49,16 +49,13 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.ArrayType;
-import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
-import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
-import org.apache.spark.sql.types.VariantType;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -101,19 +98,28 @@ public class SparkParquetWriters {
     @Override
     public ParquetValueWriter<?> variant(GroupType variant) {
       List<ParquetValueWriter<?>> writers =
-              List.of(byteArrays(
-              new ColumnDescriptor(new String[] {variant.getName(), "Value"},
-                                 new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Value"),
-                                              0, 0)),
+          List.of(
               byteArrays(
-                      new ColumnDescriptor(new String[] {variant.getName(), "Metadata"},
-                              new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Metadata"),
-                              0, 0)));
-
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "Value"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "Value"),
+                      0,
+                      0)),
+              byteArrays(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "Metadata"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "Metadata"),
+                      0,
+                      0)));
 
       return new VariantWriter(writers);
     }
-
 
     @Override
     public ParquetValueWriter<?> list(
