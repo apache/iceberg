@@ -274,6 +274,100 @@ public class ContentFileParser {
     return partitionData;
   }
 
+  static void unboundContentFileToJson(
+      ContentFile<?> contentFile, PartitionSpec spec, JsonGenerator generator) throws IOException {
+    Preconditions.checkArgument(contentFile != null, "Invalid content file: null");
+    Preconditions.checkArgument(spec != null, "Invalid partition spec: null");
+    Preconditions.checkArgument(generator != null, "Invalid JSON generator: null");
+    Preconditions.checkArgument(
+        contentFile.specId() == spec.specId(),
+        "Invalid partition spec id from content file: expected = %s, actual = %s",
+        spec.specId(),
+        contentFile.specId());
+
+    generator.writeStartObject();
+    // ignore the ordinal position (ContentFile#pos) of the file in a manifest,
+    // as it isn't used and BaseFile constructor doesn't support it.
+
+    generator.writeNumberField(SPEC_ID, contentFile.specId());
+    generator.writeStringField(CONTENT, contentFile.content().name());
+    generator.writeStringField(FILE_PATH, contentFile.path().toString());
+    generator.writeStringField(FILE_FORMAT, contentFile.format().name());
+
+    if (contentFile.partition() != null) {
+      generator.writeFieldName(PARTITION);
+      SingleValueParser.toJson(spec.partitionType(), contentFile.partition(), generator);
+    }
+
+    generator.writeNumberField(FILE_SIZE, contentFile.fileSizeInBytes());
+
+    metricsToJson(contentFile, generator);
+
+    if (contentFile.keyMetadata() != null) {
+      generator.writeFieldName(KEY_METADATA);
+      SingleValueParser.toJson(DataFile.KEY_METADATA.type(), contentFile.keyMetadata(), generator);
+    }
+
+    if (contentFile.splitOffsets() != null) {
+      JsonUtil.writeLongArray(SPLIT_OFFSETS, contentFile.splitOffsets(), generator);
+    }
+
+    if (contentFile.equalityFieldIds() != null) {
+      JsonUtil.writeIntegerArray(EQUALITY_IDS, contentFile.equalityFieldIds(), generator);
+    }
+
+    if (contentFile.sortOrderId() != null) {
+      generator.writeNumberField(SORT_ORDER_ID, contentFile.sortOrderId());
+    }
+
+    generator.writeEndObject();
+  }
+
+  static ContentFile<?> unboundContentFileFromJson(JsonNode jsonNode) {
+    // TODO this does not contain ParitionSpec at the time of serialization
+    // we will need to bind the correct ParitionData to the file at a later point in the protocol.
+
+    Preconditions.checkArgument(jsonNode != null, "Invalid JSON node for content file: null");
+
+    int specId = JsonUtil.getInt(SPEC_ID, jsonNode);
+    FileContent fileContent = FileContent.valueOf(JsonUtil.getString(CONTENT, jsonNode));
+    String filePath = JsonUtil.getString(FILE_PATH, jsonNode);
+    FileFormat fileFormat = FileFormat.fromString(JsonUtil.getString(FILE_FORMAT, jsonNode));
+
+    long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);
+    Metrics metrics = metricsFromJson(jsonNode);
+    ByteBuffer keyMetadata = JsonUtil.getByteBufferOrNull(KEY_METADATA, jsonNode);
+    List<Long> splitOffsets = JsonUtil.getLongListOrNull(SPLIT_OFFSETS, jsonNode);
+    int[] equalityFieldIds = JsonUtil.getIntArrayOrNull(EQUALITY_IDS, jsonNode);
+    Integer sortOrderId = JsonUtil.getIntOrNull(SORT_ORDER_ID, jsonNode);
+
+    if (fileContent == FileContent.DATA) {
+      return new GenericDataFile(
+          specId,
+          filePath,
+          fileFormat,
+          null,
+          fileSizeInBytes,
+          metrics,
+          keyMetadata,
+          splitOffsets,
+          sortOrderId);
+    } else {
+      return new GenericDeleteFile(
+          specId,
+          fileContent,
+          filePath,
+          fileFormat,
+          null,
+          fileSizeInBytes,
+          metrics,
+          equalityFieldIds,
+          sortOrderId,
+          splitOffsets,
+          keyMetadata);
+    }
+  }
+
   private static void metricsToJson(ContentFile<?> contentFile, JsonGenerator generator)
       throws IOException {
     generator.writeNumberField(RECORD_COUNT, contentFile.recordCount());

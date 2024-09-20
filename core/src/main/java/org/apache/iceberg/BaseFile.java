@@ -434,6 +434,11 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     return partitionData;
   }
 
+  public void setPartitionData(PartitionData partitionData) {
+    // TODO for binding in REST scan
+    this.partitionData = partitionData;
+  }
+
   @Override
   public long recordCount() {
     return recordCount;

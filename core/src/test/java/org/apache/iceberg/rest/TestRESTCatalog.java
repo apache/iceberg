@@ -79,10 +79,13 @@ import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
+import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
@@ -2681,6 +2684,120 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 .newInputFile(addSnapshot.snapshot().manifestListLocation())
                 .exists())
         .isTrue();
+  }
+
+  @Test
+  public void testPlanTableScanWithCompletedStatusAndFileScanTask() throws IOException {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_FILE_SCAN_TASK, adapter);
+    assertBoundFileScanTasks(table, SPEC);
+    // verify planTableScan route was called
+    Mockito.verify(adapter)
+        .handleRequest(
+            eq(RESTCatalogAdapter.Route.PLAN_TABLE_SCAN),
+            any(),
+            any(),
+            eq(PlanTableScanResponse.class));
+  }
+
+  @Test
+  public void testPlanTableScanAndFetchPlanningResultWithSubmittedStatusAndFileScanTask()
+      throws IOException {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    Table table = createRESTTableAndInsertData(TABLE_SUBMITTED_WITH_FILE_SCAN_TASK, adapter);
+    assertBoundFileScanTasks(table, SPEC);
+    // verify planTableScan route was called
+    Mockito.verify(adapter)
+        .handleRequest(
+            eq(RESTCatalogAdapter.Route.PLAN_TABLE_SCAN),
+            any(),
+            any(),
+            eq(PlanTableScanResponse.class));
+
+    // verify fetchPlanningResult route was called
+    Mockito.verify(adapter)
+        .handleRequest(
+            eq(RESTCatalogAdapter.Route.FETCH_PLANNING_RESULT),
+            any(),
+            any(),
+            eq(FetchPlanningResultResponse.class));
+  }
+
+  @Test
+  public void testPlanTableScanAndFetchScanTasksWithCompletedStatusAndPlanTask()
+      throws IOException {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_PLAN_TASK, adapter);
+
+    // TODO fix this as rn the adapter returns same file for each planTask
+    assertBoundFileScanTasks(table, SPEC);
+    // verify planTableScan route was called
+    Mockito.verify(adapter)
+        .handleRequest(
+            eq(RESTCatalogAdapter.Route.PLAN_TABLE_SCAN),
+            any(),
+            any(),
+            eq(PlanTableScanResponse.class));
+
+    // verify fetchScanTask route was called
+    Mockito.verify(adapter, times(2))
+        .handleRequest(
+            eq(RESTCatalogAdapter.Route.FETCH_SCAN_TASKS),
+            any(),
+            any(),
+            eq(FetchScanTasksResponse.class));
+  }
+
+  @Test
+  public void testPlanTableScanAndFetchScanTasksWithCompletedStatusAndNestedPlanTasks()
+      throws IOException {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    Table table = createRESTTableAndInsertData(TABLE_COMPLETED_WITH_NESTED_PLAN_TASK, adapter);
+
+    assertBoundFileScanTasks(table, SPEC);
+    // verify planTableScan route was called
+    Mockito.verify(adapter)
+        .handleRequest(
+            eq(RESTCatalogAdapter.Route.PLAN_TABLE_SCAN),
+            any(),
+            any(),
+            eq(PlanTableScanResponse.class));
+
+    // verify fetchScanTask route was called
+    Mockito.verify(adapter, times(4))
+        .handleRequest(
+            eq(RESTCatalogAdapter.Route.FETCH_SCAN_TASKS),
+            any(),
+            any(),
+            eq(FetchScanTasksResponse.class));
+  }
+
+  public Table createRESTTableAndInsertData(
+      TableIdentifier tableIdentifier, RESTCatalogAdapter restCatalogAdapter) throws IOException {
+    RESTCatalog catalog =
+        new RESTCatalog(
+            SessionCatalog.SessionContext.createEmpty(), (config) -> restCatalogAdapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED,
+            "true",
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO"));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(tableIdentifier.namespace());
+    }
+
+    Table table =
+        catalog
+            .buildTable(tableIdentifier, SCHEMA)
+            .withProperty("table.rest-scan-planning", "true")
+            .withPartitionSpec(SPEC)
+            .create();
+
+    table.newAppend().appendFile(FILE_A).commit();
+    return table;
   }
 
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
