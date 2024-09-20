@@ -185,6 +185,45 @@ public class Deletes {
     }
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in future.
+   */
+  @Deprecated
+  public static <T> CloseableIterable<T> streamingFilter(
+      CloseableIterable<T> rows,
+      Function<T, Long> rowToPosition,
+      CloseableIterable<Long> posDeletes) {
+    return streamingFilter(rows, rowToPosition, posDeletes, new DeleteCounter());
+  }
+
+  /**
+   * @deprecated since 1.7.0, will be removed in future.
+   */
+  @Deprecated
+  public static <T> CloseableIterable<T> streamingFilter(
+      CloseableIterable<T> rows,
+      Function<T, Long> rowToPosition,
+      CloseableIterable<Long> posDeletes,
+      DeleteCounter counter) {
+    PositionDeleteIndex positionIndex = toPositionIndex(posDeletes);
+    Predicate<T> isDeleted = row -> positionIndex.isDeleted(rowToPosition.apply(row));
+    return filterDeleted(rows, isDeleted, counter);
+  }
+
+  /**
+   * @deprecated since 1.7.0, will be removed in future.
+   */
+  @Deprecated
+  public static <T> CloseableIterable<T> streamingMarker(
+      CloseableIterable<T> rows,
+      Function<T, Long> rowToPosition,
+      CloseableIterable<Long> posDeletes,
+      Consumer<T> markRowDeleted) {
+    PositionDeleteIndex positionIndex = toPositionIndex(posDeletes);
+    Predicate<T> isDeleted = row -> positionIndex.isDeleted(rowToPosition.apply(row));
+    return markDeleted(rows, isDeleted, markRowDeleted);
+  }
+
   public static CloseableIterable<Long> deletePositions(
       CharSequence dataLocation, CloseableIterable<StructLike> deleteFile) {
     return deletePositions(dataLocation, ImmutableList.of(deleteFile));
