@@ -3103,50 +3103,58 @@ components:
         uuid:
           type: string
 
-    ADLSCredentials:
+    ADLSCredential:
       type: object
       allOf:
-        - $ref: '#/components/schemas/Credentials'
+        - $ref: '#/components/schemas/Credential'
       required:
         - type
+        - scheme
         - sas-token
         - expires-at-ms
       properties:
         type:
           type: string
           enum: [ "adls" ]
+        scheme:
+          type: string
         sas-token:
           type: string
         expires-at-ms:
           type: integer
           format: int64
-          description: The epoch millis at which the given token expires
+          description: The epoch millis since 1970-01-01T00:00:00Z at which the given token expires
 
-    GCSCredentials:
+
+    GCSCredential:
       type: object
       allOf:
-        - $ref: '#/components/schemas/Credentials'
+        - $ref: '#/components/schemas/Credential'
       required:
         - type
+        - scheme
         - token
         - expires-at-ms
       properties:
         type:
           type: string
           enum: [ "gcs" ]
+        scheme:
+          type: string
         token:
           type: string
         expires-at-ms:
           type: integer
           format: int64
-          description: The epoch millis at which the given token expires
+          description: The epoch millis since 1970-01-01T00:00:00Z at which the given token expires
 
-    S3Credentials:
+    S3Credential:
       type: object
       allOf:
-        - $ref: '#/components/schemas/Credentials'
+        - $ref: '#/components/schemas/Credential'
       required:
         - type
+        - scheme
         - access-key-id
         - secret-access-key
         - session-token
@@ -3155,6 +3163,8 @@ components:
         type:
           type: string
           enum: [ "s3" ]
+        scheme:
+          type: string
         access-key-id:
           type: string
         secret-access-key:
@@ -3164,20 +3174,20 @@ components:
         expires-at-ms:
           type: integer
           format: int64
-          description: The epoch millis at which the given token expires
+          description: The epoch millis since 1970-01-01T00:00:00Z at which the given token expires
 
-    Credentials:
+    Credential:
       type: object
       discriminator:
         propertyName: type
         mapping:
-          adls: '#/components/schemas/ADLSCredentials'
-          gcs: '#/components/schemas/GCSCredentials'
-          s3: '#/components/schemas/S3Credentials'
+          adls: '#/components/schemas/ADLSCredential'
+          gcs: '#/components/schemas/GCSCredential'
+          s3: '#/components/schemas/S3Credential'
       oneOf:
-        - $ref: '#/components/schemas/ADLSCredentials'
-        - $ref: '#/components/schemas/GCSCredentials'
-        - $ref: '#/components/schemas/S3Credentials'
+        - $ref: '#/components/schemas/ADLSCredential'
+        - $ref: '#/components/schemas/GCSCredential'
+        - $ref: '#/components/schemas/S3Credential'
 
     LoadTableResult:
       description: |
@@ -3206,10 +3216,11 @@ components:
          - `s3.session-token`: if present, this value should be used for as the session token 
          - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
 
-        ## Credentials
+        ## Storage Credentials
 
-        Credentials for ADLS / GCS / S3 are provided through the `credentials` field. Clients should first check whether the
-        respective credentials exist in the `credentials` field before checking the `config` for credentials.
+        Credentials for ADLS / GCS / S3 are provided through the `storage-credentials` field.
+        In order to avoid leaking non-expiring credentials, all credentials are required to have an expiration.
+        Clients should first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
       type: object
       required:
         - metadata
@@ -3219,8 +3230,10 @@ components:
           description: May be null if the table is staged as part of a transaction
         metadata:
           $ref: '#/components/schemas/TableMetadata'
-        credentials:
-          $ref: '#/components/schemas/Credentials'
+        storage-credentials:
+          type: array
+          items:
+            $ref: '#/components/schemas/Credential'
         config:
           type: object
           additionalProperties:
@@ -3478,10 +3491,11 @@ components:
 
         - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled
 
-        ## Credentials
+        ## Storage Credentials
 
-        Credentials for ADLS / GCS / S3 are provided through the `credentials` field. Clients should first check whether the
-        respective credentials exist in the `credentials` field before checking the `config` for credentials.
+        Credentials for ADLS / GCS / S3 are provided through the `storage-credentials` field.
+        In order to avoid leaking non-expiring credentials, all credentials are required to have an expiration.
+        Clients should first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
       type: object
       required:
         - metadata-location
@@ -3491,8 +3505,10 @@ components:
           type: string
         metadata:
           $ref: '#/components/schemas/ViewMetadata'
-        credentials:
-          $ref: '#/components/schemas/Credentials'
+        storage-credentials:
+          type: array
+          items:
+            $ref: '#/components/schemas/Credential'
         config:
           type: object
           additionalProperties:
