@@ -208,6 +208,7 @@ public class RecordConverterTest {
   public void before() {
     this.config = mock(IcebergSinkConfig.class);
     when(config.jsonConverter()).thenReturn(JSON_CONVERTER);
+    when(config.shouldConvertConnectTimeToIcebergIntegerType()).thenReturn(false);
   }
 
   @Test
@@ -780,7 +781,7 @@ public class RecordConverterTest {
     assertThat(fn.apply("i")).isInstanceOf(IntegerType.class);
     assertThat(fn.apply("l")).isInstanceOf(LongType.class);
     assertThat(fn.apply("d")).isInstanceOf(DateType.class);
-    assertThat(fn.apply("t")).isInstanceOf(TimeType.class);
+    assertThat(fn.apply("t")).isInstanceOf(config.shouldConvertConnectTimeToIcebergIntegerType() ? IntegerType.class : TimeType.class);
     assertThat(fn.apply("ts")).isInstanceOf(TimestampType.class);
     assertThat(fn.apply("tsz")).isInstanceOf(TimestampType.class);
     assertThat(fn.apply("fl")).isInstanceOf(FloatType.class);
