@@ -49,6 +49,7 @@ import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.NullVector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
@@ -355,8 +356,37 @@ public class ArrowReaderTest {
         rowIndex++;
         VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
         assertThat(root.getSchema()).isEqualTo(expectedSchema);
-        checkAllVectorTypes(root, columns);
-        checkAllVectorValues(1, expectedRows, root, columns);
+
+        // check all vector types
+        assertThat(root.getVector("a").getClass()).isEqualTo(IntVector.class);
+        assertThat(root.getVector("b").getClass()).isEqualTo(IntVector.class);
+        assertThat(root.getVector("z").getClass()).isEqualTo(NullVector.class);
+
+        checkVectorValues(
+            1,
+            expectedRows,
+            root,
+            columns,
+            "a",
+            (records, i) -> records.get(i).getField("a"),
+            (vector, i) -> ((IntVector) vector).get(i));
+        checkVectorValues(
+            1,
+            expectedRows,
+            root,
+            columns,
+            "b",
+            (records, i) -> records.get(i).getField("b"),
+            (vector, i) -> vector.isNull(i) ? null : ((IntVector) vector).get(i));
+        checkVectorValues(
+            1,
+            expectedRows,
+            root,
+            columns,
+            "z",
+            (records, i) -> records.get(i).getField("z"),
+            (vector, i) -> vector.getObject(i));
+
         totalRows += root.getRowCount();
         assertThat(totalRows).isEqualTo(1);
       }
