@@ -309,6 +309,8 @@ class RecordConverter {
       return ((Number) value).intValue();
     } else if (value instanceof String) {
       return Integer.parseInt((String) value);
+    } else if (!config.shouldConvertConnectTimeToIcebergIntegerType() && value instanceof Date) {
+      return Long.valueOf(((Date) value).getTime()).intValue();
     }
     throw new IllegalArgumentException("Cannot convert to int: " + value.getClass().getName());
   }
