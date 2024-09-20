@@ -27,11 +27,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
-import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
+import org.apache.iceberg.types.Types.ListType;
+import org.apache.iceberg.types.Types.MapType;
+import org.apache.iceberg.types.Types.StructType;
 
-class PruneColumns extends ParquetTypeVisitor<Type> {
+class PruneColumns extends TypeWithSchemaVisitor<Type> {
   private final Set<Integer> selectedIds;
 
   PruneColumns(Set<Integer> selectedIds) {
@@ -40,7 +42,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
   }
 
   @Override
-  public Type message(MessageType message, List<Type> fields) {
+  public Type message(StructType iStruct, MessageType message, List<Type> fields) {
     Types.MessageTypeBuilder builder = Types.buildMessage();
 
     boolean hasChange = false;
@@ -79,7 +81,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
   }
 
   @Override
-  public Type struct(GroupType struct, List<Type> fields) {
+  public Type struct(StructType iStruct, GroupType struct, List<Type> fields) {
     boolean hasChange = false;
     List<Type> filteredFields = Lists.newArrayListWithExpectedSize(fields.size());
     for (int i = 0; i < fields.size(); i += 1) {
@@ -106,7 +108,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
   }
 
   @Override
-  public Type list(GroupType list, Type element) {
+  public Type list(ListType iList, GroupType list, Type element) {
     Type repeated = list.getType(0);
     Type originalElement = ParquetSchemaUtil.determineListElementType(list);
     Integer elementId = getId(originalElement);
@@ -128,7 +130,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
   }
 
   @Override
-  public Type map(GroupType map, Type key, Type value) {
+  public Type map(MapType iMap, GroupType map, Type key, Type value) {
     GroupType repeated = map.getType(0).asGroupType();
     Type originalKey = repeated.getType(0);
     Type originalValue = repeated.getType(1);
@@ -151,12 +153,7 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
 
   @Override
   public Type variant(GroupType variant) {
-    return null;
-  }
-
-  @Override
-  public Type primitive(PrimitiveType primitive) {
-    return null;
+    return variant;
   }
 
   private Integer getId(Type type) {

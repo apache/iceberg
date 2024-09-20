@@ -80,21 +80,7 @@ public class ParquetSchemaUtil {
   public static MessageType pruneColumns(MessageType fileSchema, Schema expectedSchema) {
     // column order must match the incoming type, so it doesn't matter that the ids are unordered
     Set<Integer> selectedIds = TypeUtil.getProjectedIds(expectedSchema);
-
-    // Add Value and Metadata subfield ids for Variant type. These subfields are parquet specific and unknown to Iceberg,
-    // getProjectedIds() can't add those ids.
-    Set<Integer> variantSelectedIds = new HashSet<>();
-    List<Type> fields = fileSchema.getFields();
-    for (Types.NestedField iField : expectedSchema.columns()) {
-      if (iField.type() == Types.VariantType.get()) {
-        GroupType field = (GroupType)fields.get(fileSchema.getFieldIndex(iField.name()));
-        variantSelectedIds.add(field.getFields().get(0).getId().intValue());
-        variantSelectedIds.add(field.getFields().get(1).getId().intValue());
-      }
-    }
-
-    selectedIds = ImmutableSet.<Integer>builder().addAll(selectedIds).addAll(variantSelectedIds).build();
-    return (MessageType) ParquetTypeVisitor.visit(fileSchema, new PruneColumns(selectedIds));
+    return (MessageType) TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema, new PruneColumns(selectedIds));
   }
 
   /**

@@ -162,14 +162,10 @@ public class ParquetWithSparkSchemaVisitor<T> {
 
           default:
         }
-      } else if (sType instanceof VariantType) {
-        StructField valueField = new StructField("Value", new BinaryType(), false, Metadata.empty());
-        StructField metadataField =
-                new StructField(
-                        "Metadata", new BinaryType(), false, Metadata.empty());
+      }
 
-        StructType struct = new StructType(new StructField[]{valueField, metadataField});
-        return visitor.variant(struct, group, visitFields(struct, group, visitor));
+      if (sType instanceof VariantType) {
+        return visitor.variant(group);
       }
 
       Preconditions.checkArgument(
@@ -217,7 +213,7 @@ public class ParquetWithSparkSchemaVisitor<T> {
     return null;
   }
 
-  public T variant(StructType sStruct, GroupType struct, List<T> fields) {
+  public T variant(GroupType variant) {
     return null;
   }
 

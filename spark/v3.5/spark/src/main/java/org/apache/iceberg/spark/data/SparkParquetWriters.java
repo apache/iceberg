@@ -49,13 +49,16 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.ArrayType;
+import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.types.MapType;
+import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.VariantType;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.apache.spark.unsafe.types.VariantVal;
 
@@ -96,17 +99,19 @@ public class SparkParquetWriters {
     }
 
     @Override
-    public ParquetValueWriter<?> variant(
-            StructType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
-      List<Type> fields = struct.getFields();
-      StructField[] sparkFields = sStruct.fields();
-      List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
-      List<DataType> sparkTypes = Lists.newArrayList();
-      for (int i = 0; i < fields.size(); i += 1) {
-        writers.add(newOption(struct.getType(i), fieldWriters.get(i)));
-        sparkTypes.add(sparkFields[i].dataType());
-      }
-      return new VariantWriter(writers, sparkTypes);
+    public ParquetValueWriter<?> variant(GroupType variant) {
+      List<ParquetValueWriter<?>> writers =
+              List.of(byteArrays(
+              new ColumnDescriptor(new String[] {variant.getName(), "Value"},
+                                 new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Value"),
+                                              0, 0)),
+              byteArrays(
+                      new ColumnDescriptor(new String[] {variant.getName(), "Metadata"},
+                              new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Metadata"),
+                              0, 0)));
+
+
+      return new VariantWriter(writers);
     }
 
 
@@ -586,16 +591,13 @@ public class SparkParquetWriters {
   }
 
   private static class VariantWriter extends ParquetValueWriters.StructWriter<VariantVal> {
-    private final DataType[] types;
-
-    private VariantWriter(List<ParquetValueWriter<?>> writers, List<DataType> types) {
+    private VariantWriter(List<ParquetValueWriter<?>> writers) {
       super(writers);
-      this.types = types.toArray(new DataType[0]);
     }
 
     @Override
-    protected Object get(VariantVal struct, int index) {
-      return index == 0 ? struct.getValue() : struct.getMetadata();
+    protected Object get(VariantVal variantVal, int index) {
+      return index == 0 ? variantVal.getValue() : variantVal.getMetadata();
     }
   }
 }

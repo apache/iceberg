@@ -195,9 +195,17 @@ public class SparkParquetReaders {
     }
 
     @Override
-    public ParquetValueReader<?> variant(GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
-        // assert fieldReaders to be 2
-        return new VariantReader(fieldReaders);
+    public ParquetValueReader<?> variant(GroupType variant) {
+        return new VariantReader(
+                List.of(
+                        new ParquetValueReaders.ByteArrayReader(
+                          new ColumnDescriptor(new String[] {variant.getName(), "Value"},
+                          new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Value"),
+                          0, 0)),
+                        new ParquetValueReaders.ByteArrayReader(
+                          new ColumnDescriptor(new String[] {variant.getName(), "Metadata"},
+                          new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Metadata"),
+                          0, 0))));
     }
 
     @Override

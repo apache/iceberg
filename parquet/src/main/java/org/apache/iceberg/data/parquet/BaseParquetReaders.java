@@ -398,9 +398,18 @@ public abstract class BaseParquetReaders<T> {
     }
 
     @Override
-    public ParquetValueReader<?> variant(GroupType struct, List<ParquetValueReader<?>> fieldReaders) {
+    public ParquetValueReader<?> variant(GroupType variant) {
         // TODO: Use Record to model Variant data?
-        return createVariantReader(fieldReaders);
+        return createVariantReader(
+                List.of(
+                new ParquetValueReaders.ByteArrayReader(
+                        new ColumnDescriptor(new String[] {variant.getName(), "Value"},
+                                new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Value"),
+                                0, 0)),
+                new ParquetValueReaders.ByteArrayReader(
+                        new ColumnDescriptor(new String[] {variant.getName(), "Metadata"},
+                                new PrimitiveType(Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Metadata"),
+                                0, 0))));
     }
 
     MessageType type() {

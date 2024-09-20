@@ -29,8 +29,6 @@ import org.apache.parquet.schema.OriginalType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
 
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 /**
  * Visitor for traversing a Parquet type with a companion Iceberg type.
  *
@@ -144,9 +142,11 @@ public class TypeWithSchemaVisitor<T> {
 
           default:
         }
-      } else if (iType instanceof Types.VariantType) {
+      }
+
+      if (iType instanceof Types.VariantType) {
         // Handle Variant type
-        return visitor.variant(group, visitVariantFields((Types.VariantType)iType, group, visitor));
+        return visitor.variant(group);
       }
 
       Types.StructType struct = iType != null ? iType.asStructType() : null;
@@ -206,19 +206,6 @@ public class TypeWithSchemaVisitor<T> {
     return results;
   }
 
-  private static <T> List<T> visitVariantFields(
-          Types.VariantType variant,
-          GroupType group,
-          TypeWithSchemaVisitor<T> visitor) {
-    // assert to be 2
-    List<T> results = Lists.newArrayListWithExpectedSize(group.getFieldCount());
-    Type valueType = group.getFields().get(group.getFieldIndex("Value"));
-    Type metadataType = group.getFields().get(group.getFieldIndex("Metadata"));
-    results.add(visitField(required(valueType.getId().intValue(), "Value", Types.BinaryType.get()), valueType, visitor));
-    results.add(visitField(required(metadataType.getId().intValue(), "Metadata", Types.BinaryType.get()), metadataType, visitor));
-    return results;
-  }
-
   public T message(Types.StructType iStruct, MessageType message, List<T> fields) {
     return null;
   }
@@ -227,7 +214,7 @@ public class TypeWithSchemaVisitor<T> {
     return null;
   }
 
-  public T variant(GroupType struct, List<T> fields) {
+  public T variant(GroupType variant) {
     return null;
   }
 
