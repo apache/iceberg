@@ -95,6 +95,9 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String DEFAULT_CONTROL_TOPIC = "control-iceberg";
   public static final String DEFAULT_CONTROL_GROUP_PREFIX = "cg-control-";
 
+  private static final String CONVERT_CONNECT_TIME_TO_ICEBERG_INTEGER_TYPE = "iceberg.convert.connect-time-to.iceberg-time-type";
+  private static final boolean CONVERT_CONNECT_TIME_TO_ICEBERG_INTEGER_TYPE_DEFAULT = false;
+
   public static final int SCHEMA_UPDATE_RETRIES = 2; // 3 total attempts
   public static final int CREATE_TABLE_RETRIES = 2; // 3 total attempts
 
@@ -210,6 +213,13 @@ public class IcebergSinkConfig extends AbstractConfig {
         null,
         Importance.MEDIUM,
         "If specified, Hadoop config files in this directory will be loaded");
+    configDef.define(
+        CONVERT_CONNECT_TIME_TO_ICEBERG_INTEGER_TYPE,
+        ConfigDef.Type.BOOLEAN,
+        CONVERT_CONNECT_TIME_TO_ICEBERG_INTEGER_TYPE_DEFAULT,
+        Importance.HIGH,
+        "specify whether to convert to iceberg time type as spark does not have the support to read"
+                    + "iceberg time type");
     return configDef;
   }
 
@@ -320,6 +330,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public String tablesDefaultPartitionBy() {
     return getString(TABLES_DEFAULT_PARTITION_BY);
+  }
+
+  public boolean shouldConvertConnectTimeToIcebergIntegerType() {
+    return getBoolean(CONVERT_CONNECT_TIME_TO_ICEBERG_INTEGER_TYPE);
   }
 
   public TableSinkConfig tableConfig(String tableName) {
