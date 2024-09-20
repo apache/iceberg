@@ -1168,8 +1168,8 @@ class ViewUpdate(BaseModel):
     ]
 
 
-class Credentials(BaseModel):
-    __root__: Union[ADLSCredentials, GCSCredentials, S3Credentials] = Field(
+class Credential(BaseModel):
+    __root__: Union[ADLSCredential, GCSCredential, S3Credential] = Field(
         ..., discriminator='type'
     )
 
@@ -1201,10 +1201,11 @@ class LoadTableResult(BaseModel):
      - `s3.session-token`: if present, this value should be used for as the session token
      - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
 
-    ## Credentials
+    ## Storage Credentials
 
-    Credentials for ADLS / GCS / S3 are provided through the `credentials` field. Clients should first check whether the
-    respective credentials exist in the `credentials` field before checking the `config` for credentials.
+    Credentials for ADLS / GCS / S3 are provided through the `storage-credentials` field.
+    In order to avoid leaking non-expiring credentials, all credentials are required to have an expiration.
+    Clients should first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
 
     """
 
@@ -1214,7 +1215,9 @@ class LoadTableResult(BaseModel):
         description='May be null if the table is staged as part of a transaction',
     )
     metadata: TableMetadata
-    credentials: Optional[Credentials] = None
+    storage_credentials: Optional[List[Credential]] = Field(
+        None, alias='storage-credentials'
+    )
     config: Optional[Dict[str, str]] = None
 
 
@@ -1323,16 +1326,19 @@ class LoadViewResult(BaseModel):
 
     - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled
 
-    ## Credentials
+    ## Storage Credentials
 
-    Credentials for ADLS / GCS / S3 are provided through the `credentials` field. Clients should first check whether the
-    respective credentials exist in the `credentials` field before checking the `config` for credentials.
+    Credentials for ADLS / GCS / S3 are provided through the `storage-credentials` field.
+    In order to avoid leaking non-expiring credentials, all credentials are required to have an expiration.
+    Clients should first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
 
     """
 
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: ViewMetadata
-    credentials: Optional[Credentials] = None
+    storage_credentials: Optional[List[Credential]] = Field(
+        None, alias='storage-credentials'
+    )
     config: Optional[Dict[str, str]] = None
 
 
@@ -1416,35 +1422,38 @@ class Schema(StructType):
     )
 
 
-class ADLSCredentials(BaseModel):
+class ADLSCredential(BaseModel):
     type: Literal['adls']
+    scheme: str
     sas_token: str = Field(..., alias='sas-token')
     expires_at_ms: int = Field(
         ...,
         alias='expires-at-ms',
-        description='The epoch millis at which the given token expires',
+        description='The epoch millis since 1970-01-01T00:00:00Z at which the given token expires',
     )
 
 
-class GCSCredentials(BaseModel):
+class GCSCredential(BaseModel):
     type: Literal['gcs']
+    scheme: str
     token: str
     expires_at_ms: int = Field(
         ...,
         alias='expires-at-ms',
-        description='The epoch millis at which the given token expires',
+        description='The epoch millis since 1970-01-01T00:00:00Z at which the given token expires',
     )
 
 
-class S3Credentials(BaseModel):
+class S3Credential(BaseModel):
     type: Literal['s3']
+    scheme: str
     access_key_id: str = Field(..., alias='access-key-id')
     secret_access_key: str = Field(..., alias='secret-access-key')
     session_token: str = Field(..., alias='session-token')
     expires_at_ms: int = Field(
         ...,
         alias='expires-at-ms',
-        description='The epoch millis at which the given token expires',
+        description='The epoch millis since 1970-01-01T00:00:00Z at which the given token expires',
     )
 
 
@@ -1480,16 +1489,16 @@ Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
-Credentials.update_forward_refs()
+Credential.update_forward_refs()
 ScanTasks.update_forward_refs()
 FetchPlanningResult.update_forward_refs()
 PlanTableScanResult.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
-ADLSCredentials.update_forward_refs()
-GCSCredentials.update_forward_refs()
-S3Credentials.update_forward_refs()
+ADLSCredential.update_forward_refs()
+GCSCredential.update_forward_refs()
+S3Credential.update_forward_refs()
 CompletedPlanningResult.update_forward_refs()
 FetchScanTasksResult.update_forward_refs()
 CompletedPlanningWithIDResult.update_forward_refs()
