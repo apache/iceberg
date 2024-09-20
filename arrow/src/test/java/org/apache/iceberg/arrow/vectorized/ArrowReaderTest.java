@@ -278,6 +278,10 @@ public class ArrowReaderTest {
     org.apache.arrow.vector.types.pojo.Schema expectedSchema =
         new org.apache.arrow.vector.types.pojo.Schema(expectedFields);
 
+    int batchSize = 1;
+    int expectedNumRowsPerBatch = 1;
+    int expectedTotalRows = 1;
+
     Schema tableSchemaV1 =
         new Schema(
             Types.NestedField.required(1, "a", Types.IntegerType.get()),
@@ -308,17 +312,19 @@ public class ArrowReaderTest {
 
     Set<String> columns = ImmutableSet.of("a", "b", "z");
     // Read the data and verify that the returned ColumnarBatches match expected rows.
-    try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, 1, false)) {
+    try (VectorizedTableScanIterable itr =
+        new VectorizedTableScanIterable(scan, batchSize, false)) {
       int rowIndex = 0;
       for (ColumnarBatch batch : itr) {
-        List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + 1);
+        List<GenericRecord> expectedRows =
+            rowsWritten.subList(rowIndex, rowIndex + expectedNumRowsPerBatch);
         rowIndex++;
 
-        assertThat(batch.numRows()).isEqualTo(1);
+        assertThat(batch.numRows()).isEqualTo(expectedNumRowsPerBatch);
         assertThat(batch.numCols()).isEqualTo(columns.size());
 
         checkColumnarArrayValues(
-            1,
+            expectedNumRowsPerBatch,
             expectedRows,
             batch,
             0,
@@ -327,7 +333,7 @@ public class ArrowReaderTest {
             (records, i) -> records.get(i).getField("a"),
             ColumnVector::getInt);
         checkColumnarArrayValues(
-            1,
+            expectedNumRowsPerBatch,
             expectedRows,
             batch,
             1,
@@ -336,7 +342,7 @@ public class ArrowReaderTest {
             (records, i) -> records.get(i).getField("b"),
             (columnVector, i) -> columnVector.isNullAt(i) ? null : columnVector.getInt(i));
         checkColumnarArrayValues(
-            1,
+            expectedNumRowsPerBatch,
             expectedRows,
             batch,
             2,
@@ -348,11 +354,13 @@ public class ArrowReaderTest {
     }
 
     // Read the data and verify that the returned Arrow VectorSchemaRoots match expected rows.
-    try (VectorizedTableScanIterable itr = new VectorizedTableScanIterable(scan, 1, false)) {
+    try (VectorizedTableScanIterable itr =
+        new VectorizedTableScanIterable(scan, batchSize, false)) {
       int totalRows = 0;
       int rowIndex = 0;
       for (ColumnarBatch batch : itr) {
-        List<GenericRecord> expectedRows = rowsWritten.subList(rowIndex, rowIndex + 1);
+        List<GenericRecord> expectedRows =
+            rowsWritten.subList(rowIndex, rowIndex + expectedNumRowsPerBatch);
         rowIndex++;
         VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
         assertThat(root.getSchema()).isEqualTo(expectedSchema);
@@ -363,7 +371,7 @@ public class ArrowReaderTest {
         assertThat(root.getVector("z").getClass()).isEqualTo(NullVector.class);
 
         checkVectorValues(
-            1,
+            expectedNumRowsPerBatch,
             expectedRows,
             root,
             columns,
@@ -371,7 +379,7 @@ public class ArrowReaderTest {
             (records, i) -> records.get(i).getField("a"),
             (vector, i) -> ((IntVector) vector).get(i));
         checkVectorValues(
-            1,
+            expectedNumRowsPerBatch,
             expectedRows,
             root,
             columns,
@@ -379,7 +387,7 @@ public class ArrowReaderTest {
             (records, i) -> records.get(i).getField("b"),
             (vector, i) -> vector.isNull(i) ? null : ((IntVector) vector).get(i));
         checkVectorValues(
-            1,
+            expectedNumRowsPerBatch,
             expectedRows,
             root,
             columns,
@@ -388,7 +396,7 @@ public class ArrowReaderTest {
             (vector, i) -> vector.getObject(i));
 
         totalRows += root.getRowCount();
-        assertThat(totalRows).isEqualTo(1);
+        assertThat(totalRows).isEqualTo(expectedTotalRows);
       }
     }
   }
