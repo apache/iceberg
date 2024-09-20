@@ -286,33 +286,21 @@ public class ArrowReaderTest {
     Table table = tables.create(tableSchemaV1, spec, tableLocation);
 
     // Add one record to the table
-    GenericRecord rec1 = GenericRecord.create(tableSchemaV1);
-    rec1.setField("a", 1);
-    List<GenericRecord> genericRecords1 = Lists.newArrayList();
-    genericRecords1.add(rec1);
+    GenericRecord rec = GenericRecord.create(tableSchemaV1);
+    rec.setField("a", 1);
+    List<GenericRecord> genericRecords = Lists.newArrayList();
+    genericRecords.add(rec);
 
-    AppendFiles appendFiles1 = table.newAppend();
-    appendFiles1.appendFile(writeParquetFile(table, genericRecords1));
-    appendFiles1.commit();
+    AppendFiles appendFiles = table.newAppend();
+    appendFiles.appendFile(writeParquetFile(table, genericRecords));
+    appendFiles.commit();
 
     // Alter the table schema by adding a new, optional column.
-    // Do not add any data for this new column in the one existing row in the table, i.e. no default
-    // value
+    // Do not add any data for this new column in the one existing row in the table
+    // and do not insert any new rows into the table.
     UpdateSchema updateSchema = table.updateSchema().addColumn("z", Types.IntegerType.get());
-    Schema tableSchemaV2 = updateSchema.apply();
+    updateSchema.apply();
     updateSchema.commit();
-
-    // Add one more record to the table
-    GenericRecord rec2 = GenericRecord.create(tableSchemaV2);
-    rec2.setField("a", 2);
-    rec2.setField("b", 2);
-    rec2.setField("z", 2);
-    List<GenericRecord> genericRecords2 = Lists.newArrayList();
-    genericRecords2.add(rec2);
-
-    AppendFiles appendFiles2 = table.newAppend();
-    appendFiles2.appendFile(writeParquetFile(table, genericRecords2));
-    appendFiles2.commit();
 
     // Select all columns, all rows from the table
     TableScan scan = table.newScan().select("*");
