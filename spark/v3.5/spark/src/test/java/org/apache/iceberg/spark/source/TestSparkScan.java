@@ -1027,12 +1027,16 @@ public class TestSparkScan extends TestBaseWithCatalog {
     assertThat(stats.numRows().getAsLong()).isEqualTo(expectedRowCount);
 
     Map<NamedReference, ColumnStatistics> columnStats = stats.columnStats();
-    if(expectedNDVs.isEmpty()){
-      assertThat(columnStats.isEmpty() || columnStats.values().iterator().next().distinctCount().isEmpty()).isTrue();
+    if (expectedNDVs.isEmpty()) {
+      assertThat(
+              columnStats.isEmpty()
+                  || columnStats.values().iterator().next().distinctCount().isEmpty())
+          .isTrue();
     } else {
       for (Map.Entry<String, Long> entry : expectedNDVs.entrySet()) {
-        assertThat(columnStats.get(FieldReference.column(entry.getKey())).distinctCount().getAsLong())
-                .isEqualTo(entry.getValue());
+        assertThat(
+                columnStats.get(FieldReference.column(entry.getKey())).distinctCount().getAsLong())
+            .isEqualTo(entry.getValue());
       }
     }
   }

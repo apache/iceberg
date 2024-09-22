@@ -222,7 +222,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
             }
           }
           ColumnStatistics colStats =
-                  new SparkColumnStatistics(ndv, null, null, null, null, null, null);
+              new SparkColumnStatistics(ndv, null, null, null, null, null, null);
 
           colStatsMap.put(ref, colStats);
         }
