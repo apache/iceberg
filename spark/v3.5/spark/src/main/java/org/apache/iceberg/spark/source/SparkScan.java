@@ -219,6 +219,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
               } else {
                 LOG.debug("ndv is not set in BlobMetadata for column {}", colName);
               }
+            } else {
+              LOG.debug("Blob type {} is not supported yet", blobMetadata.type());
             }
           }
           ColumnStatistics colStats =
