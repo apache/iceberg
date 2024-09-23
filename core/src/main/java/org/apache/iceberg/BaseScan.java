@@ -296,7 +296,7 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
    * @param content the manifest content type to scan.
    * @return a list of column names corresponding to the specified manifest content type.
    */
-  public static List<String> scanColumns(ManifestContent content) {
+  static List<String> scanColumns(ManifestContent content) {
     switch (content) {
       case DATA:
         return BaseScan.SCAN_COLUMNS;

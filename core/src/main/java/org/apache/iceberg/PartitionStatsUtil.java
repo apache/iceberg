@@ -20,19 +20,18 @@ package org.apache.iceberg;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionUtil;
+import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.ThreadPools;
 
 public class PartitionStatsUtil {
@@ -44,9 +43,9 @@ public class PartitionStatsUtil {
    *
    * @param table the table for which partition stats to be computed.
    * @param snapshot the snapshot for which partition stats is computed.
-   * @return iterable {@link PartitionStats}
+   * @return the collection of {@link PartitionStats}
    */
-  public static Iterable<PartitionStats> computeStats(Table table, Snapshot snapshot) {
+  public static Collection<PartitionStats> computeStats(Table table, Snapshot snapshot) {
     Preconditions.checkArgument(table != null, "table cannot be null");
     Preconditions.checkArgument(snapshot != null, "snapshot cannot be null");
 
@@ -56,24 +55,19 @@ public class PartitionStatsUtil {
           "Computing partition stats for an unpartitioned table");
     }
 
-    List<ManifestFile> manifestFiles = snapshot.allManifests(table.io());
+    List<ManifestFile> manifests = snapshot.allManifests(table.io());
 
     ExecutorService executorService = ThreadPools.getWorkerPool();
-    List<Future<Map<PartitionData, PartitionStats>>> futures = Lists.newArrayList();
-    manifestFiles.forEach(
+    List<Future<StructLikeMap<PartitionStats>>> futures = Lists.newArrayList();
+    manifests.forEach(
         manifest -> {
-          Future<Map<PartitionData, PartitionStats>> future =
-              executorService.submit(
-                  () -> {
-                    Map<PartitionData, PartitionStats> localStatsMap = Maps.newHashMap();
-                    collectStats(table, manifest, partitionType, localStatsMap);
-                    return localStatsMap;
-                  });
+          Future<StructLikeMap<PartitionStats>> future =
+              executorService.submit(() -> collectStats(table, manifest, partitionType));
           futures.add(future);
         });
 
-    Map<PartitionData, PartitionStats> statsMap = Maps.newHashMap();
-    for (Future<Map<PartitionData, PartitionStats>> future : futures) {
+    StructLikeMap<PartitionStats> statsMap = StructLikeMap.create(partitionType);
+    for (Future<StructLikeMap<PartitionStats>> future : futures) {
       try {
         future
             .get()
@@ -97,49 +91,41 @@ public class PartitionStatsUtil {
   /**
    * Sorts the {@link PartitionStats} based on the partition data.
    *
-   * @param stats iterable {@link PartitionStats} which needs to be sorted.
+   * @param stats collection of {@link PartitionStats} which needs to be sorted.
    * @param partitionType unified partition schema.
-   * @return Iterator of {@link PartitionStats}
+   * @return the list of {@link PartitionStats}
    */
-  public static Iterator<PartitionStats> sortStats(
-      Iterable<PartitionStats> stats, StructType partitionType) {
+  public static List<PartitionStats> sortStats(
+      Collection<PartitionStats> stats, StructType partitionType) {
     List<PartitionStats> entries = Lists.newArrayList(stats.iterator());
     entries.sort(
         Comparator.comparing(PartitionStats::partition, Comparators.forType(partitionType)));
-    return entries.iterator();
+    return entries;
   }
 
-  private static void collectStats(
-      Table table,
-      ManifestFile manifest,
-      StructType partitionType,
-      Map<PartitionData, PartitionStats> statsMap) {
+  private static StructLikeMap<PartitionStats> collectStats(
+      Table table, ManifestFile manifest, StructType partitionType) {
     try (ManifestReader<?> reader = openManifest(table, manifest)) {
+      StructLikeMap<PartitionStats> statsMap = StructLikeMap.create(partitionType);
+
       for (ManifestEntry<?> entry : reader.entries()) {
         ContentFile<?> file = entry.file();
         PartitionSpec spec = table.specs().get(file.specId());
         PartitionData key =
             PartitionUtil.coercePartitionData(partitionType, spec, file.partition());
         Snapshot snapshot = table.snapshot(entry.snapshotId());
-        updateStatsMap(statsMap, entry.isLive(), key, file, snapshot);
+        PartitionStats stats =
+            statsMap.computeIfAbsent(key, ignored -> new PartitionStats(key, file.specId()));
+        if (entry.isLive()) {
+          stats.liveEntry(file, snapshot);
+        } else {
+          stats.deletedEntry(snapshot);
+        }
       }
+
+      return statsMap;
     } catch (IOException e) {
       throw new UncheckedIOException(e);
-    }
-  }
-
-  private static void updateStatsMap(
-      Map<PartitionData, PartitionStats> statsMap,
-      boolean isLive,
-      PartitionData key,
-      ContentFile<?> file,
-      Snapshot snapshot) {
-    PartitionStats stats =
-        statsMap.computeIfAbsent(key, ignored -> new PartitionStats(key, file.specId()));
-    if (isLive) {
-      stats.liveEntry(file, snapshot);
-    } else {
-      stats.deletedEntry(snapshot);
     }
   }
 

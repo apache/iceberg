@@ -22,14 +22,11 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Comparator;
+import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
+import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -58,10 +55,7 @@ public class PartitionStatsUtilBenchmark {
           optional(2, "c2", Types.StringType.get()),
           optional(3, "c3", Types.StringType.get()));
 
-  protected static final PartitionSpec SPEC =
-      PartitionSpec.builderFor(SCHEMA).identity("c1").build();
-
-  private String baseDir;
+  private static final PartitionSpec SPEC = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
 
   // Create 10k manifests
   private static final int MANIFEST_COUNTER = 10000;
@@ -72,13 +66,15 @@ public class PartitionStatsUtilBenchmark {
   // 20 data files per partition, which results in 2k data files per manifest
   private static final int DATA_FILES_PER_PARTITION_COUNT = 20;
 
+  private static final HadoopTables TABLES = new HadoopTables();
+
+  private static final String TABLE_IDENT = "tbl";
+
   private Table table;
 
   @Setup
   public void setupBenchmark() {
-    baseDir =
-        Paths.get(new File(System.getProperty("java.io.tmpdir")).getAbsolutePath()).toString();
-    table = TestTables.create(new File(baseDir), "foo", SCHEMA, SPEC, SortOrder.unsorted(), 2);
+    table = TABLES.create(SCHEMA, SPEC, TABLE_IDENT);
 
     IntStream.range(0, MANIFEST_COUNTER)
         .forEach(
@@ -102,18 +98,13 @@ public class PartitionStatsUtilBenchmark {
 
   @TearDown
   public void tearDownBenchmark() throws IOException {
-    if (baseDir != null) {
-      try (Stream<Path> walk = java.nio.file.Files.walk(Paths.get(baseDir))) {
-        walk.sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
-      }
-      baseDir = null;
-    }
+    TABLES.dropTable(TABLE_IDENT);
   }
 
   @Benchmark
   @Threads(1)
   public void benchmarkPartitionStats() throws IOException {
-    Iterable<PartitionStats> partitionStats =
+    Collection<PartitionStats> partitionStats =
         PartitionStatsUtil.computeStats(table, table.currentSnapshot());
     assertThat(partitionStats).hasSize(PARTITION_PER_MANIFEST);
 

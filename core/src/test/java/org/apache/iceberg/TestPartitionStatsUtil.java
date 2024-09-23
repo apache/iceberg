@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -388,7 +389,7 @@ public class TestPartitionStatsUtil {
 
   private static void computeAndValidatePartitionStats(Table testTable, Tuple... expectedValues) {
     // compute and commit partition stats file
-    Iterable<PartitionStats> result =
+    Collection<PartitionStats> result =
         PartitionStatsUtil.computeStats(testTable, testTable.currentSnapshot());
 
     assertThat(result)
