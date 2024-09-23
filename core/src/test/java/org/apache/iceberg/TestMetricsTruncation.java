@@ -299,6 +299,7 @@ public class TestMetricsTruncation {
     assertThat(cmp.compare(truncateStringMax(Literal.of(test9), 2).value(), test9_2_expected))
         .as(
             "Test the last character is `Character.MIN_SURROGATE - 1` after truncated, it should be incremented to "
-                + "next valid Unicode scalar value `Character.MAX_SURROGATE + 1`");
+                + "next valid Unicode scalar value `Character.MAX_SURROGATE + 1`")
+        .isEqualTo(0);
   }
 }
