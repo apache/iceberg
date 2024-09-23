@@ -88,7 +88,7 @@ spring-boot = "2.7.18"
 spring-web = "5.3.39"
 sqlite-jdbc = "3.46.1.0"
 testcontainers = "1.20.1"
-tez010 = "0.10.3"
+tez010 = "0.10.4"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
 
 [libraries]
