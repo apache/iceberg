@@ -523,6 +523,18 @@ public class TestS3FileIO {
     verify(s3mock, never()).headObject(any(HeadObjectRequest.class));
   }
 
+  @Test
+  public void testS3ExpressStateAwsRegions() {
+    assertS3ExpressState(S3_EXPRESS_BUCKET_NAME, true);
+    assertS3ExpressState(S3_GENERAL_BUCKET, false);
+  }
+
+  public void assertS3ExpressState(final String bucket, final boolean expected) {
+    assertThat(S3FileIO.checkIfS3Express(bucket))
+        .describedAs("checkIfS3Express(%s)", bucket)
+        .isEqualTo(expected);
+  }
+
   private void createRandomObjects(String prefix, int count) {
     S3URI s3URI = new S3URI(prefix);
 

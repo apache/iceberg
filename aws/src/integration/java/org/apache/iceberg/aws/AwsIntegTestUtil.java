@@ -131,12 +131,12 @@ public class AwsIntegTestUtil {
   }
 
   /**
-   * Method used to clean up S3 express bucket which doesn't care about versions
+   * Method used to clean up a S3 directory bucket which doesn't care about versions
    * @param s3FileIO an instance of s3FileIO to be used to list/delete objects
    * @param bucketName name of the bucket
    * @param prefix the path prefix we want to remove
    */
-  public static void cleanS3ExpressBucket(S3FileIO s3FileIO, String prefix, String bucketName) {
+  public static void cleanS3DirectoryBucket(S3FileIO s3FileIO, String prefix, String bucketName) {
     String listPrefix = String.format("s3://%s/%s", bucketName, prefix);
     Iterable<FileInfo> listResponse = s3FileIO.listPrefix(listPrefix);
     List<String> objectsToDelete =  Lists.newArrayList();
