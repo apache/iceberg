@@ -65,7 +65,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
-import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.junit.jupiter.api.Assumptions;
@@ -1172,15 +1171,9 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     List<PartitionSpec> specsToRetain = remove.apply();
     assertThat(specsToRetain).hasSize(1).map(PartitionSpec::specId).contains(currentSpecId);
 
-    if (catalog instanceof RESTCatalog) {
-      // RESTCatalog does not support maintenance operations yet
-      // TODO: Remove this once REST spec is updated to support remove unused spec
-      assertThatThrownBy(remove::commit);
-    } else {
-      remove.commit();
-      Table loaded = catalog.loadTable(TABLE);
-      assertThat(loaded.specs().values()).hasSameElementsAs(specsToRetain);
-    }
+    remove.commit();
+    Table loaded = catalog.loadTable(TABLE);
+    assertThat(loaded.specs().values()).hasSameElementsAs(specsToRetain);
   }
 
   @Test

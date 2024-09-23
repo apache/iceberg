@@ -24,7 +24,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 
-public class TestRemoveUnusedSpecs extends TestBase {
+public class TestRemovePartitionSpecs extends TestBase {
 
   @TestTemplate
   public void testRemoveAllButCurrent() {
