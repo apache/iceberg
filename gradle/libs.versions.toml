@@ -39,6 +39,7 @@ delta-standalone = "3.2.0"
 delta-spark = "3.2.0"
 esotericsoftware-kryo = "4.0.3"
 errorprone-annotations = "2.31.0"
+failsafe = "3.3.2"
 findbugs-jsr305 = "3.0.2"
 flink118 =  { strictly = "1.18.1"}
 flink119 =  { strictly = "1.19.0"}
@@ -109,6 +110,7 @@ calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "ca
 datasketches = { module = "org.apache.datasketches:datasketches-java", version.ref = "datasketches" }
 delta-standalone = { module = "io.delta:delta-standalone_2.12", version.ref = "delta-standalone" }
 errorprone-annotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorprone-annotations" }
+failsafe = { module = "dev.failsafe:failsafe", version.ref = "failsafe"}
 findbugs-jsr305 = { module = "com.google.code.findbugs:jsr305", version.ref = "findbugs-jsr305" }
 flink118-avro = { module = "org.apache.flink:flink-avro", version.ref = "flink118" }
 flink118-connector-base = { module = "org.apache.flink:flink-connector-base", version.ref = "flink118" }
