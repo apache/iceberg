@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -308,5 +309,14 @@ public abstract class DataTableScanTestBase<
             .collect(Collectors.toList())
             .get(0);
     assertThat(deletes.get(0).manifestLocation()).isEqualTo(deleteManifest.path());
+  }
+
+  @TestTemplate
+  public void testTimeTravelScanWithAlterColumn() throws Exception {
+    table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
+    long timeTravelSnapshotId = table.currentSnapshot().snapshotId();
+    table.updateSchema().renameColumn("id", "re_id").commit();
+    TableScan scan = table.newScan().useSnapshot(timeTravelSnapshotId).filter(Expressions.equal("id", 5));
+    assertThat(Iterables.size(scan.planFiles())).isEqualTo(2);
   }
 }
