@@ -32,7 +32,6 @@ import org.apache.parquet.column.Dictionary;
  * needed for reading values out of it.
  */
 public class VectorHolder {
-  private static final String DUMMY_VECTOR_NAME = "_dummy_";
 
   private final ColumnDescriptor columnDescriptor;
   private final FieldVector vector;
@@ -131,10 +130,7 @@ public class VectorHolder {
   }
 
   public boolean isDummy() {
-    boolean isDummy =
-        (vector == null)
-            || vector instanceof NullVector
-            || vector.getName().equals(DUMMY_VECTOR_NAME);
+    boolean isDummy = (vector == null) || vector instanceof NullVector;
     return isDummy;
   }
 
@@ -147,7 +143,7 @@ public class VectorHolder {
     private final int numRows;
 
     public ConstantVectorHolder(int numRows) {
-      super(new NullVector(DUMMY_VECTOR_NAME, numRows), null, new NullabilityHolder(numRows));
+      super(new NullVector("_dummy_", numRows), null, new NullabilityHolder(numRows));
       nullabilityHolder().setNulls(0, numRows);
       this.numRows = numRows;
       this.constantValue = null;
