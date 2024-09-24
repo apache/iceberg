@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
@@ -37,11 +38,6 @@ import org.apache.iceberg.types.Comparators;
 public class ContentFileWrapper<F> implements ContentFile<F> {
 
   private ContentFile<F> file;
-  // lazily computed & cached hashCode
-  private transient int hashCode = 0;
-  // tracks if the hash has been calculated as actually being zero to avoid re-calculating the hash.
-  // this follows the hashCode() implementation from java.lang.String
-  private transient boolean hashIsZero = false;
 
   private ContentFileWrapper(ContentFile<F> file) {
     this.file = file;
@@ -57,8 +53,6 @@ public class ContentFileWrapper<F> implements ContentFile<F> {
 
   public ContentFileWrapper<F> set(ContentFile<F> contentFile) {
     this.file = contentFile;
-    this.hashCode = 0;
-    this.hashIsZero = false;
     return this;
   }
 
@@ -163,6 +157,36 @@ public class ContentFileWrapper<F> implements ContentFile<F> {
   }
 
   @Override
+  public String manifestLocation() {
+    return file.manifestLocation();
+  }
+
+  @Override
+  public Integer sortOrderId() {
+    return file.sortOrderId();
+  }
+
+  @Override
+  public Long dataSequenceNumber() {
+    return file.dataSequenceNumber();
+  }
+
+  @Override
+  public Long fileSequenceNumber() {
+    return file.fileSequenceNumber();
+  }
+
+  @Override
+  public F copyWithStats(Set<Integer> requestedColumnIds) {
+    return file.copyWithStats(requestedColumnIds);
+  }
+
+  @Override
+  public F copy(boolean withStats) {
+    return file.copy(withStats);
+  }
+
+  @Override
   public boolean equals(Object o) {
     if (this == o) {
       return true;
@@ -191,19 +215,13 @@ public class ContentFileWrapper<F> implements ContentFile<F> {
 
   @Override
   public int hashCode() {
-    int hash = hashCode;
+    // this needs to be updated once deletion vectors are added
+    return null == file ? 0 : Objects.hashCode(file.location());
+  }
 
-    // don't recalculate if the hash is actually 0
-    if (hash == 0 && !hashIsZero) {
-      // this needs to be updated once deletion vectors are added
-      hash = Objects.hashCode(null == file ? null : file.location());
-      if (hash == 0) {
-        hashIsZero = true;
-      } else {
-        this.hashCode = hash;
-      }
-    }
+  @Override
+  public String toString() {
 
-    return hash;
+    return null == file ? "null" : file.location();
   }
 }

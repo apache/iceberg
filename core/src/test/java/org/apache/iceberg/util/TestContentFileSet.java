@@ -65,28 +65,28 @@ public class TestContentFileSet {
   private static final DeleteFile FILE_A_DELETES =
       FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
           .ofPositionDeletes()
-          .withPath("/path/to/delete-a.parquet")
+          .withPath("/path/to/data-a-deletes.parquet")
           .withFileSizeInBytes(1)
           .withRecordCount(1)
           .build();
   private static final DeleteFile FILE_B_DELETES =
       FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
           .ofPositionDeletes()
-          .withPath("/path/to/delete-b.parquet")
+          .withPath("/path/to/data-b-deletes.parquet")
           .withFileSizeInBytes(2)
           .withRecordCount(2)
           .build();
   private static final DeleteFile FILE_C_DELETES =
       FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
           .ofPositionDeletes()
-          .withPath("/path/to/delete-c.parquet")
+          .withPath("/path/to/data-c-deletes.parquet")
           .withFileSizeInBytes(3)
           .withRecordCount(3)
           .build();
   private static final DeleteFile FILE_D_DELETES =
       FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
           .ofPositionDeletes()
-          .withPath("/path/to/delete-d.parquet")
+          .withPath("/path/to/data-d-deletes.parquet")
           .withFileSizeInBytes(4)
           .withRecordCount(4)
           .build();
@@ -94,10 +94,11 @@ public class TestContentFileSet {
   @Test
   public void emptySet() {
     assertThat(ContentFileSet.empty()).isEmpty();
+    assertThat(ContentFileSet.empty()).doesNotContain(FILE_A, FILE_B, FILE_A_DELETES);
   }
 
   @Test
-  public void testInsertionOrderIsMaintained() {
+  public void insertionOrderIsMaintained() {
     ContentFileSet<DataFile> set = ContentFileSet.empty();
     set.addAll(ImmutableList.of(FILE_D, FILE_A, FILE_C));
     set.add(FILE_B);
@@ -107,58 +108,56 @@ public class TestContentFileSet {
   }
 
   @Test
-  public void testClear() {
+  public void clear() {
     ContentFileSet<DataFile> set = ContentFileSet.of(ImmutableList.of(FILE_A, FILE_B));
     set.clear();
     assertThat(set).isEmpty();
   }
 
   @Test
-  public void testRemove() {
-    ContentFileSet<DataFile> dataFiles = ContentFileSet.of(ImmutableList.of(FILE_A, FILE_B));
-    dataFiles.remove(FILE_C);
-    assertThat(dataFiles).containsExactly(FILE_A, FILE_B);
-    dataFiles.remove(null);
-    assertThat(dataFiles).containsExactly(FILE_A, FILE_B);
-    dataFiles.remove(FILE_B);
-    assertThat(dataFiles).containsExactly(FILE_A);
-    dataFiles.remove(FILE_A);
-    assertThat(dataFiles).isEmpty();
+  public void remove() {
+    ContentFileSet<DataFile> set = ContentFileSet.of(ImmutableList.of(FILE_A, FILE_B));
+    set.remove(FILE_C);
+    assertThat(set).containsExactly(FILE_A, FILE_B);
+    set.remove(null);
+    assertThat(set).containsExactly(FILE_A, FILE_B);
+    set.remove(FILE_B);
+    assertThat(set).containsExactly(FILE_A);
+    set.remove(FILE_A);
+    assertThat(set).isEmpty();
   }
 
   @Test
-  public void testRemoveWithDeleteFiles() {
-    ContentFileSet<DeleteFile> dataFiles =
+  public void removeWithDeleteFiles() {
+    ContentFileSet<DeleteFile> set =
         ContentFileSet.of(ImmutableList.of(FILE_A_DELETES, FILE_B_DELETES));
-    dataFiles.remove(FILE_C_DELETES);
-    assertThat(dataFiles).containsExactly(FILE_A_DELETES, FILE_B_DELETES);
-    dataFiles.remove(null);
-    assertThat(dataFiles).containsExactly(FILE_A_DELETES, FILE_B_DELETES);
-    dataFiles.remove(FILE_B_DELETES);
-    assertThat(dataFiles).containsExactly(FILE_A_DELETES);
-    dataFiles.remove(FILE_A_DELETES);
-    assertThat(dataFiles).isEmpty();
+    set.remove(FILE_C_DELETES);
+    assertThat(set).containsExactly(FILE_A_DELETES, FILE_B_DELETES);
+    set.remove(null);
+    assertThat(set).containsExactly(FILE_A_DELETES, FILE_B_DELETES);
+    set.remove(FILE_B_DELETES);
+    assertThat(set).containsExactly(FILE_A_DELETES);
+    set.remove(FILE_A_DELETES);
+    assertThat(set).isEmpty();
   }
 
   @Test
-  public void testContains() {
+  public void contains() {
     assertThat(ContentFileSet.of(ImmutableList.of(FILE_A, FILE_B)))
         .hasSize(2)
-        .contains(FILE_A)
-        .contains(FILE_B)
+        .containsExactly(FILE_A, FILE_B)
         .doesNotContain(FILE_C)
         .doesNotContain(FILE_D);
 
     assertThat(ContentFileSet.of(ImmutableList.of(FILE_A_DELETES, FILE_B_DELETES)))
         .hasSize(2)
-        .contains(FILE_A_DELETES)
-        .contains(FILE_B_DELETES)
+        .containsExactly(FILE_A_DELETES, FILE_B_DELETES)
         .doesNotContain(FILE_C_DELETES)
         .doesNotContain(FILE_D_DELETES);
   }
 
   @Test
-  public void testToArray() {
+  public void toArray() {
     ContentFileSet<DataFile> set = ContentFileSet.of(ImmutableList.of(FILE_B, FILE_A));
     assertThat(set.toArray()).hasSize(2).containsExactly(FILE_B, FILE_A);
 
@@ -173,7 +172,7 @@ public class TestContentFileSet {
   }
 
   @Test
-  public void testRetainAll() {
+  public void retainAll() {
     assertThat(ContentFileSet.empty().retainAll(null)).isFalse();
 
     ContentFileSet<DataFile> set = ContentFileSet.of(ImmutableList.of(FILE_A, FILE_B));
@@ -181,7 +180,7 @@ public class TestContentFileSet {
         .as("Set should have changed")
         .isTrue();
 
-    assertThat(set).hasSize(1).contains(FILE_A);
+    assertThat(set).hasSize(1).containsExactly(FILE_A);
 
     set = ContentFileSet.of(ImmutableList.of(FILE_A, FILE_B));
 
@@ -197,7 +196,7 @@ public class TestContentFileSet {
   }
 
   @Test
-  public void testRetainAllWithDeleteFiles() {
+  public void retainAllWithDeleteFiles() {
     assertThat(ContentFileSet.empty().retainAll(null)).isFalse();
 
     ContentFileSet<DeleteFile> set =
@@ -206,7 +205,7 @@ public class TestContentFileSet {
         .as("Set should have changed")
         .isTrue();
 
-    assertThat(set).hasSize(1).contains(FILE_A_DELETES);
+    assertThat(set).hasSize(1).containsExactly(FILE_A_DELETES);
 
     set = ContentFileSet.of(ImmutableList.of(FILE_A_DELETES, FILE_B_DELETES));
 
@@ -222,7 +221,7 @@ public class TestContentFileSet {
   }
 
   @Test
-  public void testRemoveAll() {
+  public void removeAll() {
     assertThat(ContentFileSet.empty().removeAll(null)).isFalse();
 
     ContentFileSet<DataFile> set = ContentFileSet.of(ImmutableList.of(FILE_A, FILE_B));
@@ -230,7 +229,7 @@ public class TestContentFileSet {
         .as("Set should have changed")
         .isTrue();
 
-    assertThat(set).hasSize(1).contains(FILE_B);
+    assertThat(set).hasSize(1).containsExactly(FILE_B);
 
     set = ContentFileSet.of(ImmutableList.of(FILE_A, FILE_B));
     assertThat(set.removeAll(ImmutableList.of(FILE_C, FILE_D)))
@@ -245,7 +244,7 @@ public class TestContentFileSet {
   }
 
   @Test
-  public void testRemoveAllWithDeleteFiles() {
+  public void removeAllWithDeleteFiles() {
     assertThat(ContentFileSet.empty().removeAll(null)).isFalse();
 
     ContentFileSet<DeleteFile> set =
@@ -254,7 +253,7 @@ public class TestContentFileSet {
         .as("Set should have changed")
         .isTrue();
 
-    assertThat(set).hasSize(1).contains(FILE_B_DELETES);
+    assertThat(set).hasSize(1).containsExactly(FILE_B_DELETES);
 
     set = ContentFileSet.of(ImmutableList.of(FILE_A_DELETES, FILE_B_DELETES));
     assertThat(set.removeAll(ImmutableList.of(FILE_C_DELETES, FILE_D_DELETES)))
@@ -280,21 +279,22 @@ public class TestContentFileSet {
     set1.add(FILE_B);
     set1.add(FILE_C);
 
+    // different DataFile instances but all use the same paths as set1
     set2.add(
         DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath(FILE_A.path().toString())
+            .withPath(FILE_A.location())
             .withFileSizeInBytes(10)
             .withRecordCount(1)
             .build());
     set2.add(
         DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath(FILE_B.path().toString())
+            .withPath(FILE_B.location())
             .withFileSizeInBytes(100)
             .withRecordCount(10)
             .build());
     set2.add(
         DataFiles.builder(PartitionSpec.unpartitioned())
-            .withPath(FILE_C.path().toString())
+            .withPath(FILE_C.location())
             .withFileSizeInBytes(1000)
             .withRecordCount(100)
             .build());
@@ -305,19 +305,19 @@ public class TestContentFileSet {
         ImmutableSet.of(
             ContentFileWrapper.wrap(
                 DataFiles.builder(PartitionSpec.unpartitioned())
-                    .withPath(FILE_A.path().toString())
+                    .withPath(FILE_A.location())
                     .withFileSizeInBytes(5)
                     .withRecordCount(1)
                     .build()),
             ContentFileWrapper.wrap(
                 DataFiles.builder(PartitionSpec.unpartitioned())
-                    .withPath(FILE_B.path().toString())
+                    .withPath(FILE_B.location())
                     .withFileSizeInBytes(300)
                     .withRecordCount(2)
                     .build()),
             ContentFileWrapper.wrap(
                 DataFiles.builder(PartitionSpec.unpartitioned())
-                    .withPath(FILE_C.path().toString())
+                    .withPath(FILE_C.location())
                     .withFileSizeInBytes(1000)
                     .withRecordCount(100)
                     .build()));
@@ -341,24 +341,25 @@ public class TestContentFileSet {
     set1.add(FILE_B_DELETES);
     set1.add(FILE_C_DELETES);
 
+    // different DeleteFile instances but all use the same paths as set1
     set2.add(
         FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
             .ofPositionDeletes()
-            .withPath(FILE_A_DELETES.path().toString())
+            .withPath(FILE_A_DELETES.location())
             .withFileSizeInBytes(10)
             .withRecordCount(1)
             .build());
     set2.add(
         FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
             .ofPositionDeletes()
-            .withPath(FILE_B_DELETES.path().toString())
+            .withPath(FILE_B_DELETES.location())
             .withFileSizeInBytes(100)
             .withRecordCount(10)
             .build());
     set2.add(
         FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
             .ofPositionDeletes()
-            .withPath(FILE_C_DELETES.path().toString())
+            .withPath(FILE_C_DELETES.location())
             .withFileSizeInBytes(1000)
             .withRecordCount(100)
             .build());
@@ -370,21 +371,21 @@ public class TestContentFileSet {
             ContentFileWrapper.wrap(
                 FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
                     .ofPositionDeletes()
-                    .withPath(FILE_A_DELETES.path().toString())
+                    .withPath(FILE_A_DELETES.location())
                     .withFileSizeInBytes(5)
                     .withRecordCount(1)
                     .build()),
             ContentFileWrapper.wrap(
                 FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
                     .ofPositionDeletes()
-                    .withPath(FILE_B_DELETES.path().toString())
+                    .withPath(FILE_B_DELETES.location())
                     .withFileSizeInBytes(300)
                     .withRecordCount(2)
                     .build()),
             ContentFileWrapper.wrap(
                 FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
                     .ofPositionDeletes()
-                    .withPath(FILE_C_DELETES.path().toString())
+                    .withPath(FILE_C_DELETES.location())
                     .withFileSizeInBytes(1000)
                     .withRecordCount(100)
                     .build()));

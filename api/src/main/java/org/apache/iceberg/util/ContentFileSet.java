@@ -43,11 +43,11 @@ public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Seriali
     this.set = contentFiles;
   }
 
-  public static <X extends ContentFile<X>> ContentFileSet<X> empty() {
+  public static <T extends ContentFile<T>> ContentFileSet<T> empty() {
     return new ContentFileSet<>(Sets.newLinkedHashSet());
   }
 
-  public static <X extends ContentFile<X>> ContentFileSet<X> of(Iterable<X> iterable) {
+  public static <T extends ContentFile<T>> ContentFileSet<T> of(Iterable<T> iterable) {
     return new ContentFileSet<>(
         Sets.newLinkedHashSet(Iterables.transform(iterable, ContentFileWrapper::wrap)));
   }
@@ -62,11 +62,12 @@ public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Seriali
     return set.isEmpty();
   }
 
+  @SuppressWarnings({"rawtypes", "unchecked"})
   @Override
-  public boolean contains(Object o) {
-    if (o instanceof ContentFile) {
+  public boolean contains(Object obj) {
+    if (obj instanceof ContentFile) {
       ContentFileWrapper<?> wrapper = WRAPPERS.get();
-      boolean result = set.contains(wrapper.set((ContentFile) o));
+      boolean result = set.contains(wrapper.set((ContentFile) obj));
       wrapper.set(null); // don't hold a reference to the value
       return result;
     }
@@ -74,6 +75,7 @@ public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Seriali
     return false;
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public Iterator<F> iterator() {
     return (Iterator<F>) Iterators.transform(set.iterator(), ContentFileWrapper::get);
@@ -84,6 +86,7 @@ public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Seriali
     return Iterators.toArray(iterator(), ContentFile.class);
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public <T> T[] toArray(T[] destArray) {
     int size = set.size();
@@ -91,11 +94,11 @@ public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Seriali
       return (T[]) toArray();
     }
 
-    Iterator<F> iter = iterator();
-    int ind = 0;
-    while (iter.hasNext()) {
-      destArray[ind] = (T) iter.next();
-      ind += 1;
+    Iterator<F> iterator = iterator();
+    int idx = 0;
+    while (iterator.hasNext()) {
+      destArray[idx] = (T) iterator.next();
+      idx += 1;
     }
 
     if (destArray.length > size) {
@@ -110,6 +113,7 @@ public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Seriali
     return set.add(ContentFileWrapper.wrap(contentFile));
   }
 
+  @SuppressWarnings({"rawtypes", "unchecked"})
   @Override
   public boolean remove(Object obj) {
     if (obj instanceof ContentFile) {
@@ -124,7 +128,7 @@ public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Seriali
 
   @Override
   public boolean containsAll(Collection<?> collection) {
-    if (collection != null) {
+    if (null != collection) {
       return Iterables.all(collection, this::contains);
     }
 
@@ -133,25 +137,27 @@ public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Seriali
 
   @Override
   public boolean addAll(Collection<? extends F> collection) {
-    if (collection != null) {
+    if (null != collection) {
       return Iterables.addAll(set, Iterables.transform(collection, ContentFileWrapper::wrap));
     }
 
     return false;
   }
 
+  @SuppressWarnings("rawtypes")
   @Override
   public boolean retainAll(Collection<?> collection) {
-    if (collection != null) {
-      Set<ContentFileWrapper<?>> coll = Sets.newLinkedHashSet();
-      for (Object o : collection) {
-        if (o instanceof ContentFile) {
-          ContentFile<?> file = (ContentFile) o;
-          coll.add(ContentFileWrapper.wrap(file));
+    if (null != collection) {
+      Set<ContentFileWrapper<?>> toRetain = Sets.newLinkedHashSet();
+      // using a stream here confuses the compiler
+      for (Object obj : collection) {
+        if (obj instanceof ContentFile) {
+          ContentFile<?> file = (ContentFile) obj;
+          toRetain.add(ContentFileWrapper.wrap(file));
         }
       }
 
-      return Iterables.retainAll(set, coll);
+      return Iterables.retainAll(set, toRetain);
     }
 
     return false;
@@ -159,7 +165,7 @@ public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Seriali
 
   @Override
   public boolean removeAll(Collection<?> collection) {
-    if (collection != null) {
+    if (null != collection) {
       return collection.stream().filter(this::remove).count() != 0;
     }
 

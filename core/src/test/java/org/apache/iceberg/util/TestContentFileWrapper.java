@@ -43,21 +43,17 @@ public class TestContentFileWrapper {
   private static final DeleteFile FILE_A_DELETES =
       FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
           .ofPositionDeletes()
-          .withPath("/path/to/delete-a.parquet")
+          .withPath("/path/to/data-a-deletes.parquet")
           .withFileSizeInBytes(1)
           .withRecordCount(1)
           .build();
 
   @Test
-  public void testEqualsAndHashCodeWithNullWrapper() {
+  public void equalsAndHashCodeWithNullWrapper() {
     ContentFileWrapper<DataFile> one = ContentFileWrapper.wrap(null);
     ContentFileWrapper<DataFile> two = ContentFileWrapper.wrap(null);
-    // at this point hashCode is not computed yet
     assertThat(one).isEqualTo(two);
-
-    // hashCode is lazily computed and stored
     assertThat(one.hashCode()).isEqualTo(two.hashCode()).isEqualTo(0);
-    assertThat(one).isEqualTo(two);
 
     one.set(FILE_A);
     assertThat(one).isNotEqualTo(two);
@@ -65,7 +61,7 @@ public class TestContentFileWrapper {
   }
 
   @Test
-  public void testEquals() {
+  public void equalityComparison() {
     assertThat(ContentFileWrapper.wrap(FILE_A)).isEqualTo(ContentFileWrapper.wrap(FILE_A));
     assertThat(ContentFileWrapper.wrap(FILE_A)).isNotEqualTo(ContentFileWrapper.wrap(FILE_B));
     assertThat(ContentFileWrapper.wrap(FILE_A))
@@ -73,29 +69,32 @@ public class TestContentFileWrapper {
 
     assertThat(ContentFileWrapper.wrap(FILE_A_DELETES))
         .isEqualTo(ContentFileWrapper.wrap(FILE_A_DELETES));
+
     assertThat(ContentFileWrapper.wrap(FILE_A))
         .isEqualTo(
             ContentFileWrapper.wrap(
                 FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
                     .ofPositionDeletes()
-                    .withPath(FILE_A.path().toString())
+                    .withPath(FILE_A.location())
                     .withFileSizeInBytes(1)
                     .withRecordCount(1)
                     .build()));
   }
 
   @Test
-  public void testHashCode() {
+  public void hashCodeComparison() {
     assertThat(ContentFileWrapper.wrap(FILE_A).hashCode())
         .isEqualTo(ContentFileWrapper.wrap(FILE_A).hashCode());
+
     assertThat(ContentFileWrapper.wrap(FILE_A_DELETES).hashCode())
         .isEqualTo(ContentFileWrapper.wrap(FILE_A_DELETES).hashCode());
+
     assertThat(ContentFileWrapper.wrap(FILE_A).hashCode())
         .isEqualTo(
             ContentFileWrapper.wrap(
                     FileMetadata.deleteFileBuilder(PartitionSpec.unpartitioned())
                         .ofPositionDeletes()
-                        .withPath(FILE_A.path().toString())
+                        .withPath(FILE_A.location())
                         .withFileSizeInBytes(1)
                         .withRecordCount(1)
                         .build())
@@ -103,19 +102,24 @@ public class TestContentFileWrapper {
   }
 
   @Test
-  public void testWrapperMethods() {
+  public void wrapperMethods() {
     ContentFileWrapper<DataFile> wrapper = ContentFileWrapper.wrap(FILE_A);
     assertThat(wrapper.content()).isEqualTo(FILE_A.content());
     assertThat(wrapper.columnSizes()).isEqualTo(FILE_A.columnSizes());
     assertThat(wrapper.get()).isEqualTo(FILE_A);
     assertThat(wrapper.path()).isEqualTo(FILE_A.path());
+    assertThat(wrapper.location()).isEqualTo(FILE_A.location());
     assertThat(wrapper.specId()).isEqualTo(FILE_A.specId());
     assertThat(wrapper.recordCount()).isEqualTo(FILE_A.recordCount());
     assertThat(wrapper.pos()).isEqualTo(FILE_A.pos());
+    assertThat(wrapper.manifestLocation()).isEqualTo(FILE_A.manifestLocation());
+    assertThat(wrapper.dataSequenceNumber()).isEqualTo(FILE_A.dataSequenceNumber());
+    assertThat(wrapper.fileSequenceNumber()).isEqualTo(FILE_A.fileSequenceNumber());
+    assertThat(wrapper.sortOrderId()).isEqualTo(FILE_A.sortOrderId());
   }
 
   @Test
-  public void testHashCodeIsRecomputed() {
+  public void hashCodeIsRecomputed() {
     ContentFileWrapper<DataFile> wrapper = ContentFileWrapper.wrap(FILE_A);
     assertThat(wrapper.hashCode()).isEqualTo(-824248163);
 
