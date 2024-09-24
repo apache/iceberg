@@ -170,14 +170,7 @@ class RESTTableOperations implements TableOperations {
   }
 
   private TableMetadata updateCurrentMetadata(LoadTableResponse response) {
-    // LoadTableResponse is used to deserialize the response, but config is not allowed by the REST
-    // spec so it can be
-    // safely ignored. there is no requirement to update config on refresh or commit.
-    if (current == null
-        || !Objects.equals(current.metadataFileLocation(), response.metadataLocation())) {
-      this.current = response.tableMetadata();
-    }
-
+    this.current = response.tableMetadata();
     return current;
   }
 
