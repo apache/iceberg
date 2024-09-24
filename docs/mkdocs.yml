@@ -59,6 +59,8 @@ nav:
   - Starrocks: https://docs.starrocks.io/en-us/latest/data_source/catalog/iceberg_catalog
   - Amazon Athena: https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg.html
   - Amazon EMR: https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-use-cluster.html
+  - Amazon Data Firehose: https://docs.aws.amazon.com/firehose/latest/dev/apache-iceberg-destination.html
+  - Amazon Redshift: https://docs.aws.amazon.com/redshift/latest/dg/querying-iceberg.html
   - Google BigQuery: https://cloud.google.com/bigquery/docs/iceberg-tables
   - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
   - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
