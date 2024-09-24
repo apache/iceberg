@@ -23,9 +23,9 @@ import org.immutables.value.Value;
 @Value.Enclosing
 @SuppressWarnings("ImmutablesStyle")
 @Value.Style(
-        typeImmutableEnclosing = "ImmutableRewriteTablePath",
-        visibilityString = "PUBLIC",
-        builderVisibilityString = "PUBLIC")
+    typeImmutableEnclosing = "ImmutableRewriteTablePath",
+    visibilityString = "PUBLIC",
+    builderVisibilityString = "PUBLIC")
 interface BaseRewriteTablePath extends RewriteTablePath {
 
   @Value.Immutable
