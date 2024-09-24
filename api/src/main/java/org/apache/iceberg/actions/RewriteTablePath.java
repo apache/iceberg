@@ -58,8 +58,8 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
   RewriteTablePath endVersion(String endVersion);
 
   /**
-   * Set the customized staging location. It is optional. By default, staging location is a subdirectory
-   * under table's metadata directory.
+   * Set the customized staging location. It is optional. By default, staging location is a
+   * subdirectory under table's metadata directory.
    *
    * @param stagingLocation the staging location
    * @return this for method chaining
