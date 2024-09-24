@@ -19,9 +19,13 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class DataTableScan extends BaseTableScan {
   protected DataTableScan(Table table, Schema schema, TableScanContext context) {
@@ -69,12 +73,17 @@ public class DataTableScan extends BaseTableScan {
     List<ManifestFile> deleteManifests = snapshot.deleteManifests(io);
     scanMetrics().totalDataManifests().increment((long) dataManifests.size());
     scanMetrics().totalDeleteManifests().increment((long) deleteManifests.size());
+    List<PartitionSpec> specs =
+        Lists.newArrayList(
+            Iterables.transform(
+                table().specs().values(), spec -> TableMetadata.updateSpecSchema(schema(), spec)));
+    Map<Integer, PartitionSpec> specsById = Maps.newHashMap(TableMetadata.indexSpecs(specs));
     ManifestGroup manifestGroup =
         new ManifestGroup(io, dataManifests, deleteManifests)
             .caseSensitive(isCaseSensitive())
             .select(scanColumns())
             .filterData(filter())
-            .specsById(table().specs())
+            .specsById(specsById)
             .scanMetrics(scanMetrics())
             .ignoreDeleted()
             .columnsToKeepStats(columnsToKeepStats());
