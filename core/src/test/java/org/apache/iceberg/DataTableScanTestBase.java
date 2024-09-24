@@ -316,7 +316,8 @@ public abstract class DataTableScanTestBase<
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     long timeTravelSnapshotId = table.currentSnapshot().snapshotId();
     table.updateSchema().renameColumn("id", "re_id").commit();
-    TableScan scan = table.newScan().useSnapshot(timeTravelSnapshotId).filter(Expressions.equal("id", 5));
+    TableScan scan =
+        table.newScan().useSnapshot(timeTravelSnapshotId).filter(Expressions.equal("id", 5));
     assertThat(Iterables.size(scan.planFiles())).isEqualTo(2);
   }
 }
