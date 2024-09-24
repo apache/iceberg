@@ -26,6 +26,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PartitionUtil;
 
 public class DataTableScan extends BaseTableScan {
   protected DataTableScan(Table table, Schema schema, TableScanContext context) {
@@ -77,7 +78,7 @@ public class DataTableScan extends BaseTableScan {
         Lists.newArrayList(
             Iterables.transform(
                 table().specs().values(), spec -> TableMetadata.updateSpecSchema(schema(), spec)));
-    Map<Integer, PartitionSpec> specsById = Maps.newHashMap(TableMetadata.indexSpecs(specs));
+    Map<Integer, PartitionSpec> specsById = Maps.newHashMap(PartitionUtil.indexSpecs(specs));
     ManifestGroup manifestGroup =
         new ManifestGroup(io, dataManifests, deleteManifests)
             .caseSensitive(isCaseSensitive())
