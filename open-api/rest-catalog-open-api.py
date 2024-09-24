@@ -1424,7 +1424,10 @@ class Schema(StructType):
 
 class ADLSCredential(BaseModel):
     type: Literal['adls']
-    scheme: str
+    prefix: Optional[str] = Field(
+        None,
+        description='Indicates a storage location prefix where the credential is relevant. Clients should choose the most specific prefix if several credentials of the same type are available.',
+    )
     sas_token: str = Field(..., alias='sas-token')
     expires_at_ms: int = Field(
         ...,
@@ -1435,7 +1438,10 @@ class ADLSCredential(BaseModel):
 
 class GCSCredential(BaseModel):
     type: Literal['gcs']
-    scheme: str
+    prefix: Optional[str] = Field(
+        None,
+        description='Indicates a storage location prefix where the credential is relevant. Clients should choose the most specific prefix if several credentials of the same type are available.',
+    )
     token: str
     expires_at_ms: int = Field(
         ...,
@@ -1446,7 +1452,10 @@ class GCSCredential(BaseModel):
 
 class S3Credential(BaseModel):
     type: Literal['s3']
-    scheme: str
+    prefix: Optional[str] = Field(
+        None,
+        description='Indicates a storage location prefix where the credential is relevant. Clients should choose the most specific prefix if several credentials of the same type are available.',
+    )
     access_key_id: str = Field(..., alias='access-key-id')
     secret_access_key: str = Field(..., alias='secret-access-key')
     session_token: str = Field(..., alias='session-token')
