@@ -3109,15 +3109,16 @@ components:
         - $ref: '#/components/schemas/Credential'
       required:
         - type
-        - scheme
         - sas-token
         - expires-at-ms
       properties:
         type:
           type: string
           enum: [ "adls" ]
-        scheme:
+        prefix:
           type: string
+          description: Indicates a storage location prefix where the credential is relevant. Clients should choose the most
+            specific prefix if several credentials of the same type are available.
         sas-token:
           type: string
         expires-at-ms:
@@ -3132,15 +3133,16 @@ components:
         - $ref: '#/components/schemas/Credential'
       required:
         - type
-        - scheme
         - token
         - expires-at-ms
       properties:
         type:
           type: string
           enum: [ "gcs" ]
-        scheme:
+        prefix:
           type: string
+          description: Indicates a storage location prefix where the credential is relevant. Clients should choose the most
+            specific prefix if several credentials of the same type are available.
         token:
           type: string
         expires-at-ms:
@@ -3154,7 +3156,6 @@ components:
         - $ref: '#/components/schemas/Credential'
       required:
         - type
-        - scheme
         - access-key-id
         - secret-access-key
         - session-token
@@ -3163,8 +3164,10 @@ components:
         type:
           type: string
           enum: [ "s3" ]
-        scheme:
+        prefix:
           type: string
+          description: Indicates a storage location prefix where the credential is relevant. Clients should choose the most
+            specific prefix if several credentials of the same type are available.
         access-key-id:
           type: string
         secret-access-key:
