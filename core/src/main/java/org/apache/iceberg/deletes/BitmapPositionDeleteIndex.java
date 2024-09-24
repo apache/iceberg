@@ -43,6 +43,15 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
   }
 
   @Override
+  public void merge(PositionDeleteIndex that) {
+    if (that instanceof BitmapPositionDeleteIndex) {
+      merge((BitmapPositionDeleteIndex) that);
+    } else {
+      that.forEach(this::delete);
+    }
+  }
+
+  @Override
   public boolean isDeleted(long position) {
     return roaring64Bitmap.contains(position);
   }
