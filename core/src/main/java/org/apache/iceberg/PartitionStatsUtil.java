@@ -23,14 +23,16 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PartitionMap;
 import org.apache.iceberg.util.PartitionUtil;
-import org.apache.iceberg.util.StructLikeMap;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
@@ -56,14 +58,14 @@ public class PartitionStatsUtil {
     }
 
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
-    Queue<StructLikeMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
+    Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
     Tasks.foreach(manifests)
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(ThreadPools.getWorkerPool())
         .run(manifest -> statsByManifest.add(collectStats(table, manifest, partitionType)));
 
-    return mergeStats(partitionType, statsByManifest);
+    return mergeStats(statsByManifest, table.specs());
   }
 
   /**
@@ -81,19 +83,21 @@ public class PartitionStatsUtil {
     return entries;
   }
 
-  private static StructLikeMap<PartitionStats> collectStats(
+  private static PartitionMap<PartitionStats> collectStats(
       Table table, ManifestFile manifest, StructType partitionType) {
     try (ManifestReader<?> reader = openManifest(table, manifest)) {
-      StructLikeMap<PartitionStats> statsMap = StructLikeMap.create(partitionType);
+      PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
 
       for (ManifestEntry<?> entry : reader.entries()) {
         ContentFile<?> file = entry.file();
         PartitionSpec spec = table.specs().get(file.specId());
-        PartitionData key =
+        int specId = file.specId();
+        PartitionData partition =
             PartitionUtil.coercePartitionData(partitionType, spec, file.partition());
         Snapshot snapshot = table.snapshot(entry.snapshotId());
         PartitionStats stats =
-            statsMap.computeIfAbsent(key, ignored -> new PartitionStats(key, file.specId()));
+            statsMap.computeIfAbsent(
+                Pair.of(specId, partition), ignored -> new PartitionStats(partition, specId));
         if (entry.isLive()) {
           stats.liveEntry(file, snapshot);
         } else {
@@ -113,9 +117,9 @@ public class PartitionStatsUtil {
   }
 
   private static Collection<PartitionStats> mergeStats(
-      StructType partitionType, Queue<StructLikeMap<PartitionStats>> statsByManifest) {
-    StructLikeMap<PartitionStats> statsMap = StructLikeMap.create(partitionType);
-    for (StructLikeMap<PartitionStats> stats : statsByManifest) {
+      Queue<PartitionMap<PartitionStats>> statsByManifest, Map<Integer, PartitionSpec> specs) {
+    PartitionMap<PartitionStats> statsMap = PartitionMap.create(specs);
+    for (PartitionMap<PartitionStats> stats : statsByManifest) {
       stats.forEach(
           (key, value) ->
               statsMap.merge(

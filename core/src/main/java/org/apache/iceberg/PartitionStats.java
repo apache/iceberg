@@ -141,8 +141,7 @@ public class PartitionStats implements StructLike {
    * @param entry the entry from which statistics will be sourced.
    */
   public void appendStats(PartitionStats entry) {
-    // update spec id for schema evolution scenarios
-    this.specId = Math.max(specId, entry.specId);
+    Preconditions.checkArgument(specId == entry.specId(), "Spec IDs must match");
 
     this.dataRecordCount += entry.dataRecordCount;
     this.dataFileCount += entry.dataFileCount;

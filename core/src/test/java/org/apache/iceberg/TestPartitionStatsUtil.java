@@ -212,6 +212,7 @@ public class TestPartitionStatsUtil {
   }
 
   @Test
+  @SuppressWarnings("MethodLength")
   public void testPartitionStatsWithSchemaEvolution() throws Exception {
     final PartitionSpec specBefore = PartitionSpec.builderFor(SCHEMA).identity("c2").build();
 
@@ -291,16 +292,29 @@ public class TestPartitionStatsUtil {
             snapshot1.snapshotId()),
         Tuple.tuple(
             partitionData(partitionType, "bar", null),
-            1, // new spec id as same partition inserted after evolution
-            2 * dataFiles.get(1).recordCount() + filesWithNewSpec.get(4).recordCount(),
-            3,
-            2 * dataFiles.get(1).fileSizeInBytes() + filesWithNewSpec.get(4).fileSizeInBytes(),
+            0, // old spec id for "bar, null" before evolution
+            2 * dataFiles.get(1).recordCount(),
+            2,
+            2 * dataFiles.get(1).fileSizeInBytes(),
             0L,
             0,
             0L,
             0,
             0L,
-            snapshot2.timestampMillis(),
+            snapshot1.timestampMillis(),
+            snapshot1.snapshotId()),
+        Tuple.tuple(
+            partitionData(partitionType, "bar", null),
+            1, // new spec id for "bar, null" after evolution
+            filesWithNewSpec.get(4).recordCount(),
+            1,
+            filesWithNewSpec.get(4).fileSizeInBytes(),
+            0L,
+            0,
+            0L,
+            0,
+            0L,
+            snapshot2.timestampMillis(), // new snapshot
             snapshot2.snapshotId()),
         Tuple.tuple(
             partitionData(partitionType, "foo", "A"),
