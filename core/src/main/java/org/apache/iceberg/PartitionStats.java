@@ -93,7 +93,7 @@ public class PartitionStats implements StructLike {
   /**
    * Updates the partition stats from the data/delete file.
    *
-   * @param file the ContentFile from the manifest entry.
+   * @param file the {@link ContentFile} from the manifest entry.
    * @param snapshot the snapshot corresponding to the live entry.
    */
   public void liveEntry(ContentFile<?> file, Snapshot snapshot) {

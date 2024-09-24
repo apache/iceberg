@@ -23,15 +23,15 @@ import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
+import java.util.Queue;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.StructLikeMap;
+import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 
 public class PartitionStatsUtil {
@@ -56,36 +56,14 @@ public class PartitionStatsUtil {
     }
 
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
+    Queue<StructLikeMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
+    Tasks.foreach(manifests)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(ThreadPools.getWorkerPool())
+        .run(manifest -> statsByManifest.add(collectStats(table, manifest, partitionType)));
 
-    ExecutorService executorService = ThreadPools.getWorkerPool();
-    List<Future<StructLikeMap<PartitionStats>>> futures = Lists.newArrayList();
-    manifests.forEach(
-        manifest -> {
-          Future<StructLikeMap<PartitionStats>> future =
-              executorService.submit(() -> collectStats(table, manifest, partitionType));
-          futures.add(future);
-        });
-
-    StructLikeMap<PartitionStats> statsMap = StructLikeMap.create(partitionType);
-    for (Future<StructLikeMap<PartitionStats>> future : futures) {
-      try {
-        future
-            .get()
-            .forEach(
-                (key, value) ->
-                    statsMap.merge(
-                        key,
-                        value,
-                        (existingEntry, newEntry) -> {
-                          existingEntry.appendStats(newEntry);
-                          return existingEntry;
-                        }));
-      } catch (InterruptedException | ExecutionException e) {
-        throw new RuntimeException(e);
-      }
-    }
-
-    return statsMap.values();
+    return mergeStats(partitionType, statsByManifest);
   }
 
   /**
@@ -132,5 +110,23 @@ public class PartitionStatsUtil {
   private static ManifestReader<?> openManifest(Table table, ManifestFile manifest) {
     List<String> projection = BaseScan.scanColumns(manifest.content());
     return ManifestFiles.open(manifest, table.io()).select(projection);
+  }
+
+  private static Collection<PartitionStats> mergeStats(
+      StructType partitionType, Queue<StructLikeMap<PartitionStats>> statsByManifest) {
+    StructLikeMap<PartitionStats> statsMap = StructLikeMap.create(partitionType);
+    for (StructLikeMap<PartitionStats> stats : statsByManifest) {
+      stats.forEach(
+          (key, value) ->
+              statsMap.merge(
+                  key,
+                  value,
+                  (existingEntry, newEntry) -> {
+                    existingEntry.appendStats(newEntry);
+                    return existingEntry;
+                  }));
+    }
+
+    return statsMap.values();
   }
 }

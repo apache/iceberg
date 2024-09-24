@@ -22,10 +22,8 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.IntStream;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.types.Types;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -76,34 +74,27 @@ public class PartitionStatsUtilBenchmark {
   public void setupBenchmark() {
     table = TABLES.create(SCHEMA, SPEC, TABLE_IDENT);
 
-    IntStream.range(0, MANIFEST_COUNTER)
-        .forEach(
-            manifestCount -> {
-              AppendFiles appendFiles = table.newAppend();
+    for (int manifestCount = 0; manifestCount < MANIFEST_COUNTER; manifestCount++) {
+      AppendFiles appendFiles = table.newAppend();
+      for (int partition = 0; partition < PARTITION_PER_MANIFEST; partition++) {
+        StructLike partitionData = TestHelpers.Row.of(partition);
+        for (int fileOrdinal = 0; fileOrdinal < DATA_FILES_PER_PARTITION_COUNT; fileOrdinal++) {
+          appendFiles.appendFile(FileGenerationUtil.generateDataFile(table, partitionData));
+        }
+      }
 
-              IntStream.range(0, PARTITION_PER_MANIFEST)
-                  .forEach(
-                      partitionOrdinal -> {
-                        StructLike partition = TestHelpers.Row.of(partitionOrdinal);
-                        IntStream.range(0, DATA_FILES_PER_PARTITION_COUNT)
-                            .forEach(
-                                fileOrdinal ->
-                                    appendFiles.appendFile(
-                                        FileGenerationUtil.generateDataFile(table, partition)));
-                      });
-
-              appendFiles.commit();
-            });
+      appendFiles.commit();
+    }
   }
 
   @TearDown
-  public void tearDownBenchmark() throws IOException {
+  public void tearDownBenchmark() {
     TABLES.dropTable(TABLE_IDENT);
   }
 
   @Benchmark
   @Threads(1)
-  public void benchmarkPartitionStats() throws IOException {
+  public void benchmarkPartitionStats() {
     Collection<PartitionStats> partitionStats =
         PartitionStatsUtil.computeStats(table, table.currentSnapshot());
     assertThat(partitionStats).hasSize(PARTITION_PER_MANIFEST);
