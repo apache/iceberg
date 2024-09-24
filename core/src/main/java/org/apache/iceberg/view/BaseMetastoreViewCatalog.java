@@ -170,6 +170,9 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .putAllSummary(EnvironmentContext.get())
               .build();
 
+      properties.putAll(
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.VIEW_OVERRIDE_PREFIX));
+
       ViewMetadata viewMetadata =
           ViewMetadata.builder()
               .setProperties(properties)
@@ -218,6 +221,9 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
               .timestampMillis(System.currentTimeMillis())
               .putAllSummary(EnvironmentContext.get())
               .build();
+
+      properties.putAll(
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.VIEW_OVERRIDE_PREFIX));
 
       ViewMetadata.Builder builder =
           ViewMetadata.buildFrom(metadata)
