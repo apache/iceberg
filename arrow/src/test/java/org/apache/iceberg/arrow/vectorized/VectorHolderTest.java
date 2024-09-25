@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
 
 import org.apache.arrow.vector.FieldVector;
 import org.apache.iceberg.types.Type;
@@ -41,7 +41,7 @@ class VectorHolderTest {
   VectorHolder vectorHolder;
 
   @BeforeEach
-  void setUp() {
+  void before() {
     MockitoAnnotations.initMocks(this);
     vectorHolder =
         new VectorHolder(
