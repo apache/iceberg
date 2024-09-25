@@ -64,6 +64,47 @@ public class TestBitmapPositionDeleteIndex {
     assertThat(positions).isEmpty();
   }
 
+  @Test
+  public void testMergeBitmapIndexWithNonEmpty() {
+    long pos1 = 10L; // Container 0 (high bits = 0)
+    long pos2 = 1L << 33; // Container 1 (high bits = 1)
+    long pos3 = pos2 + 1; // Container 1 (high bits = 1)
+    long pos4 = 2L << 33; // Container 2 (high bits = 2)
+
+    BitmapPositionDeleteIndex index1 = new BitmapPositionDeleteIndex();
+    index1.delete(pos2);
+    index1.delete(pos1);
+
+    BitmapPositionDeleteIndex index2 = new BitmapPositionDeleteIndex();
+    index2.delete(pos4);
+    index2.delete(pos3);
+
+    index1.merge(index2);
+
+    // output must be sorted in ascending order across containers
+    List<Long> positions = collect(index1);
+    assertThat(positions).containsExactly(pos1, pos2, pos3, pos4);
+  }
+
+  @Test
+  public void testMergeBitmapIndexWithEmpty() {
+    long pos1 = 10L; // Container 0 (high bits = 0)
+    long pos2 = 1L << 33; // Container 1 (high bits = 1)
+    long pos3 = pos2 + 1; // Container 1 (high bits = 1)
+    long pos4 = 2L << 33; // Container 2 (high bits = 2)
+
+    BitmapPositionDeleteIndex index = new BitmapPositionDeleteIndex();
+    index.delete(pos2);
+    index.delete(pos1);
+    index.delete(pos3);
+    index.delete(pos4);
+    index.merge(PositionDeleteIndex.empty());
+
+    // output must be sorted in ascending order across containers
+    List<Long> positions = collect(index);
+    assertThat(positions).containsExactly(pos1, pos2, pos3, pos4);
+  }
+
   private List<Long> collect(PositionDeleteIndex index) {
     List<Long> positions = Lists.newArrayList();
     index.forEach(positions::add);

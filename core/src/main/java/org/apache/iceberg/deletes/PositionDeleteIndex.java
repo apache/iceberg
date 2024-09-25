@@ -37,6 +37,15 @@ public interface PositionDeleteIndex {
   void delete(long posStart, long posEnd);
 
   /**
+   * Adds positions from the other index, modifying this index in place.
+   *
+   * @param that the other index to merge
+   */
+  default void merge(PositionDeleteIndex that) {
+    that.forEach(this::delete);
+  }
+
+  /**
    * Checks whether a row at the position is deleted.
    *
    * @param position deleted row position
