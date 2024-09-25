@@ -154,7 +154,6 @@
                 org.apache.spark.sql.connector.iceberg.write.RowLevelOperation.Command.*,
                 org.apache.spark.sql.connector.write.RowLevelOperation.Command.*,
                 org.junit.Assert.*,
-                org.junit.Assume.*,
                 org.assertj.core.api.Assertions.*,
                 org.assertj.core.api.Assumptions.*"/>
         </module>
