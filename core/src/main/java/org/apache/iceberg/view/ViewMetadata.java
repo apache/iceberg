@@ -372,7 +372,7 @@ public interface ViewMetadata extends Serializable {
         newSchema = schema;
       }
 
-      int highestFieldId = Math.max(highestFieldId(), newSchema.highestFieldId());
+      int highestFieldId = Math.max(ViewUtil.highestFieldId(schemas), newSchema.highestFieldId());
       schemas.add(newSchema);
       schemasById.put(newSchema.schemaId(), newSchema);
       changes.add(new MetadataUpdate.AddSchema(newSchema, highestFieldId));
@@ -380,10 +380,6 @@ public interface ViewMetadata extends Serializable {
       this.lastAddedSchemaId = newSchemaId;
 
       return newSchemaId;
-    }
-
-    private int highestFieldId() {
-      return schemas.stream().map(Schema::highestFieldId).max(Integer::compareTo).orElse(0);
     }
 
     private int reuseOrCreateNewSchemaId(Schema newSchema) {
