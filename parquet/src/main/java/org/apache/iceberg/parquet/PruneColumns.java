@@ -43,7 +43,7 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   }
 
   @Override
-  public Type message(StructType iStruct, MessageType message, List<Type> fields) {
+  public Type message(StructType expected, MessageType message, List<Type> fields) {
     Types.MessageTypeBuilder builder = Types.buildMessage();
 
     boolean hasChange = false;
@@ -82,7 +82,7 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   }
 
   @Override
-  public Type struct(StructType iStruct, GroupType struct, List<Type> fields) {
+  public Type struct(StructType expected, GroupType struct, List<Type> fields) {
     boolean hasChange = false;
     List<Type> filteredFields = Lists.newArrayListWithExpectedSize(fields.size());
     for (int i = 0; i < fields.size(); i += 1) {
@@ -109,7 +109,7 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   }
 
   @Override
-  public Type list(ListType iList, GroupType list, Type element) {
+  public Type list(ListType expected, GroupType list, Type element) {
     Type repeated = list.getType(0);
     Type originalElement = ParquetSchemaUtil.determineListElementType(list);
     Integer elementId = getId(originalElement);
@@ -131,7 +131,7 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   }
 
   @Override
-  public Type map(MapType iMap, GroupType map, Type key, Type value) {
+  public Type map(MapType expected, GroupType map, Type key, Type value) {
     GroupType repeated = map.getType(0).asGroupType();
     Type originalKey = repeated.getType(0);
     Type originalValue = repeated.getType(1);
@@ -153,7 +153,7 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   }
 
   @Override
-  public Type primitive(org.apache.iceberg.types.Type.PrimitiveType iPrimitive, PrimitiveType primitive) {
+  public Type primitive(org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
     return null;
   }
 
