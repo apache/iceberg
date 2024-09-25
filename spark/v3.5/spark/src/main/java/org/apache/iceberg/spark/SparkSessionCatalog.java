@@ -35,6 +35,7 @@ import org.apache.spark.sql.catalyst.analysis.NonEmptyNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.CatalogExtension;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
+import org.apache.spark.sql.connector.catalog.DelegatingCatalogExtension;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.NamespaceChange;
@@ -56,13 +57,12 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *     SupportsNamespaces.
  */
 public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & SupportsNamespaces>
-    extends BaseCatalog implements CatalogExtension {
+    extends DelegatingCatalogExtension implements BaseCatalog {
   private static final String[] DEFAULT_NAMESPACE = new String[] {"default"};
 
   private String catalogName = null;
   private TableCatalog icebergCatalog = null;
   private StagingTableCatalog asStagingCatalog = null;
-  private T sessionCatalog = null;
   private boolean createParquetAsIceberg = false;
   private boolean createAvroAsIceberg = false;
   private boolean createOrcAsIceberg = false;
@@ -89,56 +89,11 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
   }
 
   @Override
-  public String[][] listNamespaces() throws NoSuchNamespaceException {
-    return getSessionCatalog().listNamespaces();
-  }
-
-  @Override
-  public String[][] listNamespaces(String[] namespace) throws NoSuchNamespaceException {
-    return getSessionCatalog().listNamespaces(namespace);
-  }
-
-  @Override
-  public boolean namespaceExists(String[] namespace) {
-    return getSessionCatalog().namespaceExists(namespace);
-  }
-
-  @Override
-  public Map<String, String> loadNamespaceMetadata(String[] namespace)
-      throws NoSuchNamespaceException {
-    return getSessionCatalog().loadNamespaceMetadata(namespace);
-  }
-
-  @Override
-  public void createNamespace(String[] namespace, Map<String, String> metadata)
-      throws NamespaceAlreadyExistsException {
-    getSessionCatalog().createNamespace(namespace, metadata);
-  }
-
-  @Override
-  public void alterNamespace(String[] namespace, NamespaceChange... changes)
-      throws NoSuchNamespaceException {
-    getSessionCatalog().alterNamespace(namespace, changes);
-  }
-
-  @Override
-  public boolean dropNamespace(String[] namespace, boolean cascade)
-      throws NoSuchNamespaceException, NonEmptyNamespaceException {
-    return getSessionCatalog().dropNamespace(namespace, cascade);
-  }
-
-  @Override
-  public Identifier[] listTables(String[] namespace) throws NoSuchNamespaceException {
-    // delegate to the session catalog because all tables share the same namespace
-    return getSessionCatalog().listTables(namespace);
-  }
-
-  @Override
   public Table loadTable(Identifier ident) throws NoSuchTableException {
     try {
       return icebergCatalog.loadTable(ident);
     } catch (NoSuchTableException e) {
-      return getSessionCatalog().loadTable(ident);
+      return super.loadTable(ident);
     }
   }
 
@@ -147,7 +102,7 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     try {
       return icebergCatalog.loadTable(ident, version);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      return getSessionCatalog().loadTable(ident, version);
+      return super.loadTable(ident, version);
     }
   }
 
@@ -156,7 +111,7 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     try {
       return icebergCatalog.loadTable(ident, timestamp);
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-      return getSessionCatalog().loadTable(ident, timestamp);
+      return super.loadTable(ident, timestamp);
     }
   }
 
@@ -165,7 +120,7 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     // We do not need to check whether the table exists and whether
     // it is an Iceberg table to reduce remote service requests.
     icebergCatalog.invalidateTable(ident);
-    getSessionCatalog().invalidateTable(ident);
+    super.invalidateTable(ident);
   }
 
   @Override
@@ -177,7 +132,7 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
       return icebergCatalog.createTable(ident, schema, partitions, properties);
     } else {
       // delegate to the session catalog
-      return getSessionCatalog().createTable(ident, schema, partitions, properties);
+      return super.createTable(ident, schema, partitions, properties);
     }
   }
 
@@ -193,7 +148,7 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
       }
       catalog = icebergCatalog;
     } else {
-      catalog = getSessionCatalog();
+      throw new UnsupportedOperationException("Cannot stage a table create on the Session Catalog");
     }
 
     // create the table with the session catalog, then wrap it in a staged table that will delete to
@@ -214,7 +169,7 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
       }
       catalog = icebergCatalog;
     } else {
-      catalog = getSessionCatalog();
+      throw new UnsupportedOperationException("Cannot stage a table replace on the Session Catalog");
     }
 
     // attempt to drop the table and fail if it doesn't exist
@@ -246,7 +201,7 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
       }
       catalog = icebergCatalog;
     } else {
-      catalog = getSessionCatalog();
+      throw new UnsupportedOperationException("Cannot stage a table create or replace on the Session Catalog");
     }
 
     // drop the table if it exists
@@ -269,7 +224,7 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     if (icebergCatalog.tableExists(ident)) {
       return icebergCatalog.alterTable(ident, changes);
     } else {
-      return getSessionCatalog().alterTable(ident, changes);
+      return super.alterTable(ident, changes);
     }
   }
 
@@ -278,7 +233,7 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     // no need to check table existence to determine which catalog to use. if a table doesn't exist
     // then both are
     // required to return false.
-    return icebergCatalog.dropTable(ident) || getSessionCatalog().dropTable(ident);
+    return icebergCatalog.dropTable(ident) || super.dropTable(ident);
   }
 
   @Override
@@ -286,7 +241,7 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     // no need to check table existence to determine which catalog to use. if a table doesn't exist
     // then both are
     // required to return false.
-    return icebergCatalog.purgeTable(ident) || getSessionCatalog().purgeTable(ident);
+    return icebergCatalog.purgeTable(ident) || super.purgeTable(ident);
   }
 
   @Override
@@ -298,14 +253,16 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     if (icebergCatalog.tableExists(from)) {
       icebergCatalog.renameTable(from, to);
     } else {
-      getSessionCatalog().renameTable(from, to);
+      super.renameTable(from, to);
     }
   }
 
+  /**
+   * Removed
+   *
+   *
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
-    super.initialize(name, options);
-
     if (options.containsKey(CatalogUtil.ICEBERG_CATALOG_TYPE)
         && options
             .get(CatalogUtil.ICEBERG_CATALOG_TYPE)
@@ -323,6 +280,7 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     this.createAvroAsIceberg = options.getBoolean("avro-enabled", createAvroAsIceberg);
     this.createOrcAsIceberg = options.getBoolean("orc-enabled", createOrcAsIceberg);
   }
+  **/
 
   private void validateHmsUri(String catalogHmsUri) {
     if (catalogHmsUri == null) {
@@ -340,18 +298,6 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
         "Inconsistent Hive metastore URIs: %s (Spark session) != %s (spark_catalog)",
         envHmsUri,
         catalogHmsUri);
-  }
-
-  @Override
-  @SuppressWarnings("unchecked")
-  public void setDelegateCatalog(CatalogPlugin sparkSessionCatalog) {
-    if (sparkSessionCatalog instanceof TableCatalog
-        && sparkSessionCatalog instanceof FunctionCatalog
-        && sparkSessionCatalog instanceof SupportsNamespaces) {
-      this.sessionCatalog = (T) sparkSessionCatalog;
-    } else {
-      throw new IllegalArgumentException("Invalid session catalog: " + sparkSessionCatalog);
-    }
   }
 
   @Override
@@ -373,13 +319,6 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     return false;
   }
 
-  private T getSessionCatalog() {
-    Preconditions.checkNotNull(
-        sessionCatalog,
-        "Delegated SessionCatalog is missing. "
-            + "Please make sure your are replacing Spark's default catalog, named 'spark_catalog'.");
-    return sessionCatalog;
-  }
 
   @Override
   public Catalog icebergCatalog() {
@@ -392,9 +331,9 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
   @Override
   public UnboundFunction loadFunction(Identifier ident) throws NoSuchFunctionException {
     try {
-      return super.loadFunction(ident);
+      return loadFunction(ident);
     } catch (NoSuchFunctionException e) {
-      return getSessionCatalog().loadFunction(ident);
+      return super.loadFunction(ident);
     }
   }
 }

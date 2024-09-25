@@ -30,19 +30,18 @@ import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-abstract class BaseCatalog
-    implements StagingTableCatalog,
+interface BaseCatalog
+    extends StagingTableCatalog,
         ProcedureCatalog,
         SupportsNamespaces,
         HasIcebergCatalog,
         SupportsFunctions {
-  private static final String USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS = "use-nullable-query-schema";
-  private static final boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
 
-  private boolean useNullableQuerySchema = USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT;
+  String USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS = "use-nullable-query-schema";
+  boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
 
   @Override
-  public Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException {
+  default Procedure loadProcedure(Identifier ident) throws NoSuchProcedureException {
     String[] namespace = ident.namespace();
     String name = ident.name();
 
@@ -59,7 +58,7 @@ abstract class BaseCatalog
   }
 
   @Override
-  public boolean isFunctionNamespace(String[] namespace) {
+  default boolean isFunctionNamespace(String[] namespace) {
     // Allow for empty namespace, as Spark's storage partitioned joins look up
     // the corresponding functions to generate transforms for partitioning
     // with an empty namespace, such as `bucket`.
@@ -68,22 +67,15 @@ abstract class BaseCatalog
   }
 
   @Override
-  public boolean isExistingNamespace(String[] namespace) {
+  default boolean isExistingNamespace(String[] namespace) {
     return namespaceExists(namespace);
   }
 
-  @Override
-  public void initialize(String name, CaseInsensitiveStringMap options) {
-    this.useNullableQuerySchema =
-        PropertyUtil.propertyAsBoolean(
+  private boolean useNullableQuerySchema (CaseInsensitiveStringMap options) {
+    return PropertyUtil.propertyAsBoolean(
             options,
             USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS,
             USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT);
-  }
-
-  @Override
-  public boolean useNullableQuerySchema() {
-    return useNullableQuerySchema;
   }
 
   private static boolean isSystemNamespace(String[] namespace) {

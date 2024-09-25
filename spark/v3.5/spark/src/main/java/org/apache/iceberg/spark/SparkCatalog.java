@@ -120,8 +120,8 @@ import org.apache.spark.sql.util.CaseInsensitiveStringMap;
  *
  * <p>
  */
-public class SparkCatalog extends BaseCatalog
-    implements org.apache.spark.sql.connector.catalog.ViewCatalog, SupportsReplaceView {
+public class SparkCatalog
+    implements BaseCatalog, org.apache.spark.sql.connector.catalog.ViewCatalog, SupportsReplaceView {
   private static final Set<String> DEFAULT_NS_KEYS = ImmutableSet.of(TableCatalog.PROP_OWNER);
   private static final Splitter COMMA = Splitter.on(",");
   private static final Joiner COMMA_JOINER = Joiner.on(",");
@@ -726,8 +726,6 @@ public class SparkCatalog extends BaseCatalog
 
   @Override
   public final void initialize(String name, CaseInsensitiveStringMap options) {
-    super.initialize(name, options);
-
     this.cacheEnabled =
         PropertyUtil.propertyAsBoolean(
             options, CatalogProperties.CACHE_ENABLED, CatalogProperties.CACHE_ENABLED_DEFAULT);
