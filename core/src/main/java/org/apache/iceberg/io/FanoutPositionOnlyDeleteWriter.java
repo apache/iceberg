@@ -19,11 +19,13 @@
 package org.apache.iceberg.io;
 
 import java.util.List;
+import java.util.function.Function;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.deletes.SortingPositionOnlyDeleteWriter;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
@@ -45,13 +47,15 @@ public class FanoutPositionOnlyDeleteWriter<T>
   private final DeleteGranularity granularity;
   private final List<DeleteFile> deleteFiles;
   private final CharSequenceSet referencedDataFiles;
+  private final List<DeleteFile> rewrittenDeleteFiles;
+  private final Function<CharSequence, PositionDeleteIndex> loadPreviousDeletes;
 
   public FanoutPositionOnlyDeleteWriter(
       FileWriterFactory<T> writerFactory,
       OutputFileFactory fileFactory,
       FileIO io,
       long targetFileSizeInBytes) {
-    this(writerFactory, fileFactory, io, targetFileSizeInBytes, DeleteGranularity.PARTITION);
+    this(writerFactory, fileFactory, io, targetFileSizeInBytes, DeleteGranularity.PARTITION, null);
   }
 
   public FanoutPositionOnlyDeleteWriter(
@@ -60,6 +64,16 @@ public class FanoutPositionOnlyDeleteWriter<T>
       FileIO io,
       long targetFileSizeInBytes,
       DeleteGranularity granularity) {
+    this(writerFactory, fileFactory, io, targetFileSizeInBytes, granularity, null);
+  }
+
+  public FanoutPositionOnlyDeleteWriter(
+      FileWriterFactory<T> writerFactory,
+      OutputFileFactory fileFactory,
+      FileIO io,
+      long targetFileSizeInBytes,
+      DeleteGranularity granularity,
+      Function<CharSequence, PositionDeleteIndex> loadPreviousDeletes) {
     this.writerFactory = writerFactory;
     this.fileFactory = fileFactory;
     this.io = io;
@@ -67,6 +81,8 @@ public class FanoutPositionOnlyDeleteWriter<T>
     this.granularity = granularity;
     this.deleteFiles = Lists.newArrayList();
     this.referencedDataFiles = CharSequenceSet.empty();
+    this.rewrittenDeleteFiles = Lists.newArrayList();
+    this.loadPreviousDeletes = loadPreviousDeletes;
   }
 
   @Override
@@ -76,17 +92,19 @@ public class FanoutPositionOnlyDeleteWriter<T>
         () ->
             new RollingPositionDeleteWriter<>(
                 writerFactory, fileFactory, io, targetFileSizeInBytes, spec, partition),
-        granularity);
+        granularity,
+        loadPreviousDeletes);
   }
 
   @Override
   protected void addResult(DeleteWriteResult result) {
     deleteFiles.addAll(result.deleteFiles());
     referencedDataFiles.addAll(result.referencedDataFiles());
+    rewrittenDeleteFiles.addAll(result.rewrittenDeleteFiles());
   }
 
   @Override
   protected DeleteWriteResult aggregatedResult() {
-    return new DeleteWriteResult(deleteFiles, referencedDataFiles);
+    return new DeleteWriteResult(deleteFiles, referencedDataFiles, rewrittenDeleteFiles);
   }
 }
