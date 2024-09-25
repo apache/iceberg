@@ -186,7 +186,7 @@ public class Deletes {
   }
 
   /**
-   * @deprecated since 1.7.0, will be removed in future.
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
    */
   @Deprecated
   public static <T> CloseableIterable<T> streamingFilter(
@@ -197,7 +197,7 @@ public class Deletes {
   }
 
   /**
-   * @deprecated since 1.7.0, will be removed in future.
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
    */
   @Deprecated
   public static <T> CloseableIterable<T> streamingFilter(
@@ -211,7 +211,7 @@ public class Deletes {
   }
 
   /**
-   * @deprecated since 1.7.0, will be removed in future.
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
    */
   @Deprecated
   public static <T> CloseableIterable<T> streamingMarker(
