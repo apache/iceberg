@@ -77,7 +77,8 @@ public class DataTableScan extends BaseTableScan {
     List<PartitionSpec> specs =
         Lists.newArrayList(
             Iterables.transform(
-                table().specs().values(), spec -> TableMetadata.updateSpecSchema(schema(), spec)));
+                table().specs().values(),
+                spec -> TableMetadata.updateSpecSchema(tableSchema(), spec)));
     Map<Integer, PartitionSpec> specsById = Maps.newHashMap(PartitionUtil.indexSpecs(specs));
     ManifestGroup manifestGroup =
         new ManifestGroup(io, dataManifests, deleteManifests)
