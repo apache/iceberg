@@ -27,6 +27,12 @@ public class SparkSQLProperties {
   // Controls whether vectorized reads are enabled
   public static final String VECTORIZATION_ENABLED = "spark.sql.iceberg.vectorization.enabled";
 
+  public static final String CUSTOMIZED_VECTORIZATION_IMPL =
+      "spark.sql.iceberg.customized.vectorization.impl";
+
+  public static final String CUSTOMIZED_VECTORIZATION_PROPERTY_PREFIX =
+      "spark.sql.iceberg.customized.vectorization.property.prefix";
+
   // Controls whether to perform the nullability check during writes
   public static final String CHECK_NULLABILITY = "spark.sql.iceberg.check-nullability";
   public static final boolean CHECK_NULLABILITY_DEFAULT = true;

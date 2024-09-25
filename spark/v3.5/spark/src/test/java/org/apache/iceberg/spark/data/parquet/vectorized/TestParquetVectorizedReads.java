@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Properties;
 import org.apache.avro.generic.GenericData;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
@@ -144,7 +145,7 @@ public class TestParquetVectorizedReads extends AvroDataTest {
             .createBatchedReaderFunc(
                 type ->
                     VectorizedSparkParquetReaders.buildReader(
-                        schema, type, Maps.newHashMap(), null));
+                        schema, type, Maps.newHashMap(), null, "", new Properties()));
     if (reuseContainers) {
       readBuilder.reuseContainers();
     }
@@ -207,7 +208,9 @@ public class TestParquetVectorizedReads extends AvroDataTest {
                     new MessageType(
                         "struct", new GroupType(Type.Repetition.OPTIONAL, "struct").withId(1)),
                     Maps.newHashMap(),
-                    null))
+                    null,
+                    "",
+                    new Properties()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage("Vectorized reads are not supported yet for struct fields");
   }
