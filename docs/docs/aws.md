@@ -378,6 +378,20 @@ However, for the older versions up to 0.12.0, the logic is as follows:
 
 For more details, please refer to the [LocationProvider Configuration](custom-catalog.md#custom-location-provider-implementation) section.  
 
+### S3 Retries
+
+Workloads which encounter S3 throttling should persistently retry, with exponential backoff, to make progress while S3
+automatically scales. We provide the configurations below to adjust S3 retries for this purpose. For workloads that encounter
+throttling and fail due to retry exhaustion, we recommend retry count to set 32 in order allow S3 to auto-scale. Note that
+workloads with exceptionally high throughput against tables that S3 has not yet scaled, it may be necessary to increase the retry count further.
+
+
+| Property             | Default | Description                                                                           |
+|----------------------|---------|---------------------------------------------------------------------------------------|
+| s3.retry.num-retries | 5       | Number of times to retry S3 operations. Recommended 32 for high-throughput workloads. |
+| s3.retry.min-wait-ms | 2s      | Minimum wait time to retry a S3 operation.                                            |
+| s3.retry.max-wait-ms | 20s     | Maximum wait time to retry a S3 read operation.                                       |
+
 ### S3 Strong Consistency
 
 In November 2020, S3 announced [strong consistency](https://aws.amazon.com/s3/consistency/) for all read operations, and Iceberg is updated to fully leverage this feature.
