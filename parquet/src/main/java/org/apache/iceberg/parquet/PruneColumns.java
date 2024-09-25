@@ -153,7 +153,8 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
   }
 
   @Override
-  public Type primitive(org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
+  public Type primitive(
+      org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
     return null;
   }
 

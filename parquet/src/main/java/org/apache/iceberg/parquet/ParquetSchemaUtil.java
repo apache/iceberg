@@ -78,8 +78,9 @@ public class ParquetSchemaUtil {
   public static MessageType pruneColumns(MessageType fileSchema, Schema expectedSchema) {
     // column order must match the incoming type, so it doesn't matter that the ids are unordered
     Set<Integer> selectedIds = TypeUtil.getProjectedIds(expectedSchema);
-    return (MessageType) TypeWithSchemaVisitor.visit(expectedSchema.asStruct(), fileSchema,
-        new PruneColumns(selectedIds));
+    return (MessageType)
+        TypeWithSchemaVisitor.visit(
+            expectedSchema.asStruct(), fileSchema, new PruneColumns(selectedIds));
   }
 
   /**
