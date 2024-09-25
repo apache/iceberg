@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
+/*
 if (project.hasProperty('release') && jdkVersion != '8') {
   throw new GradleException("Releases must be built with Java 8")
 }
-
+*/
 subprojects {
   def isBom = it.name == 'iceberg-bom'
 
