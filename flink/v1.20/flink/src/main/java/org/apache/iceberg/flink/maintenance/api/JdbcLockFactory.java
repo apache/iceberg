@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.operator;
+package org.apache.iceberg.flink.maintenance.api;
 
 import java.io.IOException;
 import java.sql.DatabaseMetaData;
@@ -38,10 +38,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * JDBC table backed implementation of the {@link
- * org.apache.iceberg.flink.maintenance.operator.TriggerLockFactory}.
- */
+/** JDBC table backed implementation of the {@link TriggerLockFactory}. */
 public class JdbcLockFactory implements TriggerLockFactory {
   private static final Logger LOG = LoggerFactory.getLogger(JdbcLockFactory.class);
 

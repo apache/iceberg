@@ -37,7 +37,7 @@ public class TableChange {
   private long eqDeleteRecordCount;
   private int commitCount;
 
-  TableChange(
+  private TableChange(
       int dataFileCount,
       long dataFileSizeInBytes,
       int posDeleteFileCount,

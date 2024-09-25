@@ -26,8 +26,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SystemConfigs;
 import org.apache.iceberg.flink.maintenance.operator.DeleteFilesProcessor;
 import org.apache.iceberg.flink.maintenance.operator.ExpireSnapshotsProcessor;
-import org.apache.iceberg.flink.maintenance.operator.TaskResult;
-import org.apache.iceberg.flink.maintenance.operator.Trigger;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 

@@ -43,10 +43,7 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.operator.LockRemover;
 import org.apache.iceberg.flink.maintenance.operator.MonitorSource;
 import org.apache.iceberg.flink.maintenance.operator.TableChange;
-import org.apache.iceberg.flink.maintenance.operator.TaskResult;
-import org.apache.iceberg.flink.maintenance.operator.Trigger;
 import org.apache.iceberg.flink.maintenance.operator.TriggerEvaluator;
-import org.apache.iceberg.flink.maintenance.operator.TriggerLockFactory;
 import org.apache.iceberg.flink.maintenance.operator.TriggerManager;
 import org.apache.iceberg.flink.sink.IcebergSink;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -73,6 +70,7 @@ public class TableMaintenance {
    * @param lockFactory used for preventing concurrent task runs
    * @return builder for the maintenance stream
    */
+  @Internal
   public static Builder forChangeStream(
       DataStream<TableChange> changeStream,
       TableLoader tableLoader,

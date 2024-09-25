@@ -25,8 +25,6 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.flink.maintenance.operator.CollectingSink;
 import org.apache.iceberg.flink.maintenance.operator.ManualSource;
-import org.apache.iceberg.flink.maintenance.operator.TaskResult;
-import org.apache.iceberg.flink.maintenance.operator.Trigger;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 

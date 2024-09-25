@@ -25,8 +25,6 @@ import org.apache.flink.api.common.operators.util.OperatorValidationUtils;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.flink.maintenance.operator.TaskResult;
-import org.apache.iceberg.flink.maintenance.operator.Trigger;
 import org.apache.iceberg.flink.maintenance.operator.TriggerEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 

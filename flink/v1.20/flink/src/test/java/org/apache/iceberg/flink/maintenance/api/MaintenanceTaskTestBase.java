@@ -29,8 +29,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.operator.CollectingSink;
 import org.apache.iceberg.flink.maintenance.operator.ManualSource;
 import org.apache.iceberg.flink.maintenance.operator.OperatorTestBase;
-import org.apache.iceberg.flink.maintenance.operator.TaskResult;
-import org.apache.iceberg.flink.maintenance.operator.Trigger;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.extension.RegisterExtension;
 

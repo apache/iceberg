@@ -16,11 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.operator;
+package org.apache.iceberg.flink.maintenance.api;
 
 import java.io.Closeable;
 import java.io.Serializable;
 import org.apache.flink.annotation.Experimental;
+import org.apache.iceberg.flink.maintenance.operator.LockRemover;
+import org.apache.iceberg.flink.maintenance.operator.TriggerManager;
 
 /** Lock interface for handling locks for the Flink Table Maintenance jobs. */
 @Experimental

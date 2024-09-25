@@ -16,13 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.operator;
+package org.apache.iceberg.flink.maintenance.api;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-@Internal
 public class Trigger {
   private final long timestamp;
   private final SerializableTable table;
@@ -36,11 +35,13 @@ public class Trigger {
     this.isRecovery = isRecovery;
   }
 
+  @Internal
   public static Trigger create(long timestamp, SerializableTable table, int taskId) {
     return new Trigger(timestamp, table, taskId, false);
   }
 
-  static Trigger recovery(long timestamp) {
+  @Internal
+  public static Trigger recovery(long timestamp) {
     return new Trigger(timestamp, null, null, true);
   }
 
@@ -48,7 +49,7 @@ public class Trigger {
     return timestamp;
   }
 
-  SerializableTable table() {
+  public SerializableTable table() {
     return table;
   }
 
@@ -56,7 +57,7 @@ public class Trigger {
     return taskId;
   }
 
-  boolean isRecovery() {
+  public boolean isRecovery() {
     return isRecovery;
   }
 
