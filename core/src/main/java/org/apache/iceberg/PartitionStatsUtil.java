@@ -49,14 +49,10 @@ public class PartitionStatsUtil {
    */
   public static Collection<PartitionStats> computeStats(Table table, Snapshot snapshot) {
     Preconditions.checkArgument(table != null, "table cannot be null");
+    Preconditions.checkArgument(Partitioning.isPartitioned(table), "table must be partitioned");
     Preconditions.checkArgument(snapshot != null, "snapshot cannot be null");
 
     StructType partitionType = Partitioning.partitionType(table);
-    if (partitionType.fields().isEmpty()) {
-      throw new UnsupportedOperationException(
-          "Computing partition stats for an unpartitioned table");
-    }
-
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
     Queue<PartitionMap<PartitionStats>> statsByManifest = Queues.newConcurrentLinkedQueue();
     Tasks.foreach(manifests)
@@ -78,26 +74,30 @@ public class PartitionStatsUtil {
   public static List<PartitionStats> sortStats(
       Collection<PartitionStats> stats, StructType partitionType) {
     List<PartitionStats> entries = Lists.newArrayList(stats.iterator());
-    entries.sort(
-        Comparator.comparing(PartitionStats::partition, Comparators.forType(partitionType)));
+    entries.sort(partitionStatsCmp(partitionType));
     return entries;
+  }
+
+  private static Comparator<PartitionStats> partitionStatsCmp(StructType partitionType) {
+    return Comparator.comparing(PartitionStats::partition, Comparators.forType(partitionType));
   }
 
   private static PartitionMap<PartitionStats> collectStats(
       Table table, ManifestFile manifest, StructType partitionType) {
     try (ManifestReader<?> reader = openManifest(table, manifest)) {
       PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
+      int specId = reader.spec().specId();
+      PartitionData keyTemplate = new PartitionData(partitionType);
 
       for (ManifestEntry<?> entry : reader.entries()) {
         ContentFile<?> file = entry.file();
-        PartitionSpec spec = table.specs().get(file.specId());
-        int specId = file.specId();
-        PartitionData partition =
-            PartitionUtil.coercePartitionData(partitionType, spec, file.partition());
+        StructLike coercedPartition =
+            PartitionUtil.coercePartition(partitionType, reader.spec(), file.partition());
+        StructLike key = keyTemplate.copyFor(coercedPartition);
         Snapshot snapshot = table.snapshot(entry.snapshotId());
         PartitionStats stats =
             statsMap.computeIfAbsent(
-                Pair.of(specId, partition), ignored -> new PartitionStats(partition, specId));
+                Pair.of(specId, key), ignored -> new PartitionStats(key, specId));
         if (entry.isLive()) {
           stats.liveEntry(file, snapshot);
         } else {
@@ -119,6 +119,7 @@ public class PartitionStatsUtil {
   private static Collection<PartitionStats> mergeStats(
       Queue<PartitionMap<PartitionStats>> statsByManifest, Map<Integer, PartitionSpec> specs) {
     PartitionMap<PartitionStats> statsMap = PartitionMap.create(specs);
+
     for (PartitionMap<PartitionStats> stats : statsByManifest) {
       stats.forEach(
           (key, value) ->

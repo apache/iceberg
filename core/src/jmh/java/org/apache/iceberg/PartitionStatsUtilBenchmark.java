@@ -72,10 +72,11 @@ public class PartitionStatsUtilBenchmark {
 
   @Setup
   public void setupBenchmark() {
-    table = TABLES.create(SCHEMA, SPEC, TABLE_IDENT);
+    this.table = TABLES.create(SCHEMA, SPEC, TABLE_IDENT);
 
     for (int manifestCount = 0; manifestCount < MANIFEST_COUNTER; manifestCount++) {
-      AppendFiles appendFiles = table.newAppend();
+      AppendFiles appendFiles = table.newFastAppend();
+
       for (int partition = 0; partition < PARTITION_PER_MANIFEST; partition++) {
         StructLike partitionData = TestHelpers.Row.of(partition);
         for (int fileOrdinal = 0; fileOrdinal < DATA_FILES_PER_PARTITION_COUNT; fileOrdinal++) {

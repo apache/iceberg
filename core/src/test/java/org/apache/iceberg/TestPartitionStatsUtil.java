@@ -70,8 +70,8 @@ public class TestPartitionStatsUtil {
 
     assertThatThrownBy(
             () -> PartitionStatsUtil.computeStats(testTable, testTable.currentSnapshot()))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage("Computing partition stats for an unpartitioned table");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("table must be partitioned");
   }
 
   @Test
