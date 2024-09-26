@@ -28,6 +28,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.CatalogTests;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.LocationUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -169,5 +171,46 @@ public class TestNessieCatalog extends CatalogTests<NessieCatalog> {
                 + TABLE.namespace()
                 + "/"
                 + TABLE.name());
+  }
+
+  @Test
+  public void testNestedNamespaceLocations() {
+    String root = LocationUtil.stripTrailingSlash(temp.toUri().toString());
+
+    Namespace level1 = Namespace.of("level1");
+    catalog.createNamespace(level1);
+    Namespace level2 = Namespace.of("level1", "level2");
+    catalog.createNamespace(level2);
+    Namespace level3 = Namespace.of("level1", "level2", "level3");
+    catalog.createNamespace(level3);
+
+    assertThat(catalog.defaultWarehouseLocation(TableIdentifier.of("table")))
+        .startsWith(root + "/table_");
+    assertThat(catalog.defaultWarehouseLocation(TableIdentifier.of(level1, "table")))
+        .startsWith(root + "/level1/table_");
+    assertThat(catalog.defaultWarehouseLocation(TableIdentifier.of(level2, "table")))
+        .startsWith(root + "/level1/level2/table_");
+    assertThat(catalog.defaultWarehouseLocation(TableIdentifier.of(level3, "table")))
+        .startsWith(root + "/level1/level2/level3/table_");
+
+    String level1root = "foo://meep/moo";
+    catalog.setProperties(level1, ImmutableMap.of("location", level1root));
+
+    assertThat(catalog.defaultWarehouseLocation(TableIdentifier.of(level1, "table")))
+        .startsWith(level1root + "/table_");
+    assertThat(catalog.defaultWarehouseLocation(TableIdentifier.of(level2, "table")))
+        .startsWith(level1root + "/level2/table_");
+    assertThat(catalog.defaultWarehouseLocation(TableIdentifier.of(level3, "table")))
+        .startsWith(level1root + "/level2/level3/table_");
+
+    String level2root = "foo://bar/baz";
+    catalog.setProperties(level2, ImmutableMap.of("location", level2root));
+
+    assertThat(catalog.defaultWarehouseLocation(TableIdentifier.of(level1, "table")))
+        .startsWith(level1root + "/table_");
+    assertThat(catalog.defaultWarehouseLocation(TableIdentifier.of(level2, "table")))
+        .startsWith(level2root + "/table_");
+    assertThat(catalog.defaultWarehouseLocation(TableIdentifier.of(level3, "table")))
+        .startsWith(level2root + "/level3/table_");
   }
 }

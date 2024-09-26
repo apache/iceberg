@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -43,6 +44,7 @@ import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.base.Suppliers;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.view.ViewMetadata;
@@ -356,6 +358,57 @@ public class NessieIcebergClient implements AutoCloseable {
     if (namespace.isEmpty()) {
       throw new NoSuchNamespaceException("Invalid namespace: %s", namespace);
     }
+  }
+
+  /**
+   * Resolves the "location" for a new table or view, respecting the "location" property of the
+   * "nearest" namespace.
+   */
+  public String locationForNewEntity(TableIdentifier table, String warehouseLocation)
+      throws NoSuchNamespaceException {
+
+    String location = warehouseLocation;
+    if (table.hasNamespace()) {
+      Namespace namespace = table.namespace();
+      checkNamespaceIsValid(namespace);
+
+      List<String> keyElements = List.of(namespace.levels());
+      int keyElementCount = keyElements.size();
+
+      List<ContentKey> keysInOrder = Lists.newArrayListWithCapacity(keyElementCount);
+      for (int i = 0; i < keyElementCount; i++) {
+        ContentKey key = ContentKey.of(keyElements.subList(0, i + 1));
+        keysInOrder.add(key);
+      }
+
+      try {
+        Map<ContentKey, Content> contentMap =
+            withReference(api.getContent()).keys(keysInOrder).get();
+        int index;
+        for (index = keysInOrder.size() - 1; index >= 0; index--) {
+          ContentKey key = keysInOrder.get(index);
+          String namespaceLocation =
+              unwrapNamespace(contentMap.get(key))
+                  .map(org.projectnessie.model.Namespace::getProperties)
+                  .map(p -> p.get("location"))
+                  .orElse(null);
+          if (namespaceLocation != null) {
+            location = namespaceLocation;
+            break;
+          }
+        }
+        for (index++; index < keyElementCount; index++) {
+          location += "/" + keyElements.get(index);
+        }
+      } catch (NessieNotFoundException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    // Different tables with same table name can exist across references in Nessie.
+    // To avoid sharing same table path between two tables with same name, use uuid in the table
+    // path.
+    return location + "/" + table.name() + "_" + UUID.randomUUID();
   }
 
   public Map<String, String> loadNamespaceMetadata(Namespace namespace)
