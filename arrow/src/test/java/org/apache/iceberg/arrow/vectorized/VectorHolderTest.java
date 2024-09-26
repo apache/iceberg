@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 import org.apache.arrow.vector.FieldVector;
@@ -25,7 +26,6 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -51,25 +51,25 @@ class VectorHolderTest {
   @Test
   void testDescriptor() {
     ColumnDescriptor result = vectorHolder.descriptor();
-    Assertions.assertSame(this.columnDescriptor, result);
+    assertThat(result).isSameAs(this.columnDescriptor);
   }
 
   @Test
   void testVector() {
     FieldVector result = vectorHolder.vector();
-    Assertions.assertSame(this.vector, result);
+    assertThat(result).isSameAs(this.vector);
   }
 
   @Test
   void testDictionary() {
     Dictionary result = vectorHolder.dictionary();
-    Assertions.assertSame(this.dictionary, result);
+    assertThat(result).isSameAs(this.dictionary);
   }
 
   @Test
   void testNullabilityHolder() {
     NullabilityHolder result = vectorHolder.nullabilityHolder();
-    Assertions.assertSame(this.nullabilityHolder, result);
+    assertThat(result).isSameAs(this.nullabilityHolder);
   }
 
   @Test
@@ -77,13 +77,13 @@ class VectorHolderTest {
     when(icebergField.type()).thenReturn(Types.LongType.get());
 
     Type result = vectorHolder.icebergType();
-    Assertions.assertEquals(Types.LongType.get(), result);
+    assertThat(result).isEqualTo(Types.LongType.get());
   }
 
   @Test
   void testIcebergField() {
     Types.NestedField result = vectorHolder.icebergField();
-    Assertions.assertSame(this.icebergField, result);
+    assertThat(result).isSameAs(this.icebergField);
   }
 
   @Test
@@ -91,14 +91,14 @@ class VectorHolderTest {
     when(vector.getValueCount()).thenReturn(88);
 
     int result = vectorHolder.numValues();
-    Assertions.assertEquals(88, result);
+    assertThat(result).isEqualTo(88);
   }
 
   @Test
   void testDummyHolder() {
     VectorHolder result = VectorHolder.dummyHolder(88);
-    Assertions.assertNotNull(result);
-    Assertions.assertEquals(88, result.numValues());
+    assertThat(result).isNotNull();
+    assertThat(result.numValues()).isEqualTo(88);
   }
 
   @Test
@@ -106,7 +106,7 @@ class VectorHolderTest {
     // Test case where vector is null
     VectorHolder vh = VectorHolder.deletedVectorHolder(0);
     boolean result = vh.isDummy();
-    Assertions.assertEquals(true, result);
+    assertThat(result).isTrue();
   }
 
   @Test
@@ -114,7 +114,7 @@ class VectorHolderTest {
     // Test case where vector is a NullVector instance
     VectorHolder vh = VectorHolder.dummyHolder(0);
     boolean result = vh.isDummy();
-    Assertions.assertEquals(true, result);
+    assertThat(result).isTrue();
   }
 
   @Test
@@ -122,6 +122,6 @@ class VectorHolderTest {
     // Test case where vector is null
     VectorHolder vh = VectorHolder.constantHolder(this.icebergField, 0, "a");
     boolean result = vh.isDummy();
-    Assertions.assertEquals(true, result);
+    assertThat(result).isTrue();
   }
 }
