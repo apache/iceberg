@@ -23,12 +23,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.CharSequenceMap;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -180,12 +183,25 @@ public abstract class DataTableScanTestBase<
 
   private void validateExpectedFileScanTasks(ScanT scan, List<CharSequence> expectedFileScanPaths)
       throws IOException {
+    validateExpectedFileScanTasks(scan, expectedFileScanPaths, null);
+  }
+
+  private void validateExpectedFileScanTasks(
+      ScanT scan,
+      Collection<CharSequence> expectedFileScanPaths,
+      CharSequenceMap<String> fileToManifest)
+      throws IOException {
     try (CloseableIterable<T> scanTasks = scan.planFiles()) {
       assertThat(scanTasks).hasSameSizeAs(expectedFileScanPaths);
       List<CharSequence> actualFiles = Lists.newArrayList();
       for (T task : scanTasks) {
-        actualFiles.add(((FileScanTask) task).file().path());
+        DataFile dataFile = ((FileScanTask) task).file();
+        actualFiles.add(dataFile.path());
+        if (fileToManifest != null) {
+          assertThat(fileToManifest.get(dataFile.path())).isEqualTo(dataFile.manifestLocation());
+        }
       }
+
       assertThat(actualFiles).containsAll(expectedFileScanPaths);
     }
   }
@@ -245,5 +261,52 @@ public abstract class DataTableScanTestBase<
           .as("File sequence number mismatch")
           .isEqualTo(expectedDeleteSequenceNumber);
     }
+  }
+
+  @TestTemplate
+  public void testManifestLocationsInScan() throws IOException {
+    table.newFastAppend().appendFile(FILE_A).commit();
+    ManifestFile firstDataManifest = table.currentSnapshot().allManifests(table.io()).get(0);
+    table.newFastAppend().appendFile(FILE_B).appendFile(FILE_C).commit();
+    ManifestFile secondDataManifest =
+        table.currentSnapshot().dataManifests(table.io()).stream()
+            .filter(manifest -> manifest.snapshotId() == table.currentSnapshot().snapshotId())
+            .collect(Collectors.toList())
+            .get(0);
+    CharSequenceMap<String> fileToManifest = CharSequenceMap.create();
+    fileToManifest.put(FILE_A.path(), firstDataManifest.path());
+    fileToManifest.put(FILE_B.path(), secondDataManifest.path());
+    fileToManifest.put(FILE_C.path(), secondDataManifest.path());
+
+    validateExpectedFileScanTasks(newScan(), fileToManifest.keySet(), fileToManifest);
+  }
+
+  @TestTemplate
+  public void testManifestLocationsInScanWithDeleteFiles() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    table.newFastAppend().appendFile(FILE_A).commit();
+    ManifestFile firstManifest = table.currentSnapshot().allManifests(table.io()).get(0);
+    DeleteFile deleteFile = newDeleteFile("data_bucket=0");
+    table.newRowDelta().addDeletes(deleteFile).commit();
+    CharSequenceMap<String> fileToManifest = CharSequenceMap.create();
+    fileToManifest.put(FILE_A.path(), firstManifest.path());
+    ScanT scan = newScan();
+    validateExpectedFileScanTasks(scan, ImmutableList.of(FILE_A.path()), fileToManifest);
+    List<DeleteFile> deletes = Lists.newArrayList();
+    try (CloseableIterable<T> scanTasks = scan.planFiles()) {
+      for (T task : scanTasks) {
+        FileScanTask fileScanTask = (FileScanTask) task;
+        deletes.addAll(fileScanTask.deletes());
+      }
+    }
+
+    assertThat(deletes.size()).isEqualTo(1);
+    ManifestFile deleteManifest =
+        table.currentSnapshot().deleteManifests(table.io()).stream()
+            .filter(manifest -> manifest.snapshotId() == table.currentSnapshot().snapshotId())
+            .collect(Collectors.toList())
+            .get(0);
+    assertThat(deletes.get(0).manifestLocation()).isEqualTo(deleteManifest.path());
   }
 }

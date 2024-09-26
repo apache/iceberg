@@ -46,6 +46,7 @@ public class GCPProperties implements Serializable {
 
   /** Configure the batch size used when deleting multiple files from a given GCS bucket */
   public static final String GCS_DELETE_BATCH_SIZE = "gcs.delete.batch-size";
+
   /**
    * Max possible batch size for deletion. Currently, a max of 100 keys is advised, so we default to
    * a number below that. https://cloud.google.com/storage/docs/batch

@@ -132,5 +132,5 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
   default UpdatePartitionSpec addNonDefaultSpec() {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement addNonDefaultSpec()");
-  };
+  }
 }

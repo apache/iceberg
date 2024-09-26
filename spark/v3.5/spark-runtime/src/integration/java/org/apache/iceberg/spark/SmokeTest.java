@@ -101,7 +101,7 @@ public class SmokeTest extends ExtensionsTestBase {
     sql(
         "CREATE TABLE %s (category int, id bigint, data string, ts timestamp) USING iceberg",
         tableName);
-    Table table = getTable();
+    Table table;
     // Add examples
     sql("ALTER TABLE %s ADD PARTITION FIELD bucket(16, id)", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD truncate(data, 4)", tableName);

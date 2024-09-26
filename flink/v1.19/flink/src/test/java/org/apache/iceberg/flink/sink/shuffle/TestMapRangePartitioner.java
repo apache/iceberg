@@ -380,7 +380,9 @@ public class TestMapRangePartitioner {
     return partitionResults;
   }
 
-  /** @param expectedAssignmentInfo excluding closing cost */
+  /**
+   * @param expectedAssignmentInfo excluding closing cost
+   */
   private void validatePartitionResults(
       Map<Integer, Pair<Long, Integer>> expectedAssignmentInfo,
       Map<Integer, Pair<AtomicLong, Set<RowData>>> partitionResults,

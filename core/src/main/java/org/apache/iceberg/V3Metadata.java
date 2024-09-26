@@ -458,6 +458,11 @@ class V3Metadata {
     }
 
     @Override
+    public String manifestLocation() {
+      return null;
+    }
+
+    @Override
     public Long pos() {
       return null;
     }

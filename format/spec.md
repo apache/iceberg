@@ -782,12 +782,14 @@ Note that partition data tuple's schema is based on the partition spec output us
 The unified partition type is a struct containing all fields that have ever been a part of any spec in the table 
 and sorted by the field ids in ascending order.  
 In other words, the struct fields represent a union of all known partition fields sorted in ascending order by the field ids.
+
 For example,
-1) `spec#0` has two fields `{field#1, field#2}`
+
+1. `spec#0` has two fields `{field#1, field#2}`
 and then the table has evolved into `spec#1` which has three fields `{field#1, field#2, field#3}`.
 The unified partition type looks like `Struct<field#1, field#2, field#3>`.
 
-2) `spec#0` has two fields `{field#1, field#2}`
+2. `spec#0` has two fields `{field#1, field#2}`
 and then the table has evolved into `spec#1` which has just one field `{field#2}`.
 The unified partition type looks like `Struct<field#1, field#2>`.
 
@@ -1244,7 +1246,7 @@ Name mapping is serialized as a list of field mapping JSON Objects which are ser
 |Field mapping field|JSON representation|Example|
 |--- |--- |--- |
 |**`names`**|`JSON list of strings`|`["latitude", "lat"]`|
-|**`field_id`**|`JSON int`|`1`|
+|**`field-id`**|`JSON int`|`1`|
 |**`fields`**|`JSON field mappings (list of objects)`|`[{ `<br />&nbsp;&nbsp;`"field-id": 4,`<br />&nbsp;&nbsp;`"names": ["latitude", "lat"]`<br />`}, {`<br />&nbsp;&nbsp;`"field-id": 5,`<br />&nbsp;&nbsp;`"names": ["longitude", "long"]`<br />`}]`|
 
 Example

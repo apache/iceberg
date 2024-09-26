@@ -38,7 +38,6 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Timeout;
 import org.openjdk.jmh.annotations.Warmup;
-import org.openjdk.jmh.infra.Blackhole;
 
 /**
  * A benchmark that evaluates the performance of appending files to the table.
@@ -66,14 +65,20 @@ public class AppendBenchmark {
           required(4, "date_col", Types.DateType.get()),
           required(5, "timestamp_col", Types.TimestampType.withoutZone()),
           required(6, "timestamp_tz_col", Types.TimestampType.withZone()),
-          required(7, "str_col", Types.StringType.get()));
+          required(7, "str_col1", Types.StringType.get()),
+          required(8, "str_col2", Types.StringType.get()),
+          required(9, "str_col3", Types.StringType.get()),
+          required(10, "str_col4", Types.StringType.get()),
+          required(11, "str_col5", Types.StringType.get()),
+          required(12, "str_col6", Types.StringType.get()),
+          required(13, "str_col7", Types.StringType.get()));
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
   private static final HadoopTables TABLES = new HadoopTables();
 
   private Table table;
   private List<DataFile> dataFiles;
 
-  @Param({"500000", "1000000", "2500000"})
+  @Param({"50000", "100000", "500000", "1000000", "2500000"})
   private int numFiles;
 
   @Param({"true", "false"})
@@ -92,7 +97,7 @@ public class AppendBenchmark {
 
   @Benchmark
   @Threads(1)
-  public void appendFiles(Blackhole blackhole) {
+  public void appendFiles() {
     AppendFiles append = fast ? table.newFastAppend() : table.newAppend();
 
     for (DataFile dataFile : dataFiles) {

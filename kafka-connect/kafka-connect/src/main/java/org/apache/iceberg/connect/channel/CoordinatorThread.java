@@ -25,7 +25,7 @@ class CoordinatorThread extends Thread {
   private static final Logger LOG = LoggerFactory.getLogger(CoordinatorThread.class);
   private static final String THREAD_NAME = "iceberg-coord";
 
-  private Coordinator coordinator;
+  private final Coordinator coordinator;
   private volatile boolean terminated;
 
   CoordinatorThread(Coordinator coordinator) {
@@ -39,7 +39,7 @@ class CoordinatorThread extends Thread {
       coordinator.start();
     } catch (Exception e) {
       LOG.error("Coordinator error during start, exiting thread", e);
-      terminated = true;
+      this.terminated = true;
     }
 
     while (!terminated) {
@@ -47,7 +47,7 @@ class CoordinatorThread extends Thread {
         coordinator.process();
       } catch (Exception e) {
         LOG.error("Coordinator error during process, exiting thread", e);
-        terminated = true;
+        this.terminated = true;
       }
     }
 
@@ -56,7 +56,6 @@ class CoordinatorThread extends Thread {
     } catch (Exception e) {
       LOG.error("Coordinator error during stop, ignoring", e);
     }
-    coordinator = null;
   }
 
   boolean isTerminated() {
@@ -64,6 +63,7 @@ class CoordinatorThread extends Thread {
   }
 
   void terminate() {
-    terminated = true;
+    this.terminated = true;
+    coordinator.terminate();
   }
 }

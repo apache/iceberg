@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.deletes;
 
+import java.util.function.LongConsumer;
 import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 class BitmapPositionDeleteIndex implements PositionDeleteIndex {
@@ -42,6 +43,15 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
   }
 
   @Override
+  public void merge(PositionDeleteIndex that) {
+    if (that instanceof BitmapPositionDeleteIndex) {
+      merge((BitmapPositionDeleteIndex) that);
+    } else {
+      that.forEach(this::delete);
+    }
+  }
+
+  @Override
   public boolean isDeleted(long position) {
     return roaring64Bitmap.contains(position);
   }
@@ -49,5 +59,10 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
   @Override
   public boolean isEmpty() {
     return roaring64Bitmap.isEmpty();
+  }
+
+  @Override
+  public void forEach(LongConsumer consumer) {
+    roaring64Bitmap.forEach(consumer::accept);
   }
 }

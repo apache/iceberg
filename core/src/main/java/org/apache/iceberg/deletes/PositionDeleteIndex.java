@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.deletes;
 
+import java.util.function.LongConsumer;
+
 public interface PositionDeleteIndex {
   /**
    * Set a deleted row position.
@@ -35,6 +37,15 @@ public interface PositionDeleteIndex {
   void delete(long posStart, long posEnd);
 
   /**
+   * Adds positions from the other index, modifying this index in place.
+   *
+   * @param that the other index to merge
+   */
+  default void merge(PositionDeleteIndex that) {
+    that.forEach(this::delete);
+  }
+
+  /**
    * Checks whether a row at the position is deleted.
    *
    * @param position deleted row position
@@ -48,6 +59,17 @@ public interface PositionDeleteIndex {
   /** Returns true if this collection contains elements. */
   default boolean isNotEmpty() {
     return !isEmpty();
+  }
+
+  /**
+   * Traverses all positions in the index in ascending order, applying the provided consumer.
+   *
+   * @param consumer a consumer for the positions
+   */
+  default void forEach(LongConsumer consumer) {
+    if (isNotEmpty()) {
+      throw new UnsupportedOperationException(getClass().getName() + " does not support forEach");
+    }
   }
 
   /** Returns an empty immutable position delete index. */

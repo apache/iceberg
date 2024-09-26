@@ -28,7 +28,7 @@ buildscript {
   dependencies {
     classpath 'io.github.goooler.shadow:shadow-gradle-plugin:8.1.8'
     classpath 'com.palantir.baseline:gradle-baseline-java:5.61.0'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.25.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
@@ -347,6 +347,7 @@ project(':iceberg-core') {
     implementation libs.jackson.core
     implementation libs.jackson.databind
     implementation libs.caffeine
+    implementation libs.failsafe
     implementation libs.roaringbitmap
     compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -462,6 +463,7 @@ project(':iceberg-aws') {
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
     implementation libs.caffeine
+    implementation libs.failsafe
     implementation platform(libs.jackson.bom)
     implementation libs.jackson.core
     implementation libs.jackson.databind

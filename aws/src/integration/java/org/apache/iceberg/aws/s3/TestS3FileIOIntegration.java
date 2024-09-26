@@ -76,7 +76,6 @@ public class TestS3FileIOIntegration {
   private static S3Client s3;
   private static S3ControlClient s3Control;
   private static S3ControlClient crossRegionS3Control;
-  private static S3ControlClient multiRegionS3Control;
   private static KmsClient kms;
   private static String bucketName;
   private static String crossRegionBucketName;
@@ -460,8 +459,7 @@ public class TestS3FileIOIntegration {
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
     String listPrefix = String.format("s3://%s/%s/%s", bucketName, prefix, "prefix-list-test");
 
-    scaleSizes
-        .parallelStream()
+    scaleSizes.parallelStream()
         .forEach(
             scale -> {
               String scalePrefix = String.format("%s/%s/", listPrefix, scale);
@@ -482,8 +480,7 @@ public class TestS3FileIOIntegration {
     String deletePrefix = String.format("s3://%s/%s/%s", bucketName, prefix, "prefix-delete-test");
 
     List<Integer> scaleSizes = Lists.newArrayList(0, 5, 1000, 2500);
-    scaleSizes
-        .parallelStream()
+    scaleSizes.parallelStream()
         .forEach(
             scale -> {
               String scalePrefix = String.format("%s/%s/", deletePrefix, scale);

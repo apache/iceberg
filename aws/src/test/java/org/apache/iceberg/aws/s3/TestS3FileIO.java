@@ -243,8 +243,7 @@ public class TestS3FileIO {
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
 
-    scaleSizes
-        .parallelStream()
+    scaleSizes.parallelStream()
         .forEach(
             scale -> {
               String scalePrefix = String.format("%s/%s/", prefix, scale);

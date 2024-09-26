@@ -283,7 +283,7 @@ public class S3FileIOProperties implements Serializable {
    * catalog property. After set, x-amz-storage-class header will be set to this property
    *
    * <p>For more details, see
-   * https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/userguide/storage-class-intro.html
+   * https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html
    *
    * <p>Example: s3.write.storage-class=INTELLIGENT_TIERING
    */

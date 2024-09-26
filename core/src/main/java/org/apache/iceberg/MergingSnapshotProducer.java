@@ -33,7 +33,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.events.CreateSnapshotEvent;
-import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -972,23 +971,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     if (cachedNewDataManifests.isEmpty()) {
       newDataFilesBySpec.forEach(
           (dataSpec, newDataFiles) -> {
-            try {
-              RollingManifestWriter<DataFile> writer = newRollingManifestWriter(dataSpec);
-              try {
-                if (newDataFilesDataSequenceNumber == null) {
-                  newDataFiles.forEach(writer::add);
-                } else {
-                  newDataFiles.forEach(f -> writer.add(f, newDataFilesDataSequenceNumber));
-                }
-              } finally {
-                writer.close();
-              }
-              this.cachedNewDataManifests.addAll(writer.toManifestFiles());
-              this.hasNewDataFiles = false;
-            } catch (IOException e) {
-              throw new RuntimeIOException(e, "Failed to close manifest writer");
-            }
+            List<ManifestFile> newDataManifests =
+                writeDataManifests(newDataFiles, newDataFilesDataSequenceNumber, dataSpec);
+            cachedNewDataManifests.addAll(newDataManifests);
           });
+      this.hasNewDataFiles = false;
     }
 
     return cachedNewDataManifests;
@@ -1016,24 +1003,8 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       newDeleteFilesBySpec.forEach(
           (specId, deleteFiles) -> {
             PartitionSpec spec = ops.current().spec(specId);
-            try {
-              RollingManifestWriter<DeleteFile> writer = newRollingDeleteManifestWriter(spec);
-              try {
-                deleteFiles.forEach(
-                    df -> {
-                      if (df.dataSequenceNumber() != null) {
-                        writer.add(df.deleteFile(), df.dataSequenceNumber());
-                      } else {
-                        writer.add(df.deleteFile());
-                      }
-                    });
-              } finally {
-                writer.close();
-              }
-              cachedNewDeleteManifests.addAll(writer.toManifestFiles());
-            } catch (IOException e) {
-              throw new RuntimeIOException(e, "Failed to close manifest writer");
-            }
+            List<ManifestFile> newDeleteManifests = writeDeleteManifests(deleteFiles, spec);
+            cachedNewDeleteManifests.addAll(newDeleteManifests);
           });
 
       this.hasNewDeleteFiles = false;
@@ -1145,40 +1116,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     @Override
     protected ManifestReader<DeleteFile> newManifestReader(ManifestFile manifest) {
       return MergingSnapshotProducer.this.newDeleteManifestReader(manifest);
-    }
-  }
-
-  private static class DeleteFileHolder {
-    private final DeleteFile deleteFile;
-    private final Long dataSequenceNumber;
-
-    /**
-     * Wrap a delete file for commit with a given data sequence number
-     *
-     * @param deleteFile delete file
-     * @param dataSequenceNumber data sequence number to apply
-     */
-    DeleteFileHolder(DeleteFile deleteFile, long dataSequenceNumber) {
-      this.deleteFile = deleteFile;
-      this.dataSequenceNumber = dataSequenceNumber;
-    }
-
-    /**
-     * Wrap a delete file for commit with the latest sequence number
-     *
-     * @param deleteFile delete file
-     */
-    DeleteFileHolder(DeleteFile deleteFile) {
-      this.deleteFile = deleteFile;
-      this.dataSequenceNumber = null;
-    }
-
-    public DeleteFile deleteFile() {
-      return deleteFile;
-    }
-
-    public Long dataSequenceNumber() {
-      return dataSequenceNumber;
     }
   }
 }
