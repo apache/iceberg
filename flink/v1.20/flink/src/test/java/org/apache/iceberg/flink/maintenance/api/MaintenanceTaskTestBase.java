@@ -24,8 +24,6 @@ import java.time.Duration;
 import java.util.function.Supplier;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.iceberg.SerializableTable;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.operator.CollectingSink;
 import org.apache.iceberg.flink.maintenance.operator.ManualSource;
 import org.apache.iceberg.flink.maintenance.operator.OperatorTestBase;
@@ -38,34 +36,19 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
 
   @RegisterExtension MaintenanceTaskInfraExtension infra = new MaintenanceTaskInfraExtension();
 
-  /**
-   * Triggers a maintenance tasks and waits for the successful result. The {@link Table} is
-   * refreshed for convenience reasons.
-   *
-   * @param env used for testing
-   * @param triggerSource used for manually emitting the trigger
-   * @param collectingSink used for collecting the result
-   * @param waitForCondition used to wait until target condition is reached before stopping the job
-   * @param table used for generating the payload
-   * @throws Exception if any
-   */
   void runAndWaitForSuccess(
       StreamExecutionEnvironment env,
       ManualSource<Trigger> triggerSource,
       CollectingSink<TaskResult> collectingSink,
-      Supplier<Boolean> waitForCondition,
-      Table table)
+      Supplier<Boolean> waitForCondition)
       throws Exception {
-    table.refresh();
-    SerializableTable payload = (SerializableTable) SerializableTable.copyOf(table);
-
     JobClient jobClient = null;
     try {
       jobClient = env.executeAsync();
 
       // Do a single task run
       long time = System.currentTimeMillis();
-      triggerSource.sendRecord(Trigger.create(time, payload, TESTING_TASK_ID), time);
+      triggerSource.sendRecord(Trigger.create(time, TESTING_TASK_ID), time);
 
       TaskResult result = collectingSink.poll(POLL_DURATION);
 
@@ -73,11 +56,9 @@ class MaintenanceTaskTestBase extends OperatorTestBase {
       assertThat(result.success()).isTrue();
       assertThat(result.taskIndex()).isEqualTo(TESTING_TASK_ID);
 
-      Awaitility.await().until(() -> waitForCondition.get());
+      Awaitility.await().until(waitForCondition::get);
     } finally {
       closeJobClient(jobClient);
     }
-
-    table.refresh();
   }
 }

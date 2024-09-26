@@ -29,6 +29,7 @@ import org.apache.iceberg.flink.maintenance.operator.TriggerEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 @PublicEvolving
+@SuppressWarnings("unchecked")
 public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>> {
   private int index;
   private String name;

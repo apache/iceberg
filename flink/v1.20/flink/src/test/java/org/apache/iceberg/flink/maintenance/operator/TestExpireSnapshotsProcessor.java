@@ -26,7 +26,6 @@ import java.util.Set;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.ProcessFunctionTestHarnesses;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
@@ -42,7 +41,6 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
     Table table = createTable();
     insert(table, 1, "a");
     insert(table, 2, "b");
-    SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
 
     List<TaskResult> actual;
     Queue<StreamRecord<String>> deletes;
@@ -56,8 +54,7 @@ class TestExpireSnapshotsProcessor extends OperatorTestBase {
         dropTable();
       }
 
-      testHarness.processElement(
-          Trigger.create(10, serializableTable, 11), System.currentTimeMillis());
+      testHarness.processElement(Trigger.create(10, 11), System.currentTimeMillis());
       deletes = testHarness.getSideOutput(ExpireSnapshotsProcessor.DELETE_STREAM);
       actual = testHarness.extractOutputValues();
     }

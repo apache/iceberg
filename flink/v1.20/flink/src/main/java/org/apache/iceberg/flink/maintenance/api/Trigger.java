@@ -19,38 +19,31 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 public class Trigger {
   private final long timestamp;
-  private final SerializableTable table;
   private final Integer taskId;
   private final boolean isRecovery;
 
-  private Trigger(long timestamp, SerializableTable table, Integer taskId, boolean isRecovery) {
+  private Trigger(long timestamp, Integer taskId, boolean isRecovery) {
     this.timestamp = timestamp;
-    this.table = table;
     this.taskId = taskId;
     this.isRecovery = isRecovery;
   }
 
   @Internal
-  public static Trigger create(long timestamp, SerializableTable table, int taskId) {
-    return new Trigger(timestamp, table, taskId, false);
+  public static Trigger create(long timestamp, int taskId) {
+    return new Trigger(timestamp, taskId, false);
   }
 
   @Internal
   public static Trigger recovery(long timestamp) {
-    return new Trigger(timestamp, null, null, true);
+    return new Trigger(timestamp, null, true);
   }
 
   public long timestamp() {
     return timestamp;
-  }
-
-  public SerializableTable table() {
-    return table;
   }
 
   public Integer taskId() {
@@ -65,7 +58,6 @@ public class Trigger {
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("timestamp", timestamp)
-        .add("table", table == null ? null : table.name())
         .add("taskId", taskId)
         .add("isRecovery", isRecovery)
         .toString();

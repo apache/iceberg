@@ -76,8 +76,7 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
             1)
         .sinkTo(infra.sink());
 
-    runAndWaitForSuccess(
-        infra.env(), infra.source(), infra.sink(), () -> checkDeleteFinished(3L), table);
+    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink(), () -> checkDeleteFinished(3L));
 
     table.refresh();
     assertThat(Sets.newHashSet(table.snapshots())).hasSize(1);
@@ -115,7 +114,7 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
 
       // Do a single task run
       long time = System.currentTimeMillis();
-      infra.source().sendRecord(Trigger.create(time, serializableTable, 1), time);
+      infra.source().sendRecord(Trigger.create(time, 1), time);
 
       // First successful run (ensure that the operators are loaded/opened etc.)
       assertThat(infra.sink().poll(Duration.ofSeconds(5)).success()).isTrue();
@@ -124,7 +123,7 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
       dropTable();
 
       // Failed run
-      infra.source().sendRecord(Trigger.create(time + 1, serializableTable, 1), time + 1);
+      infra.source().sendRecord(Trigger.create(time + 1, 1), time + 1);
 
       assertThat(infra.sink().poll(Duration.ofSeconds(5)).success()).isFalse();
     } finally {
@@ -202,8 +201,7 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
             1)
         .sinkTo(infra.sink());
 
-    runAndWaitForSuccess(
-        infra.env(), infra.source(), infra.sink(), () -> checkDeleteFinished(1L), table);
+    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink(), () -> checkDeleteFinished(1L));
 
     // Check the metrics
     Awaitility.await()

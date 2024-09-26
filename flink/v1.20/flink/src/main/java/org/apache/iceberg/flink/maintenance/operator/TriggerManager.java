@@ -36,7 +36,6 @@ import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
@@ -63,7 +62,7 @@ public class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, T
     implements CheckpointedFunction {
   private static final Logger LOG = LoggerFactory.getLogger(TriggerManager.class);
 
-  private final TableLoader tableLoader;
+  private final String tableName;
   private final TriggerLockFactory lockFactory;
   private final List<String> maintenanceTaskNames;
   private final List<TriggerEvaluator> evaluators;
@@ -112,7 +111,8 @@ public class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, T
     Preconditions.checkArgument(
         lockCheckDelayMs > 0, "Minimum lock delay rate should be at least 1 ms.");
 
-    this.tableLoader = tableLoader;
+    tableLoader.open();
+    this.tableName = tableLoader.loadTable().name();
     this.lockFactory = lockFactory;
     this.maintenanceTaskNames = maintenanceTaskNames;
     this.evaluators = evaluators;
@@ -161,8 +161,6 @@ public class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, T
     this.lastTriggerTimesState =
         getRuntimeContext()
             .getListState(new ListStateDescriptor<>("triggerManagerLastTriggerTime", Types.LONG));
-
-    tableLoader.open();
   }
 
   @Override
@@ -222,7 +220,6 @@ public class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, T
 
   @Override
   public void close() throws IOException {
-    tableLoader.close();
     lockFactory.close();
   }
 
@@ -258,10 +255,8 @@ public class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, T
 
     if (lock.tryLock()) {
       TableChange change = accumulatedChanges.get(taskToStart);
-      SerializableTable table =
-          (SerializableTable) SerializableTable.copyOf(tableLoader.loadTable());
-      out.collect(Trigger.create(current, table, taskToStart));
-      LOG.debug("Fired event with time: {}, collected: {} for {}", current, change, table.name());
+      out.collect(Trigger.create(current, taskToStart));
+      LOG.debug("Fired event with time: {}, collected: {} for {}", current, change, tableName);
       triggerCounters.get(taskToStart).inc();
       accumulatedChanges.set(taskToStart, TableChange.empty());
       lastTriggerTimes.set(taskToStart, current);

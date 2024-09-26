@@ -26,7 +26,6 @@ import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetr
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
-import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -37,8 +36,6 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
 import org.apache.flink.streaming.util.KeyedOneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
-import org.apache.iceberg.SerializableTable;
-import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
@@ -396,11 +393,7 @@ class TestTriggerManager extends OperatorTestBase {
       ++processingTime;
       testHarness.setProcessingTime(processingTime);
       // Releasing lock will create a new snapshot, and we receive this in the trigger
-      expected.add(
-          Trigger.create(
-              processingTime,
-              (SerializableTable) SerializableTable.copyOf(tableLoader.loadTable()),
-              0));
+      expected.add(Trigger.create(processingTime, 0));
       assertTriggers(testHarness.extractOutputValues(), expected);
     }
   }
@@ -648,17 +641,6 @@ class TestTriggerManager extends OperatorTestBase {
       assertThat(actualTrigger.timestamp()).isEqualTo(expectedTrigger.timestamp());
       assertThat(actualTrigger.taskId()).isEqualTo(expectedTrigger.taskId());
       assertThat(actualTrigger.isRecovery()).isEqualTo(expectedTrigger.isRecovery());
-      if (expectedTrigger.table() == null) {
-        assertThat(actualTrigger.table()).isNull();
-      } else {
-        Iterator<Snapshot> expectedSnapshots = expectedTrigger.table().snapshots().iterator();
-        Iterator<Snapshot> actualSnapshots = actualTrigger.table().snapshots().iterator();
-        while (expectedSnapshots.hasNext()) {
-          assertThat(actualSnapshots.hasNext()).isTrue();
-          assertThat(expectedSnapshots.next().snapshotId())
-              .isEqualTo(actualSnapshots.next().snapshotId());
-        }
-      }
     }
   }
 }
