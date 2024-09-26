@@ -102,14 +102,24 @@ class VectorHolderTest {
   }
 
   @Test
-  void testIsDummy1() {
+  void testIsDummyWithDeletedVectorHolder() {
+    // Test case where vector is null
+    VectorHolder vh = VectorHolder.deletedVectorHolder(0);
+    boolean result = vh.isDummy();
+    Assertions.assertEquals(true, result);
+  }
+
+  @Test
+  void testIsDummyWithDummyHolder() {
+    // Test case where vector is a NullVector instance
     VectorHolder vh = VectorHolder.dummyHolder(0);
     boolean result = vh.isDummy();
     Assertions.assertEquals(true, result);
   }
 
   @Test
-  void testIsDummy2() {
+  void testIsDummyWithConstantVectorHolder() {
+    // Test case where vector is null
     VectorHolder vh = VectorHolder.constantHolder(this.icebergField, 0, "a");
     boolean result = vh.isDummy();
     Assertions.assertEquals(true, result);
