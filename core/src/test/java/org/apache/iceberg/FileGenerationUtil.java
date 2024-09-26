@@ -86,6 +86,21 @@ public class FileGenerationUtil {
         .build();
   }
 
+  public static DeleteFile generateEqualityDeleteFile(Table table, StructLike partition) {
+    PartitionSpec spec = table.spec();
+    LocationProvider locations = table.locationProvider();
+    String path = locations.newDataLocation(spec, partition, generateFileName());
+    long fileSize = generateFileSize();
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofEqualityDeletes()
+        .withPartition(partition)
+        .withPath(path)
+        .withFileSizeInBytes(fileSize)
+        .withFormat(FileFormat.PARQUET)
+        .withRecordCount(generateRowCount())
+        .build();
+  }
+
   public static DeleteFile generatePositionDeleteFile(Table table, DataFile dataFile) {
     PartitionSpec spec = table.spec();
     StructLike partition = dataFile.partition();
