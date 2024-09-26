@@ -30,7 +30,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types.StructType;
-import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionMap;
 import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.Tasks;
@@ -73,7 +72,7 @@ public class PartitionStatsUtil {
    */
   public static List<PartitionStats> sortStats(
       Collection<PartitionStats> stats, StructType partitionType) {
-    List<PartitionStats> entries = Lists.newArrayList(stats.iterator());
+    List<PartitionStats> entries = Lists.newArrayList(stats);
     entries.sort(partitionStatsCmp(partitionType));
     return entries;
   }
@@ -86,18 +85,18 @@ public class PartitionStatsUtil {
       Table table, ManifestFile manifest, StructType partitionType) {
     try (ManifestReader<?> reader = openManifest(table, manifest)) {
       PartitionMap<PartitionStats> statsMap = PartitionMap.create(table.specs());
-      int specId = reader.spec().specId();
+      int specId = manifest.partitionSpecId();
+      PartitionSpec spec = table.specs().get(specId);
       PartitionData keyTemplate = new PartitionData(partitionType);
 
       for (ManifestEntry<?> entry : reader.entries()) {
         ContentFile<?> file = entry.file();
         StructLike coercedPartition =
-            PartitionUtil.coercePartition(partitionType, reader.spec(), file.partition());
+            PartitionUtil.coercePartition(partitionType, spec, file.partition());
         StructLike key = keyTemplate.copyFor(coercedPartition);
         Snapshot snapshot = table.snapshot(entry.snapshotId());
         PartitionStats stats =
-            statsMap.computeIfAbsent(
-                Pair.of(specId, key), ignored -> new PartitionStats(key, specId));
+            statsMap.computeIfAbsent(specId, key, () -> new PartitionStats(key, specId));
         if (entry.isLive()) {
           stats.liveEntry(file, snapshot);
         } else {
