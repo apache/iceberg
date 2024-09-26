@@ -51,12 +51,15 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
   private final TableLoader tableLoader;
   private final Long maxSnapshotAgeMs;
   private final Integer numSnapshots;
-  private final int plannerPoolSize;
+  private final Integer plannerPoolSize;
   private transient ExecutorService plannerPool;
   private transient Table table;
 
   public ExpireSnapshotsProcessor(
-      TableLoader tableLoader, Long maxSnapshotAgeMs, Integer numSnapshots, int plannerPoolSize) {
+      TableLoader tableLoader,
+      Long maxSnapshotAgeMs,
+      Integer numSnapshots,
+      Integer plannerPoolSize) {
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
 
     this.tableLoader = tableLoader;
@@ -69,7 +72,10 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
   public void open(Configuration parameters) throws Exception {
     tableLoader.open();
     this.table = tableLoader.loadTable();
-    this.plannerPool = ThreadPools.newWorkerPool(table.name() + "-table--planner", plannerPoolSize);
+    this.plannerPool =
+        plannerPoolSize != null
+            ? ThreadPools.newWorkerPool(table.name() + "-table--planner", plannerPoolSize)
+            : ThreadPools.getWorkerPool();
   }
 
   @Override
@@ -108,6 +114,15 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
       LOG.error("Failed to expiring snapshots for {} at {}", table, ctx.timestamp(), e);
       out.collect(
           new TaskResult(trigger.taskId(), trigger.timestamp(), false, Lists.newArrayList(e)));
+    }
+  }
+
+  @Override
+  public void close() throws Exception {
+    super.close();
+
+    if (plannerPoolSize != null) {
+      plannerPool.shutdown();
     }
   }
 }

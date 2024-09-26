@@ -29,14 +29,14 @@ import org.apache.iceberg.flink.maintenance.operator.TriggerEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 @PublicEvolving
-abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
+public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>> {
   private int index;
   private String name;
   private TableLoader tableLoader;
   private String uidSuffix = null;
   private String slotSharingGroup = null;
   private Integer parallelism = null;
-  private TriggerEvaluator.Builder triggerEvaluator = new TriggerEvaluator.Builder();
+  private final TriggerEvaluator.Builder triggerEvaluator = new TriggerEvaluator.Builder();
 
   abstract DataStream<TaskResult> append(DataStream<Trigger> sourceStream);
 
@@ -156,33 +156,32 @@ abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
     return (T) this;
   }
 
-  @Internal
-  int index() {
+  protected int index() {
     return index;
   }
 
-  @Internal
-  String name() {
+  protected String name() {
     return name;
   }
 
-  @Internal
-  TableLoader tableLoader() {
+  protected TableLoader tableLoader() {
     return tableLoader;
   }
 
-  @Internal
-  String uidSuffix() {
+  protected String uidSuffix() {
     return uidSuffix;
   }
 
-  @Internal
-  String slotSharingGroup() {
+  protected String slotSharingGroup() {
     return slotSharingGroup;
   }
 
   protected Integer parallelism() {
     return parallelism;
+  }
+
+  protected String operatorName(String operatorNameBase) {
+    return operatorNameBase + "[" + index() + "]";
   }
 
   @Internal
@@ -193,17 +192,17 @@ abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder> {
   @Internal
   DataStream<TaskResult> append(
       DataStream<Trigger> sourceStream,
-      int maintenanceTaskIndex,
-      String maintenanceTaskName,
+      int defaultTaskIndex,
+      String defaultTaskName,
       TableLoader newTableLoader,
       String mainUidSuffix,
       String mainSlotSharingGroup,
       int mainParallelism) {
-    Preconditions.checkNotNull(maintenanceTaskName, "Name should not be null");
+    Preconditions.checkNotNull(defaultTaskName, "Name should not be null");
     Preconditions.checkNotNull(newTableLoader, "TableLoader should not be null");
 
-    this.index = maintenanceTaskIndex;
-    this.name = maintenanceTaskName;
+    this.index = defaultTaskIndex;
+    this.name = defaultTaskName;
     this.tableLoader = newTableLoader;
 
     if (uidSuffix == null) {

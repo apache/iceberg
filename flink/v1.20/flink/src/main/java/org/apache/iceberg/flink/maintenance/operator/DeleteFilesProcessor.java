@@ -59,8 +59,8 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
     FileIO fileIO = table.io();
     Preconditions.checkArgument(
         fileIO instanceof SupportsBulkOperations,
-        "Unsupported FileIO. %s should support bulk delete",
-        fileIO);
+        "%s doesn't support bulk delete",
+        fileIO.getClass().getSimpleName());
 
     this.name = name;
     this.io = (SupportsBulkOperations) fileIO;

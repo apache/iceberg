@@ -63,7 +63,6 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
         .parallelism(1)
         .planningWorkerPoolSize(2)
         .deleteBatchSize(3)
-        .deleteParallelism(1)
         .maxSnapshotAge(Duration.ZERO)
         .retainLast(1)
         .uidSuffix(UID_SUFFIX)
@@ -116,9 +115,7 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
 
       // Do a single task run
       long time = System.currentTimeMillis();
-      infra
-          .source()
-          .sendRecord(Trigger.create(time, serializableTable, 1), System.currentTimeMillis());
+      infra.source().sendRecord(Trigger.create(time, serializableTable, 1), time);
 
       // First successful run (ensure that the operators are loaded/opened etc.)
       assertThat(infra.sink().poll(Duration.ofSeconds(5)).success()).isTrue();
@@ -138,10 +135,14 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
     MetricsReporterFactoryForTests.assertCounters(
         new ImmutableMap.Builder<String, Long>()
             .put(
-                DELETE_FILES_OPERATOR_NAME + "." + DUMMY_NAME + "." + DELETE_FILE_FAILED_COUNTER,
+                DELETE_FILES_OPERATOR_NAME + "[0]." + DUMMY_NAME + "." + DELETE_FILE_FAILED_COUNTER,
                 0L)
             .put(
-                DELETE_FILES_OPERATOR_NAME + "." + DUMMY_NAME + "." + DELETE_FILE_SUCCEEDED_COUNTER,
+                DELETE_FILES_OPERATOR_NAME
+                    + "[0]."
+                    + DUMMY_NAME
+                    + "."
+                    + DELETE_FILE_SUCCEEDED_COUNTER,
                 0L)
             .build());
   }
@@ -212,14 +213,14 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
                     new ImmutableMap.Builder<String, Long>()
                         .put(
                             DELETE_FILES_OPERATOR_NAME
-                                + "."
+                                + "[0]."
                                 + DUMMY_NAME
                                 + "."
                                 + DELETE_FILE_FAILED_COUNTER,
                             0L)
                         .put(
                             DELETE_FILES_OPERATOR_NAME
-                                + "."
+                                + "[0]."
                                 + DUMMY_NAME
                                 + "."
                                 + DELETE_FILE_SUCCEEDED_COUNTER,
@@ -230,6 +231,10 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
   private static boolean checkDeleteFinished(Long expectedDeleteNum) {
     return expectedDeleteNum.equals(
         MetricsReporterFactoryForTests.counter(
-            DELETE_FILES_OPERATOR_NAME + "." + DUMMY_NAME + "." + DELETE_FILE_SUCCEEDED_COUNTER));
+            DELETE_FILES_OPERATOR_NAME
+                + "[0]."
+                + DUMMY_NAME
+                + "."
+                + DELETE_FILE_SUCCEEDED_COUNTER));
   }
 }
