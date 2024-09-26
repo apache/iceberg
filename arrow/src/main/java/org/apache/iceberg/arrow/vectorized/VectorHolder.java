@@ -32,7 +32,6 @@ import org.apache.parquet.column.Dictionary;
  * needed for reading values out of it.
  */
 public class VectorHolder {
-
   private final ColumnDescriptor columnDescriptor;
   private final FieldVector vector;
   private final boolean isDictionaryEncoded;
@@ -130,8 +129,7 @@ public class VectorHolder {
   }
 
   public boolean isDummy() {
-    boolean isDummy = (vector == null) || vector instanceof NullVector;
-    return isDummy;
+    return (vector == null) || vector instanceof NullVector;
   }
 
   /**
