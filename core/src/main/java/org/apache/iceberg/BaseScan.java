@@ -31,8 +31,12 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.PropertyUtil;
 
 abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
@@ -141,6 +145,14 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
 
   protected ExecutorService planExecutor() {
     return context().planExecutor();
+  }
+
+  protected Map<Integer, PartitionSpec> specsById() {
+    List<PartitionSpec> specs =
+        Lists.newArrayList(
+            Iterables.transform(
+                table.specs().values(), spec -> TableMetadata.updateSpecSchema(schema, spec)));
+    return Maps.newHashMap(PartitionUtil.indexSpecs(specs));
   }
 
   protected abstract ThisT newRefinedScan(
