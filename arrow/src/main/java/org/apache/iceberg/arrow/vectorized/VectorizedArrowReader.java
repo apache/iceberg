@@ -30,6 +30,7 @@ import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.NullVector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
@@ -468,7 +469,12 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      return VectorHolder.dummyHolder(numValsToRead);
+      ColumnDescriptor descriptor =
+          new ColumnDescriptor(null, PrimitiveType.PrimitiveTypeName.INT64, 0, 0);
+      NullabilityHolder holder = new NullabilityHolder(0);
+      Types.NestedField field = Types.NestedField.optional(3, "z", Types.IntegerType.get());
+      NullVector vector = new NullVector(field.name(), 1);
+      return new VectorHolder(descriptor, vector, false, null, holder, field);
     }
 
     @Override
