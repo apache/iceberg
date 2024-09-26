@@ -51,7 +51,6 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ArrayUtil;
-import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.PartitionMap;
 import org.apache.iceberg.util.PartitionSet;
@@ -70,7 +69,7 @@ class DeleteFileIndex {
   private final EqualityDeletes globalDeletes;
   private final PartitionMap<EqualityDeletes> eqDeletesByPartition;
   private final PartitionMap<PositionDeletes> posDeletesByPartition;
-  private final CharSequenceMap<PositionDeletes> posDeletesByPath;
+  private final Map<String, PositionDeletes> posDeletesByPath;
   private final boolean hasEqDeletes;
   private final boolean hasPosDeletes;
   private final boolean isEmpty;
@@ -79,7 +78,7 @@ class DeleteFileIndex {
       EqualityDeletes globalDeletes,
       PartitionMap<EqualityDeletes> eqDeletesByPartition,
       PartitionMap<PositionDeletes> posDeletesByPartition,
-      CharSequenceMap<PositionDeletes> posDeletesByPath) {
+      Map<String, PositionDeletes> posDeletesByPath) {
     this.globalDeletes = globalDeletes;
     this.eqDeletesByPartition = eqDeletesByPartition;
     this.posDeletesByPartition = posDeletesByPartition;
@@ -177,7 +176,7 @@ class DeleteFileIndex {
       return EMPTY_DELETES;
     }
 
-    PositionDeletes deletes = posDeletesByPath.get(dataFile.path());
+    PositionDeletes deletes = posDeletesByPath.get(dataFile.location());
     return deletes == null ? EMPTY_DELETES : deletes.filter(seq);
   }
 
@@ -434,7 +433,7 @@ class DeleteFileIndex {
       EqualityDeletes globalDeletes = new EqualityDeletes();
       PartitionMap<EqualityDeletes> eqDeletesByPartition = PartitionMap.create(specsById);
       PartitionMap<PositionDeletes> posDeletesByPartition = PartitionMap.create(specsById);
-      CharSequenceMap<PositionDeletes> posDeletesByPath = CharSequenceMap.create();
+      Map<String, PositionDeletes> posDeletesByPath = Maps.newHashMap();
 
       for (DeleteFile file : files) {
         switch (file.content()) {
@@ -458,14 +457,14 @@ class DeleteFileIndex {
     }
 
     private void add(
-        CharSequenceMap<PositionDeletes> deletesByPath,
+        Map<String, PositionDeletes> deletesByPath,
         PartitionMap<PositionDeletes> deletesByPartition,
         DeleteFile file) {
-      CharSequence path = ContentFileUtil.referencedDataFile(file);
+      String path = ContentFileUtil.referencedDataFileLocation(file);
 
       PositionDeletes deletes;
       if (path != null) {
-        deletes = deletesByPath.computeIfAbsent(path, PositionDeletes::new);
+        deletes = deletesByPath.computeIfAbsent(path, ignored -> new PositionDeletes());
       } else {
         int specId = file.specId();
         StructLike partition = file.partition();
