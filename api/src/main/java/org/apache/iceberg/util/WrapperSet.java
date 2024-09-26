@@ -23,33 +23,33 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 
 /**
- * A custom set for {@link ContentFile} that maintains insertion order
+ * A custom set for a {@link Wrapper} of the given type that maintains insertion order
  *
- * @param <F> the concrete Java class of a ContentFile instance
+ * @param <T> The type to wrap in a {@link Wrapper} instance.
  */
-public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Serializable {
-  private static final ThreadLocal<ContentFileWrapper<?>> WRAPPERS =
-      ThreadLocal.withInitial(() -> ContentFileWrapper.wrap(null));
+abstract class WrapperSet<T> implements Set<T>, Serializable {
+  private final Set<Wrapper<T>> set;
 
-  private final Set<ContentFileWrapper<F>> set;
-
-  private ContentFileSet(Set<ContentFileWrapper<F>> contentFiles) {
-    this.set = contentFiles;
+  protected WrapperSet(Iterable<Wrapper<T>> wrappers) {
+    this.set = Sets.newLinkedHashSet(wrappers);
   }
 
-  public static <T extends ContentFile<T>> ContentFileSet<T> empty() {
-    return new ContentFileSet<>(Sets.newLinkedHashSet());
-  }
+  protected abstract Wrapper<T> wrapper();
 
-  public static <T extends ContentFile<T>> ContentFileSet<T> of(Iterable<T> iterable) {
-    return new ContentFileSet<>(
-        Sets.newLinkedHashSet(Iterables.transform(iterable, ContentFileWrapper::wrap)));
+  protected abstract Wrapper<T> wrap(T file);
+
+  protected abstract boolean isInstance(Object obj);
+
+  protected interface Wrapper<T> {
+    T get();
+
+    Wrapper<T> set(T object);
   }
 
   @Override
@@ -62,12 +62,12 @@ public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Seriali
     return set.isEmpty();
   }
 
-  @SuppressWarnings({"rawtypes", "unchecked"})
+  @SuppressWarnings("unchecked")
   @Override
   public boolean contains(Object obj) {
-    if (obj instanceof ContentFile) {
-      ContentFileWrapper<?> wrapper = WRAPPERS.get();
-      boolean result = set.contains(wrapper.set((ContentFile) obj));
+    if (isInstance(obj)) {
+      Wrapper<T> wrapper = wrapper();
+      boolean result = set.contains(wrapper.set((T) obj));
       wrapper.set(null); // don't hold a reference to the value
       return result;
     }
@@ -75,50 +75,32 @@ public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Seriali
     return false;
   }
 
-  @SuppressWarnings("unchecked")
   @Override
-  public Iterator<F> iterator() {
-    return (Iterator<F>) Iterators.transform(set.iterator(), ContentFileWrapper::get);
+  public Iterator<T> iterator() {
+    return Iterators.transform(set.iterator(), Wrapper::get);
   }
 
   @Override
   public Object[] toArray() {
-    return Iterators.toArray(iterator(), ContentFile.class);
+    return Lists.newArrayList(iterator()).toArray();
+  }
+
+  @Override
+  public <X> X[] toArray(X[] destArray) {
+    return Lists.newArrayList(iterator()).toArray(destArray);
+  }
+
+  @Override
+  public boolean add(T obj) {
+    return set.add(wrap(obj));
   }
 
   @SuppressWarnings("unchecked")
   @Override
-  public <T> T[] toArray(T[] destArray) {
-    int size = set.size();
-    if (destArray.length < size) {
-      return (T[]) toArray();
-    }
-
-    Iterator<F> iterator = iterator();
-    int idx = 0;
-    while (iterator.hasNext()) {
-      destArray[idx] = (T) iterator.next();
-      idx += 1;
-    }
-
-    if (destArray.length > size) {
-      destArray[size] = null;
-    }
-
-    return destArray;
-  }
-
-  @Override
-  public boolean add(F contentFile) {
-    return set.add(ContentFileWrapper.wrap(contentFile));
-  }
-
-  @SuppressWarnings({"rawtypes", "unchecked"})
-  @Override
   public boolean remove(Object obj) {
-    if (obj instanceof ContentFile) {
-      ContentFileWrapper<?> wrapper = WRAPPERS.get();
-      boolean result = set.remove(wrapper.set((ContentFile) obj));
+    if (isInstance(obj)) {
+      Wrapper<T> wrapper = wrapper();
+      boolean result = set.remove(wrapper.set((T) obj));
       wrapper.set(null); // don't hold a reference to the value
       return result;
     }
@@ -136,26 +118,24 @@ public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Seriali
   }
 
   @Override
-  public boolean addAll(Collection<? extends F> collection) {
+  public boolean addAll(Collection<? extends T> collection) {
     if (null != collection) {
-      return Iterables.addAll(set, Iterables.transform(collection, ContentFileWrapper::wrap));
+      return Iterables.addAll(set, Iterables.transform(collection, this::wrap));
     }
 
     return false;
   }
 
-  @SuppressWarnings("rawtypes")
+  @SuppressWarnings("unchecked")
   @Override
   public boolean retainAll(Collection<?> collection) {
     if (null != collection) {
-      Set<ContentFileWrapper<?>> toRetain = Sets.newLinkedHashSet();
-      // using a stream here confuses the compiler
-      for (Object obj : collection) {
-        if (obj instanceof ContentFile) {
-          ContentFile<?> file = (ContentFile) obj;
-          toRetain.add(ContentFileWrapper.wrap(file));
-        }
-      }
+      Set<Wrapper<T>> toRetain =
+          collection.stream()
+              .filter(this::isInstance)
+              .map(obj -> (T) obj)
+              .map(this::wrap)
+              .collect(Collectors.toSet());
 
       return Iterables.retainAll(set, toRetain);
     }
@@ -200,13 +180,6 @@ public class ContentFileSet<F extends ContentFile<F>> implements Set<F>, Seriali
 
   @Override
   public int hashCode() {
-    return set.stream().mapToInt(ContentFileWrapper::hashCode).sum();
-  }
-
-  @Override
-  public String toString() {
-    return set.stream()
-        .map(ContentFileWrapper::toString)
-        .collect(Collectors.joining("ContentFileSet({", ", ", "})"));
+    return set.stream().mapToInt(Object::hashCode).sum();
   }
 }
