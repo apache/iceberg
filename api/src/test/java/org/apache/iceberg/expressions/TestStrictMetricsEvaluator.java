@@ -33,7 +33,7 @@ import static org.apache.iceberg.expressions.Expressions.notIn;
 import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.or;
-import static org.apache.iceberg.expressions.Expressions.predicate;
+import static org.apache.iceberg.expressions.Expressions.termPredicate;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -483,28 +483,28 @@ public class TestStrictMetricsEvaluator {
   @Test
   public void testRefCompareIntegerLt() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.LT, "id", "id2"))
             .eval(FILE);
     assertThat(shouldRead)
         .as("Should not match: id range upper bound (79) is not below lower bound id2 range (5)")
         .isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.LT, "id", "id2"))
             .eval(FILE_2);
     assertThat(shouldRead)
         .as("Should match: id range upper bound (40) is below lower bound id2 range (55)")
         .isTrue();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.LT, "id", "id2"))
             .eval(FILE_3);
     assertThat(shouldRead)
         .as("Should not match: id range upper bound (40) is not below lower bound id range (5)")
         .isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.LT, "id", "id2"))
             .eval(FILE_4);
     assertThat(shouldRead)
         .as("Should not match: id range upper bound (30) is not below lower bound id range (30)")
@@ -533,28 +533,28 @@ public class TestStrictMetricsEvaluator {
   @Test
   public void testRefCompareIntegerLtEq() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.LT_EQ, "id", "id2"))
             .eval(FILE);
     assertThat(shouldRead)
         .as("Should not match: id range upper bound (79) is not below lower bound id2 range (5)")
         .isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.LT_EQ, "id", "id2"))
             .eval(FILE_2);
     assertThat(shouldRead)
         .as("Should match: id range upper bound (40) is below lower bound id2 range (55)")
         .isTrue();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.LT_EQ, "id", "id2"))
             .eval(FILE_3);
     assertThat(shouldRead)
         .as("Should not match: id range upper bound (40) is not below lower bound id range (5)")
         .isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.LT_EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.LT_EQ, "id", "id2"))
             .eval(FILE_4);
     assertThat(shouldRead).as("Should match: id range upper bound (30) is equal to (30)").isTrue();
   }
@@ -580,7 +580,7 @@ public class TestStrictMetricsEvaluator {
   @Test
   public void testRefCompareIntegerGt() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.GT, "id", "id2"))
             .eval(FILE);
     assertThat(shouldRead)
         .as(
@@ -588,7 +588,7 @@ public class TestStrictMetricsEvaluator {
         .isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.GT, "id", "id2"))
             .eval(FILE_2);
     assertThat(shouldRead)
         .as(
@@ -596,14 +596,14 @@ public class TestStrictMetricsEvaluator {
         .isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.GT, "id", "id2"))
             .eval(FILE_3);
     assertThat(shouldRead)
         .as("Should match: id range lower bound (30) is greater than upper bound id2 range (25)")
         .isTrue();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.GT, "id", "id2"))
             .eval(FILE_4);
     assertThat(shouldRead)
         .as(
@@ -633,7 +633,7 @@ public class TestStrictMetricsEvaluator {
   @Test
   public void testRefCompareIntegerGtEq() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.GT_EQ, "id", "id2"))
             .eval(FILE);
     assertThat(shouldRead)
         .as(
@@ -641,7 +641,7 @@ public class TestStrictMetricsEvaluator {
         .isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.GT_EQ, "id", "id2"))
             .eval(FILE_2);
     assertThat(shouldRead)
         .as(
@@ -649,14 +649,14 @@ public class TestStrictMetricsEvaluator {
         .isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.GT_EQ, "id", "id2"))
             .eval(FILE_3);
     assertThat(shouldRead)
         .as("Should match: id range lower bound (30) is greater than upper bound id2 range (25)")
         .isTrue();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.GT_EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.GT_EQ, "id", "id2"))
             .eval(FILE_4);
     assertThat(shouldRead)
         .as("Should match: id range lower bound (30) is equal to upper bound id2 range (30)")
@@ -689,28 +689,28 @@ public class TestStrictMetricsEvaluator {
   @Test
   public void testRefCompareIntegerEq() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.EQ, "id", "id2"))
             .eval(FILE);
     assertThat(shouldRead)
         .as("Should not match: id (30,79) is not equal to id2 range (5,55)")
         .isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.EQ, "id", "id2"))
             .eval(FILE_2);
     assertThat(shouldRead)
         .as("Should not match: id range (30,40) can not be equal to id2 range (50,80)")
         .isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.EQ, "id", "id2"))
             .eval(FILE_3);
     assertThat(shouldRead)
         .as("Should not match: id range (5,25) can not be equal to id2 range (30,40)")
         .isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.EQ, "id", "id2"))
             .eval(FILE_4);
     assertThat(shouldRead)
         .as("Should match: id range (30,30) can be equal to id2 range (30,30)")
@@ -745,28 +745,28 @@ public class TestStrictMetricsEvaluator {
   @Test
   public void testRefCompareIntegerNotEq() {
     boolean shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.NOT_EQ, "id", "id2"))
             .eval(FILE);
     assertThat(shouldRead)
         .as("Should not match: id (30,79) cannot be equal to id2 range (5,55)")
         .isFalse();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.NOT_EQ, "id", "id2"))
             .eval(FILE_2);
     assertThat(shouldRead)
         .as("Should match: id range (30,40) can be equal to id2 range (50,80)")
         .isTrue();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.NOT_EQ, "id", "id2"))
             .eval(FILE_3);
     assertThat(shouldRead)
         .as("Should match: id range (5,25) cannot be equal to id2 range (30,40)")
         .isTrue();
 
     shouldRead =
-        new StrictMetricsEvaluator(SCHEMA, predicate(Expression.Operation.NOT_EQ, "id", "id2"))
+        new StrictMetricsEvaluator(SCHEMA, termPredicate(Expression.Operation.NOT_EQ, "id", "id2"))
             .eval(FILE_4);
     assertThat(shouldRead)
         .as("Should not match: id range (30,30) can be equal to id2 range (30,30)")

@@ -38,6 +38,7 @@ import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.predicate;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.expressions.Expressions.termPredicate;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -118,7 +119,7 @@ public class TestEvaluator {
 
   @Test
   public void testRefCompareLessThan() {
-    Evaluator evaluator = new Evaluator(STRUCT, predicate(Expression.Operation.LT, "x", "z"));
+    Evaluator evaluator = new Evaluator(STRUCT, termPredicate(Expression.Operation.LT, "x", "z"));
     assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, 7, null))).as("7 < 7 => false").isFalse();
     assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, 7, null))).as("6 < 7 => true").isTrue();
     assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, 7, null))).as("8 < 7 => false").isFalse();
@@ -157,7 +158,7 @@ public class TestEvaluator {
 
     assertThatThrownBy(
             () ->
-                new Evaluator(STRUCT, predicate(Expression.Operation.LT, "x", "y"))
+                new Evaluator(STRUCT, termPredicate(Expression.Operation.LT, "x", "y"))
                     .eval(TestHelpers.Row.of(6, 8, 8, null)))
         .hasMessage("Cannot compare different types: int and double");
   }
@@ -206,7 +207,8 @@ public class TestEvaluator {
 
   @Test
   public void testRefCompareLessThanOrEqual() {
-    Evaluator evaluator = new Evaluator(STRUCT, predicate(Expression.Operation.LT_EQ, "x", "z"));
+    Evaluator evaluator =
+        new Evaluator(STRUCT, termPredicate(Expression.Operation.LT_EQ, "x", "z"));
     assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, 7, null))).as("7 <= 7 => true").isTrue();
     assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, 7, null))).as("6 <= 7 => true").isTrue();
     assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, 7, null))).as("8 <= 7 => false").isFalse();
@@ -257,7 +259,7 @@ public class TestEvaluator {
 
     assertThatThrownBy(
             () ->
-                new Evaluator(STRUCT, predicate(Expression.Operation.LT_EQ, "x", "y"))
+                new Evaluator(STRUCT, termPredicate(Expression.Operation.LT_EQ, "x", "y"))
                     .eval(TestHelpers.Row.of(6, 8, 8, null)))
         .hasMessage("Cannot compare different types: int and double");
   }
@@ -304,7 +306,7 @@ public class TestEvaluator {
 
   @Test
   public void testRefCompareGreaterThan() {
-    Evaluator evaluator = new Evaluator(STRUCT, predicate(Expression.Operation.GT, "x", "z"));
+    Evaluator evaluator = new Evaluator(STRUCT, termPredicate(Expression.Operation.GT, "x", "z"));
     assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, 7, null))).as("7 > 7 => false").isFalse();
     assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, 7, null))).as("6 > 7 => false").isFalse();
     assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, 7, null))).as("8 > 7 => true").isTrue();
@@ -353,7 +355,7 @@ public class TestEvaluator {
 
     assertThatThrownBy(
             () ->
-                new Evaluator(STRUCT, predicate(Expression.Operation.GT, "x", "y"))
+                new Evaluator(STRUCT, termPredicate(Expression.Operation.GT, "x", "y"))
                     .eval(TestHelpers.Row.of(6, 8, 8, null)))
         .hasMessage("Cannot compare different types: int and double");
   }
@@ -400,7 +402,8 @@ public class TestEvaluator {
 
   @Test
   public void testRefCompareGreaterThanOrEqual() {
-    Evaluator evaluator = new Evaluator(STRUCT, predicate(Expression.Operation.GT_EQ, "x", "z"));
+    Evaluator evaluator =
+        new Evaluator(STRUCT, termPredicate(Expression.Operation.GT_EQ, "x", "z"));
     assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, 7, null))).as("7 >= 7 => true").isTrue();
     assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, 7, null))).as("6 >= 7 => false").isFalse();
     assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, 7, null))).as("8 >= 7 => true").isTrue();
@@ -451,7 +454,7 @@ public class TestEvaluator {
 
     assertThatThrownBy(
             () ->
-                new Evaluator(STRUCT, predicate(Expression.Operation.GT_EQ, "x", "y"))
+                new Evaluator(STRUCT, termPredicate(Expression.Operation.GT_EQ, "x", "y"))
                     .eval(TestHelpers.Row.of(6, 8, 8, null)))
         .hasMessage("Cannot compare different types: int and double");
   }
@@ -489,7 +492,7 @@ public class TestEvaluator {
 
   @Test
   public void testRefCompareEqual() {
-    Evaluator evaluator = new Evaluator(STRUCT, predicate(Expression.Operation.EQ, "x", "z"));
+    Evaluator evaluator = new Evaluator(STRUCT, termPredicate(Expression.Operation.EQ, "x", "z"));
     assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, 7, null))).as("7 = 7 => true").isTrue();
     assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, 7, null))).as("6 = 7 => false").isFalse();
     assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, 7, null))).as("8 = 7 => false").isFalse();
@@ -538,7 +541,7 @@ public class TestEvaluator {
 
     assertThatThrownBy(
             () ->
-                new Evaluator(STRUCT, predicate(Expression.Operation.EQ, "x", "y"))
+                new Evaluator(STRUCT, termPredicate(Expression.Operation.EQ, "x", "y"))
                     .eval(TestHelpers.Row.of(6, 8, 8, null)))
         .hasMessage("Cannot compare different types: int and double");
   }
@@ -576,7 +579,8 @@ public class TestEvaluator {
 
   @Test
   public void testRefCompareNotEqual() {
-    Evaluator evaluator = new Evaluator(STRUCT, predicate(Expression.Operation.NOT_EQ, "x", "z"));
+    Evaluator evaluator =
+        new Evaluator(STRUCT, termPredicate(Expression.Operation.NOT_EQ, "x", "z"));
     assertThat(evaluator.eval(TestHelpers.Row.of(7, 8, 7, null))).as("7 <> 7 => false").isFalse();
     assertThat(evaluator.eval(TestHelpers.Row.of(6, 8, 7, null))).as("6 <> 7 => true").isTrue();
     assertThat(evaluator.eval(TestHelpers.Row.of(8, 8, 7, null))).as("8 <> 7 => true").isTrue();
@@ -627,7 +631,7 @@ public class TestEvaluator {
 
     assertThatThrownBy(
             () ->
-                new Evaluator(STRUCT, predicate(Expression.Operation.NOT_EQ, "x", "y"))
+                new Evaluator(STRUCT, termPredicate(Expression.Operation.NOT_EQ, "x", "y"))
                     .eval(TestHelpers.Row.of(6, 8, 8, null)))
         .hasMessage("Cannot compare different types: int and double");
   }
