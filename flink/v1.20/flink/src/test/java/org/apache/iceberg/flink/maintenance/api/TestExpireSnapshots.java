@@ -28,7 +28,6 @@ import java.time.Duration;
 import java.util.Set;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.SimpleDataUtil;
@@ -47,6 +46,7 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
   void before() {
     MetricsReporterFactoryForTests.reset();
     this.table = createTable();
+    tableLoader().open();
   }
 
   @Test
@@ -95,8 +95,6 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
     insert(table, 1, "a");
     insert(table, 2, "b");
 
-    SerializableTable serializableTable = (SerializableTable) SerializableTable.copyOf(table);
-
     ExpireSnapshots.builder()
         .append(
             infra.triggerStream(),
@@ -130,7 +128,8 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
       closeJobClient(jobClient);
     }
 
-    // Check the metrics
+    // Check the metrics. There are no expired snapshots or data files because ExpireSnapshots has
+    // no max age of number of snapshots set, so no files are removed.
     MetricsReporterFactoryForTests.assertCounters(
         new ImmutableMap.Builder<String, Long>()
             .put(

@@ -224,7 +224,7 @@ class TestTableMaintenance extends OperatorTestBase {
   }
 
   @Test
-  void testUidAndSlotSharingGroup() {
+  void testUidAndSlotSharingGroup() throws IOException {
     TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
             tableLoader(),
@@ -243,7 +243,7 @@ class TestTableMaintenance extends OperatorTestBase {
   }
 
   @Test
-  void testUidAndSlotSharingGroupUnset() {
+  void testUidAndSlotSharingGroupUnset() throws IOException {
     TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
             tableLoader(),
@@ -256,7 +256,7 @@ class TestTableMaintenance extends OperatorTestBase {
   }
 
   @Test
-  void testUidAndSlotSharingGroupInherit() {
+  void testUidAndSlotSharingGroupInherit() throws IOException {
     TableMaintenance.forChangeStream(
             new ManualSource<>(env, TypeInformation.of(TableChange.class)).dataStream(),
             tableLoader(),
@@ -271,7 +271,7 @@ class TestTableMaintenance extends OperatorTestBase {
   }
 
   @Test
-  void testUidAndSlotSharingGroupOverWrite() {
+  void testUidAndSlotSharingGroupOverWrite() throws IOException {
     String anotherUid = "Another-UID";
     String anotherSlotSharingGroup = "Another-SlotSharingGroup";
     TableMaintenance.forChangeStream(
@@ -312,7 +312,7 @@ class TestTableMaintenance extends OperatorTestBase {
   }
 
   @Test
-  void testUidAndSlotSharingGroupForMonitorSource() {
+  void testUidAndSlotSharingGroupForMonitorSource() throws IOException {
     TableMaintenance.forTable(env, tableLoader(), LOCK_FACTORY)
         .uidSuffix(UID_SUFFIX)
         .slotSharingGroup(SLOT_SHARING_GROUP)

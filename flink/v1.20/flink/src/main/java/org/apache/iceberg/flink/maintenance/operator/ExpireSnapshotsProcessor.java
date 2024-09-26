@@ -121,6 +121,7 @@ public class ExpireSnapshotsProcessor extends ProcessFunction<Trigger, TaskResul
   public void close() throws Exception {
     super.close();
 
+    tableLoader.close();
     if (plannerPoolSize != null) {
       plannerPool.shutdown();
     }

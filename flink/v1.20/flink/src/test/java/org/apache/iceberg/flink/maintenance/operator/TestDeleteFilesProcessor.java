@@ -87,9 +87,11 @@ class TestDeleteFilesProcessor extends OperatorTestBase {
   }
 
   private void deleteFile(TableLoader tableLoader, String fileName) throws Exception {
+    tableLoader().open();
     try (OneInputStreamOperatorTestHarness<String, Void> testHarness =
         new OneInputStreamOperatorTestHarness<>(
-            new DeleteFilesProcessor(DUMMY_NAME, tableLoader, 10), StringSerializer.INSTANCE)) {
+            new DeleteFilesProcessor(DUMMY_NAME, tableLoader.loadTable(), 10),
+            StringSerializer.INSTANCE)) {
       testHarness.open();
       testHarness.processElement(fileName, System.currentTimeMillis());
       testHarness.processWatermark(EVENT_TIME);

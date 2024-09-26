@@ -218,8 +218,6 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
       slotSharingGroup = mainSlotSharingGroup;
     }
 
-    tableLoader.open();
-
     return append(sourceStream);
   }
 }

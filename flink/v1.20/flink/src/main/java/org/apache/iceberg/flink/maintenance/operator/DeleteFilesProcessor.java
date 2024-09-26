@@ -26,7 +26,6 @@ import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
@@ -50,12 +49,10 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
   private transient Counter failedCounter;
   private transient Counter succeededCounter;
 
-  public DeleteFilesProcessor(String name, TableLoader tableLoader, int batchSize) {
+  public DeleteFilesProcessor(String name, Table table, int batchSize) {
     Preconditions.checkNotNull(name, "Name should no be null");
-    Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
+    Preconditions.checkNotNull(table, "Table should no be null");
 
-    tableLoader.open();
-    Table table = tableLoader.loadTable();
     FileIO fileIO = table.io();
     Preconditions.checkArgument(
         fileIO instanceof SupportsBulkOperations,

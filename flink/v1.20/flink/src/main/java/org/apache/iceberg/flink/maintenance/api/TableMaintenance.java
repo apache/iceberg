@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.maintenance.api;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -57,9 +58,7 @@ public class TableMaintenance {
   static final String FILTER_OPERATOR_NAME_PREFIX = "Filter ";
   static final String LOCK_REMOVER_OPERATOR_NAME = "Lock remover";
 
-  private TableMaintenance() {
-    // Do not instantiate directly
-  }
+  private TableMaintenance() {}
 
   /**
    * Use when the change stream is already provided, like in the {@link
@@ -214,7 +213,7 @@ public class TableMaintenance {
     }
 
     /** Builds the task graph for the maintenance tasks. */
-    public void append() {
+    public void append() throws IOException {
       Preconditions.checkArgument(!taskBuilders.isEmpty(), "Provide at least one task");
       Preconditions.checkNotNull(uidSuffix, "Uid suffix should no be null");
 
@@ -225,73 +224,67 @@ public class TableMaintenance {
         evaluators.add(taskBuilders.get(i).evaluator());
       }
 
-      DataStream<Trigger> triggers =
-          DataStreamUtils.reinterpretAsKeyedStream(changeStream(), unused -> true)
-              .process(
-                  new TriggerManager(
-                      tableLoader,
-                      lockFactory,
-                      taskNames,
-                      evaluators,
-                      rateLimit.toMillis(),
-                      lockCheckDelay.toMillis()))
-              .name(TRIGGER_MANAGER_OPERATOR_NAME)
-              .uid(TRIGGER_MANAGER_OPERATOR_NAME + uidSuffix)
-              .slotSharingGroup(slotSharingGroup)
-              .forceNonParallel()
-              .assignTimestampsAndWatermarks(new PunctuatedWatermarkStrategy())
-              .name(WATERMARK_ASSIGNER_OPERATOR_NAME)
-              .uid(WATERMARK_ASSIGNER_OPERATOR_NAME + uidSuffix)
-              .slotSharingGroup(slotSharingGroup)
-              .forceNonParallel();
-
-      // Add the specific tasks
-      DataStream<TaskResult> unioned = null;
-      for (int i = 0; i < taskBuilders.size(); ++i) {
-        int finalIndex = i;
-        DataStream<Trigger> filtered =
-            triggers
-                .filter(t -> t.taskId() != null && t.taskId() == finalIndex)
-                .name(FILTER_OPERATOR_NAME_PREFIX + i)
+      try (TableLoader loader = tableLoader.clone()) {
+        DataStream<Trigger> triggers =
+            DataStreamUtils.reinterpretAsKeyedStream(changeStream(loader), unused -> true)
+                .process(
+                    new TriggerManager(
+                        loader,
+                        lockFactory,
+                        taskNames,
+                        evaluators,
+                        rateLimit.toMillis(),
+                        lockCheckDelay.toMillis()))
+                .name(TRIGGER_MANAGER_OPERATOR_NAME)
+                .uid(TRIGGER_MANAGER_OPERATOR_NAME + uidSuffix)
+                .slotSharingGroup(slotSharingGroup)
                 .forceNonParallel()
-                .uid(FILTER_OPERATOR_NAME_PREFIX + i + "-" + uidSuffix)
-                .slotSharingGroup(slotSharingGroup);
-        MaintenanceTaskBuilder<?> builder = taskBuilders.get(i);
-        DataStream<TaskResult> result =
-            builder.append(
-                filtered,
-                i,
-                taskNames.get(i),
-                tableLoader,
-                uidSuffix,
-                slotSharingGroup,
-                parallelism);
-        if (unioned == null) {
-          unioned = result;
-        } else {
-          unioned = unioned.union(result);
-        }
-      }
+                .assignTimestampsAndWatermarks(new PunctuatedWatermarkStrategy())
+                .name(WATERMARK_ASSIGNER_OPERATOR_NAME)
+                .uid(WATERMARK_ASSIGNER_OPERATOR_NAME + uidSuffix)
+                .slotSharingGroup(slotSharingGroup)
+                .forceNonParallel();
 
-      // Add the LockRemover to the end
-      unioned
-          .transform(
-              LOCK_REMOVER_OPERATOR_NAME,
-              TypeInformation.of(Void.class),
-              new LockRemover(lockFactory, taskNames))
-          .forceNonParallel()
-          .uid("lock-remover-" + uidSuffix)
-          .slotSharingGroup(slotSharingGroup);
+        // Add the specific tasks
+        DataStream<TaskResult> unioned = null;
+        for (int i = 0; i < taskBuilders.size(); ++i) {
+          int finalIndex = i;
+          DataStream<Trigger> filtered =
+              triggers
+                  .filter(t -> t.taskId() != null && t.taskId() == finalIndex)
+                  .name(FILTER_OPERATOR_NAME_PREFIX + i)
+                  .forceNonParallel()
+                  .uid(FILTER_OPERATOR_NAME_PREFIX + i + "-" + uidSuffix)
+                  .slotSharingGroup(slotSharingGroup);
+          MaintenanceTaskBuilder<?> builder = taskBuilders.get(i);
+          DataStream<TaskResult> result =
+              builder.append(
+                  filtered, i, taskNames.get(i), loader, uidSuffix, slotSharingGroup, parallelism);
+          if (unioned == null) {
+            unioned = result;
+          } else {
+            unioned = unioned.union(result);
+          }
+        }
+
+        // Add the LockRemover to the end
+        unioned
+            .transform(
+                LOCK_REMOVER_OPERATOR_NAME,
+                TypeInformation.of(Void.class),
+                new LockRemover(lockFactory, taskNames))
+            .forceNonParallel()
+            .uid("lock-remover-" + uidSuffix)
+            .slotSharingGroup(slotSharingGroup);
+      }
     }
 
-    private DataStream<TableChange> changeStream() {
+    private DataStream<TableChange> changeStream(TableLoader loader) {
       if (inputStream == null) {
         // Create a monitor source to provide the TableChange stream
         MonitorSource source =
             new MonitorSource(
-                tableLoader,
-                RateLimiterStrategy.perSecond(1.0 / rateLimit.getSeconds()),
-                maxReadBack);
+                loader, RateLimiterStrategy.perSecond(1.0 / rateLimit.getSeconds()), maxReadBack);
         return env.fromSource(source, WatermarkStrategy.noWatermarks(), SOURCE_OPERATOR_NAME)
             .uid(SOURCE_OPERATOR_NAME + uidSuffix)
             .slotSharingGroup(slotSharingGroup)
