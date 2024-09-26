@@ -237,7 +237,7 @@ public class Expressions {
     return predicate(op, name, Literals.from(value));
   }
 
-  public static <T> UnboundPredicate<T> predicate(Operation op, String name, String rightName) {
+  public static <T> UnboundPredicate<T> termPredicate(Operation op, String name, String rightName) {
     Preconditions.checkArgument(
         op != Operation.IS_NULL
             && op != Operation.NOT_NULL
