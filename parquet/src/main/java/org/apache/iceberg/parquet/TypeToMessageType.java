@@ -67,6 +67,19 @@ public class TypeToMessageType {
     return builder.named(AvroSchemaUtil.makeCompatibleName(name));
   }
 
+  public GroupType variant(Type.Repetition repetition, int id, String name) {
+    Types.GroupBuilder<GroupType> builder = Types.buildGroup(repetition);
+
+    return builder
+        .addField(
+            new org.apache.parquet.schema.PrimitiveType(Type.Repetition.REQUIRED, BINARY, "Value"))
+        .addField(
+            new org.apache.parquet.schema.PrimitiveType(
+                Type.Repetition.REQUIRED, BINARY, "Metadata"))
+        .id(id)
+        .named(AvroSchemaUtil.makeCompatibleName(name));
+  }
+
   public GroupType struct(StructType struct, Type.Repetition repetition, int id, String name) {
     Types.GroupBuilder<GroupType> builder = Types.buildGroup(repetition);
 
@@ -145,6 +158,8 @@ public class TypeToMessageType {
         return Types.primitive(BINARY, repetition).as(STRING).id(id).named(name);
       case BINARY:
         return Types.primitive(BINARY, repetition).id(id).named(name);
+      case VARIANT:
+        return variant(repetition, id, name);
       case FIXED:
         FixedType fixed = (FixedType) primitive;
 

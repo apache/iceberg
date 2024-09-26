@@ -35,6 +35,7 @@ import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.VariantType;
 
 /**
  * Visitor for traversing a Parquet type with a companion Spark type.
@@ -162,6 +163,10 @@ public class ParquetWithSparkSchemaVisitor<T> {
         }
       }
 
+      if (sType instanceof VariantType) {
+        return visitor.variant(group);
+      }
+
       Preconditions.checkArgument(
           sType instanceof StructType, "Invalid struct: %s is not a struct", sType);
       StructType struct = (StructType) sType;
@@ -204,6 +209,10 @@ public class ParquetWithSparkSchemaVisitor<T> {
   }
 
   public T struct(StructType sStruct, GroupType struct, List<T> fields) {
+    return null;
+  }
+
+  public T variant(GroupType variant) {
     return null;
   }
 

@@ -297,6 +297,8 @@ project(':iceberg-api') {
     testImplementation libs.avro.avro
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.awaitility
+    testImplementation 'org.apache.spark:spark-variant_2.13:4.0.0-preview1'
+    testImplementation 'org.apache.spark:spark-unsafe_2.13:4.0.0-preview1'
   }
 
   tasks.processTestResources.dependsOn rootProject.tasks.buildInfo
@@ -341,6 +343,7 @@ project(':iceberg-core') {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
+    implementation 'org.apache.spark:spark-variant_2.13:4.0.0-preview1'
     implementation libs.aircompressor
     implementation libs.httpcomponents.httpclient5
     implementation platform(libs.jackson.bom)
@@ -789,6 +792,7 @@ project(':iceberg-parquet') {
     api project(':iceberg-api')
     implementation project(':iceberg-core')
     implementation project(':iceberg-common')
+    implementation 'org.apache.spark:spark-variant_2.13:4.0.0-preview1'
 
     implementation(libs.parquet.avro) {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -1072,6 +1076,7 @@ project(':iceberg-bom') {
         "3.3": ["2.12", "2.13"],
         "3.4": ["2.12", "2.13"],
         "3.5": ["2.12", "2.13"],
+        "4.0": ["2.12", "2.13"],
       ]
       rootProject.allprojects.forEach {
         // Do not include ':iceberg-spark', the bom itself and the root project.

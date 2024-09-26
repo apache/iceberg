@@ -76,6 +76,9 @@ public abstract class BaseParquetReaders<T> {
   protected abstract ParquetValueReader<T> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
 
+  protected abstract ParquetValueReader<T> createVariantReader(
+      List<ParquetValueReader<?>> fieldReaders);
+
   private class FallbackReadBuilder extends ReadBuilder {
     private FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
       super(type, idToConstant);
@@ -390,6 +393,31 @@ public abstract class BaseParquetReaders<T> {
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
+    }
+
+    @Override
+    public ParquetValueReader<?> variant(GroupType variant) {
+      // TODO: Use Record to model Variant data?
+      return createVariantReader(
+          List.of(
+              new ParquetValueReaders.ByteArrayReader(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "Value"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "Value"),
+                      0,
+                      0)),
+              new ParquetValueReaders.ByteArrayReader(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "Metadata"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "Metadata"),
+                      0,
+                      0))));
     }
 
     MessageType type() {

@@ -24,7 +24,6 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
-import scala.Option;
 
 interface SupportsFunctions extends FunctionCatalog {
 
@@ -60,6 +59,6 @@ interface SupportsFunctions extends FunctionCatalog {
     }
 
     throw new NoSuchFunctionException(
-        String.format("Cannot load function: %s.%s", name(), ident), Option.empty());
+        String.format("Cannot load function: %s.%s", name(), ident), "");
   }
 }

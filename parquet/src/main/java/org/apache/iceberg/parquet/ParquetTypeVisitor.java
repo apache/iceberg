@@ -204,6 +204,10 @@ public class ParquetTypeVisitor<T> {
     return null;
   }
 
+  public T variant(GroupType variant) {
+    return null;
+  }
+
   public T primitive(PrimitiveType primitive) {
     return null;
   }

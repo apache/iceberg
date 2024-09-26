@@ -64,6 +64,7 @@ import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.apache.spark.unsafe.types.VariantVal;
 
 public class SparkParquetReaders {
   private SparkParquetReaders() {}
@@ -191,6 +192,30 @@ public class SparkParquetReaders {
       }
 
       return new InternalRowReader(types, reorderedFields);
+    }
+
+    @Override
+    public ParquetValueReader<?> variant(GroupType variant) {
+      return new VariantReader(
+          List.of(
+              new ParquetValueReaders.ByteArrayReader(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "Value"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "Value"),
+                      0,
+                      0)),
+              new ParquetValueReaders.ByteArrayReader(
+                  new ColumnDescriptor(
+                      new String[] {variant.getName(), "Metadata"},
+                      new PrimitiveType(
+                          Type.Repetition.REQUIRED,
+                          PrimitiveType.PrimitiveTypeName.BINARY,
+                          "Metadata"),
+                      0,
+                      0))));
     }
 
     @Override
@@ -544,6 +569,38 @@ public class SparkParquetReaders {
     }
   }
 
+  private static class VariantReader extends StructReader<VariantVal, GenericInternalRow> {
+    protected VariantReader(List<ParquetValueReader<?>> readers) {
+      super(
+          List.of(
+              new PrimitiveType(
+                  Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Value"),
+              new PrimitiveType(
+                  Type.Repetition.REQUIRED, PrimitiveType.PrimitiveTypeName.BINARY, "Metadata")),
+          readers);
+    }
+
+    @Override
+    protected GenericInternalRow newStructData(VariantVal reuse) {
+      return new GenericInternalRow(2);
+    }
+
+    @Override
+    protected Object getField(GenericInternalRow intermediate, int pos) {
+      return intermediate.genericGet(pos);
+    }
+
+    @Override
+    protected VariantVal buildStruct(GenericInternalRow struct) {
+      return new VariantVal(struct.getBinary(0), struct.getBinary(1));
+    }
+
+    @Override
+    protected void set(GenericInternalRow row, int pos, Object value) {
+      row.update(pos, value);
+    }
+  }
+
   private static class InternalRowReader extends StructReader<InternalRow, GenericInternalRow> {
     private final int numFields;
 
@@ -781,6 +838,11 @@ public class SparkParquetReaders {
     @Override
     public MapData getMap(int ordinal) {
       return (MapData) values[ordinal];
+    }
+
+    @Override
+    public VariantVal getVariant(int ordinal) {
+      return (VariantVal) values[ordinal];
     }
   }
 }

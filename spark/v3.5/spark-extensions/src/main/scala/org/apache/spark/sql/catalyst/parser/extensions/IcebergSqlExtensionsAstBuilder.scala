@@ -222,7 +222,7 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
 
     if (distributionSpec == null && orderingSpec == null) {
       throw new AnalysisException(
-        "ALTER TABLE has no changes: missing both distribution and ordering clauses")
+        "ALTER TABLE has no changes: missing both distribution and ordering clauses", null)
     }
 
     val distributionMode = if (distributionSpec != null) {
@@ -246,11 +246,11 @@ class IcebergSqlExtensionsAstBuilder(delegate: ParserInterface) extends IcebergS
       writeSpec: WriteSpecContext): (WriteDistributionSpecContext, WriteOrderingSpecContext) = {
 
     if (writeSpec.writeDistributionSpec.size > 1) {
-      throw new AnalysisException("ALTER TABLE contains multiple distribution clauses")
+      throw new AnalysisException("ALTER TABLE contains multiple distribution clauses", null)
     }
 
     if (writeSpec.writeOrderingSpec.size > 1) {
-      throw new AnalysisException("ALTER TABLE contains multiple ordering clauses")
+      throw new AnalysisException("ALTER TABLE contains multiple ordering clauses", null)
     }
 
     val distributionSpec = toBuffer(writeSpec.writeDistributionSpec).headOption.orNull

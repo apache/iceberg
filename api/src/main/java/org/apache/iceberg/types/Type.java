@@ -45,7 +45,8 @@ public interface Type extends Serializable {
     DECIMAL(BigDecimal.class),
     STRUCT(StructLike.class),
     LIST(List.class),
-    MAP(Map.class);
+    MAP(Map.class),
+    VARIANT(StructLike.class);
 
     private final Class<?> javaClass;
 

@@ -63,6 +63,7 @@ public class Conversions {
         Types.FixedType fixed = (Types.FixedType) type;
         return Arrays.copyOf(asString.getBytes(StandardCharsets.UTF_8), fixed.length());
       case BINARY:
+      case VARIANT:
         return asString.getBytes(StandardCharsets.UTF_8);
       case DECIMAL:
         return new BigDecimal(asString);
@@ -114,6 +115,7 @@ public class Conversions {
         return UUIDUtil.convertToByteBuffer((UUID) value);
       case FIXED:
       case BINARY:
+      case VARIANT:
         return (ByteBuffer) value;
       case DECIMAL:
         return ByteBuffer.wrap(((BigDecimal) value).unscaledValue().toByteArray());
@@ -171,6 +173,7 @@ public class Conversions {
         return UUIDUtil.convert(tmp);
       case FIXED:
       case BINARY:
+      case VARIANT:
         return tmp;
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) type;

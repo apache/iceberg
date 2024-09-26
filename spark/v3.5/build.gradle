@@ -19,6 +19,7 @@
 
 String sparkMajorVersion = '3.5'
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+// scalaVersion = '2.13'
 
 def sparkProjects = [
     project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}"),
@@ -63,6 +64,10 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     if (scalaVersion == '2.12') {
       // scala-collection-compat_2.12 pulls scala 2.12.17 and we need 2.12.18 for JDK 21 support
       implementation 'org.scala-lang:scala-library:2.12.18'
+    }
+    if (scalaVersion == '2.13') {
+      // scala-collection-compat_2.12 pulls scala 2.12.17 and we need 2.12.18 for JDK 21 support
+      implementation 'org.scala-lang:scala-library:2.13.14'
     }
 
     compileOnly libs.errorprone.annotations
@@ -145,6 +150,10 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     if (scalaVersion == '2.12') {
       // scala-collection-compat_2.12 pulls scala 2.12.17 and we need 2.12.18 for JDK 21 support
       implementation 'org.scala-lang:scala-library:2.12.18'
+    }
+    if (scalaVersion == '2.13') {
+      // scala-collection-compat_2.12 pulls scala 2.12.17 and we need 2.12.18 for JDK 21 support
+      implementation 'org.scala-lang:scala-library:2.13.14'
     }
     implementation libs.roaringbitmap
 
