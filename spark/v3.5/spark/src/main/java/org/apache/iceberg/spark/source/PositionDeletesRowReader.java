@@ -61,7 +61,7 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
       Schema expectedSchema,
       boolean caseSensitive) {
 
-    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive, -1);
+    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
 
     int numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} position delete file split(s) for table {}", numSplits, table.name());

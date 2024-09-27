@@ -49,7 +49,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private final boolean caseSensitive;
   private final int batchSize;
   private final NameMapping nameMapping;
-  private int pushedLimit = -1;
+  private Integer pushedLimit;
 
   public VectorizedParquetReader(
       InputFile input,
@@ -61,7 +61,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       boolean reuseContainers,
       boolean caseSensitive,
       int maxRecordsPerBatch,
-      int pushedLimit) {
+      Integer pushedLimit) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -118,7 +118,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     private long valuesRead = 0;
     private T last = null;
     private final long[] rowGroupsStartRowPos;
-    private int pushedLimit = -1;
+    private Integer pushedLimit;
 
     FileIterator(ReadConf conf) {
       this.reader = conf.reader();
@@ -134,7 +134,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
 
     @Override
     public boolean hasNext() {
-      if (pushedLimit > 0) {
+      if (pushedLimit != null && pushedLimit > 0) {
         return valuesRead < Math.min(totalValues, pushedLimit);
       } else {
         return valuesRead < totalValues;
@@ -151,12 +151,12 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       }
 
       long remainingValues = nextRowGroupStart - valuesRead;
-      long remainingLimit = pushedLimit - valuesRead;
 
       int numValuesToRead;
-      if (remainingLimit > 0) {
+      if (pushedLimit != null && pushedLimit - valuesRead > 0) {
         // batchSize is an integer, so casting to integer is safe
-        numValuesToRead = (int) Math.min(remainingValues, Math.min(batchSize, remainingLimit));
+        numValuesToRead =
+            (int) Math.min(remainingValues, Math.min(batchSize, pushedLimit - valuesRead));
       } else {
         // batchSize is an integer, so casting to integer is safe
         numValuesToRead = (int) Math.min(remainingValues, batchSize);

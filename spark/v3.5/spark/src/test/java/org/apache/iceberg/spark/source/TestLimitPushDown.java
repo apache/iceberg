@@ -292,11 +292,11 @@ public class TestLimitPushDown {
       boolean limitPushedDown) {
     Dataset<org.apache.spark.sql.Row> limitedDf = df.limit(limit);
     LogicalPlan optimizedPlan = limitedDf.queryExecution().optimizedPlan();
-    int pushedLimit = collectPushDownLimit(optimizedPlan);
+    Integer pushedLimit = collectPushDownLimit(optimizedPlan);
     if (limitPushedDown) {
       assertThat(pushedLimit).as("Pushed down limit should be " + limit).isEqualTo(limit);
     } else {
-      assertThat(pushedLimit).as("Pushed down limit should be " + limit).isEqualTo(-1);
+      assertThat(pushedLimit).as("Pushed down limit should be " + limit).isEqualTo(null);
     }
 
     List<org.apache.spark.sql.Row> collectedRows = limitedDf.collectAsList();
@@ -315,7 +315,7 @@ public class TestLimitPushDown {
     }
   }
 
-  private int collectPushDownLimit(LogicalPlan logicalPlan) {
+  private Integer collectPushDownLimit(LogicalPlan logicalPlan) {
     Optional<Integer> limit =
         JavaConverters.asJavaCollection(logicalPlan.collectLeaves()).stream()
             .flatMap(
@@ -330,10 +330,10 @@ public class TestLimitPushDown {
                   }
 
                   SparkBatchQueryScan batchQueryScan = (SparkBatchQueryScan) scanRelation.scan();
-                  return Stream.of(batchQueryScan.pushdownLimit());
+                  return Stream.ofNullable(batchQueryScan.pushedLimit());
                 })
             .findFirst();
 
-    return limit.orElse(-1);
+    return limit.orElse(null);
   }
 }

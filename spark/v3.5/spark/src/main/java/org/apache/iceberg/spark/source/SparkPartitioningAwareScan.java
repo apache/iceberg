@@ -77,8 +77,19 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters,
+      Supplier<ScanReport> scanReportSupplier) {
+    this(spark, table, scan, readConf, expectedSchema, filters, scanReportSupplier, null);
+  }
+
+  SparkPartitioningAwareScan(
+      SparkSession spark,
+      Table table,
+      Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier,
-      int pushedLimit) {
+      Integer pushedLimit) {
     super(spark, table, readConf, expectedSchema, filters, scanReportSupplier, pushedLimit);
 
     this.scan = scan;

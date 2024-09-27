@@ -107,7 +107,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final List<Expression> filterExpressions;
   private final String branch;
   private final Supplier<ScanReport> scanReportSupplier;
-  private final int pushdownLimit;
+  private Integer pushedLimit;
 
   // lazy variables
   private StructType readSchema;
@@ -118,8 +118,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters,
-      Supplier<ScanReport> scanReportSupplier,
-      int pushdownLimit) {
+      Supplier<ScanReport> scanReportSupplier) {
     Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
     SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, expectedSchema);
 
@@ -132,7 +131,18 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
     this.branch = readConf.branch();
     this.scanReportSupplier = scanReportSupplier;
-    this.pushdownLimit = pushdownLimit;
+  }
+
+  SparkScan(
+      SparkSession spark,
+      Table table,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters,
+      Supplier<ScanReport> scanReportSupplier,
+      Integer pushedLimit) {
+    this(spark, table, readConf, expectedSchema, filters, scanReportSupplier);
+    this.pushedLimit = pushedLimit;
   }
 
   protected Table table() {
@@ -155,8 +165,8 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return filterExpressions;
   }
 
-  protected int pushdownLimit() {
-    return pushdownLimit;
+  protected Integer pushedLimit() {
+    return pushedLimit;
   }
 
   protected Types.StructType groupingKeyType() {
@@ -175,7 +185,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
         taskGroups(),
         expectedSchema,
         hashCode(),
-        pushdownLimit);
+        pushedLimit);
   }
 
   @Override

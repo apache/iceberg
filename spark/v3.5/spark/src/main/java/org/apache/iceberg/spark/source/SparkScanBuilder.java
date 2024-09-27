@@ -104,7 +104,7 @@ public class SparkScanBuilder
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
   private Predicate[] pushedPredicates = NO_PREDICATES;
-  private int pushedLimit = -1;
+  private Integer pushedLimit;
 
   SparkScanBuilder(
       SparkSession spark,
@@ -422,9 +422,9 @@ public class SparkScanBuilder
     Schema expectedSchema = schemaWithMetadataColumns();
     org.apache.iceberg.Scan scan =
         buildIcebergBatchScan(false /* not include Column Stats */, expectedSchema);
-    if (pushedLimit > 0 && hasDeletes(scan)) {
+    if (pushedLimit != null && pushedLimit > 0 && hasDeletes(scan)) {
       LOG.info("Skipping limit pushdown: detected row level deletes");
-      pushedLimit = -1;
+      pushedLimit = null;
     }
     return new SparkBatchQueryScan(
         spark,

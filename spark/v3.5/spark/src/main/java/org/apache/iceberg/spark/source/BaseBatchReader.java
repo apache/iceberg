@@ -39,7 +39,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
   private final int batchSize;
-  private int pushedLimit = -1;
+  private Integer pushedLimit;
 
   BaseBatchReader(
       Table table,
@@ -48,7 +48,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Schema expectedSchema,
       boolean caseSensitive,
       int batchSize,
-      int pushedLimit) {
+      Integer pushedLimit) {
     super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
     this.batchSize = batchSize;
     this.pushedLimit = pushedLimit;
@@ -83,7 +83,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       Expression residual,
       Map<Integer, ?> idToConstant,
       SparkDeleteFilter deleteFilter,
-      int limit) {
+      Integer limit) {
     // get required schema if there are deletes
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
 
@@ -105,7 +105,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
             // memory.
             .reuseContainers()
             .withNameMapping(nameMapping());
-    if (limit > 0) {
+    if (limit != null && limit > 0) {
       readerBuilder = readerBuilder.pushedlimit(limit);
     }
 

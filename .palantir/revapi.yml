@@ -1153,7 +1153,7 @@ acceptedBreaks:
       new: "method void org.apache.iceberg.parquet.ParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
         \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
         \ org.apache.iceberg.parquet.ParquetValueReader<?>>, org.apache.iceberg.mapping.NameMapping,\
-        \ org.apache.iceberg.expressions.Expression, boolean, boolean, int)"
+        \ org.apache.iceberg.expressions.Expression, boolean, boolean, java.lang.Integer)"
       justification: "{limit push down}"
     - code: "java.method.numberOfParametersChanged"
       old: "method void org.apache.iceberg.parquet.VectorizedParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
@@ -1163,7 +1163,7 @@ acceptedBreaks:
       new: "method void org.apache.iceberg.parquet.VectorizedParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
         \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
         \ org.apache.iceberg.parquet.VectorizedReader<?>>, org.apache.iceberg.mapping.NameMapping,\
-        \ org.apache.iceberg.expressions.Expression, boolean, boolean, int, int)"
+        \ org.apache.iceberg.expressions.Expression, boolean, boolean, int, java.lang.Integer)"
       justification: "{limit push down}"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:

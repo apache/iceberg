@@ -81,7 +81,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
       Schema expectedSchema,
       List<Expression> filters,
       Supplier<ScanReport> scanReportSupplier,
-      int pushedLimit) {
+      Integer pushedLimit) {
     super(spark, table, scan, readConf, expectedSchema, filters, scanReportSupplier, pushedLimit);
 
     this.snapshotId = readConf.snapshotId();

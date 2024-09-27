@@ -1048,7 +1048,7 @@ public class Parquet {
     private NameMapping nameMapping = null;
     private ByteBuffer fileEncryptionKey = null;
     private ByteBuffer fileAADPrefix = null;
-    private int pushedLimit = -1;
+    private Integer pushedLimit;
 
     private ReadBuilder(InputFile file) {
       this.file = file;
@@ -1156,11 +1156,8 @@ public class Parquet {
       return this;
     }
 
-    public ReadBuilder pushedlimit(int limit) {
-      if (limit <= 0) {
-        throw new IllegalArgumentException("Pushed limit must be > 0");
-      }
-
+    public ReadBuilder pushedlimit(Integer limit) {
+      Preconditions.checkArgument(limit >= 0);
       this.pushedLimit = limit;
       return this;
     }

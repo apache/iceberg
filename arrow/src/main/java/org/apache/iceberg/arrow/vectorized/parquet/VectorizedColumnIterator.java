@@ -76,7 +76,9 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         advance();
         int expectedBatchSize;
         if (numValsToRead < 0) {
-          throw new IllegalStateException("numValsToRead has invalid value");
+          throw new IllegalStateException(
+              String.format(
+                  "Cannot read a negative number of values. numValsToRead = %d", numValsToRead));
         } else {
           expectedBatchSize = Math.min(batchSize - rowsReadSoFar, numValsToRead - rowsReadSoFar);
         }

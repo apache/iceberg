@@ -50,7 +50,7 @@ class SparkBatch implements Batch {
   private final boolean localityEnabled;
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
-  private int pushedLimit = -1;
+  private Integer pushedLimit;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -59,8 +59,7 @@ class SparkBatch implements Batch {
       Types.StructType groupingKeyType,
       List<? extends ScanTaskGroup<?>> taskGroups,
       Schema expectedSchema,
-      int scanHashCode,
-      int pushedLimit) {
+      int scanHashCode) {
     this.sparkContext = sparkContext;
     this.table = table;
     this.branch = readConf.branch();
@@ -72,6 +71,18 @@ class SparkBatch implements Batch {
     this.localityEnabled = readConf.localityEnabled();
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
+  }
+
+  SparkBatch(
+      JavaSparkContext sparkContext,
+      Table table,
+      SparkReadConf readConf,
+      Types.StructType groupingKeyType,
+      List<? extends ScanTaskGroup<?>> taskGroups,
+      Schema expectedSchema,
+      int scanHashCode,
+      Integer pushedLimit) {
+    this(sparkContext, table, readConf, groupingKeyType, taskGroups, expectedSchema, scanHashCode);
     this.pushedLimit = pushedLimit;
   }
 

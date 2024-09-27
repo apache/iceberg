@@ -28,9 +28,9 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 class SparkColumnarReaderFactory implements PartitionReaderFactory {
   private final int batchSize;
-  private int pushedLimit = -1;
+  private Integer pushedLimit;
 
-  SparkColumnarReaderFactory(int batchSize, int pushedLimit) {
+  SparkColumnarReaderFactory(int batchSize, Integer pushedLimit) {
     Preconditions.checkArgument(batchSize > 1, "Batch size must be > 1");
     this.batchSize = batchSize;
     this.pushedLimit = pushedLimit;
