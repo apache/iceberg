@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
@@ -278,6 +279,11 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   @Override
   public String toString() {
     return name();
+  }
+
+  @Override
+  public Optional<StatisticsFile> statistics(long snapshotId) {
+    return statisticsFiles().stream().filter(file -> file.snapshotId() == snapshotId).findFirst();
   }
 
   Object writeReplace() {

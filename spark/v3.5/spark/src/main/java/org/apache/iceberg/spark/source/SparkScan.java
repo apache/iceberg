@@ -195,7 +195,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     Map<NamedReference, ColumnStatistics> colStatsMap = Collections.emptyMap();
     if (readConf.reportColumnStats() && cboEnabled) {
       colStatsMap = Maps.newHashMap();
-      Optional<StatisticsFile> statisticsFile = statisticsFile(snapshot);
+      Optional<StatisticsFile> statisticsFile = table.statistics(snapshot.snapshotId());
       if (statisticsFile.isPresent()) {
         List<BlobMetadata> metadataList = statisticsFile.get().blobMetadata();
 
@@ -244,13 +244,6 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
     long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
     return new Stats(sizeInBytes, rowsCount, colStatsMap);
-  }
-
-  private Optional<StatisticsFile> statisticsFile(Snapshot snapshot) {
-    long snapshotId = snapshot.snapshotId();
-    return table.statisticsFiles().stream()
-        .filter(statisticsFile -> statisticsFile.snapshotId() == snapshotId)
-        .findFirst();
   }
 
   private long totalRecords(Snapshot snapshot) {

@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.io.FileIO;
@@ -372,5 +373,15 @@ public interface Table {
     }
 
     return null;
+  }
+
+  /**
+   * Returns the statistics file for the given snapshot id, if available.
+   *
+   * @return the {@link StatisticsFile} for the given snapshot id, if available.
+   */
+  default Optional<StatisticsFile> statistics(long snapshotId) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement statistics");
   }
 }
