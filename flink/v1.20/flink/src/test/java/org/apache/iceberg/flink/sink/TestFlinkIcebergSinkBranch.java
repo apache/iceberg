@@ -59,15 +59,22 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
   @Parameter(index = 1)
   private String branch;
 
+  @Parameter(index = 2)
+  private boolean useV2Sink;
+
   private TableLoader tableLoader;
 
-  @Parameters(name = "formatVersion = {0}, branch = {1}")
+  @Parameters(name = "formatVersion = {0}, branch = {1}, useV2Sink = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"1", "main"},
-      {"1", "testBranch"},
-      {"2", "main"},
-      {"2", "testBranch"}
+      {"1", "main", false},
+      {"1", "testBranch", false},
+      {"2", "main", false},
+      {"2", "testBranch", false},
+      {"1", "main", true},
+      {"1", "testBranch", true},
+      {"2", "main", true},
+      {"2", "testBranch", true}
     };
   }
 
@@ -105,7 +112,7 @@ public class TestFlinkIcebergSinkBranch extends TestFlinkIcebergSinkBase {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+    BaseIcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, useV2Sink)
         .table(table)
         .tableLoader(tableLoader)
         .tableSchema(tableSchema)

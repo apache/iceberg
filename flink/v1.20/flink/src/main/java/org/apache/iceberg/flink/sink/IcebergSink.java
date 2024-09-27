@@ -255,7 +255,7 @@ public class IcebergSink
     return new WriteResultSerializer();
   }
 
-  public static class Builder {
+  public static class Builder implements BaseIcebergSinkBuilder {
     private TableLoader tableLoader;
     private String uidSuffix = "";
     private Function<String, DataStream<RowData>> inputCreator = null;
@@ -311,6 +311,7 @@ public class IcebergSink
      * @param newTable the loaded iceberg table instance.
      * @return {@link IcebergSink.Builder} to connect the iceberg table.
      */
+    @Override
     public Builder table(Table newTable) {
       this.table = (SerializableTable) SerializableTable.copyOf(newTable);
       return this;
@@ -325,6 +326,7 @@ public class IcebergSink
      * @param newTableLoader to load iceberg table inside tasks.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder tableLoader(TableLoader newTableLoader) {
       this.tableLoader = newTableLoader;
       return this;
@@ -347,21 +349,25 @@ public class IcebergSink
      * Set the write properties for IcebergSink. View the supported properties in {@link
      * FlinkWriteOptions}
      */
+    @Override
     public Builder setAll(Map<String, String> properties) {
       writeOptions.putAll(properties);
       return this;
     }
 
+    @Override
     public Builder tableSchema(TableSchema newTableSchema) {
       this.tableSchema = newTableSchema;
       return this;
     }
 
+    @Override
     public Builder overwrite(boolean newOverwrite) {
       writeOptions.put(FlinkWriteOptions.OVERWRITE_MODE.key(), Boolean.toString(newOverwrite));
       return this;
     }
 
+    @Override
     public Builder flinkConf(ReadableConfig config) {
       this.readableConfig = config;
       return this;
@@ -374,6 +380,7 @@ public class IcebergSink
      * @param mode to specify the write distribution mode.
      * @return {@link IcebergSink.Builder} to connect the iceberg table.
      */
+    @Override
     public Builder distributionMode(DistributionMode mode) {
       Preconditions.checkArgument(
           !DistributionMode.RANGE.equals(mode),
@@ -390,6 +397,7 @@ public class IcebergSink
      * @param newWriteParallelism the number of parallel iceberg stream writer.
      * @return {@link IcebergSink.Builder} to connect the iceberg table.
      */
+    @Override
     public Builder writeParallelism(int newWriteParallelism) {
       writeOptions.put(
           FlinkWriteOptions.WRITE_PARALLELISM.key(), Integer.toString(newWriteParallelism));
@@ -416,6 +424,7 @@ public class IcebergSink
      * @param columns defines the iceberg table's key.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder equalityFieldColumns(List<String> columns) {
       this.equalityFieldColumns = columns;
       return this;
@@ -458,6 +467,7 @@ public class IcebergSink
       return this;
     }
 
+    @Override
     public Builder toBranch(String branch) {
       writeOptions.put(FlinkWriteOptions.BRANCH.key(), branch);
       return this;
@@ -527,6 +537,7 @@ public class IcebergSink
      *
      * @return {@link DataStreamSink} for sink.
      */
+    @Override
     public DataStreamSink<RowData> append() {
       IcebergSink sink = build();
       String suffix = defaultSuffix(uidSuffix, table.name());

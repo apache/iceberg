@@ -52,21 +52,36 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
   @Parameter(index = 2)
   private boolean partitioned;
 
-  @Parameters(name = "format={0}, parallelism = {1}, partitioned = {2}")
+  @Parameter(index = 3)
+  private boolean useV2Sink;
+
+  @Parameters(name = "format={0}, parallelism = {1}, partitioned = {2}, useV2Sink = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {FileFormat.AVRO, 1, true},
-      {FileFormat.AVRO, 1, false},
-      {FileFormat.AVRO, 2, true},
-      {FileFormat.AVRO, 2, false},
-      {FileFormat.ORC, 1, true},
-      {FileFormat.ORC, 1, false},
-      {FileFormat.ORC, 2, true},
-      {FileFormat.ORC, 2, false},
-      {FileFormat.PARQUET, 1, true},
-      {FileFormat.PARQUET, 1, false},
-      {FileFormat.PARQUET, 2, true},
-      {FileFormat.PARQUET, 2, false}
+      {FileFormat.AVRO, 1, true, false},
+      {FileFormat.AVRO, 1, false, false},
+      {FileFormat.AVRO, 2, true, false},
+      {FileFormat.AVRO, 2, false, false},
+      {FileFormat.ORC, 1, true, false},
+      {FileFormat.ORC, 1, false, false},
+      {FileFormat.ORC, 2, true, false},
+      {FileFormat.ORC, 2, false, false},
+      {FileFormat.PARQUET, 1, true, false},
+      {FileFormat.PARQUET, 1, false, false},
+      {FileFormat.PARQUET, 2, true, false},
+      {FileFormat.PARQUET, 2, false, false},
+      {FileFormat.AVRO, 1, true, true},
+      {FileFormat.AVRO, 1, false, true},
+      {FileFormat.AVRO, 2, true, true},
+      {FileFormat.AVRO, 2, false, true},
+      {FileFormat.ORC, 1, true, true},
+      {FileFormat.ORC, 1, false, true},
+      {FileFormat.ORC, 2, true, true},
+      {FileFormat.ORC, 2, false, true},
+      {FileFormat.PARQUET, 1, true, true},
+      {FileFormat.PARQUET, 1, false, true},
+      {FileFormat.PARQUET, 2, true, true},
+      {FileFormat.PARQUET, 2, false, true}
     };
   }
 
@@ -100,7 +115,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
             .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
 
-    FlinkSink.forRowData(dataStream)
+    BaseIcebergSinkBuilder.forRowData(dataStream, useV2Sink)
         .table(table)
         .tableLoader(tableLoader)
         .writeParallelism(parallelism)
@@ -115,11 +130,11 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
 
   @TestTemplate
   public void testWriteRow() throws Exception {
-    testWriteRow(parallelism, null, DistributionMode.NONE);
+    testWriteRow(parallelism, null, DistributionMode.NONE, useV2Sink);
   }
 
   @TestTemplate
   public void testWriteRowWithTableSchema() throws Exception {
-    testWriteRow(parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE);
+    testWriteRow(parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE, useV2Sink);
   }
 }

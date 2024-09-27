@@ -20,7 +20,6 @@ package org.apache.iceberg.flink;
 
 import java.util.List;
 import java.util.Map;
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSink;
@@ -78,8 +77,6 @@ public class IcebergTableSink implements DynamicTableSink, SupportsPartitioning,
       @Override
       public DataStreamSink<?> consumeDataStream(
           ProviderContext providerContext, DataStream<RowData> dataStream) {
-        // FIXME: Just to check the coverage
-//        throw new NotImplementedException("IcebergTableSink.consumeDataStream coverage check");
         return FlinkSink.forRowData(dataStream)
             .tableLoader(tableLoader)
             .tableSchema(tableSchema)
