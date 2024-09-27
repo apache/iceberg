@@ -313,123 +313,81 @@ The set of metadata columns is:
 
 ### Row Lineage
 
-In Specification V3, an Iceberg Table can declare that engines must track row-lineage of all newly created rows. This
-requirement is controlled by setting the field `row-lineage` to true in the table's metadata. When true, two additional 
-fields in data files will be available for all rows added to the table.
+In v3 and later, an Iceberg table can track row lineage fields for all newly created rows.  Row lineage is enabled by setting the field `row-lineage` to true in the table's metadata. When enabled, engines must maintain the `next-row-id` table field and the following row-level fields when writing data files:
 
-* `_row_id` a unique long for every row. Computed via inheritance for rows in their original datafiles 
-and explicitly written when the row is moved to a new file.
-* `_last_update` the sequence number of the commit which last updated this row. The value is computed via inheritance for 
-rows in their original file or in files where the row was modified.
+* `_row_id` a unique long for every row. Assigned via inheritance when a row is added and the existing value is explicitly written when the row is written to a new file.
+* `_last_update` the sequence number of the commit that last updated a row. The value is inherited when a row is added or modified and the existing value is explicitly written when the row is written to a different data file but not modified.
 
-Commits with `row-lineage` enabled are not allowed to include any [Equality Deletes](#equality-delete-files).
+These fields are assigned and updated by inheritance because the commit sequence number and starting row ID are not assigned until the snapshot is successfully committed. Inheritance is used to allow writing data and manifest files before values are known so that it is not necessary to rewrite data and manifest files when an optimistic commit is retried.
 
-Implementations writing to tables where `row-lineage` is enabled must populate several additional 
-fields in the metadata and propagate row information from existing and updated. 
-
-#### Metadata Propagation
-
-Creating a new commit when `row-lineage` is enabled requires
-* Setting the new snapshot's `first-row-id` field to the previous table metadata's `last-row-id` field
-* Setting `first_row_id` in new data manifest entries in the new manifest list to `first-row-id` field 
-from the snapshot plus the sum of all `added_rows_count` in previously listed new data manifest entries.
-* Setting `first_row_id` in new `data_file` entries  to null and in existing `data_file` structs to their original
-or computed value (if previously null) of `first_row_id`
-* Incrementing the new metadata's `last-row-id` field by the number of new rows added to the table by the commit.
-
-When reading a `data_file` manifest entry with a null `first_row_id`, the value is calculated as the 
-sum of the `total_records` of every previous added `data_file` entry summed with the`first_row_id` of the manifest. 
+When row lineage is enabled, new snapshots cannot include [Equality Deletes](#equality-delete-files). Row lineage is incompatible with equality deletes because lineage values must be maintained, but equality deletes are used to avoid reading existing data before writing changes.
 
 
-An example of producing a new commit with `row-lineage` true, 
+#### Row lineage assignment
 
-Given a original metadata
+Row lineage fields are written when row lineage is enabled. When not enabled, row lineage fields (`_row_id` and `_last_update`) must not be written to data files. The rest of this section applies when row lineage is enabled.
+
+When a row is added or modified, the `_last_update` field is set to `null` so that it is inherited when reading. Similarly, the `_row_id` field for an added row is set to `null` and assigned when reading.
+
+On read, if `_last_update` is `null` it is assigned the `sequence_number` of the data file's manifest entry. The data sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
+
+When `null`, a row's `_row_id` field is assigned to the `start_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `start_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `start_row_id` is assigned when writing the manifest list for a snapshot and is documented in [First Row ID Assignment](#first-row-id-assignment). A snapshot's `start-row-id` is to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
+
+Values for `_row_id` and `_last_update` are either read from a data file or assigned at read time. As a result, rows in a table always have non-null values for these fields when lineage is enabled.
+
+When an existing row is moved to a different data file for any reason, writers are required to write `_row_id` and `_last_update` according to the following rules:
+
+1. The row's existing non-null `_row_id` must be copied into the new data file
+2. If the write has modified the row, the `_last_update` field must be set to `null` (so that the modification sequence number replaces the current value)
+3. If the write has not modified the row, the existing non-null `_last_update` value must be copied to the new data file
+
+
+#### Row lineage example
+
+This example demonstrates how `_row_id` and `_last_update` are assigned for a snapshot when row lineage is enabled. This starts with a table with row lineage enabled and a `next-row-id` of 1000.
+
+Writing a new append snapshot would create snapshot metadata with `first-row-id` assigned to the table's `next-row-id`:
 
 ```json
 {
-  "row-lineage": true,
-  "last-row-id": 1000
+  "operation": "append",
+  "first-row-id": 1000,
+  ...
 }
 ```
 
-A new snapshot would be created 
-```json
-{
-  "first-row-id": 1000
-}
-```
-
-Which would point to a manifest-list which calculates `first_row_id` for each manifest based on total number of 
-added rows in all previous manifests as ordered within the manifest-list
+The snapshot's manifest list would contain previous manifests, plus new manifests with an assigned `first_row_id` based on the `added_rows_count` of previous manifests:
 
 | `manifest_path` | `added_rows_count` | `existing_rows_count` | `first_row_id`     |
 |-----------------|--------------------|-----------------------|--------------------|
-| path_1          | 250                | 75                    | 1000               |
-| path_2          | 225                | 25                    | 1250               |
-| path_3          | 0                  | 100                   | 1475               |
-| path_4          | 125                | 25                    | 1475               |
+| ...             | ...                | ...                   | ...                |
+| existing        | 75                 | 0                     | 925                |
+| added1          | 100                | 25                    | 1000               |
+| added2          | 0                  | 100                   | 1100               |
+| added3          | 125                | 25                    | 1100               |
 
-In the above example, path_3 can be ignored from the calculation of the next manifest's `first_row_id` because
-no rows were added to the table. The value of `first_row_id` is computed as the sum of all  `added_rows_count` 
-values from manifests already listed in the manifest list added to the snapshot's `first-row-id`.
+The first added file, `added1`, is assigned the same `first_row_id` as the snapshot and the following manifests are assigned `first_row_id` based on the number of rows added by the previous manifests. The second file, `added2`, does not change the `first_row_id` of the next manifest because it contains no added data files.
 
-The new `data_file` entries within these manifests have their  `first-row-id` field set to null and on read 
-should have the value computed using inheritance from their manifest's `first_row_id` value. Any existing
-`data_file` which is written into the manifest should have its value for `first_row_id` copied directly.
+Within the first added manifest, each data file' `first_row_id` follows a similar pattern:
 
-The manifest path_1 could have the following entries (imputed values shown in parentheses)
+| `status` | `file_path` | `record_count` | `first_row_id` |
+|----------|-------------|----------------|----------------|
+| EXISTING | data1       | 75             | 800            |
+| ADDED    | data2       | 50             | null (1000)    |
+| ADDED    | data3       | 50             | null (1050)    |
 
-| `file_path` | `record_count` | `first_row_id` |
-|-------------|----------------|----------------|
-| data_1      | 100            | null (1000)    |
-| data_2      | 75             | 800            |
-| data_3      | 150            | null (1100)    |
+The `first_row_id` of the EXISTING file `data1` was already assigned, so the file metadata was copied into manifest `added1`.
 
-Two newly added files, data_1 and data_3, have `first_row_id` set to null. This allows writers to add new
-data files to inherit the values for the total number of added rows from other data_files as well as the snapshot's
-`first_row_id`. When reading the `first_row_id` column, the value of `first_row_id` from the 
-manifest  entry is combined with the sum of `record_count` for all previous `data_file` structs that were added in the 
-manifest.
+Files `data2` and `data3` are written with `null` for `first_row_id` and are assigned `first_row_id` at read time based on the manifest's `first_row_id` and the `record_count` of previous ADDED files: (1,000 + 0) and (1,000 + 50).
 
-The existing file, data_2, came from a previous table state (not included in this example) and has its inherited value
-for `first_row_id` written out explicitly into the `data_file` struct since it can no longer be computed in 
-the context of the current manifest-list.
+When the new snapshot is committed, the table's `next-row-id` must also be updated (even if the new snapshot is not in the main branch). Because 225 rows were added, the new value is 1,000 + 225 = 1,225:
 
-Finally, the new table metadata must update `last-row-id` to the new highest possible value. In this example, 
-the last largest value for `first_row_id` in the manifest-list plus the `added_rows_count` for that manifest 
-(path_4), 1475 + 125  = 1600.
 
-```json
-{
-  "last-row-id": 1600
-}
-```
+### Enabling Row Lineage for Non-empty Tables
 
-#### Datafile Propagation
-
-New data files added when `row-lineage` is enabled do not require any modification. The columns for `_row_identifiier`
-and `_last_updated` must not be present in the file. 
-
-Adding new file to the table where fields `_row_id` and `_last_updated` are set to non-null values is forbidden.
-
-When read, any null value for `_row_id` is computed by adding the `first_row_id` of the data-file entry
-in the manifest to the row's `_pos` value. The value of `_last_updated` is directly inherited from the manifest entry's 
-`sequence_number` value.
-
-When a data file is rewritten via any means, the rewriter is required to set or update the values for `_row_id`
-and `_last_update` in the new destination file. The previously missing `_row_id` and `_last_update`
-values must be populated in the new file using the following rules:
-
-* _row_id : The value should be copied if not null, if it is null it should be calculated as stated above and 
-persisted.
-* _last_updated : If the row has been modified, this value should be set to null. If the row has not been modified then 
-the value, as calculated above or as previously written, should be copied into the new row.
-
+<!-- TODO: how to handle rows from before row lineage was enabled -->
 Any snapshot without the field `last-row-id` do not have any lineage information and values for `_row_id`
 and `_last_update` cannot be generated. Both columns should be read as `null` for these rows.
-
-
-### Existing Metadata and Data
 
 All files that were added before `row-lineage` was enabled should propagate null for all of the `row-lineage` related
 fields. The values for `_row_id` and `_last_update` should always return null and when these rows are copied, 
@@ -603,7 +561,7 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | _optional_ | _optional_ | _optional_ | **`132  split_offsets`**          | `list<133: long>`                                                           | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending                                                                                                    |
 |            | _optional_ | _optional_ | **`135  equality_ids`**           | `list<136: int>`                                                            | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file                |
 | _optional_ | _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                                                                       | ID representing sort order for this file [3].                                                                                                                                                                      |
-|            |            | _optional_ | **`141  first_row_id`**  | `long`                                                                      | The value of `row_id` for the first row in the data file. See [Row Lineage](#row-lineage)                                                                                                                 |
+|            |            | _optional_ | **`142  first_row_id`**           | `long`                                                                      | The `_row_id` for the first row in the data file. See [First Row ID Inheritance](#first-row-id-inheritance)                                                                                                                 |
 Notes:
 
 1. Single-value serialization for lower and upper bounds is detailed in Appendix D.
@@ -614,7 +572,6 @@ Notes:
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
 The column metrics maps are used when filtering to select both data and delete files. For delete files, the metrics must store bounds and counts for all deleted rows, or must be omitted. Storing metrics for deleted rows ensures that the values can be used during job planning to find delete files that must be merged during a scan.
-
 
 ### Manifest Entry Fields
 
@@ -647,6 +604,15 @@ Inheriting sequence numbers through the metadata tree allows writing a new manif
 
 When reading v1 manifests with no sequence number column, sequence numbers for all files must default to 0.
 
+### First Row ID Inheritance
+
+Row ID inheritance is used when row lineage is enabled. When not enabled, a data file's `first_row_id` must always be set to `null`. The rest of this section applies when row lineage is enabled.
+
+When adding a new data file, its `first_row_id` field is set to `null` because it is not assigned until the snapshot is successfully committed.
+
+When reading, the `first_row_id` is assigned by replacing `null` with the manifest's `first_row_id` plus the sum of `record_count` for all added data files that preceded the file in the manifest.
+
+The `first_row_id` is only inherited for added data files. The inherited value must be written into the data file metadata for existing and deleted entries. The value of `first_row_id` for delete files is always `null`.
 
 ## Snapshots
 
@@ -682,6 +648,15 @@ Manifests for a snapshot are tracked by a manifest list.
 Valid snapshots are stored as a list in table metadata. For serialization, see Appendix C.
 
 
+### Snapshot Row IDs
+
+When row lineage is not enabled, `first-row-id` should be omitted. The rest of this section applies when row lineage is enabled.
+
+A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on each commit attempt. If a commit is retried, the `first-row-id` must be reassigned. If a commit contains no new rows, `first-row-id` should be omitted.
+
+The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot's manifest list.
+
+
 ### Manifest Lists
 
 Snapshots are embedded in table metadata, but the list of manifests for a snapshot are stored in a separate manifest list file.
@@ -711,7 +686,7 @@ Manifest list files store `manifest_file`, a struct with the following fields:
 | _optional_ | _required_ | _required_ | **`514 deleted_rows_count`**     | `long`                                      | Number of rows in all of files in the manifest that have status `DELETED`, when `null` this is assumed to be non-zero                                |
 | _optional_ | _optional_ | _optional_ | **`507 partitions`**             | `list<508: field_summary>` (see below)      | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
 | _optional_ | _optional_ | _optional_ | **`519 key_metadata`**           | `binary`                                    | Implementation-specific key metadata for encryption                                                                                                  |
-|            |            | _optional_ | **`520 first_row_id`**  | `long`                                      | The first `_row_id` value for the first added file in the first added manifest see [Row Lineage](#row-lineage)                               |
+|            |            | _optional_ | **`520 first_row_id`**           | `long`                                      | The starting `_row_id` to assign to rows added by `ADDED` data files [First Row ID Assignment](#first-row-id-assignment)                               |
 
 `field_summary` is a struct with the following fields:
 
@@ -726,6 +701,14 @@ Notes:
 
 1. Lower and upper bounds are serialized to bytes using the single-object serialization in Appendix D. The type of used to encode the value is the type of the partition field data.
 2. If -0.0 is a value of the partition field, the `lower_bound` must not be +0.0, and if +0.0 is a value of the partition field, the `upper_bound` must not be -0.0.
+
+#### First Row ID Assignment
+
+Row ID inheritance is used when row lineage is enabled. When not enabled, a manifest's `first_row_id` must always be set to `null`. The rest of this section applies when row lineage is enabled.
+
+When adding a new data manifest file, its `first_row_id` field is assigned the value of the snapshot's `first_row_id` plus the sum of `added_rows_count` for all data manifests that preceded the manifest in the manifest list.
+
+The `first_row_id` is only assigned for new data manifests. Values for existing manifests must be preserved when writing a new manifest list. The value of `first_row_id` for delete manifests is always `null`.
 
 ### Scan Planning
 
@@ -839,9 +822,11 @@ Table metadata consists of the following fields:
 | _optional_ | _optional_ | _optional_ | **`statistics`**            | A list (optional) of [table statistics](#table-statistics).                                                                                                                                                                                                                                                                                                                                      |
 | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics).                                                                                                                                                                                                                                                                                                                              |
 |            |            | _optional_ | **`row-lineage`**           | A boolean, defaulting to false, setting whether or not to track the creation and updates to rows in the table. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                                                  |
-|            |            | _optional_ | **`last-used-idenfitier`**  | The table's highest used value for `_row_id`, a monotonically increasing long that tracks every unique row added to the table. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                          |
+|            |            | _optional_ | **`next-row-id`**  | A value higher than all assigned row IDs; the next snapshot `start-row-id`. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                          |
 
 For serialization details, see Appendix C.
+
+When a new snapshot is added the table's `next-row-id` should be updated to to previous `next-row-id` plus the sum of `record_count` for all data files added in the snapshot (this is also equal to the sum of `added_rows_count` for all manifests added in the snapshot). This ensures that `next-row-id` is always higher than any assigned row ID in the table.
 
 ### Table Statistics
 
