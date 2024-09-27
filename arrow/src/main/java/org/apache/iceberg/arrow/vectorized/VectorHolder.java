@@ -129,7 +129,7 @@ public class VectorHolder {
   }
 
   public boolean isDummy() {
-    return (vector == null) || vector instanceof NullVector;
+    return vector == null || vector instanceof NullVector;
   }
 
   /**
