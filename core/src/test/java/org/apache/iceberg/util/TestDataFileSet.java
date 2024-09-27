@@ -19,12 +19,15 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.Test;
 
@@ -61,13 +64,13 @@ public class TestDataFileSet {
 
   @Test
   public void emptySet() {
-    assertThat(DataFileSet.empty()).isEmpty();
-    assertThat(DataFileSet.empty()).doesNotContain(FILE_A, FILE_B, FILE_C);
+    assertThat(DataFileSet.create()).isEmpty();
+    assertThat(DataFileSet.create()).doesNotContain(FILE_A, FILE_B, FILE_C);
   }
 
   @Test
   public void insertionOrderIsMaintained() {
-    DataFileSet set = DataFileSet.empty();
+    DataFileSet set = DataFileSet.create();
     set.addAll(ImmutableList.of(FILE_D, FILE_A, FILE_C));
     set.add(FILE_B);
     set.add(FILE_D);
@@ -83,25 +86,66 @@ public class TestDataFileSet {
   }
 
   @Test
-  public void remove() {
-    DataFileSet set = DataFileSet.of(ImmutableList.of(FILE_A, FILE_B));
-    set.remove(FILE_C);
-    assertThat(set).containsExactly(FILE_A, FILE_B);
-    set.remove(null);
-    assertThat(set).containsExactly(FILE_A, FILE_B);
-    set.remove(FILE_B);
-    assertThat(set).containsExactly(FILE_A);
-    set.remove(FILE_A);
-    assertThat(set).isEmpty();
+  public void addAll() {
+    DataFileSet empty = DataFileSet.create();
+    assertThatThrownBy(() -> empty.add(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid object: null");
+
+    assertThatThrownBy(() -> empty.addAll(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid collection: null");
+
+    assertThatThrownBy(() -> empty.addAll(Collections.singletonList(null)))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid object: null");
+
+    assertThatThrownBy(() -> empty.addAll(Arrays.asList(FILE_A, null)))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid object: null");
+
+    DataFileSet set = DataFileSet.create();
+    set.addAll(ImmutableList.of(FILE_B, FILE_A, FILE_C, FILE_A));
+    assertThat(set).hasSize(3).containsExactly(FILE_B, FILE_A, FILE_C);
   }
 
   @Test
   public void contains() {
-    assertThat(DataFileSet.of(ImmutableList.of(FILE_A, FILE_B)))
+    DataFileSet set = DataFileSet.of(ImmutableList.of(FILE_A, FILE_B));
+    assertThatThrownBy(() -> set.contains(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid object: null");
+
+    assertThat(set)
         .hasSize(2)
         .containsExactly(FILE_A, FILE_B)
         .doesNotContain(FILE_C)
         .doesNotContain(FILE_D);
+
+    assertThat(DataFileSet.of(Arrays.asList(FILE_C, FILE_B, null, FILE_A)))
+        .hasSize(3)
+        .containsExactly(FILE_C, FILE_B, FILE_A)
+        .doesNotContain((DataFile) null);
+  }
+
+  @Test
+  public void containsAll() {
+    DataFileSet set = DataFileSet.of(ImmutableList.of(FILE_A, FILE_B));
+    assertThatThrownBy(() -> set.containsAll(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid collection: null");
+
+    assertThatThrownBy(() -> set.containsAll(Collections.singletonList(null)))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid object: null");
+
+    assertThatThrownBy(() -> set.containsAll(Arrays.asList(FILE_A, null)))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid object: null");
+
+    assertThat(set.containsAll(ImmutableList.of(FILE_B, FILE_A))).isTrue();
+    assertThat(set.containsAll(ImmutableList.of(FILE_B, FILE_A, FILE_C))).isFalse();
+    assertThat(set.containsAll(ImmutableList.of(FILE_B))).isTrue();
   }
 
   @Test
@@ -124,7 +168,18 @@ public class TestDataFileSet {
 
   @Test
   public void retainAll() {
-    assertThat(DataFileSet.empty().retainAll(null)).isFalse();
+    DataFileSet empty = DataFileSet.create();
+    assertThatThrownBy(() -> empty.retainAll(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid collection: null");
+
+    assertThatThrownBy(() -> empty.retainAll(Collections.singletonList(null)))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid object: null");
+
+    assertThatThrownBy(() -> empty.retainAll(Arrays.asList(FILE_A, null)))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid object: null");
 
     DataFileSet set = DataFileSet.of(ImmutableList.of(FILE_A, FILE_B));
     assertThat(set.retainAll(ImmutableList.of(FILE_C, FILE_D, FILE_A)))
@@ -147,10 +202,37 @@ public class TestDataFileSet {
   }
 
   @Test
+  public void remove() {
+    DataFileSet set = DataFileSet.of(ImmutableList.of(FILE_A, FILE_B));
+    assertThatThrownBy(() -> set.remove(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid object: null");
+
+    set.remove(FILE_C);
+    assertThat(set).containsExactly(FILE_A, FILE_B);
+    set.remove(FILE_B);
+    assertThat(set).containsExactly(FILE_A);
+    set.remove(FILE_A);
+    assertThat(set).isEmpty();
+  }
+
+  @Test
   public void removeAll() {
-    assertThat(DataFileSet.empty().removeAll(null)).isFalse();
+    DataFileSet empty = DataFileSet.create();
+    assertThatThrownBy(() -> empty.removeAll(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid collection: null");
+
+    assertThatThrownBy(() -> empty.removeAll(Collections.singletonList(null)))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid object: null");
+
+    assertThatThrownBy(() -> empty.removeAll(Arrays.asList(FILE_A, null)))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid object: null");
 
     DataFileSet set = DataFileSet.of(ImmutableList.of(FILE_A, FILE_B));
+
     assertThat(set.removeAll(ImmutableList.of(FILE_C, FILE_D, FILE_A)))
         .as("Set should have changed")
         .isTrue();
@@ -171,8 +253,8 @@ public class TestDataFileSet {
 
   @Test
   public void equalsAndHashCode() {
-    DataFileSet set1 = DataFileSet.empty();
-    DataFileSet set2 = DataFileSet.empty();
+    DataFileSet set1 = DataFileSet.create();
+    DataFileSet set2 = DataFileSet.create();
 
     assertThat(set1).isEqualTo(set2);
     assertThat(set1.hashCode()).isEqualTo(set2.hashCode());
@@ -205,5 +287,18 @@ public class TestDataFileSet {
 
     assertThat(set1).isEqualTo(set2).isEqualTo(set3);
     assertThat(set1.hashCode()).isEqualTo(set2.hashCode()).isEqualTo(set3.hashCode());
+  }
+
+  @Test
+  public void kryoSerialization() throws Exception {
+    DataFileSet dataFiles = DataFileSet.of(ImmutableList.of(FILE_C, FILE_B, FILE_A));
+    assertThat(TestHelpers.KryoHelpers.roundTripSerialize(dataFiles)).isEqualTo(dataFiles);
+  }
+
+  @Test
+  public void javaSerialization() throws Exception {
+    DataFileSet dataFiles = DataFileSet.of(ImmutableList.of(FILE_C, FILE_B, FILE_A));
+    DataFileSet deserialized = TestHelpers.deserialize(TestHelpers.serialize(dataFiles));
+    assertThat(deserialized).isEqualTo(dataFiles);
   }
 }

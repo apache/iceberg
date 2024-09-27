@@ -18,27 +18,33 @@
  */
 package org.apache.iceberg.util;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.Objects;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.apache.iceberg.types.Comparators;
 
-public class DataFileSet extends WrapperSet<DataFile> {
+public class DataFileSet extends WrapperSet<DataFile> implements Serializable {
   private static final ThreadLocal<DataFileWrapper> WRAPPERS =
       ThreadLocal.withInitial(() -> DataFileWrapper.wrap(null));
 
-  protected DataFileSet(Iterable<Wrapper<DataFile>> wrappers) {
+  private DataFileSet() {
+    // needed for serialization/deserialization
+  }
+
+  private DataFileSet(Iterable<Wrapper<DataFile>> wrappers) {
     super(wrappers);
   }
 
-  public static DataFileSet empty() {
-    return new DataFileSet(Sets.newLinkedHashSet());
+  public static DataFileSet create() {
+    return new DataFileSet();
   }
 
-  public static DataFileSet of(Iterable<DataFile> iterable) {
+  public static DataFileSet of(Iterable<? extends DataFile> iterable) {
     return new DataFileSet(
-        Sets.newLinkedHashSet(Iterables.transform(iterable, DataFileWrapper::wrap)));
+        Iterables.transform(Iterables.filter(iterable, Objects::nonNull), DataFileWrapper::wrap));
   }
 
   @Override
@@ -52,11 +58,41 @@ public class DataFileSet extends WrapperSet<DataFile> {
   }
 
   @Override
-  protected boolean isInstance(Object obj) {
-    return obj instanceof DataFile;
+  protected Class<DataFile> elementClass() {
+    return DataFile.class;
   }
 
-  private static class DataFileWrapper implements Wrapper<DataFile> {
+  /**
+   * Since {@link WrapperSet} itself isn't {@link Serializable}, this requires custom logic to write
+   * {@link DataFileSet} to the given stream.
+   *
+   * @param out The output stream to write to
+   * @throws IOException in case the object can't be written
+   */
+  private void writeObject(ObjectOutputStream out) throws IOException {
+    out.writeInt(set().size());
+    for (Wrapper<DataFile> wrapper : set()) {
+      out.writeObject(wrapper);
+    }
+  }
+
+  /**
+   * Since {@link WrapperSet} itself isn't {@link Serializable}, this requires custom logic to read
+   * {@link DataFileSet} from the given stream.
+   *
+   * @param in The input stream to read from
+   * @throws IOException in case the object can't be read
+   * @throws ClassNotFoundException in case the class of the serialized object can't be found
+   */
+  @SuppressWarnings("unchecked")
+  private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+    int size = in.readInt();
+    for (int i = 0; i < size; i++) {
+      set().add((Wrapper<DataFile>) in.readObject());
+    }
+  }
+
+  private static class DataFileWrapper implements Wrapper<DataFile>, Serializable {
     private DataFile file;
 
     private DataFileWrapper(DataFile file) {
@@ -97,7 +133,7 @@ public class DataFileSet extends WrapperSet<DataFile> {
         return false;
       }
 
-      return 0 == Comparators.charSequences().compare(file.location(), that.file.location());
+      return Objects.equals(file.location(), that.file.location());
     }
 
     @Override
