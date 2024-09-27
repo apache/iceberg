@@ -54,7 +54,7 @@ public class TestFastAppend extends TestBase {
       dataFiles.add(dataFile);
     }
 
-    AppendFiles append = table.newAppend();
+    AppendFiles append = table.newFastAppend();
     dataFiles.forEach(append::appendFile);
     append.commit();
 
