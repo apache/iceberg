@@ -149,10 +149,12 @@ public class VectorHolder {
 
     public ConstantVectorHolder(Types.NestedField icebergField, int numRows, T constantValue) {
       super(
-          new NullVector(icebergField.name(), numRows),
+          (null == constantValue) ? new NullVector(icebergField.name(), numRows) : null,
           icebergField,
           new NullabilityHolder(numRows));
-      nullabilityHolder().setNulls(0, numRows);
+      if (null == constantValue) {
+        nullabilityHolder().setNulls(0, numRows);
+      }
       this.numRows = numRows;
       this.constantValue = constantValue;
     }
