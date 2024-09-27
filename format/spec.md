@@ -309,14 +309,14 @@ The set of metadata columns is:
 | **`2147483545  pos`**            | `long`        | Ordinal position of a row, used in position-based delete files                                          |
 | **`2147483544  row`**            | `struct<...>` | Deleted row values, used in position-based delete files                                                 |
 | **`2147483543  _row_id`**        | `long`        | A unique long assigned when row-lineage is enabled see [Row Lineage](#row-lineage)                      |
-| **`2147483542  _last_update`**   | `long`        | The sequence number which last updated this row when row-lineage is enabled [Row Lineage](#row-lineage) |
+| **`2147483542  _last_updated_seq`**   | `long`        | The sequence number which last updated this row when row-lineage is enabled [Row Lineage](#row-lineage) |
 
 ### Row Lineage
 
 In v3 and later, an Iceberg table can track row lineage fields for all newly created rows.  Row lineage is enabled by setting the field `row-lineage` to true in the table's metadata. When enabled, engines must maintain the `next-row-id` table field and the following row-level fields when writing data files:
 
-* `_row_id` a unique long for every row. The value is assigned via inheritance when a row is first added to the table and the existing value is explicitly written when the row is written to a new file.
-* `_last_update` the sequence number of the commit that last updated a row. The value is inherited when a row is first added or modified and the existing value is explicitly written when the row is written to a different data file but not modified.
+* `_row_id` a unique long identifier for every row within the table. The value is assigned via inheritance when a row is first added to the table and the existing value is explicitly written when the row is written to a new file.
+* `_last_updated_seq` the sequence number of the commit that last updated a row. The value is inherited when a row is first added or modified and the existing value is explicitly written when the row is written to a different data file but not modified.
 
 These fields are assigned and updated by inheritance because the commit sequence number and starting row ID are not assigned until the snapshot is successfully committed. Inheritance is used to allow writing data and manifest files before values are known so that it is not necessary to rewrite data and manifest files when an optimistic commit is retried.
 
@@ -325,28 +325,28 @@ When row lineage is enabled, new snapshots cannot include [Equality Deletes](#eq
 
 #### Row lineage assignment
 
-Row lineage fields are written when row lineage is enabled. When not enabled, row lineage fields (`_row_id` and `_last_update`) must not be written to data files. The rest of this section applies when row lineage is enabled.
+Row lineage fields are written when row lineage is enabled. When not enabled, row lineage fields (`_row_id` and `_last_updated_seq`) must not be written to data files. The rest of this section applies when row lineage is enabled.
 
-When a row is added or modified, the `_last_update` field is set to `null` so that it is inherited when reading. Similarly, the `_row_id` field for an added row is set to `null` and assigned when reading.
+When a row is added or modified, the `_last_updated_seq` field is set to `null` so that it is inherited when reading. Similarly, the `_row_id` field for an added row is set to `null` and assigned when reading.
 
-A data file with only new rows for the table may omit the `_last_update` and `_row_id`. Files read without must be treated as if both fields are null for all rows.
+A data file with only new rows for the table may omit the `_last_updated_seq` and `_row_id`. Files read without must be treated as if both fields are null for all rows.
 
-On read, if `_last_update` is `null` it is assigned the `sequence_number` of the data file's manifest entry. The data sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
+On read, if `_last_updated_seq` is `null` it is assigned the `sequence_number` of the data file's manifest entry. The data sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
 
-When `null`, a row's `_row_id` field is assigned to the `start_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `start_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `start_row_id` is assigned when writing the manifest list for a snapshot and is documented in [First Row ID Assignment](#first-row-id-assignment). A snapshot's `start-row-id` is to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
+When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the manifest list for a snapshot and is documented in [First Row ID Assignment](#first-row-id-assignment). A snapshot's `first-row-id` is to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
 
-Values for `_row_id` and `_last_update` are either read from the data file or assigned at read time. As a result on read, rows in a table always have non-null values for these fields when lineage is enabled.
+Values for `_row_id` and `_last_updated_seq` are either read from the data file or assigned at read time. As a result on read, rows in a table always have non-null values for these fields when lineage is enabled.
 
-When an existing row is moved to a different data file for any reason, writers are required to write `_row_id` and `_last_update` according to the following rules:
+When an existing row is moved to a different data file for any reason, writers are required to write `_row_id` and `_last_updated_seq` according to the following rules:
 
 1. The row's existing non-null `_row_id` must be copied into the new data file
-2. If the write has modified the row, the `_last_update` field must be set to `null` (so that the modification's sequence number replaces the current value)
-3. If the write has not modified the row, the existing non-null `_last_update` value must be copied to the new data file
+2. If the write has modified the row, the `_last_updated_seq` field must be set to `null` (so that the modification's sequence number replaces the current value)
+3. If the write has not modified the row, the existing non-null `_last_updated_seq` value must be copied to the new data file
 
 
 #### Row lineage example
 
-This example demonstrates how `_row_id` and `_last_update` are assigned for a snapshot when row lineage is enabled. This starts with a table with row lineage enabled and a `next-row-id` of 1000.
+This example demonstrates how `_row_id` and `_last_updated_seq` are assigned for a snapshot when row lineage is enabled. This starts with a table with row lineage enabled and a `next-row-id` of 1000.
 
 Writing a new append snapshot would create snapshot metadata with `first-row-id` assigned to the table's `next-row-id`:
 
@@ -388,12 +388,12 @@ When the new snapshot is committed, the table's `next-row-id` must also be updat
 ### Enabling Row Lineage for Non-empty Tables
 
 Any snapshot without the field `next-row-id` does not have any lineage information and values for `_row_id`
-and `_last_update` cannot be assigned. Both columns should be read as `null` for these rows.
+and `_last_updated_seq` cannot be assigned. Both columns should be read as `null` for these rows.
 
 All files that were added before `row-lineage` was enabled should propagate null for all of the `row-lineage` related
-fields. The values for `_row_id` and `_last_update` should always return null and when these rows are copied, 
+fields. The values for `_row_id` and `_last_updated_seq` should always return null and when these rows are copied, 
 null should be explicitly written. After this point, rows are treated as if they were just created 
-and assigned `row_id` and `_last_update` as if they were new rows.
+and assigned `row_id` and `_last_updated_seq` as if they were new rows.
 
 
 ## Partitioning
@@ -823,7 +823,7 @@ Table metadata consists of the following fields:
 | _optional_ | _optional_ | _optional_ | **`statistics`**            | A list (optional) of [table statistics](#table-statistics).                                                                                                                                                                                                                                                                                                                                      |
 | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics).                                                                                                                                                                                                                                                                                                                              |
 |            |            | _optional_ | **`row-lineage`**           | A boolean, defaulting to false, setting whether or not to track the creation and updates to rows in the table. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                                                  |
-|            |            | _optional_ | **`next-row-id`**  | A value higher than all assigned row IDs; the next snapshot `start-row-id`. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                          |
+|            |            | _optional_ | **`next-row-id`**  | A value higher than all assigned row IDs; the next snapshot `first-row-id`. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                          |
 
 For serialization details, see Appendix C.
 
