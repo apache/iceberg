@@ -26,4 +26,7 @@ public final class StandardBlobTypes {
    * href="https://datasketches.apache.org/">Apache DataSketches</a> library
    */
   public static final String APACHE_DATASKETCHES_THETA_V1 = "apache-datasketches-theta-v1";
+
+  /** A serialized delete vector according to the Iceberg spec */
+  public static final String DELETE_VECTOR_V1 = "delete-vector-v1";
 }

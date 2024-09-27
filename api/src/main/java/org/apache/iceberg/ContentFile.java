@@ -167,6 +167,16 @@ public interface ContentFile<F> {
     return null;
   }
 
+  /** Returns the offset in the file where the content starts. */
+  default Long contentOffset() {
+    return null;
+  }
+
+  /** Returns the length of referenced content stored in the file. */
+  default Long contentSizeInBytes() {
+    return null;
+  }
+
   /**
    * Copies this file. Manifest readers can reuse file instances; use this method to copy data when
    * collecting files from tasks.

@@ -21,6 +21,7 @@ package org.apache.iceberg.metrics;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
+import org.apache.iceberg.util.ContentFileUtil;
 
 public class ScanMetricsUtil {
 
@@ -43,7 +44,7 @@ public class ScanMetricsUtil {
 
     long deletesSizeInBytes = 0L;
     for (DeleteFile deleteFile : deleteFiles) {
-      deletesSizeInBytes += deleteFile.fileSizeInBytes();
+      deletesSizeInBytes += ContentFileUtil.contentSizeInBytes(deleteFile);
     }
 
     metrics.totalDeleteFileSizeInBytes().increment(deletesSizeInBytes);

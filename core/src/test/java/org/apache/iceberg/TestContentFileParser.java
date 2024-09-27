@@ -234,6 +234,9 @@ public class TestContentFileParser {
         null,
         null,
         null,
+        null,
+        null,
+        null,
         null);
   }
 
@@ -273,7 +276,10 @@ public class TestContentFileParser {
         new int[] {3},
         1,
         Collections.singletonList(128L),
-        ByteBuffer.wrap(new byte[16]));
+        ByteBuffer.wrap(new byte[16]),
+        null,
+        null,
+        null);
   }
 
   private static String deleteFileJsonWithRequiredOnly(PartitionSpec spec) {
