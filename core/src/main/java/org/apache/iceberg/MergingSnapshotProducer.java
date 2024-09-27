@@ -48,11 +48,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DataFileSet;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,6 +72,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // delete files can be added in "overwrite" or "delete" operations
   private static final Set<String> VALIDATE_ADDED_DELETE_FILES_OPERATIONS =
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE);
+  // DVs can be added in "overwrite", "delete", and "replace"
+  private static final Set<String> VALIDATE_ADDED_DVS_OPERATIONS =
+      ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE, DataOperations.REPLACE);
 
   private final String tableName;
   private final TableOperations ops;
@@ -245,13 +250,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file) {
-    Preconditions.checkNotNull(file, "Invalid delete file: null");
+    validateNewDeleteFile(file);
     add(new PendingDeleteFile(file));
   }
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file, long dataSequenceNumber) {
-    Preconditions.checkNotNull(file, "Invalid delete file: null");
+    validateNewDeleteFile(file);
     add(new PendingDeleteFile(file, dataSequenceNumber));
   }
 
@@ -269,6 +274,26 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       addedFilesSummary.addedFile(spec, file);
       hasNewDeleteFiles = true;
     }
+  }
+
+  protected void validateNewDeleteFile(DeleteFile file) {
+    Preconditions.checkNotNull(file, "Invalid delete file: null");
+    Preconditions.checkArgument(formatVersion() >= 2, "Delete files are supported in V2 and above");
+    if (file.content() == FileContent.POSITION_DELETES) {
+      Preconditions.checkArgument(
+          formatVersion() != 2 || !ContentFileUtil.isDV(file),
+          "Must not use DV files for position deletes in V2: %s",
+          ContentFileUtil.dvDesc(file));
+      Preconditions.checkArgument(
+          formatVersion() == 2 || ContentFileUtil.isDV(file),
+          "Must use DV files for position deletes in V%s: %s",
+          formatVersion(),
+          file.location());
+    }
+  }
+
+  private int formatVersion() {
+    return ops.current().formatVersion();
   }
 
   /** Add all files in a manifest to the new snapshot. */
@@ -769,6 +794,82 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
+  // validates there are no concurrently added DVs for referenced data files
+  protected void validateAddedDVs(
+      TableMetadata base,
+      Long startingSnapshotId,
+      Expression conflictDetectionFilter,
+      Snapshot parent) {
+    // skip if there is no current table state or table format doesn't support DVs
+    if (parent == null || base.formatVersion() < 3) {
+      return;
+    }
+
+    // skip if this operation doesn't add new DVs
+    Set<String> dvRefs = dvRefs();
+    if (dvRefs.isEmpty()) {
+      return;
+    }
+
+    Pair<List<ManifestFile>, Set<Long>> history =
+        validationHistory(
+            base,
+            startingSnapshotId,
+            VALIDATE_ADDED_DVS_OPERATIONS,
+            ManifestContent.DELETES,
+            parent);
+    List<ManifestFile> newDeleteManifests = history.first();
+    Set<Long> newSnapshotIds = history.second();
+
+    Tasks.foreach(newDeleteManifests)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(workerPool())
+        .run(m -> validateAddedDVs(m, conflictDetectionFilter, newSnapshotIds, dvRefs));
+  }
+
+  private void validateAddedDVs(
+      ManifestFile manifest,
+      Expression conflictDetectionFilter,
+      Set<Long> newSnapshotIds,
+      Set<String> dvRefs) {
+    try (CloseableIterable<ManifestEntry<DeleteFile>> entries =
+        ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.current().specsById())
+            .filterRows(conflictDetectionFilter)
+            .caseSensitive(caseSensitive)
+            .liveEntries()) {
+
+      for (ManifestEntry<DeleteFile> entry : entries) {
+        DeleteFile file = entry.file();
+        if (newSnapshotIds.contains(entry.snapshotId()) && ContentFileUtil.isDV(file)) {
+          ValidationException.check(
+              !dvRefs.contains(file.referencedDataFile()),
+              "Found concurrently added DV for %s: %s",
+              file.referencedDataFile(),
+              ContentFileUtil.dvDesc(file));
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  // builds a set of data file locations that are referenced by new DVs
+  private Set<String> dvRefs() {
+    Set<String> refs = Sets.newHashSet();
+
+    for (DeleteFileSet deleteFiles : newDeleteFilesBySpec.values()) {
+      for (DeleteFile deleteFile : deleteFiles) {
+        if (ContentFileUtil.isDV(deleteFile)) {
+          refs.add(deleteFile.referencedDataFile());
+        }
+      }
+    }
+
+    return refs;
+  }
+
+  // returns newly added manifests and snapshot IDs between the starting and parent snapshots
   private Pair<List<ManifestFile>, Set<Long>> validationHistory(
       TableMetadata base,
       Long startingSnapshotId,

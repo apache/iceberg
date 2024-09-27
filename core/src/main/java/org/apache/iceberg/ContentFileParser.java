@@ -45,6 +45,9 @@ class ContentFileParser {
   private static final String SPLIT_OFFSETS = "split-offsets";
   private static final String EQUALITY_IDS = "equality-ids";
   private static final String SORT_ORDER_ID = "sort-order-id";
+  private static final String REFERENCED_DATA_FILE = "referenced-data-file";
+  private static final String CONTENT_OFFSET = "content-offset";
+  private static final String CONTENT_SIZE = "content-size-in-bytes";
 
   private ContentFileParser() {}
 
@@ -109,6 +112,22 @@ class ContentFileParser {
       generator.writeNumberField(SORT_ORDER_ID, contentFile.sortOrderId());
     }
 
+    if (contentFile instanceof DeleteFile) {
+      DeleteFile deleteFile = (DeleteFile) contentFile;
+
+      if (deleteFile.referencedDataFile() != null) {
+        generator.writeStringField(REFERENCED_DATA_FILE, deleteFile.referencedDataFile());
+      }
+
+      if (deleteFile.contentOffset() != null) {
+        generator.writeNumberField(CONTENT_OFFSET, deleteFile.contentOffset());
+      }
+
+      if (deleteFile.contentSizeInBytes() != null) {
+        generator.writeNumberField(CONTENT_SIZE, deleteFile.contentSizeInBytes());
+      }
+    }
+
     generator.writeEndObject();
   }
 
@@ -145,6 +164,9 @@ class ContentFileParser {
     List<Long> splitOffsets = JsonUtil.getLongListOrNull(SPLIT_OFFSETS, jsonNode);
     int[] equalityFieldIds = JsonUtil.getIntArrayOrNull(EQUALITY_IDS, jsonNode);
     Integer sortOrderId = JsonUtil.getIntOrNull(SORT_ORDER_ID, jsonNode);
+    String referencedDataFile = JsonUtil.getStringOrNull(REFERENCED_DATA_FILE, jsonNode);
+    Long contentOffset = JsonUtil.getLongOrNull(CONTENT_OFFSET, jsonNode);
+    Long contentSizeInBytes = JsonUtil.getLongOrNull(CONTENT_SIZE, jsonNode);
 
     if (fileContent == FileContent.DATA) {
       return new GenericDataFile(
@@ -169,7 +191,10 @@ class ContentFileParser {
           equalityFieldIds,
           sortOrderId,
           splitOffsets,
-          keyMetadata);
+          keyMetadata,
+          referencedDataFile,
+          contentOffset,
+          contentSizeInBytes);
     }
   }
 

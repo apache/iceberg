@@ -22,20 +22,24 @@ import static org.apache.iceberg.expressions.Expressions.bucket;
 import static org.apache.iceberg.expressions.Expressions.equal;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import org.apache.iceberg.DeleteFileIndex.EqualityDeletes;
 import org.apache.iceberg.DeleteFileIndex.PositionDeletes;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -48,15 +52,6 @@ public abstract class DeleteFileIndexTestBase<
   public static List<Object> parameters() {
     return Arrays.asList(2, 3);
   }
-
-  static final DeleteFile FILE_A_POS_1 =
-      FileMetadata.deleteFileBuilder(SPEC)
-          .ofPositionDeletes()
-          .withPath("/path/to/data-a-pos-deletes.parquet")
-          .withFileSizeInBytes(10)
-          .withPartition(FILE_A.partition())
-          .withRecordCount(1)
-          .build();
 
   static final DeleteFile FILE_A_EQ_1 =
       FileMetadata.deleteFileBuilder(SPEC)
@@ -310,7 +305,7 @@ public abstract class DeleteFileIndexTestBase<
   public void testPartitionedTableWithPartitionPosDeletes() {
     table.newAppend().appendFile(FILE_A).commit();
 
-    table.newRowDelta().addDeletes(FILE_A_POS_1).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).commit();
 
     List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
     assertThat(tasks).as("Should have one task").hasSize(1);
@@ -322,7 +317,7 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
     assertThat(task.deletes().get(0).path())
         .as("Should have only pos delete file")
-        .isEqualTo(FILE_A_POS_1.path());
+        .isEqualTo(fileADeletes().path());
   }
 
   @TestTemplate
@@ -348,7 +343,7 @@ public abstract class DeleteFileIndexTestBase<
   public void testPartitionedTableWithUnrelatedPartitionDeletes() {
     table.newAppend().appendFile(FILE_B).commit();
 
-    table.newRowDelta().addDeletes(FILE_A_POS_1).addDeletes(FILE_A_EQ_1).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).addDeletes(FILE_A_EQ_1).commit();
 
     List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
     assertThat(tasks).as("Should have one task").hasSize(1);
@@ -362,7 +357,9 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testPartitionedTableWithOlderPartitionDeletes() {
-    table.newRowDelta().addDeletes(FILE_A_POS_1).addDeletes(FILE_A_EQ_1).commit();
+    assumeThat(formatVersion).isEqualTo(2);
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A_EQ_1).commit();
 
     table.newAppend().appendFile(FILE_A).commit();
 
@@ -378,6 +375,8 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testPartitionedTableScanWithGlobalDeletes() {
+    assumeThat(formatVersion).isEqualTo(2);
+
     table.newAppend().appendFile(FILE_A).commit();
 
     TableMetadata base = table.ops().current();
@@ -406,6 +405,8 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testPartitionedTableScanWithGlobalAndPartitionDeletes() {
+    assumeThat(formatVersion).isEqualTo(2);
+
     table.newAppend().appendFile(FILE_A).commit();
 
     table.newRowDelta().addDeletes(FILE_A_EQ_1).commit();
@@ -436,7 +437,7 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testPartitionedTableSequenceNumbers() {
-    table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_EQ_1).addDeletes(FILE_A_POS_1).commit();
+    table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_EQ_1).addDeletes(fileADeletes()).commit();
 
     List<T> tasks = Lists.newArrayList(newScan(table).planFiles().iterator());
     assertThat(tasks).as("Should have one task").hasSize(1);
@@ -448,7 +449,7 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(task.deletes()).as("Should have one associated delete file").hasSize(1);
     assertThat(task.deletes().get(0).path())
         .as("Should have only pos delete file")
-        .isEqualTo(FILE_A_POS_1.path());
+        .isEqualTo(fileADeletes().path());
   }
 
   @TestTemplate
@@ -500,7 +501,7 @@ public abstract class DeleteFileIndexTestBase<
 
     table.newRowDelta().addDeletes(FILE_A_EQ_1).commit();
 
-    table.newRowDelta().addDeletes(FILE_A_POS_1).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).commit();
 
     table
         .updateProperties()
@@ -556,7 +557,7 @@ public abstract class DeleteFileIndexTestBase<
     assertThat(task.deletes()).as("Should have two associated delete files").hasSize(2);
     assertThat(Sets.newHashSet(Iterables.transform(task.deletes(), ContentFile::path)))
         .as("Should have expected delete files")
-        .isEqualTo(Sets.newHashSet(FILE_A_EQ_1.path(), FILE_A_POS_1.path()));
+        .isEqualTo(Sets.newHashSet(FILE_A_EQ_1.path(), fileADeletes().path()));
   }
 
   @TestTemplate
@@ -623,5 +624,53 @@ public abstract class DeleteFileIndexTestBase<
 
     // it should not be possible to add more elements upon indexing
     assertThatThrownBy(() -> group.add(SPEC, file1)).isInstanceOf(IllegalStateException.class);
+  }
+
+  @TestTemplate
+  public void testMixDeleteFilesAndDVs() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    List<DeleteFile> deletes =
+        Arrays.asList(
+            withDataSequenceNumber(1, partitionedPosDeletes(SPEC, FILE_A.partition())),
+            withDataSequenceNumber(2, newDV(FILE_A)),
+            withDataSequenceNumber(1, partitionedPosDeletes(SPEC, FILE_B.partition())),
+            withDataSequenceNumber(2, partitionedPosDeletes(SPEC, FILE_B.partition())));
+
+    DeleteFileIndex index = DeleteFileIndex.builderFor(deletes).specsById(table.specs()).build();
+
+    DeleteFile[] fileADeletes = index.forDataFile(0, FILE_A);
+    assertThat(fileADeletes).as("Only DV should apply to FILE_A").hasSize(1);
+    assertThat(ContentFileUtil.isDV(fileADeletes[0])).isTrue();
+    assertThat(fileADeletes[0].referencedDataFile()).isEqualTo(FILE_A.location());
+
+    DeleteFile[] fileBDeletes = index.forDataFile(0, FILE_B);
+    assertThat(fileBDeletes).as("Two delete files should apply to FILE_B").hasSize(2);
+    assertThat(ContentFileUtil.isDV(fileBDeletes[0])).isFalse();
+    assertThat(ContentFileUtil.isDV(fileBDeletes[1])).isFalse();
+  }
+
+  @TestTemplate
+  public void testMultipleDVs() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+
+    DeleteFile dv1 = withDataSequenceNumber(1, newDV(FILE_A));
+    DeleteFile dv2 = withDataSequenceNumber(2, newDV(FILE_A));
+    List<DeleteFile> dvs = Arrays.asList(dv1, dv2);
+
+    assertThatThrownBy(() -> DeleteFileIndex.builderFor(dvs).specsById(table.specs()).build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("Can't index multiple DVs for %s", FILE_A.location());
+  }
+
+  @TestTemplate
+  public void testInvalidDVSequenceNumber() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    DeleteFile dv = withDataSequenceNumber(1, newDV(FILE_A));
+    List<DeleteFile> dvs = Collections.singletonList(dv);
+    DeleteFileIndex index = DeleteFileIndex.builderFor(dvs).specsById(table.specs()).build();
+    assertThatThrownBy(() -> index.forDataFile(2, FILE_A))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageContaining("must be greater than or equal to data file sequence number");
   }
 }

@@ -131,7 +131,7 @@ public class TestEntriesMetadataTable extends TestBase {
     assumeThat(formatVersion).as("Only V2 Tables Support Deletes").isGreaterThanOrEqualTo(2);
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).commit();
 
     Table entriesTable = new ManifestEntriesTable(table);
     TableScan scan = entriesTable.newScan();

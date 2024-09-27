@@ -45,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.io.Files;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -85,6 +86,17 @@ public class TestBase {
           .withPartitionPath("data_bucket=0") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
+  static final DeleteFile FILE_A_DV =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-a-deletes.puffin")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=0")
+          .withRecordCount(1)
+          .withReferencedDataFile(FILE_A.location())
+          .withContentOffset(4)
+          .withContentSizeInBytes(6)
+          .build();
   // Equality delete files.
   static final DeleteFile FILE_A2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
@@ -109,6 +121,17 @@ public class TestBase {
           .withFileSizeInBytes(10)
           .withPartitionPath("data_bucket=1") // easy way to set partition data for now
           .withRecordCount(1)
+          .build();
+  static final DeleteFile FILE_B_DV =
+      FileMetadata.deleteFileBuilder(SPEC)
+          .ofPositionDeletes()
+          .withPath("/path/to/data-b-deletes.puffin")
+          .withFileSizeInBytes(10)
+          .withPartitionPath("data_bucket=1")
+          .withRecordCount(1)
+          .withReferencedDataFile(FILE_B.location())
+          .withContentOffset(4)
+          .withContentSizeInBytes(6)
           .build();
   static final DataFile FILE_C =
       DataFiles.builder(SPEC)
@@ -643,6 +666,33 @@ public class TestBase {
         .build();
   }
 
+  protected DeleteFile fileADeletes() {
+    return formatVersion >= 3 ? FILE_A_DV : FILE_A_DELETES;
+  }
+
+  protected DeleteFile fileBDeletes() {
+    return formatVersion >= 3 ? FILE_B_DV : FILE_B_DELETES;
+  }
+
+  protected DeleteFile newDeletes(DataFile dataFile) {
+    if (formatVersion >= 3) {
+      return FileGenerationUtil.generateDV(table, dataFile);
+    } else {
+      return FileGenerationUtil.generatePositionDeleteFile(table, dataFile);
+    }
+  }
+
+  protected DeleteFile newDeleteFile(DataFile dataFile) {
+    PartitionSpec spec = table.specs().get(dataFile.specId());
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(10)
+        .withPartition(dataFile.partition())
+        .withRecordCount(1)
+        .build();
+  }
+
   protected DeleteFile newDeleteFile(int specId, String partitionPath) {
     PartitionSpec spec = table.specs().get(specId);
     return FileMetadata.deleteFileBuilder(spec)
@@ -662,6 +712,24 @@ public class TestBase {
         .withFileSizeInBytes(10)
         .withPartitionPath(partitionPath)
         .withRecordCount(1)
+        .build();
+  }
+
+  protected DeleteFile newDV(DataFile dataFile) {
+    return FileGenerationUtil.generateDV(table, dataFile);
+  }
+
+  protected DeleteFile newDV(int specId, String partitionPath, String dataFile) {
+    PartitionSpec spec = table.specs().get(specId);
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".puffin")
+        .withFileSizeInBytes(50)
+        .withPartitionPath(partitionPath)
+        .withRecordCount(3)
+        .withReferencedDataFile(dataFile)
+        .withContentOffset(4)
+        .withContentSizeInBytes(18)
         .build();
   }
 
@@ -746,6 +814,14 @@ public class TestBase {
 
   static Iterator<DataFile> files(ManifestFile manifest) {
     return ManifestFiles.read(manifest, FILE_IO).iterator();
+  }
+
+  static long recordCount(ContentFile<?>... files) {
+    return Arrays.stream(files).mapToLong(ContentFile::recordCount).sum();
+  }
+
+  static long contentSize(ContentFile<?>... files) {
+    return ContentFileUtil.contentSizeInBytes(Arrays.asList(files));
   }
 
   /** Used for assertions that only apply if the table version is v2. */

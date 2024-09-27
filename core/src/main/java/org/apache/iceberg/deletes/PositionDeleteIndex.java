@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.deletes;
 
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.function.LongConsumer;
 import org.apache.iceberg.DeleteFile;
@@ -87,8 +88,33 @@ public interface PositionDeleteIndex {
     return ImmutableList.of();
   }
 
+  /**
+   * Serializes this index.
+   *
+   * @return a buffer containing the serialized index
+   */
+  default ByteBuffer serialize() {
+    throw new UnsupportedOperationException(getClass().getName() + " does not support serialize");
+  }
+
+  /** Returns the cardinality of this index. */
+  default long cardinality() {
+    throw new UnsupportedOperationException(getClass().getName() + " does not support cardinality");
+  }
+
   /** Returns an empty immutable position delete index. */
   static PositionDeleteIndex empty() {
     return EmptyPositionDeleteIndex.get();
+  }
+
+  /**
+   * Deserializes a position delete index.
+   *
+   * @param bytes an array containing the serialized index
+   * @param deleteFile the delete file that the index is created for
+   * @return the deserialized index
+   */
+  static PositionDeleteIndex deserialize(byte[] bytes, DeleteFile deleteFile) {
+    return BitmapPositionDeleteIndex.deserialize(bytes, deleteFile);
   }
 }

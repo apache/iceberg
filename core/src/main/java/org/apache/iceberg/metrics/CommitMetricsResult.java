@@ -34,7 +34,9 @@ public interface CommitMetricsResult {
   String ADDED_DELETE_FILES = "added-delete-files";
   String ADDED_EQ_DELETE_FILES = "added-equality-delete-files";
   String ADDED_POS_DELETE_FILES = "added-positional-delete-files";
+  String ADDED_DVS = "added-dvs";
   String REMOVED_POS_DELETE_FILES = "removed-positional-delete-files";
+  String REMOVED_DVS = "removed-dvs";
   String REMOVED_EQ_DELETE_FILES = "removed-equality-delete-files";
   String REMOVED_DELETE_FILES = "removed-delete-files";
   String TOTAL_DELETE_FILES = "total-delete-files";
@@ -76,6 +78,9 @@ public interface CommitMetricsResult {
   CounterResult addedPositionalDeleteFiles();
 
   @Nullable
+  CounterResult addedDVs();
+
+  @Nullable
   CounterResult removedDeleteFiles();
 
   @Nullable
@@ -83,6 +88,9 @@ public interface CommitMetricsResult {
 
   @Nullable
   CounterResult removedPositionalDeleteFiles();
+
+  @Nullable
+  CounterResult removedDVs();
 
   @Nullable
   CounterResult totalDeleteFiles();
@@ -136,6 +144,7 @@ public interface CommitMetricsResult {
         .addedDeleteFiles(counterFrom(snapshotSummary, SnapshotSummary.ADDED_DELETE_FILES_PROP))
         .addedPositionalDeleteFiles(
             counterFrom(snapshotSummary, SnapshotSummary.ADD_POS_DELETE_FILES_PROP))
+        .addedDVs(counterFrom(snapshotSummary, SnapshotSummary.ADDED_DVS_PROP))
         .addedEqualityDeleteFiles(
             counterFrom(snapshotSummary, SnapshotSummary.ADD_EQ_DELETE_FILES_PROP))
         .removedDeleteFiles(counterFrom(snapshotSummary, SnapshotSummary.REMOVED_DELETE_FILES_PROP))
@@ -143,6 +152,7 @@ public interface CommitMetricsResult {
             counterFrom(snapshotSummary, SnapshotSummary.REMOVED_EQ_DELETE_FILES_PROP))
         .removedPositionalDeleteFiles(
             counterFrom(snapshotSummary, SnapshotSummary.REMOVED_POS_DELETE_FILES_PROP))
+        .removedDVs(counterFrom(snapshotSummary, SnapshotSummary.REMOVED_DVS_PROP))
         .totalDeleteFiles(counterFrom(snapshotSummary, SnapshotSummary.TOTAL_DELETE_FILES_PROP))
         .addedRecords(counterFrom(snapshotSummary, SnapshotSummary.ADDED_RECORDS_PROP))
         .removedRecords(counterFrom(snapshotSummary, SnapshotSummary.DELETED_RECORDS_PROP))
