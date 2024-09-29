@@ -403,6 +403,6 @@ abstract class BaseDistributedDataScan
 
   // a monitor pool that enables planing data and deletes concurrently if remote planning is used
   private ExecutorService newMonitorPool() {
-    return ThreadPools.newWorkerPool("iceberg-planning-monitor-service", MONITOR_POOL_SIZE);
+    return ThreadPools.newFixedThreadPool("iceberg-planning-monitor-service", MONITOR_POOL_SIZE);
   }
 }

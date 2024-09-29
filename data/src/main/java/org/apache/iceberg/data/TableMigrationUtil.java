@@ -251,6 +251,6 @@ public class TableMigrationUtil {
   }
 
   public static ExecutorService migrationService(int parallelism) {
-    return parallelism == 1 ? null : ThreadPools.newWorkerPool("table-migration", parallelism);
+    return parallelism == 1 ? null : ThreadPools.newFixedThreadPool("table-migration", parallelism);
   }
 }
