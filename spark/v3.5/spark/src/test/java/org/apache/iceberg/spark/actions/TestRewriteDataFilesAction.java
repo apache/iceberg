@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.TableProperties.COMMIT_NUM_RETRIES;
+import static org.apache.iceberg.TestSnapshot.testManifestStats;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.spark.sql.functions.current_date;
@@ -180,8 +181,10 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
     shouldHaveFiles(table, 1);
-    List<Object[]> actual = currentData();
 
+    testManifestStats(table);
+
+    List<Object[]> actual = currentData();
     assertEquals("Rows must match", expectedRecords, actual);
   }
 
@@ -200,8 +203,10 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
     shouldHaveFiles(table, 4);
-    List<Object[]> actualRecords = currentData();
 
+    testManifestStats(table);
+
+    List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
   }
 
@@ -225,6 +230,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
 
     shouldHaveFiles(table, 7);
+
+    testManifestStats(table);
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
@@ -251,6 +258,8 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
 
     shouldHaveFiles(table, 7);
+
+    testManifestStats(table);
 
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
@@ -283,9 +292,10 @@ public class TestRewriteDataFilesAction extends TestBase {
         .hasSize(1);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
+    testManifestStats(table);
+
     List<Object[]> postRewriteData = currentData();
     assertEquals("We shouldn't have changed the data", originalData, postRewriteData);
-
     shouldHaveSnapshots(table, 2);
     shouldHaveACleanCache(table);
     shouldHaveFiles(table, 20);
@@ -331,6 +341,8 @@ public class TestRewriteDataFilesAction extends TestBase {
         .isEqualTo(2);
     assertThat(result.rewrittenBytesCount()).isGreaterThan(0L).isLessThan(dataSizeBefore);
 
+    testManifestStats(table);
+
     List<Object[]> actualRecords = currentData();
     assertEquals("Rows must match", expectedRecords, actualRecords);
     assertThat(actualRecords).as("7 rows are removed").hasSize(total - 7);
@@ -361,6 +373,9 @@ public class TestRewriteDataFilesAction extends TestBase {
             .rewriteDataFiles(table)
             .option(SizeBasedDataRewriter.DELETE_FILE_THRESHOLD, "1")
             .execute();
+
+    testManifestStats(table);
+
     assertThat(result.rewrittenDataFilesCount()).as("Action should rewrite 1 data files").isOne();
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
@@ -434,6 +449,8 @@ public class TestRewriteDataFilesAction extends TestBase {
         .isEqualTo(8);
     assertThat(result.addedDataFilesCount()).as("Action should add 4 data files").isEqualTo(4);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
+
+    testManifestStats(table);
 
     shouldHaveFiles(table, 4);
     List<Object[]> actualRecords = currentData();
