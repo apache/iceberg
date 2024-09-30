@@ -152,6 +152,11 @@ consists of:
     - The key stored as 4 bytes, little-endian
     - A [32-bit Roaring bitmap][roaring-bitmap-general-layout]
 
+The blob metadata must include the following properties:
+
+* `referenced-data-file`: location of the data file the delete vector applies to
+* `cardinality`: number of deleted rows (set positions) in the delete vector
+
 
 [roaring-bitmap-portable-serialization]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#extension-for-64-bit-implementations
 [roaring-bitmap-general-layout]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#general-layout
