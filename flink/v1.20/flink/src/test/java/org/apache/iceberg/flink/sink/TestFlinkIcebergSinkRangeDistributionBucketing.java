@@ -108,6 +108,9 @@ public class TestFlinkIcebergSinkRangeDistributionBucketing {
   private static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).hour("ts").bucket("uuid", NUM_BUCKETS).build();
   private static final RowType ROW_TYPE = FlinkSchemaUtil.convert(SCHEMA);
+  // FIXME (before merge): should it be parameterized test or hardcoded value with some comment that
+  //       it is for manual tests purpose?
+  private static final boolean DO_NOT_USE_V2_SINK = false;
 
   private TableLoader tableLoader;
   private Table table;
@@ -187,7 +190,7 @@ public class TestFlinkIcebergSinkRangeDistributionBucketing {
       DataStream<RowData> dataStream =
           env.fromSource(generatorSource, WatermarkStrategy.noWatermarks(), "Data Generator");
 
-      FlinkSink.forRowData(dataStream)
+      BaseIcebergSinkBuilder.forRowData(dataStream, DO_NOT_USE_V2_SINK)
           .table(table)
           .tableLoader(tableLoader)
           .writeParallelism(parallelism)

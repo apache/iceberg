@@ -57,6 +57,9 @@ public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
   private final boolean partitioned = true;
   private final int parallelism = 2;
   private final FileFormat format = FileFormat.PARQUET;
+  // FIXME (before merge): should it be parameterized test or hardcoded value with some comment that
+  //       it is for manual tests purpose?
+  private static final boolean DO_NOT_USE_V2_SINK = false;
 
   @BeforeEach
   public void before() throws IOException {
@@ -170,8 +173,8 @@ public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+    BaseIcebergSinkBuilder builder =
+        BaseIcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
             .table(table)
             .tableLoader(tableLoader)
             .writeParallelism(parallelism)
@@ -192,7 +195,7 @@ public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
     Configuration flinkConf = new Configuration();
     flinkConf.setString(FlinkWriteOptions.TABLE_REFRESH_INTERVAL.key(), "100ms");
 
-    FlinkSink.forRowData(dataStream)
+    BaseIcebergSinkBuilder.forRowData(dataStream, DO_NOT_USE_V2_SINK)
         .table(table)
         .tableLoader(tableLoader)
         .flinkConf(flinkConf)

@@ -59,7 +59,7 @@ import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.sink.FlinkSink;
+import org.apache.iceberg.flink.sink.BaseIcebergSinkBuilder;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.BeforeEach;
@@ -76,6 +76,9 @@ public class TestIcebergSourceFailover {
   // The goal is to allow some splits to remain in the enumerator when restoring the state
   private static final int PARALLELISM = 2;
   private static final int DO_NOT_FAIL = Integer.MAX_VALUE;
+  // FIXME (before merge): should it be parameterized test or hardcoded value with some comment that
+  //       it is for manual tests purpose?
+  private static final boolean DO_NOT_USE_V2_SINK = false;
   protected static final MiniClusterResourceConfiguration MINI_CLUSTER_RESOURCE_CONFIG =
       new MiniClusterResourceConfiguration.Builder()
           .setNumberTaskManagers(1)
@@ -260,7 +263,7 @@ public class TestIcebergSourceFailover {
     // CollectStreamSink from DataStream#executeAndCollect() doesn't guarantee
     // exactly-once behavior. When Iceberg sink, we can verify end-to-end
     // exactly-once. Here we mainly about source exactly-once behavior.
-    FlinkSink.forRowData(stream)
+    BaseIcebergSinkBuilder.forRowData(stream, DO_NOT_USE_V2_SINK)
         .table(sinkTable)
         .tableLoader(SINK_CATALOG_EXTENSION.tableLoader())
         .append();
@@ -299,7 +302,7 @@ public class TestIcebergSourceFailover {
     // CollectStreamSink from DataStream#executeAndCollect() doesn't guarantee
     // exactly-once behavior. When Iceberg sink, we can verify end-to-end
     // exactly-once. Here we mainly about source exactly-once behavior.
-    FlinkSink.forRowData(streamFailingInTheMiddleOfReading)
+    BaseIcebergSinkBuilder.forRowData(streamFailingInTheMiddleOfReading, DO_NOT_USE_V2_SINK)
         .table(sinkTable)
         .tableLoader(SINK_CATALOG_EXTENSION.tableLoader())
         .append();

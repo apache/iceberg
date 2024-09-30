@@ -39,6 +39,9 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -53,10 +56,11 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestBucketPartitionerFlinkIcebergSink {
 
   private static final int NUMBER_TASK_MANAGERS = 1;
@@ -78,6 +82,12 @@ public class TestBucketPartitionerFlinkIcebergSink {
   private static final TypeInformation<Row> ROW_TYPE_INFO =
       new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
 
+  @Parameter(index = 0)
+  private TableSchemaType tableSchemaType;
+
+  @Parameter(index = 1)
+  private boolean useV2Sink;
+
   // Parallelism = 8 (parallelism > numBuckets) throughout the test suite
   private final int parallelism = NUMBER_TASK_MANAGERS * SLOTS_PER_TASK_MANAGER;
   private final FileFormat format = FileFormat.PARQUET;
@@ -86,6 +96,15 @@ public class TestBucketPartitionerFlinkIcebergSink {
   private Table table;
   private StreamExecutionEnvironment env;
   private TableLoader tableLoader;
+
+  @Parameters(name = "tableSchemaType = {0}, useV2Sink = {1}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      {TableSchemaType.ONE_BUCKET, false},
+      {TableSchemaType.IDENTITY_AND_BUCKET, false},
+      {TableSchemaType.ONE_BUCKET, true},
+    };
+  }
 
   private void setupEnvironment(TableSchemaType tableSchemaType) {
     PartitionSpec partitionSpec = tableSchemaType.getPartitionSpec(numBuckets);
@@ -122,7 +141,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
                     table.schema(),
                     FlinkSink.toFlinkRowType(table.schema(), SimpleDataUtil.FLINK_SCHEMA)));
 
-    FlinkSink.forRowData(dataStream)
+    BaseIcebergSinkBuilder.forRowData(dataStream, useV2Sink)
         .table(table)
         .tableLoader(tableLoader)
         .writeParallelism(parallelism)
@@ -134,11 +153,8 @@ public class TestBucketPartitionerFlinkIcebergSink {
     SimpleDataUtil.assertTableRows(table, allRows);
   }
 
-  @ParameterizedTest
-  @EnumSource(
-      value = TableSchemaType.class,
-      names = {"ONE_BUCKET", "IDENTITY_AND_BUCKET"})
-  public void testSendRecordsToAllBucketsEvenly(TableSchemaType tableSchemaType) throws Exception {
+  @TestTemplate
+  public void testSendRecordsToAllBucketsEvenly() throws Exception {
     setupEnvironment(tableSchemaType);
     List<RowData> rows = generateTestDataRows();
 

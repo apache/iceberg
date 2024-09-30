@@ -329,6 +329,7 @@ public class FlinkSink {
      * @param enabled indicate whether it should transform all INSERT/UPDATE_AFTER events to UPSERT.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder upsert(boolean enabled) {
       writeOptions.put(FlinkWriteOptions.WRITE_UPSERT_ENABLED.key(), Boolean.toString(enabled));
       return this;
@@ -456,7 +457,8 @@ public class FlinkSink {
     }
 
     @VisibleForTesting
-    List<Integer> checkAndGetEqualityFieldIds() {
+    @Override
+    public List<Integer> checkAndGetEqualityFieldIds() {
       List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
       if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
         Set<Integer> equalityFieldSet =

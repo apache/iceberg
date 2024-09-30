@@ -86,7 +86,10 @@ public class TestFlinkIcebergSinkBase {
   }
 
   protected void testWriteRow(
-      int writerParallelism, TableSchema tableSchema, DistributionMode distributionMode, boolean useV2Sink)
+      int writerParallelism,
+      TableSchema tableSchema,
+      DistributionMode distributionMode,
+      boolean useV2Sink)
       throws Exception {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
