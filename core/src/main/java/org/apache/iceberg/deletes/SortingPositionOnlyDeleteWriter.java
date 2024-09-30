@@ -65,7 +65,7 @@ public class SortingPositionOnlyDeleteWriter<T>
   public SortingPositionOnlyDeleteWriter(
       Supplier<FileWriter<PositionDelete<T>, DeleteWriteResult>> writers,
       DeleteGranularity granularity) {
-    this(writers, granularity, null /* no access to previous deletes */);
+    this(writers, granularity, path -> null /* no access to previous deletes */);
   }
 
   public SortingPositionOnlyDeleteWriter(
@@ -141,17 +141,17 @@ public class SortingPositionOnlyDeleteWriter<T>
     }
 
     FileWriter<PositionDelete<T>, DeleteWriteResult> writer = writers.get();
-    List<DeleteFile> rewrittenDeleteFile = Lists.newArrayList();
+    List<DeleteFile> rewrittenDeleteFiles = Lists.newArrayList();
 
     try {
       PositionDelete<T> positionDelete = PositionDelete.create();
       for (CharSequence path : sort(paths)) {
         PositionDeleteIndex positions = positionsByPath.get(path);
-        PositionDeleteIndex previousPositions = loadPreviousDeletes(path);
+        PositionDeleteIndex previousPositions = loadPreviousDeletes.apply(path);
         if (previousPositions != null && previousPositions.isNotEmpty()) {
           validatePreviousDeletes(previousPositions);
           positions.merge(previousPositions);
-          rewrittenDeleteFile.addAll(previousPositions.deleteFiles());
+          rewrittenDeleteFiles.addAll(previousPositions.deleteFiles());
         }
         positions.forEach(position -> writer.write(positionDelete.set(path, position)));
       }
@@ -162,7 +162,7 @@ public class SortingPositionOnlyDeleteWriter<T>
     DeleteWriteResult writerResult = writer.result();
     List<DeleteFile> deleteFiles = writerResult.deleteFiles();
     CharSequenceSet referencedDataFiles = writerResult.referencedDataFiles();
-    return new DeleteWriteResult(deleteFiles, referencedDataFiles, rewrittenDeleteFile);
+    return new DeleteWriteResult(deleteFiles, referencedDataFiles, rewrittenDeleteFiles);
   }
 
   private void validatePreviousDeletes(PositionDeleteIndex index) {
@@ -173,10 +173,6 @@ public class SortingPositionOnlyDeleteWriter<T>
 
   private boolean isFileScoped(DeleteFile deleteFile) {
     return ContentFileUtil.referencedDataFile(deleteFile) != null;
-  }
-
-  private PositionDeleteIndex loadPreviousDeletes(CharSequence path) {
-    return loadPreviousDeletes != null ? loadPreviousDeletes.apply(path) : null;
   }
 
   private Collection<CharSequence> sort(Collection<CharSequence> paths) {

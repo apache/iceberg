@@ -55,7 +55,7 @@ public class FanoutPositionOnlyDeleteWriter<T>
       OutputFileFactory fileFactory,
       FileIO io,
       long targetFileSizeInBytes) {
-    this(writerFactory, fileFactory, io, targetFileSizeInBytes, DeleteGranularity.PARTITION, null);
+    this(writerFactory, fileFactory, io, targetFileSizeInBytes, DeleteGranularity.PARTITION);
   }
 
   public FanoutPositionOnlyDeleteWriter(
@@ -64,7 +64,13 @@ public class FanoutPositionOnlyDeleteWriter<T>
       FileIO io,
       long targetFileSizeInBytes,
       DeleteGranularity granularity) {
-    this(writerFactory, fileFactory, io, targetFileSizeInBytes, granularity, null);
+    this(
+        writerFactory,
+        fileFactory,
+        io,
+        targetFileSizeInBytes,
+        granularity,
+        path -> null /* no access to previous deletes */);
   }
 
   public FanoutPositionOnlyDeleteWriter(

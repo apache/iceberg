@@ -751,12 +751,7 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     // init the first delete writer without access to previous deletes
     FanoutPositionOnlyDeleteWriter<T> writer1 =
         new FanoutPositionOnlyDeleteWriter<>(
-            writerFactory,
-            fileFactory,
-            table.io(),
-            TARGET_FILE_SIZE,
-            DeleteGranularity.FILE,
-            null /* no previous deletes */);
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE, DeleteGranularity.FILE);
 
     // write initial deletes for both data files
     writer1.write(positionDelete(dataFile1.path(), 1L), spec, null);
