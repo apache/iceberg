@@ -129,11 +129,12 @@ public class TestDeleteFileSet {
         .doesNotContain(FILE_C_DELETES)
         .doesNotContain(FILE_D_DELETES);
 
-    assertThat(
-            DeleteFileSet.of(Arrays.asList(FILE_C_DELETES, FILE_B_DELETES, null, FILE_A_DELETES)))
-        .hasSize(3)
-        .containsExactly(FILE_C_DELETES, FILE_B_DELETES, FILE_A_DELETES)
-        .doesNotContain((DeleteFile) null);
+    assertThatThrownBy(
+            () ->
+                DeleteFileSet.of(
+                    Arrays.asList(FILE_C_DELETES, FILE_B_DELETES, null, FILE_A_DELETES)))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid object: null");
   }
 
   @Test

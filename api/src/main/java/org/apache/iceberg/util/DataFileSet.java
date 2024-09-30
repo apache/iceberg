@@ -18,15 +18,12 @@
  */
 package org.apache.iceberg.util;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
 import java.util.Objects;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
-public class DataFileSet extends WrapperSet<DataFile> implements Serializable {
+public class DataFileSet extends WrapperSet<DataFile> {
   private static final ThreadLocal<DataFileWrapper> WRAPPERS =
       ThreadLocal.withInitial(() -> DataFileWrapper.wrap(null));
 
@@ -44,7 +41,12 @@ public class DataFileSet extends WrapperSet<DataFile> implements Serializable {
 
   public static DataFileSet of(Iterable<? extends DataFile> iterable) {
     return new DataFileSet(
-        Iterables.transform(Iterables.filter(iterable, Objects::nonNull), DataFileWrapper::wrap));
+        Iterables.transform(
+            iterable,
+            obj -> {
+              Preconditions.checkNotNull(obj, "Invalid object: null");
+              return DataFileWrapper.wrap(obj);
+            }));
   }
 
   @Override
@@ -62,37 +64,7 @@ public class DataFileSet extends WrapperSet<DataFile> implements Serializable {
     return DataFile.class;
   }
 
-  /**
-   * Since {@link WrapperSet} itself isn't {@link Serializable}, this requires custom logic to write
-   * {@link DataFileSet} to the given stream.
-   *
-   * @param out The output stream to write to
-   * @throws IOException in case the object can't be written
-   */
-  private void writeObject(ObjectOutputStream out) throws IOException {
-    out.writeInt(set().size());
-    for (Wrapper<DataFile> wrapper : set()) {
-      out.writeObject(wrapper);
-    }
-  }
-
-  /**
-   * Since {@link WrapperSet} itself isn't {@link Serializable}, this requires custom logic to read
-   * {@link DataFileSet} from the given stream.
-   *
-   * @param in The input stream to read from
-   * @throws IOException in case the object can't be read
-   * @throws ClassNotFoundException in case the class of the serialized object can't be found
-   */
-  @SuppressWarnings("unchecked")
-  private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
-    int size = in.readInt();
-    for (int i = 0; i < size; i++) {
-      set().add((Wrapper<DataFile>) in.readObject());
-    }
-  }
-
-  private static class DataFileWrapper implements Wrapper<DataFile>, Serializable {
+  private static class DataFileWrapper implements Wrapper<DataFile> {
     private DataFile file;
 
     private DataFileWrapper(DataFile file) {
@@ -125,25 +97,17 @@ public class DataFileSet extends WrapperSet<DataFile> implements Serializable {
       }
 
       DataFileWrapper that = (DataFileWrapper) o;
-      if (null == file && null == that.file) {
-        return true;
-      }
-
-      if (null == file || null == that.file) {
-        return false;
-      }
-
       return Objects.equals(file.location(), that.file.location());
     }
 
     @Override
     public int hashCode() {
-      return null == file ? 0 : Objects.hashCode(file.location());
+      return Objects.hashCode(file.location());
     }
 
     @Override
     public String toString() {
-      return null == file ? "null" : file.location();
+      return file.location();
     }
   }
 }

@@ -18,15 +18,12 @@
  */
 package org.apache.iceberg.util;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
 import java.util.Objects;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 
-public class DeleteFileSet extends WrapperSet<DeleteFile> implements Serializable {
+public class DeleteFileSet extends WrapperSet<DeleteFile> {
   private static final ThreadLocal<DeleteFileWrapper> WRAPPERS =
       ThreadLocal.withInitial(() -> DeleteFileWrapper.wrap(null));
 
@@ -44,7 +41,12 @@ public class DeleteFileSet extends WrapperSet<DeleteFile> implements Serializabl
 
   public static DeleteFileSet of(Iterable<? extends DeleteFile> iterable) {
     return new DeleteFileSet(
-        Iterables.transform(Iterables.filter(iterable, Objects::nonNull), DeleteFileWrapper::wrap));
+        Iterables.transform(
+            iterable,
+            obj -> {
+              Preconditions.checkNotNull(obj, "Invalid object: null");
+              return DeleteFileWrapper.wrap(obj);
+            }));
   }
 
   @Override
@@ -62,37 +64,7 @@ public class DeleteFileSet extends WrapperSet<DeleteFile> implements Serializabl
     return DeleteFile.class;
   }
 
-  /**
-   * Since {@link WrapperSet} itself isn't {@link Serializable}, this requires custom logic to write
-   * {@link DeleteFileSet} to the given stream.
-   *
-   * @param out The output stream to write to
-   * @throws IOException in case the object can't be written
-   */
-  private void writeObject(ObjectOutputStream out) throws IOException {
-    out.writeInt(set().size());
-    for (Wrapper<DeleteFile> wrapper : set()) {
-      out.writeObject(wrapper);
-    }
-  }
-
-  /**
-   * Since {@link WrapperSet} itself isn't {@link Serializable}, this requires custom logic to read
-   * {@link DeleteFileSet} from the given stream.
-   *
-   * @param in The input stream to read from
-   * @throws IOException in case the object can't be read
-   * @throws ClassNotFoundException in case the class of the serialized object can't be found
-   */
-  @SuppressWarnings("unchecked")
-  private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
-    int size = in.readInt();
-    for (int i = 0; i < size; i++) {
-      set().add((Wrapper<DeleteFile>) in.readObject());
-    }
-  }
-
-  private static class DeleteFileWrapper implements Wrapper<DeleteFile>, Serializable {
+  private static class DeleteFileWrapper implements Wrapper<DeleteFile> {
     private DeleteFile file;
 
     private DeleteFileWrapper(DeleteFile file) {
@@ -125,26 +97,18 @@ public class DeleteFileSet extends WrapperSet<DeleteFile> implements Serializabl
       }
 
       DeleteFileWrapper that = (DeleteFileWrapper) o;
-      if (null == file && null == that.file) {
-        return true;
-      }
-
-      if (null == file || null == that.file) {
-        return false;
-      }
-
       // this needs to be updated once deletion vector support is added
       return Objects.equals(file.location(), that.file.location());
     }
 
     @Override
     public int hashCode() {
-      return null == file ? 0 : Objects.hashCode(file.location());
+      return Objects.hashCode(file.location());
     }
 
     @Override
     public String toString() {
-      return null == file ? "null" : file.location();
+      return file.location();
     }
   }
 }

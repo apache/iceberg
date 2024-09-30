@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.util;
 
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
@@ -35,7 +36,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Streams;
  *
  * @param <T> The type to wrap in a {@link Wrapper} instance.
  */
-abstract class WrapperSet<T> implements Set<T> {
+abstract class WrapperSet<T> implements Set<T>, Serializable {
   private final Set<Wrapper<T>> set = Sets.newLinkedHashSet();
 
   protected WrapperSet(Iterable<Wrapper<T>> wrappers) {
@@ -50,14 +51,10 @@ abstract class WrapperSet<T> implements Set<T> {
 
   protected abstract Class<T> elementClass();
 
-  protected interface Wrapper<T> {
+  protected interface Wrapper<T> extends Serializable {
     T get();
 
     Wrapper<T> set(T object);
-  }
-
-  protected Set<Wrapper<T>> set() {
-    return set;
   }
 
   @Override
@@ -70,18 +67,13 @@ abstract class WrapperSet<T> implements Set<T> {
     return set.isEmpty();
   }
 
-  @SuppressWarnings("unchecked")
   @Override
   public boolean contains(Object obj) {
     Preconditions.checkNotNull(obj, "Invalid object: null");
-    if (elementClass().isInstance(obj)) {
-      Wrapper<T> wrapper = wrapper();
-      boolean result = set.contains(wrapper.set((T) obj));
-      wrapper.set(null); // don't hold a reference to the value
-      return result;
-    }
-
-    return false;
+    Wrapper<T> wrapper = wrapper();
+    boolean result = set.contains(wrapper.set(elementClass().cast(obj)));
+    wrapper.set(null); // don't hold a reference to the value
+    return result;
   }
 
   @Override
@@ -105,18 +97,13 @@ abstract class WrapperSet<T> implements Set<T> {
     return set.add(wrap(obj));
   }
 
-  @SuppressWarnings("unchecked")
   @Override
   public boolean remove(Object obj) {
     Preconditions.checkNotNull(obj, "Invalid object: null");
-    if (elementClass().isInstance(obj)) {
-      Wrapper<T> wrapper = wrapper();
-      boolean result = set.remove(wrapper.set((T) obj));
-      wrapper.set(null); // don't hold a reference to the value
-      return result;
-    }
-
-    return false;
+    Wrapper<T> wrapper = wrapper();
+    boolean result = set.remove(wrapper.set(elementClass().cast(obj)));
+    wrapper.set(null); // don't hold a reference to the value
+    return result;
   }
 
   @Override
@@ -131,15 +118,13 @@ abstract class WrapperSet<T> implements Set<T> {
     return collection.stream().filter(this::add).count() != 0;
   }
 
-  @SuppressWarnings("unchecked")
   @Override
   public boolean retainAll(Collection<?> collection) {
     Preconditions.checkNotNull(collection, "Invalid collection: null");
     Set<Wrapper<T>> toRetain =
         collection.stream()
             .map(obj -> Preconditions.checkNotNull(obj, "Invalid object: null"))
-            .filter(elementClass()::isInstance)
-            .map(obj -> (T) obj)
+            .map(elementClass()::cast)
             .map(this::wrap)
             .collect(Collectors.toSet());
 

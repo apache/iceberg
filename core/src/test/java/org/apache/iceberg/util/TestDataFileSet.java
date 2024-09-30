@@ -122,10 +122,9 @@ public class TestDataFileSet {
         .doesNotContain(FILE_C)
         .doesNotContain(FILE_D);
 
-    assertThat(DataFileSet.of(Arrays.asList(FILE_C, FILE_B, null, FILE_A)))
-        .hasSize(3)
-        .containsExactly(FILE_C, FILE_B, FILE_A)
-        .doesNotContain((DataFile) null);
+    assertThatThrownBy(() -> DataFileSet.of(Arrays.asList(FILE_C, FILE_B, null, FILE_A)))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessage("Invalid object: null");
   }
 
   @Test
