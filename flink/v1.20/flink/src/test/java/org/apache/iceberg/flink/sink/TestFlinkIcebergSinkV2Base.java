@@ -76,7 +76,9 @@ class TestFlinkIcebergSinkV2Base {
   @Parameter(index = 4)
   boolean useV2Sink;
 
-  @Parameters(name = "FileFormat={0}, Parallelism={1}, Partitioned={2}, WriteDistributionMode={3}, UseV2Sink={4}")
+  @Parameters(
+      name =
+          "FileFormat={0}, Parallelism={1}, Partitioned={2}, WriteDistributionMode={3}, UseV2Sink={4}")
   public static Object[][] parameters() {
     return new Object[][] {
       new Object[] {FileFormat.AVRO, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false},
@@ -87,16 +89,32 @@ class TestFlinkIcebergSinkV2Base {
       new Object[] {FileFormat.ORC, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, false},
       new Object[] {FileFormat.ORC, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, false},
       new Object[] {FileFormat.ORC, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, false},
-      new Object[] {FileFormat.PARQUET, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
-      new Object[] {FileFormat.PARQUET, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
-      new Object[] {FileFormat.PARQUET, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
-      new Object[] {FileFormat.PARQUET, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
+      new Object[] {
+        FileFormat.PARQUET, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false
+      },
+      new Object[] {
+        FileFormat.PARQUET, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false
+      },
+      new Object[] {
+        FileFormat.PARQUET, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false
+      },
+      new Object[] {
+        FileFormat.PARQUET, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false
+      },
       new Object[] {FileFormat.AVRO, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, true},
       new Object[] {FileFormat.ORC, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, true},
-      new Object[] {FileFormat.PARQUET, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true},
-      new Object[] {FileFormat.PARQUET, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true},
-      new Object[] {FileFormat.PARQUET, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true},
-      new Object[] {FileFormat.PARQUET, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true}
+      new Object[] {
+        FileFormat.PARQUET, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true
+      },
+      new Object[] {
+        FileFormat.PARQUET, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true
+      },
+      new Object[] {
+        FileFormat.PARQUET, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true
+      },
+      new Object[] {
+        FileFormat.PARQUET, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true
+      }
     };
   }
 

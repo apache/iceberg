@@ -567,7 +567,6 @@ public class IcebergSink
       }
       return rowDataDataStreamSink;
     }
-
   }
 
   private static String defaultSuffix(String uidSuffix, String defaultSuffix) {

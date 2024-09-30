@@ -40,9 +40,9 @@ import org.slf4j.LoggerFactory;
 
 @Internal
 /*
-  This class is for internal purpose of transition between the previous implementation of Flink's sink (FlinkSink)
-  and the new one implementation based on Flink v2 sink's API (IcebergSink)
- */
+ This class is for internal purpose of transition between the previous implementation of Flink's sink (FlinkSink)
+ and the new one implementation based on Flink v2 sink's API (IcebergSink)
+*/
 public abstract class IcebergSinkBuilder<T extends IcebergSinkBuilder<?>> {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergSinkBuilder.class);
@@ -80,23 +80,23 @@ public abstract class IcebergSinkBuilder<T extends IcebergSinkBuilder<?>> {
     List<Integer> equalityFieldIds = Lists.newArrayList(getTable().schema().identifierFieldIds());
     if (getEqualityFieldColumns() != null && !getEqualityFieldColumns().isEmpty()) {
       Set<Integer> equalityFieldSet =
-              Sets.newHashSetWithExpectedSize(getEqualityFieldColumns().size());
+          Sets.newHashSetWithExpectedSize(getEqualityFieldColumns().size());
       for (String column : getEqualityFieldColumns()) {
         org.apache.iceberg.types.Types.NestedField field = getTable().schema().findField(column);
         org.apache.iceberg.relocated.com.google.common.base.Preconditions.checkNotNull(
-                field,
-                "Missing required equality field column '%s' in table schema %s",
-                column,
-                getTable().schema());
+            field,
+            "Missing required equality field column '%s' in table schema %s",
+            column,
+            getTable().schema());
         equalityFieldSet.add(field.fieldId());
       }
 
       if (!equalityFieldSet.equals(getTable().schema().identifierFieldIds())) {
         LOG.warn(
-                "The configured equality field column IDs {} are not matched with the schema identifier field IDs"
-                        + " {}, use job specified equality field columns as the equality fields by default.",
-                equalityFieldSet,
-                getTable().schema().identifierFieldIds());
+            "The configured equality field column IDs {} are not matched with the schema identifier field IDs"
+                + " {}, use job specified equality field columns as the equality fields by default.",
+            equalityFieldSet,
+            getTable().schema().identifierFieldIds());
       }
       equalityFieldIds = Lists.newArrayList(equalityFieldSet);
     }
@@ -104,7 +104,7 @@ public abstract class IcebergSinkBuilder<T extends IcebergSinkBuilder<?>> {
   }
 
   public static IcebergSinkBuilder<?> forRow(
-          DataStream<Row> input, TableSchema tableSchema, boolean useV2Sink) {
+      DataStream<Row> input, TableSchema tableSchema, boolean useV2Sink) {
     if (useV2Sink) {
       return IcebergSink.forRow(input, tableSchema);
     } else {

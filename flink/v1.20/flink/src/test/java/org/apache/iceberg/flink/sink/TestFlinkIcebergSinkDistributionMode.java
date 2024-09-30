@@ -119,7 +119,8 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
 
   @TestTemplate
   public void testShuffleByPartitionWithSchema() throws Exception {
-    testWriteRow(parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH, DO_NOT_USE_V2_SINK);
+    testWriteRow(
+        parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH, DO_NOT_USE_V2_SINK);
     if (partitioned) {
       assertThat(partitionFiles("aaa")).isEqualTo(1);
       assertThat(partitionFiles("bbb")).isEqualTo(1);
@@ -205,7 +206,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
     IcebergSinkBuilder builder =
-            IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
+        IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
             .table(table)
             .tableLoader(tableLoader)
             .writeParallelism(parallelism);
@@ -232,7 +233,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
     IcebergSinkBuilder builder =
-            IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
+        IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
             .table(table)
             .tableLoader(tableLoader)
             .writeParallelism(parallelism);
