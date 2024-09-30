@@ -51,6 +51,7 @@ Version 3 of the Iceberg spec extends data types and existing metadata structure
 * New data types: nanosecond timestamp(tz)
 * Default value support for columns
 * Multi-argument transforms for partitioning and sorting
+* Binary deletion vectors
 
 
 ## Goals
@@ -841,14 +842,38 @@ Notes:
 
 ## Delete Formats
 
-This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are not supported in v1.
+This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are added by v2 and are not supported in v1. Deletion vectors are added in v3 and are not supported in v2 or earlier. Position delete files must not be added to v3 tables, but existing position delete files are valid.
 
-Row-level delete files are valid Iceberg data files: files must use valid Iceberg formats, schemas, and column projection. It is recommended that delete files are written using the table's default file format.
+There are three types of row-level deletes:
+* Deletion vectors (DVs) identify deleted rows within a single referenced data file by position in a bitmap
+* Position delete files identify deleted rows by file location and row position
+* Equality delete files identify deleted rows by the value of one or more columns
 
-Row-level delete files are tracked by manifests, like data files. A separate set of manifests is used for delete files, but the manifest schemas are identical.
+Deletion vectors are a binary representation of deletes for a single data file that is more efficient at execution time than position delete files. Unlike equality or position delete files, there can be at most one deletion vector for a given data file in a table. Writers must detect concurrently added deletion vectors and merge multiple vectors for a given data file before committing.
 
-Both position and equality deletes allow encoding deleted row values with a delete. This can be used to reconstruct a stream of changes to a table.
+Row-level delete files (both equality and position delete files) are valid Iceberg data files: files must use valid Iceberg formats, schemas, and column projection. It is recommended that these delete files are written using the table's default file format.
 
+Row-level delete files and deletion vectors are tracked by manifests. A separate set of manifests is used for delete files and DVs, but the same manifest schema is used for both data and delete manifests. Deletion vectors are tracked individually by file location, offset, and length within the containing file. Deletion vector metadata must include the referenced data file.
+
+Both position and equality delete files allow encoding deleted row values with a delete. This can be used to reconstruct a stream of changes to a table.
+
+
+### Deletion Vectors
+
+Delete vectors identify deleted rows of a file by encoding deleted positions in a bitmap. A set bit at position P indicates that the row at position P is deleted.
+
+Deletion vectors are stored using the `delete-vector-v1` blob definition from the [Puffin spec][puffin-spec].
+
+Deletion vectors support positive 64-bit positions, but are optimized for cases where most positions fit in 32 bits by using a collection of 32-bit Roaring bitmaps. 64-bit positions are divided into a 32-bit "key" using the most significant 4 bytes and a 32-bit position using the least significant 4 bytes. For each key in the set of positions, a 32-bit Roaring bitmap is maintained to store a set of 32-bit positions for that key.
+
+To test whether a certain position is set, its most significant 4 bytes (the key) are used to find a 32-bit bitmap and the least significant 4 bytes are tested for inclusion in the bitmap. If a bitmap is not found for the key, then it is not set.
+
+Delete manifests track deletion vectors individually by the containing file location, starting offset of the DV magic bytes, and total length of the deletion vector blob. Multiple deletion vectors can stored in the same file. There are no restrictions on the data files that can be referenced by deletion vectors in the same file.
+
+At most one deletion vector is allowed per data file in a table. If a DV is written for a data file, it must replace all previously written position delete files so that when a DV is present, readers can safely ignore matching position delete files.
+
+
+[puffin-spec]: https://iceberg.apache.org/puffin-spec/
 
 ### Position Delete Files
 
@@ -1342,6 +1367,15 @@ Writing v1 or v2 metadata:
 * Partition Field and Sort Field JSON:
     * For a single-arg transform, `source-id` should be written; if `source-ids` is also written it should be a single-element list of `source-id`
     * For multi-arg transforms, `source-ids` should be written; `source-id` should be set to the first element of `source-ids`
+
+Row-level delete changes:
+
+* Deletion vectors are added in v3
+* Deletion vectors are maintained synchronously: Writers must merge DVs (and older position delete files) to ensure there is at most one DV per data file
+    * Readers can safely ignore position delete files if there is a DV for a data file
+* Writers are not allowed to add new position delete files to v3 tables
+* Existing position delete files are valid in tables that have been upgraded from v2
+    * These position delete files must be merged into the DV for a data file when one is created
 
 ### Version 2
 
