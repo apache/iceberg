@@ -59,7 +59,7 @@ import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
-import org.apache.iceberg.flink.sink.BaseIcebergSinkBuilder;
+import org.apache.iceberg.flink.sink.IcebergSinkBuilder;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.BeforeEach;
@@ -263,7 +263,7 @@ public class TestIcebergSourceFailover {
     // CollectStreamSink from DataStream#executeAndCollect() doesn't guarantee
     // exactly-once behavior. When Iceberg sink, we can verify end-to-end
     // exactly-once. Here we mainly about source exactly-once behavior.
-    BaseIcebergSinkBuilder.forRowData(stream, DO_NOT_USE_V2_SINK)
+    IcebergSinkBuilder.forRowData(stream, DO_NOT_USE_V2_SINK)
         .table(sinkTable)
         .tableLoader(SINK_CATALOG_EXTENSION.tableLoader())
         .append();
@@ -302,7 +302,7 @@ public class TestIcebergSourceFailover {
     // CollectStreamSink from DataStream#executeAndCollect() doesn't guarantee
     // exactly-once behavior. When Iceberg sink, we can verify end-to-end
     // exactly-once. Here we mainly about source exactly-once behavior.
-    BaseIcebergSinkBuilder.forRowData(streamFailingInTheMiddleOfReading, DO_NOT_USE_V2_SINK)
+    IcebergSinkBuilder.forRowData(streamFailingInTheMiddleOfReading, DO_NOT_USE_V2_SINK)
         .table(sinkTable)
         .tableLoader(SINK_CATALOG_EXTENSION.tableLoader())
         .append();

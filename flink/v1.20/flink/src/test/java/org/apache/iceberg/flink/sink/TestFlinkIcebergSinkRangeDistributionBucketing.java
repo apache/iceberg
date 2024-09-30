@@ -190,7 +190,7 @@ public class TestFlinkIcebergSinkRangeDistributionBucketing {
       DataStream<RowData> dataStream =
           env.fromSource(generatorSource, WatermarkStrategy.noWatermarks(), "Data Generator");
 
-      BaseIcebergSinkBuilder.forRowData(dataStream, DO_NOT_USE_V2_SINK)
+      IcebergSinkBuilder.forRowData(dataStream, DO_NOT_USE_V2_SINK)
           .table(table)
           .tableLoader(tableLoader)
           .writeParallelism(parallelism)

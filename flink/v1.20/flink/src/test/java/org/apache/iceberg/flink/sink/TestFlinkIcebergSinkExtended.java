@@ -173,8 +173,8 @@ public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    BaseIcebergSinkBuilder builder =
-        BaseIcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
+    IcebergSinkBuilder builder =
+        IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
             .table(table)
             .tableLoader(tableLoader)
             .writeParallelism(parallelism)
@@ -195,7 +195,7 @@ public class TestFlinkIcebergSinkExtended extends TestFlinkIcebergSinkBase {
     Configuration flinkConf = new Configuration();
     flinkConf.setString(FlinkWriteOptions.TABLE_REFRESH_INTERVAL.key(), "100ms");
 
-    BaseIcebergSinkBuilder.forRowData(dataStream, DO_NOT_USE_V2_SINK)
+    IcebergSinkBuilder.forRowData(dataStream, DO_NOT_USE_V2_SINK)
         .table(table)
         .tableLoader(tableLoader)
         .flinkConf(flinkConf)

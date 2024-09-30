@@ -94,7 +94,7 @@ public class TestFlinkIcebergSinkBase {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    BaseIcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, useV2Sink)
+    IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, useV2Sink)
         .table(table)
         .tableLoader(tableLoader)
         .tableSchema(tableSchema)

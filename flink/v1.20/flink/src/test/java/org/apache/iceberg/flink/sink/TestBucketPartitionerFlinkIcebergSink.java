@@ -141,7 +141,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
                     table.schema(),
                     FlinkSink.toFlinkRowType(table.schema(), SimpleDataUtil.FLINK_SCHEMA)));
 
-    BaseIcebergSinkBuilder.forRowData(dataStream, useV2Sink)
+    IcebergSinkBuilder.forRowData(dataStream, useV2Sink)
         .table(table)
         .tableLoader(tableLoader)
         .writeParallelism(parallelism)

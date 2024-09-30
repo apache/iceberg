@@ -31,7 +31,6 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -67,11 +66,8 @@ import org.apache.iceberg.flink.sink.shuffle.RangePartitioner;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecord;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
@@ -134,7 +130,7 @@ public class FlinkSink {
     return new Builder().forRowData(input);
   }
 
-  public static class Builder implements BaseIcebergSinkBuilder {
+  public static class Builder extends IcebergSinkBuilder<Builder> {
     private Function<String, DataStream<RowData>> inputCreator = null;
     private TableLoader tableLoader;
     private Table table;
@@ -392,6 +388,16 @@ public class FlinkSink {
       return this;
     }
 
+    @Override
+    protected SerializableTable getTable() {
+      return null;
+    }
+
+    @Override
+    protected List<String> getEqualityFieldColumns() {
+      return List.of();
+    }
+
     private <T> DataStreamSink<T> chainIcebergOperators() {
       Preconditions.checkArgument(
           inputCreator != null,
@@ -454,35 +460,6 @@ public class FlinkSink {
 
     private String operatorName(String suffix) {
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
-    }
-
-    @VisibleForTesting
-    @Override
-    public List<Integer> checkAndGetEqualityFieldIds() {
-      List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
-      if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
-        Set<Integer> equalityFieldSet =
-            Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
-        for (String column : equalityFieldColumns) {
-          org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
-          Preconditions.checkNotNull(
-              field,
-              "Missing required equality field column '%s' in table schema %s",
-              column,
-              table.schema());
-          equalityFieldSet.add(field.fieldId());
-        }
-
-        if (!equalityFieldSet.equals(table.schema().identifierFieldIds())) {
-          LOG.warn(
-              "The configured equality field column IDs {} are not matched with the schema identifier field IDs"
-                  + " {}, use job specified equality field columns as the equality fields by default.",
-              equalityFieldSet,
-              table.schema().identifierFieldIds());
-        }
-        equalityFieldIds = Lists.newArrayList(equalityFieldSet);
-      }
-      return equalityFieldIds;
     }
 
     @SuppressWarnings("unchecked")

@@ -91,9 +91,12 @@ class TestFlinkIcebergSinkV2Base {
       new Object[] {FileFormat.PARQUET, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
       new Object[] {FileFormat.PARQUET, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
       new Object[] {FileFormat.PARQUET, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, false},
-      new Object[] {FileFormat.AVRO, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, false},
-      new Object[] {FileFormat.ORC, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, false},
-      new Object[] {FileFormat.PARQUET, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, false}
+      new Object[] {FileFormat.AVRO, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, true},
+      new Object[] {FileFormat.ORC, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH, true},
+      new Object[] {FileFormat.PARQUET, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true},
+      new Object[] {FileFormat.PARQUET, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true},
+      new Object[] {FileFormat.PARQUET, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true},
+      new Object[] {FileFormat.PARQUET, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE, true}
     };
   }
 
@@ -338,7 +341,7 @@ class TestFlinkIcebergSinkV2Base {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
 
-    BaseIcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, useV2Sink)
+    IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, useV2Sink)
         .tableLoader(tableLoader)
         .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
         .writeParallelism(parallelism)

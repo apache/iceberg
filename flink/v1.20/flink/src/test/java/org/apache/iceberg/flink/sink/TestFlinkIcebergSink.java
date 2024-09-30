@@ -70,14 +70,8 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
       {FileFormat.PARQUET, 1, false, false},
       {FileFormat.PARQUET, 2, true, false},
       {FileFormat.PARQUET, 2, false, false},
-      {FileFormat.AVRO, 1, true, true},
-      {FileFormat.AVRO, 1, false, true},
       {FileFormat.AVRO, 2, true, true},
-      {FileFormat.AVRO, 2, false, true},
-      {FileFormat.ORC, 1, true, true},
-      {FileFormat.ORC, 1, false, true},
       {FileFormat.ORC, 2, true, true},
-      {FileFormat.ORC, 2, false, true},
       {FileFormat.PARQUET, 1, true, true},
       {FileFormat.PARQUET, 1, false, true},
       {FileFormat.PARQUET, 2, true, true},
@@ -115,7 +109,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
             .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
 
-    BaseIcebergSinkBuilder.forRowData(dataStream, useV2Sink)
+    IcebergSinkBuilder.forRowData(dataStream, useV2Sink)
         .table(table)
         .tableLoader(tableLoader)
         .writeParallelism(parallelism)

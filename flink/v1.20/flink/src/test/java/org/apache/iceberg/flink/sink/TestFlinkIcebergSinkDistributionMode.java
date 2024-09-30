@@ -178,8 +178,8 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    BaseIcebergSinkBuilder builder =
-        BaseIcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
+    IcebergSinkBuilder builder =
+        IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
             .table(table)
             .tableLoader(tableLoader)
             .writeParallelism(parallelism)
@@ -204,8 +204,8 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         env.addSource(
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
-    BaseIcebergSinkBuilder builder =
-            BaseIcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
+    IcebergSinkBuilder builder =
+            IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
             .table(table)
             .tableLoader(tableLoader)
             .writeParallelism(parallelism);
@@ -231,8 +231,8 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         env.addSource(
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
-    BaseIcebergSinkBuilder builder =
-            BaseIcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
+    IcebergSinkBuilder builder =
+            IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
             .table(table)
             .tableLoader(tableLoader)
             .writeParallelism(parallelism);
