@@ -184,7 +184,7 @@ Supported primitive types are defined in the table below. Primitive types added 
 
 | Added by version | Primitive type     | Description                                                              | Requirements                                     |
 |------------------|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|
-| [v3](#version-3) | **`unknown`**      | Default / null column type used when a more specific type is not known   | Must be optional with `null` defaults            |
+| [v3](#version-3) | **`unknown`**      | Default / null column type used when a more specific type is not known   | Must be optional with `null` defaults; not stored in data files |
 |                  | **`boolean`**      | True or false                                                            |                                                  |
 |                  | **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
 |                  | **`long`**         | 64-bit signed integers                                                   |                                                  |
