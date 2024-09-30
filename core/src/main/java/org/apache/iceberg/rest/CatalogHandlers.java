@@ -32,7 +32,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
@@ -73,6 +72,7 @@ import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.SQLViewRepresentation;
@@ -148,8 +148,8 @@ public class CatalogHandlers {
     Pair<List<Namespace>, String> page = paginate(results, pageToken, Integer.parseInt(pageSize));
 
     return ListNamespacesResponse.builder()
-        .addAll(page.getLeft())
-        .nextPageToken(page.getRight())
+        .addAll(page.first())
+        .nextPageToken(page.second())
         .build();
   }
 
@@ -217,10 +217,7 @@ public class CatalogHandlers {
     Pair<List<TableIdentifier>, String> page =
         paginate(results, pageToken, Integer.parseInt(pageSize));
 
-    return ListTablesResponse.builder()
-        .addAll(page.getLeft())
-        .nextPageToken(page.getRight())
-        .build();
+    return ListTablesResponse.builder().addAll(page.first()).nextPageToken(page.second()).build();
   }
 
   public static LoadTableResponse stageTableCreate(
@@ -458,10 +455,7 @@ public class CatalogHandlers {
     Pair<List<TableIdentifier>, String> page =
         paginate(results, pageToken, Integer.parseInt(pageSize));
 
-    return ListTablesResponse.builder()
-        .addAll(page.getLeft())
-        .nextPageToken(page.getRight())
-        .build();
+    return ListTablesResponse.builder().addAll(page.first()).nextPageToken(page.second()).build();
   }
 
   public static LoadViewResponse createView(
