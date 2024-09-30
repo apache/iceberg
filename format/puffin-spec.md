@@ -123,6 +123,39 @@ The blob metadata for this blob may include following properties:
 
 - `ndv`: estimate of number of distinct values, derived from the sketch.
 
+#### `delete-vector-v1` blob type
+
+A serialized delete vector that indicates rows of a file that are deleted by
+the position encoded in a bitmap. A 1 at position P indicates that the row at
+position P is deleted.
+
+The bitmap supports positive 64-bit positions, but is optimized for cases where
+most positions fit in 32 bits by using a collection of 32-bit Roaring bitmaps.
+64-bit positions are divided into a 32-bit "key" using the most significant 4
+bytes and a 32-bit position using the least significant 4 bytes. For each key
+in the set of positions, a 32-bit Roaring bitmap is maintained to store a set
+of 32-bit positions for that key.
+
+To test whether a certain position is set, its most significant 4 bytes (the
+key) are used to find a 32-bit bitmap and the least significant 4 bytes are
+tested for inclusion in the bitmap. If a bitmap is not found for the key, then
+it is not set.
+
+The serialized blob starts with a 4-byte magic sequence, `D1D33964` (1681511377
+stored as 4 bytes, little-endian). Following the magic bytes is the serialized
+collection of bitmaps. The collection is stored using the Roaring bitmap
+["portable" format][roaring-bitmap-portable-serialization]. This representation
+consists of:
+
+* The number of 32-bit Roaring bitmaps, serialized as 8 bytes, little-endian
+* For each 32-bit Roaring bitmap, ordered by unsigned comparison of the 32-bit keys:
+    - The key stored as 4 bytes, little-endian
+    - A [32-bit Roaring bitmap][roaring-bitmap-general-layout]
+
+
+[roaring-bitmap-portable-serialization]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#extension-for-64-bit-implementations
+[roaring-bitmap-general-layout]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#general-layout
+
 ### Compression codecs
 
 The data can also be uncompressed. If it is compressed the codec should be one of
