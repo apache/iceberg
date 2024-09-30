@@ -52,6 +52,8 @@ Version 3 of the Iceberg spec extends data types and existing metadata structure
 * Default value support for columns
 * Multi-argument transforms for partitioning and sorting
 * Row Lineage tracking
+* Binary deletion vectors
+
 
 ## Goals
 
@@ -155,6 +157,8 @@ Readers should be more permissive because v1 metadata files are allowed in v2 ta
 | _required_ |            | Ignore the field |
 | _required_ | _optional_ | Read the field as _optional_ |
 | _required_ | _required_ | Fill in a default or throw an exception if the field is missing |
+
+If a later version is not shown, the requirement for a version is not changed from the most recent version shown. For example, v3 uses the same requirements as v2 if a table shows only v1 and v2 requirements.
 
 Readers may be more strict for metadata JSON files because the JSON files are not reused and will always match the table version. Required fields that were not present in or were optional in prior versions may be handled as required fields. For example, a v2 table that is missing `last-sequence-number` can throw an exception.
 
@@ -568,8 +572,10 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 |            | _required_ | _required_ | **`134  content`**                | `int` with meaning: `0: DATA`, `1: POSITION DELETES`, `2: EQUALITY DELETES` | Type of content stored by the data file: data, equality deletes, or position deletes (all v1 files are data files)                                                                                                 |
 | _required_ | _required_ | _required_ | **`100  file_path`**              | `string`                                                                    | Full URI for the file with FS scheme                                                                                                                                                                               |
 | _required_ | _required_ | _required_ | **`101  file_format`**            | `string`                                                                    | String file format name, avro, orc or parquet                                                                                                                                                                      |
+| _required_ | _required_ | _required_ | **`101  file_format`**            | `string`                                                                    | String file format name, `avro`, `orc`, `parquet`, or `puffin`                                                                                                                                                     |
 | _required_ | _required_ | _required_ | **`102  partition`**              | `struct<...>`                                                               | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids                                                                                                 |
 | _required_ | _required_ | _required_ | **`103  record_count`**           | `long`                                                                      | Number of records in this file                                                                                                                                                                                     |
+| _required_ | _required_ | _required_ | **`103  record_count`**           | `long`                                                                      | Number of records in this file, or the cardinality of a deletion vector                                                                                                                                            |
 | _required_ | _required_ | _required_ | **`104  file_size_in_bytes`**     | `long`                                                                      | Total file size in bytes                                                                                                                                                                                           |
 | _required_ |            |            | ~~**`105 block_size_in_bytes`**~~ | `long`                                                                      | **Deprecated. Always write a default in v1. Do not write in v2 or v3.**                                                                                                                                            |
 | _optional_ |            |            | ~~**`106  file_ordinal`**~~       | `int`                                                                       | **Deprecated. Do not write.**                                                                                                                                                                                      |
@@ -585,13 +591,19 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | _optional_ | _optional_ | _optional_ | **`132  split_offsets`**          | `list<133: long>`                                                           | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending                                                                                                    |
 |            | _optional_ | _optional_ | **`135  equality_ids`**           | `list<136: int>`                                                            | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file                |
 | _optional_ | _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                                                                       | ID representing sort order for this file [3].                                                                                                                                                                      |
-|            |            | _optional_ | **`142  first_row_id`**           | `long`                                                                      | The `_row_id` for the first row in the data file. See [First Row ID Inheritance](#first-row-id-inheritance)                                                                                                                 |
+|            |            | _optional_ | **`142  first_row_id`**           | `long`                                                                      | The `_row_id` for the first row in the data file. See [First Row ID Inheritance](#first-row-id-inheritance)                                                                                                        |
+|            | _optional_ | _optional_ | **`143  referenced_data_file`**   | `string`                                                                    | Fully qualified location (URI with FS scheme) of a data file that all deletes reference [4]                                                                                                                        |
+|            |            | _optional_ | **`144  content_offset`**         | `long`                                                                      | The offset in the file where the content starts [5]                                                                                                                                                                |
+|            |            | _optional_ | **`145  content_size_in_bytes`**  | `long`                                                                      | The length of a referenced content stored in the file; required if `content_offset` is present [5]                                                                                                                 |
+
 Notes:
 
 1. Single-value serialization for lower and upper bounds is detailed in Appendix D.
 2. For `float` and `double`, the value `-0.0` must precede `+0.0`, as in the IEEE 754 `totalOrder` predicate. NaNs are not permitted as lower or upper bounds.
 3. If sort order ID is missing or unknown, then the order is assumed to be unsorted. Only data files and equality delete files should be written with a non-null order id. [Position deletes](#position-delete-files) are required to be sorted by file and position, not a table order, and should set sort order id to null. Readers must ignore sort order id for position delete files.
-4. The following field ids are reserved on `data_file`: 141.
+4. Position delete metadata can use `referenced_data_file` when all deletes tracked by the entry are in a single data file. Setting the referenced file is required for deletion vectors.
+5. The `content_offset` and `content_size_in_bytes` fields are used to reference a specific blob for direct access to a deletion vector. The values must exactly match the `offset` and `length` stored in the Puffin footer for the deletion vector blob.
+6. The following field ids are reserved on `data_file`: 141.
 
 The `partition` struct stores the tuple of partition values for each file. Its type is derived from the partition fields of the partition spec used to write the manifest file. In v2, the partition struct's field ids must match the ids from the partition spec.
 
@@ -741,7 +753,7 @@ Scans are planned by reading the manifest files for the current snapshot. Delete
 
 Manifests that contain no matching files, determined using either file counts or partition summaries, may be skipped.
 
-For each manifest, scan predicates, which filter data rows, are converted to partition predicates, which filter data and delete files. These partition predicates are used to select the data and delete files in the manifest. This conversion uses the partition spec used to write the manifest file.
+For each manifest, scan predicates, which filter data rows, are converted to partition predicates, which filter partition tuples. These partition predicates are used to select relevant data files, delete files, and deletion vector metadata. Conversion uses the partition spec that was used to write the manifest file regardless of the current partition spec.
 
 Scan predicates are converted to partition predicates using an _inclusive projection_: if a scan predicate matches a row, then the partition predicate must match that row’s partition. This is called _inclusive_ [1] because rows that do not match the scan predicate may be included in the scan by the partition predicate.
 
@@ -756,11 +768,17 @@ Data files that match the query filter must be read by the scan.
 Note that for any snapshot, all file paths marked with "ADDED" or "EXISTING" may appear at most once across all manifest files in the snapshot. If a file path appears more than once, the results of the scan are undefined. Reader implementations may raise an error in this case, but are not required to do so.
 
 
-Delete files that match the query filter must be applied to data files at read time, limited by the scope of the delete file using the following rules.
+Delete files and deletion vector metadata that match the filters must be applied to data files at read time, limited by the following scope rules.
 
+* A deletion vector must be applied to a data file when all of the following are true:
+    - The data file's `file_path` is equal to the deletion vector's `referenced_data_file`
+    - The data file's data sequence number is _less than or equal to_ the deletion vector's data sequence number
+    - The data file's partition (both spec and partition values) is equal [4] to the deletion vector's partition
 * A _position_ delete file must be applied to a data file when all of the following are true:
+    - The data file's `file_path` is equal to the delete file's `referenced_data_file` if it is non-null
     - The data file's data sequence number is _less than or equal to_ the delete file's data sequence number
     - The data file's partition (both spec and partition values) is equal [4] to the delete file's partition
+    - There is no deletion vector that must be applied to the data file (when added, such a vector must contain all deletes from existing position delete files)
 * An _equality_ delete file must be applied to a data file when all of the following are true:
     - The data file's data sequence number is _strictly less than_ the delete's data sequence number
     - The data file's partition (both spec id and partition values) is equal [4] to the delete file's partition _or_ the delete file's partition spec is unpartitioned
@@ -768,7 +786,7 @@ Delete files that match the query filter must be applied to data files at read t
 In general, deletes are applied only to data files that are older and in the same partition, except for two special cases:
 
 * Equality delete files stored with an unpartitioned spec are applied as global deletes. Otherwise, delete files do not apply to files in other partitions.
-* Position delete files must be applied to data files from the same commit, when the data and delete file data sequence numbers are equal. This allows deleting rows that were added in the same commit.
+* Position deletes (vectors and files) must be applied to data files from the same commit, when the data and delete file data sequence numbers are equal. This allows deleting rows that were added in the same commit.
 
 
 Notes:
@@ -982,18 +1000,44 @@ Notes:
 
 ## Delete Formats
 
-This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are not supported in v1.
+This section details how to encode row-level deletes in Iceberg delete files. Row-level deletes are added by v2 and are not supported in v1. Deletion vectors are added in v3 and are not supported in v2 or earlier. Position delete files must not be added to v3 tables, but existing position delete files are valid.
 
-Row-level delete files are valid Iceberg data files: files must use valid Iceberg formats, schemas, and column projection. It is recommended that delete files are written using the table's default file format.
+There are three types of row-level deletes:
+* Deletion vectors (DVs) identify deleted rows within a single referenced data file by position in a bitmap
+* Position delete files identify deleted rows by file location and row position (**deprecated**)
+* Equality delete files identify deleted rows by the value of one or more columns
 
-Row-level delete files are tracked by manifests, like data files. A separate set of manifests is used for delete files, but the manifest schemas are identical.
+Deletion vectors are a binary representation of deletes for a single data file that is more efficient at execution time than position delete files. Unlike equality or position delete files, there can be at most one deletion vector for a given data file in a table. Writers must ensure that there is at most one deletion vector per data file and must merge new deletes with existing vectors or position delete files.
 
-Both position and equality deletes allow encoding deleted row values with a delete. This can be used to reconstruct a stream of changes to a table.
+Row-level delete files (both equality and position delete files) are valid Iceberg data files: files must use valid Iceberg formats, schemas, and column projection. It is recommended that these delete files are written using the table's default file format.
 
+Row-level delete files and deletion vectors are tracked by manifests. A separate set of manifests is used for delete files and DVs, but the same manifest schema is used for both data and delete manifests. Deletion vectors are tracked individually by file location, offset, and length within the containing file. Deletion vector metadata must include the referenced data file.
+
+Both position and equality delete files allow encoding deleted row values with a delete. This can be used to reconstruct a stream of changes to a table.
+
+
+### Deletion Vectors
+
+Deletion vectors identify deleted rows of a file by encoding deleted positions in a bitmap. A set bit at position P indicates that the row at position P is deleted.
+
+These vectors are stored using the `deletion-vector-v1` blob definition from the [Puffin spec][puffin-spec].
+
+Deletion vectors support positive 64-bit positions, but are optimized for cases where most positions fit in 32 bits by using a collection of 32-bit Roaring bitmaps. 64-bit positions are divided into a 32-bit "key" using the most significant 4 bytes and a 32-bit sub-position using the least significant 4 bytes. For each key in the set of positions, a 32-bit Roaring bitmap is maintained to store a set of 32-bit sub-positions for that key.
+
+To test whether a certain position is set, its most significant 4 bytes (the key) are used to find a 32-bit bitmap and the least significant 4 bytes (the sub-position) are tested for inclusion in the bitmap. If a bitmap is not found for the key, then it is not set.
+
+Delete manifests track deletion vectors individually by the containing file location (`file_path`), starting offset of the DV magic bytes (`content_offset`), and total length of the deletion vector blob (`content_size_in_bytes`). Multiple deletion vectors can be stored in the same file. There are no restrictions on the data files that can be referenced by deletion vectors in the same Puffin file.
+
+At most one deletion vector is allowed per data file in a table. If a DV is written for a data file, it must replace all previously written position delete files so that when a DV is present, readers can safely ignore matching position delete files.
+
+
+[puffin-spec]: https://iceberg.apache.org/puffin-spec/
 
 ### Position Delete Files
 
 Position-based delete files identify deleted rows by file and position in one or more data files, and may optionally contain the deleted row.
+
+_Note: Position delete files are **deprecated** in v3. Existing position deletes must be written to delete vectors when updating the position deletes for a data file._
 
 A data row is deleted if there is an entry in a position delete file for the row's file and position in the data file, starting at 0.
 
@@ -1493,6 +1537,20 @@ Writing v1 or v2 metadata:
 * Partition Field and Sort Field JSON:
     * For a single-arg transform, `source-id` should be written; if `source-ids` is also written it should be a single-element list of `source-id`
     * For multi-arg transforms, `source-ids` should be written; `source-id` should be set to the first element of `source-ids`
+
+Row-level delete changes:
+
+* Deletion vectors are added in v3, stored using the Puffin `deletion-vector-v1` blob type
+* Manifests are updated to track deletion vectors:
+    * `referenced_data_file` was added and can be used for both delection vectors (required) and v2 position delete files that contain deletes for only one data file (optional)
+    * `content_offset` was added and must match the deletion vector blob's offset in a Puffin file
+    * `content_size_in_bytes` was added and must match the deletion vector blob's length in a Puffin file
+* Deletion vectors are maintained synchronously: Writers must merge DVs (and older position delete files) to ensure there is at most one DV per data file
+    * Readers can safely ignore position delete files if there is a DV for a data file
+* Writers are not allowed to add new position delete files to v3 tables
+* Existing position delete files are valid in tables that have been upgraded from v2
+    * These position delete files must be merged into the DV for a data file when one is created
+    * Position delete files that contain deletes for more than one data file need to be kept in table metadata until all deletes are replaced by DVs
 
 ### Version 2
 
