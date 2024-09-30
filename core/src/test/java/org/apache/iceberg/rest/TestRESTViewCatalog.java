@@ -50,8 +50,9 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
@@ -153,14 +154,14 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     }
   }
 
-  @Test
-  public void testPaginationForListViews() {
+  @ParameterizedTest
+  @ValueSource(ints = {21, 30})
+  public void testPaginationForListViews(int numberOfItems) {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
 
-    int numberOfItems = 30;
     String namespaceName = "newdb";
     String viewName = "newview";
 
