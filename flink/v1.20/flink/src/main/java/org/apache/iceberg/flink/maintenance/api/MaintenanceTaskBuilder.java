@@ -19,8 +19,8 @@
 package org.apache.iceberg.flink.maintenance.api;
 
 import java.time.Duration;
+import org.apache.flink.annotation.Experimental;
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.api.common.operators.util.OperatorValidationUtils;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -28,7 +28,7 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.operator.TriggerEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
-@PublicEvolving
+@Experimental
 @SuppressWarnings("unchecked")
 public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>> {
   private int index;
@@ -199,7 +199,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
       String mainUidSuffix,
       String mainSlotSharingGroup,
       int mainParallelism) {
-    Preconditions.checkNotNull(defaultTaskName, "Name should not be null");
+    Preconditions.checkNotNull(defaultTaskName, "Task name should not be null");
     Preconditions.checkNotNull(newTableLoader, "TableLoader should not be null");
 
     this.index = defaultTaskIndex;

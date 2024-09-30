@@ -78,7 +78,7 @@ public class TableMaintenance {
     Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
     Preconditions.checkNotNull(lockFactory, "LockFactory should not be null");
 
-    return new Builder(changeStream, tableLoader, lockFactory);
+    return new Builder(null, changeStream, tableLoader, lockFactory);
   }
 
   /**
@@ -96,7 +96,7 @@ public class TableMaintenance {
     Preconditions.checkNotNull(tableLoader, "TableLoader should not be null");
     Preconditions.checkNotNull(lockFactory, "LockFactory should not be null");
 
-    return new Builder(env, tableLoader, lockFactory);
+    return new Builder(env, null, tableLoader, lockFactory);
   }
 
   public static class Builder {
@@ -114,19 +114,11 @@ public class TableMaintenance {
     private int maxReadBack = 100;
 
     private Builder(
-        StreamExecutionEnvironment env, TableLoader tableLoader, TriggerLockFactory lockFactory) {
-      this.env = env;
-      this.inputStream = null;
-      this.tableLoader = tableLoader;
-      this.lockFactory = lockFactory;
-      this.taskBuilders = Lists.newArrayListWithCapacity(4);
-    }
-
-    private Builder(
+        StreamExecutionEnvironment env,
         DataStream<TableChange> inputStream,
         TableLoader tableLoader,
         TriggerLockFactory lockFactory) {
-      this.env = null;
+      this.env = env;
       this.inputStream = inputStream;
       this.tableLoader = tableLoader;
       this.lockFactory = lockFactory;
@@ -134,7 +126,7 @@ public class TableMaintenance {
     }
 
     /**
-     * The prefix used for the generated {@link Transformation}'s uid.
+     * The suffix used for the generated {@link Transformation}'s uid.
      *
      * @param newUidSuffix for the transformations
      */
