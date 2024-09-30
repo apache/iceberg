@@ -125,9 +125,9 @@ The blob metadata for this blob may include following properties:
 
 #### `delete-vector-v1` blob type
 
-A serialized delete vector that indicates rows of a file that are deleted by
-the position encoded in a bitmap. A 1 at position P indicates that the row at
-position P is deleted.
+A serialized delete vector that represents the positions of rows in a file that
+are deleted.  A set bit at position P indicates that the row at position P is
+deleted.
 
 The bitmap supports positive 64-bit positions, but is optimized for cases where
 most positions fit in 32 bits by using a collection of 32-bit Roaring bitmaps.
