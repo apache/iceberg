@@ -105,7 +105,7 @@ class VectorHolderTest {
 
   @Test
   void testIsDummyWithConstantVectorHolder() {
-    // Test case where vector is a NullVector instance and constantValue is non-null
+    // Test case where vector is null and constantValue is non-null
     assertThat(VectorHolder.constantHolder(icebergField, 0, "a").isDummy()).isTrue();
   }
 }
