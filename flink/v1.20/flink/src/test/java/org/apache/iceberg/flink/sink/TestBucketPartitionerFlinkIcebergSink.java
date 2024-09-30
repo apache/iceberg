@@ -106,7 +106,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
     };
   }
 
-  private void setupEnvironment(TableSchemaType tableSchemaType) {
+  private void setupEnvironment() {
     PartitionSpec partitionSpec = tableSchemaType.getPartitionSpec(numBuckets);
     table =
         CATALOG_EXTENSION
@@ -155,11 +155,11 @@ public class TestBucketPartitionerFlinkIcebergSink {
 
   @TestTemplate
   public void testSendRecordsToAllBucketsEvenly() throws Exception {
-    setupEnvironment(tableSchemaType);
+    setupEnvironment();
     List<RowData> rows = generateTestDataRows();
 
     appendRowsToTable(rows);
-    TableTestStats stats = extractPartitionResults(tableSchemaType);
+    TableTestStats stats = extractPartitionResults();
 
     assertThat(stats.totalRowCount).isEqualTo(rows.size());
     // All 4 buckets should've been written to
@@ -189,8 +189,7 @@ public class TestBucketPartitionerFlinkIcebergSink {
     return TestBucketPartitionerUtil.generateRowsForBucketIdRange(numRowsPerBucket, numBuckets);
   }
 
-  private TableTestStats extractPartitionResults(TableSchemaType tableSchemaType)
-      throws IOException {
+  private TableTestStats extractPartitionResults() throws IOException {
     int totalRecordCount = 0;
     Map<Integer, List<Integer>> writersPerBucket = Maps.newHashMap(); // <BucketId, List<WriterId>>
     Map<Integer, Integer> filesPerBucket = Maps.newHashMap(); // <BucketId, NumFiles>
