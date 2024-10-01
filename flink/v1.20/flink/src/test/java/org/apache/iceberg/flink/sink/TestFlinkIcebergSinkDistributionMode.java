@@ -87,10 +87,10 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
   @Parameters(name = "parallelism = {0}, partitioned = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {1, true, false},
-      {1, false, false},
-      {2, true, false},
-      {2, false, false}
+      {1, true},
+      {1, false},
+      {2, true},
+      {2, false}
     };
   }
 
