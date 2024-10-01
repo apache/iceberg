@@ -461,23 +461,23 @@ public class FlinkSink {
       List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
       if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
         Set<Integer> equalityFieldSet =
-                Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
+            Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
         for (String column : equalityFieldColumns) {
           org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
           Preconditions.checkNotNull(
-                  field,
-                  "Missing required equality field column '%s' in table schema %s",
-                  column,
-                  table.schema());
+              field,
+              "Missing required equality field column '%s' in table schema %s",
+              column,
+              table.schema());
           equalityFieldSet.add(field.fieldId());
         }
 
         if (!equalityFieldSet.equals(table.schema().identifierFieldIds())) {
           LOG.warn(
-                  "The configured equality field column IDs {} are not matched with the schema identifier field IDs"
-                          + " {}, use job specified equality field columns as the equality fields by default.",
-                  equalityFieldSet,
-                  table.schema().identifierFieldIds());
+              "The configured equality field column IDs {} are not matched with the schema identifier field IDs"
+                  + " {}, use job specified equality field columns as the equality fields by default.",
+              equalityFieldSet,
+              table.schema().identifierFieldIds());
         }
         equalityFieldIds = Lists.newArrayList(equalityFieldSet);
       }

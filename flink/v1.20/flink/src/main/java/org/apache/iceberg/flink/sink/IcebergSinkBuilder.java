@@ -64,7 +64,7 @@ public interface IcebergSinkBuilder<T extends IcebergSinkBuilder<?>> {
   DataStreamSink<?> append();
 
   static IcebergSinkBuilder<?> forRow(
-          DataStream<Row> input, TableSchema tableSchema, boolean useV2Sink) {
+      DataStream<Row> input, TableSchema tableSchema, boolean useV2Sink) {
     if (useV2Sink) {
       return IcebergSink.forRow(input, tableSchema);
     } else {
