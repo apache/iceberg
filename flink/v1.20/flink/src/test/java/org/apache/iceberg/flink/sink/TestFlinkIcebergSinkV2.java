@@ -112,16 +112,28 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, useV2Sink).table(table);
 
     // Use schema identifier field IDs as equality field id list by default
-    assertThat(builder.checkAndGetEqualityFieldIds())
-        .containsExactlyInAnyOrderElementsOf(table.schema().identifierFieldIds());
+    assertThat(
+            SinkTestUtil.invokeIcebergSinkBuilderMethod(
+                builder,
+                FlinkSink.Builder::checkAndGetEqualityFieldIds,
+                IcebergSink.Builder::checkAndGetEqualityFieldIds))
+        .containsAll(table.schema().identifierFieldIds());
 
     // Use user-provided equality field column as equality field id list
     builder.equalityFieldColumns(Lists.newArrayList("id"));
-    assertThat(builder.checkAndGetEqualityFieldIds())
+    assertThat(
+            SinkTestUtil.invokeIcebergSinkBuilderMethod(
+                builder,
+                FlinkSink.Builder::checkAndGetEqualityFieldIds,
+                IcebergSink.Builder::checkAndGetEqualityFieldIds))
         .containsExactlyInAnyOrder(table.schema().findField("id").fieldId());
 
     builder.equalityFieldColumns(Lists.newArrayList("type"));
-    assertThat(builder.checkAndGetEqualityFieldIds())
+    assertThat(
+            SinkTestUtil.invokeIcebergSinkBuilderMethod(
+                builder,
+                FlinkSink.Builder::checkAndGetEqualityFieldIds,
+                IcebergSink.Builder::checkAndGetEqualityFieldIds))
         .containsExactlyInAnyOrder(table.schema().findField("type").fieldId());
   }
 

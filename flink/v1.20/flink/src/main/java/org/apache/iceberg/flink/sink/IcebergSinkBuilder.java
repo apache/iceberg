@@ -20,7 +20,6 @@ package org.apache.iceberg.flink.sink;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -29,82 +28,43 @@ import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
-import org.apache.iceberg.SerializableTable;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Internal
 /*
  This class is for internal purpose of transition between the previous implementation of Flink's sink (FlinkSink)
- and the new one implementation based on Flink v2 sink's API (IcebergSink)
+ and the new one implementation based on Flink v2 sink's API (IcebergSink). After we remove the previous implementation,
+ all occurrences of this class would be replaced by direct IcebergSink usage.
 */
-public abstract class IcebergSinkBuilder<T extends IcebergSinkBuilder<?>> {
+public interface IcebergSinkBuilder<T extends IcebergSinkBuilder<?>> {
 
-  private static final Logger LOG = LoggerFactory.getLogger(IcebergSinkBuilder.class);
+  T tableSchema(TableSchema newTableSchema);
 
-  public abstract T tableSchema(TableSchema newTableSchema);
+  T tableLoader(TableLoader newTableLoader);
 
-  public abstract T tableLoader(TableLoader newTableLoader);
+  T equalityFieldColumns(List<String> columns);
 
-  public abstract T equalityFieldColumns(List<String> columns);
+  T overwrite(boolean newOverwrite);
 
-  public abstract T overwrite(boolean newOverwrite);
+  T setAll(Map<String, String> properties);
 
-  public abstract T setAll(Map<String, String> properties);
+  T flinkConf(ReadableConfig config);
 
-  public abstract T flinkConf(ReadableConfig config);
+  T table(Table newTable);
 
-  public abstract T table(Table newTable);
+  T writeParallelism(int newWriteParallelism);
 
-  public abstract T writeParallelism(int newWriteParallelism);
+  T distributionMode(DistributionMode mode);
 
-  public abstract T distributionMode(DistributionMode mode);
+  T toBranch(String branch);
 
-  public abstract T toBranch(String branch);
+  T upsert(boolean enabled);
 
-  public abstract T upsert(boolean enabled);
+  DataStreamSink<?> append();
 
-  public abstract DataStreamSink<?> append();
-
-  protected abstract SerializableTable getTable();
-
-  protected abstract List<String> getEqualityFieldColumns();
-
-  @VisibleForTesting
-  final List<Integer> checkAndGetEqualityFieldIds() {
-    List<Integer> equalityFieldIds = Lists.newArrayList(getTable().schema().identifierFieldIds());
-    if (getEqualityFieldColumns() != null && !getEqualityFieldColumns().isEmpty()) {
-      Set<Integer> equalityFieldSet =
-          Sets.newHashSetWithExpectedSize(getEqualityFieldColumns().size());
-      for (String column : getEqualityFieldColumns()) {
-        org.apache.iceberg.types.Types.NestedField field = getTable().schema().findField(column);
-        org.apache.iceberg.relocated.com.google.common.base.Preconditions.checkNotNull(
-            field,
-            "Missing required equality field column '%s' in table schema %s",
-            column,
-            getTable().schema());
-        equalityFieldSet.add(field.fieldId());
-      }
-
-      if (!equalityFieldSet.equals(getTable().schema().identifierFieldIds())) {
-        LOG.warn(
-            "The configured equality field column IDs {} are not matched with the schema identifier field IDs"
-                + " {}, use job specified equality field columns as the equality fields by default.",
-            equalityFieldSet,
-            getTable().schema().identifierFieldIds());
-      }
-      equalityFieldIds = Lists.newArrayList(equalityFieldSet);
-    }
-    return equalityFieldIds;
-  }
-
-  public static IcebergSinkBuilder<?> forRow(
-      DataStream<Row> input, TableSchema tableSchema, boolean useV2Sink) {
+  static IcebergSinkBuilder<?> forRow(
+          DataStream<Row> input, TableSchema tableSchema, boolean useV2Sink) {
     if (useV2Sink) {
       return IcebergSink.forRow(input, tableSchema);
     } else {
@@ -112,7 +72,7 @@ public abstract class IcebergSinkBuilder<T extends IcebergSinkBuilder<?>> {
     }
   }
 
-  public static IcebergSinkBuilder<?> forRowData(DataStream<RowData> input, boolean useV2Sink) {
+  static IcebergSinkBuilder<?> forRowData(DataStream<RowData> input, boolean useV2Sink) {
     if (useV2Sink) {
       return IcebergSink.forRowData(input);
     } else {
