@@ -401,7 +401,13 @@ abstract class BaseDistributedDataScan
     return count == null || !count.equals("0");
   }
 
-  // a monitor pool that enables planing data and deletes concurrently if remote planning is used
+  /**
+   * Creates a monitor pool that enables planing data and deletes concurrently if remote planning is
+   * used
+   *
+   * <p><b>Important:</b> Callers are responsible for shutting down the returned executor service
+   * when it is no longer needed
+   */
   private ExecutorService newMonitorPool() {
     return ThreadPools.newFixedThreadPool("iceberg-planning-monitor-service", MONITOR_POOL_SIZE);
   }
