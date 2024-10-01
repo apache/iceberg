@@ -65,7 +65,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBase {
 
-  // It is hardcoded because rangeDistributionStatisticsType is configurable on for v1 (FlinkSink)
+  // It is hardcoded because rangeDistributionStatisticsType is configurable only for v1 (FlinkSink)
   private static final boolean DO_NOT_USE_V2_SINK = false;
 
   @RegisterExtension
