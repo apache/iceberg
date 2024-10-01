@@ -371,3 +371,28 @@ and [deleting orphan files](maintenance.md#delete-orphan-files) could possibly c
 the state of the Flink job. To avoid that, make sure to keep the last snapshot created by the Flink
 job (which can be identified by the `flink.job-id` property in the summary), and only delete
 orphan files that are old enough.
+
+# Flink Writes (SinkV2 based implementation)
+
+The [SinkV2 interface](https://cwiki.apache.org/confluence/display/FLINK/FLIP-191%3A+Extend+unified+Sink+interface+to+support+small+file+compaction)
+was introduced in Flink 1.15.
+The previous [SinkV1 interface](https://cwiki.apache.org/confluence/display/FLINK/FLIP-143%3A+Unified+Sink+API)
+had some limitations - for example it created a lot of small files when writing to it. This problem is called
+the `small-file-compaction` problem in
+the [FLIP-191 document](https://cwiki.apache.org/confluence/display/FLINK/FLIP-191%3A+Extend+unified+Sink+interface+to+support+small+file+compaction).
+The default `FlinkSink` implementation available in `iceberg-flink` module builds its own `StreamOperator`s chain ends with `DiscardingSink`.
+However, in the same module, there is also `IcebergSink` which is based on the SinkV2 API.
+The SinkV2 based `IcebergSink` is currently an experimental feature.
+
+## Writing with SQL
+
+To turn on SinkV2 based implementation in SQL, set this configuration option:
+```sql
+SET table.exec.iceberg.use-v2-sink = true;
+```
+
+## Writing with DataStream
+
+To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in the provided snippets.
+Warning: some settings are not available in this class (e.g. `rangeDistributionStatisticsType`),
+some others are slightly different (e.g. there is a `uidSuffix` method instead of `uidPrefix`).

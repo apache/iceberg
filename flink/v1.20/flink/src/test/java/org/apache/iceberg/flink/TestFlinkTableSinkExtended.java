@@ -91,11 +91,19 @@ public class TestFlinkTableSinkExtended extends SqlBase {
 
   private TableEnvironment tEnv;
 
-  @Parameter protected boolean isStreamingJob;
+  @Parameter(index = 0)
+  protected boolean isStreamingJob;
 
-  @Parameters(name = "isStreamingJob={0}")
+  @Parameter(index = 1)
+  protected boolean useV2Sink;
+
+  @Parameters(name = "isStreamingJob={0}, useV2Sink={1}")
   protected static List<Object[]> parameters() {
-    return Arrays.asList(new Boolean[] {true}, new Boolean[] {false});
+    return Arrays.asList(
+        new Boolean[] {true, false},
+        new Boolean[] {false, false},
+        new Boolean[] {true, true},
+        new Boolean[] {false, true});
   }
 
   protected synchronized TableEnvironment getTableEnv() {
@@ -115,6 +123,9 @@ public class TestFlinkTableSinkExtended extends SqlBase {
         tEnv = TableEnvironment.create(settingsBuilder.build());
       }
     }
+    tEnv.getConfig()
+        .getConfiguration()
+        .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK, useV2Sink);
     return tEnv;
   }
 
