@@ -50,7 +50,7 @@ public class CountersBenchmark {
   public void defaultCounterMultipleThreads(Blackhole blackhole) {
     Counter counter = new DefaultCounter(Unit.BYTES);
 
-    ExecutorService workerPool = ThreadPools.newWorkerPool("bench-pool", WORKER_POOL_SIZE);
+    ExecutorService workerPool = ThreadPools.newFixedThreadPool("bench-pool", WORKER_POOL_SIZE);
 
     try {
       Tasks.range(WORKER_POOL_SIZE)
