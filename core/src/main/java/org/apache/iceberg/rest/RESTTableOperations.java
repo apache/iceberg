@@ -107,8 +107,10 @@ class RESTTableOperations implements TableOperations {
   @Override
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
-    updateCurrentMetadataAndIo(
-        client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
+    LoadTableResponse loadTableResponse =
+            client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler());
+    updateCurrentMetadata(loadTableResponse);
+    updateIo(loadTableResponse);
     return this.current;
   }
 
@@ -166,7 +168,7 @@ class RESTTableOperations implements TableOperations {
     // all future commits should be simple commits
     this.updateType = UpdateType.SIMPLE;
 
-    updateCurrentMetadataAndIo(response);
+    updateCurrentMetadata(response);
   }
 
   @Override
@@ -174,9 +176,11 @@ class RESTTableOperations implements TableOperations {
     return io;
   }
 
-  private void updateCurrentMetadataAndIo(LoadTableResponse response) {
+  private void updateCurrentMetadata(LoadTableResponse response) {
     this.current = response.tableMetadata();
+  }
 
+  private void updateIo(LoadTableResponse response) {
     Map<String, String> mergedConfig = RESTUtil.merge(this.io.properties(), response.config());
     String ioImpl = mergedConfig.getOrDefault(CatalogProperties.FILE_IO_IMPL, CatalogProperties.DEFAULT_FILE_IO_IMPL);
     Object hadoopConf = null;
