@@ -18,18 +18,35 @@
  */
 package org.apache.iceberg.deletes;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.function.LongConsumer;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 class BitmapPositionDeleteIndex implements PositionDeleteIndex {
   private final Roaring64Bitmap roaring64Bitmap;
+  private final List<DeleteFile> deleteFiles;
 
   BitmapPositionDeleteIndex() {
-    roaring64Bitmap = new Roaring64Bitmap();
+    this.roaring64Bitmap = new Roaring64Bitmap();
+    this.deleteFiles = Lists.newArrayList();
+  }
+
+  BitmapPositionDeleteIndex(Collection<DeleteFile> deleteFiles) {
+    this.roaring64Bitmap = new Roaring64Bitmap();
+    this.deleteFiles = Lists.newArrayList(deleteFiles);
+  }
+
+  BitmapPositionDeleteIndex(DeleteFile deleteFile) {
+    this.roaring64Bitmap = new Roaring64Bitmap();
+    this.deleteFiles = deleteFile != null ? Lists.newArrayList(deleteFile) : Lists.newArrayList();
   }
 
   void merge(BitmapPositionDeleteIndex that) {
     roaring64Bitmap.or(that.roaring64Bitmap);
+    deleteFiles.addAll(that.deleteFiles);
   }
 
   @Override
@@ -48,6 +65,7 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
       merge((BitmapPositionDeleteIndex) that);
     } else {
       that.forEach(this::delete);
+      deleteFiles.addAll(that.deleteFiles());
     }
   }
 
@@ -64,5 +82,10 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
   @Override
   public void forEach(LongConsumer consumer) {
     roaring64Bitmap.forEach(consumer::accept);
+  }
+
+  @Override
+  public Collection<DeleteFile> deleteFiles() {
+    return deleteFiles;
   }
 }

@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
@@ -123,6 +124,11 @@ public class Deletes {
     }
   }
 
+  public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
+      CloseableIterable<T> posDeletes) {
+    return toPositionIndexes(posDeletes, null /* unknown delete file */);
+  }
+
   /**
    * Builds a map of position delete indexes by path.
    *
@@ -131,10 +137,11 @@ public class Deletes {
    * entire delete file content is needed (e.g. caching).
    *
    * @param posDeletes position deletes
+   * @param file the source delete file for the deletes
    * @return the map of position delete indexes by path
    */
   public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
-      CloseableIterable<T> posDeletes) {
+      CloseableIterable<T> posDeletes, DeleteFile file) {
     CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
 
     try (CloseableIterable<T> deletes = posDeletes) {
@@ -142,7 +149,7 @@ public class Deletes {
         CharSequence filePath = (CharSequence) FILENAME_ACCESSOR.get(delete);
         long position = (long) POSITION_ACCESSOR.get(delete);
         PositionDeleteIndex index =
-            indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex());
+            indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
         index.delete(position);
       }
     } catch (IOException e) {
@@ -150,6 +157,20 @@ public class Deletes {
     }
 
     return indexes;
+  }
+
+  public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
+      CharSequence dataLocation, CloseableIterable<T> posDeletes, DeleteFile file) {
+    CloseableIterable<Long> positions = extractPositions(dataLocation, posDeletes);
+    List<DeleteFile> files = ImmutableList.of(file);
+    return toPositionIndex(positions, files);
+  }
+
+  private static <T extends StructLike> CloseableIterable<Long> extractPositions(
+      CharSequence dataLocation, CloseableIterable<T> rows) {
+    DataFileFilter<T> filter = new DataFileFilter<>(dataLocation);
+    CloseableIterable<T> filteredRows = filter.filter(rows);
+    return CloseableIterable.transform(filteredRows, row -> (Long) POSITION_ACCESSOR.get(row));
   }
 
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
@@ -176,8 +197,13 @@ public class Deletes {
   }
 
   public static PositionDeleteIndex toPositionIndex(CloseableIterable<Long> posDeletes) {
+    return toPositionIndex(posDeletes, ImmutableList.of());
+  }
+
+  private static PositionDeleteIndex toPositionIndex(
+      CloseableIterable<Long> posDeletes, List<DeleteFile> files) {
     try (CloseableIterable<Long> deletes = posDeletes) {
-      PositionDeleteIndex positionDeleteIndex = new BitmapPositionDeleteIndex();
+      PositionDeleteIndex positionDeleteIndex = new BitmapPositionDeleteIndex(files);
       deletes.forEach(positionDeleteIndex::delete);
       return positionDeleteIndex;
     } catch (IOException e) {
