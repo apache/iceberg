@@ -115,7 +115,7 @@ class RESTTableOperations implements TableOperations, Closeable {
     LoadTableResponse loadTableResponse =
             client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler());
     updateCurrentMetadata(loadTableResponse);
-    updateIo(loadTableResponse);
+    updateIO(loadTableResponse);
     return this.current;
   }
 
@@ -185,7 +185,7 @@ class RESTTableOperations implements TableOperations, Closeable {
     this.current = response.tableMetadata();
   }
 
-  private void updateIo(LoadTableResponse response) {
+  private void updateIO(LoadTableResponse response) {
     Map<String, String> mergedConfig = RESTUtil.merge(this.io.properties(), response.config());
     String ioImpl =mergedConfig.getOrDefault(
             CatalogProperties.FILE_IO_IMPL, CatalogProperties.DEFAULT_REST_FILE_IO_IMPL);
