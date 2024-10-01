@@ -182,7 +182,8 @@ class RESTTableOperations implements TableOperations {
 
   private void updateIo(LoadTableResponse response) {
     Map<String, String> mergedConfig = RESTUtil.merge(this.io.properties(), response.config());
-    String ioImpl = mergedConfig.getOrDefault(CatalogProperties.FILE_IO_IMPL, CatalogProperties.DEFAULT_FILE_IO_IMPL);
+    String ioImpl =mergedConfig.getOrDefault(
+            CatalogProperties.FILE_IO_IMPL, CatalogProperties.DEFAULT_REST_FILE_IO_IMPL);
     Object hadoopConf = null;
     if (this.io instanceof HadoopConfigurable) {
       hadoopConf = ((HadoopConfigurable) this.io).getConf();

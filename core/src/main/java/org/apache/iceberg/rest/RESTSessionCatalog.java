@@ -993,7 +993,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (null != ioBuilder) {
       return ioBuilder.apply(context, properties);
     } else {
-      String ioImpl = properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, CatalogProperties.DEFAULT_FILE_IO_IMPL);
+      String ioImpl = properties.getOrDefault(
+              CatalogProperties.FILE_IO_IMPL, CatalogProperties.DEFAULT_REST_FILE_IO_IMPL);
       return CatalogUtil.loadFileIO(ioImpl, properties, conf);
     }
   }
