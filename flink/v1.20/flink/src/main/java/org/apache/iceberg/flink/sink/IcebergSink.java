@@ -31,7 +31,6 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.flink.annotation.Experimental;
@@ -74,10 +73,7 @@ import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.io.WriteResult;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
@@ -560,34 +556,6 @@ public class IcebergSink
         rowDataDataStreamSink.setParallelism(sink.flinkWriteConf.writeParallelism());
       }
       return rowDataDataStreamSink;
-    }
-
-    @VisibleForTesting
-    List<Integer> checkAndGetEqualityFieldIds() {
-      List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
-      if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
-        Set<Integer> equalityFieldSet =
-            Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
-        for (String column : equalityFieldColumns) {
-          org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
-          org.apache.iceberg.relocated.com.google.common.base.Preconditions.checkNotNull(
-              field,
-              "Missing required equality field column '%s' in table schema %s",
-              column,
-              table.schema());
-          equalityFieldSet.add(field.fieldId());
-        }
-
-        if (!equalityFieldSet.equals(table.schema().identifierFieldIds())) {
-          LOG.warn(
-              "The configured equality field column IDs {} are not matched with the schema identifier field IDs"
-                  + " {}, use job specified equality field columns as the equality fields by default.",
-              equalityFieldSet,
-              table.schema().identifierFieldIds());
-        }
-        equalityFieldIds = Lists.newArrayList(equalityFieldSet);
-      }
-      return equalityFieldIds;
     }
   }
 

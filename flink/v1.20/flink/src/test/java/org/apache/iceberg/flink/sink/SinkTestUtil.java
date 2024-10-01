@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.flink.streaming.api.connector.sink2.CommittableMessage;
 import org.apache.flink.streaming.api.connector.sink2.CommittableSummary;
@@ -59,19 +58,5 @@ class SinkTestUtil {
     final Object value = element.asRecord().getValue();
     assertThat(value).isInstanceOf(CommittableWithLineage.class);
     return (CommittableWithLineage<IcebergCommittable>) value;
-  }
-
-  static <R> R invokeIcebergSinkBuilderMethod(
-      IcebergSinkBuilder<?> sinkBuilder,
-      Function<FlinkSink.Builder, R> processSinkV1Builder,
-      Function<IcebergSink.Builder, R> processSinkV2Builder) {
-    if (sinkBuilder instanceof FlinkSink.Builder) {
-      return processSinkV1Builder.apply((FlinkSink.Builder) sinkBuilder);
-    } else if (sinkBuilder instanceof IcebergSink.Builder) {
-      return processSinkV2Builder.apply((IcebergSink.Builder) sinkBuilder);
-    } else {
-      throw new IllegalArgumentException(
-          "Not expected sinkBuilder class: " + sinkBuilder.getClass());
-    }
   }
 }

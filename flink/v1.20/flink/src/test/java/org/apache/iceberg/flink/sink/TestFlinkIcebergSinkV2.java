@@ -106,34 +106,15 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         .setIdentifierFields("type")
         .commit();
 
-    DataStream<Row> dataStream =
-        env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
-    IcebergSinkBuilder builder =
-        IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, useV2Sink).table(table);
-
     // Use schema identifier field IDs as equality field id list by default
-    assertThat(
-            SinkTestUtil.invokeIcebergSinkBuilderMethod(
-                builder,
-                FlinkSink.Builder::checkAndGetEqualityFieldIds,
-                IcebergSink.Builder::checkAndGetEqualityFieldIds))
+    assertThat(SinkUtil.checkAndGetEqualityFieldIds(table, null))
         .containsAll(table.schema().identifierFieldIds());
 
     // Use user-provided equality field column as equality field id list
-    builder.equalityFieldColumns(Lists.newArrayList("id"));
-    assertThat(
-            SinkTestUtil.invokeIcebergSinkBuilderMethod(
-                builder,
-                FlinkSink.Builder::checkAndGetEqualityFieldIds,
-                IcebergSink.Builder::checkAndGetEqualityFieldIds))
+    assertThat(SinkUtil.checkAndGetEqualityFieldIds(table, Lists.newArrayList("id")))
         .containsExactlyInAnyOrder(table.schema().findField("id").fieldId());
 
-    builder.equalityFieldColumns(Lists.newArrayList("type"));
-    assertThat(
-            SinkTestUtil.invokeIcebergSinkBuilderMethod(
-                builder,
-                FlinkSink.Builder::checkAndGetEqualityFieldIds,
-                IcebergSink.Builder::checkAndGetEqualityFieldIds))
+    assertThat(SinkUtil.checkAndGetEqualityFieldIds(table, Lists.newArrayList("type")))
         .containsExactlyInAnyOrder(table.schema().findField("type").fieldId());
   }
 
