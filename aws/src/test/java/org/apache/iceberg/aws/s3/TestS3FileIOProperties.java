@@ -36,6 +36,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -490,5 +492,18 @@ public class TestS3FileIOProperties {
 
     Mockito.verify(mockS3ClientBuilder)
         .overrideConfiguration(Mockito.any(ClientOverrideConfiguration.class));
+  }
+
+  @Test
+  public void testApplyRetryConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.S3_RETRY_NUM_RETRIES, "999");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+
+    S3ClientBuilder builder = S3Client.builder();
+    s3FileIOProperties.applyRetryConfigurations(builder);
+
+    RetryPolicy retryPolicy = builder.overrideConfiguration().retryPolicy().get();
+    assertThat(retryPolicy.numRetries()).as("retries was not set").isEqualTo(999);
   }
 }
