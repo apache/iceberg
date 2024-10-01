@@ -18,7 +18,10 @@
  */
 package org.apache.iceberg.deletes;
 
+import java.util.Collection;
 import java.util.function.LongConsumer;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 
 public interface PositionDeleteIndex {
   /**
@@ -42,6 +45,9 @@ public interface PositionDeleteIndex {
    * @param that the other index to merge
    */
   default void merge(PositionDeleteIndex that) {
+    if (!that.deleteFiles().isEmpty()) {
+      throw new UnsupportedOperationException(getClass().getName() + " does not support merge");
+    }
     that.forEach(this::delete);
   }
 
@@ -70,6 +76,15 @@ public interface PositionDeleteIndex {
     if (isNotEmpty()) {
       throw new UnsupportedOperationException(getClass().getName() + " does not support forEach");
     }
+  }
+
+  /**
+   * Returns delete files that this index was created from or an empty collection if unknown.
+   *
+   * @return delete files that this index was created from
+   */
+  default Collection<DeleteFile> deleteFiles() {
+    return ImmutableList.of();
   }
 
   /** Returns an empty immutable position delete index. */
