@@ -688,12 +688,6 @@ public class BaseTransaction implements Transaction {
     }
 
     @Override
-    public MetadataMaintenance maintenance() {
-      throw new UnsupportedOperationException(
-          "Cannot perform metadata maintenance as part of a transaction");
-    }
-
-    @Override
     public ReplaceSortOrder replaceSortOrder() {
       return BaseTransaction.this.replaceSortOrder();
     }

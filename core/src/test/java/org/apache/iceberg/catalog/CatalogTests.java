@@ -40,7 +40,6 @@ import org.apache.iceberg.FilesTable;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReachableFileUtil;
-import org.apache.iceberg.RemoveUnusedSpecs;
 import org.apache.iceberg.ReplaceSortOrder;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -1152,28 +1151,6 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     assertThat(loaded.spec().fields())
         .as("Loaded table should have expected spec")
         .isEqualTo(expected.fields());
-  }
-
-  @Test
-  public void testRemoveUnusedSpec() {
-    C catalog = catalog();
-
-    if (requiresNamespaceCreate()) {
-      catalog.createNamespace(NS);
-    }
-
-    Table table = catalog.buildTable(TABLE, SCHEMA).create();
-    table.updateSpec().addField("shard", Expressions.bucket("id", 16)).commit();
-    table.updateSpec().addField("data").commit();
-    int currentSpecId = table.spec().specId();
-
-    RemoveUnusedSpecs remove = table.maintenance().removeUnusedSpecs();
-    List<PartitionSpec> specsToRetain = remove.apply();
-    assertThat(specsToRetain).hasSize(1).map(PartitionSpec::specId).contains(currentSpecId);
-
-    remove.commit();
-    Table loaded = catalog.loadTable(TABLE);
-    assertThat(loaded.specs().values()).hasSameElementsAs(specsToRetain);
   }
 
   @Test
