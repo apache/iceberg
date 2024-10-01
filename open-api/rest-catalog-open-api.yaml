@@ -63,6 +63,8 @@ security:
 
 paths:
   /v1/config:
+    parameters:
+      - $ref: '#/components/parameters/context'
 
     get:
       tags:
@@ -169,6 +171,8 @@ paths:
           $ref: '#/components/responses/ServerErrorResponse'
 
   /v1/oauth/tokens:
+    parameters:
+      - $ref: '#/components/parameters/context'
 
     post:
       tags:
@@ -240,6 +244,7 @@ paths:
   /v1/{prefix}/namespaces:
     parameters:
       - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/context'
 
     get:
       tags:
@@ -337,6 +342,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/context'
 
     get:
       tags:
@@ -435,6 +441,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/context'
 
     post:
       tags:
@@ -498,6 +505,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/context'
 
     get:
       tags:
@@ -852,6 +860,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/context'
 
     post:
       tags:
@@ -906,6 +915,7 @@ paths:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
+      - $ref: '#/components/parameters/context'
 
     get:
       tags:
@@ -1162,6 +1172,7 @@ paths:
   /v1/{prefix}/tables/rename:
     parameters:
       - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/context'
 
     post:
       tags:
@@ -1226,6 +1237,7 @@ paths:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/table'
+      - $ref: '#/components/parameters/context'
 
     post:
       tags:
@@ -1268,6 +1280,7 @@ paths:
   /v1/{prefix}/transactions/commit:
     parameters:
       - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/context'
 
     post:
       tags:
@@ -1384,6 +1397,7 @@ paths:
     parameters:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/context'
 
     get:
       tags:
@@ -1471,6 +1485,7 @@ paths:
       - $ref: '#/components/parameters/prefix'
       - $ref: '#/components/parameters/namespace'
       - $ref: '#/components/parameters/view'
+      - $ref: '#/components/parameters/context'
 
     get:
       tags:
@@ -1676,6 +1691,7 @@ paths:
   /v1/{prefix}/views/rename:
     parameters:
       - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/context'
 
     post:
       tags:
@@ -1834,6 +1850,20 @@ components:
       schema:
         type: integer
         minimum: 1
+
+    context:
+      name: context
+      in: query
+      description:
+        A free-form key value map to provide engine or catalog-specific information for a request.
+        The information is serialized in unexploded form format in OpenAPI specification, for example
+        `GET /tables/t1?context=engine,spark,access,read` describes the context `{engine=spark,access=read}`.
+      required: false
+      explode: false
+      schema:
+        type: object
+        additionalProperties:
+          type: string
 
   ##############################
   # Application Schema Objects #
