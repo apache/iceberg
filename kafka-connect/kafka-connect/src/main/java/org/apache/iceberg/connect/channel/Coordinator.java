@@ -90,7 +90,7 @@ class Coordinator extends Channel {
     this.snapshotOffsetsProp =
         String.format(
             "kafka.connect.offsets.%s.%s", config.controlTopic(), config.connectGroupId());
-    this.exec = ThreadPools.newWorkerPool("iceberg-committer", config.commitThreads());
+    this.exec = ThreadPools.newFixedThreadPool("iceberg-committer", config.commitThreads());
     this.commitState = new CommitState(config);
   }
 

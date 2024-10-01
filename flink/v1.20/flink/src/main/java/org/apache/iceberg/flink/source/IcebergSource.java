@@ -153,7 +153,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     ExecutorService workerPool =
-        ThreadPools.newWorkerPool(threadName, scanContext.planParallelism());
+        ThreadPools.newFixedThreadPool(threadName, scanContext.planParallelism());
     try (TableLoader loader = tableLoader.clone()) {
       loader.open();
       this.batchSplits =

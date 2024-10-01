@@ -106,7 +106,7 @@ public class StreamingMonitorFunction extends RichSourceFunction<FlinkInputSplit
         "context should be instance of StreamingRuntimeContext");
     final String operatorID = ((StreamingRuntimeContext) runtimeContext).getOperatorUniqueID();
     this.workerPool =
-        ThreadPools.newWorkerPool(
+        ThreadPools.newFixedThreadPool(
             "iceberg-worker-pool-" + operatorID, scanContext.planParallelism());
   }
 
