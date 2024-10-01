@@ -173,11 +173,19 @@ public class Deletes {
     return CloseableIterable.transform(filteredRows, row -> (Long) POSITION_ACCESSOR.get(row));
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0; use delete loaders.
+   */
+  @Deprecated
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
       CharSequence dataLocation, List<CloseableIterable<T>> deleteFiles) {
     return toPositionIndex(dataLocation, deleteFiles, ThreadPools.getDeleteWorkerPool());
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0; use delete loaders.
+   */
+  @Deprecated
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
       CharSequence dataLocation,
       List<CloseableIterable<T>> deleteFiles,
