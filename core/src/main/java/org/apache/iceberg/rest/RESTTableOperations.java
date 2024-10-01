@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,6 +38,7 @@ import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -46,7 +49,7 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.util.LocationUtil;
 
-class RESTTableOperations implements TableOperations {
+class RESTTableOperations implements TableOperations, Closeable {
   private static final String METADATA_FOLDER_NAME = "metadata";
 
   enum UpdateType {
@@ -61,6 +64,7 @@ class RESTTableOperations implements TableOperations {
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
   private final Set<Endpoint> endpoints;
+  private final CloseableGroup closeableGroup;
   private UpdateType updateType;
   private TableMetadata current;
   private FileIO io;
@@ -97,6 +101,7 @@ class RESTTableOperations implements TableOperations {
       this.current = current;
     }
     this.endpoints = endpoints;
+    this.closeableGroup = new CloseableGroup();
   }
 
   @Override
@@ -189,9 +194,8 @@ class RESTTableOperations implements TableOperations {
       hadoopConf = ((HadoopConfigurable) this.io).getConf();
     }
 
-    FileIO oldIo = this.io;
+    closeableGroup.addCloseable(this.io);
     this.io = CatalogUtil.loadFileIO(ioImpl, mergedConfig, hadoopConf);
-    oldIo.close();
   }
 
   private static String metadataFileLocation(TableMetadata metadata, String filename) {
@@ -259,5 +263,11 @@ class RESTTableOperations implements TableOperations {
         return RESTTableOperations.this.newSnapshotId();
       }
     };
+  }
+
+  public void close() throws IOException {
+    if (null != closeableGroup) {
+      closeableGroup.close();
+    }
   }
 }
