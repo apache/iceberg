@@ -416,7 +416,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       ManifestWriter<F> writer = newManifestWriter(reader.spec());
       try {
         reader
-            .entries()
+            .liveEntries()
             .forEach(
                 entry -> {
                   F file = entry.file();
@@ -427,40 +427,38 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                               && entry.isLive()
                               && entry.dataSequenceNumber() > 0
                               && entry.dataSequenceNumber() < minSequenceNumber);
-                  if (entry.status() != ManifestEntry.Status.DELETED) {
-                    if (markedForDelete || evaluator.rowsMightMatch(file)) {
-                      boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
-                      ValidationException.check(
-                          allRowsMatch
-                              || isDelete, // ignore delete files where some records may not match
-                          // the expression
-                          "Cannot delete file where some, but not all, rows match filter %s: %s",
-                          this.deleteExpression,
-                          file.path());
+                  if (markedForDelete || evaluator.rowsMightMatch(file)) {
+                    boolean allRowsMatch = markedForDelete || evaluator.rowsMustMatch(file);
+                    ValidationException.check(
+                        allRowsMatch
+                            || isDelete, // ignore delete files where some records may not match
+                        // the expression
+                        "Cannot delete file where some, but not all, rows match filter %s: %s",
+                        this.deleteExpression,
+                        file.path());
 
-                      if (allRowsMatch) {
-                        writer.delete(entry);
+                    if (allRowsMatch) {
+                      writer.delete(entry);
 
-                        CharSequenceWrapper wrapper = CharSequenceWrapper.wrap(entry.file().path());
-                        if (deletedPaths.contains(wrapper)) {
-                          LOG.warn(
-                              "Deleting a duplicate path from manifest {}: {}",
-                              manifest.path(),
-                              wrapper.get());
-                          duplicateDeleteCount += 1;
-                        } else {
-                          // only add the file to deletes if it is a new delete
-                          // this keeps the snapshot summary accurate for non-duplicate data
-                          deletedFiles.add(entry.file().copyWithoutStats());
-                          deletedPaths.add(wrapper);
-                        }
+                      CharSequenceWrapper wrapper = CharSequenceWrapper.wrap(entry.file().path());
+                      if (deletedPaths.contains(wrapper)) {
+                        LOG.warn(
+                            "Deleting a duplicate path from manifest {}: {}",
+                            manifest.path(),
+                            wrapper.get());
+                        duplicateDeleteCount += 1;
                       } else {
-                        writer.existing(entry);
+                        // only add the file to deletes if it is a new delete
+                        // this keeps the snapshot summary accurate for non-duplicate data
+                        deletedFiles.add(entry.file().copyWithoutStats());
+                        deletedPaths.add(wrapper);
                       }
-
                     } else {
                       writer.existing(entry);
                     }
+
+                  } else {
+                    writer.existing(entry);
                   }
                 });
       } finally {
