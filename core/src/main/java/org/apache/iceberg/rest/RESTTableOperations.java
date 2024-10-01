@@ -24,6 +24,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.TableMetadata;
@@ -32,6 +34,8 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.hadoop.Configurable;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -54,12 +58,12 @@ class RESTTableOperations implements TableOperations {
   private final RESTClient client;
   private final String path;
   private final Supplier<Map<String, String>> headers;
-  private final FileIO io;
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
   private final Set<Endpoint> endpoints;
   private UpdateType updateType;
   private TableMetadata current;
+  private FileIO io;
 
   RESTTableOperations(
       RESTClient client,
@@ -103,8 +107,9 @@ class RESTTableOperations implements TableOperations {
   @Override
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
-    return updateCurrentMetadata(
+    updateCurrentMetadataAndIo(
         client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
+    return this.current;
   }
 
   @Override
@@ -161,7 +166,7 @@ class RESTTableOperations implements TableOperations {
     // all future commits should be simple commits
     this.updateType = UpdateType.SIMPLE;
 
-    updateCurrentMetadata(response);
+    updateCurrentMetadataAndIo(response);
   }
 
   @Override
@@ -169,16 +174,19 @@ class RESTTableOperations implements TableOperations {
     return io;
   }
 
-  private TableMetadata updateCurrentMetadata(LoadTableResponse response) {
-    // LoadTableResponse is used to deserialize the response, but config is not allowed by the REST
-    // spec so it can be
-    // safely ignored. there is no requirement to update config on refresh or commit.
-    if (current == null
-        || !Objects.equals(current.metadataFileLocation(), response.metadataLocation())) {
-      this.current = response.tableMetadata();
+  private void updateCurrentMetadataAndIo(LoadTableResponse response) {
+    this.current = response.tableMetadata();
+
+    Map<String, String> mergedConfig = RESTUtil.merge(this.io.properties(), response.config());
+    String ioImpl = mergedConfig.getOrDefault(CatalogProperties.FILE_IO_IMPL, CatalogProperties.DEFAULT_FILE_IO_IMPL);
+    Object hadoopConf = null;
+    if (this.io instanceof HadoopConfigurable) {
+      hadoopConf = ((HadoopConfigurable) this.io).getConf();
     }
 
-    return current;
+    FileIO oldIo = this.io;
+    this.io = CatalogUtil.loadFileIO(ioImpl, mergedConfig, hadoopConf);
+    oldIo.close();
   }
 
   private static String metadataFileLocation(TableMetadata metadata, String filename) {

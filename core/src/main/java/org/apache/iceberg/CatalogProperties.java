@@ -26,6 +26,7 @@ public class CatalogProperties {
 
   public static final String CATALOG_IMPL = "catalog-impl";
   public static final String FILE_IO_IMPL = "io-impl";
+  public static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   public static final String WAREHOUSE_LOCATION = "warehouse";
   public static final String TABLE_DEFAULT_PREFIX = "table-default.";
   public static final String TABLE_OVERRIDE_PREFIX = "table-override.";
