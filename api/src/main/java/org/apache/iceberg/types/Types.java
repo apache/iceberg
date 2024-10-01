@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -421,22 +422,12 @@ public class Types {
       return new NestedField(true, id, name, type, doc, null, null);
     }
 
-    public static NestedField optional(
-        int id, String name, Type type, String doc, Object initialDefault, Object writeDefault) {
-      return new NestedField(true, id, name, type, doc, initialDefault, writeDefault);
-    }
-
     public static NestedField required(int id, String name, Type type) {
       return new NestedField(false, id, name, type, null, null, null);
     }
 
     public static NestedField required(int id, String name, Type type, String doc) {
       return new NestedField(false, id, name, type, doc, null, null);
-    }
-
-    public static NestedField required(
-        int id, String name, Type type, String doc, Object initialDefault, Object writeDefault) {
-      return new NestedField(false, id, name, type, doc, initialDefault, writeDefault);
     }
 
     public static NestedField of(int id, boolean isOptional, String name, Type type) {
@@ -447,15 +438,77 @@ public class Types {
       return new NestedField(isOptional, id, name, type, doc, null, null);
     }
 
-    public static NestedField of(
-        int id,
-        boolean isOptional,
-        String name,
-        Type type,
-        String doc,
-        Object initialDefault,
-        Object writeDefault) {
-      return new NestedField(isOptional, id, name, type, doc, initialDefault, writeDefault);
+    public static Builder from(NestedField field) {
+      return new Builder(field);
+    }
+
+    public static Builder required(String name) {
+      return new Builder(false, name);
+    }
+
+    public static Builder optional(String name) {
+      return new Builder(true, name);
+    }
+
+    public static class Builder {
+      private final boolean isOptional;
+      private final String name;
+      private Integer id = null;
+      private Type type = null;
+      private String doc = null;
+      private Object initialDefault = null;
+      private Object writeDefault = null;
+
+      private Builder(boolean isOptional, String name) {
+        this.isOptional = isOptional;
+        this.name = name;
+      }
+
+      private Builder(NestedField toCopy) {
+        this.isOptional = toCopy.isOptional;
+        this.name = toCopy.name;
+        this.id = toCopy.id;
+        this.type = toCopy.type;
+        this.doc = toCopy.doc;
+        this.initialDefault = toCopy.initialDefault;
+        this.writeDefault = toCopy.writeDefault;
+      }
+
+      public Builder withId(int id) {
+        this.id = id;
+        return this;
+      }
+
+      public Builder ofType(Type type) {
+        this.type = type;
+        return this;
+      }
+
+      public Builder withDoc(String doc) {
+        this.doc = doc;
+        return this;
+      }
+
+      public Builder withInitialDefault(Object initialDefault) {
+        this.initialDefault = initialDefault;
+        return this;
+      }
+
+      public Builder withWriteDefault(Object writeDefault) {
+        this.writeDefault = writeDefault;
+        return this;
+      }
+
+      public Builder withDefault(Object defaultValue) {
+        this.initialDefault = defaultValue;
+        this.writeDefault = defaultValue;
+        return this;
+      }
+
+      public NestedField build() {
+        // the constructor validates the fields
+        return new NestedField(isOptional, id, name, type, doc, initialDefault, writeDefault);
+      }
     }
 
     private final boolean isOptional;
@@ -481,8 +534,19 @@ public class Types {
       this.name = name;
       this.type = type;
       this.doc = doc;
-      this.initialDefault = initialDefault;
-      this.writeDefault = writeDefault;
+      this.initialDefault = castDefault(initialDefault, type);
+      this.writeDefault = castDefault(writeDefault, type);
+    }
+
+    private static Object castDefault(Object defaultValue, Type type) {
+      if (type.isNestedType() && defaultValue != null) {
+        throw new IllegalArgumentException(
+            String.format("Invalid default value for %s: %s (must be null)", type, defaultValue));
+      } else if (defaultValue != null) {
+        return Expressions.lit(defaultValue).to(type).value();
+      }
+
+      return null;
     }
 
     public boolean isOptional() {
@@ -505,10 +569,6 @@ public class Types {
         return this;
       }
       return new NestedField(false, id, name, type, doc, initialDefault, writeDefault);
-    }
-
-    public NestedField withWriteDefault(Object newWriteDefault) {
-      return new NestedField(isOptional, id, name, type, doc, initialDefault, newWriteDefault);
     }
 
     public NestedField withFieldId(int newId) {

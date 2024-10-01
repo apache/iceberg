@@ -141,13 +141,7 @@ public class GenericAvroReader<T>
         if (constant != null) {
           readPlan.add(Pair.of(pos, ValueReaders.constant(constant)));
         } else if (field.initialDefault() != null) {
-
-          readPlan.add(
-              Pair.of(
-                  pos,
-                  ValueReaders.constant(
-                      IcebergDataToGenericRecord.toGenericRecord(
-                          field.type(), field.initialDefault()))));
+          readPlan.add(Pair.of(pos, ValueReaders.constant(field.initialDefault())));
         } else if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
           readPlan.add(Pair.of(pos, ValueReaders.constant(false)));
         } else if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
