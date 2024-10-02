@@ -19,14 +19,13 @@
 package org.apache.iceberg.rest.credentials;
 
 import java.time.Instant;
+import javax.annotation.Nullable;
 import org.immutables.value.Value;
 
 @Value.Immutable
 public interface AdlsCredential extends Credential {
-  @Value.Default
-  default String scheme() {
-    return "afbs";
-  }
+  @Nullable
+  String prefix();
 
   String sasToken();
 
