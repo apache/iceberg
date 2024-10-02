@@ -20,7 +20,7 @@ package org.apache.iceberg.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
 
-/** Exception raised when attempting to create a table that already exists. */
+/** Exception raised when an entity is not found. */
 public class EntityNotFoundException extends RESTException implements CleanableFailure {
   @FormatMethod
   public EntityNotFoundException(String message, Object... args) {
