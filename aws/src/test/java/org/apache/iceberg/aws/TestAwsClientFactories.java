@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.glue.GlueClient;
@@ -181,8 +182,15 @@ public class TestAwsClientFactories {
   public void testWithClassDoesNotImplementCredentialsProvider() {
     String providerClassName = NoInterface.class.getName();
     String containsMessage =
-        "it does not implement software.amazon.awssdk.auth.credentials.AwsCredentialsProvider";
+        "it does not contain a static 'create' or 'create(Map<String, String>)' method";
     testProviderAndAssertThrownBy(providerClassName, containsMessage);
+  }
+
+  @Test
+  public void testWithClassDoesNotImplementCredentialsProviderButContainsStaticCreate() {
+    AwsClientFactory defaultAwsClientFactory =
+            getAwsClientFactoryByCredentialsProvider(NoInterfaceButContainsStaticCreate.class.getName());
+    assertThat(defaultAwsClientFactory).isNotNull();
   }
 
   private void testProviderAndAssertThrownBy(String providerClassName, String containsMessage) {
@@ -239,6 +247,13 @@ public class TestAwsClientFactories {
   }
 
   private static class NoInterface {}
+
+  private static class NoInterfaceButContainsStaticCreate {
+    public static AwsCredentialsProvider create() {
+      return StaticCredentialsProvider.create(
+              AwsBasicCredentials.create("test-accessKeyId", "test-secretAccessKey"));
+    }
+  }
 
   private static class DummyValidProvider implements AwsCredentialsProvider {
 
