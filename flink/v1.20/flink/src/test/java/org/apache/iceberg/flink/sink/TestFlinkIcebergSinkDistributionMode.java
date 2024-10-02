@@ -118,9 +118,15 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
   public void testShuffleByPartitionWithSchema() throws Exception {
     testWriteRow(parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH);
     if (partitioned) {
-      assertThat(partitionFiles("aaa")).isEqualTo(1);
-      assertThat(partitionFiles("bbb")).isEqualTo(1);
-      assertThat(partitionFiles("ccc")).isEqualTo(1);
+      assertThat(partitionFiles("aaa"))
+          .as("There should be only 1 data file in partition 'aaa'")
+          .isEqualTo(1);
+      assertThat(partitionFiles("bbb"))
+          .as("There should be only 1 data file in partition 'bbb'")
+          .isEqualTo(1);
+      assertThat(partitionFiles("ccc"))
+          .as("There should be only 1 data file in partition 'ccc'")
+          .isEqualTo(1);
     }
   }
 
@@ -136,7 +142,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     if (parallelism > 1) {
       if (partitioned) {
         int files = partitionFiles("aaa") + partitionFiles("bbb") + partitionFiles("ccc");
-        assertThat(files).isGreaterThan(3);
+        assertThat(files).as("Should have more than 3 files in iceberg table.").isGreaterThan(3);
       }
     }
   }
@@ -151,9 +157,15 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     testWriteRow(parallelism, null, null);
 
     if (partitioned) {
-      assertThat(partitionFiles("aaa")).isEqualTo(1);
-      assertThat(partitionFiles("bbb")).isEqualTo(1);
-      assertThat(partitionFiles("ccc")).isEqualTo(1);
+      assertThat(partitionFiles("aaa"))
+          .as("There should be only 1 data file in partition 'aaa'")
+          .isEqualTo(1);
+      assertThat(partitionFiles("bbb"))
+          .as("There should be only 1 data file in partition 'bbb'")
+          .isEqualTo(1);
+      assertThat(partitionFiles("ccc"))
+          .as("There should be only 1 data file in partition 'ccc'")
+          .isEqualTo(1);
     }
   }
 
@@ -161,9 +173,15 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
   public void testPartitionWriteMode() throws Exception {
     testWriteRow(parallelism, null, DistributionMode.HASH);
     if (partitioned) {
-      assertThat(partitionFiles("aaa")).isEqualTo(1);
-      assertThat(partitionFiles("bbb")).isEqualTo(1);
-      assertThat(partitionFiles("ccc")).isEqualTo(1);
+      assertThat(partitionFiles("aaa"))
+          .as("There should be only 1 data file in partition 'aaa'")
+          .isEqualTo(1);
+      assertThat(partitionFiles("bbb"))
+          .as("There should be only 1 data file in partition 'bbb'")
+          .isEqualTo(1);
+      assertThat(partitionFiles("ccc"))
+          .as("There should be only 1 data file in partition 'ccc'")
+          .isEqualTo(1);
     }
   }
 
