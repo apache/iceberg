@@ -59,7 +59,10 @@ import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ConfigResponseParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
+import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
+import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
+import org.apache.iceberg.rest.responses.LoadCredentialsResponseParser;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponseParser;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
@@ -119,7 +122,13 @@ public class RESTSerializers {
         .addSerializer(ConfigResponse.class, new ConfigResponseSerializer<>())
         .addDeserializer(ConfigResponse.class, new ConfigResponseDeserializer<>())
         .addSerializer(LoadTableResponse.class, new LoadTableResponseSerializer<>())
-        .addDeserializer(LoadTableResponse.class, new LoadTableResponseDeserializer<>());
+        .addDeserializer(LoadTableResponse.class, new LoadTableResponseDeserializer<>())
+        .addSerializer(LoadCredentialsResponse.class, new LoadCredentialsResponseSerializer<>())
+        .addSerializer(
+            ImmutableLoadCredentialsResponse.class, new LoadCredentialsResponseSerializer<>())
+        .addDeserializer(LoadCredentialsResponse.class, new LoadCredentialsResponseDeserializer<>())
+        .addDeserializer(
+            ImmutableLoadCredentialsResponse.class, new LoadCredentialsResponseDeserializer<>());
 
     mapper.registerModule(module);
   }
@@ -441,6 +450,24 @@ public class RESTSerializers {
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return (T) LoadTableResponseParser.fromJson(jsonNode);
+    }
+  }
+
+  static class LoadCredentialsResponseSerializer<T extends LoadCredentialsResponse>
+      extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      LoadCredentialsResponseParser.toJson(request, gen);
+    }
+  }
+
+  static class LoadCredentialsResponseDeserializer<T extends LoadCredentialsResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) LoadCredentialsResponseParser.fromJson(jsonNode);
     }
   }
 }
