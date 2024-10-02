@@ -20,14 +20,15 @@ package org.apache.iceberg.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
 
-public class NoSuchPlanTaskException extends RuntimeException implements CleanableFailure {
+/** Exception raised when attempting to create a table that already exists. */
+public class EntityNotFoundException extends RESTException implements CleanableFailure {
   @FormatMethod
-  public NoSuchPlanTaskException(String message, Object... args) {
-    super(String.format(message, args));
+  public EntityNotFoundException(String message, Object... args) {
+    super(message, args);
   }
 
   @FormatMethod
-  public NoSuchPlanTaskException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
+  public EntityNotFoundException(Throwable cause, String message, Object... args) {
+    super(cause, message, args);
   }
 }

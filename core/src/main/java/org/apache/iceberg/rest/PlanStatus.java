@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.rest;
 
+import java.util.Locale;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+
 public enum PlanStatus {
   COMPLETED("completed"),
   SUBMITTED("submitted"),
@@ -32,5 +35,14 @@ public enum PlanStatus {
 
   public String status() {
     return status;
+  }
+
+  public static PlanStatus fromName(String status) {
+    Preconditions.checkArgument(status != null, "Status is null");
+    try {
+      return PlanStatus.valueOf(status.toUpperCase(Locale.ENGLISH));
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(String.format("Invalid status name: %s", status), e);
+    }
   }
 }

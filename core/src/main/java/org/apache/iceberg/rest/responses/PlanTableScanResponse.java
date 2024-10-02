@@ -19,36 +19,109 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.List;
-import javax.annotation.Nullable;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.RESTResponse;
 
-public interface PlanTableScanResponse extends RESTResponse {
-  PlanStatus planStatus();
+public class PlanTableScanResponse implements RESTResponse {
+  private PlanStatus planStatus;
+  private String planId;
+  private List<String> planTasks;
+  private List<FileScanTask> fileScanTasks;
+  private List<DeleteFile> deleteFiles;
 
-  @Nullable
-  String planId();
+  public PlanTableScanResponse() {
+    // Needed for Jackson Deserialization.
+  }
 
-  @Nullable
-  List<String> planTasks();
+  public PlanTableScanResponse(
+      PlanStatus planStatus,
+      String planId,
+      List<String> planTasks,
+      List<FileScanTask> fileScanTasks,
+      List<DeleteFile> deleteFiles) {
+    this.planStatus = planStatus;
+    this.planId = planId;
+    this.planTasks = planTasks;
+    this.fileScanTasks = fileScanTasks;
+    this.deleteFiles = deleteFiles;
+  }
 
-  @Nullable
-  List<FileScanTask> fileScanTasks();
+  public PlanStatus planStatus() {
+    return planStatus;
+  }
 
-  @Nullable
-  List<DeleteFile> deleteFiles();
+  public String planId() {
+    return planId;
+  }
+
+  public List<String> planTasks() {
+    return planTasks;
+  }
+
+  public List<FileScanTask> fileScanTasks() {
+    return fileScanTasks;
+  }
+
+  public List<DeleteFile> deleteFiles() {
+    return deleteFiles;
+  }
 
   @Override
-  default void validate() {
+  public void validate() {
     Preconditions.checkArgument(planStatus() != null, "invalid response, status can not be null");
     Preconditions.checkArgument(
+        planStatus() == PlanStatus.SUBMITTED && planId != null,
+        "Invalid response: planId to be non-null when status is 'submitted");
+    Preconditions.checkArgument(
         planStatus() != PlanStatus.CANCELLED,
-        "invalid response, 'cancelled' is not a valid status for this endpoint");
+        "Invalid response: 'cancelled' is not a valid status for planTableScan");
     Preconditions.checkArgument(
         planStatus() != PlanStatus.COMPLETED && (planTasks() != null || fileScanTasks() != null),
-        "invalid response, tasks can only be returned in a 'completed' status");
+        "Invalid response: tasks can only be returned in a 'completed' status");
+    Preconditions.checkArgument(
+        deleteFiles() != null && fileScanTasks() == null,
+        "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
+  }
+
+  public static class Builder {
+    public Builder() {}
+
+    private PlanStatus planStatus;
+    private String planId;
+    private List<String> planTasks;
+    private List<FileScanTask> fileScanTasks;
+    private List<DeleteFile> deleteFiles;
+
+    public Builder withPlanStatus(PlanStatus withPlanStatus) {
+      this.planStatus = withPlanStatus;
+      return this;
+    }
+
+    public Builder withPlanId(String withPlanId) {
+      this.planId = withPlanId;
+      return this;
+    }
+
+    public Builder withPlanTasks(List<String> withPlanTasks) {
+      this.planTasks = withPlanTasks;
+      return this;
+    }
+
+    public Builder withFileScanTasks(List<FileScanTask> withFileScanTasks) {
+      this.fileScanTasks = withFileScanTasks;
+      return this;
+    }
+
+    public Builder withDeleteFiles(List<DeleteFile> withDeleteFiles) {
+      this.deleteFiles = withDeleteFiles;
+      return this;
+    }
+
+    public PlanTableScanResponse build() {
+      return new PlanTableScanResponse(planStatus, planId, planTasks, fileScanTasks, deleteFiles);
+    }
   }
 }

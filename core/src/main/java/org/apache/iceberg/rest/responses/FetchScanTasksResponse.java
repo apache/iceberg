@@ -19,24 +19,78 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.List;
-import javax.annotation.Nullable;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTResponse;
-import org.immutables.value.Value;
 
-@Value.Immutable
-public interface FetchScanTasksResponse extends RESTResponse {
+public class FetchScanTasksResponse implements RESTResponse {
 
-  @Nullable
-  List<String> planTasks();
+  private List<String> planTasks;
 
-  @Nullable
-  List<FileScanTask> fileScanTasks();
+  private List<FileScanTask> fileScanTasks;
 
-  @Nullable
-  List<DeleteFile> deleteFiles();
+  private List<DeleteFile> deleteFiles;
+
+  public FetchScanTasksResponse() {
+    // Needed for Jackson Deserialization.
+  }
+
+  public FetchScanTasksResponse(
+      List<String> planTasks, List<FileScanTask> fileScanTasks, List<DeleteFile> deleteFiles) {
+    this.planTasks = planTasks;
+    this.fileScanTasks = fileScanTasks;
+    this.deleteFiles = deleteFiles;
+  }
+
+  public List<String> planTasks() {
+    return planTasks;
+  }
+
+  public List<FileScanTask> fileScanTasks() {
+    return fileScanTasks;
+  }
+
+  public List<DeleteFile> deleteFiles() {
+    return deleteFiles;
+  }
 
   @Override
-  default void validate() {}
+  public void validate() {
+    Preconditions.checkArgument(
+        planTasks != null || fileScanTasks != null,
+        "Invalid response: planTasks and fileScanTask can not both be null");
+    Preconditions.checkArgument(
+        deleteFiles() != null && fileScanTasks() == null,
+        "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
+  }
+
+  public static class Builder {
+    public Builder() {}
+
+    private List<String> planTasks;
+
+    private List<FileScanTask> fileScanTasks;
+
+    private List<DeleteFile> deleteFiles;
+
+    public Builder withPlanTasks(List<String> withPlanTasks) {
+      this.planTasks = withPlanTasks;
+      return this;
+    }
+
+    public Builder withFileScanTasks(List<FileScanTask> withFileScanTasks) {
+      this.fileScanTasks = withFileScanTasks;
+      return this;
+    }
+
+    public Builder withDeleteFiles(List<DeleteFile> withDeleteFiles) {
+      this.deleteFiles = withDeleteFiles;
+      return this;
+    }
+
+    public FetchScanTasksResponse build() {
+      return new FetchScanTasksResponse(planTasks, fileScanTasks, deleteFiles);
+    }
+  }
 }

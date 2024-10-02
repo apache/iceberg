@@ -20,16 +20,26 @@ package org.apache.iceberg.rest.requests;
 
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTRequest;
-import org.immutables.value.Value;
 
-@Value.Immutable
-public interface FetchScanTasksRequest extends RESTRequest {
+public class FetchScanTasksRequest implements RESTRequest {
 
-  String planTask();
+  private String planTask;
+
+  public FetchScanTasksRequest() {
+    // Needed for Jackson Deserialization.
+  }
+
+  public FetchScanTasksRequest(String planTask) {
+    this.planTask = planTask;
+    validate();
+  }
+
+  public String planTask() {
+    return planTask;
+  }
 
   @Override
-  default void validate() {
-    Preconditions.checkArgument(
-        planTask() != null, "invalid request, requires planTask to be provided");
+  public void validate() {
+    Preconditions.checkArgument(planTask != null, "Invalid request: planTask null");
   }
 }

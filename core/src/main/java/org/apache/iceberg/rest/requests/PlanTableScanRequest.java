@@ -19,49 +19,144 @@
 package org.apache.iceberg.rest.requests;
 
 import java.util.List;
-import javax.annotation.Nullable;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTRequest;
-import org.immutables.value.Value;
 
-@Value.Immutable
-public interface PlanTableScanRequest extends RESTRequest {
+public class PlanTableScanRequest implements RESTRequest {
+  private Long snapshotId;
+  private List<String> select;
+  private Expression filter;
+  private Boolean caseSensitive;
+  private Boolean useSnapshotSchema;
+  private Long startSnapshotId;
+  private Long endSnapshotId;
+  private List<String> statsFields;
 
-  @Nullable
-  Long snapshotId();
-
-  @Nullable
-  List<String> select();
-
-  @Nullable
-  Expression filter();
-
-  @Nullable
-  @Value.Default
-  default Boolean caseSensitive() {
-    return true;
+  public Long snapshotId() {
+    return snapshotId;
   }
 
-  @Nullable
-  @Value.Default
-  default Boolean useSnapShotSchema() {
-    return false;
+  public List<String> select() {
+    return select;
   }
 
-  @Nullable
-  Long startSnapShotId();
+  public Expression filter() {
+    return filter;
+  }
 
-  @Nullable
-  Long endSnapShotId();
+  public Boolean caseSensitive() {
+    return caseSensitive;
+  }
 
-  @Nullable
-  List<String> statsFields();
+  public Boolean useSnapshotSchema() {
+    return useSnapshotSchema;
+  }
+
+  public Long startSnapshotId() {
+    return startSnapshotId;
+  }
+
+  public Long endSnapshotId() {
+    return endSnapshotId;
+  }
+
+  public List<String> statsFields() {
+    return statsFields;
+  }
+
+  public PlanTableScanRequest() {
+    // Needed for Jackson Deserialization.
+  }
+
+  public PlanTableScanRequest(
+      Long snapshotId,
+      List<String> select,
+      Expression filter,
+      Boolean caseSensitive,
+      Boolean useSnapshotSchema,
+      Long startSnapshotId,
+      Long endSnapshotId,
+      List<String> statsFields) {
+    this.snapshotId = snapshotId;
+    this.select = select;
+    this.filter = filter;
+    this.caseSensitive = caseSensitive;
+    this.useSnapshotSchema = useSnapshotSchema;
+    this.startSnapshotId = startSnapshotId;
+    this.endSnapshotId = endSnapshotId;
+    this.statsFields = statsFields;
+  }
 
   @Override
-  default void validate() {
+  public void validate() {
     Preconditions.checkArgument(
-        snapshotId() != null ^ (startSnapShotId() != null && endSnapShotId() != null),
+        snapshotId() != null ^ (startSnapshotId() != null && endSnapshotId() != null),
         "Either snapshotId must be provided or both startSnapshotId and endSnapshotId must be provided");
+  }
+
+  public static class Builder {
+    private Long snapshotId;
+    private List<String> select;
+    private Expression filter;
+    private Boolean caseSensitive;
+    private Boolean useSnapshotSchema;
+    private Long startSnapshotId;
+    private Long endSnapshotId;
+    private List<String> statsFields;
+
+    private Builder() {}
+
+    public Builder withSnapshotId(Long withSnapshotId) {
+      this.snapshotId = withSnapshotId;
+      return this;
+    }
+
+    public Builder withSelect(List<String> withSelect) {
+      this.select = withSelect;
+      return this;
+    }
+
+    public Builder withFilter(Expression withFilter) {
+      this.filter = withFilter;
+      return this;
+    }
+
+    public Builder withCaseSensitive(Boolean withCaseSensitive) {
+      this.caseSensitive = withCaseSensitive;
+      return this;
+    }
+
+    public Builder withUseSnapshotSchema(Boolean withUseSnapshotSchema) {
+      this.useSnapshotSchema = withUseSnapshotSchema;
+      return this;
+    }
+
+    public Builder withStartSnapshotId(Long withStartSnapshotId) {
+      this.startSnapshotId = withStartSnapshotId;
+      return this;
+    }
+
+    public Builder withEndSnapshotId(Long withEndSnapshotId) {
+      this.endSnapshotId = withEndSnapshotId;
+      return this;
+    }
+
+    public Builder withStatsFields(List<String> withStatsFields) {
+      this.statsFields = withStatsFields;
+      return this;
+    }
+
+    public PlanTableScanRequest build() {
+      return new PlanTableScanRequest(
+          snapshotId,
+          select,
+          filter,
+          caseSensitive,
+          useSnapshotSchema,
+          startSnapshotId,
+          endSnapshotId,
+          statsFields);
+    }
   }
 }
