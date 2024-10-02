@@ -230,7 +230,7 @@ public class TestLoadTableResponseParser {
                     .build())
             .addCredential(
                 ImmutableGcsCredential.builder()
-                    .scheme("gs://custom-uri")
+                    .prefix("gs://custom-uri")
                     .token("token")
                     .expiresAt(Instant.ofEpochMilli(1000))
                     .build())
@@ -289,17 +289,15 @@ public class TestLoadTableResponseParser {
                 + "  },\n"
                 + "  \"storage-credentials\" : [ {\n"
                 + "    \"type\" : \"gcs\",\n"
-                + "    \"scheme\" : \"gs\",\n"
                 + "    \"token\" : \"gcsToken\",\n"
                 + "    \"expires-at-ms\" : 1000\n"
                 + "  }, {\n"
                 + "    \"type\" : \"gcs\",\n"
-                + "    \"scheme\" : \"gs://custom-uri\",\n"
                 + "    \"token\" : \"token\",\n"
-                + "    \"expires-at-ms\" : 1000\n"
+                + "    \"expires-at-ms\" : 1000,\n"
+                + "    \"prefix\" : \"gs://custom-uri\"\n"
                 + "  }, {\n"
                 + "    \"type\" : \"adls\",\n"
-                + "    \"scheme\" : \"afbs\",\n"
                 + "    \"sas-token\" : \"sasToken\",\n"
                 + "    \"expires-at-ms\" : 1000\n"
                 + "  } ]\n"

@@ -19,14 +19,13 @@
 package org.apache.iceberg.rest.credentials;
 
 import java.time.Instant;
+import javax.annotation.Nullable;
 import org.immutables.value.Value;
 
 @Value.Immutable
 public interface S3Credential extends Credential {
-  @Value.Default
-  default String scheme() {
-    return "s3";
-  }
+  @Nullable
+  String prefix();
 
   String accessKeyId();
 

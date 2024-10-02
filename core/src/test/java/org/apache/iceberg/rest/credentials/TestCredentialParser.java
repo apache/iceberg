@@ -57,7 +57,7 @@ public class TestCredentialParser {
     Credential credential =
         ImmutableS3Credential.builder()
             .accessKeyId("keyId")
-            .scheme("s3://custom-uri")
+            .prefix("s3://custom-uri")
             .secretAccessKey("accessKey")
             .sessionToken("sessionToken")
             .expiresAt(expiresAt)
@@ -67,11 +67,11 @@ public class TestCredentialParser {
         String.format(
             "{\n"
                 + "  \"type\" : \"s3\",\n"
-                + "  \"scheme\" : \"s3://custom-uri\",\n"
                 + "  \"access-key-id\" : \"keyId\",\n"
                 + "  \"secret-access-key\" : \"accessKey\",\n"
                 + "  \"session-token\" : \"sessionToken\",\n"
-                + "  \"expires-at-ms\" : %s\n"
+                + "  \"expires-at-ms\" : %s,\n"
+                + "  \"prefix\" : \"s3://custom-uri\"\n"
                 + "}",
             expiresAt.toEpochMilli());
 
@@ -93,19 +93,6 @@ public class TestCredentialParser {
                         + "  \"session-token\" : \"sessionToken\""
                         + "}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: scheme");
-
-    assertThatThrownBy(
-            () ->
-                CredentialParser.fromJson(
-                    "{\n"
-                        + "  \"type\" : \"s3\",\n"
-                        + "  \"scheme\" : \"s3\",\n"
-                        + "  \"access-key-id\" : \"keyId\",\n"
-                        + "  \"secret-access-key\" : \"accessKey\",\n"
-                        + "  \"session-token\" : \"sessionToken\""
-                        + "}"))
-        .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: expires-at-ms");
 
     assertThatThrownBy(
@@ -113,7 +100,6 @@ public class TestCredentialParser {
                 CredentialParser.fromJson(
                     "{\n"
                         + "  \"type\" : \"s3\",\n"
-                        + "  \"scheme\" : \"s3\",\n"
                         + "  \"access-key-id\" : \"keyId\",\n"
                         + "  \"secret-access-key\" : \"accessKey\",\n"
                         + "  \"expires-at-ms\" : \"1\""
@@ -126,7 +112,6 @@ public class TestCredentialParser {
                 CredentialParser.fromJson(
                     "{\n"
                         + "  \"type\" : \"s3\",\n"
-                        + "  \"scheme\" : \"s3\",\n"
                         + "  \"access-key-id\" : \"keyId\",\n"
                         + "  \"session-token\" : \"sessionToken\",\n"
                         + "  \"expires-at-ms\" : \"1\""
@@ -139,7 +124,6 @@ public class TestCredentialParser {
                 CredentialParser.fromJson(
                     "{\n"
                         + "  \"type\" : \"s3\",\n"
-                        + "  \"scheme\" : \"s3\",\n"
                         + "  \"secret-access-key\" : \"accessKey\",\n"
                         + "  \"expires-at-ms\" : \"1\""
                         + "}"))
@@ -152,15 +136,19 @@ public class TestCredentialParser {
     Instant expiresAt = Instant.now();
 
     Credential credential =
-        ImmutableGcsCredential.builder().token("gcsToken").expiresAt(expiresAt).build();
+        ImmutableGcsCredential.builder()
+            .token("gcsToken")
+            .expiresAt(expiresAt)
+            .prefix("gs://custom-uri")
+            .build();
 
     String expectedJson =
         String.format(
             "{\n"
                 + "  \"type\" : \"gcs\",\n"
-                + "  \"scheme\" : \"gs\",\n"
                 + "  \"token\" : \"gcsToken\",\n"
-                + "  \"expires-at-ms\" : %s\n"
+                + "  \"expires-at-ms\" : %s,\n"
+                + "  \"prefix\" : \"gs://custom-uri\"\n"
                 + "}",
             expiresAt.toEpochMilli());
 
@@ -174,21 +162,12 @@ public class TestCredentialParser {
   public void gcsCredentialWithMissingProperties() {
     assertThatThrownBy(() -> CredentialParser.fromJson("{\"type\": \"gcs\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: scheme");
+        .hasMessage("Cannot parse missing string: token");
 
     assertThatThrownBy(
-            () ->
-                CredentialParser.fromJson(
-                    "{\"type\": \"gcs\",\"scheme\":\"gs\",\"token\": \"gcsToken\"}"))
+            () -> CredentialParser.fromJson("{\"type\": \"gcs\",\"token\": \"gcsToken\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: expires-at-ms");
-
-    assertThatThrownBy(
-            () ->
-                CredentialParser.fromJson(
-                    "{\"type\": \"gcs\",\"scheme\":\"gs\",\"expires-at-ms\": 1}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: token");
   }
 
   @Test
@@ -196,15 +175,19 @@ public class TestCredentialParser {
     Instant expiresAt = Instant.now();
 
     Credential credential =
-        ImmutableAdlsCredential.builder().sasToken("sasToken").expiresAt(expiresAt).build();
+        ImmutableAdlsCredential.builder()
+            .sasToken("sasToken")
+            .expiresAt(expiresAt)
+            .prefix("abfs://custom-uri")
+            .build();
 
     String expectedJson =
         String.format(
             "{\n"
                 + "  \"type\" : \"adls\",\n"
-                + "  \"scheme\" : \"afbs\",\n"
                 + "  \"sas-token\" : \"sasToken\",\n"
-                + "  \"expires-at-ms\" : %s\n"
+                + "  \"expires-at-ms\" : %s,\n"
+                + "  \"prefix\" : \"abfs://custom-uri\"\n"
                 + "}",
             expiresAt.toEpochMilli());
 
@@ -218,19 +201,10 @@ public class TestCredentialParser {
   public void adlsCredentialWithMissingProperties() {
     assertThatThrownBy(() -> CredentialParser.fromJson("{\"type\": \"adls\"}"))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: scheme");
+        .hasMessage("Cannot parse missing string: sas-token");
     assertThatThrownBy(
-            () ->
-                CredentialParser.fromJson(
-                    "{\"type\": \"adls\",\"scheme\": \"afbs\",\"sas-token\": \"adlsToken\"}"))
+            () -> CredentialParser.fromJson("{\"type\": \"adls\",\"sas-token\": \"adlsToken\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: expires-at-ms");
-
-    assertThatThrownBy(
-            () ->
-                CredentialParser.fromJson(
-                    "{\"type\": \"adls\",\"scheme\": \"afbs\",\"expires-at-ms\": 1}"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: sas-token");
   }
 }
