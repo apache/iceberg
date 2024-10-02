@@ -93,13 +93,7 @@ public class LoadViewResponseParser {
     }
 
     if (json.hasNonNull(STORAGE_CREDENTIALS)) {
-      JsonNode credentials = JsonUtil.get(STORAGE_CREDENTIALS, json);
-      Preconditions.checkArgument(
-          credentials.isArray(), "Cannot parse credentials from non-array: %s", credentials);
-
-      for (JsonNode credential : credentials) {
-        builder.addCredentials(CredentialParser.fromJson(credential));
-      }
+      builder.addAllCredentials(LoadCredentialsResponseParser.fromJson(json).credentials());
     }
 
     return builder.build();
