@@ -25,6 +25,8 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.ClosureSerializer;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -34,10 +36,12 @@ import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.lang.invoke.SerializedLambda;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.IntStream;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -402,6 +406,114 @@ public class TestHelpers {
     @Override
     public int hashCode() {
       return 17 * Arrays.hashCode(values);
+    }
+  }
+
+  /** A VariantLike implementation for testing accepting JSON input */
+  public static class JsonVariant implements VariantLike {
+    public static JsonVariant of(String json) {
+      return new JsonVariant(json);
+    }
+
+    private final JsonNode node;
+
+    private JsonVariant(String json) {
+      try {
+        ObjectMapper mapper = new ObjectMapper();
+        this.node = mapper.readTree(json);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    private JsonVariant(JsonNode node) {
+      this.node = node;
+    }
+
+    @Override
+    public int size() {
+      return node.size();
+    }
+
+    @Override
+    public VariantLike getFieldByKey(String key) {
+      JsonNode childNode = node.get(key);
+      return new JsonVariant(childNode);
+    }
+
+    @Override
+    public VariantLike getFieldAtIndex(int index) {
+      JsonNode childNode = node.get(index);
+      return new JsonVariant(childNode);
+    }
+
+    @Override
+    public boolean getBoolean() {
+      return node.asBoolean();
+    }
+
+    @Override
+    public int getInt() {
+      return node.asInt();
+    }
+
+    @Override
+    public long getLong() {
+      return node.asLong();
+    }
+
+    @Override
+    public float getFloat() {
+      return (float) node.asDouble();
+    }
+
+    @Override
+    public double getDouble() {
+      return node.asDouble();
+    }
+
+    @Override
+    public BigDecimal getDecimal() {
+      return new BigDecimal(node.asText());
+    }
+
+    @Override
+    public String getString() {
+      return node.asText();
+    }
+
+    @Override
+    public byte[] getBinary() {
+      try {
+        return node.binaryValue();
+      } catch (IOException e) {
+        return null;
+      }
+    }
+
+    @Override
+    public String toJson() {
+      return node.toString();
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      }
+
+      if (other == null || getClass() != other.getClass()) {
+        return false;
+      }
+
+      JsonVariant that = (JsonVariant) other;
+
+      return Objects.equals(node, that.node);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hashCode(node);
     }
   }
 
