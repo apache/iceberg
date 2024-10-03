@@ -45,7 +45,8 @@ public class TestSerializableTypes {
           Types.TimestampNanoType.withZone(),
           Types.StringType.get(),
           Types.UUIDType.get(),
-          Types.BinaryType.get()
+          Types.BinaryType.get(),
+          Types.VariantType.get()
         };
 
     for (Type type : identityPrimitives) {
@@ -112,13 +113,13 @@ public class TestSerializableTypes {
 
   @Test
   public void testLists() throws Exception {
-    Type[] maps =
+    Type[] lists =
         new Type[] {
           Types.ListType.ofOptional(2, Types.DoubleType.get()),
           Types.ListType.ofRequired(5, Types.DoubleType.get())
         };
 
-    for (Type list : maps) {
+    for (Type list : lists) {
       Type copy = TestHelpers.roundTripSerialize(list);
       assertThat(copy).as("List serialization should be equal to starting type").isEqualTo(list);
       assertThat(list.asNestedType().asListType().elementType())

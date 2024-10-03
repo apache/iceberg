@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
+import org.apache.iceberg.TestHelpers.JsonVariant;
 import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -246,5 +247,11 @@ public class TestAccessors {
   public void testEmptySchema() {
     Schema emptySchema = new Schema();
     assertThat(emptySchema.accessorForField(17)).isNull();
+  }
+
+  @Test
+  public void testVariant() {
+    VariantLike variant = JsonVariant.of("{\"name\":\"John\",\"age\":30}");
+    assertAccessorReturns(Types.VariantType.get(), variant);
   }
 }
