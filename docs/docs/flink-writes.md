@@ -380,7 +380,7 @@ The previous [SinkV1 interface](https://cwiki.apache.org/confluence/display/FLIN
 had some limitations - for example it created a lot of small files when writing to it. This problem is called
 the `small-file-compaction` problem in
 the [FLIP-191 document](https://cwiki.apache.org/confluence/display/FLINK/FLIP-191%3A+Extend+unified+Sink+interface+to+support+small+file+compaction).
-The default `FlinkSink` implementation available in `iceberg-flink` module builds its own `StreamOperator`s chain ends with `DiscardingSink`.
+The default `FlinkSink` implementation available in `iceberg-flink` module builds its own chain of `StreamOperator`s  terminated by `DiscardingSink`.
 However, in the same module, there is also `IcebergSink` which is based on the SinkV2 API.
 The SinkV2 based `IcebergSink` is currently an experimental feature.
 

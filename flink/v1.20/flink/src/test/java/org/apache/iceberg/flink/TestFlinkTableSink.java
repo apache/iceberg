@@ -40,7 +40,6 @@ import org.junit.jupiter.api.TestTemplate;
 
 public class TestFlinkTableSink extends CatalogTestBase {
 
-  private static final String SOURCE_TABLE = "default_catalog.default_database.bounded_source";
   private static final String TABLE_NAME = "test_table";
   private TableEnvironment tEnv;
   private Table icebergTable;
