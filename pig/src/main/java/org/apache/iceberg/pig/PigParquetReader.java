@@ -24,6 +24,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
@@ -304,7 +305,11 @@ public class PigParquetReader {
     public String read(String reuse) {
       OffsetDateTime day = EPOCH.plusDays(column.nextInteger());
       return String.format(
-          "%04d-%02d-%02d", day.getYear(), day.getMonth().getValue(), day.getDayOfMonth());
+          Locale.ROOT,
+          "%04d-%02d-%02d",
+          day.getYear(),
+          day.getMonth().getValue(),
+          day.getDayOfMonth());
     }
   }
 
@@ -437,7 +442,9 @@ public class PigParquetReader {
         tuple.set(pos, value);
       } catch (ExecException e) {
         throw new RuntimeException(
-            String.format("Error setting tuple value for pos: %d, value: %s", pos, value), e);
+            String.format(
+                Locale.ROOT, "Error setting tuple value for pos: %d, value: %s", pos, value),
+            e);
       }
     }
   }

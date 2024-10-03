@@ -23,6 +23,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -500,8 +501,10 @@ public class ExpressionUtil {
         abbreviatedList.addAll(distinctValues);
         abbreviatedList.add(
             String.format(
+                Locale.ROOT,
                 "... (%d values hidden, %d in total)",
-                sanitizedValues.size() - distinctValues.size(), sanitizedValues.size()));
+                sanitizedValues.size() - distinctValues.size(),
+                sanitizedValues.size()));
         return abbreviatedList;
       }
     }
@@ -633,7 +636,7 @@ public class ExpressionUtil {
 
   private static String sanitizeSimpleString(CharSequence value) {
     // hash the value and return the hash as hex
-    return String.format("(hash-%08x)", HASH_FUNC.apply(value));
+    return String.format(Locale.ROOT, "(hash-%08x)", HASH_FUNC.apply(value));
   }
 
   private static PartitionSpec identitySpec(Schema schema, int... ids) {

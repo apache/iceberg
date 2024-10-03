@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -505,7 +506,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             ops.metadataFileLocation(
                 FileFormat.AVRO.addExtension(
                     String.format(
-                        "snap-%d-%d-%s", snapshotId(), attempt.incrementAndGet(), commitUUID))));
+                        Locale.ROOT,
+                        "snap-%d-%d-%s",
+                        snapshotId(),
+                        attempt.incrementAndGet(),
+                        commitUUID))));
   }
 
   protected EncryptedOutputFile newManifestOutputFile() {
