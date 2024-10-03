@@ -83,6 +83,8 @@ subprojects {
           '-Xep:BadComparable:ERROR',
           '-Xep:BadInstanceof:ERROR',
           '-Xep:CatchFail:ERROR',
+          '-Xep:ClassCanBeStatic:ERROR',
+          '-Xep:ClassNewInstance:ERROR',
           '-Xep:CollectionUndefinedEquality:ERROR',
           // specific to Palantir - Uses name `log` but we use name `LOG`
           '-Xep:ConsistentLoggerName:OFF',
@@ -98,6 +100,7 @@ subprojects {
           '-Xep:FallThrough:ERROR',
           // specific to Palantir
           '-Xep:FinalClass:OFF',
+          '-Xep:Finalize:ERROR',
           '-Xep:FormatStringAnnotation:ERROR',
           '-Xep:GetClassOnEnum:ERROR',
           '-Xep:HidingField:ERROR',
@@ -147,10 +150,14 @@ subprojects {
           '-Xep:StringSplitter:ERROR',
           '-Xep:TypeParameterShadowing:OFF',
           '-Xep:TypeParameterUnusedInFormals:OFF',
+          '-Xep:UnicodeEscape:ERROR',
           // Palantir's UnnecessarilyQualified may throw during analysis
           '-Xep:UnnecessarilyQualified:OFF',
+          '-Xep:UnnecessaryLongToIntConversion:ERROR',
+          '-Xep:UnnecessaryMethodReference:ERROR',
           '-Xep:UnusedMethod:ERROR',
           '-Xep:UnusedVariable:ERROR',
+          '-Xep:UseEnumSwitch:ERROR',
       )
     }
   }
