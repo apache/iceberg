@@ -39,6 +39,8 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
+import org.apache.parquet.column.statistics.IntStatistics;
+import org.apache.parquet.column.statistics.LongStatistics;
 import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -217,6 +219,10 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_CANNOT_MATCH;
         }
 
+        if (fieldPromotedToString(ref, colStats)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
         if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
         }
@@ -245,6 +251,10 @@ public class ParquetMetricsRowGroupFilter {
       if (colStats != null && !colStats.isEmpty()) {
         if (allNulls(colStats, valueCount)) {
           return ROWS_CANNOT_MATCH;
+        }
+
+        if (fieldPromotedToString(ref, colStats)) {
+          return ROWS_MIGHT_MATCH;
         }
 
         if (minMaxUndefined(colStats)) {
@@ -277,6 +287,10 @@ public class ParquetMetricsRowGroupFilter {
           return ROWS_CANNOT_MATCH;
         }
 
+        if (fieldPromotedToString(ref, colStats)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
         if (minMaxUndefined(colStats)) {
           return ROWS_MIGHT_MATCH;
         }
@@ -305,6 +319,10 @@ public class ParquetMetricsRowGroupFilter {
       if (colStats != null && !colStats.isEmpty()) {
         if (allNulls(colStats, valueCount)) {
           return ROWS_CANNOT_MATCH;
+        }
+
+        if (fieldPromotedToString(ref, colStats)) {
+          return ROWS_MIGHT_MATCH;
         }
 
         if (minMaxUndefined(colStats)) {
@@ -342,6 +360,10 @@ public class ParquetMetricsRowGroupFilter {
       if (colStats != null && !colStats.isEmpty()) {
         if (allNulls(colStats, valueCount)) {
           return ROWS_CANNOT_MATCH;
+        }
+
+        if (fieldPromotedToString(ref, colStats)) {
+          return ROWS_MIGHT_MATCH;
         }
 
         if (minMaxUndefined(colStats)) {
@@ -547,6 +569,11 @@ public class ParquetMetricsRowGroupFilter {
       }
 
       return ROWS_MIGHT_MATCH;
+    }
+
+    private <T> boolean fieldPromotedToString(BoundReference<T> field, Statistics<?> colStats) {
+      return field.type().typeId() == Type.TypeID.STRING
+          && (colStats instanceof LongStatistics || colStats instanceof IntStatistics);
     }
 
     @SuppressWarnings("unchecked")

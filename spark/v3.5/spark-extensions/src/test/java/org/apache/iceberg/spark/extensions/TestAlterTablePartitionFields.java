@@ -19,6 +19,8 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -27,8 +29,10 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.spark.SparkException;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
@@ -53,7 +57,13 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
         SparkCatalogConfig.SPARK.implementation(),
         SparkCatalogConfig.SPARK.properties(),
         2
-      }
+      },
+      {
+        SparkCatalogConfig.SPARK.catalogName(),
+        SparkCatalogConfig.SPARK.implementation(),
+        SparkCatalogConfig.SPARK.properties(),
+        3
+      },
     };
   }
 
@@ -100,6 +110,41 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
             .build();
 
     assertThat(table.spec()).as("Should have new spec field").isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testFailTypePromotionFieldReferencedInTransform() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    createTable("id bigint NOT NULL, category string", "bucket(16, id)");
+    sql("INSERT INTO %s VALUES (1, 'cat1')", tableName);
+
+    assertThatThrownBy(() -> sql("ALTER TABLE %s ALTER COLUMN id TYPE string", tableName))
+        .isInstanceOf(SparkException.class)
+        .hasMessageContaining(
+            "Cannot promote field 1 to string since it is part of a transform that produces different values after promotion");
+  }
+
+  @TestTemplate
+  public void testAlterColumnStringPromotion() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    createTable("id bigint NOT NULL, category string");
+    sql("INSERT INTO %s VALUES (1, 'cat1')", tableName);
+    sql("ALTER TABLE %s ALTER COLUMN id TYPE string", tableName);
+    sql("INSERT INTO %s VALUES ('2', 'cat2')", tableName);
+
+    sql("REFRESH TABLE %s", tableName);
+
+    // Query based on a predicate where the actual value in the file is stored as long
+    assertEquals(
+        "Should get first row",
+        ImmutableList.of(row("1", "cat1")),
+        sql("SELECT * FROM %s WHERE id='1'", tableName));
+
+    // Query based on a predicate where the actual value was written as an integer
+    assertEquals(
+        "Should get second row",
+        ImmutableList.of(row("2", "cat2")),
+        sql("SELECT * FROM %s WHERE id='2'", tableName));
   }
 
   @TestTemplate
