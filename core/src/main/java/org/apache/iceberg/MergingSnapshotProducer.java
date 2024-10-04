@@ -86,7 +86,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final DataFileSet newDataFiles = DataFileSet.create();
   private final DeleteFileSet newDeleteFiles = DeleteFileSet.create();
   private Long newDataFilesDataSequenceNumber;
-  private final Map<Integer, List<DeleteFileHolder>> newDeleteFilesBySpec = Maps.newHashMap();
+  private final Map<Integer, List<PendingDeleteFile>> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
@@ -255,24 +255,24 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file) {
     Preconditions.checkNotNull(file, "Invalid delete file: null");
-    add(new DeleteFileHolder(file));
+    add(new PendingDeleteFile(file));
   }
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file, long dataSequenceNumber) {
     Preconditions.checkNotNull(file, "Invalid delete file: null");
-    add(new DeleteFileHolder(file, dataSequenceNumber));
+    add(new PendingDeleteFile(file, dataSequenceNumber));
   }
 
-  private void add(DeleteFileHolder fileHolder) {
-    int specId = fileHolder.deleteFile().specId();
+  private void add(PendingDeleteFile deleteFile) {
+    int specId = deleteFile.specId();
     PartitionSpec fileSpec = ops.current().spec(specId);
-    List<DeleteFileHolder> deleteFiles =
+    List<PendingDeleteFile> deleteFiles =
         newDeleteFilesBySpec.computeIfAbsent(specId, s -> Lists.newArrayList());
 
-    if (newDeleteFiles.add(fileHolder.deleteFile())) {
-      deleteFiles.add(fileHolder);
-      addedFilesSummary.addedFile(fileSpec, fileHolder.deleteFile());
+    if (newDeleteFiles.add(deleteFile)) {
+      deleteFiles.add(deleteFile);
+      addedFilesSummary.addedFile(fileSpec, deleteFile);
       hasNewDeleteFiles = true;
     }
   }
