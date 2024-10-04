@@ -92,17 +92,11 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   private final Table table;
   private final Schema schema;
   private final TableScanContext context;
-  private final Map<Integer, PartitionSpec> specsById;
 
   protected BaseScan(Table table, Schema schema, TableScanContext context) {
     this.table = table;
     this.schema = schema;
     this.context = context;
-    List<PartitionSpec> specs =
-        Lists.newArrayList(
-            Iterables.transform(
-                table.specs().values(), spec -> TableMetadata.updateSpecSchema(schema, spec)));
-    specsById = Maps.newHashMap(PartitionUtil.indexSpecs(specs));
   }
 
   public Table table() {
@@ -154,7 +148,11 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   }
 
   protected Map<Integer, PartitionSpec> specsById() {
-    return specsById;
+    List<PartitionSpec> specs =
+        Lists.newArrayList(
+            Iterables.transform(
+                table.specs().values(), spec -> TableMetadata.updateSpecSchema(schema, spec)));
+    return Maps.newHashMap(PartitionUtil.indexSpecs(specs));
   }
 
   protected abstract ThisT newRefinedScan(
