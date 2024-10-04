@@ -589,17 +589,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return writer.toManifestFiles();
   }
 
-  protected List<ManifestFile> writeDeleteManifests(
-      List<PendingDeleteFile> files, PartitionSpec spec) {
+  protected List<ManifestFile> writeDeleteManifests(List<DeleteFile> files, PartitionSpec spec) {
     return writeManifests(files, group -> writeDeleteFileGroup(group, spec));
   }
 
-  private List<ManifestFile> writeDeleteFileGroup(
-      List<PendingDeleteFile> files, PartitionSpec spec) {
+  private List<ManifestFile> writeDeleteFileGroup(List<DeleteFile> files, PartitionSpec spec) {
     RollingManifestWriter<DeleteFile> writer = newRollingDeleteManifestWriter(spec);
 
     try (RollingManifestWriter<DeleteFile> closableWriter = writer) {
-      for (PendingDeleteFile file : files) {
+      for (DeleteFile file : files) {
         if (file.dataSequenceNumber() != null) {
           closableWriter.add(file, file.dataSequenceNumber());
         } else {
