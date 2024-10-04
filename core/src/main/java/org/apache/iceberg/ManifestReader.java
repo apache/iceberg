@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.avro.io.DatumReader;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
 import org.apache.iceberg.avro.InternalReader;
@@ -262,12 +263,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
         AvroIterable<ManifestEntry<F>> reader =
             Avro.read(file)
                 .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
-                .createResolvingReader(
-                    schema ->
-                        InternalReader.create(schema)
-                            .setRootType(GenericManifestEntry.class)
-                            .setCustomType(ManifestEntry.DATA_FILE_ID, content.fileClass())
-                            .setCustomType(DataFile.PARTITION_ID, PartitionData.class))
+                .createResolvingReader(this::newReader)
                 .reuseContainers()
                 .build();
 
@@ -278,6 +274,13 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       default:
         throw new UnsupportedOperationException("Invalid format for manifest file: " + format);
     }
+  }
+
+  private DatumReader<?> newReader(Schema schema) {
+    return InternalReader.create(schema)
+        .setRootType(GenericManifestEntry.class)
+        .setCustomType(ManifestEntry.DATA_FILE_ID, content.fileClass())
+        .setCustomType(DataFile.PARTITION_ID, PartitionData.class);
   }
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {

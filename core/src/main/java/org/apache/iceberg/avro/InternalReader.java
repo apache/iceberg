@@ -43,6 +43,7 @@ import org.apache.iceberg.util.Pair;
  * @param <T> Java type returned by the reader
  */
 public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition {
+  private static final int ROOT_ID = -1;
 
   private final Types.StructType expectedType;
   private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
@@ -63,7 +64,7 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition {
     this.reader =
         (ValueReader<T>)
             AvroWithPartnerVisitor.visit(
-                Pair.of(-1, expectedType),
+                Pair.of(ROOT_ID, expectedType),
                 fileSchema,
                 new ResolvingReadBuilder(),
                 AccessByID.instance());
@@ -76,7 +77,7 @@ public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition {
   }
 
   public InternalReader<T> setRootType(Class<? extends StructLike> rootClass) {
-    typeMap.put(-1, rootClass);
+    typeMap.put(ROOT_ID, rootClass);
     return this;
   }
 
