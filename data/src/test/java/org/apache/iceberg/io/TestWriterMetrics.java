@@ -243,7 +243,6 @@ public abstract class TestWriterMetrics<T> {
         3L, (long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(5)));
   }
 
-
   @Test
   public void testMaxColumnsBounded() throws IOException {
     File tableDir = temp.newFolder();
@@ -254,30 +253,34 @@ public abstract class TestWriterMetrics<T> {
     Schema maxColSchema = new Schema(fields);
 
     Table maxColumnTable =
-            TestTables.create(
-                    tableDir,
-                    "max_col_table",
-                    maxColSchema,
-                    PartitionSpec.unpartitioned(),
-                    SortOrder.unsorted(),
-                    FORMAT_V2);
+        TestTables.create(
+            tableDir,
+            "max_col_table",
+            maxColSchema,
+            PartitionSpec.unpartitioned(),
+            SortOrder.unsorted(),
+            FORMAT_V2);
 
     long maxInferredColumns = 3;
 
-    maxColumnTable.updateProperties().set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, String.valueOf(maxInferredColumns)).commit();
+    maxColumnTable
+        .updateProperties()
+        .set(
+            TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS,
+            String.valueOf(maxInferredColumns))
+        .commit();
 
     OutputFileFactory maxColFactory =
-            OutputFileFactory.builderFor(maxColumnTable, 1, 1).format(fileFormat).build();
+        OutputFileFactory.builderFor(maxColumnTable, 1, 1).format(fileFormat).build();
 
-    T row = toRow(1,"data", false, Long.MAX_VALUE);
+    T row = toRow(1, "data", false, Long.MAX_VALUE);
     DataWriter<T> dataWriter =
-            newWriterFactory(maxColumnTable)
-                    .newDataWriter(maxColFactory.newOutputFile(), PartitionSpec.unpartitioned(), null);
+        newWriterFactory(maxColumnTable)
+            .newDataWriter(maxColFactory.newOutputFile(), PartitionSpec.unpartitioned(), null);
     dataWriter.write(row);
     dataWriter.close();
     DataFile dataFile = dataWriter.toDataFile();
     assertThat(dataFile.upperBounds().keySet().size()).isEqualTo(maxInferredColumns);
-
   }
 
   @Test
