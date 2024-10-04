@@ -342,7 +342,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
       synchronized (S3FileIO.class) {
         if (executorService == null) {
           executorService =
-              ThreadPools.newWorkerPool(
+              ThreadPools.newExitingWorkerPool(
                   "iceberg-s3fileio-delete", s3FileIOProperties.deleteThreads());
         }
       }

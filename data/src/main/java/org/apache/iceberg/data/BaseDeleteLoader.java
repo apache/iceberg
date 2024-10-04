@@ -166,13 +166,13 @@ public class BaseDeleteLoader implements DeleteLoader {
 
   private CharSequenceMap<PositionDeleteIndex> readPosDeletes(DeleteFile deleteFile) {
     CloseableIterable<Record> deletes = openDeletes(deleteFile, POS_DELETE_SCHEMA);
-    return Deletes.toPositionIndexes(deletes);
+    return Deletes.toPositionIndexes(deletes, deleteFile);
   }
 
   private PositionDeleteIndex readPosDeletes(DeleteFile deleteFile, CharSequence filePath) {
     Expression filter = Expressions.equal(MetadataColumns.DELETE_FILE_PATH.name(), filePath);
     CloseableIterable<Record> deletes = openDeletes(deleteFile, POS_DELETE_SCHEMA, filter);
-    return Deletes.toPositionIndex(filePath, ImmutableList.of(deletes));
+    return Deletes.toPositionIndex(filePath, deletes, deleteFile);
   }
 
   private CloseableIterable<Record> openDeletes(DeleteFile deleteFile, Schema projection) {

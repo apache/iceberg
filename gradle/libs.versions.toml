@@ -29,22 +29,23 @@ arrow = "15.0.2"
 avro = "1.12.0"
 assertj-core = "3.26.3"
 awaitility = "4.2.2"
-awssdk-bom = "2.28.5"
+awssdk-bom = "2.28.11"
 azuresdk-bom = "1.2.25"
 awssdk-s3accessgrants = "2.0.0"
 caffeine = "2.9.3"
 calcite = "1.10.0"
 datasketches = "6.0.0"
-delta-standalone = "3.2.0"
-delta-spark = "3.2.0"
+delta-standalone = "3.2.1"
+delta-spark = "3.2.1"
 esotericsoftware-kryo = "4.0.3"
 errorprone-annotations = "2.31.0"
+failsafe = "3.3.2"
 findbugs-jsr305 = "3.0.2"
 flink118 =  { strictly = "1.18.1"}
 flink119 =  { strictly = "1.19.0"}
 flink120 = { strictly = "1.20.0"}
 google-libraries-bom = "26.47.0"
-guava = "33.3.0-jre"
+guava = "33.3.1-jre"
 hadoop2 = "2.7.3"
 hadoop3 = "3.3.6"
 httpcomponents-httpclient5 = "5.4"
@@ -63,13 +64,13 @@ jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
 jetty = "11.0.24"
 junit = "5.10.1"
-junit-platform = "1.10.3"
+junit-platform = "1.11.1"
 kafka = "3.8.0"
 kryo-shaded = "4.0.3"
-microprofile-openapi-api = "3.1.1"
+microprofile-openapi-api = "3.1.2"
 mockito = "4.11.0"
 mockserver = "5.15.0"
-nessie = "0.97.1"
+nessie = "0.99.0"
 netty-buffer = "4.1.113.Final"
 netty-buffer-compat = "4.1.113.Final"
 object-client-bundle = "3.3.2"
@@ -86,7 +87,7 @@ spark-hive34 = "3.4.3"
 spark-hive35 = "3.5.2"
 spring-boot = "2.7.18"
 spring-web = "5.3.39"
-sqlite-jdbc = "3.46.1.0"
+sqlite-jdbc = "3.46.1.3"
 testcontainers = "1.20.1"
 tez010 = "0.10.4"
 tez08 = { strictly = "0.8.4"}  # see rich version usage explanation above
@@ -109,6 +110,7 @@ calcite-druid = { module = "org.apache.calcite:calcite-druid", version.ref = "ca
 datasketches = { module = "org.apache.datasketches:datasketches-java", version.ref = "datasketches" }
 delta-standalone = { module = "io.delta:delta-standalone_2.12", version.ref = "delta-standalone" }
 errorprone-annotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorprone-annotations" }
+failsafe = { module = "dev.failsafe:failsafe", version.ref = "failsafe"}
 findbugs-jsr305 = { module = "com.google.code.findbugs:jsr305", version.ref = "findbugs-jsr305" }
 flink118-avro = { module = "org.apache.flink:flink-avro", version.ref = "flink118" }
 flink118-connector-base = { module = "org.apache.flink:flink-connector-base", version.ref = "flink118" }
