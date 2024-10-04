@@ -20,11 +20,13 @@ package org.apache.iceberg.io;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.DataFile;
@@ -239,6 +241,43 @@ public abstract class TestWriterMetrics<T> {
         3, (int) Conversions.fromByteBuffer(Types.IntegerType.get(), upperBounds.get(1)));
     Assert.assertEquals(
         3L, (long) Conversions.fromByteBuffer(Types.LongType.get(), upperBounds.get(5)));
+  }
+
+
+  @Test
+  public void testMaxColumnsBounded() throws IOException {
+    File tableDir = temp.newFolder();
+    tableDir.delete(); // created by table create
+
+    List<Types.NestedField> fields = Arrays.asList(ID_FIELD, DATA_FIELD, STRUCT_FIELD);
+
+    Schema maxColSchema = new Schema(fields);
+
+    Table maxColumnTable =
+            TestTables.create(
+                    tableDir,
+                    "max_col_table",
+                    maxColSchema,
+                    PartitionSpec.unpartitioned(),
+                    SortOrder.unsorted(),
+                    FORMAT_V2);
+
+    long maxInferredColumns = 3;
+
+    maxColumnTable.updateProperties().set(TableProperties.METRICS_MAX_INFERRED_COLUMN_DEFAULTS, String.valueOf(maxInferredColumns)).commit();
+
+    OutputFileFactory maxColFactory =
+            OutputFileFactory.builderFor(maxColumnTable, 1, 1).format(fileFormat).build();
+
+    T row = toRow(1,"data", false, Long.MAX_VALUE);
+    DataWriter<T> dataWriter =
+            newWriterFactory(maxColumnTable)
+                    .newDataWriter(maxColFactory.newOutputFile(), PartitionSpec.unpartitioned(), null);
+    dataWriter.write(row);
+    dataWriter.close();
+    DataFile dataFile = dataWriter.toDataFile();
+    assertThat(dataFile.upperBounds().keySet().size()).isEqualTo(maxInferredColumns);
+
   }
 
   @Test
