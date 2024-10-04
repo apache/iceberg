@@ -596,16 +596,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected List<ManifestFile> writeDeleteManifests(
-      Collection<PendingDeleteFile> files, PartitionSpec spec) {
+      Collection<DeleteFile> files, PartitionSpec spec) {
     return writeManifests(files, group -> writeDeleteFileGroup(group, spec));
   }
 
   private List<ManifestFile> writeDeleteFileGroup(
-      Collection<PendingDeleteFile> files, PartitionSpec spec) {
+      Collection<DeleteFile> files, PartitionSpec spec) {
     RollingManifestWriter<DeleteFile> writer = newRollingDeleteManifestWriter(spec);
 
     try (RollingManifestWriter<DeleteFile> closableWriter = writer) {
-      for (PendingDeleteFile file : files) {
+      for (DeleteFile file : files) {
         if (file.dataSequenceNumber() != null) {
           closableWriter.add(file, file.dataSequenceNumber());
         } else {
