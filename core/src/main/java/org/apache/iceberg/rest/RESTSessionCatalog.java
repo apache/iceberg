@@ -432,6 +432,18 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     client.post(paths.rename(), request, null, headers(context), ErrorHandlers.tableErrorHandler());
   }
 
+  @Override
+  public boolean tableExists(SessionContext context, TableIdentifier identifier) {
+    checkIdentifierIsValid(identifier);
+
+    try {
+      client.head(paths.table(identifier), headers(context), ErrorHandlers.tableErrorHandler());
+      return true;
+    } catch (NoSuchTableException e) {
+      return false;
+    }
+  }
+
   private LoadTableResponse loadInternal(
       SessionContext context, TableIdentifier identifier, SnapshotMode mode) {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
