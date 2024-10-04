@@ -394,5 +394,6 @@ SET table.exec.iceberg.use-v2-sink = true;
 ## Writing with DataStream
 
 To use SinkV2 based implementation, replace `FlinkSink` with `IcebergSink` in the provided snippets.
-Warning: some settings are not available in this class (e.g. `rangeDistributionStatisticsType`),
-some others are slightly different (e.g. there is a `uidSuffix` method instead of `uidPrefix`).
+Warning: There are some slight differences between these implementations:
+- The `RANGE` distribution mode is not yet available for the `IcebergSink`
+- When using `IcebergSink` use `uidSuffix` instead of the `uidPrefix`

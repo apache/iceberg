@@ -69,6 +69,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
         }
       }
     }
+
     for (FileFormat format :
         new FileFormat[] {FileFormat.ORC, FileFormat.AVRO, FileFormat.PARQUET}) {
       for (Boolean isStreaming : new Boolean[] {true, false}) {
@@ -78,6 +79,7 @@ public class TestFlinkTableSink extends CatalogTestBase {
         parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming, useV2Sink});
       }
     }
+
     return parameters;
   }
 
@@ -101,9 +103,11 @@ public class TestFlinkTableSink extends CatalogTestBase {
         }
       }
     }
+
     tEnv.getConfig()
         .getConfiguration()
         .set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_V2_SINK, useV2Sink);
+
     return tEnv;
   }
 
