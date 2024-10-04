@@ -565,7 +565,9 @@ public class Types {
       return new NestedField(false, id, name, type, doc, initialDefault, writeDefault);
     }
 
-    /** @deprecated will be removed in 2.0.0; use {@link Builder#withId(int)} instead */
+    /**
+     * @deprecated will be removed in 2.0.0; use {@link Builder#withId(int)} instead
+     */
     @Deprecated
     public NestedField withFieldId(int newId) {
       return new NestedField(isOptional, newId, name, type, doc, initialDefault, writeDefault);
