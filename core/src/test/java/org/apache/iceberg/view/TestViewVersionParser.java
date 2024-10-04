@@ -129,4 +129,22 @@ public class TestViewVersionParser {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing field: default-namespace");
   }
+
+  @Test
+  public void invalidRepresentations() {
+    String invalidRepresentations =
+        "{\"version-id\":1, \"timestamp-ms\":12345, \"schema-id\":1, \"summary\":{\"user\":\"some-user\"}, \"representations\": 23, \"default-namespace\":[\"one\",\"two\"]}";
+    assertThatThrownBy(() -> ViewVersionParser.fromJson(invalidRepresentations))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse representations from non-array: 23");
+  }
+
+  @Test
+  public void missingRepresentations() {
+    String missingRepresentations =
+        "{\"version-id\":1, \"timestamp-ms\":12345, \"schema-id\":1, \"summary\":{\"user\":\"some-user\"}, \"default-namespace\":[\"one\",\"two\"]}";
+    assertThatThrownBy(() -> ViewVersionParser.fromJson(missingRepresentations))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing field: representations");
+  }
 }

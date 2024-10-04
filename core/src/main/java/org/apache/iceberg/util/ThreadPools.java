@@ -42,13 +42,14 @@ public class ThreadPools {
 
   public static final int WORKER_THREAD_POOL_SIZE = SystemConfigs.WORKER_THREAD_POOL_SIZE.value();
 
-  private static final ExecutorService WORKER_POOL = newWorkerPool("iceberg-worker-pool");
+  private static final ExecutorService WORKER_POOL =
+      newExitingWorkerPool("iceberg-worker-pool", WORKER_THREAD_POOL_SIZE);
 
   public static final int DELETE_WORKER_THREAD_POOL_SIZE =
       SystemConfigs.DELETE_WORKER_THREAD_POOL_SIZE.value();
 
   private static final ExecutorService DELETE_WORKER_POOL =
-      newWorkerPool("iceberg-delete-worker-pool", DELETE_WORKER_THREAD_POOL_SIZE);
+      newExitingWorkerPool("iceberg-delete-worker-pool", DELETE_WORKER_THREAD_POOL_SIZE);
 
   /**
    * Return an {@link ExecutorService} that uses the "worker" thread-pool.
@@ -81,14 +82,61 @@ public class ThreadPools {
     return DELETE_WORKER_POOL;
   }
 
+  /**
+   * Creates a fixed-size thread pool that uses daemon threads. The pool is wrapped with {@link
+   * MoreExecutors#getExitingExecutorService(ThreadPoolExecutor)}, which registers a shutdown hook
+   * to ensure the pool terminates when the JVM exits. <b>Important:</b> Even if the pool is
+   * explicitly shut down using {@link ExecutorService#shutdown()}, the shutdown hook is <i>not</i>
+   * removed. This can lead to accumulation of shutdown hooks if this method is used repeatedly for
+   * short-lived thread pools.
+   *
+   * <p>For clarity and to avoid potential issues with shutdown hook accumulation, prefer using
+   * either {@link #newExitingWorkerPool(String, int)} or {@link #newFixedThreadPool(String, int)},
+   * depending on the intended lifecycle of the thread pool.
+   *
+   * @deprecated will be removed in 2.0.0. Use {@link #newExitingWorkerPool(String, int)} for
+   *     long-lived thread pools that require a shutdown hook, or {@link #newFixedThreadPool(String,
+   *     int)} for short-lived thread pools where you manage the lifecycle.
+   */
+  @Deprecated
   public static ExecutorService newWorkerPool(String namePrefix) {
-    return newWorkerPool(namePrefix, WORKER_THREAD_POOL_SIZE);
+    return newExitingWorkerPool(namePrefix, WORKER_THREAD_POOL_SIZE);
   }
 
+  /**
+   * Creates a fixed-size thread pool that uses daemon threads. The pool is wrapped with {@link
+   * MoreExecutors#getExitingExecutorService(ThreadPoolExecutor)}, which registers a shutdown hook
+   * to ensure the pool terminates when the JVM exits. <b>Important:</b> Even if the pool is
+   * explicitly shut down using {@link ExecutorService#shutdown()}, the shutdown hook is <i>not</i>
+   * removed. This can lead to accumulation of shutdown hooks if this method is used repeatedly for
+   * short-lived thread pools.
+   *
+   * <p>For clarity and to avoid potential issues with shutdown hook accumulation, prefer using
+   * either {@link #newExitingWorkerPool(String, int)} or {@link #newFixedThreadPool(String, int)},
+   * depending on the intended lifecycle of the thread pool.
+   *
+   * @deprecated will be removed in 2.0.0. Use {@link #newExitingWorkerPool(String, int)} for
+   *     long-lived thread pools that require a shutdown hook, or {@link #newFixedThreadPool(String,
+   *     int)} for short-lived thread pools where you manage the lifecycle.
+   */
+  @Deprecated
   public static ExecutorService newWorkerPool(String namePrefix, int poolSize) {
+    return newExitingWorkerPool(namePrefix, poolSize);
+  }
+
+  /**
+   * Creates a fixed-size thread pool that uses daemon threads and registers a shutdown hook to
+   * ensure the pool terminates when the JVM exits. This is suitable for long-lived thread pools
+   * that should be automatically cleaned up on JVM shutdown.
+   */
+  public static ExecutorService newExitingWorkerPool(String namePrefix, int poolSize) {
     return MoreExecutors.getExitingExecutorService(
-        (ThreadPoolExecutor)
-            Executors.newFixedThreadPool(poolSize, newDaemonThreadFactory(namePrefix)));
+        (ThreadPoolExecutor) newFixedThreadPool(namePrefix, poolSize));
+  }
+
+  /** Creates a fixed-size thread pool that uses daemon threads. */
+  public static ExecutorService newFixedThreadPool(String namePrefix, int poolSize) {
+    return Executors.newFixedThreadPool(poolSize, newDaemonThreadFactory(namePrefix));
   }
 
   /**
