@@ -66,6 +66,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private boolean closed;
   private ParquetFileWriter writer;
   private int rowGroupOrdinal;
+  private long currentBufferSize = 0;
+  private long totalBufferSize = 0;
+  private long totalRowGroupSize = 0;
 
   private static final String COLUMN_INDEX_TRUNCATE_LENGTH = "parquet.columnindex.truncate.length";
   private static final int DEFAULT_COLUMN_INDEX_TRUNCATE_LENGTH = 64;
@@ -132,7 +135,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   @Override
   public void add(T value) {
     recordCount += 1;
+    long sizeBeforeWrite = writeStore.getBufferedSize();
     model.write(0, value);
+    this.currentBufferSize += writeStore.getBufferedSize() - sizeBeforeWrite;
     writeStore.endRecord();
     checkSize();
   }
@@ -185,9 +190,17 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     return null;
   }
 
+  private long estimateBufferSize() {
+    if (totalRowGroupSize == 0 || totalBufferSize == 0) {
+      return currentBufferSize;
+    }
+
+    return currentBufferSize * totalRowGroupSize / totalBufferSize;
+  }
+
   private void checkSize() {
     if (recordCount >= nextCheckRecordCount) {
-      long bufferedSize = writeStore.getBufferedSize();
+      long bufferedSize = estimateBufferSize();
       double avgRecordSize = ((double) bufferedSize) / recordCount;
 
       if (bufferedSize > (targetRowGroupSize - 2 * avgRecordSize)) {
@@ -211,6 +224,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
         writer.startBlock(recordCount);
         writeStore.flush();
         pageStore.flushToFileWriter(writer);
+        totalBufferSize += currentBufferSize;
+        totalRowGroupSize += writeStore.getBufferedSize();
         writer.endBlock();
         if (!finished) {
           writeStore.close();
@@ -245,6 +260,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore, pageStore);
 
     model.setColumnStore(writeStore);
+    this.currentBufferSize = 0;
   }
 
   @Override

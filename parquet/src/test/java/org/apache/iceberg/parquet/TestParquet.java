@@ -236,17 +236,16 @@ public class TestParquet {
     List<Types.NestedField> columns = columnsBuilder.build();
     Schema schema = new Schema(columns);
 
-    int recordCount = 10000;
+    int recordCount = 100000;
     File file = createTempFile(temp);
 
     List<GenericData.Record> records = Lists.newArrayListWithCapacity(recordCount);
     org.apache.avro.Schema avroSchema = AvroSchemaUtil.convert(schema.asStruct());
     for (int i = 1; i <= recordCount; i++) {
-      Random random = new Random();
-      String value =  "A".repeat(100);
       GenericData.Record record = new GenericData.Record(avroSchema);
       for (Types.NestedField column : columns) {
-          record.put(column.name(), value);
+        String value = column.name().repeat(10) + i;
+        record.put(column.name(), value);
       }
 
       records.add(record);
