@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.transformations.LegacySinkTransformation;
+import org.apache.flink.streaming.api.functions.sink.v2.DiscardingSink;
 import org.apache.flink.streaming.api.transformations.SinkTransformation;
 import org.apache.flink.table.api.EnvironmentSettings;
 import org.apache.flink.table.api.TableEnvironment;
@@ -54,6 +54,7 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.flink.sink.IcebergSink;
 import org.apache.iceberg.flink.source.BoundedTableFactory;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -170,13 +171,18 @@ public class TestFlinkTableSinkExtended extends SqlBase {
     PlannerBase planner = (PlannerBase) ((TableEnvironmentImpl) getTableEnv()).getPlanner();
     String insertSQL = String.format("INSERT INTO %s SELECT * FROM %s", TABLE, SOURCE_TABLE);
     ModifyOperation operation = (ModifyOperation) planner.getParser().parse(insertSQL).get(0);
-    Transformation<?> sink = planner.translate(Collections.singletonList(operation)).get(0);
+    Transformation<?> transformation =
+        planner.translate(Collections.singletonList(operation)).get(0);
+    assertThat(transformation).as("Should use SinkV2 API").isInstanceOf(SinkTransformation.class);
+    SinkTransformation<?, ?> sinkTransformation = (SinkTransformation<?, ?>) transformation;
     if (useV2Sink) {
-      assertThat(sink).as("Should use SinkV2 API").isInstanceOf(SinkTransformation.class);
+      assertThat(sinkTransformation.getSink())
+          .as("Should use SinkV2 API based implementation")
+          .isInstanceOf(IcebergSink.class);
     } else {
-      assertThat(sink)
+      assertThat(sinkTransformation.getSink())
           .as("Should use custom chain of StreamOperators terminated by DiscardingSink")
-          .isInstanceOf(LegacySinkTransformation.class);
+          .isInstanceOf(DiscardingSink.class);
     }
   }
 
