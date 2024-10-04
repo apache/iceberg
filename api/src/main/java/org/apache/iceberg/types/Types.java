@@ -459,9 +459,9 @@ public class Types {
       private Object initialDefault = null;
       private Object writeDefault = null;
 
-      private Builder(boolean isOptional, String name) {
-        this.isOptional = isOptional;
-        this.name = name;
+      private Builder(boolean isFieldOptional, String fieldName) {
+        isOptional = isFieldOptional;
+        name = fieldName;
       }
 
       private Builder(NestedField toCopy) {
@@ -474,34 +474,28 @@ public class Types {
         this.writeDefault = toCopy.writeDefault;
       }
 
-      public Builder withId(int id) {
-        this.id = id;
+      public Builder withId(int fieldId) {
+        id = fieldId;
         return this;
       }
 
-      public Builder ofType(Type type) {
-        this.type = type;
+      public Builder ofType(Type fieldType) {
+        type = fieldType;
         return this;
       }
 
-      public Builder withDoc(String doc) {
-        this.doc = doc;
+      public Builder withDoc(String fieldDoc) {
+        doc = fieldDoc;
         return this;
       }
 
-      public Builder withInitialDefault(Object initialDefault) {
-        this.initialDefault = initialDefault;
+      public Builder withInitialDefault(Object fieldInitialDefault) {
+        initialDefault = fieldInitialDefault;
         return this;
       }
 
-      public Builder withWriteDefault(Object writeDefault) {
-        this.writeDefault = writeDefault;
-        return this;
-      }
-
-      public Builder withDefault(Object defaultValue) {
-        this.initialDefault = defaultValue;
-        this.writeDefault = defaultValue;
+      public Builder withWriteDefault(Object fieldWriteDefault) {
+        writeDefault = fieldWriteDefault;
         return this;
       }
 
@@ -571,6 +565,8 @@ public class Types {
       return new NestedField(false, id, name, type, doc, initialDefault, writeDefault);
     }
 
+    /** @deprecated will be removed in 2.0.0; use {@link Builder#withId(int)} instead */
+    @Deprecated
     public NestedField withFieldId(int newId) {
       return new NestedField(isOptional, newId, name, type, doc, initialDefault, writeDefault);
     }

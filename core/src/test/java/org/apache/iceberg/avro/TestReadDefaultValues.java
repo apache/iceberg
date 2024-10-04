@@ -94,7 +94,7 @@ public class TestReadDefaultValues {
               Types.NestedField.optional("defaulted")
                   .withId(1000)
                   .ofType(type)
-                  .withDefault(defaultValue)
+                  .withInitialDefault(defaultValue)
                   .build());
 
       Record expectedRecord = new Record(AvroSchemaUtil.convert(readerSchema.asStruct()));
@@ -130,7 +130,7 @@ public class TestReadDefaultValues {
               Types.NestedField.optional("written_2")
                   .withId(1000)
                   .ofType(type)
-                  .withDefault(defaultValue)
+                  .withInitialDefault(defaultValue)
                   .build());
 
       // Create a record with null value for the column with default value
