@@ -312,6 +312,10 @@ Used to remove files which are not referenced in any metadata files of an Iceber
 | `location`    |    | string    | Directory to look for files in (defaults to the table's location) |
 | `dry_run`     |    | boolean   | When true, don't actually remove files (defaults to false) |
 | `max_concurrent_deletes` |    | int       | Size of the thread pool used for delete file actions (by default, no thread pool is used) |
+| `file_list_view` |    | string | Dataset to look for files in (skipping the directory listing) |
+| `equal_schemes` |    | map<string, string> | Mapping of file system schemes to be considered equal. Key is a comma-separated list of schemes and value is a scheme (defaults to `map('s3a,s3n','s3')`). |
+| `equal_authorities` |    | map<string, string> | Mapping of file system authorities to be considered equal. Key is a comma-separated list of authorities and value is an authority. |
+| `prefix_mismatch_mode` |    | string | Action behavior when location prefixes (schemes/authorities) mismatch: <ul><li>ERROR - throw an exception. (default) </li><li>IGNORE - no action.</li><li>DELETE - delete files.</li></ul> |  
 
 #### Output
 
@@ -329,6 +333,40 @@ CALL catalog_name.system.remove_orphan_files(table => 'db.sample', dry_run => tr
 Remove any files in the `tablelocation/data` folder which are not known to the table `db.sample`.
 ```sql
 CALL catalog_name.system.remove_orphan_files(table => 'db.sample', location => 'tablelocation/data');
+```
+
+Remove any files in the `files_view` view which are not known to the table `db.sample`.
+```java
+Dataset<Row> compareToFileList =
+    spark
+        .createDataFrame(allFiles, FilePathLastModifiedRecord.class)
+        .withColumnRenamed("filePath", "file_path")
+        .withColumnRenamed("lastModified", "last_modified");
+String fileListViewName = "files_view";
+compareToFileList.createOrReplaceTempView(fileListViewName);
+```
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', file_list_view => 'files_view');
+```
+
+When a file matches references in metadata files except for location prefix (scheme/authority), an error is thrown by default. 
+The error can be ignored and the file will be skipped by setting `prefix_mismatch_mode` to `IGNORE`.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_mismatch_mode => 'IGNORE');
+```
+
+The file can still be deleted by setting `prefix_mismatch_mode` to `DELETE`.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', prefix_mismatch_mode => 'DELETE');
+```
+
+The file can also be deleted by considering the mismatched prefixes equal.
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_schemes => map('file', 'file1'));
+```
+
+```sql
+CALL catalog_name.system.remove_orphan_files(table => 'db.sample', equal_authorities => map('ns1', 'ns2'));
 ```
 
 ### `rewrite_data_files`
@@ -546,6 +584,7 @@ See [`migrate`](#migrate) to replace an existing table with an Iceberg table.
 | `table`       | ✔️  | string | Name of the new Iceberg table to create |
 | `location`    |    | string | Table location for the new table (delegated to the catalog by default) |
 | `properties`  | ️   | map<string, string> | Properties to add to the newly created table |
+| `parallelism` |    | int | Number of threads to use for file reading (defaults to 1) |
 
 #### Output
 
@@ -588,6 +627,7 @@ By default, the original table is retained with the name `table_BACKUP_`.
 | `properties`  | ️   | map<string, string> | Properties for the new Iceberg table |
 | `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 | `backup_table_name` |  | string | Name of the table that will be retained as backup (defaults to `table_BACKUP_`) |
+| `parallelism` |   | int | Number of threads to use for file reading (defaults to 1) |
 
 #### Output
 
@@ -629,7 +669,7 @@ will then treat these files as if they are part of the set of files  owned by Ic
 | `source_table`          | ✔️        | string              | Table where files should come from, paths are also possible in the form of \`file_format\`.\`path\` |
 | `partition_filter`      | ️         | map<string, string> | A map of partitions in the source table to import from                                              |
 | `check_duplicate_files` | ️         | boolean             | Whether to prevent files existing in the table from being added (defaults to true)                  |
-| `parallelism`           |           | int                 | number of threads to use for file reading (defaults to 1)                                         |
+| `parallelism`           |           | int                 | Number of threads to use for file reading (defaults to 1)                                         |
 
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
@@ -817,7 +857,7 @@ that provide additional information about the changes being tracked. These colum
 Here is an example of corresponding results. It shows that the first snapshot inserted 2 records, and the
 second snapshot deleted 1 record. 
 
-|  id	| name	  |_change_type |	_change_ordinal	| _change_snapshot_id |
+|  id	| name	  |_change_type |	_change_ordinal	| _commit_snapshot_id |
 |---|--------|---|---|---|
 |1	| Alice	 |INSERT	|0	|5390529835796506035|
 |2	| Bob	   |INSERT	|0	|5390529835796506035|
@@ -837,7 +877,7 @@ CALL spark_catalog.system.create_changelog_view(
 
 With the net changes, the above changelog view only contains the following row since Alice was inserted in the first snapshot and deleted in the second snapshot.
 
-|  id	| name	  |_change_type |	_change_ordinal	| _change_snapshot_id |
+|  id	| name	  |_change_type |	_change_ordinal	| _commit_snapshot_id |
 |---|--------|---|---|---|
 |2	| Bob	   |INSERT	|0	|5390529835796506035|
 

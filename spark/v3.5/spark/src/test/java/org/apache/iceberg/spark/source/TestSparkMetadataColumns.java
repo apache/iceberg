@@ -24,6 +24,7 @@ import static org.apache.iceberg.TableProperties.ORC_VECTORIZATION_ENABLED;
 import static org.apache.iceberg.TableProperties.PARQUET_BATCH_SIZE;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_VECTORIZATION_ENABLED;
+import static org.apache.spark.sql.functions.expr;
 import static org.apache.spark.sql.functions.lit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -35,6 +36,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
 import org.apache.iceberg.MetadataColumns;
@@ -60,6 +62,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -170,6 +173,50 @@ public class TestSparkMetadataColumns extends TestBase {
         "Rows must match",
         expected,
         sql("SELECT _spec_id, _partition FROM %s ORDER BY _spec_id", TABLE_NAME));
+  }
+
+  @TestTemplate
+  public void testPartitionMetadataColumnWithManyColumns() {
+    List<Types.NestedField> fields =
+        Lists.newArrayList(Types.NestedField.required(0, "id", Types.LongType.get()));
+    List<Types.NestedField> additionalCols =
+        IntStream.range(1, 1010)
+            .mapToObj(i -> Types.NestedField.optional(i, "c" + i, Types.StringType.get()))
+            .collect(Collectors.toList());
+    fields.addAll(additionalCols);
+    Schema manyColumnsSchema = new Schema(fields);
+    PartitionSpec spec = PartitionSpec.builderFor(manyColumnsSchema).identity("id").build();
+
+    TableOperations ops = ((HasTableOperations) table).operations();
+    TableMetadata base = ops.current();
+    ops.commit(
+        base,
+        base.updateSchema(manyColumnsSchema, manyColumnsSchema.highestFieldId())
+            .updatePartitionSpec(spec));
+
+    Dataset<Row> df =
+        spark
+            .range(2)
+            .withColumns(
+                IntStream.range(1, 1010)
+                    .boxed()
+                    .collect(Collectors.toMap(i -> "c" + i, i -> expr("CAST(id as STRING)"))));
+    StructType sparkSchema = spark.table(TABLE_NAME).schema();
+    spark
+        .createDataFrame(df.rdd(), sparkSchema)
+        .coalesce(1)
+        .write()
+        .format("iceberg")
+        .mode("append")
+        .save(TABLE_NAME);
+
+    assertThat(spark.table(TABLE_NAME).select("*", "_partition").count()).isEqualTo(2);
+    List<Object[]> expected =
+        ImmutableList.of(row(row(0L), 0L, "0", "0", "0"), row(row(1L), 1L, "1", "1", "1"));
+    assertEquals(
+        "Rows must match",
+        expected,
+        sql("SELECT _partition, id, c999, c1000, c1001 FROM %s ORDER BY id", TABLE_NAME));
   }
 
   @TestTemplate

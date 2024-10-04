@@ -23,19 +23,25 @@ nav:
   - Docs: 
     - nightly: '!include docs/docs/nightly/mkdocs.yml'
     - latest: '!include docs/docs/latest/mkdocs.yml'
+    - 1.6.1: '!include docs/docs/1.6.1/mkdocs.yml'
+    - 1.6.0: '!include docs/docs/1.6.0/mkdocs.yml'
+    - 1.5.2: '!include docs/docs/1.5.2/mkdocs.yml'
     - 1.5.1: '!include docs/docs/1.5.1/mkdocs.yml'   
     - 1.5.0: '!include docs/docs/1.5.0/mkdocs.yml'
     - 1.4.3: '!include docs/docs/1.4.3/mkdocs.yml'
     - 1.4.2: '!include docs/docs/1.4.2/mkdocs.yml'
     - 1.4.1: '!include docs/docs/1.4.1/mkdocs.yml'
     - 1.4.0: '!include docs/docs/1.4.0/mkdocs.yml'
+    - archive: archive.md
   - Releases: releases.md
   - Blogs: blogs.md
   - Talks: talks.md
   - Vendors: vendors.md
   - Project: 
     - Community: community.md
-    - Spec: spec.md
+    - Contributing: contribute.md
+    - REST Catalog Spec: https://editor-next.swagger.io/?url=https://raw.githubusercontent.com/apache/iceberg/main/open-api/rest-catalog-open-api.yaml
+    - Table Spec: spec.md
     - View spec: view-spec.md
     - Puffin spec: puffin-spec.md
     - AES GCM Stream spec: gcm-stream-spec.md

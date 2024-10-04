@@ -22,11 +22,16 @@ on:
   push:
     branches:
       - 'main'
-      - '0.**'
+      - '0.*'
+      - '1.*'
+      - '2.*'
     tags:
       - 'apache-iceberg-**'
   pull_request:
     paths:
+      - '.github/workflows/api-binary-compatibility.yml'
+      - '*.gradle'
+      - 'gradle*'
       - 'api/**'
       - '.palantir/revapi.yml'
 

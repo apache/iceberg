@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.Files.localOutput;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -28,7 +29,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -159,21 +159,22 @@ public class TestTimestampWithoutZone extends SparkTestBase {
 
   @Test
   public void testUnpartitionedTimestampWithoutZoneError() {
-    AssertHelpers.assertThrows(
-        String.format(
-            "Read operation performed on a timestamp without timezone field while "
-                + "'%s' set to false should throw exception",
-            SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE),
-        IllegalArgumentException.class,
-        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR,
-        () ->
-            spark
-                .read()
-                .format("iceberg")
-                .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
-                .option(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "false")
-                .load(unpartitioned.toString())
-                .collectAsList());
+    assertThatThrownBy(
+            () ->
+                spark
+                    .read()
+                    .format("iceberg")
+                    .option(SparkReadOptions.VECTORIZATION_ENABLED, String.valueOf(vectorized))
+                    .option(SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE, "false")
+                    .load(unpartitioned.toString())
+                    .collectAsList())
+        .as(
+            String.format(
+                "Read operation performed on a timestamp without timezone field while "
+                    + "'%s' set to false should throw exception",
+                SparkReadOptions.HANDLE_TIMESTAMP_WITHOUT_TIMEZONE))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
   }
 
   @Test
@@ -217,11 +218,10 @@ public class TestTimestampWithoutZone extends SparkTestBase {
                 .mode(SaveMode.Append)
                 .save(unpartitioned.toString());
 
-    AssertHelpers.assertThrows(
-        errorMessage,
-        IllegalArgumentException.class,
-        SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR,
-        writeOperation);
+    assertThatThrownBy(writeOperation::run)
+        .as(errorMessage)
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(SparkUtil.TIMESTAMP_WITHOUT_TIMEZONE_ERROR);
   }
 
   @Test

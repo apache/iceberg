@@ -510,7 +510,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
   private boolean metadataFileExists(TableMetadata metadata) {
     try {
-      s3.headObject(
+      S3.headObject(
           HeadObjectRequest.builder()
               .bucket(S3TestUtil.getBucketFromUri(metadata.metadataFileLocation()))
               .key(S3TestUtil.getKeyFromUri(metadata.metadataFileLocation()))
@@ -523,7 +523,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
   private int metadataFileCount(TableMetadata metadata) {
     return (int)
-        s3
+        S3
             .listObjectsV2(
                 ListObjectsV2Request.builder()
                     .bucket(S3TestUtil.getBucketFromUri(metadata.metadataFileLocation()))
@@ -531,7 +531,8 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
                         new File(S3TestUtil.getKeyFromUri(metadata.metadataFileLocation()))
                             .getParent())
                     .build())
-            .contents().stream()
+            .contents()
+            .stream()
             .filter(s3Object -> s3Object.key().endsWith("metadata.json"))
             .count();
   }

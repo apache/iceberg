@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.entry;
 
 import java.io.File;
@@ -31,7 +32,7 @@ import java.util.List;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -47,7 +48,7 @@ public class TestPartitionSpecInfo {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
-    return Arrays.asList(1, 2);
+    return Arrays.asList(1, 2, 3);
   }
 
   @Parameter private int formatVersion;
@@ -62,7 +63,7 @@ public class TestPartitionSpecInfo {
     TestTables.clearTables();
   }
 
-  @Test
+  @TestTemplate
   public void testSpecIsUnpartitionedForVoidTranforms() {
     PartitionSpec spec =
         PartitionSpec.builderFor(schema).alwaysNull("id").alwaysNull("data").build();
@@ -70,7 +71,7 @@ public class TestPartitionSpecInfo {
     assertThat(spec.isUnpartitioned()).isTrue();
   }
 
-  @Test
+  @TestTemplate
   public void testSpecInfoUnpartitionedTable() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
@@ -83,7 +84,7 @@ public class TestPartitionSpecInfo {
         .doesNotContainKey(Integer.MAX_VALUE);
   }
 
-  @Test
+  @TestTemplate
   public void testSpecInfoPartitionedTable() {
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("data").build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
@@ -95,7 +96,31 @@ public class TestPartitionSpecInfo {
         .doesNotContainKey(Integer.MAX_VALUE);
   }
 
-  @Test
+  @TestTemplate
+  public void testSpecInfoPartitionedTableCaseInsensitive() {
+    PartitionSpec spec =
+        PartitionSpec.builderFor(schema).caseSensitive(false).identity("DATA").build();
+    TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
+
+    assertThat(table.spec()).isEqualTo(spec);
+    assertThat(table.spec().lastAssignedFieldId()).isEqualTo(spec.lastAssignedFieldId());
+    assertThat(table.specs())
+        .containsExactly(entry(spec.specId(), spec))
+        .doesNotContainKey(Integer.MAX_VALUE);
+  }
+
+  @TestTemplate
+  public void testSpecInfoPartitionedTableCaseSensitiveFails() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () -> {
+              PartitionSpec spec =
+                  PartitionSpec.builderFor(schema).caseSensitive(true).identity("DATA").build();
+            })
+        .withMessage("Cannot find source column: DATA");
+  }
+
+  @TestTemplate
   public void testColumnDropWithPartitionSpecEvolution() {
     PartitionSpec spec = PartitionSpec.builderFor(schema).identity("id").build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);
@@ -119,7 +144,7 @@ public class TestPartitionSpecInfo {
     assertThat(table.schema().asStruct()).isEqualTo(expectedSchema.asStruct());
   }
 
-  @Test
+  @TestTemplate
   public void testSpecInfoPartitionSpecEvolutionForV1Table() {
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 4).build();
     TestTables.TestTable table = TestTables.create(tableDir, "test", schema, spec, formatVersion);

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -29,6 +30,7 @@ import javax.annotation.Nullable;
 import org.apache.flink.api.connector.source.SourceEvent;
 import org.apache.flink.api.connector.source.SplitEnumerator;
 import org.apache.flink.api.connector.source.SplitEnumeratorContext;
+import org.apache.flink.api.connector.source.SupportsHandleExecutionAttemptSourceEvent;
 import org.apache.iceberg.flink.source.assigner.GetSplitResult;
 import org.apache.iceberg.flink.source.assigner.SplitAssigner;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
@@ -37,7 +39,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 abstract class AbstractIcebergEnumerator
-    implements SplitEnumerator<IcebergSourceSplit, IcebergEnumeratorState> {
+    implements SplitEnumerator<IcebergSourceSplit, IcebergEnumeratorState>,
+        SupportsHandleExecutionAttemptSourceEvent {
   private static final Logger LOG = LoggerFactory.getLogger(AbstractIcebergEnumerator.class);
 
   private final SplitEnumeratorContext<IcebergSourceSplit> enumeratorContext;
@@ -74,6 +77,7 @@ abstract class AbstractIcebergEnumerator
     // Iceberg source uses custom split request event to piggyback finished split ids.
     throw new UnsupportedOperationException(
         String.format(
+            Locale.ROOT,
             "Received invalid default split request event "
                 + "from subtask %d as Iceberg source uses custom split request event",
             subtaskId));
@@ -90,9 +94,18 @@ abstract class AbstractIcebergEnumerator
     } else {
       throw new IllegalArgumentException(
           String.format(
+              Locale.ROOT,
               "Received unknown event from subtask %d: %s",
-              subtaskId, sourceEvent.getClass().getCanonicalName()));
+              subtaskId,
+              sourceEvent.getClass().getCanonicalName()));
     }
+  }
+
+  // Flink's SourceCoordinator already keeps track of subTask to splits mapping.
+  // It already takes care of re-assigning splits to speculated attempts as well.
+  @Override
+  public void handleSourceEvent(int subTaskId, int attemptNumber, SourceEvent sourceEvent) {
+    handleSourceEvent(subTaskId, sourceEvent);
   }
 
   @Override

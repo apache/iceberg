@@ -84,7 +84,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -653,7 +652,7 @@ public class ArrowReaderTest {
         // we need to use assertThat() here because it does a java.util.Objects.deepEquals() and
         // that
         // is relevant for byte[]
-        Assertions.assertThat(actualValue).as("Row#" + i + " mismatches").isEqualTo(expectedValue);
+        assertThat(actualValue).as("Row#" + i + " mismatches").isEqualTo(expectedValue);
       }
     }
   }
@@ -1205,7 +1204,7 @@ public class ArrowReaderTest {
         // we need to use assertThat() here because it does a java.util.Objects.deepEquals() and
         // that
         // is relevant for byte[]
-        Assertions.assertThat(actualValue).as("Row#" + i + " mismatches").isEqualTo(expectedValue);
+        assertThat(actualValue).as("Row#" + i + " mismatches").isEqualTo(expectedValue);
       }
     }
   }

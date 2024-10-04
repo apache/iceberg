@@ -42,9 +42,14 @@ subprojects {
     apply plugin: 'com.palantir.baseline-error-prone'
   }
   apply plugin: 'com.palantir.baseline-class-uniqueness'
-  apply plugin: 'com.palantir.baseline-reproducibility'
+  // What 'com.palantir.baseline-reproducibility' used to do, except the check for the
+  // `sourceCompatibility` Java compile option, which conflicts with the `release` compile option.
+  tasks.withType(AbstractArchiveTask.class).configureEach(t -> {
+    t.setPreserveFileTimestamps(false);
+    t.setReproducibleFileOrder(true);
+    t.setDuplicatesStrategy(DuplicatesStrategy.WARN);
+  });
   apply plugin: 'com.palantir.baseline-exact-dependencies'
-  apply plugin: 'com.palantir.baseline-release-compatibility'
   apply plugin: 'com.diffplug.spotless'
 
   pluginManager.withPlugin('com.palantir.baseline-checkstyle') {
@@ -59,9 +64,10 @@ subprojects {
   pluginManager.withPlugin('com.diffplug.spotless') {
     spotless {
       java {
-        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/jmh/java/**/*.java', 'src/integration/java/**/*.java'
-        // we use an older version of google-java-format that is compatible with JDK 8
-        googleJavaFormat("1.7")
+        target 'src/main/java/**/*.java', 'src/test/java/**/*.java', 'src/testFixtures/java/**/*.java', 'src/jmh/java/**/*.java', 'src/integration/java/**/*.java'
+        // 1.23.0 has an issue in formatting comments https://github.com/google/google-java-format/issues/1155
+        // so we stick to 1.22.0 to produce consistent result for JDK 11/17/21
+        googleJavaFormat("1.22.0")
         removeUnusedImports()
         licenseHeaderFile "$rootDir/.baseline/copyright/copyright-header-java.txt"
       }
@@ -73,39 +79,85 @@ subprojects {
       options.errorprone.errorproneArgs.addAll (
           // error-prone is slow, don't run on tests/generated-src/generated
           '-XepExcludedPaths:.*/(test|generated-src|generated)/.*',
-          // specific to Palantir
-          '-Xep:ConsistentLoggerName:OFF',  // Uses name `log` but we use name `LOG`
-          '-Xep:FinalClass:OFF',
-          '-Xep:PreferSafeLoggingPreconditions:OFF',
-          '-Xep:PreferSafeLoggableExceptions:OFF',
-          '-Xep:Slf4jLogsafeArgs:OFF',
-          '-Xep:RawTypes:OFF',
-          // enforce logging conventions
-          '-Xep:LoggerEnclosingClass:ERROR',
-          '-Xep:PreferStaticLoggers:ERROR',
-          '-Xep:Slf4jThrowable:ERROR',
+          '-Xep:AnnotateFormatMethod:ERROR',
+          '-Xep:BadComparable:ERROR',
+          '-Xep:BadInstanceof:ERROR',
+          '-Xep:CatchFail:ERROR',
+          '-Xep:ClassCanBeStatic:ERROR',
+          '-Xep:ClassNewInstance:ERROR',
+          '-Xep:CollectionUndefinedEquality:ERROR',
+          // specific to Palantir - Uses name `log` but we use name `LOG`
+          '-Xep:ConsistentLoggerName:OFF',
+          '-Xep:DangerousJavaDeserialization:ERROR',
+          '-Xep:DangerousThreadPoolExecutorUsage:OFF',
+          '-Xep:DefaultCharset:ERROR',
+          '-Xep:DefaultLocale:ERROR',
           // subclasses are not equal
           '-Xep:EqualsGetClass:OFF',
+          '-Xep:EqualsUnsafeCast:ERROR',
+          '-Xep:EqualsUsingHashCode:ERROR',
+          '-Xep:ExtendsObject:ERROR',
+          '-Xep:FallThrough:ERROR',
+          // specific to Palantir
+          '-Xep:FinalClass:OFF',
+          '-Xep:Finalize:ERROR',
+          '-Xep:FormatStringAnnotation:ERROR',
+          '-Xep:GetClassOnEnum:ERROR',
+          '-Xep:HidingField:ERROR',
+          '-Xep:ImmutableSetForContains:ERROR',
+          '-Xep:ImmutablesReferenceEquality:ERROR',
+          '-Xep:InconsistentCapitalization:ERROR',
+          '-Xep:InconsistentHashCode:ERROR',
+          '-Xep:IntLongMath:ERROR',
+          '-Xep:JdkObsolete:ERROR',
           // prefer method references over lambdas
           '-Xep:LambdaMethodReference:ERROR',
+          // enforce logging conventions
+          '-Xep:LoggerEnclosingClass:ERROR',
           // patterns that are allowed
           '-Xep:MissingCasesInEnumSwitch:OFF',
-          //Added because it errors out compile, but we need to figure out if we want it
-          '-Xep:StrictUnusedVariable:OFF',
-          '-Xep:TypeParameterShadowing:OFF',
-          '-Xep:TypeParameterUnusedInFormals:OFF',
-          '-Xep:DangerousThreadPoolExecutorUsage:OFF',
-          // Enforce hashCode over hash
-          '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
-          '-Xep:PreferSafeLogger:OFF',
-          // Enforce safe string splitting
-          '-Xep:StringSplitter:ERROR',
           // Enforce missing override
           '-Xep:MissingOverride:ERROR',
-          '-Xep:IntLongMath:ERROR',
           '-Xep:MissingSummary:ERROR',
-          '-Xep:AnnotateFormatMethod:ERROR',
-          '-Xep:CollectionUndefinedEquality:ERROR',
+          '-Xep:ModifiedButNotUsed:ERROR',
+          '-Xep:MutablePublicArray:ERROR',
+          '-Xep:NarrowCalculation:ERROR',
+          '-Xep:NarrowingCompoundAssignment:ERROR',
+          '-Xep:NullOptional:ERROR',
+          '-Xep:NullableOptional:ERROR',
+          '-Xep:NullablePrimitive:ERROR',
+          '-Xep:ObjectEqualsForPrimitives:ERROR',
+          // Enforce hashCode over hash
+          '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
+          '-Xep:OrphanedFormatString:ERROR',
+          '-Xep:Overrides:ERROR',
+          // Triggers false-positives whenever relocated @VisibleForTesting is used
+          '-Xep:PreferCommonAnnotations:OFF',
+          // specific to Palantir
+          '-Xep:PreferSafeLoggableExceptions:OFF',
+          '-Xep:PreferSafeLogger:OFF',
+          // specific to Palantir
+          '-Xep:PreferSafeLoggingPreconditions:OFF',
+          '-Xep:PreferStaticLoggers:ERROR',
+          // specific to Palantir
+          '-Xep:RawTypes:OFF',
+          // specific to Palantir
+          '-Xep:Slf4jLogsafeArgs:OFF',
+          '-Xep:Slf4jThrowable:ERROR',
+          // Added because it errors out compile, but we need to figure out if we want it
+          '-Xep:StrictUnusedVariable:OFF',
+          // Enforce safe string splitting
+          '-Xep:StringSplitter:ERROR',
+          '-Xep:TypeParameterShadowing:OFF',
+          '-Xep:TypeParameterUnusedInFormals:OFF',
+          '-Xep:UnicodeEscape:ERROR',
+          // Palantir's UnnecessarilyQualified may throw during analysis
+          '-Xep:UnnecessarilyQualified:OFF',
+          '-Xep:UnnecessaryLongToIntConversion:ERROR',
+          '-Xep:UnnecessaryMethodReference:ERROR',
+          '-Xep:UnusedMethod:ERROR',
+          '-Xep:UnusedVariable:ERROR',
+          '-Xep:UseEnumSwitch:ERROR',
       )
     }
   }

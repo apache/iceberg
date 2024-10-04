@@ -18,13 +18,14 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Collections;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public abstract class RequestResponseTestBase<T extends RESTMessage> {
@@ -75,13 +76,11 @@ public abstract class RequestResponseTestBase<T extends RESTMessage> {
     try {
       JsonNode node = mapper().readValue(serialize(createExampleInstance()), JsonNode.class);
       for (String field : fieldsFromSpec) {
-        Assertions.assertThat(node.has(field)).as("Should have field: %s", field).isTrue();
+        assertThat(node.has(field)).as("Should have field: %s", field).isTrue();
       }
 
       for (String field : ((Iterable<? extends String>) node::fieldNames)) {
-        Assertions.assertThat(fieldsFromSpec)
-            .as("Should not have field: %s", field)
-            .contains(field);
+        assertThat(fieldsFromSpec).as("Should not have field: %s", field).contains(field);
       }
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
@@ -99,6 +98,6 @@ public abstract class RequestResponseTestBase<T extends RESTMessage> {
     assertEquals(actual, expected);
 
     // Check that the deserialized value serializes back into the original JSON
-    Assertions.assertThat(serialize(expected)).isEqualTo(json);
+    assertThat(serialize(expected)).isEqualTo(json);
   }
 }

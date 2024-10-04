@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.IOException;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -33,7 +34,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
-  private static final String sourceName = "spark_catalog.default.source";
+  private static final String SOURCE_NAME = "spark_catalog.default.source";
+
   // Currently we can only Snapshot only out of the Spark Session Catalog
 
   public TestSnapshotTableProcedure(
@@ -46,7 +48,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   @After
   public void removeTables() {
     sql("DROP TABLE IF EXISTS %s", tableName);
-    sql("DROP TABLE IF EXISTS %S", sourceName);
+    sql("DROP TABLE IF EXISTS %S", SOURCE_NAME);
   }
 
   @Test
@@ -54,10 +56,10 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     String location = temp.newFolder().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        sourceName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
     Object result =
-        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
+        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, SOURCE_NAME, tableName);
 
     Assert.assertEquals("Should have added one file", 1L, result);
 
@@ -78,12 +80,12 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     String location = temp.newFolder().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        sourceName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
     Object result =
         scalarSql(
             "CALL %s.system.snapshot(source_table => '%s', table => '%s', properties => map('foo','bar'))",
-            catalogName, sourceName, tableName);
+            catalogName, SOURCE_NAME, tableName);
 
     Assert.assertEquals("Should have added one file", 1L, result);
 
@@ -112,12 +114,12 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     String snapshotLocation = temp.newFolder().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        sourceName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
     Object[] result =
         sql(
                 "CALL %s.system.snapshot(source_table => '%s', table => '%s', location => '%s')",
-                catalogName, sourceName, tableName, snapshotLocation)
+                catalogName, SOURCE_NAME, tableName, snapshotLocation)
             .get(0);
 
     Assert.assertEquals("Should have added one file", 1L, result[0]);
@@ -139,11 +141,11 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     String location = temp.newFolder().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        sourceName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
 
     Object result =
-        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, sourceName, tableName);
+        scalarSql("CALL %s.system.snapshot('%s', '%s')", catalogName, SOURCE_NAME, tableName);
     Assert.assertEquals("Should have added one file", 1L, result);
 
     assertEquals(
@@ -156,7 +158,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     assertEquals(
         "Source table should be intact",
         ImmutableList.of(row(1L, "a")),
-        sql("SELECT * FROM %s", sourceName));
+        sql("SELECT * FROM %s", SOURCE_NAME));
   }
 
   @Test
@@ -164,8 +166,8 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     String location = temp.newFolder().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        sourceName, location);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a')", sourceName);
+        SOURCE_NAME, location);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", SOURCE_NAME);
 
     Object result =
         scalarSql(
@@ -173,7 +175,7 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
                 + "source_table => '%s',"
                 + "table => '%s',"
                 + "properties => map('%s', 'true', 'snapshot', 'false'))",
-            catalogName, sourceName, tableName, TableProperties.GC_ENABLED);
+            catalogName, SOURCE_NAME, tableName, TableProperties.GC_ENABLED);
     Assert.assertEquals("Should have added one file", 1L, result);
 
     assertEquals(
@@ -193,39 +195,36 @@ public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
     String location = temp.newFolder().toString();
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING parquet LOCATION '%s'",
-        sourceName, location);
+        SOURCE_NAME, location);
 
-    AssertHelpers.assertThrows(
-        "Should reject calls without all required args",
-        AnalysisException.class,
-        "Missing required parameters",
-        () -> sql("CALL %s.system.snapshot('foo')", catalogName));
+    assertThatThrownBy(() -> sql("CALL %s.system.snapshot('foo')", catalogName))
+        .as("Should reject calls without all required args")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Missing required parameters");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with invalid arg types",
-        AnalysisException.class,
-        "Wrong arg type",
-        () -> sql("CALL %s.system.snapshot('n', 't', map('foo', 'bar'))", catalogName));
+    assertThatThrownBy(
+            () -> sql("CALL %s.system.snapshot('n', 't', map('foo', 'bar'))", catalogName))
+        .as("Should reject calls with invalid arg types")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Wrong arg type");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with invalid map args",
-        AnalysisException.class,
-        "cannot resolve 'map",
-        () ->
-            sql(
-                "CALL %s.system.snapshot('%s', 'fable', 'loc', map(2, 1, 1))",
-                catalogName, sourceName));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.snapshot('%s', 'fable', 'loc', map(2, 1, 1))",
+                    catalogName, SOURCE_NAME))
+        .as("Should reject calls with invalid map args")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("cannot resolve 'map");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with empty table identifier",
-        IllegalArgumentException.class,
-        "Cannot handle an empty identifier",
-        () -> sql("CALL %s.system.snapshot('', 'dest')", catalogName));
+    assertThatThrownBy(() -> sql("CALL %s.system.snapshot('', 'dest')", catalogName))
+        .as("Should reject calls with empty table identifier")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot handle an empty identifier");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with empty table identifier",
-        IllegalArgumentException.class,
-        "Cannot handle an empty identifier",
-        () -> sql("CALL %s.system.snapshot('src', '')", catalogName));
+    assertThatThrownBy(() -> sql("CALL %s.system.snapshot('src', '')", catalogName))
+        .as("Should reject calls with empty table identifier")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot handle an empty identifier");
   }
 }

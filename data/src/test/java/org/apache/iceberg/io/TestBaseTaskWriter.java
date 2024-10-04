@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
@@ -175,7 +176,7 @@ public class TestBaseTaskWriter extends TestBase {
 
         int id = record.get(0, Integer.class);
         String data = record.get(1, String.class);
-        Record newRecord = createRecord(id, data.toUpperCase());
+        Record newRecord = createRecord(id, data.toUpperCase(Locale.ROOT));
         expected.add(newRecord);
         taskWriter.write(newRecord);
       }
@@ -216,8 +217,8 @@ public class TestBaseTaskWriter extends TestBase {
 
   private static class TestTaskWriter extends BaseTaskWriter<Record> {
 
-    private RollingFileWriter dataWriter;
-    private RollingEqDeleteWriter deleteWriter;
+    private final RollingFileWriter dataWriter;
+    private final RollingEqDeleteWriter deleteWriter;
 
     private TestTaskWriter(
         PartitionSpec spec,

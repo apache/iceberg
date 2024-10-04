@@ -49,6 +49,8 @@ public class Types {
           .put(TimeType.get().toString(), TimeType.get())
           .put(TimestampType.withZone().toString(), TimestampType.withZone())
           .put(TimestampType.withoutZone().toString(), TimestampType.withoutZone())
+          .put(TimestampNanoType.withZone().toString(), TimestampNanoType.withZone())
+          .put(TimestampNanoType.withoutZone().toString(), TimestampNanoType.withoutZone())
           .put(StringType.get().toString(), StringType.get())
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
@@ -259,6 +261,59 @@ public class Types {
     }
   }
 
+  public static class TimestampNanoType extends PrimitiveType {
+    private static final TimestampNanoType INSTANCE_WITH_ZONE = new TimestampNanoType(true);
+    private static final TimestampNanoType INSTANCE_WITHOUT_ZONE = new TimestampNanoType(false);
+
+    public static TimestampNanoType withZone() {
+      return INSTANCE_WITH_ZONE;
+    }
+
+    public static TimestampNanoType withoutZone() {
+      return INSTANCE_WITHOUT_ZONE;
+    }
+
+    private final boolean adjustToUTC;
+
+    private TimestampNanoType(boolean adjustToUTC) {
+      this.adjustToUTC = adjustToUTC;
+    }
+
+    public boolean shouldAdjustToUTC() {
+      return adjustToUTC;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.TIMESTAMP_NANO;
+    }
+
+    @Override
+    public String toString() {
+      if (shouldAdjustToUTC()) {
+        return "timestamptz_ns";
+      } else {
+        return "timestamp_ns";
+      }
+    }
+
+    @Override
+    public boolean equals(Object other) {
+      if (this == other) {
+        return true;
+      } else if (!(other instanceof TimestampNanoType)) {
+        return false;
+      }
+
+      return adjustToUTC == ((TimestampNanoType) other).adjustToUTC;
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(TimestampNanoType.class, adjustToUTC);
+    }
+  }
+
   public static class StringType extends PrimitiveType {
     private static final StringType INSTANCE = new StringType();
 
@@ -317,7 +372,7 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("fixed[%d]", length);
+      return String.format(Locale.ROOT, "fixed[%d]", length);
     }
 
     @Override
@@ -388,7 +443,7 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("decimal(%d, %d)", precision, scale);
+      return String.format(Locale.ROOT, "decimal(%d, %d)", precision, scale);
     }
 
     @Override
@@ -475,6 +530,10 @@ public class Types {
       return new NestedField(false, id, name, type, doc);
     }
 
+    public NestedField withFieldId(int newId) {
+      return new NestedField(isOptional, newId, name, type, doc);
+    }
+
     public int fieldId() {
       return id;
     }
@@ -493,7 +552,8 @@ public class Types {
 
     @Override
     public String toString() {
-      return String.format("%d: %s: %s %s", id, name, isOptional ? "optional" : "required", type)
+      return String.format(
+              Locale.ROOT, "%d: %s: %s %s", id, name, isOptional ? "optional" : "required", type)
           + (doc != null ? " (" + doc + ")" : "");
     }
 

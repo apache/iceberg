@@ -18,29 +18,32 @@
  */
 package org.apache.iceberg.types;
 
-import org.assertj.core.api.Assertions;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+
 import org.junit.jupiter.api.Test;
 
 public class TestTypes {
 
   @Test
   public void fromPrimitiveString() {
-    Assertions.assertThat(Types.fromPrimitiveString("boolean")).isSameAs(Types.BooleanType.get());
-    Assertions.assertThat(Types.fromPrimitiveString("BooLean")).isSameAs(Types.BooleanType.get());
+    assertThat(Types.fromPrimitiveString("boolean")).isSameAs(Types.BooleanType.get());
+    assertThat(Types.fromPrimitiveString("BooLean")).isSameAs(Types.BooleanType.get());
 
-    Assertions.assertThat(Types.fromPrimitiveString("timestamp"))
-        .isSameAs(Types.TimestampType.withoutZone());
+    assertThat(Types.fromPrimitiveString("timestamp")).isSameAs(Types.TimestampType.withoutZone());
+    assertThat(Types.fromPrimitiveString("timestamptz")).isSameAs(Types.TimestampType.withZone());
+    assertThat(Types.fromPrimitiveString("timestamp_ns"))
+        .isSameAs(Types.TimestampNanoType.withoutZone());
+    assertThat(Types.fromPrimitiveString("timestamptz_ns"))
+        .isSameAs(Types.TimestampNanoType.withZone());
 
-    Assertions.assertThat(Types.fromPrimitiveString("Fixed[ 3 ]"))
-        .isEqualTo(Types.FixedType.ofLength(3));
+    assertThat(Types.fromPrimitiveString("Fixed[ 3 ]")).isEqualTo(Types.FixedType.ofLength(3));
 
-    Assertions.assertThat(Types.fromPrimitiveString("Decimal( 2 , 3 )"))
-        .isEqualTo(Types.DecimalType.of(2, 3));
+    assertThat(Types.fromPrimitiveString("Decimal( 2 , 3 )")).isEqualTo(Types.DecimalType.of(2, 3));
 
-    Assertions.assertThat(Types.fromPrimitiveString("Decimal(2,3)"))
-        .isEqualTo(Types.DecimalType.of(2, 3));
+    assertThat(Types.fromPrimitiveString("Decimal(2,3)")).isEqualTo(Types.DecimalType.of(2, 3));
 
-    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+    assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("Unknown"))
         .withMessageContaining("Unknown");
   }

@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -51,7 +52,6 @@ import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -156,34 +156,30 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
 
     sql("ALTER TABLE %s SET TBLPROPERTIES ('%s' 'false')", tableName, GC_ENABLED);
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.expire_snapshots('%s')", catalogName, tableIdent))
+    assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots('%s')", catalogName, tableIdent))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot expire snapshots: GC is disabled");
   }
 
   @TestTemplate
   public void testInvalidExpireSnapshotsCases() {
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.expire_snapshots('n', table => 't')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots('n', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Named and positional arguments cannot be mixed");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName))
         .isInstanceOf(NoSuchProcedureException.class)
         .hasMessage("Procedure custom.expire_snapshots not found");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots()", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots()", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Missing required parameters: [table]");
 
-    Assertions.assertThatThrownBy(
-            () -> sql("CALL %s.system.expire_snapshots('n', 2.2)", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots('n', 2.2)", catalogName))
         .isInstanceOf(AnalysisException.class)
         .hasMessage("Wrong arg type for older_than: cannot cast DecimalType(2,1) to TimestampType");
 
-    Assertions.assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots('')", catalogName))
+    assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot handle an empty identifier for argument table");
   }
@@ -203,7 +199,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
         "CREATE TABLE %s.%s (id bigint NOT NULL, data string) USING iceberg",
         anotherCatalog, tableIdent);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.expire_snapshots('%s')",
@@ -239,7 +235,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
   public void testConcurrentExpireSnapshotsWithInvalidInput() {
     sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.expire_snapshots(table => '%s', max_concurrent_deletes => %s)",
@@ -247,7 +243,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("max_concurrent_deletes should have value > 0, value: 0");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.expire_snapshots(table => '%s', max_concurrent_deletes => %s)",
@@ -386,7 +382,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
     Table table = validationCatalog.loadTable(tableIdent);
     assertThat(table.snapshots()).as("Should be 2 snapshots").hasSize(2);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "CALL %s.system.expire_snapshots("

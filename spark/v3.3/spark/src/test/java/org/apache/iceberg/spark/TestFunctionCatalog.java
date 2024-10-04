@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg.spark;
 
-import org.apache.iceberg.AssertHelpers;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.functions.IcebergVersionFunction;
@@ -28,7 +30,6 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -57,10 +58,10 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
 
   @Test
   public void testListFunctionsViaCatalog() throws NoSuchNamespaceException {
-    Assertions.assertThat(asFunctionCatalog.listFunctions(EMPTY_NAMESPACE))
+    assertThat(asFunctionCatalog.listFunctions(EMPTY_NAMESPACE))
         .anyMatch(func -> "iceberg_version".equals(func.name()));
 
-    Assertions.assertThat(asFunctionCatalog.listFunctions(SYSTEM_NAMESPACE))
+    assertThat(asFunctionCatalog.listFunctions(SYSTEM_NAMESPACE))
         .anyMatch(func -> "iceberg_version".equals(func.name()));
 
     Assert.assertArrayEquals(
@@ -68,11 +69,10 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
         new Identifier[0],
         asFunctionCatalog.listFunctions(DEFAULT_NAMESPACE));
 
-    AssertHelpers.assertThrows(
-        "Listing functions in a namespace that does not exist should throw",
-        NoSuchNamespaceException.class,
-        "Namespace 'db' not found",
-        () -> asFunctionCatalog.listFunctions(DB_NAMESPACE));
+    assertThatThrownBy(() -> asFunctionCatalog.listFunctions(DB_NAMESPACE))
+        .as("Listing functions in a namespace that does not exist should throw")
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace 'db' not found");
   }
 
   @Test
@@ -81,30 +81,30 @@ public class TestFunctionCatalog extends SparkTestBaseWithCatalog {
       Identifier identifier = Identifier.of(namespace, "iceberg_version");
       UnboundFunction func = asFunctionCatalog.loadFunction(identifier);
 
-      Assertions.assertThat(func)
+      assertThat(func)
           .isNotNull()
           .isInstanceOf(UnboundFunction.class)
           .isExactlyInstanceOf(IcebergVersionFunction.class);
     }
 
-    AssertHelpers.assertThrows(
-        "Cannot load a function if it's not used with the system namespace or the empty namespace",
-        NoSuchFunctionException.class,
-        "Undefined function: default.iceberg_version",
-        () -> asFunctionCatalog.loadFunction(Identifier.of(DEFAULT_NAMESPACE, "iceberg_version")));
+    assertThatThrownBy(
+            () ->
+                asFunctionCatalog.loadFunction(Identifier.of(DEFAULT_NAMESPACE, "iceberg_version")))
+        .as(
+            "Cannot load a function if it's not used with the system namespace or the empty namespace")
+        .isInstanceOf(NoSuchFunctionException.class)
+        .hasMessageContaining("Undefined function: default.iceberg_version");
 
     Identifier undefinedFunction = Identifier.of(SYSTEM_NAMESPACE, "undefined_function");
-    AssertHelpers.assertThrows(
-        "Cannot load a function that does not exist",
-        NoSuchFunctionException.class,
-        "Undefined function: system.undefined_function",
-        () -> asFunctionCatalog.loadFunction(undefinedFunction));
+    assertThatThrownBy(() -> asFunctionCatalog.loadFunction(undefinedFunction))
+        .as("Cannot load a function that does not exist")
+        .isInstanceOf(NoSuchFunctionException.class)
+        .hasMessageContaining("Undefined function: system.undefined_function");
 
-    AssertHelpers.assertThrows(
-        "Using an undefined function from SQL should fail analysis",
-        AnalysisException.class,
-        "Undefined function",
-        () -> sql("SELECT undefined_function(1, 2)"));
+    assertThatThrownBy(() -> sql("SELECT undefined_function(1, 2)"))
+        .as("Using an undefined function from SQL should fail analysis")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Undefined function");
   }
 
   @Test

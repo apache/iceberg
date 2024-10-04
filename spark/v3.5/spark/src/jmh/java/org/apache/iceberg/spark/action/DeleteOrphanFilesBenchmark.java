@@ -22,6 +22,7 @@ import static org.apache.spark.sql.functions.lit;
 
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.AppendFiles;
@@ -124,7 +125,7 @@ public class DeleteOrphanFilesBenchmark {
     for (int i = 0; i < NUM_SNAPSHOTS; i++) {
       AppendFiles appendFiles = table().newFastAppend();
       for (int j = 0; j < NUM_FILES; j++) {
-        String path = String.format("%s/path/to/data-%d-%d.parquet", location, i, j);
+        String path = String.format(Locale.ROOT, "%s/path/to/data-%d-%d.parquet", location, i, j);
         validAndOrphanPaths.add(path);
         DataFile dataFile =
             DataFiles.builder(partitionSpec)

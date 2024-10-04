@@ -27,16 +27,20 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.flink.FlinkReadOptions;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.BeforeEach;
 
 public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIcebergSourceFailover {
   // Increment ts by 15 minutes for each generateRecords batch
@@ -47,11 +51,30 @@ public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIceberg
   private final AtomicLong tsMilli = new AtomicLong(System.currentTimeMillis());
 
   @Override
+  @BeforeEach
+  protected void setupTable() {
+    this.sourceTable =
+        SOURCE_CATALOG_EXTENSION
+            .catalog()
+            .createTable(TestFixtures.TABLE_IDENTIFIER, TestFixtures.TS_SCHEMA);
+    this.sinkTable =
+        SINK_CATALOG_EXTENSION
+            .catalog()
+            .createTable(TestFixtures.SINK_TABLE_IDENTIFIER, TestFixtures.TS_SCHEMA);
+  }
+
+  @Override
   protected IcebergSource.Builder<RowData> sourceBuilder() {
-    return IcebergSource.<RowData>builder()
-        .tableLoader(sourceTableResource.tableLoader())
+    Configuration config = new Configuration();
+    return IcebergSource.forRowData()
+        .tableLoader(SOURCE_CATALOG_EXTENSION.tableLoader())
         .watermarkColumn("ts")
-        .project(TestFixtures.TS_SCHEMA);
+        .project(TestFixtures.TS_SCHEMA)
+        // Prevent combining splits
+        .set(
+            FlinkReadOptions.SPLIT_FILE_OPEN_COST,
+            Long.toString(TableProperties.SPLIT_SIZE_DEFAULT))
+        .flinkConfig(config);
   }
 
   @Override
@@ -88,16 +111,11 @@ public class TestIcebergSourceFailoverWithWatermarkExtractor extends TestIceberg
     Awaitility.await("expected list of records should be produced")
         .atMost(timeout)
         .untilAsserted(
-            () -> {
-              SimpleDataUtil.equalsRecords(
-                  expectedNormalized,
-                  convertLocalDateTimeToMilli(SimpleDataUtil.tableRecords(table)),
-                  table.schema());
-              SimpleDataUtil.assertRecordsEqual(
-                  expectedNormalized,
-                  convertLocalDateTimeToMilli(SimpleDataUtil.tableRecords(table)),
-                  table.schema());
-            });
+            () ->
+                SimpleDataUtil.assertRecordsEqual(
+                    expectedNormalized,
+                    convertLocalDateTimeToMilli(SimpleDataUtil.tableRecords(table)),
+                    table.schema()));
   }
 
   private List<Record> convertLocalDateTimeToMilli(List<Record> records) {

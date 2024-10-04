@@ -343,7 +343,7 @@ public class ParquetValueReaders {
   }
 
   public static class BinaryAsDecimalReader extends PrimitiveReader<BigDecimal> {
-    private int scale;
+    private final int scale;
 
     public BinaryAsDecimalReader(ColumnDescriptor desc, int scale) {
       super(desc);
@@ -696,28 +696,21 @@ public class ParquetValueReaders {
   }
 
   public abstract static class StructReader<T, I> implements ParquetValueReader<T> {
-    private interface Setter<R> {
-      void set(R record, int pos, Object reuse);
-    }
-
     private final ParquetValueReader<?>[] readers;
     private final TripleIterator<?> column;
     private final List<TripleIterator<?>> children;
 
-    @SuppressWarnings("unchecked")
     protected StructReader(List<Type> types, List<ParquetValueReader<?>> readers) {
       this.readers =
           (ParquetValueReader<?>[]) Array.newInstance(ParquetValueReader.class, readers.size());
       TripleIterator<?>[] columns =
           (TripleIterator<?>[]) Array.newInstance(TripleIterator.class, readers.size());
-      Setter<I>[] setters = (Setter<I>[]) Array.newInstance(Setter.class, readers.size());
 
       ImmutableList.Builder<TripleIterator<?>> columnsBuilder = ImmutableList.builder();
       for (int i = 0; i < readers.size(); i += 1) {
         ParquetValueReader<?> reader = readers.get(i);
         this.readers[i] = readers.get(i);
         columns[i] = reader.column();
-        setters[i] = newSetter(reader, types.get(i));
         columnsBuilder.addAll(reader.columns());
       }
 
@@ -752,41 +745,6 @@ public class ParquetValueReaders {
     @Override
     public List<TripleIterator<?>> columns() {
       return children;
-    }
-
-    @SuppressWarnings("unchecked")
-    private <E> Setter<I> newSetter(ParquetValueReader<E> reader, Type type) {
-      if (reader instanceof UnboxedReader && type.isPrimitive()) {
-        UnboxedReader<?> unboxed = (UnboxedReader<?>) reader;
-        switch (type.asPrimitiveType().getPrimitiveTypeName()) {
-          case BOOLEAN:
-            return (record, pos, ignored) -> setBoolean(record, pos, unboxed.readBoolean());
-          case INT32:
-            return (record, pos, ignored) -> setInteger(record, pos, unboxed.readInteger());
-          case INT64:
-            return (record, pos, ignored) -> setLong(record, pos, unboxed.readLong());
-          case FLOAT:
-            return (record, pos, ignored) -> setFloat(record, pos, unboxed.readFloat());
-          case DOUBLE:
-            return (record, pos, ignored) -> setDouble(record, pos, unboxed.readDouble());
-          case INT96:
-          case FIXED_LEN_BYTE_ARRAY:
-          case BINARY:
-            return (record, pos, ignored) -> set(record, pos, unboxed.readBinary());
-          default:
-            throw new UnsupportedOperationException("Unsupported type: " + type);
-        }
-      }
-
-      // TODO: Add support for options to avoid the null check
-      return (record, pos, reuse) -> {
-        Object obj = reader.read((E) reuse);
-        if (obj != null) {
-          set(record, pos, obj);
-        } else {
-          setNull(record, pos);
-        }
-      };
     }
 
     @SuppressWarnings("unchecked")

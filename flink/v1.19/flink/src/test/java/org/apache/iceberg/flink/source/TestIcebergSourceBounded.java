@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.apache.iceberg.flink.SimpleDataUtil.SCHEMA;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -42,13 +43,30 @@ import org.apache.iceberg.flink.data.RowDataToRowMapper;
 import org.apache.iceberg.flink.source.assigner.SimpleSplitAssignerFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.junit.jupiter.api.TestTemplate;
 
 public class TestIcebergSourceBounded extends TestFlinkScan {
+  @TestTemplate
+  public void testValidation() {
+    CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
+
+    assertThatThrownBy(
+            () ->
+                IcebergSource.forRowData()
+                    .tableLoader(tableLoader())
+                    .assignerFactory(new SimpleSplitAssignerFactory())
+                    .streaming(false)
+                    .endTag("tag")
+                    .endSnapshotId(1L)
+                    .build())
+        .hasMessage("END_SNAPSHOT_ID and END_TAG cannot both be set.")
+        .isInstanceOf(IllegalArgumentException.class);
+  }
 
   @Override
   protected List<Row> runWithProjection(String... projected) throws Exception {
     Schema icebergTableSchema =
-        catalogExtension.catalog().loadTable(TestFixtures.TABLE_IDENTIFIER).schema();
+        CATALOG_EXTENSION.catalog().loadTable(TestFixtures.TABLE_IDENTIFIER).schema();
     TableSchema.Builder builder = TableSchema.builder();
     TableSchema schema = FlinkSchemaUtil.toSchema(FlinkSchemaUtil.convert(icebergTableSchema));
     for (String field : projected) {
@@ -110,11 +128,8 @@ public class TestIcebergSourceBounded extends TestFlinkScan {
     sourceBuilder.properties(options);
 
     DataStream<Row> stream =
-        env.fromSource(
-                sourceBuilder.build(),
-                WatermarkStrategy.noWatermarks(),
-                "testBasicRead",
-                TypeInformation.of(RowData.class))
+        sourceBuilder
+            .buildStream(env)
             .map(
                 new RowDataToRowMapper(
                     FlinkSchemaUtil.convert(

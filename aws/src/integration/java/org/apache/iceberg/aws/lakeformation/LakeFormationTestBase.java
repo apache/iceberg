@@ -78,7 +78,6 @@ import software.amazon.awssdk.services.lakeformation.model.GetDataLakeSettingsRe
 import software.amazon.awssdk.services.lakeformation.model.GrantPermissionsRequest;
 import software.amazon.awssdk.services.lakeformation.model.Permission;
 import software.amazon.awssdk.services.lakeformation.model.PutDataLakeSettingsRequest;
-import software.amazon.awssdk.services.lakeformation.model.PutDataLakeSettingsResponse;
 import software.amazon.awssdk.services.lakeformation.model.RegisterResourceRequest;
 import software.amazon.awssdk.services.lakeformation.model.Resource;
 import software.amazon.awssdk.services.lakeformation.model.TableResource;
@@ -128,15 +127,12 @@ public class LakeFormationTestBase {
 
   @BeforeAll
   public static void beforeClass() throws Exception {
-    lfRegisterPathRoleName = LF_REGISTER_PATH_ROLE_PREFIX + UUID.randomUUID().toString();
-    lfPrivilegedRoleName = LF_PRIVILEGED_ROLE_PREFIX + UUID.randomUUID().toString();
-    lfRegisterPathRoleS3PolicyName =
-        LF_REGISTER_PATH_ROLE_S3_POLICY_PREFIX + UUID.randomUUID().toString();
-    lfRegisterPathRoleLfPolicyName =
-        LF_REGISTER_PATH_ROLE_LF_POLICY_PREFIX + UUID.randomUUID().toString();
-    lfRegisterPathRoleIamPolicyName =
-        LF_REGISTER_PATH_ROLE_IAM_POLICY_PREFIX + UUID.randomUUID().toString();
-    lfPrivilegedRolePolicyName = LF_PRIVILEGED_ROLE_POLICY_PREFIX + UUID.randomUUID().toString();
+    lfRegisterPathRoleName = LF_REGISTER_PATH_ROLE_PREFIX + UUID.randomUUID();
+    lfPrivilegedRoleName = LF_PRIVILEGED_ROLE_PREFIX + UUID.randomUUID();
+    lfRegisterPathRoleS3PolicyName = LF_REGISTER_PATH_ROLE_S3_POLICY_PREFIX + UUID.randomUUID();
+    lfRegisterPathRoleLfPolicyName = LF_REGISTER_PATH_ROLE_LF_POLICY_PREFIX + UUID.randomUUID();
+    lfRegisterPathRoleIamPolicyName = LF_REGISTER_PATH_ROLE_IAM_POLICY_PREFIX + UUID.randomUUID();
+    lfPrivilegedRolePolicyName = LF_PRIVILEGED_ROLE_POLICY_PREFIX + UUID.randomUUID();
 
     iam =
         IamClient.builder()
@@ -220,10 +216,9 @@ public class LakeFormationTestBase {
     // put lf data lake settings
     GetDataLakeSettingsResponse getDataLakeSettingsResponse =
         lakeformation.getDataLakeSettings(GetDataLakeSettingsRequest.builder().build());
-    PutDataLakeSettingsResponse putDataLakeSettingsResponse =
-        lakeformation.putDataLakeSettings(
-            putDataLakeSettingsRequest(
-                lfRegisterPathRoleArn, getDataLakeSettingsResponse.dataLakeSettings(), true));
+    lakeformation.putDataLakeSettings(
+        putDataLakeSettingsRequest(
+            lfRegisterPathRoleArn, getDataLakeSettingsResponse.dataLakeSettings(), true));
 
     // Build test glueCatalog with lfPrivilegedRole
     glueCatalogPrivilegedRole = new GlueCatalog();

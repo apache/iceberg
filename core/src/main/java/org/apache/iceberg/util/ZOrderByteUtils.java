@@ -50,45 +50,45 @@ public class ZOrderByteUtils {
     return ByteBuffer.allocate(PRIMITIVE_BUFFER_SIZE);
   }
 
-  /**
-   * Signed ints do not have their bytes in magnitude order because of the sign bit. To fix this,
-   * flip the sign bit so that all negatives are ordered before positives. This essentially shifts
-   * the 0 value so that we don't break our ordering when we cross the new 0 value.
-   */
+  /** Internally just calls {@link #wholeNumberOrderedBytes(long, ByteBuffer)} */
   public static ByteBuffer intToOrderedBytes(int val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
-    bytes.putLong(((long) val) ^ 0x8000000000000000L);
-    return bytes;
+    return wholeNumberOrderedBytes(val, reuse);
+  }
+
+  /** Internally just calls {@link #wholeNumberOrderedBytes(long, ByteBuffer)} */
+  public static ByteBuffer longToOrderedBytes(long val, ByteBuffer reuse) {
+    return wholeNumberOrderedBytes(val, reuse);
+  }
+
+  /** Internally just calls {@link #wholeNumberOrderedBytes(long, ByteBuffer)} */
+  public static ByteBuffer shortToOrderedBytes(short val, ByteBuffer reuse) {
+    return wholeNumberOrderedBytes(val, reuse);
+  }
+
+  /** Internally just calls {@link #wholeNumberOrderedBytes(long, ByteBuffer)} */
+  public static ByteBuffer tinyintToOrderedBytes(byte val, ByteBuffer reuse) {
+    return wholeNumberOrderedBytes(val, reuse);
   }
 
   /**
-   * Signed longs are treated the same as the signed ints in {@link #intToOrderedBytes(int,
-   * ByteBuffer)}
+   * Signed longs do not have their bytes in magnitude order because of the sign bit. To fix this,
+   * flip the sign bit so that all negatives are ordered before positives. This essentially shifts
+   * the 0 value so that we don't break our ordering when we cross the new 0 value.
    */
-  public static ByteBuffer longToOrderedBytes(long val, ByteBuffer reuse) {
+  public static ByteBuffer wholeNumberOrderedBytes(long val, ByteBuffer reuse) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
     bytes.putLong(val ^ 0x8000000000000000L);
     return bytes;
   }
 
-  /**
-   * Signed shorts are treated the same as the signed ints in {@link #intToOrderedBytes(int,
-   * ByteBuffer)}
-   */
-  public static ByteBuffer shortToOrderedBytes(short val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
-    bytes.putLong(((long) val) ^ 0x8000000000000000L);
-    return bytes;
+  /** Internally just calls {@link #floatingPointOrderedBytes(double, ByteBuffer)} */
+  public static ByteBuffer floatToOrderedBytes(float val, ByteBuffer reuse) {
+    return floatingPointOrderedBytes(val, reuse);
   }
 
-  /**
-   * Signed tiny ints are treated the same as the signed ints in {@link #intToOrderedBytes(int,
-   * ByteBuffer)}
-   */
-  public static ByteBuffer tinyintToOrderedBytes(byte val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
-    bytes.putLong(((long) val) ^ 0x8000000000000000L);
-    return bytes;
+  /** Internally just calls {@link #floatingPointOrderedBytes(double, ByteBuffer)} */
+  public static ByteBuffer doubleToOrderedBytes(double val, ByteBuffer reuse) {
+    return floatingPointOrderedBytes(val, reuse);
   }
 
   /**
@@ -96,19 +96,10 @@ public class ZOrderByteUtils {
    * y), they are ordered the same way when their bits are reinterpreted as sign-magnitude
    * integers.”
    *
-   * <p>Which means floats can be treated as sign magnitude integers which can then be converted
+   * <p>Which means doubles can be treated as sign magnitude integers which can then be converted
    * into lexicographically comparable bytes
    */
-  public static ByteBuffer floatToOrderedBytes(float val, ByteBuffer reuse) {
-    ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
-    long lval = Double.doubleToLongBits(val);
-    lval ^= ((lval >> (Integer.SIZE - 1)) | Long.MIN_VALUE);
-    bytes.putLong(lval);
-    return bytes;
-  }
-
-  /** Doubles are treated the same as floats in {@link #floatToOrderedBytes(float, ByteBuffer)} */
-  public static ByteBuffer doubleToOrderedBytes(double val, ByteBuffer reuse) {
+  public static ByteBuffer floatingPointOrderedBytes(double val, ByteBuffer reuse) {
     ByteBuffer bytes = ByteBuffers.reuse(reuse, PRIMITIVE_BUFFER_SIZE);
     long lval = Double.doubleToLongBits(val);
     lval ^= ((lval >> (Integer.SIZE - 1)) | Long.MIN_VALUE);

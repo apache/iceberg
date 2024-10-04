@@ -209,4 +209,39 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
     fields = Spark3Util.loadIcebergTable(sparkSession, tableName).schema().asStruct().fields();
     assertThat(fields).hasSize(4);
   }
+
+  @TestTemplate
+  public void testMergeSchemaSparkConfiguration() throws Exception {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+    Dataset<Row> twoColDF =
+        jsonToDF(
+            "id bigint, data string",
+            "{ \"id\": 1, \"data\": \"a\" }",
+            "{ \"id\": 2, \"data\": \"b\" }");
+
+    twoColDF.writeTo(tableName).append();
+
+    assertEquals(
+        "Should have initial 2-column rows",
+        ImmutableList.of(row(1L, "a"), row(2L, "b")),
+        sql("select * from %s order by id", tableName));
+    spark.conf().set("spark.sql.iceberg.merge-schema", "true");
+    Dataset<Row> threeColDF =
+        jsonToDF(
+            "id bigint, data string, salary float",
+            "{ \"id\": 3, \"data\": \"c\", \"salary\": 120000.34 }",
+            "{ \"id\": 4, \"data\": \"d\", \"salary\": 140000.56 }");
+
+    threeColDF.writeTo(tableName).append();
+    assertEquals(
+        "Should have 3-column rows",
+        ImmutableList.of(
+            row(1L, "a", null),
+            row(2L, "b", null),
+            row(3L, "c", 120000.34F),
+            row(4L, "d", 140000.56F)),
+        sql("select * from %s order by id", tableName));
+  }
 }

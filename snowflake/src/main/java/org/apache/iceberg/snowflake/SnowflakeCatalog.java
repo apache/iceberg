@@ -55,6 +55,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   private static final String APP_IDENTIFIER = "iceberg-snowflake-catalog";
   // Specifies the max length of unique id for each catalog initialized session.
   private static final int UNIQUE_ID_LENGTH = 20;
+
   // Injectable factory for testing purposes.
   static class FileIOFactory {
     public FileIO newFileIO(String impl, Map<String, String> properties, Object hadoopConf) {
@@ -176,7 +177,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
   @Override
   public List<Namespace> listNamespaces(Namespace namespace) {
     SnowflakeIdentifier scope = NamespaceHelpers.toSnowflakeIdentifier(namespace);
-    List<SnowflakeIdentifier> results = null;
+    List<SnowflakeIdentifier> results;
     switch (scope.type()) {
       case ROOT:
         results = snowflakeClient.listDatabases();

@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import java.util.Locale;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileScanTask;
@@ -95,8 +96,11 @@ public class DataIterator<T> implements CloseableIterator<T> {
       } else {
         throw new IllegalStateException(
             String.format(
+                Locale.ROOT,
                 "Invalid starting record offset %d for file %d from CombinedScanTask: %s",
-                startingRecordOffset, startingFileOffset, combinedTask));
+                startingRecordOffset,
+                startingFileOffset,
+                combinedTask));
       }
     }
 

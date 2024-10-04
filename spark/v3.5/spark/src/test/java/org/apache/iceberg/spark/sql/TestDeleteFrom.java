@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.sql;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.apache.iceberg.Table;
@@ -29,7 +30,6 @@ import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -81,8 +81,7 @@ public class TestDeleteFrom extends CatalogTestBase {
 
     long snapshotId = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
     String prefix = "snapshot_id_";
-    Assertions.assertThatThrownBy(
-            () -> sql("DELETE FROM %s.%s WHERE id < 4", tableName, prefix + snapshotId))
+    assertThatThrownBy(() -> sql("DELETE FROM %s.%s WHERE id < 4", tableName, prefix + snapshotId))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot delete from table at a specific snapshot");
   }

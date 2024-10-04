@@ -37,11 +37,11 @@ public class TestIcebergSourceBoundedSql extends TestIcebergSourceBounded {
   @BeforeEach
   public void before() throws IOException {
     Configuration tableConf = getTableEnv().getConfig().getConfiguration();
-    tableConf.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE.key(), true);
+    tableConf.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE, true);
     SqlHelpers.sql(
         getTableEnv(),
         "create catalog iceberg_catalog with ('type'='iceberg', 'catalog-type'='hadoop', 'warehouse'='%s')",
-        catalogExtension.warehouse());
+        CATALOG_EXTENSION.warehouse());
     SqlHelpers.sql(getTableEnv(), "use catalog iceberg_catalog");
     getTableEnv()
         .getConfig()

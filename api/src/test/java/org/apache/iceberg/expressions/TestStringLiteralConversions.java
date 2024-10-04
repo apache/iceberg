@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.time.DateTimeException;
@@ -32,7 +33,6 @@ import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
 import org.apache.avro.data.TimeConversions;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestStringLiteralConversions {
@@ -133,6 +133,51 @@ public class TestStringLiteralConversions {
   }
 
   @Test
+  public void testStringToTimestampLiteralWithMicrosecondPrecisionFromNanoseconds() {
+    // use Avro's timestamp conversion to validate the result
+    Schema avroSchema = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+    TimeConversions.TimestampMicrosConversion avroConversion =
+        new TimeConversions.TimestampMicrosConversion();
+
+    Literal<CharSequence> timestampStr = Literal.of("2017-08-18T14:21:01.123456789");
+    Literal<Long> timestamp = timestampStr.to(Types.TimestampType.withoutZone());
+    long avroValue =
+        avroConversion.toLong(
+            LocalDateTime.of(2017, 8, 18, 14, 21, 1, 123456000).toInstant(ZoneOffset.UTC),
+            avroSchema,
+            avroSchema.getLogicalType());
+
+    assertThat((long) timestamp.value())
+        .as("Timestamp without zone should match UTC")
+        .isEqualTo(avroValue);
+  }
+
+  @Test
+  public void testStringToTimestampLiteralWithNanosecondPrecisionFromNanoseconds() {
+    Literal<CharSequence> timestampStr = Literal.of("2017-08-18T14:21:01.123456789");
+    Literal<Long> timestamp = timestampStr.to(Types.TimestampNanoType.withoutZone());
+
+    // Not only using Avro's timestamp conversion as it has no timestampNanos().
+    long expected = 1503066061123456789L;
+    assertThat((long) timestamp.value())
+        .as("Timestamp without zone should match UTC")
+        .isEqualTo(expected);
+
+    // use Avro's timestamp conversion to validate the result within one microsecond
+    Schema avroSchema = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
+    TimeConversions.TimestampMicrosConversion avroConversion =
+        new TimeConversions.TimestampMicrosConversion();
+    long avroValue =
+        avroConversion.toLong(
+            LocalDateTime.of(2017, 8, 18, 14, 21, 1, 123456000).toInstant(ZoneOffset.UTC),
+            avroSchema,
+            avroSchema.getLogicalType());
+    assertThat(timestamp.value() - avroValue * 1000)
+        .as("Timestamp without zone should match UTC")
+        .isEqualTo(789L);
+  }
+
+  @Test
   public void testNegativeStringToTimestampLiteral() {
     // use Avro's timestamp conversion to validate the result
     Schema avroSchema = LogicalTypes.timestampMicros().addToSchema(Schema.create(Schema.Type.LONG));
@@ -181,8 +226,13 @@ public class TestStringLiteralConversions {
   @Test
   public void testTimestampWithZoneWithoutZoneInLiteral() {
     // Zone must be present in literals when converting to timestamp with zone
-    Literal<CharSequence> timestampStr = Literal.of("2017-08-18T14:21:01.919");
-    Assertions.assertThatThrownBy(() -> timestampStr.to(Types.TimestampType.withZone()))
+    assertThatThrownBy(
+            () -> Literal.of("2017-08-18T14:21:01.919").to(Types.TimestampType.withZone()))
+        .isInstanceOf(DateTimeException.class)
+        .hasMessageContaining("could not be parsed");
+    assertThatThrownBy(
+            () ->
+                Literal.of("2017-08-18T14:21:01.919123456").to(Types.TimestampNanoType.withZone()))
         .isInstanceOf(DateTimeException.class)
         .hasMessageContaining("could not be parsed");
   }
@@ -190,8 +240,14 @@ public class TestStringLiteralConversions {
   @Test
   public void testTimestampWithoutZoneWithZoneInLiteral() {
     // Zone must not be present in literals when converting to timestamp without zone
-    Literal<CharSequence> timestampStr = Literal.of("2017-08-18T14:21:01.919+07:00");
-    Assertions.assertThatThrownBy(() -> timestampStr.to(Types.TimestampType.withoutZone()))
+    assertThatThrownBy(
+            () -> Literal.of("2017-08-18T14:21:01.919+07:00").to(Types.TimestampType.withoutZone()))
+        .isInstanceOf(DateTimeException.class)
+        .hasMessageContaining("could not be parsed");
+    assertThatThrownBy(
+            () ->
+                Literal.of("2017-08-18T14:21:01.919123456+07:00")
+                    .to(Types.TimestampNanoType.withoutZone()))
         .isInstanceOf(DateTimeException.class)
         .hasMessageContaining("could not be parsed");
   }

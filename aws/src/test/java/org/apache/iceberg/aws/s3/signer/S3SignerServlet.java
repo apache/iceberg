@@ -31,6 +31,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -147,7 +148,7 @@ public class S3SignerServlet extends HttpServlet {
                 .withToken("client-credentials-token:sub=" + requestMap.get("client_id"))
                 .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
                 .withTokenType("Bearer")
-                .setExpirationInSeconds(100)
+                .setExpirationInSeconds(10000)
                 .build());
 
       case "urn:ietf:params:oauth:grant-type:token-exchange":
@@ -162,7 +163,7 @@ public class S3SignerServlet extends HttpServlet {
                 .withToken(token)
                 .withIssuedTokenType("urn:ietf:params:oauth:token-type:access_token")
                 .withTokenType("Bearer")
-                .setExpirationInSeconds(100)
+                .setExpirationInSeconds(10000)
                 .build());
 
       default:
@@ -185,12 +186,12 @@ public class S3SignerServlet extends HttpServlet {
 
     Map<String, List<String>> unsignedHeaders =
         request.headers().entrySet().stream()
-            .filter(e -> UNSIGNED_HEADERS.contains(e.getKey().toLowerCase()))
+            .filter(e -> UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     Map<String, List<String>> signedHeaders =
         request.headers().entrySet().stream()
-            .filter(e -> !UNSIGNED_HEADERS.contains(e.getKey().toLowerCase()))
+            .filter(e -> !UNSIGNED_HEADERS.contains(e.getKey().toLowerCase(Locale.ROOT)))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     SdkHttpFullRequest sign =

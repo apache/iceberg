@@ -18,116 +18,247 @@
  */
 package org.apache.iceberg.flink.sink.shuffle;
 
+import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Set;
+import javax.annotation.Nullable;
+import org.apache.datasketches.sampling.ReservoirItemsSketch;
+import org.apache.datasketches.sampling.ReservoirItemsUnion;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortKey;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * AggregatedStatisticsTracker is used by {@link DataStatisticsCoordinator} to track the in progress
- * {@link AggregatedStatistics} received from {@link DataStatisticsOperator} subtasks for specific
- * checkpoint.
+ * AggregatedStatisticsTracker tracks the statistics aggregation received from {@link
+ * DataStatisticsOperator} subtasks for every checkpoint.
  */
-class AggregatedStatisticsTracker<D extends DataStatistics<D, S>, S> {
+class AggregatedStatisticsTracker {
   private static final Logger LOG = LoggerFactory.getLogger(AggregatedStatisticsTracker.class);
-  private static final double ACCEPT_PARTIAL_AGGR_THRESHOLD = 90;
+
   private final String operatorName;
-  private final TypeSerializer<DataStatistics<D, S>> statisticsSerializer;
   private final int parallelism;
-  private final Set<Integer> inProgressSubtaskSet;
-  private volatile AggregatedStatistics<D, S> inProgressStatistics;
+  private final TypeSerializer<DataStatistics> statisticsSerializer;
+  private final int downstreamParallelism;
+  private final StatisticsType statisticsType;
+  private final int switchToSketchThreshold;
+  private final NavigableMap<Long, Aggregation> aggregationsPerCheckpoint;
+
+  private CompletedStatistics completedStatistics;
 
   AggregatedStatisticsTracker(
       String operatorName,
-      TypeSerializer<DataStatistics<D, S>> statisticsSerializer,
-      int parallelism) {
+      int parallelism,
+      Schema schema,
+      SortOrder sortOrder,
+      int downstreamParallelism,
+      StatisticsType statisticsType,
+      int switchToSketchThreshold,
+      @Nullable CompletedStatistics restoredStatistics) {
     this.operatorName = operatorName;
-    this.statisticsSerializer = statisticsSerializer;
     this.parallelism = parallelism;
-    this.inProgressSubtaskSet = Sets.newHashSet();
+    this.statisticsSerializer =
+        new DataStatisticsSerializer(new SortKeySerializer(schema, sortOrder));
+    this.downstreamParallelism = downstreamParallelism;
+    this.statisticsType = statisticsType;
+    this.switchToSketchThreshold = switchToSketchThreshold;
+    this.completedStatistics = restoredStatistics;
+
+    this.aggregationsPerCheckpoint = Maps.newTreeMap();
   }
 
-  AggregatedStatistics<D, S> updateAndCheckCompletion(
-      int subtask, DataStatisticsEvent<D, S> event) {
+  CompletedStatistics updateAndCheckCompletion(int subtask, StatisticsEvent event) {
     long checkpointId = event.checkpointId();
+    LOG.debug(
+        "Handling statistics event from subtask {} of operator {} for checkpoint {}",
+        subtask,
+        operatorName,
+        checkpointId);
 
-    if (inProgressStatistics != null && inProgressStatistics.checkpointId() > checkpointId) {
+    if (completedStatistics != null && completedStatistics.checkpointId() > checkpointId) {
       LOG.info(
-          "Expect data statistics for operator {} checkpoint {}, but receive event from older checkpoint {}. Ignore it.",
+          "Ignore stale statistics event from operator {} subtask {} for older checkpoint {}. "
+              + "Was expecting data statistics from checkpoint higher than {}",
           operatorName,
-          inProgressStatistics.checkpointId(),
-          checkpointId);
+          subtask,
+          checkpointId,
+          completedStatistics.checkpointId());
       return null;
     }
 
-    AggregatedStatistics<D, S> completedStatistics = null;
-    if (inProgressStatistics != null && inProgressStatistics.checkpointId() < checkpointId) {
-      if ((double) inProgressSubtaskSet.size() / parallelism * 100
-          >= ACCEPT_PARTIAL_AGGR_THRESHOLD) {
-        completedStatistics = inProgressStatistics;
-        LOG.info(
-            "Received data statistics from {} subtasks out of total {} for operator {} at checkpoint {}. "
-                + "Complete data statistics aggregation at checkpoint {} as it is more than the threshold of {} percentage",
-            inProgressSubtaskSet.size(),
-            parallelism,
-            operatorName,
+    Aggregation aggregation =
+        aggregationsPerCheckpoint.computeIfAbsent(
             checkpointId,
-            inProgressStatistics.checkpointId(),
-            ACCEPT_PARTIAL_AGGR_THRESHOLD);
-      } else {
-        LOG.info(
-            "Received data statistics from {} subtasks out of total {} for operator {} at checkpoint {}. "
-                + "Aborting the incomplete aggregation for checkpoint {}",
-            inProgressSubtaskSet.size(),
-            parallelism,
-            operatorName,
-            checkpointId,
-            inProgressStatistics.checkpointId());
-      }
-
-      inProgressStatistics = null;
-      inProgressSubtaskSet.clear();
-    }
-
-    if (inProgressStatistics == null) {
-      LOG.info("Starting a new data statistics for checkpoint {}", checkpointId);
-      inProgressStatistics = new AggregatedStatistics<>(checkpointId, statisticsSerializer);
-      inProgressSubtaskSet.clear();
-    }
-
-    if (!inProgressSubtaskSet.add(subtask)) {
+            ignored ->
+                new Aggregation(
+                    parallelism,
+                    downstreamParallelism,
+                    switchToSketchThreshold,
+                    statisticsType,
+                    StatisticsUtil.collectType(statisticsType, completedStatistics)));
+    DataStatistics dataStatistics =
+        StatisticsUtil.deserializeDataStatistics(event.statisticsBytes(), statisticsSerializer);
+    if (!aggregation.merge(subtask, dataStatistics)) {
       LOG.debug(
-          "Ignore duplicated data statistics from operator {} subtask {} for checkpoint {}.",
+          "Ignore duplicate data statistics from operator {} subtask {} for checkpoint {}.",
           operatorName,
           subtask,
           checkpointId);
-    } else {
-      inProgressStatistics.mergeDataStatistic(
-          operatorName,
-          event.checkpointId(),
-          DataStatisticsUtil.deserializeDataStatistics(
-              event.statisticsBytes(), statisticsSerializer));
     }
 
-    if (inProgressSubtaskSet.size() == parallelism) {
-      completedStatistics = inProgressStatistics;
-      LOG.info(
-          "Received data statistics from all {} operators {} for checkpoint {}. Return last completed aggregator {}.",
-          parallelism,
-          operatorName,
-          inProgressStatistics.checkpointId(),
-          completedStatistics.dataStatistics());
-      inProgressStatistics = new AggregatedStatistics<>(checkpointId + 1, statisticsSerializer);
-      inProgressSubtaskSet.clear();
+    if (aggregation.isComplete()) {
+      this.completedStatistics = aggregation.completedStatistics(checkpointId);
+      // clean up aggregations up to the completed checkpoint id
+      aggregationsPerCheckpoint.headMap(checkpointId, true).clear();
+      return completedStatistics;
     }
 
-    return completedStatistics;
+    return null;
   }
 
   @VisibleForTesting
-  AggregatedStatistics<D, S> inProgressStatistics() {
-    return inProgressStatistics;
+  NavigableMap<Long, Aggregation> aggregationsPerCheckpoint() {
+    return aggregationsPerCheckpoint;
+  }
+
+  static class Aggregation {
+    private static final Logger LOG = LoggerFactory.getLogger(Aggregation.class);
+
+    private final Set<Integer> subtaskSet;
+    private final int parallelism;
+    private final int downstreamParallelism;
+    private final int switchToSketchThreshold;
+    private final StatisticsType configuredType;
+    private StatisticsType currentType;
+    private Map<SortKey, Long> mapStatistics;
+    private ReservoirItemsUnion<SortKey> sketchStatistics;
+
+    Aggregation(
+        int parallelism,
+        int downstreamParallelism,
+        int switchToSketchThreshold,
+        StatisticsType configuredType,
+        StatisticsType currentType) {
+      this.subtaskSet = Sets.newHashSet();
+      this.parallelism = parallelism;
+      this.downstreamParallelism = downstreamParallelism;
+      this.switchToSketchThreshold = switchToSketchThreshold;
+      this.configuredType = configuredType;
+      this.currentType = currentType;
+
+      if (currentType == StatisticsType.Map) {
+        this.mapStatistics = Maps.newHashMap();
+        this.sketchStatistics = null;
+      } else {
+        this.mapStatistics = null;
+        this.sketchStatistics =
+            ReservoirItemsUnion.newInstance(
+                SketchUtil.determineCoordinatorReservoirSize(downstreamParallelism));
+      }
+    }
+
+    @VisibleForTesting
+    Set<Integer> subtaskSet() {
+      return subtaskSet;
+    }
+
+    @VisibleForTesting
+    StatisticsType currentType() {
+      return currentType;
+    }
+
+    @VisibleForTesting
+    Map<SortKey, Long> mapStatistics() {
+      return mapStatistics;
+    }
+
+    @VisibleForTesting
+    ReservoirItemsUnion<SortKey> sketchStatistics() {
+      return sketchStatistics;
+    }
+
+    private boolean isComplete() {
+      return subtaskSet.size() == parallelism;
+    }
+
+    /**
+     * @return false if duplicate
+     */
+    private boolean merge(int subtask, DataStatistics taskStatistics) {
+      if (subtaskSet.contains(subtask)) {
+        return false;
+      }
+
+      subtaskSet.add(subtask);
+      merge(taskStatistics);
+      return true;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void merge(DataStatistics taskStatistics) {
+      if (taskStatistics.type() == StatisticsType.Map) {
+        Map<SortKey, Long> taskMapStats = (Map<SortKey, Long>) taskStatistics.result();
+        if (currentType == StatisticsType.Map) {
+          taskMapStats.forEach((key, count) -> mapStatistics.merge(key, count, Long::sum));
+          if (configuredType == StatisticsType.Auto
+              && mapStatistics.size() > switchToSketchThreshold) {
+            convertCoordinatorToSketch();
+          }
+        } else {
+          // convert task stats to sketch first
+          ReservoirItemsSketch<SortKey> taskSketch =
+              ReservoirItemsSketch.newInstance(
+                  SketchUtil.determineOperatorReservoirSize(parallelism, downstreamParallelism));
+          SketchUtil.convertMapToSketch(taskMapStats, taskSketch::update);
+          sketchStatistics.update(taskSketch);
+        }
+      } else {
+        ReservoirItemsSketch<SortKey> taskSketch =
+            (ReservoirItemsSketch<SortKey>) taskStatistics.result();
+        if (currentType == StatisticsType.Map) {
+          // convert global stats to sketch first
+          convertCoordinatorToSketch();
+        }
+
+        if (taskSketch.getNumSamples() > 0) {
+          sketchStatistics.update(taskSketch);
+        }
+      }
+    }
+
+    private void convertCoordinatorToSketch() {
+      this.sketchStatistics =
+          ReservoirItemsUnion.newInstance(
+              SketchUtil.determineCoordinatorReservoirSize(downstreamParallelism));
+      SketchUtil.convertMapToSketch(mapStatistics, sketchStatistics::update);
+      this.currentType = StatisticsType.Sketch;
+      this.mapStatistics = null;
+    }
+
+    private CompletedStatistics completedStatistics(long checkpointId) {
+      if (currentType == StatisticsType.Map) {
+        LOG.info("Completed map statistics aggregation with {} keys", mapStatistics.size());
+        return CompletedStatistics.fromKeyFrequency(checkpointId, mapStatistics);
+      } else {
+        ReservoirItemsSketch<SortKey> sketch = sketchStatistics.getResult();
+        if (sketch != null) {
+          LOG.info(
+              "Completed sketch statistics aggregation: "
+                  + "reservoir size = {}, number of items seen = {}, number of samples = {}",
+              sketch.getK(),
+              sketch.getN(),
+              sketch.getNumSamples());
+          return CompletedStatistics.fromKeySamples(checkpointId, sketch.getSamples());
+        } else {
+          LOG.info("Empty sketch statistics.");
+          return CompletedStatistics.fromKeySamples(checkpointId, new SortKey[0]);
+        }
+      }
+    }
   }
 }

@@ -30,6 +30,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.CharSequenceSet;
 
 /**
  * {@link AppendFiles Append} implementation that adds a new manifest file for the write.
@@ -43,6 +44,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
   private final PartitionSpec spec;
   private final SnapshotSummary.Builder summaryBuilder = SnapshotSummary.builder();
   private final List<DataFile> newFiles = Lists.newArrayList();
+  private final CharSequenceSet newFilePaths = CharSequenceSet.empty();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private List<ManifestFile> newManifests = null;
@@ -83,9 +85,13 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
 
   @Override
   public FastAppend appendFile(DataFile file) {
-    this.hasNewFiles = true;
-    newFiles.add(file);
-    summaryBuilder.addedFile(spec, file);
+    Preconditions.checkNotNull(file, "Invalid data file: null");
+    if (newFilePaths.add(file.path())) {
+      this.hasNewFiles = true;
+      newFiles.add(file);
+      summaryBuilder.addedFile(spec, file);
+    }
+
     return this;
   }
 
@@ -192,6 +198,16 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     }
   }
 
+  /**
+   * Cleanup after committing is disabled for FastAppend unless there are rewrittenAppendManifests
+   * because: 1.) Appended manifests are never rewritten 2.) Manifests which are written out as part
+   * of appendFile are already cleaned up between commit attempts in writeNewManifests
+   */
+  @Override
+  protected boolean cleanupAfterCommit() {
+    return !rewrittenAppendManifests.isEmpty();
+  }
+
   private List<ManifestFile> writeNewManifests() throws IOException {
     if (hasNewFiles && newManifests != null) {
       newManifests.forEach(file -> deleteFile(file.path()));
@@ -199,14 +215,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     }
 
     if (newManifests == null && !newFiles.isEmpty()) {
-      RollingManifestWriter<DataFile> writer = newRollingManifestWriter(spec);
-      try {
-        newFiles.forEach(writer::add);
-      } finally {
-        writer.close();
-      }
-
-      this.newManifests = writer.toManifestFiles();
+      this.newManifests = writeDataManifests(newFiles, spec);
       hasNewFiles = false;
     }
 

@@ -48,7 +48,7 @@ class SparkFileWriterFactory extends BaseFileWriterFactory<InternalRow> {
   private StructType dataSparkType;
   private StructType equalityDeleteSparkType;
   private StructType positionDeleteSparkType;
-  private Map<String, String> writeProperties;
+  private final Map<String, String> writeProperties;
 
   SparkFileWriterFactory(
       Table table,

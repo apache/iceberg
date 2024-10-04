@@ -88,6 +88,14 @@
         <property name="format" value="Preconditions\.checkArgument\([^;]+%d[^;]+\);"/>
         <property name="message" value="Preconditions.checkArgument does not support %d. use %s instead"/>
     </module>
+    <module name="RegexpMultiline">
+        <property name="format" value="^\s*import\s+static\s+(?!\Qorg.assertj.core.api.Assertions.\E).*\.assertThatThrownBy;"/>
+        <property name="message" value="assertThatThrownBy() should be statically imported from org.assertj.core.api.Assertions"/>
+    </module>
+    <module name="RegexpMultiline">
+        <property name="format" value="^\s*import\s+\Qorg.assertj.core.api.Assertions;\E" />
+        <property name="message" value="org.assertj.core.api.Assertions should only be used with static imports" />
+    </module>
     <module name="SuppressionFilter"> <!-- baseline-gradle: README.md -->
         <property name="file" value="${config_loc}/checkstyle-suppressions.xml"/>
     </module>
@@ -151,7 +159,6 @@
         </module>
         <module name="ClassTypeParameterName"> <!-- Java Style Guide: Type variable names -->
             <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)"/>
-            <message key="name.invalidPattern" value="Class type name ''{0}'' must match pattern ''{1}''."/>
         </module>
         <module name="CovariantEquals"/> <!-- Java Coding Guidelines: Override ``Object#equals`` consistently -->
         <module name="DefaultComesLast"/> <!-- Java Style Guide: The default case is present -->
@@ -273,12 +280,13 @@
         </module>
         <module name="InnerAssignment"/> <!-- Java Coding Guidelines: Inner assignments: Not used -->
         <module name="MemberName"> <!-- Java Style Guide: Non-constant field names -->
-            <property name="format" value="^[a-z][a-zA-Z0-9]+$"/>
-            <message key="name.invalidPattern" value="Member name ''{0}'' must match pattern ''{1}''."/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]++$"/>
+        </module>
+        <module name="ConstantName">
+            <property name="format" value="^[A-Z][A-Z0-9]*+(_[A-Z0-9]++)*+$"/>
         </module>
         <module name="MethodName"> <!-- Java Style Guide: Method names -->
-            <property name="format" value="^[a-z][a-zA-Z0-9_]+$"/>
-            <message key="name.invalidPattern" value="Method name ''{0}'' must match pattern ''{1}''."/>
+            <property name="format" value="^[a-z][a-zA-Z0-9_]++$"/>
         </module>
         <module name="MethodParamPad"/> <!-- Java Style Guide: Horizontal whitespace -->
         <module name="MissingDeprecated"/> <!-- Java Coding Guide: Deprecate per annotation and Javadoc -->
@@ -296,8 +304,7 @@
         <module name="PackageAnnotation"/> <!-- Java Style Guide: Package statement -->
         <module name="PackageDeclaration"/> <!-- Java Style Guide: Package statement -->
         <module name="PackageName"> <!-- Java Style Guide: Package names -->
-            <property name="format" value="^[a-z]+(\.[a-z][a-z0-9]*)*$"/>
-            <message key="name.invalidPattern" value="Package name ''{0}'' must match pattern ''{1}''."/>
+            <property name="format" value="^[a-z]++(\.[a-z][a-z0-9]*+)*+$"/>
         </module>
         <module name="ParameterAssignment"/> <!-- Java Coding Guidelines: Final variables and parameters -->
         <module name="ParenPad"/> <!-- Java Style Guide: Horizontal whitespace -->
@@ -407,6 +414,9 @@
             <property name="format" value="@Test\(.*expected.*\)"/>
             <property name="message" value="Prefer using Assertions.assertThatThrownBy(...).isInstanceOf(...) instead."/>
         </module>
+        <module name="IllegalToken">
+            <property name="tokens" value="LITERAL_ASSERT"/>
+        </module>
         <module name="IllegalImport">
             <property name="id" value="BanExpectedExceptionUsage"/>
             <property name="illegalClasses" value="org.junit.rules.ExpectedException"/>
@@ -415,6 +425,11 @@
         <module name="IllegalImport">
             <property name="id" value="BanHamcrestUsage"/>
             <property name="illegalPkgs" value="org.hamcrest"/>
+            <message key="import.illegal" value="Prefer using org.assertj.core.api.Assertions instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="BanJUnit5Assertions"/>
+            <property name="illegalPkgs" value="org.junit.jupiter.api.Assertions"/>
             <message key="import.illegal" value="Prefer using org.assertj.core.api.Assertions instead."/>
         </module>
         <module name="RegexpSinglelineJava">
@@ -436,7 +451,6 @@
             <message key="todo.match" value="There must be whitespace at the beginning of all comments."/>
         </module>
         <module name="TypeName"> <!-- Java Style Guide: Class names -->
-            <message key="name.invalidPattern" value="Type name ''{0}'' must match pattern ''{1}''."/>
         </module>
         <module name="TypecastParenPad"/> <!-- Java Style Guide: Horizontal whitespace -->
         <module name="UnusedImports"> <!-- Java Style Guide: No unused imports -->
@@ -472,14 +486,12 @@
         <module name="LocalFinalVariableName"/> <!-- Java Style Guide: Local variable names -->
         <module name="LocalVariableName"> <!-- Java Style Guide: Local variable names -->
             <property name="tokens" value="VARIABLE_DEF"/>
-            <property name="format" value="^[a-z][a-zA-Z0-9]+$"/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]++$"/>
             <property name="allowOneCharVarInForLoop" value="true"/>
-            <message key="name.invalidPattern" value="Local variable name ''{0}'' must match pattern ''{1}''."/>
         </module>
         <module name="MethodLength"/> <!-- Java Coding Guide: Methods and functions: focused, crisp, concise -->
         <module name="MethodTypeParameterName"> <!-- Java Style Guide: Type variable names -->
             <property name="format" value="(^[A-Z][0-9]?)$|([A-Z][a-zA-Z0-9]*[T]$)"/>
-            <message key="name.invalidPattern" value="Method type name ''{0}'' must match pattern ''{1}''."/>
         </module>
         <module name="NestedForDepth">
             <property name="max" value="2"/>
@@ -487,8 +499,7 @@
         <module name="NestedTryDepth"/> <!-- Java Coding Guide: Try/catch blocks: never nested -->
         <module name="NonEmptyAtclauseDescription"/> <!-- Java Style Guide: At-clauses -->
         <module name="ParameterName"> <!-- Java Style Guide: Parameter names -->
-            <property name="format" value="^[a-z][a-zA-Z0-9]+$"/>
-            <message key="name.invalidPattern" value="Parameter name ''{0}'' must match pattern ''{1}''."/>
+            <property name="format" value="^[a-z][a-zA-Z0-9]++$"/>
             <property name="ignoreOverridden" value="true"/>
         </module>
 

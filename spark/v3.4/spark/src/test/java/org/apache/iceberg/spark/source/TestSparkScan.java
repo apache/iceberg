@@ -26,6 +26,7 @@ import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStr
 import static org.apache.iceberg.spark.SystemFunctionPushDownHelper.timestampStrToYearOrdinal;
 import static org.apache.spark.sql.functions.date_add;
 import static org.apache.spark.sql.functions.expr;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -57,7 +58,6 @@ import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -128,7 +128,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
 
     // NOT Equal
     builder = scanBuilder();
@@ -137,7 +137,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
   }
 
   @Test
@@ -156,7 +156,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
 
     // NOT Equal
     builder = scanBuilder();
@@ -165,7 +165,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
   }
 
   @Test
@@ -185,7 +185,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
 
     // NOT GT
     builder = scanBuilder();
@@ -194,7 +194,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
   }
 
   @Test
@@ -214,7 +214,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
 
     // NOT GT
     builder = scanBuilder();
@@ -223,7 +223,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
   }
 
   @Test
@@ -242,7 +242,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
 
     // NOT LT
     builder = scanBuilder();
@@ -251,7 +251,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
   }
 
   @Test
@@ -270,7 +270,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
 
     // NOT LT
     builder = scanBuilder();
@@ -279,7 +279,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
   }
 
   @Test
@@ -298,7 +298,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
 
     // NOT GTEQ
     builder = scanBuilder();
@@ -307,7 +307,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
   }
 
   @Test
@@ -326,7 +326,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(8);
+    assertThat(scan.planInputPartitions().length).isEqualTo(8);
 
     // NOT GTEQ
     builder = scanBuilder();
@@ -335,7 +335,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(2);
+    assertThat(scan.planInputPartitions().length).isEqualTo(2);
   }
 
   @Test
@@ -350,7 +350,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
 
     // NOT GTEQ
     builder = scanBuilder();
@@ -359,7 +359,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
   }
 
   @Test
@@ -374,7 +374,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(6);
+    assertThat(scan.planInputPartitions().length).isEqualTo(6);
 
     // NOT GTEQ
     builder = scanBuilder();
@@ -383,7 +383,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(4);
+    assertThat(scan.planInputPartitions().length).isEqualTo(4);
   }
 
   @Test
@@ -398,7 +398,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
 
     // NOT LTEQ
     builder = scanBuilder();
@@ -407,7 +407,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
   }
 
   @Test
@@ -422,7 +422,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(6);
+    assertThat(scan.planInputPartitions().length).isEqualTo(6);
 
     // NOT LTEQ
     builder = scanBuilder();
@@ -431,7 +431,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(4);
+    assertThat(scan.planInputPartitions().length).isEqualTo(4);
   }
 
   @Test
@@ -446,7 +446,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
 
     // NOT NotEqual
     builder = scanBuilder();
@@ -455,7 +455,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
   }
 
   @Test
@@ -470,7 +470,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
 
     // NOT NotEqual
     builder = scanBuilder();
@@ -479,7 +479,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(5);
+    assertThat(scan.planInputPartitions().length).isEqualTo(5);
   }
 
   @Test
@@ -494,7 +494,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
 
     // NOT IsNull
     builder = scanBuilder();
@@ -503,7 +503,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
   }
 
   @Test
@@ -518,7 +518,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(0);
+    assertThat(scan.planInputPartitions().length).isEqualTo(0);
 
     // NOT IsNULL
     builder = scanBuilder();
@@ -527,7 +527,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
   }
 
   @Test
@@ -542,7 +542,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
 
     // NOT IsNotNull
     builder = scanBuilder();
@@ -551,7 +551,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
   }
 
   @Test
@@ -566,7 +566,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
 
     // NOT IsNotNULL
     builder = scanBuilder();
@@ -575,7 +575,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(0);
+    assertThat(scan.planInputPartitions().length).isEqualTo(0);
   }
 
   @Test
@@ -596,7 +596,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
 
     // NOT (years(ts) = 47 AND bucket(id, 5) >= 2)
     builder = scanBuilder();
@@ -605,7 +605,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
   }
 
   @Test
@@ -626,7 +626,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(1);
+    assertThat(scan.planInputPartitions().length).isEqualTo(1);
 
     // NOT (years(ts) = 47 AND bucket(id, 5) >= 2)
     builder = scanBuilder();
@@ -635,7 +635,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(9);
+    assertThat(scan.planInputPartitions().length).isEqualTo(9);
   }
 
   @Test
@@ -656,7 +656,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
 
     // NOT (years(ts) = 47 OR bucket(id, 5) >= 2)
     builder = scanBuilder();
@@ -665,7 +665,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(10);
+    assertThat(scan.planInputPartitions().length).isEqualTo(10);
   }
 
   @Test
@@ -686,7 +686,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     Batch scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(6);
+    assertThat(scan.planInputPartitions().length).isEqualTo(6);
 
     // NOT (years(ts) = 48 OR bucket(id, 5) >= 2)
     builder = scanBuilder();
@@ -695,7 +695,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     pushFilters(builder, predicate);
     scan = builder.build().toBatch();
 
-    Assertions.assertThat(scan.planInputPartitions().length).isEqualTo(4);
+    assertThat(scan.planInputPartitions().length).isEqualTo(4);
   }
 
   private SparkScanBuilder scanBuilder() throws Exception {
@@ -707,7 +707,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
   }
 
   private void pushFilters(ScanBuilder scan, Predicate... predicates) {
-    Assertions.assertThat(scan).isInstanceOf(SupportsPushDownV2Filters.class);
+    assertThat(scan).isInstanceOf(SupportsPushDownV2Filters.class);
     SupportsPushDownV2Filters filterable = (SupportsPushDownV2Filters) scan;
     filterable.pushPredicates(predicates);
   }

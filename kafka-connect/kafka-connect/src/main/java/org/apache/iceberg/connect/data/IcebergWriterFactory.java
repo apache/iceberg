@@ -18,14 +18,18 @@
  */
 package org.apache.iceberg.connect.data;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.types.Type;
@@ -36,20 +40,19 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class IcebergWriterFactory {
+class IcebergWriterFactory {
 
   private static final Logger LOG = LoggerFactory.getLogger(IcebergWriterFactory.class);
 
   private final Catalog catalog;
   private final IcebergSinkConfig config;
 
-  public IcebergWriterFactory(Catalog catalog, IcebergSinkConfig config) {
+  IcebergWriterFactory(Catalog catalog, IcebergSinkConfig config) {
     this.catalog = catalog;
     this.config = config;
   }
 
-  public RecordWriter createWriter(
-      String tableName, SinkRecord sample, boolean ignoreMissingTable) {
+  RecordWriter createWriter(String tableName, SinkRecord sample, boolean ignoreMissingTable) {
     TableIdentifier identifier = TableIdentifier.parse(tableName);
     Table table;
     try {
@@ -83,6 +86,8 @@ public class IcebergWriterFactory {
     org.apache.iceberg.Schema schema = new org.apache.iceberg.Schema(structType.fields());
     TableIdentifier identifier = TableIdentifier.parse(tableName);
 
+    createNamespaceIfNotExist(catalog, identifier.namespace());
+
     List<String> partitionBy = config.tableConfig(tableName).partitionBy();
     PartitionSpec spec;
     try {
@@ -111,5 +116,23 @@ public class IcebergWriterFactory {
               }
             });
     return result.get();
+  }
+
+  @VisibleForTesting
+  static void createNamespaceIfNotExist(Catalog catalog, Namespace identifierNamespace) {
+    if (!(catalog instanceof SupportsNamespaces)) {
+      return;
+    }
+
+    String[] levels = identifierNamespace.levels();
+    for (int index = 0; index < levels.length; index++) {
+      Namespace namespace = Namespace.of(Arrays.copyOfRange(levels, 0, index + 1));
+      try {
+        ((SupportsNamespaces) catalog).createNamespace(namespace);
+      } catch (AlreadyExistsException | ForbiddenException ex) {
+        // Ignoring the error as forcefully creating the namespace even if it exists
+        // to avoid double namespaceExists() check.
+      }
+    }
   }
 }

@@ -114,7 +114,7 @@ public class MetricsModes {
 
     @Override
     public String toString() {
-      return String.format("truncate(%d)", length);
+      return String.format(Locale.ROOT, "truncate(%d)", length);
     }
 
     @Override
@@ -160,7 +160,7 @@ public class MetricsModes {
   }
 
   private static class MetricsModeProxy implements Serializable {
-    private String modeAsString;
+    private final String modeAsString;
 
     MetricsModeProxy(String modeAsString) {
       this.modeAsString = modeAsString;

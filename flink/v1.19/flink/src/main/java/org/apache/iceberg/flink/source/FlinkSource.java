@@ -45,12 +45,8 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class FlinkSource {
-  private static final Logger LOG = LoggerFactory.getLogger(FlinkSource.class);
-
   private FlinkSource() {}
 
   /**
@@ -128,7 +124,9 @@ public class FlinkSource {
       return this;
     }
 
-    /** @deprecated Use {@link #setAll} instead. */
+    /**
+     * @deprecated Use {@link #setAll} instead.
+     */
     @Deprecated
     public Builder properties(Map<String, String> properties) {
       readOptions.putAll(properties);
@@ -263,8 +261,9 @@ public class FlinkSource {
 
       contextBuilder.resolveConfig(table, readOptions, readableConfig);
 
-      return new FlinkInputFormat(
-          tableLoader, icebergSchema, io, encryption, contextBuilder.build());
+      ScanContext context = contextBuilder.build();
+      context.validate();
+      return new FlinkInputFormat(tableLoader, icebergSchema, io, encryption, context);
     }
 
     public DataStream<RowData> build() {

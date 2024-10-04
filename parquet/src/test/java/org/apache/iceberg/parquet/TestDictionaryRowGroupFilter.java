@@ -90,7 +90,7 @@ import org.junit.jupiter.api.io.TempDir;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestDictionaryRowGroupFilter {
 
-  private static final Types.StructType structFieldType =
+  private static final Types.StructType STRUCT_FIELD_TYPE =
       Types.StructType.of(Types.NestedField.required(9, "int_field", IntegerType.get()));
 
   private static final Schema SCHEMA =
@@ -102,7 +102,7 @@ public class TestDictionaryRowGroupFilter {
           optional(5, "some_nulls", StringType.get()),
           optional(6, "no_nulls", StringType.get()),
           optional(7, "non_dict", StringType.get()),
-          optional(8, "struct_not_null", structFieldType),
+          optional(8, "struct_not_null", STRUCT_FIELD_TYPE),
           optional(10, "not_in_file", FloatType.get()),
           optional(11, "all_nans", DoubleType.get()),
           optional(12, "some_nans", FloatType.get()),
@@ -113,7 +113,7 @@ public class TestDictionaryRowGroupFilter {
               DecimalType.of(20, 10)), // >18 precision to enforce FIXED_LEN_BYTE_ARRAY
           optional(15, "_nans_and_nulls", DoubleType.get()));
 
-  private static final Types.StructType _structFieldType =
+  private static final Types.StructType UNDERSCORE_STRUCT_FIELD_TYPE =
       Types.StructType.of(Types.NestedField.required(9, "_int_field", IntegerType.get()));
 
   private static final Schema FILE_SCHEMA =
@@ -125,7 +125,7 @@ public class TestDictionaryRowGroupFilter {
           optional(5, "_some_nulls", StringType.get()),
           optional(6, "_no_nulls", StringType.get()),
           optional(7, "_non_dict", StringType.get()),
-          optional(8, "_struct_not_null", _structFieldType),
+          optional(8, "_struct_not_null", UNDERSCORE_STRUCT_FIELD_TYPE),
           optional(11, "_all_nans", DoubleType.get()),
           optional(12, "_some_nans", FloatType.get()),
           optional(13, "_no_nans", DoubleType.get()),
@@ -140,7 +140,7 @@ public class TestDictionaryRowGroupFilter {
   static {
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < 200; i += 1) {
-      sb.append(UUID.randomUUID().toString());
+      sb.append(UUID.randomUUID());
     }
     TOO_LONG_FOR_STATS = sb.toString();
   }
@@ -171,7 +171,7 @@ public class TestDictionaryRowGroupFilter {
     assertThat(parquetFile.delete()).isTrue();
 
     // build struct field schema
-    org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(_structFieldType);
+    org.apache.avro.Schema structSchema = AvroSchemaUtil.convert(UNDERSCORE_STRUCT_FIELD_TYPE);
 
     OutputFile outFile = Files.localOutput(parquetFile);
     try (FileAppender<Record> appender =

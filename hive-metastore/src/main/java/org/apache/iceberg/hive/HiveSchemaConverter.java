@@ -42,7 +42,7 @@ class HiveSchemaConverter {
   private static final Logger LOG = LoggerFactory.getLogger(HiveSchemaConverter.class);
 
   private int id;
-  private boolean autoConvert;
+  private final boolean autoConvert;
 
   private HiveSchemaConverter(boolean autoConvert) {
     this.autoConvert = autoConvert;

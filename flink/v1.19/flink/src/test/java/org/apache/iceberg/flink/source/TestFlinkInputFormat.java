@@ -18,13 +18,16 @@
  */
 package org.apache.iceberg.flink.source;
 
+import static org.apache.iceberg.flink.SimpleDataUtil.SCHEMA;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.types.logical.RowType;
@@ -72,7 +75,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
             required(6, "id", Types.LongType.get()));
 
     Table table =
-        catalogExtension.catalog().createTable(TableIdentifier.of("default", "t"), schema);
+        CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("default", "t"), schema);
 
     List<Record> writeRecords = RandomGenericData.generate(schema, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(writeRecords);
@@ -112,7 +115,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
             Types.NestedField.optional(2, "time", Types.TimestampType.withZone()));
 
     Table table =
-        catalogExtension.catalog().createTable(TableIdentifier.of("default", "t"), writeSchema);
+        CATALOG_EXTENSION.catalog().createTable(TableIdentifier.of("default", "t"), writeSchema);
 
     List<Record> writeRecords = RandomGenericData.generate(writeSchema, 2, 0L);
     new GenericAppenderHelper(table, fileFormat, temporaryDirectory).appendToTable(writeRecords);
@@ -154,7 +157,7 @@ public class TestFlinkInputFormat extends TestFlinkSource {
         PartitionSpec.builderFor(nestedSchema).identity("struct.innerName").build();
 
     Table table =
-        catalogExtension.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, nestedSchema, spec);
+        CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, nestedSchema, spec);
     List<Record> records = RandomGenericData.generate(nestedSchema, 10, 0L);
     GenericAppenderHelper appender =
         new GenericAppenderHelper(table, fileFormat, temporaryDirectory);
@@ -182,6 +185,23 @@ public class TestFlinkInputFormat extends TestFlinkSource {
     }
 
     TestHelpers.assertRows(result, expected);
+  }
+
+  @TestTemplate
+  public void testValidation() {
+    CATALOG_EXTENSION.catalog().createTable(TestFixtures.TABLE_IDENTIFIER, SCHEMA);
+
+    assertThatThrownBy(
+            () ->
+                FlinkSource.forRowData()
+                    .env(StreamExecutionEnvironment.getExecutionEnvironment())
+                    .tableLoader(tableLoader())
+                    .streaming(false)
+                    .endTag("tag")
+                    .endSnapshotId(1L)
+                    .build())
+        .hasMessage("END_SNAPSHOT_ID and END_TAG cannot both be set.")
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   private List<Row> runFormat(FlinkInputFormat inputFormat) throws IOException {

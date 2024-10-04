@@ -39,6 +39,7 @@ public class LoadTableResponse implements RESTResponse {
   private String metadataLocation;
   private TableMetadata metadata;
   private Map<String, String> config;
+  private TableMetadata metadataWithLocation;
 
   public LoadTableResponse() {
     // Required for Jackson deserialization
@@ -61,7 +62,12 @@ public class LoadTableResponse implements RESTResponse {
   }
 
   public TableMetadata tableMetadata() {
-    return TableMetadata.buildFrom(metadata).withMetadataLocation(metadataLocation).build();
+    if (null == metadataWithLocation) {
+      this.metadataWithLocation =
+          TableMetadata.buildFrom(metadata).withMetadataLocation(metadataLocation).build();
+    }
+
+    return metadataWithLocation;
   }
 
   public Map<String, String> config() {
@@ -84,7 +90,7 @@ public class LoadTableResponse implements RESTResponse {
   public static class Builder {
     private String metadataLocation;
     private TableMetadata metadata;
-    private Map<String, String> config = Maps.newHashMap();
+    private final Map<String, String> config = Maps.newHashMap();
 
     private Builder() {}
 

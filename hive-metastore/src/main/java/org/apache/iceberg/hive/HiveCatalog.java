@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.hive;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +27,7 @@ import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.hive.metastore.TableType;
 import org.apache.hadoop.hive.metastore.api.AlreadyExistsException;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.InvalidOperationException;
@@ -33,34 +35,45 @@ import org.apache.hadoop.hive.metastore.api.NoSuchObjectException;
 import org.apache.hadoop.hive.metastore.api.PrincipalType;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.hadoop.hive.metastore.api.UnknownDBException;
-import org.apache.iceberg.BaseMetastoreCatalog;
 import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ClientPool;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOTracker;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.LocationUtil;
+import org.apache.iceberg.view.BaseMetastoreViewCatalog;
+import org.apache.iceberg.view.View;
+import org.apache.iceberg.view.ViewBuilder;
+import org.apache.iceberg.view.ViewMetadata;
+import org.apache.iceberg.view.ViewOperations;
 import org.apache.thrift.TException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespaces, Configurable {
+public class HiveCatalog extends BaseMetastoreViewCatalog
+    implements SupportsNamespaces, Configurable {
   public static final String LIST_ALL_TABLES = "list-all-tables";
   public static final String LIST_ALL_TABLES_DEFAULT = "false";
 
@@ -79,6 +92,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   private ClientPool<IMetaStoreClient, TException> clients;
   private boolean listAllTables = false;
   private Map<String, String> catalogProperties;
+  private FileIOTracker fileIOTracker;
 
   public HiveCatalog() {}
 
@@ -111,6 +125,17 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
             : CatalogUtil.loadFileIO(fileIOImpl, properties, conf);
 
     this.clients = new CachedClientPool(conf, properties);
+    this.fileIOTracker = new FileIOTracker();
+  }
+
+  @Override
+  public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
+    return new ViewAwareTableBuilder(identifier, schema);
+  }
+
+  @Override
+  public ViewBuilder buildView(TableIdentifier identifier) {
+    return new TableAwareViewBuilder(identifier);
   }
 
   @Override
@@ -149,6 +174,38 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new RuntimeException("Interrupted in call to listTables", e);
+    }
+  }
+
+  @Override
+  public List<TableIdentifier> listViews(Namespace namespace) {
+    Preconditions.checkArgument(
+        isValidateNamespace(namespace), "Missing database in namespace: %s", namespace);
+
+    try {
+      String database = namespace.level(0);
+      List<String> viewNames =
+          clients.run(client -> client.getTables(database, "*", TableType.VIRTUAL_VIEW));
+
+      // Retrieving the Table objects from HMS in batches to avoid OOM
+      List<TableIdentifier> filteredTableIdentifiers = Lists.newArrayList();
+      Iterable<List<String>> viewNameSets = Iterables.partition(viewNames, 100);
+
+      for (List<String> viewNameSet : viewNameSets) {
+        filteredTableIdentifiers.addAll(
+            listIcebergTables(viewNameSet, namespace, HiveOperationsBase.ICEBERG_VIEW_TYPE_VALUE));
+      }
+
+      return filteredTableIdentifiers;
+    } catch (UnknownDBException e) {
+      throw new NoSuchNamespaceException("Namespace does not exist: %s", namespace);
+
+    } catch (TException e) {
+      throw new RuntimeException("Failed to list all views under namespace " + namespace, e);
+
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted in call to listViews", e);
     }
   }
 
@@ -210,8 +267,54 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   }
 
   @Override
+  public boolean dropView(TableIdentifier identifier) {
+    if (!isValidIdentifier(identifier)) {
+      return false;
+    }
+
+    try {
+      String database = identifier.namespace().level(0);
+      String viewName = identifier.name();
+
+      HiveViewOperations ops = (HiveViewOperations) newViewOps(identifier);
+      ViewMetadata lastViewMetadata = null;
+      try {
+        lastViewMetadata = ops.current();
+      } catch (NotFoundException e) {
+        LOG.warn("Failed to load view metadata for view: {}", identifier, e);
+      }
+
+      clients.run(
+          client -> {
+            client.dropTable(database, viewName, false, false);
+            return null;
+          });
+
+      if (lastViewMetadata != null) {
+        CatalogUtil.dropViewMetadata(ops.io(), lastViewMetadata);
+      }
+
+      LOG.info("Dropped view: {}", identifier);
+      return true;
+    } catch (NoSuchObjectException e) {
+      LOG.info("Skipping drop, view does not exist: {}", identifier, e);
+      return false;
+    } catch (TException e) {
+      throw new RuntimeException("Failed to drop view " + identifier, e);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new RuntimeException("Interrupted in call to dropView", e);
+    }
+  }
+
+  @Override
   public void renameTable(TableIdentifier from, TableIdentifier originalTo) {
     renameTableOrView(from, originalTo, HiveOperationsBase.ContentType.TABLE);
+  }
+
+  @Override
+  public void renameView(TableIdentifier from, TableIdentifier to) {
+    renameTableOrView(from, to, HiveOperationsBase.ContentType.VIEW);
   }
 
   private List<TableIdentifier> listIcebergTables(
@@ -229,19 +332,28 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         .collect(Collectors.toList());
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private void renameTableOrView(
       TableIdentifier from,
       TableIdentifier originalTo,
       HiveOperationsBase.ContentType contentType) {
-    if (!isValidIdentifier(from)) {
-      throw new NoSuchTableException("Invalid identifier: %s", from);
-    }
+    Preconditions.checkArgument(isValidIdentifier(from), "Invalid identifier: %s", from);
 
     TableIdentifier to = removeCatalogName(originalTo);
     Preconditions.checkArgument(isValidIdentifier(to), "Invalid identifier: %s", to);
     if (!namespaceExists(to.namespace())) {
       throw new NoSuchNamespaceException(
           "Cannot rename %s to %s. Namespace does not exist: %s", from, to, to.namespace());
+    }
+
+    if (tableExists(to)) {
+      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+          "Cannot rename %s to %s. Table already exists", from, to);
+    }
+
+    if (viewExists(to)) {
+      throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+          "Cannot rename %s to %s. View already exists", from, to);
     }
 
     String toDatabase = to.namespace().level(0);
@@ -264,7 +376,12 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
       LOG.info("Renamed {} from {}, to {}", contentType.value(), from, to);
 
     } catch (NoSuchObjectException e) {
-      throw new NoSuchTableException("Table does not exist: %s", from);
+      switch (contentType) {
+        case TABLE:
+          throw new NoSuchTableException("Cannot rename %s to %s. Table does not exist", from, to);
+        case VIEW:
+          throw new NoSuchViewException("Cannot rename %s to %s. View does not exist", from, to);
+      }
 
     } catch (InvalidOperationException e) {
       if (e.getMessage() != null
@@ -291,7 +408,7 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
         HiveOperationsBase.validateTableIsIceberg(table, fullName);
         break;
       case VIEW:
-        throw new UnsupportedOperationException("View is not supported.");
+        HiveOperationsBase.validateTableIsIcebergView(table, fullName);
     }
   }
 
@@ -512,7 +629,15 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   public TableOperations newTableOps(TableIdentifier tableIdentifier) {
     String dbName = tableIdentifier.namespace().level(0);
     String tableName = tableIdentifier.name();
-    return new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
+    HiveTableOperations ops =
+        new HiveTableOperations(conf, clients, fileIO, name, dbName, tableName);
+    fileIOTracker.track(ops);
+    return ops;
+  }
+
+  @Override
+  protected ViewOperations newViewOps(TableIdentifier identifier) {
+    return new HiveViewOperations(conf, clients, fileIO, name, identifier);
   }
 
   @Override
@@ -636,6 +761,14 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
     return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (fileIOTracker != null) {
+      fileIOTracker.close();
+    }
+  }
+
   @VisibleForTesting
   void setListAllTables(boolean listAllTables) {
     this.listAllTables = listAllTables;
@@ -644,5 +777,73 @@ public class HiveCatalog extends BaseMetastoreCatalog implements SupportsNamespa
   @VisibleForTesting
   ClientPool<IMetaStoreClient, TException> clientPool() {
     return clients;
+  }
+
+  /**
+   * The purpose of this class is to add view detection only for Hive-Specific tables. Hive catalog
+   * follows checks at different levels: 1. During refresh, it validates if the table is an iceberg
+   * table or not. 2. During commit, it validates if there is any concurrent commit with table or
+   * table-name already exists. This class helps to do the validation on an early basis.
+   */
+  private class ViewAwareTableBuilder extends BaseMetastoreViewCatalogTableBuilder {
+
+    private final TableIdentifier identifier;
+
+    private ViewAwareTableBuilder(TableIdentifier identifier, Schema schema) {
+      super(identifier, schema);
+      this.identifier = identifier;
+    }
+
+    @Override
+    public Transaction createOrReplaceTransaction() {
+      if (viewExists(identifier)) {
+        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+            "View with same name already exists: %s", identifier);
+      }
+      return super.createOrReplaceTransaction();
+    }
+
+    @Override
+    public org.apache.iceberg.Table create() {
+      if (viewExists(identifier)) {
+        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+            "View with same name already exists: %s", identifier);
+      }
+      return super.create();
+    }
+  }
+
+  /**
+   * The purpose of this class is to add table detection only for Hive-Specific view. Hive catalog
+   * follows checks at different levels: 1. During refresh, it validates if the view is an iceberg
+   * view or not. 2. During commit, it validates if there is any concurrent commit with view or
+   * view-name already exists. This class helps to do the validation on an early basis.
+   */
+  private class TableAwareViewBuilder extends BaseViewBuilder {
+
+    private final TableIdentifier identifier;
+
+    private TableAwareViewBuilder(TableIdentifier identifier) {
+      super(identifier);
+      this.identifier = identifier;
+    }
+
+    @Override
+    public View createOrReplace() {
+      if (tableExists(identifier)) {
+        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+            "Table with same name already exists: %s", identifier);
+      }
+      return super.createOrReplace();
+    }
+
+    @Override
+    public View create() {
+      if (tableExists(identifier)) {
+        throw new org.apache.iceberg.exceptions.AlreadyExistsException(
+            "Table with same name already exists: %s", identifier);
+      }
+      return super.create();
+    }
   }
 }

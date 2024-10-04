@@ -192,7 +192,7 @@ public class NessieIcebergClient implements AutoCloseable {
 
   private TableIdentifier toIdentifier(EntriesResponse.Entry entry) {
     List<String> elements = entry.getName().getElements();
-    return TableIdentifier.of(elements.toArray(new String[elements.size()]));
+    return TableIdentifier.of(elements.toArray(new String[0]));
   }
 
   public IcebergTable table(TableIdentifier tableIdentifier) {
@@ -272,8 +272,10 @@ public class NessieIcebergClient implements AutoCloseable {
             org.projectnessie.model.Namespace.of(namespace.levels());
         filter +=
             String.format(
+                Locale.ROOT,
                 "size(entry.keyElements) == %d && entry.encodedKey.startsWith('%s.')",
-                root.getElementCount() + 1, root.name());
+                root.getElementCount() + 1,
+                root.name());
       }
       List<ContentKey> entries =
           withReference(api.getEntries()).filter(filter).stream()
@@ -579,19 +581,6 @@ public class NessieIcebergClient implements AutoCloseable {
       LOG.error("Cannot drop {}: unknown error", contentType, e);
     }
     return false;
-  }
-
-  /** @deprecated will be removed after 1.5.0 */
-  @Deprecated
-  public void commitTable(
-      TableMetadata base,
-      TableMetadata metadata,
-      String newMetadataLocation,
-      IcebergTable expectedContent,
-      ContentKey key)
-      throws NessieConflictException, NessieNotFoundException {
-    String contentId = expectedContent == null ? null : expectedContent.getId();
-    commitTable(base, metadata, newMetadataLocation, contentId, key);
   }
 
   public void commitTable(

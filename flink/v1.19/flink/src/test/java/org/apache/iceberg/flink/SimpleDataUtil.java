@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink;
 
 import static org.apache.iceberg.hadoop.HadoopOutputFile.fromPath;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -71,7 +72,6 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.awaitility.Awaitility;
-import org.junit.Assert;
 
 public class SimpleDataUtil {
 
@@ -268,13 +268,13 @@ public class SimpleDataUtil {
   }
 
   public static void assertRecordsEqual(List<Record> expected, List<Record> actual, Schema schema) {
-    Assert.assertEquals(expected.size(), actual.size());
+    assertThat(actual).hasSameSizeAs(expected);
     Types.StructType type = schema.asStruct();
     StructLikeSet expectedSet = StructLikeSet.create(type);
     expectedSet.addAll(expected);
     StructLikeSet actualSet = StructLikeSet.create(type);
     actualSet.addAll(actual);
-    Assert.assertEquals(expectedSet, actualSet);
+    assertThat(actualSet).containsExactlyInAnyOrderElementsOf(expectedSet);
   }
 
   /**
@@ -284,11 +284,7 @@ public class SimpleDataUtil {
   public static void assertTableRecords(Table table, List<Record> expected, Duration timeout) {
     Awaitility.await("expected list of records should be produced")
         .atMost(timeout)
-        .untilAsserted(
-            () -> {
-              equalsRecords(expected, tableRecords(table), table.schema());
-              assertRecordsEqual(expected, tableRecords(table), table.schema());
-            });
+        .untilAsserted(() -> assertRecordsEqual(expected, tableRecords(table), table.schema()));
   }
 
   public static void assertTableRecords(Table table, List<Record> expected) throws IOException {
@@ -301,7 +297,7 @@ public class SimpleDataUtil {
     Snapshot snapshot = latestSnapshot(table, branch);
 
     if (snapshot == null) {
-      Assert.assertEquals(expected, ImmutableList.of());
+      assertThat(expected).isEmpty();
       return;
     }
 
@@ -317,7 +313,7 @@ public class SimpleDataUtil {
         actualSet.add(record);
       }
 
-      Assert.assertEquals("Should produce the expected record", expectedSet, actualSet);
+      assertThat(actualSet).containsExactlyInAnyOrderElementsOf(expectedSet);
     }
   }
 

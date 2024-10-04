@@ -1018,6 +1018,128 @@ acceptedBreaks:
       old: "method void org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan::<init>(org.apache.iceberg.Table,\
         \ org.apache.iceberg.Schema, org.apache.iceberg.TableScanContext)"
       justification: "Removing deprecated code"
+  "1.5.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.types.Types.NestedField"
+      new: "class org.apache.iceberg.types.Types.NestedField"
+      justification: "new Constructor added"
+    org.apache.iceberg:iceberg-core:
+    - code: "java.element.noLongerDeprecated"
+      old: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
+      new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
+      justification: "Constructor became private as part of deprecations cleanup for\
+        \ 1.6.0 release"
+    - code: "java.element.noLongerDeprecated"
+      old: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
+        \ java.lang.String>, java.lang.String, java.lang.String, java.lang.String,\
+        \ java.lang.String)"
+      new: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
+        \ java.lang.String>, org.apache.iceberg.rest.auth.AuthConfig)"
+      justification: "This is actually a removal of a deprecated constructor as part\
+        \ of deprecations for 1.6.0 release, apparently mis-reported by rev-api"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
+        \ java.lang.String>, java.lang.String, java.lang.String, java.lang.String,\
+        \ java.lang.String)"
+      new: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
+        \ java.lang.String>, org.apache.iceberg.rest.auth.AuthConfig)"
+      justification: "This is actually a removal of a deprecated constructor as part\
+        \ of deprecations for 1.6.0 release, apparently mis-reported by rev-api"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> org.apache.iceberg.ReachableFileUtil::statisticsFilesLocations(org.apache.iceberg.Table,\
+        \ java.util.function.Predicate<org.apache.iceberg.StatisticsFile>)"
+      justification: "Deprecations for 1.6.0 release"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.DataFiles.Builder org.apache.iceberg.DataFiles.Builder::withEqualityFieldIds(java.util.List<java.lang.Integer>)"
+      justification: "Deprecations for 1.6.0 release"
+    - code: "java.method.visibilityReduced"
+      old: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
+      new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
+      justification: "Deprecations for 1.6.0 release"
+  "1.6.0":
+    org.apache.iceberg:iceberg-common:
+    - code: "java.method.removed"
+      old: "method <T> org.apache.iceberg.common.DynFields.StaticField<T> org.apache.iceberg.common.DynFields.Builder::buildStaticChecked()\
+        \ throws java.lang.NoSuchFieldException"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method java.lang.Class<? extends C> org.apache.iceberg.common.DynConstructors.Ctor<C>::getConstructedClass()"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.common.DynConstructors.Builder org.apache.iceberg.common.DynConstructors.Builder::hiddenImpl(java.lang.Class<?>[])"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.common.DynMethods.Builder org.apache.iceberg.common.DynMethods.Builder::ctorImpl(java.lang.Class<?>,\
+        \ java.lang.Class<?>[])"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.common.DynMethods.Builder org.apache.iceberg.common.DynMethods.Builder::ctorImpl(java.lang.String,\
+        \ java.lang.Class<?>[])"
+      justification: "Removing deprecated code"
+    - code: "java.method.visibilityReduced"
+      old: "method <R> R org.apache.iceberg.common.DynMethods.UnboundMethod::invokeChecked(java.lang.Object,\
+        \ java.lang.Object[]) throws java.lang.Exception"
+      new: "method <R> R org.apache.iceberg.common.DynMethods.UnboundMethod::invokeChecked(java.lang.Object,\
+        \ java.lang.Object[]) throws java.lang.Exception"
+      justification: "Reduced visibility and scoped to package"
+    org.apache.iceberg:iceberg-core:
+    - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.GenericManifestFile"
+      new: "class org.apache.iceberg.GenericManifestFile"
+      justification: "Serialization across versions is not supported"
+    - code: "java.class.defaultSerializationChanged"
+      old: "class org.apache.iceberg.io.WriteResult"
+      new: "class org.apache.iceberg.io.WriteResult"
+      justification: "Serialization across versions is not supported"
+    - code: "java.class.removed"
+      old: "enum org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method java.lang.String org.apache.iceberg.FileScanTaskParser::toJson(org.apache.iceberg.FileScanTask)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.FileScanTask org.apache.iceberg.FileScanTaskParser::fromJson(java.lang.String,\
+        \ boolean)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.ContentCache.CacheEntry org.apache.iceberg.io.ContentCache::get(java.lang.String,\
+        \ java.util.function.Function<java.lang.String, org.apache.iceberg.io.ContentCache.FileContent>)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.ContentCache.CacheEntry org.apache.iceberg.io.ContentCache::getIfPresent(java.lang.String)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.InputFile org.apache.iceberg.io.ContentCache::tryCache(org.apache.iceberg.io.FileIO,\
+        \ java.lang.String, long)"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.OutputFile org.apache.iceberg.SnapshotProducer<ThisT>::newManifestOutput()\
+        \ @ org.apache.iceberg.BaseOverwriteFiles"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.OutputFile org.apache.iceberg.SnapshotProducer<ThisT>::newManifestOutput()\
+        \ @ org.apache.iceberg.BaseReplacePartitions"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.OutputFile org.apache.iceberg.SnapshotProducer<ThisT>::newManifestOutput()\
+        \ @ org.apache.iceberg.BaseRewriteManifests"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method org.apache.iceberg.io.OutputFile org.apache.iceberg.SnapshotProducer<ThisT>::newManifestOutput()\
+        \ @ org.apache.iceberg.StreamingDelete"
+      justification: "Removing deprecated code"
+    - code: "java.method.removed"
+      old: "method void org.apache.iceberg.rest.auth.OAuth2Util.AuthSession::<init>(java.util.Map<java.lang.String,\
+        \ java.lang.String>, java.lang.String, java.lang.String, java.lang.String,\
+        \ java.lang.String, java.lang.String)"
+      justification: "Removing deprecated code"
+    - code: "java.method.returnTypeChanged"
+      old: "method org.apache.iceberg.BaseMetastoreTableOperations.CommitStatus org.apache.iceberg.BaseMetastoreTableOperations::checkCommitStatus(java.lang.String,\
+        \ org.apache.iceberg.TableMetadata)"
+      new: "method org.apache.iceberg.BaseMetastoreOperations.CommitStatus org.apache.iceberg.BaseMetastoreTableOperations::checkCommitStatus(java.lang.String,\
+        \ org.apache.iceberg.TableMetadata)"
+      justification: "Removing deprecated code"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

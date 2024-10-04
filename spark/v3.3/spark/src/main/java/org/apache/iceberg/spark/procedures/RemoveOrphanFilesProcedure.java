@@ -128,7 +128,7 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
               DataTypes.StringType,
               DataTypes.StringType,
               (k, v) -> {
-                equalSchemes.put(k.toString(), v.toString());
+                equalAuthorities.put(k.toString(), v.toString());
                 return BoxedUnit.UNIT;
               });
     }

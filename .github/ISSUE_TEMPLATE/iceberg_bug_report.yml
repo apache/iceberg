@@ -28,7 +28,10 @@ body:
       description: What Apache Iceberg version are you using?
       multiple: false
       options:
-        - "1.5.1 (latest release)"
+        - "1.6.1 (latest release)"
+        - "1.6.0"
+        - "1.5.2"
+        - "1.5.1"
         - "1.5.0"
         - "1.4.3"
         - "1.4.2"
@@ -75,3 +78,11 @@ body:
         You can include files by dragging and dropping them here.
     validations:
       required: true
+  - type: checkboxes
+    attributes:
+      label: Willingness to contribute
+      description: The Apache Iceberg community encourages bug fix contributions. Would you or another member of your organization be willing to contribute a fix for this bug to the Apache Iceberg codebase?
+      options:
+        - label: I can contribute a fix for this bug independently
+        - label: I would be willing to contribute a fix for this bug with guidance from the Iceberg community
+        - label: I cannot contribute a fix for this bug at this time

@@ -31,9 +31,9 @@ import org.apache.iceberg.BaseMetastoreTableOperations;
 import org.apache.iceberg.ClientPool;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.NoSuchIcebergTableException;
+import org.apache.iceberg.exceptions.NoSuchIcebergViewException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -54,6 +54,7 @@ interface HiveOperationsBase {
   long HIVE_TABLE_PROPERTY_MAX_SIZE_DEFAULT = 32672;
   String NO_LOCK_EXPECTED_KEY = "expected_parameter_key";
   String NO_LOCK_EXPECTED_VALUE = "expected_parameter_value";
+  String ICEBERG_VIEW_TYPE_VALUE = "iceberg-view";
 
   enum ContentType {
     TABLE("Table"),
@@ -103,14 +104,6 @@ interface HiveOperationsBase {
     return maxHiveTablePropertySize() > 0;
   }
 
-  /**
-   * @deprecated since 1.6.0, will be removed in 1.7.0; Use {@link #setSchema(Schema, Map)} instead
-   */
-  @Deprecated
-  default void setSchema(TableMetadata metadata, Map<String, String> parameters) {
-    setSchema(metadata.schema(), parameters);
-  }
-
   default void setSchema(Schema schema, Map<String, String> parameters) {
     parameters.remove(TableProperties.CURRENT_SCHEMA);
     if (exposeInHmsProperties() && schema != null) {
@@ -138,6 +131,17 @@ interface HiveOperationsBase {
         tableType);
   }
 
+  static void validateTableIsIcebergView(Table table, String fullName) {
+    String tableTypeProp = table.getParameters().get(BaseMetastoreTableOperations.TABLE_TYPE_PROP);
+    NoSuchIcebergViewException.check(
+        TableType.VIRTUAL_VIEW.name().equalsIgnoreCase(table.getTableType())
+            && ICEBERG_VIEW_TYPE_VALUE.equalsIgnoreCase(tableTypeProp),
+        "Not an iceberg view: %s (type=%s) (tableType=%s)",
+        fullName,
+        tableTypeProp,
+        table.getTableType());
+  }
+
   default void persistTable(Table hmsTable, boolean updateHiveTable, String metadataLocation)
       throws TException, InterruptedException {
     if (updateHiveTable) {
@@ -156,15 +160,6 @@ interface HiveOperationsBase {
                 return null;
               });
     }
-  }
-
-  /**
-   * @deprecated since 1.6.0, will be removed in 1.7.0; Use {@link #storageDescriptor(Schema,
-   *     String, boolean)} instead
-   */
-  @Deprecated
-  static StorageDescriptor storageDescriptor(TableMetadata metadata, boolean hiveEngineEnabled) {
-    return storageDescriptor(metadata.schema(), metadata.location(), hiveEngineEnabled);
   }
 
   static StorageDescriptor storageDescriptor(

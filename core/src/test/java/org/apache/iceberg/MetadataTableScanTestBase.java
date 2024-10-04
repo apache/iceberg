@@ -40,12 +40,11 @@ public abstract class MetadataTableScanTestBase extends TestBase {
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
-    return Arrays.asList(1, 2);
+    return Arrays.asList(1, 2, 3);
   }
 
-  protected Set<String> actualManifestListPaths(TableScan allManifestsTableScan) {
-    return StreamSupport.stream(allManifestsTableScan.planFiles().spliterator(), false)
-        .map(t -> (AllManifestsTable.ManifestListReadTask) t)
+  protected Set<String> scannedPaths(TableScan scan) {
+    return StreamSupport.stream(scan.planFiles().spliterator(), false)
         .map(t -> t.file().path().toString())
         .collect(Collectors.toSet());
   }
