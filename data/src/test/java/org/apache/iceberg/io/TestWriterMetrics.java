@@ -243,8 +243,8 @@ public abstract class TestWriterMetrics<T> {
 
   @TestTemplate
   public void testMaxColumnsBounded() throws IOException {
-    File tableDir = temp.newFolder();
-    tableDir.delete(); // created by table create
+    File tableDir = Files.createTempDirectory(tempDir.toPath(), "table").toFile();
+    assertThat(tableDir.delete()).isTrue();
 
     List<Types.NestedField> fields = Arrays.asList(ID_FIELD, DATA_FIELD, STRUCT_FIELD);
 
