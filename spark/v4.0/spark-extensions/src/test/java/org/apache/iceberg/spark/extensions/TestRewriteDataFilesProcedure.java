@@ -702,7 +702,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Missing required parameters: [table]");
+        .hasMessageContaining("Duplicate procedure argument: table");
 
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_data_files(table => 't', table => 't')", catalogName))
@@ -894,7 +894,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         .containsKey(CatalogProperties.APP_ID)
         .containsEntry(EnvironmentContext.ENGINE_NAME, "spark")
         .hasEntrySatisfying(
-            EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("3.5"));
+            EnvironmentContext.ENGINE_VERSION, v -> assertThat(v).startsWith("4.0"));
   }
 
   private void createTable() {

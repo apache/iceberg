@@ -22,6 +22,7 @@ import static org.apache.spark.sql.functions.lit;
 
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.AppendFiles;
@@ -56,8 +57,8 @@ import org.openjdk.jmh.infra.Blackhole;
 /**
  * A benchmark that evaluates the performance of remove orphan files action in Spark.
  *
- * <p>To run this benchmark for spark-3.5: <code>
- *   ./gradlew -DsparkVersions=3.5 :iceberg-spark:iceberg-spark-3.5_2.12:jmh
+ * <p>To run this benchmark for spark-4.0: <code>
+ *   ./gradlew -DsparkVersions=4.0 :iceberg-spark:iceberg-spark-4.0_2.13:jmh
  *       -PjmhIncludeRegex=DeleteOrphanFilesBenchmark
  *       -PjmhOutputPath=benchmark/delete-orphan-files-benchmark-results.txt
  * </code>
@@ -124,7 +125,7 @@ public class DeleteOrphanFilesBenchmark {
     for (int i = 0; i < NUM_SNAPSHOTS; i++) {
       AppendFiles appendFiles = table().newFastAppend();
       for (int j = 0; j < NUM_FILES; j++) {
-        String path = String.format("%s/path/to/data-%d-%d.parquet", location, i, j);
+        String path = String.format(Locale.ROOT, "%s/path/to/data-%d-%d.parquet", location, i, j);
         validAndOrphanPaths.add(path);
         DataFile dataFile =
             DataFiles.builder(partitionSpec)

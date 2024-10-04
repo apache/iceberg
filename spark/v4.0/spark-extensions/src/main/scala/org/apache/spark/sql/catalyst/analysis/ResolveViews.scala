@@ -117,7 +117,7 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
       }
     } catch {
       case _: ParseException =>
-        throw QueryCompilationErrors.invalidViewText(viewText, name)
+        throw QueryCompilationErrors.invalidViewNameError(name);
     }
   }
 
@@ -135,13 +135,13 @@ case class ResolveViews(spark: SparkSession) extends Rule[LogicalPlan] with Look
   private def qualifyFunctionIdentifiers(
     plan: LogicalPlan,
     catalogAndNamespace: Seq[String]): LogicalPlan = plan transformExpressions {
-    case u@UnresolvedFunction(Seq(name), _, _, _, _) =>
+    case u@UnresolvedFunction(Seq(name), _, _, _, _, _, _) =>
       if (!isBuiltinFunction(name)) {
         u.copy(nameParts = catalogAndNamespace :+ name)
       } else {
         u
       }
-    case u@UnresolvedFunction(parts, _, _, _, _) if !isCatalog(parts.head) =>
+    case u@UnresolvedFunction(parts, _, _, _, _, _, _) if !isCatalog(parts.head) =>
       u.copy(nameParts = catalogAndNamespace.head +: parts)
   }
 

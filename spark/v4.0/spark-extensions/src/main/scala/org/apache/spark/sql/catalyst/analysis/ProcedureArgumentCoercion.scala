@@ -36,7 +36,7 @@ object ProcedureArgumentCoercion extends Rule[LogicalPlan] {
         val argType = arg.dataType
 
         if (paramType != argType && !Cast.canUpCast(argType, paramType)) {
-          throw new AnalysisException(
+          throw new IcebergAnalysisException(
             s"Wrong arg type for ${param.name}: cannot cast $argType to $paramType")
         }
 

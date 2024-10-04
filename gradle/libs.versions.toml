@@ -47,6 +47,7 @@ flink120 = { strictly = "1.20.0"}
 google-libraries-bom = "26.47.0"
 guava = "33.3.0-jre"
 hadoop2 = "2.7.3"
+hadoop34 = "3.4.0" # For Spark 4.0 support
 hadoop3 = "3.3.6"
 httpcomponents-httpclient5 = "5.4"
 hive2 = { strictly = "2.3.9"} # see rich version usage explanation above
@@ -85,6 +86,7 @@ snowflake-jdbc = "3.18.0"
 spark-hive33 = "3.3.4"
 spark-hive34 = "3.4.3"
 spark-hive35 = "3.5.2"
+spark-hive40 = "4.0.0-preview2"
 spring-boot = "2.7.18"
 spring-web = "5.3.39"
 sqlite-jdbc = "3.46.1.0"
@@ -137,6 +139,7 @@ hadoop2-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "ha
 hadoop2-hdfs = { module = "org.apache.hadoop:hadoop-hdfs", version.ref = "hadoop2" }
 hadoop2-mapreduce-client-core = { module = "org.apache.hadoop:hadoop-mapreduce-client-core", version.ref = "hadoop2" }
 hadoop2-minicluster = { module = "org.apache.hadoop:hadoop-minicluster", version.ref = "hadoop2" }
+hadoop34-minicluster = { module = "org.apache.hadoop:hadoop-minicluster", version.ref = "hadoop34" }
 hadoop3-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop3" }
 hadoop3-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "hadoop3" }
 hive2-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive2" }

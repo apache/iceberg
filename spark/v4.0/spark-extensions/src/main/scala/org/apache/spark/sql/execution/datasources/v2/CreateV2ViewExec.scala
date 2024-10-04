@@ -26,6 +26,7 @@ import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException
 import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.ViewCatalog
+import org.apache.spark.sql.connector.catalog.ViewInfo
 import org.apache.spark.sql.types.StructType
 import scala.collection.JavaConverters._
 
@@ -107,7 +108,7 @@ case class CreateV2ViewExec(
     currentCatalog: String,
     currentNamespace: Array[String],
     newProperties: Map[String, String]) = {
-    catalog.createView(
+    val viewInfo: ViewInfo = new ViewInfo(
       ident,
       queryText,
       currentCatalog,
@@ -117,6 +118,7 @@ case class CreateV2ViewExec(
       columnAliases.toArray,
       columnComments.map(c => c.orNull).toArray,
       newProperties.asJava)
+    catalog.createView(viewInfo)
   }
 
   override def simpleString(maxFields: Int): String = {

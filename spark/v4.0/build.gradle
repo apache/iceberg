@@ -17,8 +17,9 @@
  * under the License.
  */
 
-String sparkMajorVersion = '3.5'
-String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+String sparkMajorVersion = '4.0'
+String scalaVersion = '2.13'
+String antlrVersion = '4.13.1'
 
 def sparkProjects = [
     project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}"),
@@ -33,6 +34,7 @@ configure(sparkProjects) {
         force "com.fasterxml.jackson.module:jackson-module-scala_${scalaVersion}:${libs.versions.jackson215.get()}"
         force "com.fasterxml.jackson.core:jackson-databind:${libs.versions.jackson215.get()}"
         force "com.fasterxml.jackson.core:jackson-core:${libs.versions.jackson215.get()}"
+        force "org.antlr:antlr4:${antlrVersion}"
       }
     }
   }
@@ -67,7 +69,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
     compileOnly libs.errorprone.annotations
     compileOnly libs.avro.avro
-    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}") {
+    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive40.get()}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.apache.parquet'
@@ -96,7 +98,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
 
     implementation libs.caffeine
 
-    testImplementation(libs.hadoop2.minicluster) {
+    testImplementation(libs.hadoop34.minicluster) {
       exclude group: 'org.apache.avro', module: 'avro'
       // to make sure netty libs only come from project(':iceberg-arrow')
       exclude group: 'io.netty', module: 'netty-buffer'
@@ -154,7 +156,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     compileOnly project(':iceberg-core')
     compileOnly project(':iceberg-common')
     compileOnly project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}")
-    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}") {
+    compileOnly("org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive40.get()}") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.apache.arrow'
       exclude group: 'org.apache.parquet'
@@ -246,7 +248,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     }
 
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}"
-    integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}"
+    integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive40.get()}"
     integrationImplementation libs.junit.vintage.engine
     integrationImplementation libs.junit.jupiter
     integrationImplementation libs.slf4j.simple

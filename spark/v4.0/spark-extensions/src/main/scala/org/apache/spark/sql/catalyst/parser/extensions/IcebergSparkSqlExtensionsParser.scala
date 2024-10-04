@@ -28,23 +28,18 @@ import org.antlr.v4.runtime.tree.TerminalNodeImpl
 import org.apache.iceberg.common.DynConstructors
 import org.apache.iceberg.spark.ExtendedParser
 import org.apache.iceberg.spark.ExtendedParser.RawOrderField
-import org.apache.iceberg.spark.Spark3Util
-import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
-import org.apache.spark.sql.catalyst.analysis.EliminateSubqueryAliases
 import org.apache.spark.sql.catalyst.analysis.RewriteViewCommands
-import org.apache.spark.sql.catalyst.analysis.UnresolvedRelation
 import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.parser.CompoundBody
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.trees.Origin
-import org.apache.spark.sql.connector.catalog.Table
-import org.apache.spark.sql.connector.catalog.TableCatalog
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.VariableSubstitution
 import org.apache.spark.sql.types.DataType
@@ -106,6 +101,10 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   override def parseTableSchema(sqlText: String): StructType = {
     delegate.parseTableSchema(sqlText)
   }
+
+ override def parseScript(sqlScriptText: String): CompoundBody = {
+   delegate.parseScript(sqlScriptText)
+ }
 
   override def parseSortOrder(sqlText: String): java.util.List[RawOrderField] = {
     val fields = parse(sqlText) { parser => astBuilder.visitSingleOrder(parser.singleOrder()) }
@@ -314,8 +313,8 @@ class IcebergParseException(
     val builder = new StringBuilder
     builder ++= "\n" ++= message
     start match {
-      case Origin(
-          Some(l), Some(p), Some(startIndex), Some(stopIndex), Some(sqlText), Some(objectType), Some(objectName)) =>
+      case Origin(Some(l), Some(p), Some(startIndex), Some(stopIndex), Some(sqlText),
+        Some(objectType), Some(objectName), _, _) =>
         builder ++= s"(line $l, pos $p)\n"
         command.foreach { cmd =>
           val (above, below) = cmd.split("\n").splitAt(l)

@@ -74,15 +74,21 @@ jobs:
     strategy:
       matrix:
         jvm: [11, 17, 21]
-        spark: ['3.3', '3.4', '3.5']
-        scala: ['2.12', '2.13']
+        spark: [ '3.3', '3.4', '3.5', '4.0' ]
+        scala: [ '2.12', '2.13' ]
         exclude:
           # Spark 3.5 is the first version not failing on Java 21 (https://issues.apache.org/jira/browse/SPARK-42369)
           # Full Java 21 support is coming in Spark 4 (https://issues.apache.org/jira/browse/SPARK-43831)
+          - jvm: 11
+            spark: '4.0'
+          - jvm: 17
+            spark: '4.0'
           - jvm: 21
             spark: '3.3'
           - jvm: 21
             spark: '3.4'
+          - spark: '4.0'
+            scala: '2.12'
     env:
       SPARK_LOCAL_IP: localhost
     steps:

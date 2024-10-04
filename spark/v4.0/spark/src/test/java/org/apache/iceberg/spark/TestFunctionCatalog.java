@@ -87,18 +87,20 @@ public class TestFunctionCatalog extends TestBaseWithCatalog {
                 asFunctionCatalog.loadFunction(Identifier.of(DEFAULT_NAMESPACE, "iceberg_version")))
         .isInstanceOf(NoSuchFunctionException.class)
         .hasMessageStartingWith(
-            String.format("Cannot load function: %s.default.iceberg_version", catalogName));
+            String.format(
+                "[ROUTINE_NOT_FOUND] The routine default.iceberg_version cannot be found"));
 
     Identifier undefinedFunction = Identifier.of(SYSTEM_NAMESPACE, "undefined_function");
     assertThatThrownBy(() -> asFunctionCatalog.loadFunction(undefinedFunction))
         .isInstanceOf(NoSuchFunctionException.class)
         .hasMessageStartingWith(
-            String.format("Cannot load function: %s.system.undefined_function", catalogName));
+            String.format(
+                "[ROUTINE_NOT_FOUND] The routine system.undefined_function cannot be found"));
 
     assertThatThrownBy(() -> sql("SELECT undefined_function(1, 2)"))
         .isInstanceOf(AnalysisException.class)
         .hasMessageStartingWith(
-            "[UNRESOLVED_ROUTINE] Cannot resolve function `undefined_function` on search path");
+            "[UNRESOLVED_ROUTINE] Cannot resolve routine `undefined_function` on search path");
   }
 
   @TestTemplate
