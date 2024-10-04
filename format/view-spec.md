@@ -60,6 +60,7 @@ The freshness information is composed of data about the so-called "source tables
 * **Version** -- The state of a view at some point in time.
 * **Storage table** -- Iceberg table that stores the precomputed data of the materialized view.
 * **Source table** -- A table reference that occurs in the query definition of the materialized view. The materialized view depends on the data from the source tables.
+* **Source view** -- A view reference that occurs in the query definition of the materialized view. The materialized view depends on the definitions from the source views.
 
 ### View Metadata
 
@@ -183,7 +184,7 @@ The partial identifier holds a reference, containing a namespace and a name, of 
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
 | _required_  | `namespace`   | A list of namespace levels |
-| _required_  | `name`   | A string specifying the name of the source table |
+| _required_  | `name`   | A string specifying the name of the table/view |
 
 ### Materialized View Metadata stored as part of the Table Metadata
 
@@ -202,8 +203,8 @@ The refresh state record captures the state of all source tables and source view
 | Requirement | Field name     | Description |
 |-------------|----------------|-------------|
 | _required_  | `refresh-version-id` | The `version-id` of the materialized view when the refresh operation was performed  | 
-| _required_  | `source-table-states`   | A list of [source table](#soure-table) records for all tables that are directly or indirectly referenced in the materialized view query |
-| _required_  | `source-view-states`   | A list of [source view](#soure-view) records for all views that are directly or indirectly referenced in the materialized view query |
+| _required_  | `source-table-states`   | A list of [source table](#source-table) records for all tables that are directly or indirectly referenced in the materialized view query |
+| _required_  | `source-view-states`   | A list of [source view](#source-view) records for all views that are directly or indirectly referenced in the materialized view query |
 | _required_  | `refresh-start-timestamp-ms` | A timestamp of when the refresh operation was started |
 
 #### Source table
@@ -216,7 +217,7 @@ A source table record captures the state of a source table at the time of the la
 | _required_  | `snapshot-id`   | Snapshot-id of when the last refresh operation was performed |
 | _optional_  | `ref` | Branch name of the source table being referenced in the view query |
 
-When `ref` is `null` or not set, it default to "main".
+When `ref` is `null` or not set, it defaults to "main".
 
 #### Source view
 
