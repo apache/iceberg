@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
@@ -346,7 +347,7 @@ public class ScanSummary {
       while (map.size() > maxSize) {
         if (throwIfLimited) {
           throw new IllegalStateException(
-              String.format("Too many matching keys: more than %d", maxSize));
+              String.format(Locale.ROOT, "Too many matching keys: more than %d", maxSize));
         }
         this.cut = map.lastKey();
         map.remove(cut);

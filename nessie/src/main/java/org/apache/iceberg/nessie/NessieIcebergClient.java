@@ -272,8 +272,10 @@ public class NessieIcebergClient implements AutoCloseable {
             org.projectnessie.model.Namespace.of(namespace.levels());
         filter +=
             String.format(
+                Locale.ROOT,
                 "size(entry.keyElements) == %d && entry.encodedKey.startsWith('%s.')",
-                root.getElementCount() + 1, root.name());
+                root.getElementCount() + 1,
+                root.name());
       }
       List<ContentKey> entries =
           withReference(api.getEntries()).filter(filter).stream()
