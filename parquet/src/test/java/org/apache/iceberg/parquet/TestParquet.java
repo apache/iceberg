@@ -35,9 +35,8 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
-import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.GenericRecordBuilder;
@@ -223,20 +222,18 @@ public class TestParquet {
     assertThat(recordRead.get("topbytes")).isEqualTo(expectedBinary);
   }
 
-
   @Test
   public void testParquetRowGroupSize() throws IOException {
     // verify parquet row group size should be close to configured size
-    ImmutableList.Builder<Types.NestedField> columnsBuilder = ImmutableList.builder();
+    int recordCount = 100000;
+    int columnCount = 50;
 
-    for (int i = 1; i <= 50; i++) {
-      columnsBuilder.add(optional(i, "stringCol" + i, Types.StringType.get()));
-    }
-
-    List<Types.NestedField> columns = columnsBuilder.build();
+    List<Types.NestedField> columns =
+        IntStream.rangeClosed(1, columnCount)
+            .mapToObj(i -> optional(i, "stringCol" + i, Types.StringType.get()))
+            .collect(ImmutableList.toImmutableList());
     Schema schema = new Schema(columns);
 
-    int recordCount = 100000;
     File file = createTempFile(temp);
 
     List<GenericData.Record> records = Lists.newArrayListWithCapacity(recordCount);
@@ -252,19 +249,22 @@ public class TestParquet {
     }
 
     long actualSize =
-            write(
-                    file,
-                    schema,
-                    ImmutableMap.of("write.parquet.row-group-size-bytes", "1048576"),
-                    ParquetAvroWriter::buildWriter,
-                    records.toArray(new GenericData.Record[] {}));
+        write(
+            file,
+            schema,
+            ImmutableMap.of("write.parquet.row-group-size-bytes", "1048576"),
+            ParquetAvroWriter::buildWriter,
+            records.toArray(new GenericData.Record[] {}));
 
     try (ParquetFileReader reader = ParquetFileReader.open(ParquetIO.file(localInput(file)))) {
       ParquetMetadata footer = reader.getFooter();
       for (int i = 1; i < footer.getBlocks().size() - 1; i++) {
-        BlockMetaData blockMetaData = footer.getBlocks().get(i);
-        System.out.println("Block " + i + " compressed size: " + blockMetaData.getCompressedSize());
+        assertThat(footer.getBlocks().get(i).getCompressedSize())
+            .isBetween((long) 900 * 1024, (long) 1200 * 1024);
       }
+
+      assertThat(footer.getBlocks().get(footer.getBlocks().size() - 1).getCompressedSize())
+          .isLessThan((long) 1200 * 1024);
     }
   }
 
