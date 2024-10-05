@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import org.apache.iceberg.expressions.Expressions;
@@ -41,6 +42,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestBaseIncrementalChangelogScan
     extends ScanTestBase<
         IncrementalChangelogScan, ChangelogScanTask, ScanTaskGroup<ChangelogScanTask>> {
+
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2, 3);
+  }
 
   @Override
   protected IncrementalChangelogScan newScan() {

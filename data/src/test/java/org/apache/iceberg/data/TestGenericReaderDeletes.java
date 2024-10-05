@@ -23,7 +23,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -35,6 +37,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestGenericReaderDeletes extends DeleteReadTests {
+
+  @Parameters(name = "fileFormat = {0}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      new Object[] {FileFormat.PARQUET},
+      new Object[] {FileFormat.AVRO},
+      new Object[] {FileFormat.ORC}
+    };
+  }
 
   @Override
   protected Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {

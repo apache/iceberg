@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
@@ -47,6 +48,11 @@ public class TestManifestReader extends TestBase {
               "manifestLocation",
               "partitionData.partitionType.fieldsById")
           .build();
+
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2, 3);
+  }
 
   @TestTemplate
   public void testManifestReaderWithEmptyInheritableMetadata() throws IOException {

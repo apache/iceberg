@@ -174,11 +174,6 @@ public class TestBase {
   protected File metadataDir = null;
   public TestTables.TestTable table = null;
 
-  @Parameters(name = "formatVersion = {0}")
-  protected static List<Object> parameters() {
-    return Arrays.asList(1, 2, 3);
-  }
-
   @Parameter protected int formatVersion;
 
   @SuppressWarnings("checkstyle:MemberName")

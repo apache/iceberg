@@ -18,8 +18,16 @@
  */
 package org.apache.iceberg;
 
+import java.util.Arrays;
+import java.util.List;
+
 public class TestLocalDataTableScan
     extends DataTableScanTestBase<TableScan, FileScanTask, CombinedScanTask> {
+
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2, 3);
+  }
 
   @Override
   protected TableScan useRef(TableScan scan, String ref) {

@@ -36,6 +36,13 @@ configure(sparkProjects) {
       }
     }
   }
+
+  test {
+    // This flag is set to keep the backward compatibility between JUnit 5.10 and 5.11.
+    // Remove this after all Spark tests are migrated to JUnit 5.11.
+    // See https://github.com/apache/iceberg/pull/11262#issuecomment-2395411961
+    jvmArgs += "-Djunit.platform.reflection.search.useLegacySemantics=true"
+  }
 }
 
 project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {

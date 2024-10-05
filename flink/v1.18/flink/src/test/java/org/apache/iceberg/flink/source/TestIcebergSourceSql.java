@@ -40,6 +40,7 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /** Use the IcebergSource (FLIP-27) */
@@ -50,6 +51,7 @@ public class TestIcebergSourceSql extends TestSqlBase {
           required(2, "t2", Types.LongType.get()));
 
   @Override
+  @BeforeEach
   public void before() throws IOException {
     TableEnvironment tableEnvironment = getTableEnv();
     Configuration tableConf = tableEnvironment.getConfig().getConfiguration();
