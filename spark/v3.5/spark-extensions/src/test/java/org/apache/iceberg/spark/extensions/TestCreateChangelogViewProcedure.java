@@ -436,4 +436,18 @@ public class TestCreateChangelogViewProcedure extends ExtensionsTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Not support net changes with update images");
   }
+
+  @TestTemplate
+  public void testUpdateWithInComparableType() {
+    sql(
+        "CREATE TABLE %s (id INT NOT NULL, data MAP<STRING,STRING>, age INT) USING iceberg",
+        tableName);
+
+    assertThatThrownBy(
+            () ->
+                sql("CALL %s.system.create_changelog_view(table => '%s')", catalogName, tableName))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "Identifier field is required as table contains unorderable columns: [data]");
+  }
 }

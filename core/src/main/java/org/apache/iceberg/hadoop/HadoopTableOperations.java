@@ -60,6 +60,8 @@ import org.slf4j.LoggerFactory;
 public class HadoopTableOperations implements TableOperations {
   private static final Logger LOG = LoggerFactory.getLogger(HadoopTableOperations.class);
   private static final Pattern VERSION_PATTERN = Pattern.compile("v([^\\.]*)\\..*");
+  private static final TableMetadataParser.Codec[] TABLE_METADATA_PARSER_CODEC_VALUES =
+      TableMetadataParser.Codec.values();
 
   private final Configuration conf;
   private final Path location;
@@ -151,7 +153,7 @@ public class HadoopTableOperations implements TableOperations {
             TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
     TableMetadataParser.Codec codec = TableMetadataParser.Codec.fromName(codecName);
     String fileExtension = TableMetadataParser.getFileExtension(codec);
-    Path tempMetadataFile = metadataPath(UUID.randomUUID().toString() + fileExtension);
+    Path tempMetadataFile = metadataPath(UUID.randomUUID() + fileExtension);
     TableMetadataParser.write(metadata, io().newOutputFile(tempMetadataFile.toString()));
 
     int nextVersion = (current.first() != null ? current.first() : 0) + 1;
@@ -235,7 +237,7 @@ public class HadoopTableOperations implements TableOperations {
 
   @VisibleForTesting
   Path getMetadataFile(int metadataVersion) throws IOException {
-    for (TableMetadataParser.Codec codec : TableMetadataParser.Codec.values()) {
+    for (TableMetadataParser.Codec codec : TABLE_METADATA_PARSER_CODEC_VALUES) {
       Path metadataFile = metadataFilePath(metadataVersion, codec);
       FileSystem fs = getFileSystem(metadataFile, conf);
       if (fs.exists(metadataFile)) {
@@ -294,7 +296,7 @@ public class HadoopTableOperations implements TableOperations {
     FileSystem fs = getFileSystem(versionHintFile, conf);
 
     try {
-      Path tempVersionHintFile = metadataPath(UUID.randomUUID().toString() + "-version-hint.temp");
+      Path tempVersionHintFile = metadataPath(UUID.randomUUID() + "-version-hint.temp");
       writeVersionToPath(fs, tempVersionHintFile, versionToWrite);
       fs.delete(versionHintFile, false /* recursive delete */);
       fs.rename(tempVersionHintFile, versionHintFile);

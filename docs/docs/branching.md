@@ -113,3 +113,94 @@ Creating, querying and writing to branches and tags are supported in the Iceberg
 - [Spark Branch Writes](spark-writes.md#writing-to-branches)
 - [Flink Reads](flink-queries.md#reading-branches-and-tags-with-SQL)
 - [Flink Branch Writes](flink-writes.md#branch-writes)
+
+
+## Schema selection with branches and tags
+
+It is important to understand that the schema tracked for a table is valid across all branches.
+When working with branches, the table's schema is used as that's the schema being validated when writing data to a branch.
+On the other hands, querying a tag uses the snapshot's schema, which is the schema id that snapshot pointed to when the snapshot was created.
+
+The below examples show which schema is being used when working with branches.
+
+Create a table and insert some data:
+
+```sql
+CREATE TABLE db.table (id bigint, data string, col float);
+INSERT INTO db.table VALUES (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', 3.0);
+SELECT * FROM db.table;
+1	a	1.0
+2	b	2.0
+3	c	3.0
+```
+
+Create a branch `test_branch` that points to the current snapshot and read data from the branch:
+
+```sql
+ALTER TABLE db.table CREATE BRANCH test_branch;
+
+SELECT * FROM db.table.branch_test_branch;
+1	a	1.0
+2	b	2.0
+3	c	3.0
+```
+
+Modify the table's schema by dropping the `col` column and adding a new column named `new_col`:
+
+```sql
+ALTER TABLE db.table DROP COLUMN col;
+
+ALTER TABLE db.table ADD COLUMN new_col date;
+
+INSERT INTO db.table VALUES (4, 'd', date('2024-04-04')), (5, 'e', date('2024-05-05'));
+
+SELECT * FROM db.table;
+1	a	NULL
+2	b	NULL
+3	c	NULL
+4	d	2024-04-04
+5	e	2024-05-05
+```
+
+Querying the head of the branch using one of the below statements will return data using the **table's schema**:
+
+```sql
+SELECT * FROM db.table.branch_test_branch;
+1	a	NULL
+2	b	NULL
+3	c	NULL
+
+SELECT * FROM db.table VERSION AS OF 'test_branch';
+1	a	NULL
+2	b	NULL
+3	c	NULL
+```
+
+Performing a time travel query using the snapshot id uses the **snapshot's schema**:
+
+```sql
+
+SELECT * FROM db.table.refs;
+test_branch	BRANCH	8109744798576441359	NULL	NULL	NULL
+main		BRANCH	6910357365743665710	NULL	NULL	NULL
+
+
+SELECT * FROM db.table VERSION AS OF 8109744798576441359;
+1	a	1.0
+2	b	2.0
+3	c	3.0
+```
+
+When writing to the branch, the **table's schema** is used for validation:
+
+```sql
+
+INSERT INTO db.table.branch_test_branch VALUES (6, 'e', date('2024-06-06')), (7, 'g', date('2024-07-07'));
+
+SELECT * FROM db.table.branch_test_branch;
+6	e	2024-06-06
+7	g	2024-07-07
+1	a	NULL
+2	b	NULL
+3	c	NULL
+```

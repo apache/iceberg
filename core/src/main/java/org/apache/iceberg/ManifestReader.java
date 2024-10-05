@@ -114,7 +114,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       this.spec = readPartitionSpec(file);
     }
 
-    this.fileSchema = new Schema(DataFile.getType(spec.partitionType()).fields());
+    this.fileSchema = new Schema(DataFile.getType(spec.rawPartitionType()).fields());
   }
 
   private <T extends ContentFile<T>> PartitionSpec readPartitionSpec(InputFile inputFile) {
@@ -292,7 +292,9 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     return entry != null && entry.status() != ManifestEntry.Status.DELETED;
   }
 
-  /** @return an Iterator of DataFile. Makes defensive copies of files before returning */
+  /**
+   * @return an Iterator of DataFile. Makes defensive copies of files before returning
+   */
   @Override
   public CloseableIterator<F> iterator() {
     boolean dropStats = dropStats(columns);

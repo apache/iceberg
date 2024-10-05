@@ -18,36 +18,32 @@
  */
 package org.apache.iceberg;
 
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import static org.assertj.core.api.Assertions.assertThat;
 
-@RunWith(Parameterized.class)
-public class TestSetPartitionStatistics extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+import java.util.Arrays;
+import java.util.List;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSetPartitionStatistics extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2, 3);
   }
 
-  public TestSetPartitionStatistics(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testEmptyUpdateStatistics() {
     assertTableMetadataVersion(0);
     TableMetadata base = readMetadata();
 
     table.updatePartitionStatistics().commit();
 
-    Assert.assertSame(
-        "Base metadata should not change when commit is created", base, table.ops().current());
+    assertThat(table.ops().current()).isSameAs(base);
     assertTableMetadataVersion(1);
   }
 
-  @Test
+  @TestTemplate
   public void testEmptyTransactionalUpdateStatistics() {
     assertTableMetadataVersion(0);
     TableMetadata base = readMetadata();
@@ -56,12 +52,11 @@ public class TestSetPartitionStatistics extends TableTestBase {
     transaction.updatePartitionStatistics().commit();
     transaction.commitTransaction();
 
-    Assert.assertSame(
-        "Base metadata should not change when commit is created", base, table.ops().current());
+    assertThat(table.ops().current()).isSameAs(base);
     assertTableMetadataVersion(0);
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateStatistics() {
     // Create a snapshot
     table.newFastAppend().commit();
@@ -80,17 +75,11 @@ public class TestSetPartitionStatistics extends TableTestBase {
 
     TableMetadata metadata = readMetadata();
     assertTableMetadataVersion(2);
-    Assert.assertEquals(
-        "Table snapshot should be the same after setting partition statistics file",
-        snapshotId,
-        metadata.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Table metadata should have partition statistics files",
-        ImmutableList.of(partitionStatisticsFile),
-        metadata.partitionStatisticsFiles());
+    assertThat(metadata.currentSnapshot().snapshotId()).isEqualTo(snapshotId);
+    assertThat(metadata.partitionStatisticsFiles()).containsExactly(partitionStatisticsFile);
   }
 
-  @Test
+  @TestTemplate
   public void testRemoveStatistics() {
     // Create a snapshot
     table.newFastAppend().commit();
@@ -109,23 +98,16 @@ public class TestSetPartitionStatistics extends TableTestBase {
 
     TableMetadata metadata = readMetadata();
     assertTableMetadataVersion(2);
-    Assert.assertEquals(
-        "Table metadata should have partition statistics files",
-        ImmutableList.of(partitionStatisticsFile),
-        metadata.partitionStatisticsFiles());
+    assertThat(metadata.partitionStatisticsFiles()).containsExactly(partitionStatisticsFile);
 
     table.updatePartitionStatistics().removePartitionStatistics(snapshotId).commit();
 
     metadata = readMetadata();
     assertTableMetadataVersion(3);
-    Assert.assertEquals(
-        "Table metadata should have no partition statistics files",
-        ImmutableList.of(),
-        metadata.partitionStatisticsFiles());
+    assertThat(metadata.partitionStatisticsFiles()).isEmpty();
   }
 
   private void assertTableMetadataVersion(int expected) {
-    Assert.assertEquals(
-        String.format("Table should be on version %s", expected), expected, (int) version());
+    assertThat(version()).isEqualTo(expected);
   }
 }

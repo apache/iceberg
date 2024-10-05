@@ -18,72 +18,68 @@
  */
 package org.apache.iceberg.util;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestJsonUtil {
 
   @Test
   public void get() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(() -> JsonUtil.get("x", JsonUtil.mapper().readTree("{}")))
+    assertThatThrownBy(() -> JsonUtil.get("x", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing field: x");
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.get("x", JsonUtil.mapper().readTree("{\"x\": null}")))
+    assertThatThrownBy(() -> JsonUtil.get("x", JsonUtil.mapper().readTree("{\"x\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing field: x");
 
-    Assertions.assertThat(JsonUtil.get("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")).asText())
+    assertThat(JsonUtil.get("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")).asText())
         .isEqualTo("23");
   }
 
   @Test
   public void getInt() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(() -> JsonUtil.getInt("x", JsonUtil.mapper().readTree("{}")))
+    assertThatThrownBy(() -> JsonUtil.getInt("x", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing int: x");
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getInt("x", JsonUtil.mapper().readTree("{\"x\": null}")))
+    assertThatThrownBy(() -> JsonUtil.getInt("x", JsonUtil.mapper().readTree("{\"x\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to an integer value: x: null");
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getInt("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
+    assertThatThrownBy(() -> JsonUtil.getInt("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to an integer value: x: \"23\"");
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getInt("x", JsonUtil.mapper().readTree("{\"x\": 23.0}")))
+    assertThatThrownBy(() -> JsonUtil.getInt("x", JsonUtil.mapper().readTree("{\"x\": 23.0}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to an integer value: x: 23.0");
 
-    Assertions.assertThat(JsonUtil.getInt("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
-        .isEqualTo(23);
+    assertThat(JsonUtil.getInt("x", JsonUtil.mapper().readTree("{\"x\": 23}"))).isEqualTo(23);
   }
 
   @Test
   public void getIntOrNull() throws JsonProcessingException {
-    Assertions.assertThat(JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
-    Assertions.assertThat(JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
-        .isEqualTo(23);
-    Assertions.assertThat(JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
-        .isNull();
+    assertThat(JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
+    assertThat(JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}"))).isEqualTo(23);
+    assertThat(JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}"))).isNull();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to an integer value: x: \"23\"");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> JsonUtil.getIntOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23.0}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to an integer value: x: 23.0");
@@ -91,43 +87,38 @@ public class TestJsonUtil {
 
   @Test
   public void getLong() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(() -> JsonUtil.getLong("x", JsonUtil.mapper().readTree("{}")))
+    assertThatThrownBy(() -> JsonUtil.getLong("x", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing long: x");
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getLong("x", JsonUtil.mapper().readTree("{\"x\": null}")))
+    assertThatThrownBy(() -> JsonUtil.getLong("x", JsonUtil.mapper().readTree("{\"x\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: x: null");
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getLong("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
+    assertThatThrownBy(() -> JsonUtil.getLong("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: x: \"23\"");
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getLong("x", JsonUtil.mapper().readTree("{\"x\": 23.0}")))
+    assertThatThrownBy(() -> JsonUtil.getLong("x", JsonUtil.mapper().readTree("{\"x\": 23.0}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: x: 23.0");
 
-    Assertions.assertThat(JsonUtil.getLong("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
-        .isEqualTo(23);
+    assertThat(JsonUtil.getLong("x", JsonUtil.mapper().readTree("{\"x\": 23}"))).isEqualTo(23);
   }
 
   @Test
   public void getLongOrNull() throws JsonProcessingException {
-    Assertions.assertThat(JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
-    Assertions.assertThat(JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
+    assertThat(JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
+    assertThat(JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
         .isEqualTo(23);
-    Assertions.assertThat(JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
-        .isNull();
+    assertThat(JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}"))).isNull();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: x: \"23\"");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> JsonUtil.getLongOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23.0}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a long value: x: 23.0");
@@ -135,35 +126,30 @@ public class TestJsonUtil {
 
   @Test
   public void getString() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(() -> JsonUtil.getString("x", JsonUtil.mapper().readTree("{}")))
+    assertThatThrownBy(() -> JsonUtil.getString("x", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: x");
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getString("x", JsonUtil.mapper().readTree("{\"x\": null}")))
+    assertThatThrownBy(() -> JsonUtil.getString("x", JsonUtil.mapper().readTree("{\"x\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a string value: x: null");
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getString("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
+    assertThatThrownBy(() -> JsonUtil.getString("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a string value: x: 23");
 
-    Assertions.assertThat(JsonUtil.getString("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
+    assertThat(JsonUtil.getString("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
         .isEqualTo("23");
   }
 
   @Test
   public void getStringOrNull() throws JsonProcessingException {
-    Assertions.assertThat(JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
-    Assertions.assertThat(
-            JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
+    assertThat(JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
+    assertThat(JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
         .isEqualTo("23");
-    Assertions.assertThat(
-            JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
-        .isNull();
+    assertThat(JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}"))).isNull();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> JsonUtil.getStringOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a string value: x: 23");
@@ -171,19 +157,17 @@ public class TestJsonUtil {
 
   @Test
   public void getByteBufferOrNull() throws JsonProcessingException {
-    Assertions.assertThat(JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{}")))
-        .isNull();
-    Assertions.assertThat(
-            JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
+    assertThat(JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{}"))).isNull();
+    assertThat(JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{\"x\": null}")))
         .isNull();
 
     byte[] bytes = new byte[] {1, 2, 3, 4};
     String base16Str = BaseEncoding.base16().encode(bytes);
     String json = String.format("{\"x\": \"%s\"}", base16Str);
     ByteBuffer byteBuffer = JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree(json));
-    Assertions.assertThat(byteBuffer.array()).isEqualTo(bytes);
+    assertThat(byteBuffer.array()).isEqualTo(bytes);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> JsonUtil.getByteBufferOrNull("x", JsonUtil.mapper().readTree("{\"x\": 23}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse byte buffer from non-text value: x: 23");
@@ -191,48 +175,41 @@ public class TestJsonUtil {
 
   @Test
   public void getBool() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(() -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{}")))
+    assertThatThrownBy(() -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing boolean: x");
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": null}")))
+    assertThatThrownBy(() -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a boolean value: x: null");
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
+    assertThatThrownBy(() -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": \"23\"}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a boolean value: x: \"23\"");
 
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": \"true\"}")))
+    assertThatThrownBy(() -> JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": \"true\"}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse to a boolean value: x: \"true\"");
 
-    Assertions.assertThat(JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": true}")))
-        .isTrue();
-    Assertions.assertThat(JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": false}")))
-        .isFalse();
+    assertThat(JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": true}"))).isTrue();
+    assertThat(JsonUtil.getBool("x", JsonUtil.mapper().readTree("{\"x\": false}"))).isFalse();
   }
 
   @Test
   public void getIntArrayOrNull() throws JsonProcessingException {
-    Assertions.assertThat(JsonUtil.getIntArrayOrNull("items", JsonUtil.mapper().readTree("{}")))
+    assertThat(JsonUtil.getIntArrayOrNull("items", JsonUtil.mapper().readTree("{}"))).isNull();
+
+    assertThat(JsonUtil.getIntArrayOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isNull();
 
-    Assertions.assertThat(
-            JsonUtil.getIntArrayOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
-        .isNull();
-
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 JsonUtil.getIntArrayOrNull(
                     "items", JsonUtil.mapper().readTree("{\"items\": [13, \"23\"]}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse integer from non-int value in items: \"23\"");
 
-    Assertions.assertThat(
+    assertThat(
             JsonUtil.getIntArrayOrNull(
                 "items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
         .isEqualTo(new int[] {23, 45});
@@ -240,17 +217,16 @@ public class TestJsonUtil {
 
   @Test
   public void getIntegerList() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getIntegerList("items", JsonUtil.mapper().readTree("{}")))
+    assertThatThrownBy(() -> JsonUtil.getIntegerList("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing list: items");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> JsonUtil.getIntegerList("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse JSON array from non-array value: items: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 JsonUtil.getIntegerList(
                     "items", JsonUtil.mapper().readTree("{\"items\": [13, \"23\"]}")))
@@ -258,7 +234,7 @@ public class TestJsonUtil {
         .hasMessage("Cannot parse integer from non-int value in items: \"23\"");
 
     List<Integer> items = Arrays.asList(23, 45);
-    Assertions.assertThat(
+    assertThat(
             JsonUtil.getIntegerList("items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
         .isEqualTo(items);
 
@@ -270,51 +246,47 @@ public class TestJsonUtil {
               gen.writeEndObject();
             },
             false);
-    Assertions.assertThat(JsonUtil.getIntegerList("items", JsonUtil.mapper().readTree(json)))
-        .isEqualTo(items);
+    assertThat(JsonUtil.getIntegerList("items", JsonUtil.mapper().readTree(json))).isEqualTo(items);
   }
 
   @Test
   public void getIntegerSet() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getIntegerSet("items", JsonUtil.mapper().readTree("{}")))
+    assertThatThrownBy(() -> JsonUtil.getIntegerSet("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing set: items");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> JsonUtil.getIntegerSet("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse JSON array from non-array value: items: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 JsonUtil.getIntegerSet(
                     "items", JsonUtil.mapper().readTree("{\"items\": [13, \"23\"]}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse integer from non-int value in items: \"23\"");
 
-    Assertions.assertThat(
-            JsonUtil.getIntegerSet("items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
+    assertThat(JsonUtil.getIntegerSet("items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
         .containsExactlyElementsOf(Arrays.asList(23, 45));
   }
 
   @Test
   public void getIntegerSetOrNull() throws JsonProcessingException {
-    Assertions.assertThat(JsonUtil.getIntegerSetOrNull("items", JsonUtil.mapper().readTree("{}")))
-        .isNull();
+    assertThat(JsonUtil.getIntegerSetOrNull("items", JsonUtil.mapper().readTree("{}"))).isNull();
 
-    Assertions.assertThat(
+    assertThat(
             JsonUtil.getIntegerSetOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isNull();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 JsonUtil.getIntegerSetOrNull(
                     "items", JsonUtil.mapper().readTree("{\"items\": [13, \"23\"]}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse integer from non-int value in items: \"23\"");
 
-    Assertions.assertThat(
+    assertThat(
             JsonUtil.getIntegerSetOrNull(
                 "items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
         .containsExactlyElementsOf(Arrays.asList(23, 45));
@@ -322,17 +294,16 @@ public class TestJsonUtil {
 
   @Test
   public void getLongList() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getLongList("items", JsonUtil.mapper().readTree("{}")))
+    assertThatThrownBy(() -> JsonUtil.getLongList("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing list: items");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> JsonUtil.getLongList("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse JSON array from non-array value: items: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 JsonUtil.getLongList(
                     "items", JsonUtil.mapper().readTree("{\"items\": [13, \"23\"]}")))
@@ -340,8 +311,7 @@ public class TestJsonUtil {
         .hasMessage("Cannot parse long from non-long value in items: \"23\"");
 
     List<Long> items = Arrays.asList(23L, 45L);
-    Assertions.assertThat(
-            JsonUtil.getLongList("items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
+    assertThat(JsonUtil.getLongList("items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
         .isEqualTo(items);
 
     String json =
@@ -352,27 +322,24 @@ public class TestJsonUtil {
               gen.writeEndObject();
             },
             false);
-    Assertions.assertThat(JsonUtil.getLongList("items", JsonUtil.mapper().readTree(json)))
-        .isEqualTo(items);
+    assertThat(JsonUtil.getLongList("items", JsonUtil.mapper().readTree(json))).isEqualTo(items);
   }
 
   @Test
   public void getLongListOrNull() throws JsonProcessingException {
-    Assertions.assertThat(JsonUtil.getLongListOrNull("items", JsonUtil.mapper().readTree("{}")))
+    assertThat(JsonUtil.getLongListOrNull("items", JsonUtil.mapper().readTree("{}"))).isNull();
+
+    assertThat(JsonUtil.getLongListOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isNull();
 
-    Assertions.assertThat(
-            JsonUtil.getLongListOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
-        .isNull();
-
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 JsonUtil.getLongListOrNull(
                     "items", JsonUtil.mapper().readTree("{\"items\": [13, \"23\"]}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse long from non-long value in items: \"23\"");
 
-    Assertions.assertThat(
+    assertThat(
             JsonUtil.getLongListOrNull(
                 "items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
         .containsExactlyElementsOf(Arrays.asList(23L, 45L));
@@ -380,62 +347,57 @@ public class TestJsonUtil {
 
   @Test
   public void getLongSet() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getLongSet("items", JsonUtil.mapper().readTree("{}")))
+    assertThatThrownBy(() -> JsonUtil.getLongSet("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing set: items");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> JsonUtil.getLongSet("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse JSON array from non-array value: items: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 JsonUtil.getLongSet(
                     "items", JsonUtil.mapper().readTree("{\"items\": [13, \"23\"]}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse long from non-long value in items: \"23\"");
 
-    Assertions.assertThat(
-            JsonUtil.getLongSet("items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
+    assertThat(JsonUtil.getLongSet("items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
         .containsExactlyElementsOf(Arrays.asList(23L, 45L));
   }
 
   @Test
   public void getLongSetOrNull() throws JsonProcessingException {
-    Assertions.assertThat(JsonUtil.getLongSetOrNull("items", JsonUtil.mapper().readTree("{}")))
+    assertThat(JsonUtil.getLongSetOrNull("items", JsonUtil.mapper().readTree("{}"))).isNull();
+
+    assertThat(JsonUtil.getLongSetOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isNull();
 
-    Assertions.assertThat(
-            JsonUtil.getLongSetOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
-        .isNull();
-
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 JsonUtil.getLongSetOrNull(
                     "items", JsonUtil.mapper().readTree("{\"items\": [13, \"23\"]}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse long from non-long value in items: \"23\"");
 
-    Assertions.assertThat(
+    assertThat(
             JsonUtil.getLongSetOrNull("items", JsonUtil.mapper().readTree("{\"items\": [23, 45]}")))
         .containsExactlyElementsOf(Arrays.asList(23L, 45L));
   }
 
   @Test
   public void getStringList() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getStringList("items", JsonUtil.mapper().readTree("{}")))
+    assertThatThrownBy(() -> JsonUtil.getStringList("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing list: items");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> JsonUtil.getStringList("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse JSON array from non-array value: items: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 JsonUtil.getStringList(
                     "items", JsonUtil.mapper().readTree("{\"items\": [\"23\", 45]}")))
@@ -443,7 +405,7 @@ public class TestJsonUtil {
         .hasMessage("Cannot parse string from non-text value in items: 45");
 
     List<String> items = Arrays.asList("23", "45");
-    Assertions.assertThat(
+    assertThat(
             JsonUtil.getStringList(
                 "items", JsonUtil.mapper().readTree("{\"items\": [\"23\", \"45\"]}")))
         .containsExactlyElementsOf(items);
@@ -456,27 +418,25 @@ public class TestJsonUtil {
               gen.writeEndObject();
             },
             false);
-    Assertions.assertThat(JsonUtil.getStringList("items", JsonUtil.mapper().readTree(json)))
-        .isEqualTo(items);
+    assertThat(JsonUtil.getStringList("items", JsonUtil.mapper().readTree(json))).isEqualTo(items);
   }
 
   @Test
   public void getStringListOrNull() throws JsonProcessingException {
-    Assertions.assertThat(JsonUtil.getStringListOrNull("items", JsonUtil.mapper().readTree("{}")))
-        .isNull();
+    assertThat(JsonUtil.getStringListOrNull("items", JsonUtil.mapper().readTree("{}"))).isNull();
 
-    Assertions.assertThat(
+    assertThat(
             JsonUtil.getStringListOrNull("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isNull();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 JsonUtil.getStringListOrNull(
                     "items", JsonUtil.mapper().readTree("{\"items\": [\"23\", 45]}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse string from non-text value in items: 45");
 
-    Assertions.assertThat(
+    assertThat(
             JsonUtil.getStringListOrNull(
                 "items", JsonUtil.mapper().readTree("{\"items\": [\"23\", \"45\"]}")))
         .containsExactlyElementsOf(Arrays.asList("23", "45"));
@@ -484,24 +444,23 @@ public class TestJsonUtil {
 
   @Test
   public void getStringSet() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getStringSet("items", JsonUtil.mapper().readTree("{}")))
+    assertThatThrownBy(() -> JsonUtil.getStringSet("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing set: items");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> JsonUtil.getStringSet("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse JSON array from non-array value: items: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 JsonUtil.getStringSet(
                     "items", JsonUtil.mapper().readTree("{\"items\": [\"23\", 45]}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse string from non-text value in items: 45");
 
-    Assertions.assertThat(
+    assertThat(
             JsonUtil.getStringSet(
                 "items", JsonUtil.mapper().readTree("{\"items\": [\"23\", \"45\"]}")))
         .containsExactlyElementsOf(Arrays.asList("23", "45"));
@@ -509,17 +468,16 @@ public class TestJsonUtil {
 
   @Test
   public void getStringMap() throws JsonProcessingException {
-    Assertions.assertThatThrownBy(
-            () -> JsonUtil.getStringMap("items", JsonUtil.mapper().readTree("{}")))
+    assertThatThrownBy(() -> JsonUtil.getStringMap("items", JsonUtil.mapper().readTree("{}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing map: items");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> JsonUtil.getStringMap("items", JsonUtil.mapper().readTree("{\"items\": null}")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse string map from non-object value: items: null");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 JsonUtil.getStringMap(
                     "items", JsonUtil.mapper().readTree("{\"items\": {\"a\":\"23\", \"b\":45}}")))
@@ -527,7 +485,7 @@ public class TestJsonUtil {
         .hasMessage("Cannot parse to a string value: b: 45");
 
     Map<String, String> items = ImmutableMap.of("a", "23", "b", "45");
-    Assertions.assertThat(
+    assertThat(
             JsonUtil.getStringMap(
                 "items", JsonUtil.mapper().readTree("{\"items\": {\"a\":\"23\", \"b\":\"45\"}}")))
         .isEqualTo(items);
@@ -540,7 +498,51 @@ public class TestJsonUtil {
               gen.writeEndObject();
             },
             false);
-    Assertions.assertThat(JsonUtil.getStringMap("items", JsonUtil.mapper().readTree(json)))
-        .isEqualTo(items);
+    assertThat(JsonUtil.getStringMap("items", JsonUtil.mapper().readTree(json))).isEqualTo(items);
+  }
+
+  @Test
+  public void getStringMapNullableValues() throws JsonProcessingException {
+    assertThatThrownBy(
+            () -> JsonUtil.getStringMapNullableValues("items", JsonUtil.mapper().readTree("{}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse missing map: items");
+
+    assertThatThrownBy(
+            () ->
+                JsonUtil.getStringMapNullableValues(
+                    "items", JsonUtil.mapper().readTree("{\"items\": null}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse string map from non-object value: items: null");
+
+    assertThatThrownBy(
+            () ->
+                JsonUtil.getStringMapNullableValues(
+                    "items", JsonUtil.mapper().readTree("{\"items\": {\"a\":\"23\", \"b\":45}}")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse to a string value: b: 45");
+
+    Map<String, String> itemsWithNullableValues = Maps.newHashMap();
+    itemsWithNullableValues.put("a", null);
+    itemsWithNullableValues.put("b", null);
+    itemsWithNullableValues.put("c", "23");
+    assertThat(
+            JsonUtil.getStringMapNullableValues(
+                "items",
+                JsonUtil.mapper()
+                    .readTree("{\"items\": {\"a\": null, \"b\": null, \"c\": \"23\"}}")))
+        .isEqualTo(itemsWithNullableValues);
+
+    String json =
+        JsonUtil.generate(
+            gen -> {
+              gen.writeStartObject();
+              JsonUtil.writeStringMap("items", itemsWithNullableValues, gen);
+              gen.writeEndObject();
+            },
+            false);
+
+    assertThat(JsonUtil.getStringMapNullableValues("items", JsonUtil.mapper().readTree(json)))
+        .isEqualTo(itemsWithNullableValues);
   }
 }

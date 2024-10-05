@@ -85,6 +85,26 @@ assert_not_empty () {
   fi
 }
 
+# Creates a 'nightly' version of the documentation that points to the current versioned docs
+# located at the root-level `/docs` directory.
+create_nightly () {
+  echo " --> create nightly"
+
+  # Remove any existing 'nightly' directory and recreate it
+  rm -rf docs/docs/nightly/
+  mkdir docs/docs/nightly/
+
+  # Create symbolic links and copy configuration files for the 'nightly' documentation
+  ln -s "../../../../docs/docs/" docs/docs/nightly/docs
+  cp "../docs/mkdocs.yml" docs/docs/nightly/
+
+  cd docs/docs/
+
+  # Update version information within the 'nightly' documentation
+  update_version "nightly"  
+  cd -
+}
+
 # Finds and retrieves the latest version of the documentation based on the directory structure.
 # Assumes the documentation versions are numeric folders within 'docs/docs/'.
 get_latest_version () {
@@ -177,9 +197,12 @@ pull_versioned_docs () {
   # Ensure the remote repository for documentation exists and is up-to-date
   create_or_update_docs_remote  
 
-  # Add local worktrees for documentation and javadoc from the remote repository
-  git worktree add -f docs/docs "${REMOTE}/docs"
-  git worktree add -f docs/javadoc "${REMOTE}/javadoc"
+  # Add local worktrees for documentation and javadoc either from the remote repository
+  # or from a local branch.
+  local docs_branch="${ICEBERG_VERSIONED_DOCS_BRANCH:-${REMOTE}/docs}"
+  local javadoc_branch="${ICEBERG_VERSIONED_JAVADOC_BRANCH:-${REMOTE}/javadoc}"
+  git worktree add -f docs/docs "${docs_branch}"
+  git worktree add -f docs/javadoc "${javadoc_branch}"
   
   # Retrieve the latest version of documentation for processing
   local latest_version=$(get_latest_version)  
@@ -189,6 +212,9 @@ pull_versioned_docs () {
   
   # Create the 'latest' version of documentation
   create_latest "${latest_version}"  
+
+  # Create the 'nightly' version of documentation
+  create_nightly  
 }
 
 # Cleans up artifacts and temporary files generated during documentation management.
@@ -198,8 +224,9 @@ clean () {
   # Temporarily disable script exit on errors to ensure cleanup continues
   set +e 
 
-  # Remove 'latest' directories and related Git worktrees
+  # Remove temp directories and related Git worktrees
   rm -rf docs/docs/latest &> /dev/null
+  rm -rf docs/docs/nightly &> /dev/null
 
   git worktree remove docs/docs &> /dev/null
   git worktree remove docs/javadoc &> /dev/null

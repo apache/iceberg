@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
@@ -34,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableBiMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.primitives.Ints;
 import org.apache.iceberg.types.Type;
@@ -52,6 +54,8 @@ public class Schema implements Serializable {
   private static final Joiner NEWLINE = Joiner.on('\n');
   private static final String ALL_COLUMNS = "*";
   private static final int DEFAULT_SCHEMA_ID = 0;
+  private static final Map<Type.TypeID, Integer> MIN_FORMAT_VERSIONS =
+      ImmutableMap.of(Type.TypeID.TIMESTAMP_NANO, 3);
 
   private final StructType struct;
   private final int schemaId;
@@ -65,6 +69,8 @@ public class Schema implements Serializable {
   private transient Map<Integer, Accessor<StructLike>> idToAccessor = null;
   private transient Map<Integer, String> idToName = null;
   private transient Set<Integer> identifierFieldIdSet = null;
+  private final transient Map<Integer, Integer> idsToReassigned;
+  private final transient Map<Integer, Integer> idsToOriginal;
 
   public Schema(List<NestedField> columns, Map<String, Integer> aliases) {
     this(columns, aliases, ImmutableSet.of());
@@ -83,12 +89,24 @@ public class Schema implements Serializable {
     this(DEFAULT_SCHEMA_ID, columns, identifierFieldIds);
   }
 
+  public Schema(List<NestedField> columns, Set<Integer> identifierFieldIds, TypeUtil.GetID getId) {
+    this(DEFAULT_SCHEMA_ID, columns, identifierFieldIds, getId);
+  }
+
   public Schema(int schemaId, List<NestedField> columns) {
     this(schemaId, columns, ImmutableSet.of());
   }
 
   public Schema(int schemaId, List<NestedField> columns, Set<Integer> identifierFieldIds) {
-    this(schemaId, columns, null, identifierFieldIds);
+    this(schemaId, columns, null, identifierFieldIds, null);
+  }
+
+  public Schema(
+      int schemaId,
+      List<NestedField> columns,
+      Set<Integer> identifierFieldIds,
+      TypeUtil.GetID getId) {
+    this(schemaId, columns, null, identifierFieldIds, getId);
   }
 
   public Schema(
@@ -96,8 +114,22 @@ public class Schema implements Serializable {
       List<NestedField> columns,
       Map<String, Integer> aliases,
       Set<Integer> identifierFieldIds) {
+    this(schemaId, columns, aliases, identifierFieldIds, null);
+  }
+
+  public Schema(
+      int schemaId,
+      List<NestedField> columns,
+      Map<String, Integer> aliases,
+      Set<Integer> identifierFieldIds,
+      TypeUtil.GetID getID) {
     this.schemaId = schemaId;
-    this.struct = StructType.of(columns);
+
+    this.idsToOriginal = Maps.newHashMap();
+    this.idsToReassigned = Maps.newHashMap();
+    List<NestedField> finalColumns = reassignIds(columns, getID);
+
+    this.struct = StructType.of(finalColumns);
     this.aliasToId = aliases != null ? ImmutableBiMap.copyOf(aliases) : null;
 
     // validate IdentifierField
@@ -506,5 +538,64 @@ public class Schema implements Serializable {
             struct.fields().stream()
                 .map(this::identifierFieldToString)
                 .collect(Collectors.toList())));
+  }
+
+  /**
+   * The ID's of some fields will be re-assigned if GetID is specified for the Schema.
+   *
+   * @return map of original to reassigned field ids
+   */
+  public Map<Integer, Integer> idsToReassigned() {
+    return idsToReassigned != null ? idsToReassigned : Collections.emptyMap();
+  }
+
+  /**
+   * The ID's of some fields will be re-assigned if GetID is specified for the Schema.
+   *
+   * @return map of reassigned to original field ids
+   */
+  public Map<Integer, Integer> idsToOriginal() {
+    return idsToOriginal != null ? idsToOriginal : Collections.emptyMap();
+  }
+
+  private List<NestedField> reassignIds(List<NestedField> columns, TypeUtil.GetID getID) {
+    if (getID == null) {
+      return columns;
+    }
+    Type res =
+        TypeUtil.assignIds(
+            StructType.of(columns),
+            oldId -> {
+              int newId = getID.get(oldId);
+              if (newId != oldId) {
+                idsToReassigned.put(oldId, newId);
+                idsToOriginal.put(newId, oldId);
+              }
+              return newId;
+            });
+    return res.asStructType().fields();
+  }
+
+  /**
+   * Check the compatibility of the schema with a format version.
+   *
+   * <p>This validates that the schema does not contain types that were released in later format
+   * versions.
+   *
+   * @param schema a Schema
+   * @param formatVersion table format version
+   */
+  public static void checkCompatibility(Schema schema, int formatVersion) {
+    // check the type in each field
+    for (NestedField field : schema.lazyIdToField().values()) {
+      Integer minFormatVersion = MIN_FORMAT_VERSIONS.get(field.type().typeId());
+      Preconditions.checkState(
+          minFormatVersion == null || formatVersion >= minFormatVersion,
+          "Invalid type in v%s schema: %s %s is not supported until v%s",
+          formatVersion,
+          schema.findColumnName(field.fieldId()),
+          field.type(),
+          minFormatVersion);
+    }
   }
 }

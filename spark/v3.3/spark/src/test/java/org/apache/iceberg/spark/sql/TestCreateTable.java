@@ -18,9 +18,12 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.File;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
+import java.util.UUID;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
@@ -105,6 +108,28 @@ public class TestCreateTable extends SparkCatalogTestBase {
   }
 
   @Test
+  public void testCreateTablePartitionedByUUID() {
+    assertThat(validationCatalog.tableExists(tableIdent)).isFalse();
+    Schema schema = new Schema(1, Types.NestedField.optional(1, "uuid", Types.UUIDType.get()));
+    PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("uuid", 16).build();
+    validationCatalog.createTable(tableIdent, schema, spec);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table).isNotNull();
+
+    StructType expectedSchema =
+        StructType.of(Types.NestedField.optional(1, "uuid", Types.UUIDType.get()));
+    assertThat(table.schema().asStruct()).isEqualTo(expectedSchema);
+    assertThat(table.spec().fields()).hasSize(1);
+
+    String uuid = UUID.randomUUID().toString();
+
+    sql("INSERT INTO %s VALUES('%s')", tableName, uuid);
+
+    assertThat(sql("SELECT uuid FROM %s", tableName)).hasSize(1).element(0).isEqualTo(row(uuid));
+  }
+
+  @Test
   public void testCreateTableInRootNamespace() {
     Assume.assumeTrue(
         "Hadoop has no default namespace configured", "testhadoop".equals(catalogName));
@@ -141,14 +166,14 @@ public class TestCreateTable extends SparkCatalogTestBase {
         "parquet",
         table.properties().get(TableProperties.DEFAULT_FILE_FORMAT));
 
-    AssertHelpers.assertThrows(
-        "Should reject unsupported format names",
-        IllegalArgumentException.class,
-        "Unsupported format in USING: crocodile",
-        () ->
-            sql(
-                "CREATE TABLE %s.default.fail (id BIGINT NOT NULL, data STRING) USING crocodile",
-                catalogName));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE TABLE %s.default.fail (id BIGINT NOT NULL, data STRING) USING crocodile",
+                    catalogName))
+        .as("Should reject unsupported format names")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Unsupported format in USING: crocodile");
   }
 
   @Test
@@ -253,7 +278,7 @@ public class TestCreateTable extends SparkCatalogTestBase {
     File tableLocation = temp.newFolder();
     Assert.assertTrue(tableLocation.delete());
 
-    String location = "file:" + tableLocation.toString();
+    String location = "file:" + tableLocation;
 
     sql(
         "CREATE TABLE %s "
@@ -355,10 +380,11 @@ public class TestCreateTable extends SparkCatalogTestBase {
     TableOperations ops = ((BaseTable) table).operations();
     Assert.assertEquals("should create table using format v2", 2, ops.refresh().formatVersion());
 
-    AssertHelpers.assertThrowsCause(
-        "should fail to downgrade to v1",
-        IllegalArgumentException.class,
-        "Cannot downgrade v2 table to v1",
-        () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='1')", tableName));
+    assertThatThrownBy(
+            () -> sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version'='1')", tableName))
+        .as("should fail to downgrade to v1")
+        .cause()
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot downgrade v2 table to v1");
   }
 }

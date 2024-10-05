@@ -34,6 +34,7 @@ import static org.apache.iceberg.expressions.Expressions.year;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.apache.iceberg.PartitionSpec;
@@ -47,7 +48,6 @@ import org.apache.iceberg.expressions.Projections;
 import org.apache.iceberg.expressions.UnboundPredicate;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestProjection {
@@ -130,8 +130,7 @@ public class TestProjection {
   @Test
   public void testCaseSensitiveIdentityProjection() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
-    Assertions.assertThatThrownBy(
-            () -> Projections.inclusive(spec, true).project(Expressions.notNull("ID")))
+    assertThatThrownBy(() -> Projections.inclusive(spec, true).project(Expressions.notNull("ID")))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'ID' in struct");
   }
@@ -213,8 +212,7 @@ public class TestProjection {
   @Test
   public void testCaseSensitiveStrictIdentityProjection() {
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("id").build();
-    Assertions.assertThatThrownBy(
-            () -> Projections.strict(spec, true).project(Expressions.notNull("ID")))
+    assertThatThrownBy(() -> Projections.strict(spec, true).project(Expressions.notNull("ID")))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'ID' in struct");
   }
@@ -248,12 +246,12 @@ public class TestProjection {
 
     Expression projection = Projections.inclusive(spec).project(filter);
 
-    Assertions.assertThat(projection).isInstanceOf(Or.class);
+    assertThat(projection).isInstanceOf(Or.class);
     Or or1 = (Or) projection;
     UnboundPredicate<?> dateint1 = assertAndUnwrapUnbound(or1.left());
     assertThat(dateint1.ref().name()).as("Should be a dateint predicate").isEqualTo("dateint");
     assertThat(dateint1.literal().value()).as("Should be dateint=20180416").isEqualTo(20180416);
-    Assertions.assertThat(or1.right()).isInstanceOf(Or.class);
+    assertThat(or1.right()).isInstanceOf(Or.class);
     Or or2 = (Or) or1.right();
     UnboundPredicate<?> dateint2 = assertAndUnwrapUnbound(or2.left());
     assertThat(dateint2.ref().name()).as("Should be a dateint predicate").isEqualTo("dateint");

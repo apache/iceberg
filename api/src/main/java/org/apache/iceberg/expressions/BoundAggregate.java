@@ -87,6 +87,13 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
     }
   }
 
+  <V> boolean safeContainsKey(Map<Integer, V> map, int key) {
+    if (map == null) {
+      return false;
+    }
+    return map.containsKey(key);
+  }
+
   <V> V safeGet(Map<Integer, V> map, int key) {
     return safeGet(map, key, null);
   }

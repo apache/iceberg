@@ -151,7 +151,7 @@ public final class Catalogs {
   public static Table createTable(Configuration conf, Properties props) {
     String schemaString = props.getProperty(InputFormatConfig.TABLE_SCHEMA);
     Preconditions.checkNotNull(schemaString, "Table schema not set");
-    Schema schema = SchemaParser.fromJson(props.getProperty(InputFormatConfig.TABLE_SCHEMA));
+    Schema schema = SchemaParser.fromJson(schemaString);
 
     String specString = props.getProperty(InputFormatConfig.PARTITION_SPEC);
     PartitionSpec spec = PartitionSpec.unpartitioned();
@@ -225,8 +225,7 @@ public final class Catalogs {
     if (catalogType != null) {
       return CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE.equalsIgnoreCase(catalogType);
     }
-    return getCatalogProperties(conf, catalogName, catalogType).get(CatalogProperties.CATALOG_IMPL)
-        == null;
+    return getCatalogProperties(conf, catalogName).get(CatalogProperties.CATALOG_IMPL) == null;
   }
 
   @VisibleForTesting
@@ -237,8 +236,7 @@ public final class Catalogs {
     } else {
       String name = catalogName == null ? ICEBERG_DEFAULT_CATALOG_NAME : catalogName;
       return Optional.of(
-          CatalogUtil.buildIcebergCatalog(
-              name, getCatalogProperties(conf, name, catalogType), conf));
+          CatalogUtil.buildIcebergCatalog(name, getCatalogProperties(conf, name), conf));
     }
   }
 
@@ -247,11 +245,9 @@ public final class Catalogs {
    *
    * @param conf a Hadoop configuration
    * @param catalogName name of the catalog
-   * @param catalogType type of the catalog
    * @return complete map of catalog properties
    */
-  private static Map<String, String> getCatalogProperties(
-      Configuration conf, String catalogName, String catalogType) {
+  private static Map<String, String> getCatalogProperties(Configuration conf, String catalogName) {
     String keyPrefix = InputFormatConfig.CATALOG_CONFIG_PREFIX + catalogName;
 
     return Streams.stream(conf.iterator())

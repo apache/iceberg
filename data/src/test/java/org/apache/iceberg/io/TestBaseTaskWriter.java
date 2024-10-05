@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.io;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,48 +27,50 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.IcebergGenerics;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.StructLikeSet;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestBaseTaskWriter extends TableTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestBaseTaskWriter extends TestBase {
   private static final int FORMAT_V2 = 2;
 
-  private final FileFormat format;
   private final GenericRecord gRecord = GenericRecord.create(SCHEMA);
 
   private OutputFileFactory fileFactory = null;
   private FileAppenderFactory<Record> appenderFactory = null;
 
-  @Parameterized.Parameters(name = "FileFormat = {0}")
-  public static Object[][] parameters() {
-    return new Object[][] {{"avro"}, {"orc"}, {"parquet"}};
-  }
+  @Parameter(index = 1)
+  protected FileFormat format;
 
-  public TestBaseTaskWriter(String fileFormat) {
-    super(FORMAT_V2);
-    this.format = FileFormat.fromString(fileFormat);
+  @Parameters(name = "formatVersion = {0}, FileFormat = {1}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(
+        new Object[] {FORMAT_V2, FileFormat.AVRO},
+        new Object[] {FORMAT_V2, FileFormat.ORC},
+        new Object[] {FORMAT_V2, FileFormat.PARQUET});
   }
 
   @Override
-  @Before
+  @BeforeEach
   public void setupTable() throws IOException {
-    this.tableDir = temp.newFolder();
-    Assert.assertTrue(tableDir.delete()); // created by table create
+    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
+    assertThat(tableDir.delete()).isTrue(); // created by table create
 
     this.metadataDir = new File(tableDir, "metadata");
 
@@ -90,23 +94,23 @@ public class TestBaseTaskWriter extends TableTestBase {
     return gRecord.copy("id", id, "data", data);
   }
 
-  @Test
+  @TestTemplate
   public void testWriteZeroRecord() throws IOException {
     try (TestTaskWriter writer = createTaskWriter(128 * 1024 * 1024)) {
       writer.close();
 
       WriteResult result = writer.complete();
-      Assert.assertEquals(0, result.dataFiles().length);
-      Assert.assertEquals(0, result.deleteFiles().length);
+      assertThat(result.dataFiles()).hasSize(0);
+      assertThat(result.deleteFiles()).hasSize(0);
 
       writer.close();
       result = writer.complete();
-      Assert.assertEquals(0, result.dataFiles().length);
-      Assert.assertEquals(0, result.deleteFiles().length);
+      assertThat(result.dataFiles()).hasSize(0);
+      assertThat(result.deleteFiles()).hasSize(0);
     }
   }
 
-  @Test
+  @TestTemplate
   public void testAbort() throws IOException {
     List<Record> records = Lists.newArrayList();
     for (int i = 0; i < 2000; i++) {
@@ -128,18 +132,18 @@ public class TestBaseTaskWriter extends TableTestBase {
           Files.list(Paths.get(tableDir.getPath(), "data"))
               .filter(p -> !p.toString().endsWith(".crc"))
               .collect(Collectors.toList());
-      Assert.assertEquals("Should have 4 files but the files are: " + files, 4, files.size());
+      assertThat(files).as("Should have 4 files but the files are: " + files).hasSize(4);
 
       // Abort to clean all delete files and data files.
       taskWriter.abort();
     }
 
     for (Path path : files) {
-      Assert.assertFalse(Files.exists(path));
+      assertThat(path).doesNotExist();
     }
   }
 
-  @Test
+  @TestTemplate
   public void testRollIfExceedTargetFileSize() throws IOException {
     List<Record> records = Lists.newArrayListWithCapacity(8000);
     for (int i = 0; i < 2000; i++) {
@@ -156,8 +160,8 @@ public class TestBaseTaskWriter extends TableTestBase {
       }
 
       result = taskWriter.complete();
-      Assert.assertEquals(8, result.dataFiles().length);
-      Assert.assertEquals(0, result.deleteFiles().length);
+      assertThat(result.dataFiles()).hasSize(8);
+      assertThat(result.deleteFiles()).hasSize(0);
     }
 
     RowDelta rowDelta = table.newRowDelta();
@@ -172,14 +176,14 @@ public class TestBaseTaskWriter extends TableTestBase {
 
         int id = record.get(0, Integer.class);
         String data = record.get(1, String.class);
-        Record newRecord = createRecord(id, data.toUpperCase());
+        Record newRecord = createRecord(id, data.toUpperCase(Locale.ROOT));
         expected.add(newRecord);
         taskWriter.write(newRecord);
       }
 
       result = taskWriter.complete();
-      Assert.assertEquals(8, result.dataFiles().length);
-      Assert.assertEquals(8, result.deleteFiles().length);
+      assertThat(result.dataFiles()).hasSize(8);
+      assertThat(result.deleteFiles()).hasSize(8);
     }
 
     rowDelta = table.newRowDelta();
@@ -187,8 +191,9 @@ public class TestBaseTaskWriter extends TableTestBase {
     Arrays.stream(result.deleteFiles()).forEach(rowDelta::addDeletes);
     rowDelta.commit();
 
-    Assert.assertEquals(
-        "Should have expected records", expectedRowSet(expected), actualRowSet("*"));
+    assertThat(actualRowSet("*"))
+        .as("Should have expected records")
+        .isEqualTo(expectedRowSet(expected));
   }
 
   private StructLikeSet expectedRowSet(Iterable<Record> records) {
@@ -212,8 +217,8 @@ public class TestBaseTaskWriter extends TableTestBase {
 
   private static class TestTaskWriter extends BaseTaskWriter<Record> {
 
-    private RollingFileWriter dataWriter;
-    private RollingEqDeleteWriter deleteWriter;
+    private final RollingFileWriter dataWriter;
+    private final RollingEqDeleteWriter deleteWriter;
 
     private TestTaskWriter(
         PartitionSpec spec,

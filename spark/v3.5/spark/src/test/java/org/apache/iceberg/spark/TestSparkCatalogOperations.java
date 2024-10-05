@@ -20,8 +20,13 @@ package org.apache.iceberg.spark;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.concurrent.ThreadLocalRandom;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Catalog;
+import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
@@ -33,6 +38,48 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 
 public class TestSparkCatalogOperations extends CatalogTestBase {
+  private static final boolean USE_NULLABLE_QUERY_SCHEMA =
+      ThreadLocalRandom.current().nextBoolean();
+
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
+  protected static Object[][] parameters() {
+    return new Object[][] {
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        ImmutableMap.of(
+            "type", "hive",
+            "default-namespace", "default",
+            "use-nullable-query-schema", Boolean.toString(USE_NULLABLE_QUERY_SCHEMA))
+      },
+      {
+        SparkCatalogConfig.HADOOP.catalogName(),
+        SparkCatalogConfig.HADOOP.implementation(),
+        ImmutableMap.of(
+            "type",
+            "hadoop",
+            "cache-enabled",
+            "false",
+            "use-nullable-query-schema",
+            Boolean.toString(USE_NULLABLE_QUERY_SCHEMA))
+      },
+      {
+        SparkCatalogConfig.SPARK.catalogName(),
+        SparkCatalogConfig.SPARK.implementation(),
+        ImmutableMap.of(
+            "type",
+            "hive",
+            "default-namespace",
+            "default",
+            "parquet-enabled",
+            "true",
+            "cache-enabled",
+            "false", // Spark will delete tables using v1, leaving the cache out of sync
+            "use-nullable-query-schema",
+            Boolean.toString(USE_NULLABLE_QUERY_SCHEMA)),
+      }
+    };
+  }
 
   @BeforeEach
   public void createTable() {
@@ -85,5 +132,61 @@ public class TestSparkCatalogOperations extends CatalogTestBase {
     // invalidate and reload table
     sql("REFRESH TABLE %s", tableName);
     sql("SELECT count(1) FROM %s", tableName);
+  }
+
+  @TestTemplate
+  public void testCTASUseNullableQuerySchema() {
+    sql("INSERT INTO %s VALUES(1, 'abc'), (2, null)", tableName);
+
+    String ctasTableName = tableName("ctas_table");
+
+    sql("CREATE TABLE %s USING iceberg AS SELECT * FROM %s", ctasTableName, tableName);
+
+    org.apache.iceberg.Table ctasTable =
+        validationCatalog.loadTable(TableIdentifier.parse("default.ctas_table"));
+
+    Schema expectedSchema =
+        new Schema(
+            USE_NULLABLE_QUERY_SCHEMA
+                ? Types.NestedField.optional(1, "id", Types.LongType.get())
+                : Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    assertThat(ctasTable.schema().asStruct())
+        .as("Should have expected schema")
+        .isEqualTo(expectedSchema.asStruct());
+
+    sql("DROP TABLE IF EXISTS %s", ctasTableName);
+  }
+
+  @TestTemplate
+  public void testRTASUseNullableQuerySchema() {
+    sql("INSERT INTO %s VALUES(1, 'abc'), (2, null)", tableName);
+
+    String rtasTableName = tableName("rtas_table");
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", rtasTableName);
+
+    sql("REPLACE TABLE %s USING iceberg AS SELECT * FROM %s", rtasTableName, tableName);
+
+    org.apache.iceberg.Table rtasTable =
+        validationCatalog.loadTable(TableIdentifier.parse("default.rtas_table"));
+
+    Schema expectedSchema =
+        new Schema(
+            USE_NULLABLE_QUERY_SCHEMA
+                ? Types.NestedField.optional(1, "id", Types.LongType.get())
+                : Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "data", Types.StringType.get()));
+
+    assertThat(rtasTable.schema().asStruct())
+        .as("Should have expected schema")
+        .isEqualTo(expectedSchema.asStruct());
+
+    assertEquals(
+        "Should have rows matching the source table",
+        sql("SELECT * FROM %s ORDER BY id", tableName),
+        sql("SELECT * FROM %s ORDER BY id", rtasTableName));
+
+    sql("DROP TABLE IF EXISTS %s", rtasTableName);
   }
 }

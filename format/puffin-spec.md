@@ -1,8 +1,5 @@
 ---
 title: "Puffin Spec"
-url: puffin-spec
-toc: true
-disableSidebar: true
 ---
 <!--
  - Licensed to the Apache Software Foundation (ASF) under one or more
@@ -124,7 +121,9 @@ distinct values converted to bytes using Iceberg's single-value serialization.
 
 The blob metadata for this blob may include following properties:
 
-- `ndv`: estimate of number of distinct values, derived from the sketch.
+- `ndv`: estimate of number of distinct values, derived from the sketch,
+  stored as non-negative integer value represented using decimal digits
+  with no leading or trailing spaces.
 
 ### Compression codecs
 

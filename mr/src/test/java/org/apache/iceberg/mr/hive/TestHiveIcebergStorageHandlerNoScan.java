@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -776,7 +777,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
     if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       assertThat(hmsParams)
-          .hasSize(14)
+          .hasSize(15)
           .containsEntry("custom_property", "initial_val")
           .containsEntry(InputFormatConfig.EXTERNAL_TABLE_PURGE, "TRUE")
           .containsEntry("EXTERNAL", "TRUE")
@@ -785,7 +786,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
               hive_metastoreConstants.META_TABLE_STORAGE, HiveIcebergStorageHandler.class.getName())
           .containsEntry(
               BaseMetastoreTableOperations.TABLE_TYPE_PROP,
-              BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase())
+              BaseMetastoreTableOperations.ICEBERG_TABLE_TYPE_VALUE.toUpperCase(Locale.ROOT))
           .containsEntry(
               BaseMetastoreTableOperations.METADATA_LOCATION_PROP,
               getCurrentSnapshotForHiveCatalogTable(icebergTable))
@@ -819,7 +820,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
     if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       assertThat(hmsParams)
-          .hasSize(17)
+          .hasSize(18)
           .containsEntry("new_prop_1", "true")
           .containsEntry("new_prop_2", "false")
           .containsEntry("custom_property", "new_val");

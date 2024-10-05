@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Locale;
@@ -35,7 +36,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergParseException;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -93,7 +93,7 @@ public class TestTagDDL extends ExtensionsTestBase {
     }
 
     String tagName = "t1";
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN",
@@ -101,12 +101,12 @@ public class TestTagDDL extends ExtensionsTestBase {
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("ALTER TABLE %s CREATE TAG %s RETAIN %s DAYS", tableName, tagName, "abc"))
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input");
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s CREATE TAG %s AS OF VERSION %d RETAIN %d SECONDS",
@@ -117,7 +117,7 @@ public class TestTagDDL extends ExtensionsTestBase {
 
   @TestTemplate
   public void testCreateTagOnEmptyTable() {
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "abc"))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "abc"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Cannot complete create or replace tag operation on %s, main has no snapshot",
@@ -130,7 +130,7 @@ public class TestTagDDL extends ExtensionsTestBase {
     long snapshotId = table.currentSnapshot().snapshotId();
     String tagName = "t1";
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> sql("ALTER TABLE %s CREATE TAG %s AS OF VERSION %d", tableName, tagName, -1))
         .isInstanceOf(ValidationException.class)
         .hasMessage("Cannot set " + tagName + " to unknown snapshot: -1");
@@ -145,11 +145,11 @@ public class TestTagDDL extends ExtensionsTestBase {
         .as("The tag needs to have the default max ref age, which is null.")
         .isNull();
 
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, tagName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, tagName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("already exists");
 
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "123"))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s CREATE TAG %s", tableName, "123"))
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input '123'");
 
@@ -197,8 +197,7 @@ public class TestTagDDL extends ExtensionsTestBase {
     insertRows();
     long second = table.currentSnapshot().snapshotId();
 
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s REPLACE Tag %s", tableName, branchName, second))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s REPLACE Tag %s", tableName, branchName, second))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Ref branch1 is a branch not a tag");
   }
@@ -233,7 +232,7 @@ public class TestTagDDL extends ExtensionsTestBase {
   public void testReplaceTagDoesNotExist() throws NoSuchTableException {
     Table table = insertRows();
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 sql(
                     "ALTER TABLE %s REPLACE Tag %s AS OF VERSION %d",
@@ -302,15 +301,14 @@ public class TestTagDDL extends ExtensionsTestBase {
 
   @TestTemplate
   public void testDropTagNonConformingName() {
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, "123"))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, "123"))
         .isInstanceOf(IcebergParseException.class)
         .hasMessageContaining("mismatched input '123'");
   }
 
   @TestTemplate
   public void testDropTagDoesNotExist() {
-    Assertions.assertThatThrownBy(
-            () -> sql("ALTER TABLE %s DROP TAG %s", tableName, "nonExistingTag"))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, "nonExistingTag"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Tag does not exist: nonExistingTag");
   }
@@ -321,7 +319,7 @@ public class TestTagDDL extends ExtensionsTestBase {
     Table table = insertRows();
     table.manageSnapshots().createBranch(branchName, table.currentSnapshot().snapshotId()).commit();
 
-    Assertions.assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, branchName))
+    assertThatThrownBy(() -> sql("ALTER TABLE %s DROP TAG %s", tableName, branchName))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Ref b1 is a branch not a tag");
   }

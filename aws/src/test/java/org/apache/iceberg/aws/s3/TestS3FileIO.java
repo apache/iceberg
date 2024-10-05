@@ -18,10 +18,14 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -38,6 +42,13 @@ import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ManifestFile;
+import org.apache.iceberg.ManifestFiles;
+import org.apache.iceberg.ManifestWriter;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.aws.AwsProperties;
@@ -59,7 +70,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SerializableSupplier;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -71,9 +81,11 @@ import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
+import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Error;
 
 @ExtendWith(S3MockExtension.class)
@@ -121,25 +133,25 @@ public class TestS3FileIO {
     random.nextBytes(expected);
 
     InputFile in = s3FileIO.newInputFile(location);
-    Assertions.assertThat(in.exists()).isFalse();
+    assertThat(in.exists()).isFalse();
 
     OutputFile out = s3FileIO.newOutputFile(location);
     try (OutputStream os = out.createOrOverwrite()) {
       IOUtil.writeFully(os, ByteBuffer.wrap(expected));
     }
 
-    Assertions.assertThat(in.exists()).isTrue();
+    assertThat(in.exists()).isTrue();
     byte[] actual = new byte[1024 * 1024];
 
     try (InputStream is = in.newStream()) {
       IOUtil.readFully(is, actual, 0, expected.length);
     }
 
-    Assertions.assertThat(actual).isEqualTo(expected);
+    assertThat(actual).isEqualTo(expected);
 
     s3FileIO.deleteFile(in);
 
-    Assertions.assertThat(s3FileIO.newInputFile(location).exists()).isFalse();
+    assertThat(s3FileIO.newInputFile(location).exists()).isFalse();
   }
 
   @Test
@@ -161,7 +173,7 @@ public class TestS3FileIO {
   public void testDeleteEmptyList() throws IOException {
     String location = "s3://bucket/path/to/file.txt";
     InputFile in = s3FileIO.newInputFile(location);
-    Assertions.assertThat(in.exists()).isFalse();
+    assertThat(in.exists()).isFalse();
     OutputFile out = s3FileIO.newOutputFile(location);
     try (OutputStream os = out.createOrOverwrite()) {
       IOUtil.writeFully(os, ByteBuffer.wrap(new byte[1024 * 1024]));
@@ -169,9 +181,9 @@ public class TestS3FileIO {
 
     s3FileIO.deleteFiles(Lists.newArrayList());
 
-    Assertions.assertThat(s3FileIO.newInputFile(location).exists()).isTrue();
+    assertThat(s3FileIO.newInputFile(location).exists()).isTrue();
     s3FileIO.deleteFile(in);
-    Assertions.assertThat(s3FileIO.newInputFile(location).exists()).isFalse();
+    assertThat(s3FileIO.newInputFile(location).exists()).isFalse();
   }
 
   @Test
@@ -183,7 +195,7 @@ public class TestS3FileIO {
             .build();
     doReturn(deleteObjectsResponse).when(s3mock).deleteObjects((DeleteObjectsRequest) any());
 
-    Assertions.assertThatThrownBy(() -> s3FileIO.deleteFiles(Lists.newArrayList(location)))
+    assertThatThrownBy(() -> s3FileIO.deleteFiles(Lists.newArrayList(location)))
         .isInstanceOf(BulkDeletionFailureException.class)
         .hasMessage("Failed to delete 1 files");
   }
@@ -206,7 +218,7 @@ public class TestS3FileIO {
     int expectedDeleteRequests = expectedNumberOfBatchesPerBucket * numBucketsForBatchDeletion;
     verify(s3mock, times(expectedDeleteRequests)).deleteObjects((DeleteObjectsRequest) any());
     for (String path : paths) {
-      Assertions.assertThat(s3FileIO.newInputFile(path).exists()).isFalse();
+      assertThat(s3FileIO.newInputFile(path).exists()).isFalse();
     }
   }
 
@@ -222,7 +234,7 @@ public class TestS3FileIO {
     byte[] data = TestHelpers.serialize(pre);
     SerializableSupplier<S3Client> post = TestHelpers.deserialize(data);
 
-    Assertions.assertThat(post.get().serviceName()).isEqualTo("s3");
+    assertThat(post.get().serviceName()).isEqualTo("s3");
   }
 
   @Test
@@ -231,20 +243,18 @@ public class TestS3FileIO {
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
 
-    scaleSizes
-        .parallelStream()
+    scaleSizes.parallelStream()
         .forEach(
             scale -> {
               String scalePrefix = String.format("%s/%s/", prefix, scale);
 
               createRandomObjects(scalePrefix, scale);
-              Assertions.assertThat(Streams.stream(s3FileIO.listPrefix(scalePrefix)).count())
+              assertThat(Streams.stream(s3FileIO.listPrefix(scalePrefix)).count())
                   .isEqualTo((long) scale);
             });
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
-    Assertions.assertThat(Streams.stream(s3FileIO.listPrefix(prefix)).count())
-        .isEqualTo(totalFiles);
+    assertThat(Streams.stream(s3FileIO.listPrefix(prefix)).count()).isEqualTo(totalFiles);
   }
 
   /**
@@ -263,8 +273,7 @@ public class TestS3FileIO {
 
           createRandomObjects(scalePrefix, scale);
           s3FileIO.deletePrefix(scalePrefix);
-          Assertions.assertThat(Streams.stream(s3FileIO.listPrefix(scalePrefix)).count())
-              .isEqualTo(0);
+          assertThat(Streams.stream(s3FileIO.listPrefix(scalePrefix)).count()).isEqualTo(0);
         });
   }
 
@@ -273,7 +282,7 @@ public class TestS3FileIO {
     String location = "s3://bucket/path/to/data.parquet";
     InputFile in = s3FileIO.newInputFile(location);
 
-    Assertions.assertThatThrownBy(() -> in.newStream().read())
+    assertThatThrownBy(() -> in.newStream().read())
         .isInstanceOf(NotFoundException.class)
         .hasMessage("Location does not exist: " + location);
   }
@@ -303,12 +312,12 @@ public class TestS3FileIO {
       long start = System.currentTimeMillis();
       // to test NotFoundException, load the table again. refreshing the existing table doesn't
       // require reading metadata
-      Assertions.assertThatThrownBy(() -> catalog.loadTable(ident))
+      assertThatThrownBy(() -> catalog.loadTable(ident))
           .isInstanceOf(NotFoundException.class)
           .hasMessageStartingWith("Location does not exist");
 
       long duration = System.currentTimeMillis() - start;
-      Assertions.assertThat(duration < 10_000).as("Should take less than 10 seconds").isTrue();
+      assertThat(duration < 10_000).as("Should take less than 10 seconds").isTrue();
     }
   }
 
@@ -323,8 +332,8 @@ public class TestS3FileIO {
 
     String json = FileIOParser.toJson(s3FileIO);
     try (FileIO deserialized = FileIOParser.fromJson(json, conf)) {
-      Assertions.assertThat(deserialized).isInstanceOf(S3FileIO.class);
-      Assertions.assertThat(deserialized.properties()).isEqualTo(s3FileIO.properties());
+      assertThat(deserialized).isInstanceOf(S3FileIO.class);
+      assertThat(deserialized.properties()).isEqualTo(s3FileIO.properties());
     }
   }
 
@@ -336,8 +345,7 @@ public class TestS3FileIO {
     testS3FileIO.initialize(ImmutableMap.of("k1", "v1"));
     FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testS3FileIO);
 
-    Assertions.assertThat(roundTripSerializedFileIO.properties())
-        .isEqualTo(testS3FileIO.properties());
+    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testS3FileIO.properties());
   }
 
   @Test
@@ -348,8 +356,7 @@ public class TestS3FileIO {
     testS3FileIO.initialize(ImmutableMap.of());
     FileIO roundTripSerializedFileIO = TestHelpers.KryoHelpers.roundTripSerialize(testS3FileIO);
 
-    Assertions.assertThat(roundTripSerializedFileIO.properties())
-        .isEqualTo(testS3FileIO.properties());
+    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testS3FileIO.properties());
   }
 
   @Test
@@ -360,8 +367,7 @@ public class TestS3FileIO {
     testS3FileIO.initialize(ImmutableMap.of("k1", "v1"));
     FileIO roundTripSerializedFileIO = TestHelpers.roundTripSerialize(testS3FileIO);
 
-    Assertions.assertThat(roundTripSerializedFileIO.properties())
-        .isEqualTo(testS3FileIO.properties());
+    assertThat(roundTripSerializedFileIO.properties()).isEqualTo(testS3FileIO.properties());
   }
 
   @Test
@@ -374,7 +380,67 @@ public class TestS3FileIO {
             .hiddenImpl(ResolvingFileIO.class, String.class)
             .build(resolvingFileIO)
             .invoke("s3://foo/bar");
-    Assertions.assertThat(result).isInstanceOf(S3FileIO.class);
+    assertThat(result).isInstanceOf(S3FileIO.class);
+  }
+
+  @Test
+  public void testResolvingFileIOLoadWithoutConf() {
+    ResolvingFileIO resolvingFileIO = new ResolvingFileIO();
+    resolvingFileIO.initialize(ImmutableMap.of());
+    FileIO result =
+        DynMethods.builder("io")
+            .hiddenImpl(ResolvingFileIO.class, String.class)
+            .build(resolvingFileIO)
+            .invoke("s3://foo/bar");
+    assertThat(result).isInstanceOf(S3FileIO.class);
+  }
+
+  @Test
+  public void testInputFileWithDataFile() throws IOException {
+    String location = "s3://bucket/path/to/data-file.parquet";
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(location)
+            .withFileSizeInBytes(123L)
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(123L)
+            .build();
+    OutputStream outputStream = s3FileIO.newOutputFile(location).create();
+    byte[] data = "testing".getBytes();
+    outputStream.write(data);
+    outputStream.close();
+
+    InputFile inputFile = s3FileIO.newInputFile(dataFile);
+    reset(s3mock);
+
+    assertThat(inputFile.getLength())
+        .as("Data file length should be determined from the file size stats")
+        .isEqualTo(123L);
+    verify(s3mock, never()).headObject(any(HeadObjectRequest.class));
+  }
+
+  @Test
+  public void testInputFileWithManifest() throws IOException {
+    String dataFileLocation = "s3://bucket/path/to/data-file-2.parquet";
+    DataFile dataFile =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withPath(dataFileLocation)
+            .withFileSizeInBytes(123L)
+            .withFormat(FileFormat.PARQUET)
+            .withRecordCount(123L)
+            .build();
+    String manifestLocation = "s3://bucket/path/to/manifest.avro";
+    OutputFile outputFile = s3FileIO.newOutputFile(manifestLocation);
+    ManifestWriter<DataFile> writer =
+        ManifestFiles.write(PartitionSpec.unpartitioned(), outputFile);
+    writer.add(dataFile);
+    writer.close();
+    ManifestFile manifest = writer.toManifestFile();
+    InputFile inputFile = s3FileIO.newInputFile(manifest);
+    reset(s3mock);
+
+    assertThat(inputFile.getLength()).isEqualTo(manifest.length());
+    verify(s3mock, never()).headObject(any(HeadObjectRequest.class));
   }
 
   private void createRandomObjects(String prefix, int count) {
@@ -393,7 +459,7 @@ public class TestS3FileIO {
   private void createBucket(String bucketName) {
     try {
       s3.get().createBucket(CreateBucketRequest.builder().bucket(bucketName).build());
-    } catch (BucketAlreadyExistsException e) {
+    } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException e) {
       // do nothing
     }
   }

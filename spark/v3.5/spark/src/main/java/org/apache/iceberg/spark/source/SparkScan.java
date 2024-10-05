@@ -23,15 +23,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.iceberg.BlobMetadata;
 import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
+import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.metrics.ScanReport;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -75,22 +79,28 @@ import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.connector.expressions.FieldReference;
+import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.metric.CustomMetric;
 import org.apache.spark.sql.connector.metric.CustomTaskMetric;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
+import org.apache.spark.sql.connector.read.colstats.ColumnStatistics;
 import org.apache.spark.sql.connector.read.streaming.MicroBatchStream;
+import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 abstract class SparkScan implements Scan, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkScan.class);
+  private static final String NDV_KEY = "ndv";
 
   private final JavaSparkContext sparkContext;
   private final Table table;
+  private final SparkSession spark;
   private final SparkReadConf readConf;
   private final boolean caseSensitive;
   private final Schema expectedSchema;
@@ -111,6 +121,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
     SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, expectedSchema);
 
+    this.spark = spark;
     this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
     this.table = table;
     this.readConf = readConf;
@@ -175,7 +186,43 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   protected Statistics estimateStatistics(Snapshot snapshot) {
     // its a fresh table, no data
     if (snapshot == null) {
-      return new Stats(0L, 0L);
+      return new Stats(0L, 0L, Collections.emptyMap());
+    }
+
+    boolean cboEnabled =
+        Boolean.parseBoolean(spark.conf().get(SQLConf.CBO_ENABLED().key(), "false"));
+    Map<NamedReference, ColumnStatistics> colStatsMap = Collections.emptyMap();
+    if (readConf.reportColumnStats() && cboEnabled) {
+      colStatsMap = Maps.newHashMap();
+      List<StatisticsFile> files = table.statisticsFiles();
+      if (!files.isEmpty()) {
+        List<BlobMetadata> metadataList = (files.get(0)).blobMetadata();
+
+        for (BlobMetadata blobMetadata : metadataList) {
+          int id = blobMetadata.fields().get(0);
+          String colName = table.schema().findColumnName(id);
+          NamedReference ref = FieldReference.column(colName);
+
+          Long ndv = null;
+          if (blobMetadata
+              .type()
+              .equals(org.apache.iceberg.puffin.StandardBlobTypes.APACHE_DATASKETCHES_THETA_V1)) {
+            String ndvStr = blobMetadata.properties().get(NDV_KEY);
+            if (!Strings.isNullOrEmpty(ndvStr)) {
+              ndv = Long.parseLong(ndvStr);
+            } else {
+              LOG.debug("ndv is not set in BlobMetadata for column {}", colName);
+            }
+          } else {
+            LOG.debug("DataSketch blob is not available for column {}", colName);
+          }
+
+          ColumnStatistics colStats =
+              new SparkColumnStatistics(ndv, null, null, null, null, null, null);
+
+          colStatsMap.put(ref, colStats);
+        }
+      }
     }
 
     // estimate stats using snapshot summary only for partitioned tables
@@ -186,12 +233,13 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
           snapshot.snapshotId(),
           table.name());
       long totalRecords = totalRecords(snapshot);
-      return new Stats(SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords);
+      return new Stats(
+          SparkSchemaUtil.estimateSize(readSchema(), totalRecords), totalRecords, colStatsMap);
     }
 
     long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
     long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
-    return new Stats(sizeInBytes, rowsCount);
+    return new Stats(sizeInBytes, rowsCount, colStatsMap);
   }
 
   private long totalRecords(Snapshot snapshot) {

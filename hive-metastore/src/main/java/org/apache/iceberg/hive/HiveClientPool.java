@@ -73,7 +73,8 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
     } catch (MetaException e) {
       throw new RuntimeMetaException(e, "Failed to connect to Hive Metastore");
     } catch (Throwable t) {
-      if (t.getMessage().contains("Another instance of Derby may have already booted")) {
+      if (t.getMessage() != null
+          && t.getMessage().contains("Another instance of Derby may have already booted")) {
         throw new RuntimeMetaException(
             t,
             "Failed to start an embedded metastore because embedded "
@@ -99,8 +100,7 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
   @Override
   protected boolean isConnectionException(Exception e) {
     return super.isConnectionException(e)
-        || (e != null
-            && e instanceof MetaException
+        || (e instanceof MetaException
             && e.getMessage()
                 .contains("Got exception: org.apache.thrift.transport.TTransportException"));
   }

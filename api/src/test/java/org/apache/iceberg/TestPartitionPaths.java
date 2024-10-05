@@ -32,7 +32,8 @@ public class TestPartitionPaths {
       new Schema(
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()),
-          Types.NestedField.optional(3, "ts", Types.TimestampType.withoutZone()));
+          Types.NestedField.optional(3, "ts", Types.TimestampType.withoutZone()),
+          Types.NestedField.optional(4, "\"esc\"#1", Types.StringType.get()));
 
   @Test
   public void testPartitionPath() {
@@ -54,6 +55,44 @@ public class TestPartitionPaths {
   }
 
   @Test
+  public void testPartitionPathWithNanoseconds() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).hour("ts").bucket("id", 10).build();
+
+    Transform<Long, Integer> hour = Transforms.hour();
+    Transform<Integer, Integer> bucket = Transforms.bucket(10);
+
+    Literal<Long> ts =
+        Literal.of("2017-12-01T10:12:55.038194789").to(Types.TimestampNanoType.withoutZone());
+    Object tsHour = hour.bind(Types.TimestampNanoType.withoutZone()).apply(ts.value());
+    Object idBucket = bucket.bind(Types.IntegerType.get()).apply(1);
+
+    Row partition = Row.of(tsHour, idBucket);
+
+    assertThat(spec.partitionToPath(partition))
+        .as("Should produce expected partition key")
+        .isEqualTo("ts_hour=2017-12-01-10/id_bucket=" + idBucket);
+  }
+
+  @Test
+  public void testPartitionPathWithNanosecondsTz() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).hour("ts").bucket("id", 10).build();
+
+    Transform<Long, Integer> hour = Transforms.hour();
+    Transform<Integer, Integer> bucket = Transforms.bucket(10);
+
+    Literal<Long> ts =
+        Literal.of("2017-12-01T10:12:55.038194789-08:00").to(Types.TimestampNanoType.withZone());
+    Object tsTzHour = hour.bind(Types.TimestampNanoType.withZone()).apply(ts.value());
+    Object idBucket = bucket.bind(Types.IntegerType.get()).apply(1);
+
+    Row partition = Row.of(tsTzHour, idBucket);
+
+    assertThat(spec.partitionToPath(partition))
+        .as("Should produce expected partition key")
+        .isEqualTo("ts_hour=2017-12-01-18/id_bucket=" + idBucket);
+  }
+
+  @Test
   public void testEscapedStrings() {
     PartitionSpec spec =
         PartitionSpec.builderFor(SCHEMA).identity("data").truncate("data", 10).build();
@@ -61,5 +100,14 @@ public class TestPartitionPaths {
     assertThat(spec.partitionToPath(Row.of("a/b/c/d", "a/b/c/d")))
         .as("Should escape / as %2F")
         .isEqualTo("data=a%2Fb%2Fc%2Fd/data_trunc=a%2Fb%2Fc%2Fd");
+  }
+
+  @Test
+  public void testEscapedFieldNames() {
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("\"esc\"#1").build();
+
+    assertThat(spec.partitionToPath(Row.of("a/b/c/d")))
+        .as("Should escape \" as %22 and # as %23")
+        .isEqualTo("%22esc%22%231=a%2Fb%2Fc%2Fd");
   }
 }

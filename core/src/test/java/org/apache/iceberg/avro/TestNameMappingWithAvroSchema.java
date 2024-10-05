@@ -18,12 +18,13 @@
  */
 package org.apache.iceberg.avro;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.apache.avro.Schema;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.MappedFields;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class TestNameMappingWithAvroSchema {
   @Test
@@ -58,41 +59,39 @@ public class TestNameMappingWithAvroSchema {
                 new Schema.Field(
                     "complexUnion",
                     Schema.createUnion(
-                        new Schema[] {
-                          Schema.create(Schema.Type.NULL),
-                          Schema.create(Schema.Type.STRING),
-                          Schema.createRecord(
-                              "innerRecord1",
-                              null,
-                              "namespace1",
-                              false,
-                              Lists.newArrayList(
-                                  new Schema.Field("lat", Schema.create(Schema.Type.DOUBLE)),
-                                  new Schema.Field("long", Schema.create(Schema.Type.DOUBLE)))),
-                          Schema.createRecord(
-                              "innerRecord2",
-                              null,
-                              "namespace2",
-                              false,
-                              Lists.newArrayList(
-                                  new Schema.Field("lat", Schema.create(Schema.Type.DOUBLE)),
-                                  new Schema.Field("long", Schema.create(Schema.Type.DOUBLE)))),
-                          Schema.createRecord(
-                              "innerRecord3",
-                              null,
-                              "namespace3",
-                              false,
-                              Lists.newArrayList(
-                                  new Schema.Field(
-                                      "innerUnion",
-                                      Schema.createUnion(
-                                          Lists.newArrayList(
-                                              Schema.create(Schema.Type.STRING),
-                                              Schema.create(Schema.Type.INT)))))),
-                          Schema.createEnum(
-                              "timezone", null, null, Lists.newArrayList("UTC", "PST", "EST")),
-                          Schema.createFixed("bitmap", null, null, 1)
-                        }))));
+                        Schema.create(Schema.Type.NULL),
+                        Schema.create(Schema.Type.STRING),
+                        Schema.createRecord(
+                            "innerRecord1",
+                            null,
+                            "namespace1",
+                            false,
+                            Lists.newArrayList(
+                                new Schema.Field("lat", Schema.create(Schema.Type.DOUBLE)),
+                                new Schema.Field("long", Schema.create(Schema.Type.DOUBLE)))),
+                        Schema.createRecord(
+                            "innerRecord2",
+                            null,
+                            "namespace2",
+                            false,
+                            Lists.newArrayList(
+                                new Schema.Field("lat", Schema.create(Schema.Type.DOUBLE)),
+                                new Schema.Field("long", Schema.create(Schema.Type.DOUBLE)))),
+                        Schema.createRecord(
+                            "innerRecord3",
+                            null,
+                            "namespace3",
+                            false,
+                            Lists.newArrayList(
+                                new Schema.Field(
+                                    "innerUnion",
+                                    Schema.createUnion(
+                                        Lists.newArrayList(
+                                            Schema.create(Schema.Type.STRING),
+                                            Schema.create(Schema.Type.INT)))))),
+                        Schema.createEnum(
+                            "timezone", null, null, Lists.newArrayList("UTC", "PST", "EST")),
+                        Schema.createFixed("bitmap", null, null, 1)))));
 
     NameMappingWithAvroSchema nameMappingWithAvroSchema = new NameMappingWithAvroSchema();
 
@@ -132,9 +131,9 @@ public class TestNameMappingWithAvroSchema {
                                     MappedField.of(13, "string"), MappedField.of(14, "int"))))),
                     MappedField.of(21, "timezone"),
                     MappedField.of(22, "bitmap"))));
-    Assert.assertEquals(
-        expected,
-        AvroWithPartnerByStructureVisitor.visit(
-            icebergSchema.asStruct(), schema, nameMappingWithAvroSchema));
+    assertThat(
+            AvroWithPartnerByStructureVisitor.visit(
+                icebergSchema.asStruct(), schema, nameMappingWithAvroSchema))
+        .isEqualTo(expected);
   }
 }

@@ -18,13 +18,15 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.RequestResponseTestBase;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestListNamespacesResponse extends RequestResponseTestBase<ListNamespacesResponse> {
@@ -34,58 +36,80 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
 
   @Test
   public void testRoundTripSerDe() throws JsonProcessingException {
-    String fullJson = "{\"namespaces\":[[\"accounting\"],[\"tax\"]]}";
+    String fullJson = "{\"namespaces\":[[\"accounting\"],[\"tax\"]],\"next-page-token\":null}";
     ListNamespacesResponse fullValue = ListNamespacesResponse.builder().addAll(NAMESPACES).build();
     assertRoundTripSerializesEquallyFrom(fullJson, fullValue);
 
-    String emptyNamespaces = "{\"namespaces\":[]}";
+    String emptyNamespaces = "{\"namespaces\":[],\"next-page-token\":null}";
     assertRoundTripSerializesEquallyFrom(emptyNamespaces, ListNamespacesResponse.builder().build());
   }
 
   @Test
   public void testDeserializeInvalidResponseThrows() {
     String jsonNamespacesHasWrongType = "{\"namespaces\":\"accounting\"}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonNamespacesHasWrongType))
+    assertThatThrownBy(() -> deserialize(jsonNamespacesHasWrongType))
         .isInstanceOf(JsonProcessingException.class)
         .hasMessageContaining(
             "Cannot deserialize value of type `java.util.ArrayList<org.apache.iceberg.catalog.Namespace>`");
 
     String emptyJson = "{}";
-    Assertions.assertThatThrownBy(() -> deserialize(emptyJson))
+    assertThatThrownBy(() -> deserialize(emptyJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid namespace: null");
 
     String jsonWithKeysSpelledIncorrectly = "{\"namepsacezz\":[\"accounting\",\"tax\"]}";
-    Assertions.assertThatThrownBy(() -> deserialize(jsonWithKeysSpelledIncorrectly))
+    assertThatThrownBy(() -> deserialize(jsonWithKeysSpelledIncorrectly))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid namespace: null");
 
     String nullJson = null;
-    Assertions.assertThatThrownBy(() -> deserialize(nullJson))
+    assertThatThrownBy(() -> deserialize(nullJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("argument \"content\" is null");
   }
 
   @Test
   public void testBuilderDoesNotCreateInvalidObjects() {
-    Assertions.assertThatThrownBy(() -> ListNamespacesResponse.builder().add(null).build())
+    assertThatThrownBy(() -> ListNamespacesResponse.builder().add(null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid namespace: null");
 
-    Assertions.assertThatThrownBy(() -> ListNamespacesResponse.builder().addAll(null).build())
+    assertThatThrownBy(() -> ListNamespacesResponse.builder().addAll(null).build())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid namespace list: null");
 
     List<Namespace> listWithNullElement = Lists.newArrayList(Namespace.of("a"), null);
-    Assertions.assertThatThrownBy(
-            () -> ListNamespacesResponse.builder().addAll(listWithNullElement).build())
+    assertThatThrownBy(() -> ListNamespacesResponse.builder().addAll(listWithNullElement).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid namespace: null");
   }
 
+  @Test
+  public void testWithNullPaginationToken() throws JsonProcessingException {
+    String jsonWithNullPageToken =
+        "{\"namespaces\":[[\"accounting\"],[\"tax\"]],\"next-page-token\":null}";
+    ListNamespacesResponse response =
+        ListNamespacesResponse.builder().addAll(NAMESPACES).nextPageToken(null).build();
+    assertRoundTripSerializesEquallyFrom(jsonWithNullPageToken, response);
+    assertThat(response.nextPageToken()).isNull();
+    assertThat(response.namespaces()).isEqualTo(NAMESPACES);
+  }
+
+  @Test
+  public void testWithPaginationToken() throws JsonProcessingException {
+    String pageToken = "token";
+    String jsonWithPageToken =
+        "{\"namespaces\":[[\"accounting\"],[\"tax\"]],\"next-page-token\":\"token\"}";
+    ListNamespacesResponse response =
+        ListNamespacesResponse.builder().addAll(NAMESPACES).nextPageToken(pageToken).build();
+    assertRoundTripSerializesEquallyFrom(jsonWithPageToken, response);
+    assertThat(response.nextPageToken()).isEqualTo("token");
+    assertThat(response.namespaces()).isEqualTo(NAMESPACES);
+  }
+
   @Override
   public String[] allFieldsFromSpec() {
-    return new String[] {"namespaces"};
+    return new String[] {"namespaces", "next-page-token"};
   }
 
   @Override
@@ -95,7 +119,7 @@ public class TestListNamespacesResponse extends RequestResponseTestBase<ListName
 
   @Override
   public void assertEquals(ListNamespacesResponse actual, ListNamespacesResponse expected) {
-    Assertions.assertThat(actual.namespaces())
+    assertThat(actual.namespaces())
         .as("Namespaces list should be equal")
         .hasSize(expected.namespaces().size())
         .containsExactlyInAnyOrderElementsOf(expected.namespaces());

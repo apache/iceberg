@@ -19,11 +19,12 @@
 #
 
 SCALA_VERSION=2.12
-FLINK_VERSIONS=1.16,1.17,1.18
+FLINK_VERSIONS=1.18,1.19,1.20
 SPARK_VERSIONS=3.3,3.4,3.5
 HIVE_VERSIONS=2,3
+KAFKA_VERSIONS=3
 
-./gradlew -Prelease -DscalaVersion=$SCALA_VERSION -DflinkVersions=$FLINK_VERSIONS -DsparkVersions=$SPARK_VERSIONS -DhiveVersions=$HIVE_VERSIONS publishApachePublicationToMavenRepository
+./gradlew -Prelease -DscalaVersion=$SCALA_VERSION -DflinkVersions=$FLINK_VERSIONS -DsparkVersions=$SPARK_VERSIONS -DhiveVersions=$HIVE_VERSIONS -DkafkaVersions=$KAFKA_VERSIONS publishApachePublicationToMavenRepository
 
 # Also publish Scala 2.13 Artifacts for versions that support it.
 # Flink does not yet support 2.13 (and is largely dropping a user-facing dependency on Scala). Hive doesn't need a Scala specification.

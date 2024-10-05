@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.aws.glue;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.io.File;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreTableOperations;
@@ -32,9 +35,7 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import software.amazon.awssdk.core.metrics.CoreMetric;
 import software.amazon.awssdk.metrics.MetricCollector;
@@ -60,14 +61,16 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, new CommitFailedException("Datacenter on fire"));
-    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining("Datacenter on fire");
 
     ops.refresh();
-    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
-    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+    assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
+    assertThat(metadataFileExists(metadataV2)).isTrue();
+    assertThat(metadataFileCount(ops.current()))
+        .as("No new metadata files should exist")
+        .isEqualTo(2);
   }
 
   @Test
@@ -80,18 +83,17 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps);
-    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageContaining("Datacenter on fire");
     Mockito.verify(spyOps, Mockito.times(1)).refresh();
 
     ops.refresh();
-    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
-    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals(
-        "Client could not determine outcome so new metadata file should also exist",
-        3,
-        metadataFileCount(ops.current()));
+    assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
+    assertThat(metadataFileExists(metadataV2)).isTrue();
+    assertThat(metadataFileCount(ops.current()))
+        .as("Client could not determine outcome so new metadata file should also exist")
+        .isEqualTo(3);
   }
 
   @Test
@@ -104,7 +106,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, ConcurrentModificationException.builder().build());
-    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining("Glue detected concurrent update")
         .cause()
@@ -112,9 +114,11 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     Mockito.verify(spyOps, Mockito.times(0)).refresh();
 
     ops.refresh();
-    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
-    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+    assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
+    assertThat(metadataFileExists(metadataV2)).isTrue();
+    assertThat(metadataFileCount(ops.current()))
+        .as("No new metadata files should exist")
+        .isEqualTo(2);
   }
 
   @Test
@@ -133,10 +137,13 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     simulateRetriedCommit(spyOps, true /* report retry */);
     updateTable(table, spyOps);
 
-    Assert.assertNotEquals("Current metadata should have changed", metadataV1, spyOps.current());
-    Assert.assertTrue("Current metadata should still exist", metadataFileExists(spyOps.current()));
-    Assert.assertEquals(
-        "No new metadata files should exist", 2, metadataFileCount(spyOps.current()));
+    assertThat(spyOps.current())
+        .as("Current metadata should have changed")
+        .isNotEqualTo(metadataV1);
+    assertThat(metadataFileExists(spyOps.current())).isTrue();
+    assertThat(metadataFileCount(spyOps.current()))
+        .as("No new metadata files should exist")
+        .isEqualTo(2);
   }
 
   @Test
@@ -158,14 +165,14 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     // still work. If or when that happens, we can re-evaluate whether the mechanism is still
     // necessary.
     simulateRetriedCommit(spyOps, false /* hide retry */);
-    Assertions.assertThatThrownBy(() -> updateTable(table, spyOps))
+    assertThatThrownBy(() -> updateTable(table, spyOps))
         .as("Hidden retry causes writer to conflict with itself")
         .isInstanceOf(CommitFailedException.class)
         .hasMessageContaining("Glue detected concurrent update")
         .cause()
         .isInstanceOf(ConcurrentModificationException.class);
 
-    Assertions.assertThatThrownBy(() -> glueCatalog.loadTable(tableId))
+    assertThatThrownBy(() -> glueCatalog.loadTable(tableId))
         .as("Table still accessible despite hidden retry, underlying assumptions may have changed")
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining("Location does not exist");
@@ -206,13 +213,11 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     spyOps.commit(metadataV2, metadataV1);
 
     ops.refresh();
-    Assert.assertNotEquals("Current metadata should have changed", metadataV2, ops.current());
-    Assert.assertTrue(
-        "Current metadata file should still exist", metadataFileExists(ops.current()));
-    Assert.assertEquals(
-        "Commit should have been successful and new metadata file should be made",
-        3,
-        metadataFileCount(ops.current()));
+    assertThat(ops.current()).as("Current metadata should have changed").isNotEqualTo(metadataV2);
+    assertThat(metadataFileExists(ops.current())).isTrue();
+    assertThat(metadataFileCount(ops.current()))
+        .as("Commit should have been successful and new metadata file should be made")
+        .isEqualTo(3);
   }
 
   @Test
@@ -226,19 +231,17 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps);
     breakFallbackCatalogCommitCheck(spyOps);
-    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageContaining("Datacenter on fire");
 
     ops.refresh();
 
-    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
-    Assert.assertTrue(
-        "Current metadata file should still exist", metadataFileExists(ops.current()));
-    Assert.assertEquals(
-        "Client could not determine outcome so new metadata file should also exist",
-        3,
-        metadataFileCount(ops.current()));
+    assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
+    assertThat(metadataFileExists(ops.current())).isTrue();
+    assertThat(metadataFileCount(ops.current()))
+        .as("Client could not determine outcome so new metadata file should also exist")
+        .isEqualTo(3);
   }
 
   @Test
@@ -252,14 +255,13 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     GlueTableOperations spyOps = Mockito.spy(ops);
     commitAndThrowException(ops, spyOps);
     breakFallbackCatalogCommitCheck(spyOps);
-    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(CommitStateUnknownException.class)
         .hasMessageContaining("Datacenter on fire");
     ops.refresh();
 
-    Assert.assertNotEquals("Current metadata should have changed", ops.current(), metadataV2);
-    Assert.assertTrue(
-        "Current metadata file should still exist", metadataFileExists(ops.current()));
+    assertThat(ops.current()).as("Current metadata should have changed").isNotEqualTo(metadataV2);
+    assertThat(metadataFileExists(ops.current())).isTrue();
   }
 
   /**
@@ -293,13 +295,11 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
     spyOps.commit(metadataV2, metadataV1);
 
     ops.refresh();
-    Assert.assertNotEquals("Current metadata should have changed", metadataV2, ops.current());
-    Assert.assertTrue(
-        "Current metadata file should still exist", metadataFileExists(ops.current()));
-    Assert.assertEquals(
-        "The column addition from the concurrent commit should have been successful",
-        2,
-        ops.current().schema().columns().size());
+    assertThat(ops.current()).as("Current metadata should have changed").isNotEqualTo(metadataV2);
+    assertThat(metadataFileExists(ops.current())).isTrue();
+    assertThat(ops.current().schema().columns())
+        .as("The column addition from the concurrent commit should have been successful")
+        .hasSize(2);
   }
 
   @SuppressWarnings("unchecked")
@@ -340,14 +340,16 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, EntityNotFoundException.builder().build());
-    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(NotFoundException.class)
         .hasMessageContaining("because Glue cannot find the requested entity");
 
     ops.refresh();
-    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
-    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+    assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
+    assertThat(metadataFileExists(metadataV2)).isTrue();
+    assertThat(metadataFileCount(ops.current()))
+        .as("No new metadata files should exist")
+        .isEqualTo(2);
   }
 
   @Test
@@ -360,13 +362,15 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, AccessDeniedException.builder().build());
-    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("because Glue cannot access the requested resources");
     ops.refresh();
-    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
-    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+    assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
+    assertThat(metadataFileExists(metadataV2)).isTrue();
+    assertThat(metadataFileCount(ops.current()))
+        .as("No new metadata files should exist")
+        .isEqualTo(2);
   }
 
   @Test
@@ -379,15 +383,17 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, ValidationException.builder().build());
-    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(org.apache.iceberg.exceptions.ValidationException.class)
         .hasMessageContaining(
             "because Glue encountered a validation exception while accessing requested resources");
 
     ops.refresh();
-    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
-    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+    assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
+    assertThat(metadataFileExists(metadataV2)).isTrue();
+    assertThat(metadataFileCount(ops.current()))
+        .as("No new metadata files should exist")
+        .isEqualTo(2);
   }
 
   @Test
@@ -400,13 +406,15 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, S3Exception.builder().statusCode(300).build());
-    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(S3Exception.class)
         .hasMessage(null);
     ops.refresh();
-    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
-    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+    assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
+    assertThat(metadataFileExists(metadataV2)).isTrue();
+    assertThat(metadataFileCount(ops.current()))
+        .as("No new metadata files should exist")
+        .isEqualTo(2);
   }
 
   @Test
@@ -419,14 +427,16 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, GlueException.builder().statusCode(300).build());
-    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(GlueException.class)
         .hasMessage(null);
 
     ops.refresh();
-    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
-    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+    assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
+    assertThat(metadataFileExists(metadataV2)).isTrue();
+    assertThat(metadataFileCount(ops.current()))
+        .as("No new metadata files should exist")
+        .isEqualTo(2);
   }
 
   @Test
@@ -439,14 +449,16 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     GlueTableOperations spyOps = Mockito.spy(ops);
     failCommitAndThrowException(spyOps, GlueException.builder().statusCode(500).build());
-    Assertions.assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
+    assertThatThrownBy(() -> spyOps.commit(metadataV2, metadataV1))
         .isInstanceOf(CommitFailedException.class)
         .hasMessage(null);
 
     ops.refresh();
-    Assert.assertEquals("Current metadata should not have changed", metadataV2, ops.current());
-    Assert.assertTrue("Current metadata should still exist", metadataFileExists(metadataV2));
-    Assert.assertEquals("No new metadata files should exist", 2, metadataFileCount(ops.current()));
+    assertThat(ops.current()).as("Current metadata should not have changed").isEqualTo(metadataV2);
+    assertThat(metadataFileExists(metadataV2)).isTrue();
+    assertThat(metadataFileCount(ops.current()))
+        .as("No new metadata files should exist")
+        .isEqualTo(2);
   }
 
   private Table setupTable() {
@@ -462,7 +474,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
     TableMetadata metadataV2 = ops.current();
 
-    Assert.assertEquals(2, metadataV2.schema().columns().size());
+    assertThat(metadataV2.schema().columns()).hasSize(2);
     return metadataV2;
   }
 
@@ -498,7 +510,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
   private boolean metadataFileExists(TableMetadata metadata) {
     try {
-      s3.headObject(
+      S3.headObject(
           HeadObjectRequest.builder()
               .bucket(S3TestUtil.getBucketFromUri(metadata.metadataFileLocation()))
               .key(S3TestUtil.getKeyFromUri(metadata.metadataFileLocation()))
@@ -511,7 +523,7 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
 
   private int metadataFileCount(TableMetadata metadata) {
     return (int)
-        s3
+        S3
             .listObjectsV2(
                 ListObjectsV2Request.builder()
                     .bucket(S3TestUtil.getBucketFromUri(metadata.metadataFileLocation()))
@@ -519,7 +531,8 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
                         new File(S3TestUtil.getKeyFromUri(metadata.metadataFileLocation()))
                             .getParent())
                     .build())
-            .contents().stream()
+            .contents()
+            .stream()
             .filter(s3Object -> s3Object.key().endsWith("metadata.json"))
             .count();
   }

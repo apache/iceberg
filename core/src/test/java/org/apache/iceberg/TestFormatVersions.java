@@ -18,57 +18,93 @@
  */
 package org.apache.iceberg;
 
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-public class TestFormatVersions extends TableTestBase {
-  public TestFormatVersions() {
-    super(1);
+import java.util.Arrays;
+import java.util.List;
+import org.junit.jupiter.api.TestTemplate;
+
+public class TestFormatVersions extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2);
   }
 
-  @Test
+  @TestTemplate
   public void testDefaultFormatVersion() {
-    Assert.assertEquals("Should default to v1", 1, table.ops().current().formatVersion());
+    assertThat(table.ops().current().formatVersion()).isEqualTo(formatVersion);
   }
 
-  @Test
+  @TestTemplate
   public void testFormatVersionUpgrade() {
     TableOperations ops = table.ops();
-    TableMetadata base = ops.current();
-    ops.commit(base, base.upgradeToFormatVersion(2));
+    int newFormatVersion = formatVersion + 1;
 
-    Assert.assertEquals("Should report v2", 2, ops.current().formatVersion());
+    TableMetadata newTableMetadata = ops.current().upgradeToFormatVersion(newFormatVersion);
+
+    assertThat(
+            newTableMetadata.changes().stream()
+                .filter(MetadataUpdate.UpgradeFormatVersion.class::isInstance)
+                .map(MetadataUpdate.UpgradeFormatVersion.class::cast)
+                .map(MetadataUpdate.UpgradeFormatVersion::formatVersion))
+        .containsExactly(newFormatVersion);
+
+    ops.commit(ops.current(), newTableMetadata);
+
+    assertThat(ops.current().formatVersion()).isEqualTo(newFormatVersion);
   }
 
-  @Test
+  @TestTemplate
+  public void testFormatVersionUpgradeToLatest() {
+    TableOperations ops = table.ops();
+
+    TableMetadata newTableMetadata =
+        ops.current().upgradeToFormatVersion(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION);
+
+    assertThat(
+            newTableMetadata.changes().stream()
+                .filter(MetadataUpdate.UpgradeFormatVersion.class::isInstance)
+                .map(MetadataUpdate.UpgradeFormatVersion.class::cast)
+                .map(MetadataUpdate.UpgradeFormatVersion::formatVersion))
+        .isEqualTo(List.of(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION));
+
+    ops.commit(ops.current(), newTableMetadata);
+
+    assertThat(ops.current().formatVersion())
+        .isEqualTo(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION);
+  }
+
+  @TestTemplate
   public void testFormatVersionDowngrade() {
     TableOperations ops = table.ops();
-    TableMetadata base = ops.current();
-    ops.commit(base, base.upgradeToFormatVersion(2));
+    int newFormatVersion = formatVersion + 1;
+    ops.commit(ops.current(), ops.current().upgradeToFormatVersion(newFormatVersion));
 
-    Assert.assertEquals("Should report v2", 2, ops.current().formatVersion());
+    assertThat(ops.current().formatVersion()).isEqualTo(newFormatVersion);
 
-    Assertions.assertThatThrownBy(() -> ops.current().upgradeToFormatVersion(1))
+    assertThatThrownBy(() -> ops.current().upgradeToFormatVersion(formatVersion))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot downgrade v2 table to v1");
+        .hasMessage(
+            String.format("Cannot downgrade v%d table to v%d", newFormatVersion, formatVersion));
 
-    Assert.assertEquals("Should report v2", 2, ops.current().formatVersion());
+    assertThat(ops.current().formatVersion()).isEqualTo(newFormatVersion);
   }
 
-  @Test
+  @TestTemplate
   public void testFormatVersionUpgradeNotSupported() {
     TableOperations ops = table.ops();
     TableMetadata base = ops.current();
+    int unsupportedFormatVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1;
 
-    Assertions.assertThatThrownBy(
-            () ->
-                ops.commit(
-                    base,
-                    base.upgradeToFormatVersion(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1)))
+    assertThatThrownBy(
+            () -> ops.commit(base, base.upgradeToFormatVersion(unsupportedFormatVersion)))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot upgrade table to unsupported format version: v3 (supported: v2)");
+        .hasMessage(
+            String.format(
+                "Cannot upgrade table to unsupported format version: v%d (supported: v%d)",
+                unsupportedFormatVersion, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION));
 
-    Assert.assertEquals("Should report v1", 1, ops.current().formatVersion());
+    assertThat(ops.current().formatVersion()).isEqualTo(formatVersion);
   }
 }

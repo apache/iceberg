@@ -22,7 +22,9 @@ on:
   push:
     branches:
     - 'main'
-    - '0.**'
+    - '0.*'
+    - '1.*'
+    - '2.*'
     tags:
     - 'apache-iceberg-**'
   pull_request:
@@ -34,6 +36,7 @@ on:
     - '.github/workflows/hive-ci.yml'
     - '.github/workflows/java-ci.yml'
     - '.github/workflows/jmh-benchmarks-ci.yml'
+    - '.github/workflows/kafka-connect-ci.yml'
     - '.github/workflows/labeler.yml'
     - '.github/workflows/licence-check.yml'
     - '.github/workflows/open-api.yml'
@@ -50,6 +53,7 @@ on:
     - 'hive3-orc-bundle/**'
     - 'hive-runtime/**'
     - 'flink/**'
+    - 'kafka-connect/**'
     - 'pig/**'
     - 'docs/**'
     - 'open-api/**'
@@ -65,12 +69,20 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  spark-3x-scala-2-12-tests:
+  spark-tests:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        jvm: [8, 11]
+        jvm: [11, 17, 21]
         spark: ['3.3', '3.4', '3.5']
+        scala: ['2.12', '2.13']
+        exclude:
+          # Spark 3.5 is the first version not failing on Java 21 (https://issues.apache.org/jira/browse/SPARK-42369)
+          # Full Java 21 support is coming in Spark 4 (https://issues.apache.org/jira/browse/SPARK-43831)
+          - jvm: 21
+            spark: '3.3'
+          - jvm: 21
+            spark: '3.4'
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -86,68 +98,16 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
+      - uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-      - run: ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=2.12 -DhiveVersions= -DflinkVersions= :iceberg-spark:iceberg-spark-${{ matrix.spark }}_2.12:check :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_2.12:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_2.12:check -Pquick=true -x javadoc
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: test logs
-          path: |
-            **/build/testlogs
-
-  spark-3x-scala-2-13-tests:
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        jvm: [8, 11]
-        spark: ['3.3','3.4','3.5']
-    env:
-      SPARK_LOCAL_IP: localhost
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: zulu
-          java-version: ${{ matrix.jvm }}
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-
-      - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-      - run: ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=2.13 -DhiveVersions= -DflinkVersions= :iceberg-spark:iceberg-spark-${{ matrix.spark }}_2.13:check :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_2.13:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_2.13:check -Pquick=true -x javadoc
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: test logs
-          path: |
-            **/build/testlogs
-
-  spark-3x-java-17-tests:
-    runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        spark: ['3.3','3.4', '3.5']
-        scala-version: ['2.12', '2.13']
-    env:
-      SPARK_LOCAL_IP: localhost
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: zulu
-          java-version: 17
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-
-      - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-      - run: ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala-version }} -DhiveVersions= -DflinkVersions= :iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala-version }}:check :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala-version }}:check :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala-version }}:check -Pquick=true -x javadoc
+      - run: |
+          ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala }} -DhiveVersions= -DflinkVersions= -DkafkaVersions= \
+            :iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala }}:check \
+            :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala }}:check \
+            :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala }}:check \
+            -Pquick=true -x javadoc
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

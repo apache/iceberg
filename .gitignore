@@ -24,6 +24,7 @@ gradle/wrapper/gradle-wrapper.jar
 lib/
 
 # web site build
+docs/site/
 site/site/
 site/docs/docs/
 site/docs/.asf.yaml
@@ -36,7 +37,7 @@ spark/v3.4/spark/benchmark/*
 spark/v3.4/spark-extensions/benchmark/*
 spark/v3.5/spark/benchmark/*
 spark/v3.5/spark-extensions/benchmark/*
-data/benchmark/*
+*/benchmark/*
 
 __pycache__/
 *.py[cod]
@@ -65,3 +66,6 @@ metastore_db/
 # Spark/metastore files
 spark-warehouse/
 derby.log
+
+# jenv
+.java-version

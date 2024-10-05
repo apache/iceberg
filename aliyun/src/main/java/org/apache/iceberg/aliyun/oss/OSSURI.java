@@ -19,6 +19,7 @@
 package org.apache.iceberg.aliyun.oss;
 
 import com.aliyun.oss.internal.OSSUtils;
+import java.util.Locale;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -64,7 +65,7 @@ public class OSSURI {
 
     String scheme = schemeSplit[0];
     ValidationException.check(
-        VALID_SCHEMES.contains(scheme.toLowerCase()),
+        VALID_SCHEMES.contains(scheme.toLowerCase(Locale.ROOT)),
         "Invalid scheme: %s in OSS location %s",
         scheme,
         location);

@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.util.List;
@@ -40,7 +41,6 @@ import org.apache.spark.sql.execution.streaming.MemoryStream;
 import org.apache.spark.sql.streaming.DataStreamWriter;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -116,7 +116,7 @@ public class TestStructuredStreaming {
       query.stop();
 
       // remove the last commit to force Spark to reprocess batch #1
-      File lastCommitFile = new File(checkpoint.toString() + "/commits/1");
+      File lastCommitFile = new File(checkpoint + "/commits/1");
       Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
 
       // restart the query from the checkpoint
@@ -176,7 +176,7 @@ public class TestStructuredStreaming {
       query.stop();
 
       // remove the last commit to force Spark to reprocess batch #1
-      File lastCommitFile = new File(checkpoint.toString() + "/commits/1");
+      File lastCommitFile = new File(checkpoint + "/commits/1");
       Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
 
       // restart the query from the checkpoint
@@ -236,7 +236,7 @@ public class TestStructuredStreaming {
       query.stop();
 
       // remove the last commit to force Spark to reprocess batch #1
-      File lastCommitFile = new File(checkpoint.toString() + "/commits/1");
+      File lastCommitFile = new File(checkpoint + "/commits/1");
       Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
 
       // restart the query from the checkpoint
@@ -283,7 +283,7 @@ public class TestStructuredStreaming {
       List<Integer> batch1 = Lists.newArrayList(1, 2);
       send(batch1, inputStream);
 
-      Assertions.assertThatThrownBy(query::processAllAvailable)
+      assertThatThrownBy(query::processAllAvailable)
           .isInstanceOf(StreamingQueryException.class)
           .hasMessageContaining("does not support Update mode");
     } finally {

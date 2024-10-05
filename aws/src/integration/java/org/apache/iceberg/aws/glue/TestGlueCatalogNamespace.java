@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.aws.glue;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -29,9 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.glue.model.CreateTableRequest;
 import software.amazon.awssdk.services.glue.model.Database;
 import software.amazon.awssdk.services.glue.model.EntityNotFoundException;
@@ -43,9 +44,8 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
   @Test
   public void testCreateNamespace() {
     String namespace = getRandomName();
-    namespaces.add(namespace);
-    Assertions.assertThatThrownBy(
-            () -> glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()))
+    NAMESPACES.add(namespace);
+    assertThatThrownBy(() -> GLUE.getDatabase(GetDatabaseRequest.builder().name(namespace).build()))
         .as("namespace does not exist before create")
         .isInstanceOf(EntityNotFoundException.class)
         .hasMessageContaining("not found");
@@ -60,21 +60,18 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
     Namespace ns = Namespace.of(namespace);
     glueCatalog.createNamespace(ns, properties);
     Database database =
-        glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
-    Assert.assertEquals("namespace must equal database name", namespace, database.name());
-    Assert.assertEquals(
-        "namespace description should be set", "description", database.description());
-    Assert.assertEquals(
-        "namespace location should be set", "s3://location", database.locationUri());
-    Assert.assertEquals(
-        "namespace parameters should be set", ImmutableMap.of("key", "val"), database.parameters());
-    Assert.assertEquals(properties, glueCatalog.loadNamespaceMetadata(ns));
+        GLUE.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
+    assertThat(database.name()).isEqualTo(namespace);
+    assertThat(database.description()).isEqualTo("description");
+    assertThat(database.locationUri()).isEqualTo("s3://location");
+    assertThat(database.parameters()).containsEntry("key", "val");
+    assertThat(glueCatalog.loadNamespaceMetadata(ns)).isEqualTo(properties);
   }
 
   @Test
   public void testCreateDuplicate() {
     String namespace = createNamespace();
-    Assertions.assertThatThrownBy(() -> glueCatalog.createNamespace(Namespace.of(namespace)))
+    assertThatThrownBy(() -> glueCatalog.createNamespace(Namespace.of(namespace)))
         .as("should not create namespace with the same name")
         .isInstanceOf(AlreadyExistsException.class)
         .hasMessageContaining("it already exists in Glue");
@@ -86,7 +83,7 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
         Lists.newArrayList(Namespace.of("db-1"), Namespace.of("db", "db2"));
 
     for (Namespace namespace : invalidNamespaces) {
-      Assertions.assertThatThrownBy(() -> glueCatalog.createNamespace(namespace))
+      assertThatThrownBy(() -> glueCatalog.createNamespace(namespace))
           .as("should not create namespace with invalid or nested names")
           .isInstanceOf(ValidationException.class)
           .hasMessageContaining("Cannot convert namespace");
@@ -96,17 +93,17 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
   @Test
   public void testNamespaceExists() {
     String namespace = createNamespace();
-    Assert.assertTrue(glueCatalog.namespaceExists(Namespace.of(namespace)));
+    assertThat(glueCatalog.namespaceExists(Namespace.of(namespace))).isTrue();
   }
 
   @Test
   public void testListNamespace() {
     String namespace = createNamespace();
     List<Namespace> namespaceList = glueCatalog.listNamespaces();
-    Assert.assertFalse(namespaceList.isEmpty());
-    Assert.assertTrue(namespaceList.contains(Namespace.of(namespace)));
+    assertThat(namespaceList).isNotEmpty();
+    assertThat(namespaceList).contains(Namespace.of(namespace));
     namespaceList = glueCatalog.listNamespaces(Namespace.of(namespace));
-    Assert.assertTrue(namespaceList.isEmpty());
+    assertThat(namespaceList).isEmpty();
   }
 
   @Test
@@ -120,13 +117,10 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
     properties.put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, "description");
     glueCatalog.setProperties(Namespace.of(namespace), properties);
     Database database =
-        glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
-    Assert.assertTrue(database.parameters().containsKey("key"));
-    Assert.assertEquals("val", database.parameters().get("key"));
-    Assert.assertTrue(database.parameters().containsKey("key2"));
-    Assert.assertEquals("val2", database.parameters().get("key2"));
-    Assert.assertEquals("s3://test", database.locationUri());
-    Assert.assertEquals("description", database.description());
+        GLUE.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
+    assertThat(database.parameters()).containsEntry("key", "val").containsEntry("key2", "val2");
+    assertThat(database.locationUri()).isEqualTo("s3://test");
+    assertThat(database.description()).isEqualTo("description");
     // remove properties
     glueCatalog.removeProperties(
         Namespace.of(namespace),
@@ -134,33 +128,27 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
             "key",
             IcebergToGlueConverter.GLUE_DB_LOCATION_KEY,
             IcebergToGlueConverter.GLUE_DESCRIPTION_KEY));
-    database = glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
-    Assert.assertFalse(database.parameters().containsKey("key"));
-    Assert.assertTrue(database.parameters().containsKey("key2"));
-    Assert.assertEquals("val2", database.parameters().get("key2"));
-    Assert.assertNull(database.locationUri());
-    Assert.assertNull(database.description());
+    database = GLUE.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
+    assertThat(database.parameters()).doesNotContainKey("key").containsEntry("key2", "val2");
+    assertThat(database.locationUri()).isNull();
+    assertThat(database.description()).isNull();
     // add back
     properties = Maps.newHashMap();
     properties.put("key", "val");
     properties.put(IcebergToGlueConverter.GLUE_DB_LOCATION_KEY, "s3://test2");
     properties.put(IcebergToGlueConverter.GLUE_DESCRIPTION_KEY, "description2");
     glueCatalog.setProperties(Namespace.of(namespace), properties);
-    database = glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
-    Assert.assertTrue(database.parameters().containsKey("key"));
-    Assert.assertEquals("val", database.parameters().get("key"));
-    Assert.assertTrue(database.parameters().containsKey("key2"));
-    Assert.assertEquals("val2", database.parameters().get("key2"));
-    Assert.assertEquals("s3://test2", database.locationUri());
-    Assert.assertEquals("description2", database.description());
+    database = GLUE.getDatabase(GetDatabaseRequest.builder().name(namespace).build()).database();
+    assertThat(database.parameters()).containsEntry("key", "val").containsEntry("key2", "val2");
+    assertThat(database.locationUri()).isEqualTo("s3://test2");
+    assertThat(database.description()).isEqualTo("description2");
   }
 
   @Test
   public void testDropNamespace() {
     String namespace = createNamespace();
     glueCatalog.dropNamespace(Namespace.of(namespace));
-    Assertions.assertThatThrownBy(
-            () -> glue.getDatabase(GetDatabaseRequest.builder().name(namespace).build()))
+    assertThatThrownBy(() -> GLUE.getDatabase(GetDatabaseRequest.builder().name(namespace).build()))
         .as("namespace should not exist after deletion")
         .isInstanceOf(EntityNotFoundException.class)
         .hasMessageContaining("not found");
@@ -170,7 +158,7 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
   public void testDropNamespaceThatContainsOnlyIcebergTable() {
     String namespace = createNamespace();
     createTable(namespace);
-    Assertions.assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of(namespace)))
+    assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of(namespace)))
         .as("namespace should not be dropped when still has Iceberg table")
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessageContaining("still contains Iceberg tables");
@@ -179,12 +167,12 @@ public class TestGlueCatalogNamespace extends GlueTestBase {
   @Test
   public void testDropNamespaceThatContainsNonIcebergTable() {
     String namespace = createNamespace();
-    glue.createTable(
+    GLUE.createTable(
         CreateTableRequest.builder()
             .databaseName(namespace)
             .tableInput(TableInput.builder().name(UUID.randomUUID().toString()).build())
             .build());
-    Assertions.assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of(namespace)))
+    assertThatThrownBy(() -> glueCatalog.dropNamespace(Namespace.of(namespace)))
         .as("namespace should not be dropped when still has non-Iceberg table")
         .isInstanceOf(NamespaceNotEmptyException.class)
         .hasMessageContaining("still contains non-Iceberg tables");

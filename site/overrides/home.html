@@ -4,7 +4,7 @@
   {{ super() }} 
 
   <link
-    href="https://cdn.jsdelivr.net/gh/ines/termynal@9b301892db6f8d403abfce7adf65888dffed72ea/termynal.css"
+    href="assets/stylesheets/termynal.css"
     rel="stylesheet"
   />
   
@@ -34,7 +34,7 @@
       <div class="d-flex flex-row">
         <div class="col-lg-12">
           <div class="intro-message">
-            <h1>Apache Iceberg</h1>
+            <h1>Apache Iceberg™</h1>
             <h3>The open table format for analytic datasets.</h3>
             <hr class="intro-divider" />
               <ul class="list-inline intro-social-buttons">
@@ -61,7 +61,7 @@
         <div class="col-lg-2"></div>
         <div class="col-lg-8">
           <br /><br />
-          <h2>What is Iceberg?</h2>
+          <h2>What is Apache Iceberg™?</h2>
           <br />
   
           <p>
@@ -215,7 +215,7 @@
             </ul>
           </div>
           <div class="col-lg-5 col-lg col-sm-12">
-            <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+            <script src="assets/javascript/lottie-player.js"></script>
             <lottie-player src="assets/lottie/hidden-partitioning-animation.json"
               background="transparent"
               speed="0.5"
@@ -307,15 +307,11 @@
   </section>
   
   <script
-    src="https://cdn.jsdelivr.net/gh/ines/termynal@9b301892db6f8d403abfce7adf65888dffed72ea/termynal.js"
+    src="assets/javascript/termynal.js"
     data-termynal-container="#termynal|#termynal-data-compaction|#termynal-expressive-sql|#termynal-time-travel">
   </script>
 {% endblock %}
 
 {% block content %}
   {{ super() }} 
-{% endblock %}
-
-{% block footer%} 
-  {% include "partials/cto.html" %} 
 {% endblock %}

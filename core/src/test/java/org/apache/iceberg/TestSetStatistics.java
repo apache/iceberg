@@ -18,55 +18,51 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestSetStatistics extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSetStatistics extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2, 3);
   }
 
-  public TestSetStatistics(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testEmptyUpdateStatistics() {
-    Assert.assertEquals("Table should be on version 0", 0, (int) version());
+    assertThat(version()).isEqualTo(0);
     TableMetadata base = readMetadata();
 
     table.updateStatistics().commit();
 
-    Assert.assertSame(
-        "Base metadata should not change when commit is created", base, table.ops().current());
-    Assert.assertEquals("Table should be on version 1", 1, (int) version());
+    assertThat(table.ops().current()).isSameAs(base);
+    assertThat(version()).isEqualTo(1);
   }
 
-  @Test
+  @TestTemplate
   public void testEmptyTransactionalUpdateStatistics() {
-    Assert.assertEquals("Table should be on version 0", 0, (int) version());
+    assertThat(version()).isEqualTo(0);
     TableMetadata base = readMetadata();
 
     Transaction transaction = table.newTransaction();
     transaction.updateStatistics().commit();
     transaction.commitTransaction();
 
-    Assert.assertSame(
-        "Base metadata should not change when commit is created", base, table.ops().current());
-    Assert.assertEquals("Table should be on version 0", 0, (int) version());
+    assertThat(table.ops().current()).isSameAs(base);
+    assertThat(version()).isEqualTo(0);
   }
 
-  @Test
+  @TestTemplate
   public void testUpdateStatistics() {
     // Create a snapshot
     table.newFastAppend().commit();
-    Assert.assertEquals("Table should be on version 1", 1, (int) version());
+    assertThat(version()).isEqualTo(1);
 
     TableMetadata base = readMetadata();
     long snapshotId = base.currentSnapshot().snapshotId();
@@ -87,22 +83,16 @@ public class TestSetStatistics extends TableTestBase {
     table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
 
     TableMetadata metadata = readMetadata();
-    Assert.assertEquals("Table should be on version 2", 2, (int) version());
-    Assert.assertEquals(
-        "Table snapshot should be the same after setting statistics file",
-        snapshotId,
-        metadata.currentSnapshot().snapshotId());
-    Assert.assertEquals(
-        "Table metadata should have statistics files",
-        ImmutableList.of(statisticsFile),
-        metadata.statisticsFiles());
+    assertThat(version()).isEqualTo(2);
+    assertThat(metadata.currentSnapshot().snapshotId()).isEqualTo(snapshotId);
+    assertThat(metadata.statisticsFiles()).containsExactly(statisticsFile);
   }
 
-  @Test
+  @TestTemplate
   public void testRemoveStatistics() {
     // Create a snapshot
     table.newFastAppend().commit();
-    Assert.assertEquals("Table should be on version 1", 1, (int) version());
+    assertThat(version()).isEqualTo(1);
 
     TableMetadata base = readMetadata();
     long snapshotId = base.currentSnapshot().snapshotId();
@@ -113,19 +103,13 @@ public class TestSetStatistics extends TableTestBase {
     table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
 
     TableMetadata metadata = readMetadata();
-    Assert.assertEquals("Table should be on version 2", 2, (int) version());
-    Assert.assertEquals(
-        "Table metadata should have statistics files",
-        ImmutableList.of(statisticsFile),
-        metadata.statisticsFiles());
+    assertThat(version()).isEqualTo(2);
+    assertThat(metadata.statisticsFiles()).containsExactly(statisticsFile);
 
     table.updateStatistics().removeStatistics(snapshotId).commit();
 
     metadata = readMetadata();
-    Assert.assertEquals("Table should be on version 3", 3, (int) version());
-    Assert.assertEquals(
-        "Table metadata should have no statistics files",
-        ImmutableList.of(),
-        metadata.statisticsFiles());
+    assertThat(version()).isEqualTo(3);
+    assertThat(metadata.statisticsFiles()).isEmpty();
   }
 }

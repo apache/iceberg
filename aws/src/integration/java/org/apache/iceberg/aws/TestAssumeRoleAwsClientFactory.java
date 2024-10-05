@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.aws;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
@@ -26,15 +29,11 @@ import org.apache.iceberg.aws.s3.S3FileIO;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.awaitility.Awaitility;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -50,14 +49,12 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 public class TestAssumeRoleAwsClientFactory {
 
-  private static final Logger LOG = LoggerFactory.getLogger(TestAssumeRoleAwsClientFactory.class);
-
   private IamClient iam;
   private String roleName;
   private Map<String, String> assumeRoleProperties;
   private String policyName;
 
-  @Before
+  @BeforeEach
   public void before() {
     roleName = UUID.randomUUID().toString();
     iam =
@@ -95,7 +92,7 @@ public class TestAssumeRoleAwsClientFactory {
     policyName = UUID.randomUUID().toString();
   }
 
-  @After
+  @AfterEach
   public void after() {
     iam.deleteRolePolicy(
         DeleteRolePolicyRequest.builder().roleName(roleName).policyName(policyName).build());
@@ -134,7 +131,7 @@ public class TestAssumeRoleAwsClientFactory {
     GlueCatalog glueCatalog = new GlueCatalog();
     assumeRoleProperties.put("warehouse", "s3://path");
     glueCatalog.initialize("test", assumeRoleProperties);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 glueCatalog.createNamespace(
                     Namespace.of("denied_" + UUID.randomUUID().toString().replace("-", ""))))
@@ -177,7 +174,7 @@ public class TestAssumeRoleAwsClientFactory {
 
     S3FileIO s3FileIO = new S3FileIO();
     s3FileIO.initialize(assumeRoleProperties);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 s3FileIO
                     .newInputFile("s3://" + AwsIntegTestUtil.testBucketName() + "/denied/file")
@@ -189,7 +186,7 @@ public class TestAssumeRoleAwsClientFactory {
 
     InputFile inputFile =
         s3FileIO.newInputFile("s3://" + AwsIntegTestUtil.testBucketName() + "/allowed/file");
-    Assert.assertFalse("should be able to access file", inputFile.exists());
+    assertThat(inputFile.exists()).isFalse();
   }
 
   private void waitForIamConsistency() {
@@ -199,7 +196,7 @@ public class TestAssumeRoleAwsClientFactory {
         .ignoreExceptions()
         .untilAsserted(
             () ->
-                Assertions.assertThat(
+                assertThat(
                         iam.getRolePolicy(
                             GetRolePolicyRequest.builder()
                                 .roleName(roleName)

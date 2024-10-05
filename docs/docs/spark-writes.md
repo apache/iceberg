@@ -195,12 +195,19 @@ WHERE EXISTS (SELECT oid FROM prod.db.returned_orders WHERE t1.oid = oid)
 For more complex row-level updates based on incoming data, see the section on `MERGE INTO`.
 
 ## Writing to Branches
-Branch writes can be performed via SQL by providing a branch identifier, `branch_yourBranch` in the operation.
+
+The branch must exist before performing write. Operations do **not** create the branch if it does not exist.
+A branch can be created using [Spark DDL](spark-ddl.md#branching-and-tagging-ddl).
+
+!!! info
+    Note: When writing to a branch, the current schema of the table will be used for validation.
+
+### Via SQL
+
+Branch writes can be performed by providing a branch identifier, `branch_yourBranch` in the operation.
+
 Branch writes can also be performed as part of a write-audit-publish (WAP) workflow by specifying the `spark.wap.branch` config.
 Note WAP branch and branch identifier cannot both be specified.
-Also, the branch must exist before performing the write. 
-The operation does **not** create the branch if it does not exist. 
-For more information on branches please refer to [branches](branching.md).
  
 ```sql
 -- INSERT (1,' a') (2, 'b') into the audit branch.
@@ -222,6 +229,22 @@ DELETE FROM prod.dbl.table.branch_audit WHERE id = 2;
 -- WAP Branch write
 SET spark.wap.branch = audit-branch
 INSERT INTO prod.db.table VALUES (3, 'c');
+```
+
+### Via DataFrames
+
+Branch writes via DataFrames can be performed by providing a branch identifier, `branch_yourBranch` in the operation.
+
+```scala
+// To insert into `audit` branch
+val data: DataFrame = ...
+data.writeTo("prod.db.table.branch_audit").append()
+```
+
+```scala
+// To overwrite `audit` branch
+val data: DataFrame = ...
+data.writeTo("prod.db.table.branch_audit").overwritePartitions()
 ```
 
 ## Writing with DataFrames
@@ -364,7 +387,7 @@ There are 3 options for `write.distribution-mode`
 This mode does not request any shuffles or sort to be performed automatically by Spark. Because no work is done 
 automatically by Spark, the data must be *manually* sorted by partition value. The data must be sorted either within 
 each spark task, or globally within the entire dataset. A global sort will minimize the number of output files.  
-A sort can be avoided by using the Spark [write fanout](#write-properties) property but this will cause all 
+A sort can be avoided by using the Spark [write fanout](spark-configuration.md#write-options) property but this will cause all 
 file handles to remain open until each write task has completed.
 * `hash` - This mode is the new default and requests that Spark uses a hash-based exchange to shuffle the incoming
 write data before writing.  
@@ -403,64 +426,4 @@ It is important again to note that this is the in-memory Spark row size and not 
 columnar-compressed size, so a larger value than the target file size will need to be specified. The ratio of 
 in-memory size to on disk size is data dependent. Future work in Spark should allow Iceberg to automatically adjust this
 parameter at write time to match the `write.target-file-size-bytes`.
-
-## Type compatibility
-
-Spark and Iceberg support different set of types. Iceberg does the type conversion automatically, but not for all combinations,
-so you may want to understand the type conversion in Iceberg in prior to design the types of columns in your tables.
-
-### Spark type to Iceberg type
-
-This type conversion table describes how Spark types are converted to the Iceberg types. The conversion applies on both creating Iceberg table and writing to Iceberg table via Spark.
-
-| Spark           | Iceberg                    | Notes |
-|-----------------|----------------------------|-------|
-| boolean         | boolean                    |       |
-| short           | integer                    |       |
-| byte            | integer                    |       |
-| integer         | integer                    |       |
-| long            | long                       |       |
-| float           | float                      |       |
-| double          | double                     |       |
-| date            | date                       |       |
-| timestamp       | timestamp with timezone    |       |
-| timestamp_ntz    | timestamp without timezone |       |
-| char            | string                     |       |
-| varchar         | string                     |       |
-| string          | string                     |       |
-| binary          | binary                     |       |
-| decimal         | decimal                    |       |
-| struct          | struct                     |       |
-| array           | list                       |       |
-| map             | map                        |       |
-
-!!! info
-    The table is based on representing conversion during creating table. In fact, broader supports are applied on write. Here're some points on write:
-    
-    * Iceberg numeric types (`integer`, `long`, `float`, `double`, `decimal`) support promotion during writes. e.g. You can write Spark types `short`, `byte`, `integer`, `long` to Iceberg type `long`.
-    * You can write to Iceberg `fixed` type using Spark `binary` type. Note that assertion on the length will be performed.
-
-### Iceberg type to Spark type
-
-This type conversion table describes how Iceberg types are converted to the Spark types. The conversion applies on reading from Iceberg table via Spark.
-
-| Iceberg                    | Spark                   | Note          |
-|----------------------------|-------------------------|---------------|
-| boolean                    | boolean                 |               |
-| integer                    | integer                 |               |
-| long                       | long                    |               |
-| float                      | float                   |               |
-| double                     | double                  |               |
-| date                       | date                    |               |
-| time                       |                         | Not supported |
-| timestamp with timezone    | timestamp               |               |
-| timestamp without timezone | timestamp_ntz            |               |
-| string                     | string                  |               |
-| uuid                       | string                  |               |
-| fixed                      | binary                  |               |
-| binary                     | binary                  |               |
-| decimal                    | decimal                 |               |
-| struct                     | struct                  |               |
-| list                       | array                   |               |
-| map                        | map                     |               |
 

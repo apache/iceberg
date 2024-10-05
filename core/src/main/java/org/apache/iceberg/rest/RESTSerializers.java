@@ -55,9 +55,13 @@ import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequestParser;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequestParser;
+import org.apache.iceberg.rest.responses.ConfigResponse;
+import org.apache.iceberg.rest.responses.ConfigResponseParser;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.apache.iceberg.rest.responses.ImmutableLoadViewResponse;
+import org.apache.iceberg.rest.responses.LoadTableResponse;
+import org.apache.iceberg.rest.responses.LoadTableResponseParser;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponseParser;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
@@ -111,7 +115,11 @@ public class RESTSerializers {
         .addSerializer(LoadViewResponse.class, new LoadViewResponseSerializer<>())
         .addSerializer(ImmutableLoadViewResponse.class, new LoadViewResponseSerializer<>())
         .addDeserializer(LoadViewResponse.class, new LoadViewResponseDeserializer<>())
-        .addDeserializer(ImmutableLoadViewResponse.class, new LoadViewResponseDeserializer<>());
+        .addDeserializer(ImmutableLoadViewResponse.class, new LoadViewResponseDeserializer<>())
+        .addSerializer(ConfigResponse.class, new ConfigResponseSerializer<>())
+        .addDeserializer(ConfigResponse.class, new ConfigResponseDeserializer<>())
+        .addSerializer(LoadTableResponse.class, new LoadTableResponseSerializer<>())
+        .addDeserializer(LoadTableResponse.class, new LoadTableResponseDeserializer<>());
 
     mapper.registerModule(module);
   }
@@ -400,6 +408,39 @@ public class RESTSerializers {
     public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
       JsonNode jsonNode = p.getCodec().readTree(p);
       return (T) LoadViewResponseParser.fromJson(jsonNode);
+    }
+  }
+
+  static class ConfigResponseSerializer<T extends ConfigResponse> extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      ConfigResponseParser.toJson(request, gen);
+    }
+  }
+
+  static class ConfigResponseDeserializer<T extends ConfigResponse> extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) ConfigResponseParser.fromJson(jsonNode);
+    }
+  }
+
+  static class LoadTableResponseSerializer<T extends LoadTableResponse> extends JsonSerializer<T> {
+    @Override
+    public void serialize(T request, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      LoadTableResponseParser.toJson(request, gen);
+    }
+  }
+
+  static class LoadTableResponseDeserializer<T extends LoadTableResponse>
+      extends JsonDeserializer<T> {
+    @Override
+    public T deserialize(JsonParser p, DeserializationContext context) throws IOException {
+      JsonNode jsonNode = p.getCodec().readTree(p);
+      return (T) LoadTableResponseParser.fromJson(jsonNode);
     }
   }
 }

@@ -49,25 +49,25 @@ public interface FileIO extends Serializable, Closeable {
   default InputFile newInputFile(DataFile file) {
     Preconditions.checkArgument(
         file.keyMetadata() == null,
-        "Cannot decrypt data file: {} (use EncryptingFileIO)",
+        "Cannot decrypt data file: %s (use EncryptingFileIO)",
         file.path());
-    return newInputFile(file.path().toString());
+    return newInputFile(file.path().toString(), file.fileSizeInBytes());
   }
 
   default InputFile newInputFile(DeleteFile file) {
     Preconditions.checkArgument(
         file.keyMetadata() == null,
-        "Cannot decrypt delete file: {} (use EncryptingFileIO)",
+        "Cannot decrypt delete file: %s (use EncryptingFileIO)",
         file.path());
-    return newInputFile(file.path().toString());
+    return newInputFile(file.path().toString(), file.fileSizeInBytes());
   }
 
   default InputFile newInputFile(ManifestFile manifest) {
     Preconditions.checkArgument(
         manifest.keyMetadata() == null,
-        "Cannot decrypt manifest: {} (use EncryptingFileIO)",
+        "Cannot decrypt manifest: %s (use EncryptingFileIO)",
         manifest.path());
-    return newInputFile(manifest.path());
+    return newInputFile(manifest.path(), manifest.length());
   }
 
   /** Get a {@link OutputFile} instance to write bytes to the file at the given path. */
@@ -94,7 +94,7 @@ public interface FileIO extends Serializable, Closeable {
    */
   default Map<String, String> properties() {
     throw new UnsupportedOperationException(
-        String.format("%s does not expose configuration properties", this.getClass().toString()));
+        String.format("%s does not expose configuration properties", this.getClass()));
   }
 
   /**

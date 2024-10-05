@@ -20,32 +20,26 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestSchemaID extends TableTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestSchemaID extends TestBase {
 
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2, 3);
   }
 
-  public TestSchemaID(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testNoChange() {
     int onlyId = table.schema().schemaId();
     Map<Integer, Schema> onlySchemaMap = schemaMap(table.schema());
@@ -54,46 +48,30 @@ public class TestSchemaID extends TableTestBase {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     TestHelpers.assertSameSchemaMap(onlySchemaMap, table.schemas());
-    Assert.assertEquals(
-        "Current snapshot's schemaId should be the current",
-        table.schema().schemaId(),
-        (int) table.currentSnapshot().schemaId());
+    assertThat(table.currentSnapshot().schemaId()).isEqualTo(table.schema().schemaId());
 
-    Assert.assertEquals(
-        "Schema ids should be correct in snapshots",
-        ImmutableList.of(onlyId),
-        Lists.transform(Lists.newArrayList(table.snapshots()), Snapshot::schemaId));
+    assertThat(table.snapshots()).extracting(Snapshot::schemaId).containsExactly(onlyId);
 
     // remove file from table
     table.newDelete().deleteFile(FILE_A).commit();
 
     TestHelpers.assertSameSchemaMap(onlySchemaMap, table.schemas());
-    Assert.assertEquals(
-        "Current snapshot's schemaId should be the current",
-        table.schema().schemaId(),
-        (int) table.currentSnapshot().schemaId());
+    assertThat(table.currentSnapshot().schemaId()).isEqualTo(table.schema().schemaId());
 
-    Assert.assertEquals(
-        "Schema ids should be correct in snapshots",
-        ImmutableList.of(onlyId, onlyId),
-        Lists.transform(Lists.newArrayList(table.snapshots()), Snapshot::schemaId));
+    assertThat(table.snapshots()).extracting(Snapshot::schemaId).containsExactly(onlyId, onlyId);
 
     // add file to table
     table.newFastAppend().appendFile(FILE_A2).commit();
 
     TestHelpers.assertSameSchemaMap(onlySchemaMap, table.schemas());
-    Assert.assertEquals(
-        "Current snapshot's schemaId should be the current",
-        table.schema().schemaId(),
-        (int) table.currentSnapshot().schemaId());
+    assertThat(table.currentSnapshot().schemaId()).isEqualTo(table.schema().schemaId());
 
-    Assert.assertEquals(
-        "Schema ids should be correct in snapshots",
-        ImmutableList.of(onlyId, onlyId, onlyId),
-        Lists.transform(Lists.newArrayList(table.snapshots()), Snapshot::schemaId));
+    assertThat(table.snapshots())
+        .extracting(Snapshot::schemaId)
+        .containsExactly(onlyId, onlyId, onlyId);
   }
 
-  @Test
+  @TestTemplate
   public void testSchemaIdChangeInSchemaUpdate() {
     Schema originalSchema = table.schema();
 
@@ -101,15 +79,11 @@ public class TestSchemaID extends TableTestBase {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     TestHelpers.assertSameSchemaMap(schemaMap(table.schema()), table.schemas());
-    Assert.assertEquals(
-        "Current snapshot's schemaId should be the current",
-        table.schema().schemaId(),
-        (int) table.currentSnapshot().schemaId());
+    assertThat(table.currentSnapshot().schemaId()).isEqualTo(table.schema().schemaId());
 
-    Assert.assertEquals(
-        "Schema ids should be correct in snapshots",
-        ImmutableList.of(originalSchema.schemaId()),
-        Lists.transform(Lists.newArrayList(table.snapshots()), Snapshot::schemaId));
+    assertThat(table.snapshots())
+        .extracting(Snapshot::schemaId)
+        .containsExactly(originalSchema.schemaId());
 
     // update schema
     table.updateSchema().addColumn("data2", Types.StringType.get()).commit();
@@ -122,50 +96,37 @@ public class TestSchemaID extends TableTestBase {
             optional(3, "data2", Types.StringType.get()));
 
     TestHelpers.assertSameSchemaMap(schemaMap(originalSchema, updatedSchema), table.schemas());
-    Assert.assertEquals(
-        "Current snapshot's schemaId should be old since update schema doesn't create new snapshot",
-        originalSchema.schemaId(),
-        (int) table.currentSnapshot().schemaId());
-    Assert.assertEquals(
-        "Current schema should match", updatedSchema.asStruct(), table.schema().asStruct());
+    assertThat(table.currentSnapshot().schemaId())
+        .as(
+            "Current snapshot's schemaId should be old since update schema doesn't create new snapshot")
+        .isEqualTo(originalSchema.schemaId());
+    assertThat(table.schema().asStruct()).isEqualTo(updatedSchema.asStruct());
 
-    Assert.assertEquals(
-        "Schema ids should be correct in snapshots",
-        ImmutableList.of(originalSchema.schemaId()),
-        Lists.transform(Lists.newArrayList(table.snapshots()), Snapshot::schemaId));
+    assertThat(table.snapshots())
+        .extracting(Snapshot::schemaId)
+        .containsExactly(originalSchema.schemaId());
 
     // remove file from table
     table.newDelete().deleteFile(FILE_A).commit();
 
     TestHelpers.assertSameSchemaMap(schemaMap(originalSchema, updatedSchema), table.schemas());
-    Assert.assertEquals(
-        "Current snapshot's schemaId should be the current",
-        updatedSchema.schemaId(),
-        (int) table.currentSnapshot().schemaId());
-    Assert.assertEquals(
-        "Current schema should match", updatedSchema.asStruct(), table.schema().asStruct());
+    assertThat(table.currentSnapshot().schemaId()).isEqualTo(updatedSchema.schemaId());
+    assertThat(table.schema().asStruct()).isEqualTo(updatedSchema.asStruct());
 
-    Assert.assertEquals(
-        "Schema ids should be correct in snapshots",
-        ImmutableList.of(originalSchema.schemaId(), updatedSchema.schemaId()),
-        Lists.transform(Lists.newArrayList(table.snapshots()), Snapshot::schemaId));
-
+    assertThat(table.snapshots())
+        .extracting(Snapshot::schemaId)
+        .containsExactly(originalSchema.schemaId(), updatedSchema.schemaId());
     // add files to table
     table.newAppend().appendFile(FILE_A2).commit();
 
     TestHelpers.assertSameSchemaMap(schemaMap(originalSchema, updatedSchema), table.schemas());
-    Assert.assertEquals(
-        "Current snapshot's schemaId should be the current",
-        updatedSchema.schemaId(),
-        (int) table.currentSnapshot().schemaId());
-    Assert.assertEquals(
-        "Current schema should match", updatedSchema.asStruct(), table.schema().asStruct());
+    assertThat(table.currentSnapshot().schemaId()).isEqualTo(updatedSchema.schemaId());
+    assertThat(table.schema().asStruct()).isEqualTo(updatedSchema.asStruct());
 
-    Assert.assertEquals(
-        "Schema ids should be correct in snapshots",
-        ImmutableList.of(
-            originalSchema.schemaId(), updatedSchema.schemaId(), updatedSchema.schemaId()),
-        Lists.transform(Lists.newArrayList(table.snapshots()), Snapshot::schemaId));
+    assertThat(table.snapshots())
+        .extracting(Snapshot::schemaId)
+        .containsExactly(
+            originalSchema.schemaId(), updatedSchema.schemaId(), updatedSchema.schemaId());
   }
 
   private Map<Integer, Schema> schemaMap(Schema... schemas) {

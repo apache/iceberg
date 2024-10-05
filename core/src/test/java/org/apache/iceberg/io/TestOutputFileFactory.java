@@ -18,36 +18,35 @@
  */
 package org.apache.iceberg.io;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionKey;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.TableTestBase;
+import org.apache.iceberg.TestBase;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestOutputFileFactory extends TableTestBase {
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestOutputFileFactory extends TestBase {
 
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2, 3);
   }
 
   private static final int PARTITION_ID = 1;
   private static final int TASK_ID = 100;
 
-  public TestOutputFileFactory(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testOutputFileFactoryWithCustomFormat() {
     table.updateProperties().defaultFormat(FileFormat.ORC).commit();
 
@@ -55,11 +54,10 @@ public class TestOutputFileFactory extends TableTestBase {
         OutputFileFactory.builderFor(table, PARTITION_ID, TASK_ID).format(FileFormat.AVRO).build();
 
     String location = fileFactory.newOutputFile().encryptingOutputFile().location();
-    Assert.assertEquals(
-        "File format should be correct", FileFormat.AVRO, FileFormat.fromFileName(location));
+    assertThat(FileFormat.fromFileName(location)).isEqualTo(FileFormat.AVRO);
   }
 
-  @Test
+  @TestTemplate
   public void testOutputFileFactoryWithMultipleSpecs() {
     OutputFileFactory fileFactory =
         OutputFileFactory.builderFor(table, PARTITION_ID, TASK_ID).operationId("append").build();
@@ -67,18 +65,17 @@ public class TestOutputFileFactory extends TableTestBase {
     EncryptedOutputFile unpartitionedFile =
         fileFactory.newOutputFile(PartitionSpec.unpartitioned(), null);
     String unpartitionedFileLocation = unpartitionedFile.encryptingOutputFile().location();
-    Assert.assertTrue(unpartitionedFileLocation.endsWith("data/00001-100-append-00001.parquet"));
+    assertThat(unpartitionedFileLocation).endsWith("data/00001-100-append-00001.parquet");
 
     Record record = GenericRecord.create(table.schema()).copy(ImmutableMap.of("data", "aaa"));
     PartitionKey partitionKey = new PartitionKey(table.spec(), table.schema());
     partitionKey.partition(record);
     EncryptedOutputFile partitionedFile = fileFactory.newOutputFile(table.spec(), partitionKey);
     String partitionedFileLocation = partitionedFile.encryptingOutputFile().location();
-    Assert.assertTrue(
-        partitionedFileLocation.endsWith("data_bucket=7/00001-100-append-00002.parquet"));
+    assertThat(partitionedFileLocation).endsWith("data_bucket=7/00001-100-append-00002.parquet");
   }
 
-  @Test
+  @TestTemplate
   public void testWithCustomSuffix() {
     OutputFileFactory fileFactory =
         OutputFileFactory.builderFor(table, PARTITION_ID, TASK_ID)
@@ -89,15 +86,14 @@ public class TestOutputFileFactory extends TableTestBase {
     EncryptedOutputFile unpartitionedFile =
         fileFactory.newOutputFile(PartitionSpec.unpartitioned(), null);
     String unpartitionedFileLocation = unpartitionedFile.encryptingOutputFile().location();
-    Assertions.assertThat(unpartitionedFileLocation)
-        .endsWith("data/00001-100-append-00001-suffix.parquet");
+    assertThat(unpartitionedFileLocation).endsWith("data/00001-100-append-00001-suffix.parquet");
 
     Record record = GenericRecord.create(table.schema()).copy(ImmutableMap.of("data", "aaa"));
     PartitionKey partitionKey = new PartitionKey(table.spec(), table.schema());
     partitionKey.partition(record);
     EncryptedOutputFile partitionedFile = fileFactory.newOutputFile(table.spec(), partitionKey);
     String partitionedFileLocation = partitionedFile.encryptingOutputFile().location();
-    Assertions.assertThat(partitionedFileLocation)
+    assertThat(partitionedFileLocation)
         .endsWith("data_bucket=7/00001-100-append-00002-suffix.parquet");
   }
 }

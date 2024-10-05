@@ -27,8 +27,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * encryption support (Parquet and ORC).
  */
 public class NativeFileCryptoParameters {
-  private ByteBuffer fileKey;
-  private EncryptionAlgorithm fileEncryptionAlgorithm;
+  private final ByteBuffer fileKey;
+  private final EncryptionAlgorithm fileEncryptionAlgorithm;
 
   private NativeFileCryptoParameters(
       ByteBuffer fileKey, EncryptionAlgorithm fileEncryptionAlgorithm) {
@@ -48,7 +48,7 @@ public class NativeFileCryptoParameters {
   }
 
   public static class Builder {
-    private ByteBuffer fileKey;
+    private final ByteBuffer fileKey;
     private EncryptionAlgorithm fileEncryptionAlgorithm;
 
     private Builder(ByteBuffer fileKey) {

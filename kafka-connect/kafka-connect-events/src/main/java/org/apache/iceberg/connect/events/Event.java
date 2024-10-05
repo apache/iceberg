@@ -41,6 +41,7 @@ import org.apache.iceberg.util.DateTimeUtil;
  */
 public class Event implements IndexedRecord {
 
+  private static final PayloadType[] PAYLOAD_TYPE_VALUES = PayloadType.values();
   private UUID id;
   private PayloadType type;
   private OffsetDateTime timestamp;
@@ -115,7 +116,7 @@ public class Event implements IndexedRecord {
         this.id = (UUID) v;
         return;
       case TYPE:
-        this.type = v == null ? null : PayloadType.values()[(Integer) v];
+        this.type = v == null ? null : PAYLOAD_TYPE_VALUES[(Integer) v];
         return;
       case TIMESTAMP:
         this.timestamp = v == null ? null : DateTimeUtil.timestamptzFromMicros((Long) v);

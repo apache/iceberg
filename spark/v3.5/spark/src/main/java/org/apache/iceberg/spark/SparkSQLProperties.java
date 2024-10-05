@@ -87,7 +87,15 @@ public class SparkSQLProperties {
       "spark.sql.iceberg.executor-cache.max-total-size";
   public static final long EXECUTOR_CACHE_MAX_TOTAL_SIZE_DEFAULT = 128 * 1024 * 1024; // 128 MB
 
+  // Controls whether to merge schema during write operation
+  public static final String MERGE_SCHEMA = "spark.sql.iceberg.merge-schema";
+  public static final boolean MERGE_SCHEMA_DEFAULT = false;
+
   public static final String EXECUTOR_CACHE_LOCALITY_ENABLED =
       "spark.sql.iceberg.executor-cache.locality.enabled";
   public static final boolean EXECUTOR_CACHE_LOCALITY_ENABLED_DEFAULT = false;
+
+  // Controls whether to report available column statistics to Spark for query optimization.
+  public static final String REPORT_COLUMN_STATS = "spark.sql.iceberg.report-column-stats";
+  public static final boolean REPORT_COLUMN_STATS_DEFAULT = true;
 }

@@ -21,7 +21,7 @@
 // name. This is to be used by Hive3 for features including e.g. vectorization.
 project(':iceberg-hive3-orc-bundle') {
 
-  apply plugin: 'com.github.johnrengelman.shadow'
+  apply plugin: 'io.github.goooler.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 
@@ -48,6 +48,10 @@ project(':iceberg-hive3-orc-bundle') {
     from(projectDir) {
       include 'LICENSE'
       include 'NOTICE'
+    }
+
+    dependencies {
+      exclude(dependency('org.slf4j:slf4j-api'))
     }
 
     // Relocate dependencies to avoid conflicts

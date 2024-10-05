@@ -18,10 +18,13 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -252,53 +255,88 @@ public class TestRollbackToTimestampProcedure extends SparkExtensionsTestBase {
   }
 
   @Test
+  public void testRollbackToTimestampBeforeOrEqualToOldestSnapshot() {
+    sql("CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, 'a')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot firstSnapshot = table.currentSnapshot();
+    Timestamp beforeFirstSnapshot =
+        Timestamp.from(Instant.ofEpochMilli(firstSnapshot.timestampMillis() - 1));
+    Timestamp exactFirstSnapshot =
+        Timestamp.from(Instant.ofEpochMilli(firstSnapshot.timestampMillis()));
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rollback_to_timestamp(timestamp => TIMESTAMP '%s', table => '%s')",
+                    catalogName, beforeFirstSnapshot, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot roll back, no valid snapshot older than: %s",
+            beforeFirstSnapshot.toInstant().toEpochMilli());
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rollback_to_timestamp(timestamp => TIMESTAMP '%s', table => '%s')",
+                    catalogName, exactFirstSnapshot, tableIdent))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot roll back, no valid snapshot older than: %s",
+            exactFirstSnapshot.toInstant().toEpochMilli());
+  }
+
+  @Test
   public void testInvalidRollbackToTimestampCases() {
     String timestamp = "TIMESTAMP '2007-12-03T10:15:30'";
 
-    AssertHelpers.assertThrows(
-        "Should not allow mixed args",
-        AnalysisException.class,
-        "Named and positional arguments cannot be mixed",
-        () ->
-            sql(
-                "CALL %s.system.rollback_to_timestamp(namespace => 'n1', 't', %s)",
-                catalogName, timestamp));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rollback_to_timestamp(namespace => 'n1', 't', %s)",
+                    catalogName, timestamp))
+        .as("Should not allow mixed args")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Named and positional arguments cannot be mixed");
 
-    AssertHelpers.assertThrows(
-        "Should not resolve procedures in arbitrary namespaces",
-        NoSuchProcedureException.class,
-        "not found",
-        () -> sql("CALL %s.custom.rollback_to_timestamp('n', 't', %s)", catalogName, timestamp));
+    assertThatThrownBy(
+            () -> sql("CALL %s.custom.rollback_to_timestamp('n', 't', %s)", catalogName, timestamp))
+        .as("Should not resolve procedures in arbitrary namespaces")
+        .isInstanceOf(NoSuchProcedureException.class)
+        .hasMessageContaining("not found");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls without all required args",
-        AnalysisException.class,
-        "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_timestamp('t')", catalogName));
+    assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_timestamp('t')", catalogName))
+        .as("Should reject calls without all required args")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Missing required parameters");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls without all required args",
-        AnalysisException.class,
-        "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_timestamp(timestamp => %s)", catalogName, timestamp));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rollback_to_timestamp(timestamp => %s)",
+                    catalogName, timestamp))
+        .as("Should reject calls without all required args")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Missing required parameters");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls without all required args",
-        AnalysisException.class,
-        "Missing required parameters",
-        () -> sql("CALL %s.system.rollback_to_timestamp(table => 't')", catalogName));
+    assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_timestamp(table => 't')", catalogName))
+        .as("Should reject calls without all required args")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Missing required parameters");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with extra args",
-        AnalysisException.class,
-        "Too many arguments",
-        () ->
-            sql("CALL %s.system.rollback_to_timestamp('n', 't', %s, 1L)", catalogName, timestamp));
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rollback_to_timestamp('n', 't', %s, 1L)",
+                    catalogName, timestamp))
+        .as("Should reject calls with extra args")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Too many arguments");
 
-    AssertHelpers.assertThrows(
-        "Should reject calls with invalid arg types",
-        AnalysisException.class,
-        "Wrong arg type for timestamp: cannot cast",
-        () -> sql("CALL %s.system.rollback_to_timestamp('t', 2.2)", catalogName));
+    assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_timestamp('t', 2.2)", catalogName))
+        .as("Should reject calls with invalid arg types")
+        .isInstanceOf(AnalysisException.class)
+        .hasMessageContaining("Wrong arg type for timestamp: cannot cast");
   }
 }

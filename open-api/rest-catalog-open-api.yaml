@@ -99,7 +99,39 @@ paths:
 
 
         Common catalog configuration settings are documented at
-        https://iceberg.apache.org/configuration/#catalog-properties
+        https://iceberg.apache.org/docs/latest/configuration/#catalog-properties
+
+
+        The catalog configuration also holds an optional `endpoints` field that contains information about the endpoints
+        supported by the server. If a server does not send the `endpoints` field, a default set of endpoints is assumed:
+
+          - GET /v1/{prefix}/namespaces
+
+          - POST /v1/{prefix}/namespaces
+
+          - GET /v1/{prefix}/namespaces/{namespace}
+
+          - DELETE /v1/{prefix}/namespaces/{namespace}
+
+          - POST /v1/{prefix}/namespaces/{namespace}/properties
+
+          - GET /v1/{prefix}/namespaces/{namespace}/tables
+
+          - POST /v1/{prefix}/namespaces/{namespace}/tables
+
+          - GET /v1/{prefix}/namespaces/{namespace}/tables/{table}
+
+          - POST /v1/{prefix}/namespaces/{namespace}/tables/{table}
+
+          - DELETE /v1/{prefix}/namespaces/{namespace}/tables/{table}
+
+          - POST /v1/{prefix}/namespaces/{namespace}/register
+
+          - POST /v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics
+
+          - POST /v1/{prefix}/tables/rename
+
+          - POST /v1/{prefix}/transactions/commit
         "
       responses:
         200:
@@ -109,13 +141,20 @@ paths:
               schema:
                 $ref: '#/components/schemas/CatalogConfig'
               example: {
-                "overrides": {
-                  "warehouse": "s3://bucket/warehouse/"
-                },
-                "defaults": {
-                  "clients": "4"
+                  "overrides": {
+                    "warehouse": "s3://bucket/warehouse/"
+                  },
+                  "defaults": {
+                    "clients": "4"
+                  },
+                  "endpoints": [
+                    "GET /v1/{prefix}/namespaces/{namespace}",
+                    "GET /v1/{prefix}/namespaces",
+                    "POST /v1/{prefix}/namespaces",
+                    "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+                    "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+                  ]
                 }
-              }
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -134,9 +173,22 @@ paths:
     post:
       tags:
         - OAuth2 API
-      summary: Get a token using an OAuth2 flow
+      summary: Get a token using an OAuth2 flow (DEPRECATED for REMOVAL)
+      deprecated: true
       operationId: getToken
       description:
+        The `oauth/tokens` endpoint is **DEPRECATED for REMOVAL**. It is _not_ recommended to
+        implement this endpoint, unless you are fully aware of the potential security implications.
+
+        All clients are encouraged to explicitly set the configuration property `oauth2-server-uri`
+        to the correct OAuth endpoint.
+
+        Deprecated since Iceberg (Java) 1.6.0. The endpoint and related types will be removed from
+        this spec in Iceberg (Java) 2.0.
+
+        See [Security improvements in the Iceberg REST specification](https://github.com/apache/iceberg/issues/10537)
+
+
         Exchange credentials for a token using the OAuth2 client credentials flow or token exchange.
 
 
@@ -170,6 +222,7 @@ paths:
         sending a token exchange request (3). The request's "subject" token should be the expiring
         token. This request should use the subject token in the "Authorization" header.
       requestBody:
+        required: true
         content:
           application/x-www-form-urlencoded:
             schema:
@@ -201,6 +254,8 @@ paths:
         If `parent` is not provided, all top-level namespaces should be listed.
       operationId: listNamespaces
       parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
         - name: parent
           in: query
           description:
@@ -246,6 +301,7 @@ paths:
         The server might also add properties, such as `last_modified_time` etc.
       operationId: createNamespace
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -394,6 +450,7 @@ paths:
 
         Server implementations are not required to support namespace properties.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -448,6 +505,9 @@ paths:
       summary: List all table identifiers underneath a given namespace
       description: Return all table identifiers under this namespace
       operationId: listTables
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
       responses:
         200:
           $ref: '#/components/responses/ListTablesResponse'
@@ -494,6 +554,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/data-access'
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -532,6 +593,261 @@ paths:
         5XX:
           $ref: '#/components/responses/ServerErrorResponse'
 
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+    post:
+      tags:
+        - Catalog API
+      summary: Submit a scan for planning
+      description: >
+        Submits a scan for server-side planning.
+
+
+        Point-in-time scans are planned by passing snapshot-id to identify the
+        table snapshot to scan. Incremental scans are planned by passing both
+        start-snapshot-id and end-snapshot-id. Requests that include both point
+        in time config properties and incremental config properties are
+        invalid. If the request does not include either incremental or
+        point-in-time config properties, scan planning should produce a
+        point-in-time scan of the latest snapshot in the table's main branch.
+
+
+        Responses must include a valid status listed below. A "cancelled" status is considered invalid for this endpoint.  
+
+        - When "completed" the planning operation has produced plan tasks and
+          file scan tasks that must be returned in the response (not fetched
+          later by calling fetchPlanningResult)
+
+        - When "submitted" the response must include a plan-id used to poll
+          fetchPlanningResult to fetch the planning result when it is ready
+
+        - When "failed" the response must be a valid error response
+
+        The response for a "completed" planning operation includes two types of
+        tasks (file scan tasks and plan tasks) and both may be included in the
+        response. Tasks must not be included for any other response status.
+
+
+        Responses that include a plan-id indicate that the service is holding
+        state or performing work for the client.
+
+
+        - Clients should use the plan-id to fetch results from
+          fetchPlanningResult when the response status is "submitted"
+
+        - Clients should inform the service if planning results are no longer
+          needed by calling cancelPlanning. Cancellation is not necessary after
+          fetchScanTasks has been used to fetch scan tasks for each plan task.
+      operationId: planTableScan
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanTableScanRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/PlanTableScanResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found
+            - NoSuchTableException, the table does not exist
+            - NoSuchNamespaceException, the namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NamespaceDoesNotExist:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        406:
+          $ref: '#/components/responses/UnsupportedOperationResponse'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/plan/{plan-id}:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+      - $ref: '#/components/parameters/plan-id'
+
+    get:
+      tags:
+        - Catalog API
+      summary: Fetches the result of scan planning for a plan-id
+      operationId: fetchPlanningResult
+      description: >
+        Fetches the result of scan planning for a plan-id.
+
+
+        Responses must include a valid status
+
+        - When "completed" the planning operation has produced plan-tasks and
+          file-scan-tasks that must be returned in the response
+
+        - When "submitted" the planning operation has not completed; the client
+          should wait to call this endpoint again to fetch a completed response
+
+        - When "failed" the response must be a valid error response
+
+        - When "cancelled" the plan-id is invalid and should be discarded
+
+
+        The response for a "completed" planning operation includes two types of
+        tasks (file scan tasks and plan tasks) and both may be included in the
+        response. Tasks must not be included for any other response status.
+      responses:
+        200:
+          $ref: '#/components/responses/FetchPlanningResultResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found
+            - NoSuchPlanIdException, the plan-id does not exist
+            - NoSuchTableException, the table does not exist
+            - NoSuchNamespaceException, the namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                PlanIdDoesNotExist:
+                  $ref: '#/components/examples/NoSuchPlanIdError'
+                TableDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NamespaceDoesNotExist:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+    delete:
+      tags:
+        - Catalog API
+      summary: Cancels scan planning for a plan-id
+      operationId: cancelPlanning
+      description: >
+        Cancels scan planning for a plan-id.
+
+
+        This notifies the service that it can release resources held for the
+        scan. Clients should cancel scans that are no longer needed, either
+        while the plan-id returns a "submitted" status or while there are
+        remaining plan tasks that have not been fetched.
+
+
+        Cancellation is not necessary when
+
+        - Scan tasks for each plan task have been fetched using fetchScanTasks
+
+        - A plan-id has produced a "failed" or "cancelled" status from
+          planTableScan or fetchPlanningResult
+      responses:
+        204:
+          description: Success, no content
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found
+            - NoSuchTableException, the table does not exist
+            - NoSuchNamespaceException, the namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                TableDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NamespaceDoesNotExist:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+
+  /v1/{prefix}/namespaces/{namespace}/tables/{table}/tasks:
+    parameters:
+      - $ref: '#/components/parameters/prefix'
+      - $ref: '#/components/parameters/namespace'
+      - $ref: '#/components/parameters/table'
+
+    post:
+      tags:
+        - Catalog API
+      summary: Fetches result tasks for a plan task
+      operationId: fetchScanTasks
+      description: Fetches result tasks for a plan task.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FetchScanTasksRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/FetchScanTasksResponse'
+        400:
+          $ref: '#/components/responses/BadRequestErrorResponse'
+        401:
+          $ref: '#/components/responses/UnauthorizedResponse'
+        403:
+          $ref: '#/components/responses/ForbiddenResponse'
+        404:
+          description:
+            Not Found
+            - NoSuchPlanTaskException, the plan-task does not exist
+            - NoSuchTableException, the table does not exist
+            - NoSuchNamespaceException, the namespace does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IcebergErrorResponse'
+              examples:
+                PlanTaskDoesNotExist:
+                  $ref: '#/components/examples/NoSuchPlanTaskError'
+                TableDoesNotExist:
+                  $ref: '#/components/examples/NoSuchTableError'
+                NamespaceDoesNotExist:
+                  $ref: '#/components/examples/NoSuchNamespaceError'
+        419:
+          $ref: '#/components/responses/AuthenticationTimeoutResponse'
+        503:
+          $ref: '#/components/responses/ServiceUnavailableResponse'
+        5XX:
+          $ref: '#/components/responses/ServerErrorResponse'
+
+
+
   /v1/{prefix}/namespaces/{namespace}/register:
     parameters:
       - $ref: '#/components/parameters/prefix'
@@ -546,6 +862,7 @@ paths:
 
       operationId: registerTable
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -619,7 +936,7 @@ paths:
             The snapshots to return in the body of the metadata. Setting the value to `all` would
             return the full set of snapshots currently valid for the table. Setting the value to
             `refs` would load all snapshots referenced by branches or tags.
-          
+            
             Default if no param is provided is `all`.
           required: false
           schema:
@@ -663,6 +980,8 @@ paths:
         Commits have two parts, requirements and updates. Requirements are assertions that will be validated
         before attempting to make and commit changes. For example, `assert-ref-snapshot-id` will check that a
         named ref's snapshot ID has a certain value.
+        Server implementations are required to fail with a 400 status code
+        if any unknown updates or requirements are received.
 
 
         Updates are changes to make to table metadata. For example, after asserting that the current main ref
@@ -675,6 +994,7 @@ paths:
         initialization, like AddSchemaUpdate and SetCurrentSchemaUpdate. The `assert-create` requirement is
         used to ensure that the table was not created concurrently.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -715,12 +1035,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Internal Server Error",
-                  "type": "CommitStateUnknownException",
-                  "code": 500
+                  "error": {
+                    "message": "Internal Server Error",
+                    "type": "CommitStateUnknownException",
+                    "code": 500
+                  }
                 }
-              }
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         502:
@@ -731,12 +1051,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Invalid response from the upstream server",
-                  "type": "CommitStateUnknownException",
-                  "code": 502
+                  "error": {
+                    "message": "Invalid response from the upstream server",
+                    "type": "CommitStateUnknownException",
+                    "code": 502
+                  }
                 }
-              }
         504:
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
@@ -745,12 +1065,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Gateway timed out during commit",
-                  "type": "CommitStateUnknownException",
-                  "code": 504
+                  "error": {
+                    "message": "Gateway timed out during commit",
+                    "type": "CommitStateUnknownException",
+                    "code": 504
+                  }
                 }
-              }
         5XX:
           description:
             A server-side problem that might not be addressable on the client.
@@ -759,12 +1079,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Bad Gateway",
-                  "type": "InternalServerError",
-                  "code": 502
+                  "error": {
+                    "message": "Bad Gateway",
+                    "type": "InternalServerError",
+                    "code": 502
+                  }
                 }
-              }
 
     delete:
       tags:
@@ -962,7 +1282,8 @@ paths:
           A commit for a single table consists of a table identifier with requirements and updates.
           Requirements are assertions that will be validated before attempting to make and commit changes.
           For example, `assert-ref-snapshot-id` will check that a named ref's snapshot ID has a certain value.
-
+          Server implementations are required to fail with a 400 status code
+          if any unknown updates or requirements are received.
 
           Updates are changes to make to table metadata. For example, after asserting that the current main ref
           is at the expected snapshot, a commit may add a new child snapshot and set the ref to the new
@@ -1008,12 +1329,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Internal Server Error",
-                  "type": "CommitStateUnknownException",
-                  "code": 500
+                  "error": {
+                    "message": "Internal Server Error",
+                    "type": "CommitStateUnknownException",
+                    "code": 500
+                  }
                 }
-              }
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         502:
@@ -1024,12 +1345,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Invalid response from the upstream server",
-                  "type": "CommitStateUnknownException",
-                  "code": 502
+                  "error": {
+                    "message": "Invalid response from the upstream server",
+                    "type": "CommitStateUnknownException",
+                    "code": 502
+                  }
                 }
-              }
         504:
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
@@ -1038,12 +1359,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Gateway timed out during commit",
-                  "type": "CommitStateUnknownException",
-                  "code": 504
+                  "error": {
+                    "message": "Gateway timed out during commit",
+                    "type": "CommitStateUnknownException",
+                    "code": 504
+                  }
                 }
-              }
         5XX:
           description:
             A server-side problem that might not be addressable on the client.
@@ -1052,12 +1373,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/IcebergErrorResponse'
               example: {
-                "error": {
-                  "message": "Bad Gateway",
-                  "type": "InternalServerError",
-                  "code": 502
+                  "error": {
+                    "message": "Bad Gateway",
+                    "type": "InternalServerError",
+                    "code": 502
+                  }
                 }
-              }
 
   /v1/{prefix}/namespaces/{namespace}/views:
     parameters:
@@ -1070,6 +1391,9 @@ paths:
       summary: List all view identifiers underneath a given namespace
       description: Return all view identifiers under this namespace
       operationId: listViews
+      parameters:
+        - $ref: '#/components/parameters/page-token'
+        - $ref: '#/components/parameters/page-size'
       responses:
         200:
           $ref: '#/components/responses/ListTablesResponse'
@@ -1103,6 +1427,7 @@ paths:
         Create a view in the given namespace.
       operationId: createView
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1201,6 +1526,7 @@ paths:
       description:
         Commit updates to a view.
       requestBody:
+        required: true
         content:
           application/json:
             schema:
@@ -1241,12 +1567,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               example: {
-                "error": {
-                  "message": "Internal Server Error",
-                  "type": "CommitStateUnknownException",
-                  "code": 500
+                  "error": {
+                    "message": "Internal Server Error",
+                    "type": "CommitStateUnknownException",
+                    "code": 500
+                  }
                 }
-              }
         503:
           $ref: '#/components/responses/ServiceUnavailableResponse'
         502:
@@ -1257,12 +1583,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               example: {
-                "error": {
-                  "message": "Invalid response from the upstream server",
-                  "type": "CommitStateUnknownException",
-                  "code": 502
+                  "error": {
+                    "message": "Invalid response from the upstream server",
+                    "type": "CommitStateUnknownException",
+                    "code": 502
+                  }
                 }
-              }
         504:
           description:
             A server-side gateway timeout occurred; the commit state is unknown.
@@ -1271,12 +1597,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               example: {
-                "error": {
-                  "message": "Gateway timed out during commit",
-                  "type": "CommitStateUnknownException",
-                  "code": 504
+                  "error": {
+                    "message": "Gateway timed out during commit",
+                    "type": "CommitStateUnknownException",
+                    "code": 504
+                  }
                 }
-              }
         5XX:
           description:
             A server-side problem that might not be addressable on the client.
@@ -1285,12 +1611,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorModel'
               example: {
-                "error": {
-                  "message": "Bad Gateway",
-                  "type": "InternalServerError",
-                  "code": 502
+                  "error": {
+                    "message": "Bad Gateway",
+                    "type": "InternalServerError",
+                    "code": 502
+                  }
                 }
-              }
 
     delete:
       tags:
@@ -1370,8 +1696,8 @@ paths:
                 $ref: '#/components/examples/RenameViewSameNamespace'
         required: true
       responses:
-        200:
-          description: OK
+        204:
+          description: Success, no content
         400:
           $ref: '#/components/responses/BadRequestErrorResponse'
         401:
@@ -1447,6 +1773,14 @@ components:
         type: string
       example: "sales"
 
+    plan-id:
+      name: plan-id
+      in: path
+      description: ID used to track a planning request
+      required: true
+      schema:
+        type: string
+
     view:
       name: view
       in: path
@@ -1481,6 +1815,25 @@ components:
       style: simple
       explode: false
       example: "vended-credentials,remote-signing"
+
+    page-token:
+      name: pageToken
+      in: query
+      required: false
+      allowEmptyValue: true
+      schema:
+        $ref: '#/components/schemas/PageToken'
+
+    page-size:
+      name: pageSize
+      in: query
+      description:
+        For servers that support pagination, this signals an upper bound of the number of results that a client will receive. 
+        For servers that do not support pagination, clients may receive results larger than the indicated `pageSize`.
+      required: false
+      schema:
+        type: integer
+        minimum: 1
 
   ##############################
   # Application Schema Objects #
@@ -1532,6 +1885,19 @@ components:
             type: string
           description:
             Properties that should be used as default configuration; applied before client configuration.
+        endpoints:
+          type: array
+          items:
+            type: string
+          description: A list of endpoints that the server supports. The format of each endpoint must be "<HTTP verb> <resource path from OpenAPI REST spec>".
+            The HTTP verb and the resource path must be separated by a space character.
+          example: [
+              "GET /v1/{prefix}/namespaces/{namespace}",
+              "GET /v1/{prefix}/namespaces",
+              "POST /v1/{prefix}/namespaces",
+              "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+              "GET /v1/{prefix}/namespaces/{namespace}/views/{view}"
+            ]
 
     CreateNamespaceRequest:
       type: object
@@ -1580,6 +1946,31 @@ components:
       items:
         type: string
       example: [ "accounting", "tax" ]
+
+    PageToken:
+      description:
+        An opaque token that allows clients to make use of pagination for list APIs
+        (e.g. ListTables). Clients may initiate the first paginated request by sending an empty
+        query parameter `pageToken` to the server.
+        
+        Servers that support pagination should identify the `pageToken` parameter and return a
+        `next-page-token` in the response if there are more results available.  After the initial
+        request, the value of `next-page-token` from each response must be used as the `pageToken`
+        parameter value for the next request. The server must return `null` value for the
+        `next-page-token` in the last response.
+        
+        Servers that support pagination must return all results in a single response with the value
+        of `next-page-token` set to `null` if the query parameter `pageToken` is not set in the
+        request.
+        
+        Servers that do not support pagination should ignore the `pageToken` parameter and return
+        all results in a single response. The `next-page-token` must be omitted from the response.
+    
+        Clients must interpret either `null` or missing response value of `next-page-token` as
+        the end of the listing results.
+
+      type: string
+      nullable: true
 
     TableIdentifier:
       type: object
@@ -1698,6 +2089,8 @@ components:
 
     Expression:
       oneOf:
+        - $ref: '#/components/schemas/TrueExpression'
+        - $ref: '#/components/schemas/FalseExpression'
         - $ref: '#/components/schemas/AndOrExpression'
         - $ref: '#/components/schemas/NotExpression'
         - $ref: '#/components/schemas/SetExpression'
@@ -1707,6 +2100,8 @@ components:
     ExpressionType:
       type: string
       example:
+        - "true"
+        - "false"
         - "eq"
         - "and"
         - "or"
@@ -1724,6 +2119,24 @@ components:
         - "not-null"
         - "is-nan"
         - "not-nan"
+
+    TrueExpression:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          $ref: '#/components/schemas/ExpressionType'
+          enum: ["true"]
+
+    FalseExpression:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          $ref: '#/components/schemas/ExpressionType'
+          enum: ["false"]
 
     AndOrExpression:
       type: object
@@ -1934,8 +2347,8 @@ components:
             operation:
               type: string
               enum: ["append", "replace", "overwrite", "delete"]
-            additionalProperties:
-              type: string
+          additionalProperties:
+            type: string
         schema-id:
           type: integer
 
@@ -2059,11 +2472,11 @@ components:
         metadata-log:
           $ref: '#/components/schemas/MetadataLog'
         # statistics
-        statistics-files:
+        statistics:
           type: array
           items:
             $ref: '#/components/schemas/StatisticsFile'
-        partition-statistics-files:
+        partition-statistics:
           type: array
           items:
             $ref: '#/components/schemas/PartitionStatisticsFile'
@@ -2192,6 +2605,7 @@ components:
           remove-statistics: '#/components/schemas/RemoveStatisticsUpdate'
           set-partition-statistics: '#/components/schemas/SetPartitionStatisticsUpdate'
           remove-partition-statistics: '#/components/schemas/RemovePartitionStatisticsUpdate'
+          remove-partition-specs: '#/components/schemas/RemovePartitionSpecsUpdate'
       type: object
       required:
         - action
@@ -2494,6 +2908,20 @@ components:
           type: integer
           format: int64
 
+    RemovePartitionSpecsUpdate:
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - spec-ids
+      properties:
+        action:
+          type: string
+          enum: [ "remove-partition-specs" ]
+        spec-ids:
+          type: array
+          items:
+            type: integer
+
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -2513,6 +2941,7 @@ components:
         - $ref: '#/components/schemas/RemovePropertiesUpdate'
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
+        - $ref: '#/components/schemas/RemovePartitionSpecsUpdate'
 
     ViewUpdate:
       anyOf:
@@ -2526,6 +2955,7 @@ components:
         - $ref: '#/components/schemas/SetCurrentViewVersionUpdate'
 
     TableRequirement:
+      type: object
       discriminator:
         propertyName: type
         mapping:
@@ -2537,16 +2967,17 @@ components:
           assert-last-assigned-partition-id: '#/components/schemas/AssertLastAssignedPartitionId'
           assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
           assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
-      type: object
-      required:
-        - type
-      properties:
-        type:
-          type: "string"
+      oneOf:
+        - $ref: '#/components/schemas/AssertCreate'
+        - $ref: '#/components/schemas/AssertTableUUID'
+        - $ref: '#/components/schemas/AssertRefSnapshotId'
+        - $ref: '#/components/schemas/AssertLastAssignedFieldId'
+        - $ref: '#/components/schemas/AssertCurrentSchemaId'
+        - $ref: '#/components/schemas/AssertLastAssignedPartitionId'
+        - $ref: '#/components/schemas/AssertDefaultSpecId'
+        - $ref: '#/components/schemas/AssertDefaultSortOrderId'
 
     AssertCreate:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       type: object
       description: The table must not already exist; used for create transactions
       required:
@@ -2557,8 +2988,6 @@ components:
           enum: ["assert-create"]
 
     AssertTableUUID:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description: The table UUID must match the requirement's `uuid`
       required:
         - type
@@ -2571,8 +3000,6 @@ components:
           type: string
 
     AssertRefSnapshotId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table branch or tag identified by the requirement's `ref` must reference the requirement's `snapshot-id`; 
         if `snapshot-id` is `null` or missing, the ref must not already exist
@@ -2591,8 +3018,6 @@ components:
           format: int64
 
     AssertLastAssignedFieldId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's last assigned column id must match the requirement's `last-assigned-field-id`
       required:
@@ -2606,8 +3031,6 @@ components:
           type: integer
 
     AssertCurrentSchemaId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's current schema id must match the requirement's `current-schema-id`
       required:
@@ -2621,8 +3044,6 @@ components:
           type: integer
 
     AssertLastAssignedPartitionId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's last assigned partition id must match the requirement's `last-assigned-partition-id`
       required:
@@ -2636,8 +3057,6 @@ components:
           type: integer
 
     AssertDefaultSpecId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's default spec id must match the requirement's `default-spec-id`
       required:
@@ -2651,8 +3070,6 @@ components:
           type: integer
 
     AssertDefaultSortOrderId:
-      allOf:
-        - $ref: "#/components/schemas/TableRequirement"
       description:
         The table's default sort order id must match the requirement's `default-sort-order-id`
       required:
@@ -2666,20 +3083,15 @@ components:
           type: integer
 
     ViewRequirement:
+      type: object
       discriminator:
         propertyName: type
         mapping:
           assert-view-uuid: '#/components/schemas/AssertViewUUID'
-      type: object
-      required:
-        - type
-      properties:
-        type:
-          type: "string"
+      oneOf:
+        - $ref: '#/components/schemas/AssertViewUUID'
 
     AssertViewUUID:
-      allOf:
-        - $ref: "#/components/schemas/ViewRequirement"
       description: The view UUID must match the requirement's `uuid`
       required:
         - type
@@ -2730,6 +3142,140 @@ components:
           type: object
           additionalProperties:
             type: string
+
+    ScanTasks:
+      type: object
+      description: >
+        Scan and planning tasks for server-side scan planning
+
+
+        - `plan-tasks` contains opaque units of planning work
+
+        - `file-scan-tasks` contains a partial or complete list of table scan tasks
+
+        - `delete-files` contains delete files referenced by file scan tasks
+
+
+        Each plan task must be passed to the fetchScanTasks endpoint to fetch
+        the file scan tasks for the plan task.
+
+
+        The list of delete files must contain all delete files referenced by
+        the file scan tasks.
+      properties:
+        delete-files:
+          description: Delete files referenced by file scan tasks
+          type: array
+          items:
+            $ref: '#/components/schemas/DeleteFile'
+        file-scan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileScanTask'
+        plan-tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanTask'
+
+    CompletedPlanningResult:
+      type: object
+      description: Completed server-side planning result
+      allOf:
+        - $ref: '#/components/schemas/ScanTasks'
+        - type: object
+          required:
+            - status
+          properties:
+            status:
+              $ref: '#/components/schemas/PlanStatus'
+              enum: ["completed"]
+
+    CompletedPlanningWithIDResult:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/CompletedPlanningResult'
+        - type: object
+          properties:
+            plan-id:
+              description: ID used to track a planning request
+              type: string
+
+    FailedPlanningResult:
+      type: object
+      description: Failed server-side planning result
+      allOf:
+        - $ref: '#/components/schemas/IcebergErrorResponse'
+        - type: object
+          required:
+            - status
+          properties:
+            status:
+              $ref: '#/components/schemas/PlanStatus'
+              enum: ["failed"]
+
+    AsyncPlanningResult:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/PlanStatus'
+          enum: ["submitted"]
+        plan-id:
+          description: ID used to track a planning request
+          type: string
+
+    EmptyPlanningResult:
+      type: object
+      description: Empty server-side planning result
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/PlanStatus'
+          enum: ["submitted", "cancelled"]
+
+    PlanStatus:
+      description: Status of a server-side planning operation
+      type: string
+      enum: ["completed", "submitted", "cancelled", "failed"]
+
+    FetchPlanningResult:
+      type: object
+      description: Result of server-side scan planning for fetchPlanningResult
+      discriminator:
+        propertyName: status
+        mapping:
+          completed: '#/components/schemas/CompletedPlanningResult'
+          submitted: '#/components/schemas/EmptyPlanningResult'
+          cancelled: '#/components/schemas/EmptyPlanningResult'
+          failed: '#/components/schemas/FailedPlanningResult'
+      oneOf:
+        - $ref: '#/components/schemas/CompletedPlanningResult'
+        - $ref: '#/components/schemas/FailedPlanningResult'
+        - $ref: '#/components/schemas/EmptyPlanningResult'
+
+    PlanTableScanResult:
+      type: object
+      description: Result of server-side scan planning for planTableScan
+      discriminator:
+        propertyName: status
+        mapping:
+          completed: '#/components/schemas/CompletedPlanningWithIDResult'
+          submitted: '#/components/schemas/AsyncPlanningResult'
+          cancelled: '#/components/schemas/EmptyPlanningResult'
+          failed: '#/components/schemas/FailedPlanningResult'
+      oneOf:
+        - $ref: '#/components/schemas/CompletedPlanningWithIDResult'
+        - $ref: '#/components/schemas/FailedPlanningResult'
+        - $ref: '#/components/schemas/AsyncPlanningResult'
+        - $ref: '#/components/schemas/EmptyPlanningResult'
+
+    FetchScanTasksResult:
+      type: object
+      description: Response schema for fetchScanTasks
+      allOf:
+        - $ref: '#/components/schemas/ScanTasks'
 
     CommitTableRequest:
       type: object
@@ -2879,7 +3425,12 @@ components:
         See https://datatracker.ietf.org/doc/html/rfc8693#section-3
 
     OAuthClientCredentialsRequest:
-      description:
+      deprecated: true
+      description: 
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
+
+
         OAuth2 client credentials request
 
 
@@ -2914,7 +3465,12 @@ components:
             a Basic Authorization header.
 
     OAuthTokenExchangeRequest:
+      deprecated: true
       description:
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
+
+
         OAuth2 token exchange request
 
 
@@ -2945,6 +3501,10 @@ components:
           $ref: '#/components/schemas/TokenType'
 
     OAuthTokenRequest:
+      deprecated: true
+      description:
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
       anyOf:
         - $ref: '#/components/schemas/OAuthClientCredentialsRequest'
         - $ref: '#/components/schemas/OAuthTokenExchangeRequest'
@@ -2986,44 +3546,45 @@ components:
       type: object
       additionalProperties:
         $ref: '#/components/schemas/MetricResult'
-      example:
-        "metrics": {
-          "total-planning-duration": {
-            "count": 1,
-            "time-unit": "nanoseconds",
-            "total-duration": 2644235116
-          },
-          "result-data-files": {
-            "unit": "count",
-            "value": 1,
-          },
-          "result-delete-files": {
-            "unit": "count",
-            "value": 0,
-          },
-          "total-data-manifests": {
-            "unit": "count",
-            "value": 1,
-          },
-          "total-delete-manifests": {
-            "unit": "count",
-            "value": 0,
-          },
-          "scanned-data-manifests": {
-            "unit": "count",
-            "value": 1,
-          },
-          "skipped-data-manifests": {
-            "unit": "count",
-            "value": 0,
-          },
-          "total-file-size-bytes": {
-            "unit": "bytes",
-            "value": 10,
-          },
-          "total-delete-file-size-bytes": {
-            "unit": "bytes",
-            "value": 0,
+      example: {
+          "metrics": {
+            "total-planning-duration": {
+              "count": 1,
+              "time-unit": "nanoseconds",
+              "total-duration": 2644235116
+            },
+            "result-data-files": {
+              "unit": "count",
+              "value": 1,
+            },
+            "result-delete-files": {
+              "unit": "count",
+              "value": 0,
+            },
+            "total-data-manifests": {
+              "unit": "count",
+              "value": 1,
+            },
+            "total-delete-manifests": {
+              "unit": "count",
+              "value": 0,
+            },
+            "scanned-data-manifests": {
+              "unit": "count",
+              "value": 1,
+            },
+            "skipped-data-manifests": {
+              "unit": "count",
+              "value": 0,
+            },
+            "total-file-size-bytes": {
+              "unit": "bytes",
+              "value": 10,
+            },
+            "total-delete-file-size-bytes": {
+              "unit": "bytes",
+              "value": 0,
+            }
           }
         }
 
@@ -3099,6 +3660,10 @@ components:
             type: string
 
     OAuthError:
+      deprecated: true
+      description:
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
       type: object
       required:
         - error
@@ -3118,6 +3683,10 @@ components:
           type: string
 
     OAuthTokenResponse:
+      deprecated: true
+      description:
+        The `oauth/tokens` endpoint and related schemas are **DEPRECATED for REMOVAL** from this
+        spec, see description of the endpoint.
       type: object
       required:
         - access_token
@@ -3207,6 +3776,8 @@ components:
     ListTablesResponse:
       type: object
       properties:
+        next-page-token:
+          $ref: '#/components/schemas/PageToken'
         identifiers:
           type: array
           uniqueItems: true
@@ -3216,6 +3787,8 @@ components:
     ListNamespacesResponse:
       type: object
       properties:
+        next-page-token:
+          $ref: '#/components/schemas/PageToken'
         namespaces:
           type: array
           uniqueItems: true
@@ -3307,6 +3880,8 @@ components:
             type: integer
         properties:
           type: object
+          additionalProperties:
+            type: string
 
     PartitionStatisticsFile:
       type: object
@@ -3324,6 +3899,392 @@ components:
           type: integer
           format: int64
 
+    BooleanTypeValue:
+      type: boolean
+      example: true
+
+    IntegerTypeValue:
+      type: integer
+      example: 42
+
+    LongTypeValue:
+      type: integer
+      format: int64
+      example: 9223372036854775807
+
+    FloatTypeValue:
+      type: number
+      format: float
+      example: 3.14
+
+    DoubleTypeValue:
+      type: number
+      format: double
+      example: 123.456
+
+    DecimalTypeValue:
+      type: string
+      description:
+        "Decimal type values are serialized as strings. Decimals with a positive scale serialize as numeric plain 
+        text, while decimals with a negative scale use scientific notation and the exponent will be equal to the 
+        negated scale. For instance, a decimal with a positive scale is '123.4500', with zero scale is '2', 
+        and with a negative scale is '2E+20'"
+      example: "123.4500"
+
+    StringTypeValue:
+      type: string
+      example: "hello"
+
+    UUIDTypeValue:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      maxLength: 36
+      minLength: 36
+      description:
+        "UUID type values are serialized as a 36-character lowercase string in standard UUID format as specified 
+        by RFC-4122"
+      example: "eb26bdb1-a1d8-4aa6-990e-da940875492c"
+
+    DateTypeValue:
+      type: string
+      format: date
+      description:
+        "Date type values follow the 'YYYY-MM-DD' ISO-8601 standard date format"
+      example: "2007-12-03"
+
+    TimeTypeValue:
+      type: string
+      description:
+        "Time type values follow the 'HH:MM:SS.ssssss' ISO-8601 format with microsecond precision"
+      example: "22:31:08.123456"
+
+    TimestampTypeValue:
+      type: string
+      description:
+        "Timestamp type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss' ISO-8601 format with microsecond precision"
+      example: "2007-12-03T10:15:30.123456"
+
+    TimestampTzTypeValue:
+      type: string
+      description:
+        "TimestampTz type values follow the 'YYYY-MM-DDTHH:MM:SS.ssssss+00:00' ISO-8601 format with microsecond precision, 
+        and a timezone offset (+00:00 for UTC)"
+      example: "2007-12-03T10:15:30.123456+00:00"
+
+    TimestampNanoTypeValue:
+      type: string
+      description:
+        "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss' ISO-8601 format with nanosecond precision"
+      example: "2007-12-03T10:15:30.123456789"
+
+    TimestampTzNanoTypeValue:
+      type: string
+      description:
+        "Timestamp_ns type values follow the 'YYYY-MM-DDTHH:MM:SS.sssssssss+00:00' ISO-8601 format with nanosecond 
+        precision, and a timezone offset (+00:00 for UTC)"
+      example: "2007-12-03T10:15:30.123456789+00:00"
+
+    FixedTypeValue:
+      type: string
+      description:
+        "Fixed length type values are stored and serialized as an uppercase hexadecimal string 
+        preserving the fixed length"
+      example: "78797A"
+
+    BinaryTypeValue:
+      type: string
+      description:
+        "Binary type values are stored and serialized as an uppercase hexadecimal string"
+      example: "78797A"
+
+    CountMap:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntegerTypeValue'
+          description: "List of integer column ids for each corresponding value"
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/LongTypeValue'
+          description: "List of Long values, matched to 'keys' by index"
+      example:
+        {
+          "keys": [ 1, 2 ],
+          "values": [ 100,200 ]
+        }
+
+    ValueMap:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntegerTypeValue'
+          description: "List of integer column ids for each corresponding value"
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrimitiveTypeValue'
+          description: "List of primitive type values, matched to 'keys' by index"
+      example:
+        {
+            "keys": [ 1, 2 ],
+            "values": [ 100, "test" ]
+        }
+
+    PrimitiveTypeValue:
+      oneOf:
+        - $ref: '#/components/schemas/BooleanTypeValue'
+        - $ref: '#/components/schemas/IntegerTypeValue'
+        - $ref: '#/components/schemas/LongTypeValue'
+        - $ref: '#/components/schemas/FloatTypeValue'
+        - $ref: '#/components/schemas/DoubleTypeValue'
+        - $ref: '#/components/schemas/DecimalTypeValue'
+        - $ref: '#/components/schemas/StringTypeValue'
+        - $ref: '#/components/schemas/UUIDTypeValue'
+        - $ref: '#/components/schemas/DateTypeValue'
+        - $ref: '#/components/schemas/TimeTypeValue'
+        - $ref: '#/components/schemas/TimestampTypeValue'
+        - $ref: '#/components/schemas/TimestampTzTypeValue'
+        - $ref: '#/components/schemas/TimestampNanoTypeValue'
+        - $ref: '#/components/schemas/TimestampTzNanoTypeValue'
+        - $ref: '#/components/schemas/FixedTypeValue'
+        - $ref: '#/components/schemas/BinaryTypeValue'
+
+    FileFormat:
+      type: string
+      enum:
+        - avro
+        - orc
+        - parquet
+
+    ContentFile:
+      discriminator:
+        propertyName: content
+        mapping:
+          data: '#/components/schemas/DataFile'
+          position-deletes: '#/components/schemas/PositionDeleteFile'
+          equality-deletes: '#/components/schemas/EqualityDeleteFile'
+      type: object
+      required:
+        - spec-id
+        - partition
+        - content
+        - file-path
+        - file-format
+        - file-size-in-bytes
+        - record-count
+      properties:
+        content:
+          type: string
+        file-path:
+          type: string
+        file-format:
+          $ref: '#/components/schemas/FileFormat'
+        spec-id:
+          type: integer
+        partition:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrimitiveTypeValue'
+          description:
+            A list of partition field values ordered based on the fields of
+            the partition spec specified by the `spec-id`
+          example: [1, "bar"]
+        file-size-in-bytes:
+          type: integer
+          format: int64
+          description: "Total file size in bytes"
+        record-count:
+          type: integer
+          format: int64
+          description: "Number of records in the file"
+        key-metadata:
+          allOf:
+            - $ref: '#/components/schemas/BinaryTypeValue'
+          description: "Encryption key metadata blob"
+        split-offsets:
+          type: array
+          items:
+            type: integer
+            format: int64
+          description: "List of splittable offsets"
+        sort-order-id:
+          type: integer
+
+    DataFile:
+      allOf:
+        - $ref: '#/components/schemas/ContentFile'
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          enum: [ "data" ]
+        column-sizes:
+          allOf:
+            - $ref: '#/components/schemas/CountMap'
+          description: "Map of column id to total count, including null and NaN"
+        value-counts:
+          allOf:
+            - $ref: '#/components/schemas/CountMap'
+          description: "Map of column id to null value count"
+        null-value-counts:
+          allOf:
+            - $ref: '#/components/schemas/CountMap'
+          description: "Map of column id to null value count"
+        nan-value-counts:
+          allOf:
+            - $ref: '#/components/schemas/CountMap'
+          description: "Map of column id to number of NaN values in the column"
+        lower-bounds:
+          allOf:
+            - $ref: '#/components/schemas/ValueMap'
+          description: "Map of column id to lower bound primitive type values"
+        upper-bounds:
+          allOf:
+            - $ref: '#/components/schemas/ValueMap'
+          description: "Map of column id to upper bound primitive type values"
+
+    DeleteFile:
+      discriminator:
+        propertyName: content
+        mapping:
+          position-deletes: '#/components/schemas/PositionDeleteFile'
+          equality-deletes: '#/components/schemas/EqualityDeleteFile'
+      oneOf:
+        - $ref: '#/components/schemas/PositionDeleteFile'
+        - $ref: '#/components/schemas/EqualityDeleteFile'
+
+    PositionDeleteFile:
+      allOf:
+        - $ref: '#/components/schemas/ContentFile'
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          enum: [ "position-deletes" ]
+
+    EqualityDeleteFile:
+      allOf:
+        - $ref: '#/components/schemas/ContentFile'
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          enum: [ "equality-deletes" ]
+        equality-ids:
+          type: array
+          items:
+            type: integer
+          description: "List of equality field IDs"
+
+    PlanTableScanRequest:
+      type: object
+      properties:
+        snapshot-id:
+          description:
+            Identifier for the snapshot to scan in a point-in-time scan
+          type: integer
+          format: int64
+        select:
+          description: List of selected schema fields
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldName'
+        filter:
+          description:
+            Expression used to filter the table data
+          $ref: '#/components/schemas/Expression'
+        case-sensitive:
+          description: Enables case sensitive field matching for filter and select
+          type: boolean
+          default: true
+        use-snapshot-schema:
+          description:
+            Whether to use the schema at the time the snapshot was written.
+
+            When time travelling, the snapshot schema should be used (true).
+            When scanning a branch, the table schema should be used (false).
+          type: boolean
+          default: false
+        start-snapshot-id:
+          description: Starting snapshot ID for an incremental scan (exclusive)
+          type: integer
+          format: int64
+        end-snapshot-id:
+          description:
+            Ending snapshot ID for an incremental scan (inclusive).
+
+            Required when start-snapshot-id is specified.
+          type: integer
+          format: int64
+        stats-fields:
+          description:
+            List of fields for which the service should send column stats.
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldName'
+
+    FieldName:
+      description:
+        A full field name (including parent field names), such as those passed
+        in APIs like Java `Schema#findField(String name)`.
+
+        The nested field name follows these rules
+        - Nested struct fields are named by concatenating field names at each
+          struct level using dot (`.`) delimiter, e.g.
+          employer.contact_info.address.zip_code
+        - Nested fields in a map key are named using the keyword `key`, e.g.
+          employee_address_map.key.first_name
+        - Nested fields in a map value are named using the keyword `value`,
+          e.g. employee_address_map.value.zip_code
+        - Nested fields in a list are named using the keyword `element`, e.g.
+          employees.element.first_name
+      type: string
+
+    FetchScanTasksRequest:
+      type: object
+      required:
+        - plan-task
+      properties:
+        plan-task:
+          $ref: '#/components/schemas/PlanTask'
+
+    PlanTask:
+      description:
+        An opaque string provided by the REST server that represents a
+        unit of work to produce file scan tasks for scan planning. This allows 
+        clients to fetch tasks across multiple requests to accommodate large result sets.
+      type: string
+
+    FileScanTask:
+      type: object
+      required:
+        - data-file
+      properties:
+        data-file:
+          $ref: '#/components/schemas/DataFile'
+        delete-file-references:
+          description: A list of indices in the delete files array (0-based)
+          type: array
+          items:
+            type: integer
+        residual-filter:
+          description:
+            An optional filter to be applied to rows in this file scan task.
+
+            If the residual is not present, the client must produce the
+            residual or use the original filter.
+          allOf:
+            - $ref: '#/components/schemas/Expression'
 
   #############################
   # Reusable Response Objects #
@@ -3355,12 +4316,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-            "error": {
-              "message": "Malformed request",
-              "type": "BadRequestException",
-              "code": 400
+              "error": {
+                "message": "Malformed request",
+                "type": "BadRequestException",
+                "code": 400
+              }
             }
-          }
 
     #  Note that this is a representative example response for use as a shorthand in the spec.
     #  The fields `message` and `type` as indicated here are not presently prescriptive.
@@ -3372,12 +4333,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-            "error": {
-              "message": "Not authorized to make this request",
-              "type": "NotAuthorizedException",
-              "code": 401
+              "error": {
+                "message": "Not authorized to make this request",
+                "type": "NotAuthorizedException",
+                "code": 401
+              }
             }
-          }
 
     #  Note that this is a representative example response for use as a shorthand in the spec.
     #  The fields `message` and `type` as indicated here are not presently prescriptive.
@@ -3388,12 +4349,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-            "error": {
-              "message": "Not authorized to make this request",
-              "type": "NotAuthorizedException",
-              "code": 403
+              "error": {
+                "message": "Not authorized to make this request",
+                "type": "NotAuthorizedException",
+                "code": 403
+              }
             }
-          }
 
     #  Note that this is a representative example response for use as a shorthand in the spec.
     #  The fields `message` and `type` as indicated here are not presently prescriptive.
@@ -3404,12 +4365,12 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorModel'
           example: {
-            "error": {
-              "message": "The server does not support this operation",
-              "type": "UnsupportedOperationException",
-              "code": 406
+              "error": {
+                "message": "The server does not support this operation",
+                "type": "UnsupportedOperationException",
+                "code": 406
+              }
             }
-          }
 
     IcebergErrorResponse:
       description: JSON wrapper for all error responses (non-2xx)
@@ -3435,9 +4396,9 @@ components:
           schema:
             $ref: '#/components/schemas/CreateNamespaceResponse'
           example: {
-            "namespace": ["accounting", "tax"],
-            "properties": { "owner": "Ralph", "created_at": "1452120468" }
-          }
+              "namespace": ["accounting", "tax"],
+              "properties": { "owner": "Ralph", "created_at": "1452120468" }
+            }
 
     GetNamespaceResponse:
       description:
@@ -3480,12 +4441,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-            "error": {
-              "message": "Credentials have timed out",
-              "type": "AuthenticationTimeoutException",
-              "code": 419
+              "error": {
+                "message": "Credentials have timed out",
+                "type": "AuthenticationTimeoutException",
+                "code": 419
+              }
             }
-          }
 
     ServiceUnavailableResponse:
       description:
@@ -3498,12 +4459,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-            "error": {
-              "message": "Slow down",
-              "type": "SlowDownException",
-              "code": 503
+              "error": {
+                "message": "Slow down",
+                "type": "SlowDownException",
+                "code": 503
+              }
             }
-          }
 
     ServerErrorResponse:
       description:
@@ -3515,12 +4476,12 @@ components:
           schema:
             $ref: '#/components/schemas/IcebergErrorResponse'
           example: {
-            "error": {
-              "message": "Internal Server Error",
-              "type": "InternalServerError",
-              "code": 500
+              "error": {
+                "message": "Internal Server Error",
+                "type": "InternalServerError",
+                "code": 500
+              }
             }
-          }
 
     UpdateNamespacePropertiesResponse:
       description: JSON data response for a synchronous update properties request.
@@ -3529,10 +4490,10 @@ components:
           schema:
             $ref: '#/components/schemas/UpdateNamespacePropertiesResponse'
           example: {
-            "updated": [ "owner" ],
-            "removed": [ "foo" ],
-            "missing": [ "bar" ]
-          }
+              "updated": [ "owner" ],
+              "removed": [ "foo" ],
+              "missing": [ "bar" ]
+            }
 
     CreateTableResponse:
       description: Table metadata result after creating a table
@@ -3540,6 +4501,27 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/LoadTableResult'
+
+    PlanTableScanResponse:
+      description: Result of submitting a table scan to plan
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PlanTableScanResult'
+
+    FetchPlanningResultResponse:
+      description: Result of fetching a submitted scan planning operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FetchPlanningResult'
+
+    FetchScanTasksResponse:
+      description: Result of retrieving additional plan tasks and file scan tasks.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FetchScanTasksResult'
 
     LoadTableResponse:
       description: Table metadata result when loading a table
@@ -3573,32 +4555,32 @@ components:
     ListTablesEmptyExample:
       summary: An empty list for a namespace with no tables
       value: {
-        "identifiers": [ ]
-      }
+          "identifiers": [ ]
+        }
 
     ListNamespacesEmptyExample:
       summary: An empty list of namespaces
       value: {
-        "namespaces": [ ]
-      }
+          "namespaces": [ ]
+        }
 
     ListNamespacesNonEmptyExample:
       summary: A non-empty list of namespaces
       value: {
-        "namespaces": [
-          ["accounting", "tax"],
-          ["accounting", "credits"]
-        ]
-      }
+          "namespaces": [
+            ["accounting", "tax"],
+            ["accounting", "credits"]
+          ]
+        }
 
     ListTablesNonEmptyExample:
       summary: A non-empty list of table identifiers
       value: {
-        "identifiers": [
-          { "namespace": ["accounting", "tax"], "name": "paid" },
-          { "namespace": ["accounting", "tax"], "name": "owed" }
-        ]
-      }
+          "identifiers": [
+            { "namespace": ["accounting", "tax"], "name": "paid" },
+            { "namespace": ["accounting", "tax"], "name": "owed" }
+          ]
+        }
 
     MultipartNamespaceAsPathVariable:
       summary: A multi-part namespace, as represented in a path parameter
@@ -3611,76 +4593,96 @@ components:
     NamespaceAlreadyExistsError:
       summary: The requested namespace already exists
       value: {
-        "error": {
-          "message": "The given namespace already exists",
-          "type": "AlreadyExistsException",
-          "code": 409
+          "error": {
+            "message": "The given namespace already exists",
+            "type": "AlreadyExistsException",
+            "code": 409
+          }
         }
-      }
+
+    NoSuchPlanIdError:
+      summary: The plan id does not exist
+      value: {
+          "error": {
+            "message": "The plan id does not exist",
+            "type": "NoSuchPlanIdException",
+            "code": 404
+          }
+        }
+
+    NoSuchPlanTaskError:
+      summary: The plan task does not exist
+      value: {
+          "error": {
+            "message": "The plan task does not exist",
+            "type": "NoSuchPlanTaskException",
+            "code": 404
+          }
+        }
 
     NoSuchTableError:
       summary: The requested table does not exist
       value: {
-        "error": {
-          "message": "The given table does not exist",
-          "type": "NoSuchTableException",
-          "code": 404
+          "error": {
+            "message": "The given table does not exist",
+            "type": "NoSuchTableException",
+            "code": 404
+          }
         }
-      }
 
     NoSuchViewError:
       summary: The requested view does not exist
       value: {
-        "error": {
-          "message": "The given view does not exist",
-          "type": "NoSuchViewException",
-          "code": 404
+          "error": {
+            "message": "The given view does not exist",
+            "type": "NoSuchViewException",
+            "code": 404
+          }
         }
-      }
 
     NoSuchNamespaceError:
       summary: The requested namespace does not exist
       value: {
-        "error": {
-          "message": "The given namespace does not exist",
-          "type": "NoSuchNamespaceException",
-          "code": 404
+          "error": {
+            "message": "The given namespace does not exist",
+            "type": "NoSuchNamespaceException",
+            "code": 404
+          }
         }
-      }
 
     RenameTableSameNamespace:
       summary: Rename a table in the same namespace
       value: {
-        "source": { "namespace": ["accounting", "tax"], "name": "paid" },
-        "destination": { "namespace": ["accounting", "tax"], "name": "owed" }
-      }
+          "source": { "namespace": ["accounting", "tax"], "name": "paid" },
+          "destination": { "namespace": ["accounting", "tax"], "name": "owed" }
+        }
 
     RenameViewSameNamespace:
       summary: Rename a view in the same namespace
       value: {
-        "source": { "namespace": [ "accounting", "tax" ], "name": "paid-view" },
-        "destination": { "namespace": [ "accounting", "tax" ], "name": "owed-view" }
-      }
+          "source": { "namespace": [ "accounting", "tax" ], "name": "paid-view" },
+          "destination": { "namespace": [ "accounting", "tax" ], "name": "owed-view" }
+        }
 
     TableAlreadyExistsError:
       summary: The requested table identifier already exists
       value: {
-        "error": {
-          "message": "The given table already exists",
-          "type": "AlreadyExistsException",
-          "code": 409
+          "error": {
+            "message": "The given table already exists",
+            "type": "AlreadyExistsException",
+            "code": 409
+          }
         }
-      }
 
     ViewAlreadyExistsError:
       summary: The requested view identifier already exists
       value: {
-        "error": {
-          "message": "The given view already exists",
-          "type": "AlreadyExistsException",
-          "code": 409
+          "error": {
+            "message": "The given view already exists",
+            "type": "AlreadyExistsException",
+            "code": 409
+          }
         }
-      }
 
     # This is an example response and is not meant to be prescriptive regarding the message or type.
     UnprocessableEntityDuplicateKey:
@@ -3688,19 +4690,19 @@ components:
         The request body either has the same key multiple times in what should be a map with unique keys
         or the request body has keys in two or more fields which should be disjoint sets.
       value: {
-        "error": {
-          "message": "The request cannot be processed as there is a key present multiple times",
-          "type": "UnprocessableEntityException",
-          "code": 422
+          "error": {
+            "message": "The request cannot be processed as there is a key present multiple times",
+            "type": "UnprocessableEntityException",
+            "code": 422
+          }
         }
-      }
 
     UpdateAndRemoveNamespacePropertiesRequest:
       summary: An update namespace properties request with both properties to remove and properties to upsert.
       value: {
-        "removals": [ "foo", "bar" ],
-        "updates": { "owner": "Raoul" }
-      }
+          "removals": [ "foo", "bar" ],
+          "updates": { "owner": "Raoul" }
+        }
 
   securitySchemes:
     OAuth2:

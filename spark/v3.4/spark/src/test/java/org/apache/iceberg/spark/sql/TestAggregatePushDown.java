@@ -18,9 +18,12 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -33,8 +36,13 @@ import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.execution.ExplainMode;
+import org.apache.spark.sql.functions;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -471,6 +479,120 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
   }
 
   @Test
+  public void testAggregationPushdownStructInteger() {
+    sql("CREATE TABLE %s (id BIGINT, struct_with_int STRUCT<c1:BIGINT>) USING iceberg", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", NULL))", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", 2))", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, named_struct(\"c1\", 3))", tableName);
+
+    String query = "SELECT COUNT(%s), MAX(%s), MIN(%s) FROM %s";
+    String aggField = "struct_with_int.c1";
+    assertAggregates(sql(query, aggField, aggField, aggField, tableName), 2L, 3L, 2L);
+    assertExplainContains(
+        sql("EXPLAIN " + query, aggField, aggField, aggField, tableName),
+        "count(struct_with_int.c1)",
+        "max(struct_with_int.c1)",
+        "min(struct_with_int.c1)");
+  }
+
+  @Test
+  public void testAggregationPushdownNestedStruct() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, struct_with_int STRUCT<c1:STRUCT<c2:STRUCT<c3:STRUCT<c4:BIGINT>>>>) USING iceberg",
+        tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", named_struct(\"c2\", named_struct(\"c3\", named_struct(\"c4\", NULL)))))",
+        tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", named_struct(\"c2\", named_struct(\"c3\", named_struct(\"c4\", 2)))))",
+        tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (3, named_struct(\"c1\", named_struct(\"c2\", named_struct(\"c3\", named_struct(\"c4\", 3)))))",
+        tableName);
+
+    String query = "SELECT COUNT(%s), MAX(%s), MIN(%s) FROM %s";
+    String aggField = "struct_with_int.c1.c2.c3.c4";
+
+    assertAggregates(sql(query, aggField, aggField, aggField, tableName), 2L, 3L, 2L);
+
+    assertExplainContains(
+        sql("EXPLAIN " + query, aggField, aggField, aggField, tableName),
+        "count(struct_with_int.c1.c2.c3.c4)",
+        "max(struct_with_int.c1.c2.c3.c4)",
+        "min(struct_with_int.c1.c2.c3.c4)");
+  }
+
+  @Test
+  public void testAggregationPushdownStructTimestamp() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, struct_with_ts STRUCT<c1:TIMESTAMP>) USING iceberg",
+        tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", NULL))", tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", timestamp('2023-01-30T22:22:22Z')))",
+        tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (3, named_struct(\"c1\", timestamp('2023-01-30T22:23:23Z')))",
+        tableName);
+
+    String query = "SELECT COUNT(%s), MAX(%s), MIN(%s) FROM %s";
+    String aggField = "struct_with_ts.c1";
+
+    assertAggregates(
+        sql(query, aggField, aggField, aggField, tableName),
+        2L,
+        new Timestamp(1675117403000L),
+        new Timestamp(1675117342000L));
+
+    assertExplainContains(
+        sql("EXPLAIN " + query, aggField, aggField, aggField, tableName),
+        "count(struct_with_ts.c1)",
+        "max(struct_with_ts.c1)",
+        "min(struct_with_ts.c1)");
+  }
+
+  @Test
+  public void testAggregationPushdownOnBucketedColumn() {
+    sql(
+        "CREATE TABLE %s (id BIGINT, struct_with_int STRUCT<c1:INT>) USING iceberg PARTITIONED BY (bucket(8, id))",
+        tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, named_struct(\"c1\", NULL))", tableName);
+    sql("INSERT INTO TABLE %s VALUES (null, named_struct(\"c1\", 2))", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, named_struct(\"c1\", 3))", tableName);
+
+    String query = "SELECT COUNT(%s), MAX(%s), MIN(%s) FROM %s";
+    String aggField = "id";
+    assertAggregates(sql(query, aggField, aggField, aggField, tableName), 2L, 2L, 1L);
+    assertExplainContains(
+        sql("EXPLAIN " + query, aggField, aggField, aggField, tableName),
+        "count(id)",
+        "max(id)",
+        "min(id)");
+  }
+
+  private void assertAggregates(
+      List<Object[]> actual, Object expectedCount, Object expectedMax, Object expectedMin) {
+    Object actualCount = actual.get(0)[0];
+    Object actualMax = actual.get(0)[1];
+    Object actualMin = actual.get(0)[2];
+
+    assertThat(actualCount).as("Expected and actual count should equal").isEqualTo(expectedCount);
+    assertThat(actualMax).as("Expected and actual max should equal").isEqualTo(expectedMax);
+    assertThat(actualMin).as("Expected and actual min should equal").isEqualTo(expectedMin);
+  }
+
+  private void assertExplainContains(List<Object[]> explain, String... expectedFragments) {
+    String explainString = explain.get(0)[0].toString().toLowerCase(Locale.ROOT);
+    Arrays.stream(expectedFragments)
+        .forEach(
+            fragment ->
+                assertThat(explainString)
+                    .as("Expected to find plan fragment in explain plan")
+                    .contains(fragment));
+  }
+
+  @Test
   public void testAggregatePushDownInDeleteCopyOnWrite() {
     sql("CREATE TABLE %s (id LONG, data INT) USING iceberg", tableName);
     sql(
@@ -678,5 +800,50 @@ public class TestAggregatePushDown extends SparkCatalogTestBase {
           6L
         });
     assertEquals("min/max/count push down", expected, actual);
+  }
+
+  @Test
+  public void testAggregatePushDownForIncrementalScan() {
+    sql("CREATE TABLE %s (id LONG, data INT) USING iceberg", tableName);
+    sql(
+        "INSERT INTO TABLE %s VALUES (1, 1111), (1, 2222), (2, 3333), (2, 4444), (3, 5555), (3, 6666) ",
+        tableName);
+    long snapshotId1 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (4, 7777), (5, 8888)", tableName);
+    long snapshotId2 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (6, -7777), (7, 8888)", tableName);
+    long snapshotId3 = validationCatalog.loadTable(tableIdent).currentSnapshot().snapshotId();
+    sql("INSERT INTO %s VALUES (8, 7777), (9, 9999)", tableName);
+
+    Dataset<Row> pushdownDs =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId2)
+            .option(SparkReadOptions.END_SNAPSHOT_ID, snapshotId3)
+            .load(tableName)
+            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
+    String explain1 = pushdownDs.queryExecution().explainString(ExplainMode.fromString("simple"));
+    assertThat(explain1).contains("LocalTableScan", "min(data)", "max(data)", "count(data)");
+
+    List<Object[]> expected1 = Lists.newArrayList();
+    expected1.add(new Object[] {-7777, 8888, 2L});
+    assertEquals("min/max/count push down", expected1, rowsToJava(pushdownDs.collectAsList()));
+
+    Dataset<Row> unboundedPushdownDs =
+        spark
+            .read()
+            .format("iceberg")
+            .option(SparkReadOptions.START_SNAPSHOT_ID, snapshotId1)
+            .load(tableName)
+            .agg(functions.min("data"), functions.max("data"), functions.count("data"));
+    String explain2 =
+        unboundedPushdownDs.queryExecution().explainString(ExplainMode.fromString("simple"));
+    assertThat(explain2).contains("LocalTableScan", "min(data)", "max(data)", "count(data)");
+
+    List<Object[]> expected2 = Lists.newArrayList();
+    expected2.add(new Object[] {-7777, 9999, 6L});
+    assertEquals(
+        "min/max/count push down", expected2, rowsToJava(unboundedPushdownDs.collectAsList()));
   }
 }

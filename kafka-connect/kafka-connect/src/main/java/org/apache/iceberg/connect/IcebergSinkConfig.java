@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.connect;
 
-import static java.util.stream.Collectors.toList;
-
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -28,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -63,7 +62,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String KAFKA_PROP_PREFIX = "iceberg.kafka.";
   private static final String TABLE_PROP_PREFIX = "iceberg.table.";
   private static final String AUTO_CREATE_PROP_PREFIX = "iceberg.tables.auto-create-props.";
-  private static final String WRITE_PROP_PREFIX = "iceberg.table.write-props.";
+  private static final String WRITE_PROP_PREFIX = "iceberg.tables.write-props.";
 
   private static final String CATALOG_NAME_PROP = "iceberg.catalog";
   private static final String TABLES_PROP = "iceberg.tables";
@@ -72,7 +71,6 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String TABLES_DEFAULT_COMMIT_BRANCH = "iceberg.tables.default-commit-branch";
   private static final String TABLES_DEFAULT_ID_COLUMNS = "iceberg.tables.default-id-columns";
   private static final String TABLES_DEFAULT_PARTITION_BY = "iceberg.tables.default-partition-by";
-  // FIXME: add config for CDC and upsert mode
   private static final String TABLES_AUTO_CREATE_ENABLED_PROP =
       "iceberg.tables.auto-create-enabled";
   private static final String TABLES_EVOLVE_SCHEMA_ENABLED_PROP =
@@ -82,14 +80,13 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String TABLES_SCHEMA_CASE_INSENSITIVE_PROP =
       "iceberg.tables.schema-case-insensitive";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
-  private static final String CONTROL_GROUP_ID_PROP = "iceberg.control.group-id";
   private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
   private static final int COMMIT_INTERVAL_MS_DEFAULT = 300_000;
   private static final String COMMIT_TIMEOUT_MS_PROP = "iceberg.control.commit.timeout-ms";
   private static final int COMMIT_TIMEOUT_MS_DEFAULT = 30_000;
   private static final String COMMIT_THREADS_PROP = "iceberg.control.commit.threads";
   private static final String CONNECT_GROUP_ID_PROP = "iceberg.connect.group-id";
-  private static final String HADDOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
+  private static final String HADOOP_CONF_DIR_PROP = "iceberg.hadoop-conf-dir";
 
   private static final String NAME_PROP = "name";
   private static final String BOOTSTRAP_SERVERS_PROP = "bootstrap.servers";
@@ -106,11 +103,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   public static final ConfigDef CONFIG_DEF = newConfigDef();
 
   public static String version() {
-    String kcVersion = IcebergSinkConfig.class.getPackage().getImplementationVersion();
-    if (kcVersion == null) {
-      kcVersion = "unknown";
-    }
-    return IcebergBuild.version() + "-kc-" + kcVersion;
+    return IcebergBuild.version();
   }
 
   private static ConfigDef newConfigDef() {
@@ -188,12 +181,6 @@ public class IcebergSinkConfig extends AbstractConfig {
         Importance.MEDIUM,
         "Name of the control topic");
     configDef.define(
-        CONTROL_GROUP_ID_PROP,
-        ConfigDef.Type.STRING,
-        null,
-        Importance.MEDIUM,
-        "Name of the consumer group to store offsets");
-    configDef.define(
         CONNECT_GROUP_ID_PROP,
         ConfigDef.Type.STRING,
         null,
@@ -218,11 +205,11 @@ public class IcebergSinkConfig extends AbstractConfig {
         Importance.MEDIUM,
         "Coordinator threads to use for table commits, default is (cores * 2)");
     configDef.define(
-        HADDOP_CONF_DIR_PROP,
+        HADOOP_CONF_DIR_PROP,
         ConfigDef.Type.STRING,
         null,
         Importance.MEDIUM,
-        "Coordinator threads to use for table commits, default is (cores * 2)");
+        "If specified, Hadoop config files in this directory will be loaded");
     return configDef;
   }
 
@@ -365,21 +352,11 @@ public class IcebergSinkConfig extends AbstractConfig {
       return ImmutableList.of();
     }
 
-    return Arrays.stream(value.split(regex)).map(String::trim).collect(toList());
+    return Arrays.stream(value.split(regex)).map(String::trim).collect(Collectors.toList());
   }
 
   public String controlTopic() {
     return getString(CONTROL_TOPIC_PROP);
-  }
-
-  public String controlGroupId() {
-    String result = getString(CONTROL_GROUP_ID_PROP);
-    if (result != null) {
-      return result;
-    }
-    String connectorName = connectorName();
-    Preconditions.checkNotNull(connectorName, "Connector name cannot be null");
-    return DEFAULT_CONTROL_GROUP_PREFIX + connectorName;
   }
 
   public String connectGroupId() {
@@ -406,7 +383,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   }
 
   public String hadoopConfDir() {
-    return getString(HADDOP_CONF_DIR_PROP);
+    return getString(HADOOP_CONF_DIR_PROP);
   }
 
   public boolean autoCreateEnabled() {

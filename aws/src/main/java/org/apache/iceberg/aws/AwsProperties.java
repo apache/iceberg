@@ -31,8 +31,6 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.PropertyUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -45,8 +43,6 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClientBuilder;
 import software.amazon.awssdk.services.glue.GlueClientBuilder;
 
 public class AwsProperties implements Serializable {
-
-  private static final Logger LOG = LoggerFactory.getLogger(AwsProperties.class);
 
   /**
    * The ID of the Glue Data Catalog where the tables reside. If none is provided, Glue
@@ -210,28 +206,27 @@ public class AwsProperties implements Serializable {
    */
   public static final String REST_SESSION_TOKEN = "rest.session-token";
 
-  private static final String HTTP_CLIENT_PREFIX = "http-client.";
   private final Set<software.amazon.awssdk.services.sts.model.Tag> stsClientAssumeRoleTags;
 
-  private String clientAssumeRoleArn;
-  private String clientAssumeRoleExternalId;
-  private int clientAssumeRoleTimeoutSec;
-  private String clientAssumeRoleRegion;
-  private String clientAssumeRoleSessionName;
-  private String clientCredentialsProvider;
+  private final String clientAssumeRoleArn;
+  private final String clientAssumeRoleExternalId;
+  private final int clientAssumeRoleTimeoutSec;
+  private final String clientAssumeRoleRegion;
+  private final String clientAssumeRoleSessionName;
+  private final String clientCredentialsProvider;
   private final Map<String, String> clientCredentialsProviderProperties;
 
-  private String glueEndpoint;
+  private final String glueEndpoint;
   private String glueCatalogId;
   private boolean glueCatalogSkipArchive;
   private boolean glueCatalogSkipNameValidation;
   private boolean glueLakeFormationEnabled;
 
   private String dynamoDbTableName;
-  private String dynamoDbEndpoint;
+  private final String dynamoDbEndpoint;
 
   private String restSigningRegion;
-  private String restSigningName;
+  private final String restSigningName;
   private String restAccessKeyId;
   private String restSecretAccessKey;
   private String restSessionToken;

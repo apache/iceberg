@@ -22,38 +22,38 @@ import java.time.Instant;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LogMessage {
-  private static AtomicInteger idCounter = new AtomicInteger(0);
+  private static final AtomicInteger ID_COUNTER = new AtomicInteger(0);
 
   static LogMessage debug(String date, String message) {
-    return new LogMessage(idCounter.getAndIncrement(), date, "DEBUG", message);
+    return new LogMessage(ID_COUNTER.getAndIncrement(), date, "DEBUG", message);
   }
 
   static LogMessage debug(String date, String message, Instant timestamp) {
-    return new LogMessage(idCounter.getAndIncrement(), date, "DEBUG", message, timestamp);
+    return new LogMessage(ID_COUNTER.getAndIncrement(), date, "DEBUG", message, timestamp);
   }
 
   static LogMessage info(String date, String message) {
-    return new LogMessage(idCounter.getAndIncrement(), date, "INFO", message);
+    return new LogMessage(ID_COUNTER.getAndIncrement(), date, "INFO", message);
   }
 
   static LogMessage info(String date, String message, Instant timestamp) {
-    return new LogMessage(idCounter.getAndIncrement(), date, "INFO", message, timestamp);
+    return new LogMessage(ID_COUNTER.getAndIncrement(), date, "INFO", message, timestamp);
   }
 
   static LogMessage error(String date, String message) {
-    return new LogMessage(idCounter.getAndIncrement(), date, "ERROR", message);
+    return new LogMessage(ID_COUNTER.getAndIncrement(), date, "ERROR", message);
   }
 
   static LogMessage error(String date, String message, Instant timestamp) {
-    return new LogMessage(idCounter.getAndIncrement(), date, "ERROR", message, timestamp);
+    return new LogMessage(ID_COUNTER.getAndIncrement(), date, "ERROR", message, timestamp);
   }
 
   static LogMessage warn(String date, String message) {
-    return new LogMessage(idCounter.getAndIncrement(), date, "WARN", message);
+    return new LogMessage(ID_COUNTER.getAndIncrement(), date, "WARN", message);
   }
 
   static LogMessage warn(String date, String message, Instant timestamp) {
-    return new LogMessage(idCounter.getAndIncrement(), date, "WARN", message, timestamp);
+    return new LogMessage(ID_COUNTER.getAndIncrement(), date, "WARN", message, timestamp);
   }
 
   private int id;

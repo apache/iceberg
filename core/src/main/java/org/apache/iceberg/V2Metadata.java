@@ -47,7 +47,8 @@ class V2Metadata {
           ManifestFile.ADDED_ROWS_COUNT.asRequired(),
           ManifestFile.EXISTING_ROWS_COUNT.asRequired(),
           ManifestFile.DELETED_ROWS_COUNT.asRequired(),
-          ManifestFile.PARTITION_SUMMARIES);
+          ManifestFile.PARTITION_SUMMARIES,
+          ManifestFile.KEY_METADATA);
 
   /**
    * A wrapper class to write any ManifestFile implementation to Avro using the v2 write schema.
@@ -458,6 +459,11 @@ class V2Metadata {
 
     @Override
     public Long pos() {
+      return null;
+    }
+
+    @Override
+    public String manifestLocation() {
       return null;
     }
 

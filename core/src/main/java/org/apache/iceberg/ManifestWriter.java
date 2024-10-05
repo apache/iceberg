@@ -19,7 +19,9 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -37,6 +39,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static final long UNASSIGNED_SEQ = -1L;
 
   private final OutputFile file;
+  private final ByteBuffer keyMetadataBuffer;
   private final int specId;
   private final FileAppender<ManifestEntry<F>> writer;
   private final Long snapshotId;
@@ -52,13 +55,15 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   private long deletedRows = 0L;
   private Long minDataSequenceNumber = null;
 
-  private ManifestWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
-    this.file = file;
+  private ManifestWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
+    this.file = file.encryptingOutputFile();
     this.specId = spec.specId();
-    this.writer = newAppender(spec, file);
+    this.writer = newAppender(spec, this.file);
     this.snapshotId = snapshotId;
-    this.reused = new GenericManifestEntry<>(spec.partitionType());
+    this.reused =
+        new GenericManifestEntry<>(V1Metadata.entrySchema(spec.partitionType()).asStruct());
     this.stats = new PartitionSummary(spec);
+    this.keyMetadataBuffer = (file.keyMetadata() == null) ? null : file.keyMetadata().buffer();
   }
 
   protected abstract ManifestEntry<F> prepare(ManifestEntry<F> entry);
@@ -204,7 +209,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
         deletedFiles,
         deletedRows,
         stats.summaries(),
-        null);
+        keyMetadataBuffer);
   }
 
   @Override
@@ -213,10 +218,83 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
     writer.close();
   }
 
+  static class V3Writer extends ManifestWriter<DataFile> {
+    private final V3Metadata.IndexedManifestEntry<DataFile> entryWrapper;
+
+    V3Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
+      super(spec, file, snapshotId);
+      this.entryWrapper = new V3Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
+    }
+
+    @Override
+    protected ManifestEntry<DataFile> prepare(ManifestEntry<DataFile> entry) {
+      return entryWrapper.wrap(entry);
+    }
+
+    @Override
+    protected FileAppender<ManifestEntry<DataFile>> newAppender(
+        PartitionSpec spec, OutputFile file) {
+      Schema manifestSchema = V3Metadata.entrySchema(spec.partitionType());
+      try {
+        return Avro.write(file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "3")
+            .meta("content", "data")
+            .overwrite()
+            .build();
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
+      }
+    }
+  }
+
+  static class V3DeleteWriter extends ManifestWriter<DeleteFile> {
+    private final V3Metadata.IndexedManifestEntry<DeleteFile> entryWrapper;
+
+    V3DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
+      super(spec, file, snapshotId);
+      this.entryWrapper = new V3Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
+    }
+
+    @Override
+    protected ManifestEntry<DeleteFile> prepare(ManifestEntry<DeleteFile> entry) {
+      return entryWrapper.wrap(entry);
+    }
+
+    @Override
+    protected FileAppender<ManifestEntry<DeleteFile>> newAppender(
+        PartitionSpec spec, OutputFile file) {
+      Schema manifestSchema = V3Metadata.entrySchema(spec.partitionType());
+      try {
+        return Avro.write(file)
+            .schema(manifestSchema)
+            .named("manifest_entry")
+            .meta("schema", SchemaParser.toJson(spec.schema()))
+            .meta("partition-spec", PartitionSpecParser.toJsonFields(spec))
+            .meta("partition-spec-id", String.valueOf(spec.specId()))
+            .meta("format-version", "3")
+            .meta("content", "deletes")
+            .overwrite()
+            .build();
+      } catch (IOException e) {
+        throw new RuntimeIOException(e, "Failed to create manifest writer for path: %s", file);
+      }
+    }
+
+    @Override
+    protected ManifestContent content() {
+      return ManifestContent.DELETES;
+    }
+  }
+
   static class V2Writer extends ManifestWriter<DataFile> {
     private final V2Metadata.IndexedManifestEntry<DataFile> entryWrapper;
 
-    V2Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
+    V2Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
@@ -250,7 +328,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V2DeleteWriter extends ManifestWriter<DeleteFile> {
     private final V2Metadata.IndexedManifestEntry<DeleteFile> entryWrapper;
 
-    V2DeleteWriter(PartitionSpec spec, OutputFile file, Long snapshotId) {
+    V2DeleteWriter(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
       this.entryWrapper = new V2Metadata.IndexedManifestEntry<>(snapshotId, spec.partitionType());
     }
@@ -289,7 +367,7 @@ public abstract class ManifestWriter<F extends ContentFile<F>> implements FileAp
   static class V1Writer extends ManifestWriter<DataFile> {
     private final V1Metadata.IndexedManifestEntry entryWrapper;
 
-    V1Writer(PartitionSpec spec, OutputFile file, Long snapshotId) {
+    V1Writer(PartitionSpec spec, EncryptedOutputFile file, Long snapshotId) {
       super(spec, file, snapshotId);
       this.entryWrapper = new V1Metadata.IndexedManifestEntry(spec.partitionType());
     }

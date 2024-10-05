@@ -20,11 +20,11 @@ package org.apache.iceberg.aws;
 
 import static org.apache.iceberg.aws.AwsProperties.DYNAMODB_TABLE_NAME;
 import static org.apache.iceberg.aws.AwsProperties.GLUE_CATALOG_ID;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestAwsProperties {
@@ -35,9 +35,9 @@ public class TestAwsProperties {
         new AwsProperties(ImmutableMap.of(GLUE_CATALOG_ID, "foo", DYNAMODB_TABLE_NAME, "ice"));
     AwsProperties deSerializedAwsPropertiesWithProps =
         TestHelpers.KryoHelpers.roundTripSerialize(awsPropertiesWithProps);
-    Assertions.assertThat(deSerializedAwsPropertiesWithProps.glueCatalogId())
+    assertThat(deSerializedAwsPropertiesWithProps.glueCatalogId())
         .isEqualTo(awsPropertiesWithProps.glueCatalogId());
-    Assertions.assertThat(deSerializedAwsPropertiesWithProps.dynamoDbTableName())
+    assertThat(deSerializedAwsPropertiesWithProps.dynamoDbTableName())
         .isEqualTo(awsPropertiesWithProps.dynamoDbTableName());
   }
 }

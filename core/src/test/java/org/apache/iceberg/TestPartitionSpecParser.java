@@ -18,15 +18,21 @@
  */
 package org.apache.iceberg;
 
-import org.junit.Assert;
-import org.junit.Test;
+import static org.assertj.core.api.Assertions.assertThat;
 
-public class TestPartitionSpecParser extends TableTestBase {
-  public TestPartitionSpecParser() {
-    super(1);
+import java.util.Arrays;
+import java.util.List;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestPartitionSpecParser extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1);
   }
 
-  @Test
+  @TestTemplate
   public void testToJsonForV1Table() {
     String expected =
         "{\n"
@@ -38,7 +44,7 @@ public class TestPartitionSpecParser extends TableTestBase {
             + "    \"field-id\" : 1000\n"
             + "  } ]\n"
             + "}";
-    Assert.assertEquals(expected, PartitionSpecParser.toJson(table.spec(), true));
+    assertThat(PartitionSpecParser.toJson(table.spec(), true)).isEqualTo(expected);
 
     PartitionSpec spec =
         PartitionSpec.builderFor(table.schema()).bucket("id", 8).bucket("data", 16).build();
@@ -60,10 +66,10 @@ public class TestPartitionSpecParser extends TableTestBase {
             + "    \"field-id\" : 1001\n"
             + "  } ]\n"
             + "}";
-    Assert.assertEquals(expected, PartitionSpecParser.toJson(table.spec(), true));
+    assertThat(PartitionSpecParser.toJson(table.spec(), true)).isEqualTo(expected);
   }
 
-  @Test
+  @TestTemplate
   public void testFromJsonWithFieldId() {
     String specString =
         "{\n"
@@ -83,13 +89,13 @@ public class TestPartitionSpecParser extends TableTestBase {
 
     PartitionSpec spec = PartitionSpecParser.fromJson(table.schema(), specString);
 
-    Assert.assertEquals(2, spec.fields().size());
+    assertThat(spec.fields()).hasSize(2);
     // should be the field ids in the JSON
-    Assert.assertEquals(1001, spec.fields().get(0).fieldId());
-    Assert.assertEquals(1000, spec.fields().get(1).fieldId());
+    assertThat(spec.fields().get(0).fieldId()).isEqualTo(1001);
+    assertThat(spec.fields().get(1).fieldId()).isEqualTo(1000);
   }
 
-  @Test
+  @TestTemplate
   public void testFromJsonWithoutFieldId() {
     String specString =
         "{\n"
@@ -107,17 +113,16 @@ public class TestPartitionSpecParser extends TableTestBase {
 
     PartitionSpec spec = PartitionSpecParser.fromJson(table.schema(), specString);
 
-    Assert.assertEquals(2, spec.fields().size());
+    assertThat(spec.fields()).hasSize(2);
     // should be the default assignment
-    Assert.assertEquals(1000, spec.fields().get(0).fieldId());
-    Assert.assertEquals(1001, spec.fields().get(1).fieldId());
+    assertThat(spec.fields().get(0).fieldId()).isEqualTo(1000);
+    assertThat(spec.fields().get(1).fieldId()).isEqualTo(1001);
   }
 
-  @Test
+  @TestTemplate
   public void testTransforms() {
     for (PartitionSpec spec : PartitionSpecTestBase.SPECS) {
-      Assert.assertEquals(
-          "To/from JSON should produce equal partition spec", spec, roundTripJSON(spec));
+      assertThat(roundTripJSON(spec)).isEqualTo(spec);
     }
   }
 

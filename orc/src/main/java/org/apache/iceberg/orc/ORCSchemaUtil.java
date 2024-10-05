@@ -19,6 +19,7 @@
 package org.apache.iceberg.orc;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -73,6 +74,7 @@ public final class ORCSchemaUtil {
    * to an ORC binary type. The values for this attribute are denoted in {@code BinaryType}.
    */
   public static final String ICEBERG_BINARY_TYPE_ATTRIBUTE = "iceberg.binary-type";
+
   /**
    * The name of the ORC {@link TypeDescription} attribute indicating the Iceberg type corresponding
    * to an ORC long type. The values for this attribute are denoted in {@code LongType}.
@@ -232,7 +234,7 @@ public final class ORCSchemaUtil {
             .map(Optional::get)
             .collect(Collectors.toList());
 
-    if (fields.size() == 0) {
+    if (fields.isEmpty()) {
       throw new IllegalArgumentException("ORC schema does not contain Iceberg IDs");
     }
 
@@ -327,8 +329,10 @@ public final class ORCSchemaUtil {
           if (isRequired) {
             throw new IllegalArgumentException(
                 String.format(
+                    Locale.ROOT,
                     "Field %d of type %s is required and was not found.",
-                    fieldId, type.toString()));
+                    fieldId,
+                    type));
           }
 
           orcType = convert(fieldId, type, false);

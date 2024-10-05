@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -32,17 +33,16 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 
-public class IcebergWriter implements RecordWriter {
+class IcebergWriter implements RecordWriter {
   private final Table table;
   private final String tableName;
   private final IcebergSinkConfig config;
-  private final List<WriterResult> writerResults;
+  private final List<IcebergWriterResult> writerResults;
 
-  // FIXME: update this when the record converter is added
-  //  private RecordConverter recordConverter;
+  private RecordConverter recordConverter;
   private TaskWriter<Record> writer;
 
-  public IcebergWriter(Table table, String tableName, IcebergSinkConfig config) {
+  IcebergWriter(Table table, String tableName, IcebergSinkConfig config) {
     this.table = table;
     this.tableName = tableName;
     this.config = config;
@@ -51,34 +51,50 @@ public class IcebergWriter implements RecordWriter {
   }
 
   private void initNewWriter() {
-    this.writer = Utilities.createTableWriter(table, tableName, config);
-    // FIXME: update this when the record converter is added
-    //  this.recordConverter = new RecordConverter(table, config);
+    this.writer = RecordUtils.createTableWriter(table, tableName, config);
+    this.recordConverter = new RecordConverter(table, config);
   }
 
   @Override
   public void write(SinkRecord record) {
     try {
-      // TODO: config to handle tombstones instead of always ignoring?
+      // ignore tombstones...
       if (record.value() != null) {
         Record row = convertToRow(record);
-
-        // FIXME: add CDC operation support
-
         writer.write(row);
       }
     } catch (Exception e) {
       throw new DataException(
           String.format(
+              Locale.ROOT,
               "An error occurred converting record, topic: %s, partition, %d, offset: %d",
-              record.topic(), record.kafkaPartition(), record.kafkaOffset()),
+              record.topic(),
+              record.kafkaPartition(),
+              record.kafkaOffset()),
           e);
     }
   }
 
   private Record convertToRow(SinkRecord record) {
-    // FIXME: update this when the record converter is added
-    return null;
+    if (!config.evolveSchemaEnabled()) {
+      return recordConverter.convert(record.value());
+    }
+
+    SchemaUpdate.Consumer updates = new SchemaUpdate.Consumer();
+    Record row = recordConverter.convert(record.value(), updates);
+
+    if (!updates.empty()) {
+      // complete the current file
+      flush();
+      // apply the schema updates, this will refresh the table
+      SchemaUtils.applySchemaUpdates(table, updates);
+      // initialize a new writer with the new schema
+      initNewWriter();
+      // convert the row again, this time using the new table schema
+      row = recordConverter.convert(record.value(), null);
+    }
+
+    return row;
   }
 
   private void flush() {
@@ -90,7 +106,7 @@ public class IcebergWriter implements RecordWriter {
     }
 
     writerResults.add(
-        new WriterResult(
+        new IcebergWriterResult(
             TableIdentifier.parse(tableName),
             Arrays.asList(writeResult.dataFiles()),
             Arrays.asList(writeResult.deleteFiles()),
@@ -98,10 +114,10 @@ public class IcebergWriter implements RecordWriter {
   }
 
   @Override
-  public List<WriterResult> complete() {
+  public List<IcebergWriterResult> complete() {
     flush();
 
-    List<WriterResult> result = Lists.newArrayList(writerResults);
+    List<IcebergWriterResult> result = Lists.newArrayList(writerResults);
     writerResults.clear();
 
     return result;

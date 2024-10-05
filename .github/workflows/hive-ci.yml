@@ -22,7 +22,9 @@ on:
   push:
     branches:
     - 'main'
-    - '0.**'
+    - '0.*'
+    - '1.*'
+    - '2.*'
     tags:
     - 'apache-iceberg-**'
   pull_request:
@@ -33,6 +35,7 @@ on:
     - '.github/workflows/flink-ci.yml'
     - '.github/workflows/java-ci.yml'
     - '.github/workflows/jmh-benchmarks-ci.yml'
+    - '.github/workflows/kafka-connect-ci.yml'
     - '.github/workflows/labeler.yml'
     - '.github/workflows/licence-check.yml'
     - '.github/workflows/open-api.yml'
@@ -47,6 +50,7 @@ on:
     - 'arrow/**'
     - 'spark/**'
     - 'flink/**'
+    - 'kafka-connect/**'
     - 'pig/**'
     - 'docs/**'
     - 'site/**'
@@ -67,7 +71,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        jvm: [8, 11, 17]
+        jvm: [11, 17, 21]
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -84,7 +88,7 @@ jobs:
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-    - run: ./gradlew -DsparkVersions= -DhiveVersions=2 -DflinkVersions= -Pquick=true :iceberg-mr:check :iceberg-hive-runtime:check -x javadoc
+    - run: ./gradlew -DsparkVersions= -DhiveVersions=2 -DflinkVersions= -DkafkaVersions= -Pquick=true :iceberg-mr:check :iceberg-hive-runtime:check -x javadoc
     - uses: actions/upload-artifact@v4
       if: failure()
       with:
@@ -94,6 +98,9 @@ jobs:
 
   hive3-tests:
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        jvm: [11, 17, 21]
     env:
       SPARK_LOCAL_IP: localhost
     steps:
@@ -101,7 +108,7 @@ jobs:
     - uses: actions/setup-java@v4
       with:
         distribution: zulu
-        java-version: 8
+        java-version: ${{ matrix.jvm }}
     - uses: actions/cache@v4
       with:
         path: |
@@ -110,7 +117,7 @@ jobs:
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-    - run: ./gradlew -DsparkVersions= -DhiveVersions=3 -DflinkVersions= -Pquick=true :iceberg-hive3-orc-bundle:check :iceberg-hive3:check :iceberg-hive-runtime:check -x javadoc
+    - run: ./gradlew -DsparkVersions= -DhiveVersions=3 -DflinkVersions= -DkafkaVersions= -Pquick=true :iceberg-hive3-orc-bundle:check :iceberg-hive3:check :iceberg-hive-runtime:check -x javadoc
     - uses: actions/upload-artifact@v4
       if: failure()
       with:

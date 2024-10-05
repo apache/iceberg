@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,7 +35,6 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.DatumWriter;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -688,23 +688,23 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     createIcebergTable("id Integer, name String, dept String, subdept String");
 
-    AssertHelpers.assertThrows(
-        "Should forbid adding of partitioned data to unpartitioned table",
-        IllegalArgumentException.class,
-        "Cannot use partition filter with an unpartitioned table",
-        () ->
-            scalarSql(
-                "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
-                catalogName, tableName, fileTableDir.getAbsolutePath()));
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('id', 1))",
+                    catalogName, tableName, fileTableDir.getAbsolutePath()))
+        .as("Should forbid adding of partitioned data to unpartitioned table")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot use partition filter with an unpartitioned table");
 
-    AssertHelpers.assertThrows(
-        "Should forbid adding of partitioned data to unpartitioned table",
-        IllegalArgumentException.class,
-        "Cannot add partitioned files to an unpartitioned table",
-        () ->
-            scalarSql(
-                "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
-                catalogName, tableName, fileTableDir.getAbsolutePath()));
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '`parquet`.`%s`')",
+                    catalogName, tableName, fileTableDir.getAbsolutePath()))
+        .as("Should forbid adding of partitioned data to unpartitioned table")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot add partitioned files to an unpartitioned table");
   }
 
   @Test
@@ -714,23 +714,24 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     createIcebergTable(
         "id Integer, name String, dept String, subdept String", "PARTITIONED BY (id)");
 
-    AssertHelpers.assertThrows(
-        "Should forbid adding with a mismatching partition spec",
-        IllegalArgumentException.class,
-        "is greater than the number of partitioned columns",
-        () ->
-            scalarSql(
-                "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('x', '1', 'y', '2'))",
-                catalogName, tableName, fileTableDir.getAbsolutePath()));
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('x', '1', 'y', '2'))",
+                    catalogName, tableName, fileTableDir.getAbsolutePath()))
+        .as("Should forbid adding with a mismatching partition spec")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("is greater than the number of partitioned columns");
 
-    AssertHelpers.assertThrows(
-        "Should forbid adding with partition spec with incorrect columns",
-        IllegalArgumentException.class,
-        "specified partition filter refers to columns that are not partitioned",
-        () ->
-            scalarSql(
-                "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', '2'))",
-                catalogName, tableName, fileTableDir.getAbsolutePath()));
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '`parquet`.`%s`', map('dept', '2'))",
+                    catalogName, tableName, fileTableDir.getAbsolutePath()))
+        .as("Should forbid adding with partition spec with incorrect columns")
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining(
+            "specified partition filter refers to columns that are not partitioned");
   }
 
   @Test
@@ -782,18 +783,19 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
             + "partition_filter => map('id', 1))",
         catalogName, tableName, sourceTableName);
 
-    AssertHelpers.assertThrows(
-        "Should not allow adding duplicate files",
-        IllegalStateException.class,
-        "Cannot complete import because data files to be imported already"
-            + " exist within the target table",
-        () ->
-            scalarSql(
-                "CALL %s.system.add_files("
-                    + "table => '%s', "
-                    + "source_table => '%s', "
-                    + "partition_filter => map('id', 1))",
-                catalogName, tableName, sourceTableName));
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files("
+                        + "table => '%s', "
+                        + "source_table => '%s', "
+                        + "partition_filter => map('id', 1))",
+                    catalogName, tableName, sourceTableName))
+        .as("Should not allow adding duplicate files")
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining(
+            "Cannot complete import because data files to be imported already"
+                + " exist within the target table");
   }
 
   @Test
@@ -841,14 +843,16 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
 
     sql("CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName);
 
-    AssertHelpers.assertThrows(
-        "Should not allow adding duplicate files",
-        IllegalStateException.class,
-        "Cannot complete import because data files to be imported already"
-            + " exist within the target table",
-        () ->
-            scalarSql(
-                "CALL %s.system.add_files('%s', '%s')", catalogName, tableName, sourceTableName));
+    assertThatThrownBy(
+            () ->
+                scalarSql(
+                    "CALL %s.system.add_files('%s', '%s')",
+                    catalogName, tableName, sourceTableName))
+        .as("Should not allow adding duplicate files")
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining(
+            "Cannot complete import because data files to be imported already"
+                + " exist within the target table");
   }
 
   @Test
@@ -890,7 +894,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     assertOutput(pathResult, 0L, 0L);
     assertEquals(
         "Iceberg table contains no added data when importing from an empty path",
-        emptyQueryResult,
+        EMPTY_QUERY_RESULT,
         sql("SELECT * FROM %s ORDER BY id", tableName));
 
     // Empty table based import
@@ -903,7 +907,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     assertOutput(tableResult, 0L, 0L);
     assertEquals(
         "Iceberg table contains no added data when importing from an empty table",
-        emptyQueryResult,
+        EMPTY_QUERY_RESULT,
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
@@ -931,13 +935,35 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
     assertOutput(tableResult, 0L, 0L);
     assertEquals(
         "Iceberg table contains no added data when importing from an empty table",
-        emptyQueryResult,
+        EMPTY_QUERY_RESULT,
         sql("SELECT * FROM %s ORDER BY id", tableName));
   }
 
-  private static final List<Object[]> emptyQueryResult = Lists.newArrayList();
+  @Test
+  public void testAddFilesWithParallelism() {
+    createUnpartitionedHiveTable();
 
-  private static final StructField[] struct = {
+    String createIceberg =
+        "CREATE TABLE %s (id Integer, name String, dept String, subdept String) USING iceberg";
+
+    sql(createIceberg, tableName);
+
+    List<Object[]> result =
+        sql(
+            "CALL %s.system.add_files(table => '%s', source_table => '%s', parallelism => 2)",
+            catalogName, tableName, sourceTableName);
+
+    assertEquals("Procedure output must match", ImmutableList.of(row(2L, 1L)), result);
+
+    assertEquals(
+        "Iceberg table contains correct data",
+        sql("SELECT * FROM %s ORDER BY id", sourceTableName),
+        sql("SELECT * FROM %s ORDER BY id", tableName));
+  }
+
+  private static final List<Object[]> EMPTY_QUERY_RESULT = Lists.newArrayList();
+
+  private static final StructField[] STRUCT = {
     new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
     new StructField("name", DataTypes.StringType, true, Metadata.empty()),
     new StructField("dept", DataTypes.StringType, true, Metadata.empty()),
@@ -952,14 +978,14 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
                 RowFactory.create(2, "Jane Doe", "hr", "salary"),
                 RowFactory.create(3, "Matt Doe", "hr", "communications"),
                 RowFactory.create(4, "Will Doe", "facilities", "all")),
-            new StructType(struct))
+            new StructType(STRUCT))
         .repartition(1);
   }
 
   private Dataset<Row> singleNullRecordDF() {
     return spark
         .createDataFrame(
-            ImmutableList.of(RowFactory.create(null, null, null, null)), new StructType(struct))
+            ImmutableList.of(RowFactory.create(null, null, null, null)), new StructType(STRUCT))
         .repartition(1);
   }
 
@@ -984,7 +1010,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
         unpartitionedDF.col("name").as("naMe"));
   }
 
-  private static final StructField[] dateStruct = {
+  private static final StructField[] DATE_STRUCT = {
     new StructField("id", DataTypes.IntegerType, true, Metadata.empty()),
     new StructField("name", DataTypes.StringType, true, Metadata.empty()),
     new StructField("ts", DataTypes.DateType, true, Metadata.empty()),
@@ -1003,7 +1029,7 @@ public class TestAddFilesProcedure extends SparkExtensionsTestBase {
                 RowFactory.create(2, "Jane Doe", toDate("2021-01-01"), "01"),
                 RowFactory.create(3, "Matt Doe", toDate("2021-01-02"), "02"),
                 RowFactory.create(4, "Will Doe", toDate("2021-01-02"), "02")),
-            new StructType(dateStruct))
+            new StructType(DATE_STRUCT))
         .repartition(2);
   }
 

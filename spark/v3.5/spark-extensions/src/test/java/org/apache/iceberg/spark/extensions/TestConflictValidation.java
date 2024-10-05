@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.extensions;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import java.util.List;
 import org.apache.iceberg.IsolationLevel;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -29,7 +31,6 @@ import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.functions;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -65,7 +66,7 @@ public class TestConflictValidation extends ExtensionsTestBase {
 
     // Validating from previous snapshot finds conflicts
     Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 conflictingDf
                     .writeTo(tableName)
@@ -103,7 +104,7 @@ public class TestConflictValidation extends ExtensionsTestBase {
     // Validating from previous snapshot finds conflicts
     List<SimpleRecord> conflictingRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
     Dataset<Row> conflictingDf = spark.createDataFrame(conflictingRecords, SimpleRecord.class);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 conflictingDf
                     .writeTo(tableName)
@@ -136,7 +137,7 @@ public class TestConflictValidation extends ExtensionsTestBase {
     // Validating from previous snapshot finds conflicts
     List<SimpleRecord> conflictingRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
     Dataset<Row> conflictingDf = spark.createDataFrame(conflictingRecords, SimpleRecord.class);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 conflictingDf
                     .writeTo(tableName)
@@ -168,7 +169,7 @@ public class TestConflictValidation extends ExtensionsTestBase {
     // Validating from no snapshot id defaults to beginning snapshot id and finds conflicts
     Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 conflictingDf
                     .writeTo(tableName)
@@ -205,7 +206,7 @@ public class TestConflictValidation extends ExtensionsTestBase {
     // Validating from previous snapshot finds conflicts
     List<SimpleRecord> conflictingRecords = Lists.newArrayList(new SimpleRecord(1, "a"));
     Dataset<Row> conflictingDf = spark.createDataFrame(conflictingRecords, SimpleRecord.class);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 conflictingDf
                     .writeTo(tableName)
@@ -253,7 +254,7 @@ public class TestConflictValidation extends ExtensionsTestBase {
 
     // Validating from previous snapshot finds conflicts
     Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 conflictingDf
                     .writeTo(tableName)
@@ -289,7 +290,7 @@ public class TestConflictValidation extends ExtensionsTestBase {
 
     // Validating from previous snapshot finds conflicts
     Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 conflictingDf
                     .writeTo(tableName)
@@ -323,7 +324,7 @@ public class TestConflictValidation extends ExtensionsTestBase {
     spark.createDataFrame(records, SimpleRecord.class).coalesce(1).writeTo(tableName).append();
     Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 conflictingDf
                     .writeTo(tableName)
@@ -370,7 +371,7 @@ public class TestConflictValidation extends ExtensionsTestBase {
 
     // Validating from null snapshot is equivalent to validating from beginning
     Dataset<Row> conflictingDf = spark.createDataFrame(records, SimpleRecord.class);
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 conflictingDf
                     .writeTo(tableName)

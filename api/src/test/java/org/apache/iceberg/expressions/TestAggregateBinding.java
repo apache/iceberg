@@ -19,25 +19,25 @@
 package org.apache.iceberg.expressions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestAggregateBinding {
-  private static final List<UnboundAggregate<Integer>> list =
+  private static final List<UnboundAggregate<Integer>> LIST =
       ImmutableList.of(Expressions.count("x"), Expressions.max("x"), Expressions.min("x"));
-  private static final StructType struct =
+  private static final StructType STRUCT =
       StructType.of(Types.NestedField.required(10, "x", Types.IntegerType.get()));
 
   @Test
   public void testAggregateBinding() {
-    for (UnboundAggregate<Integer> unbound : list) {
-      Expression expr = unbound.bind(struct, true);
+    for (UnboundAggregate<Integer> unbound : LIST) {
+      Expression expr = unbound.bind(STRUCT, true);
       BoundAggregate<Integer, ?> bound = assertAndUnwrapAggregate(expr);
       assertThat(bound.ref().fieldId()).as("Should reference correct field ID").isEqualTo(10);
       assertThat(bound.op())
@@ -60,7 +60,7 @@ public class TestAggregateBinding {
   @Test
   public void testBoundAggregateFails() {
     Expression unbound = Expressions.count("x");
-    Assertions.assertThatThrownBy(() -> Binder.bind(struct, Binder.bind(struct, unbound)))
+    assertThatThrownBy(() -> Binder.bind(STRUCT, Binder.bind(STRUCT, unbound)))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("Found already bound aggregate");
   }
@@ -68,7 +68,7 @@ public class TestAggregateBinding {
   @Test
   public void testCaseInsensitiveReference() {
     Expression expr = Expressions.max("X");
-    Expression boundExpr = Binder.bind(struct, expr, false);
+    Expression boundExpr = Binder.bind(STRUCT, expr, false);
     BoundAggregate<Integer, Integer> bound = assertAndUnwrapAggregate(boundExpr);
     assertThat(bound.ref().fieldId()).as("Should reference correct field ID").isEqualTo(10);
     assertThat(bound.op())
@@ -79,7 +79,7 @@ public class TestAggregateBinding {
   @Test
   public void testCaseSensitiveReference() {
     Expression expr = Expressions.max("X");
-    Assertions.assertThatThrownBy(() -> Binder.bind(struct, expr, true))
+    assertThatThrownBy(() -> Binder.bind(STRUCT, expr, true))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'X' in struct");
   }
@@ -87,13 +87,13 @@ public class TestAggregateBinding {
   @Test
   public void testMissingField() {
     UnboundAggregate<?> unbound = Expressions.count("missing");
-    Assertions.assertThatThrownBy(() -> unbound.bind(struct, false))
+    assertThatThrownBy(() -> unbound.bind(STRUCT, false))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Cannot find field 'missing' in struct:");
   }
 
   private static <T, C> BoundAggregate<T, C> assertAndUnwrapAggregate(Expression expr) {
-    Assertions.assertThat(expr).isInstanceOf(BoundAggregate.class);
+    assertThat(expr).isInstanceOf(BoundAggregate.class);
     return (BoundAggregate<T, C>) expr;
   }
 }

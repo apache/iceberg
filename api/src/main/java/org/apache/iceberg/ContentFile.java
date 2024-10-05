@@ -30,6 +30,14 @@ import java.util.Set;
  */
 public interface ContentFile<F> {
   /**
+   * Returns the path of the manifest which this file is referenced in or null if it was not read
+   * from a manifest.
+   */
+  default String manifestLocation() {
+    return null;
+  }
+
+  /**
    * Returns the ordinal position of the file in a manifest, or null if it was not read from a
    * manifest.
    */
@@ -43,8 +51,18 @@ public interface ContentFile<F> {
    */
   FileContent content();
 
-  /** Returns fully qualified path to the file, suitable for constructing a Hadoop Path. */
+  /**
+   * Returns fully qualified path to the file, suitable for constructing a Hadoop Path.
+   *
+   * @deprecated since 1.7.0, will be removed in 2.0.0; use {@link #location()} instead.
+   */
+  @Deprecated
   CharSequence path();
+
+  /** Return the fully qualified path to the file. */
+  default String location() {
+    return path().toString();
+  }
 
   /** Returns format of the file. */
   FileFormat format();

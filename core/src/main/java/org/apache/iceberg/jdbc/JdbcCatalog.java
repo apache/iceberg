@@ -31,6 +31,7 @@ import java.sql.SQLTransientConnectionException;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -55,6 +56,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
@@ -86,7 +88,7 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
   private Map<String, String> catalogProperties;
   private final Function<Map<String, String>, FileIO> ioBuilder;
   private final Function<Map<String, String>, JdbcClientPool> clientPoolBuilder;
-  private final boolean initializeCatalogTables;
+  private boolean initializeCatalogTables;
   private CloseableGroup closeableGroup;
   private JdbcUtil.SchemaVersion schemaVersion = JdbcUtil.SchemaVersion.V0;
 
@@ -137,6 +139,9 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
       this.connections = new JdbcClientPool(uri, properties);
     }
 
+    this.initializeCatalogTables =
+        PropertyUtil.propertyAsBoolean(
+            properties, JdbcUtil.INIT_CATALOG_TABLES_PROPERTY, initializeCatalogTables);
     if (initializeCatalogTables) {
       initializeCatalogTables();
     }
@@ -464,6 +469,16 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
                             .toArray(String[]::new)))
             // remove duplicates
             .distinct()
+            // exclude fuzzy matches when `namespace` contains `%` or `_`
+            .filter(
+                n -> {
+                  for (int i = 0; i < namespace.levels().length; i++) {
+                    if (!n.levels()[i].equals(namespace.levels()[i])) {
+                      return false;
+                    }
+                  }
+                  return true;
+                })
             .collect(Collectors.toList());
 
     return namespaces;
@@ -686,6 +701,11 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     }
   }
 
+  @VisibleForTesting
+  JdbcClientPool connectionPool() {
+    return connections;
+  }
+
   private int execute(String sql, String... args) {
     return execute(err -> {}, sql, args);
   }
@@ -779,7 +799,11 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     }
 
     throw new IllegalStateException(
-        String.format("Failed to insert: %d of %d succeeded", insertedRecords, properties.size()));
+        String.format(
+            Locale.ROOT,
+            "Failed to insert: %d of %d succeeded",
+            insertedRecords,
+            properties.size()));
   }
 
   private boolean updateProperties(Namespace namespace, Map<String, String> properties) {
@@ -799,7 +823,11 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     }
 
     throw new IllegalStateException(
-        String.format("Failed to update: %d of %d succeeded", updatedRecords, properties.size()));
+        String.format(
+            Locale.ROOT,
+            "Failed to update: %d of %d succeeded",
+            updatedRecords,
+            properties.size()));
   }
 
   private boolean deleteProperties(Namespace namespace, Set<String> properties) {

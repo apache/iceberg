@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.apache.iceberg.TableProperties.MANIFEST_MERGE_ENABLED;
 import static org.apache.iceberg.TableProperties.SNAPSHOT_ID_INHERITANCE_ENABLED;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -40,24 +41,17 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestRewriteManifests extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestRewriteManifests extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2, 3);
   }
 
-  public TestRewriteManifests(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testRewriteManifestsAppendedDirectly() throws IOException {
     Table table = load();
 
@@ -70,18 +64,18 @@ public class TestRewriteManifests extends TableTestBase {
     table.newFastAppend().appendManifest(newManifest).commit();
     long appendId = table.currentSnapshot().snapshotId();
 
-    Assert.assertEquals(1, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
 
     table.rewriteManifests().clusterBy(file -> "").commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals(1, manifests.size());
+    assertThat(manifests).hasSize(1);
 
     validateManifestEntries(
         manifests.get(0), ids(appendId), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteManifestsWithScanExecutor() throws IOException {
     Table table = load();
 
@@ -93,7 +87,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     table.newFastAppend().appendManifest(newManifest).commit();
 
-    Assert.assertEquals(1, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
     AtomicInteger scanThreadsIndex = new AtomicInteger(0);
     table
         .rewriteManifests()
@@ -111,11 +105,13 @@ public class TestRewriteManifests extends TableTestBase {
         .commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals(1, manifests.size());
-    Assert.assertTrue("Thread should be created in provided pool", scanThreadsIndex.get() > 0);
+    assertThat(manifests).hasSize(1);
+    assertThat(scanThreadsIndex.get())
+        .as("Thread should be created in provided pool")
+        .isGreaterThan(0);
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteManifestsGeneratedAndAppendedDirectly() throws IOException {
     Table table = load();
 
@@ -131,12 +127,12 @@ public class TestRewriteManifests extends TableTestBase {
     table.newFastAppend().appendFile(FILE_B).commit();
     long fileAppendId = table.currentSnapshot().snapshotId();
 
-    Assert.assertEquals(2, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);
 
     table.rewriteManifests().clusterBy(file -> "").commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals("Manifests must be merged into 1", 1, manifests.size());
+    assertThat(manifests).hasSize(1);
 
     // get the correct file order
     List<DataFile> files;
@@ -158,20 +154,20 @@ public class TestRewriteManifests extends TableTestBase {
         statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceManifestsSeparate() {
     Table table = load();
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     long appendId = table.currentSnapshot().snapshotId();
 
-    Assert.assertEquals(1, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
 
     // cluster by path will split the manifest into two
 
     table.rewriteManifests().clusterBy(file -> file.path()).commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals(2, manifests.size());
+    assertThat(manifests).hasSize(2);
     manifests.sort(Comparator.comparing(ManifestFile::path));
 
     validateManifestEntries(
@@ -180,7 +176,7 @@ public class TestRewriteManifests extends TableTestBase {
         manifests.get(1), ids(appendId), files(FILE_B), statuses(ManifestEntry.Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceManifestsConsolidate() throws IOException {
     Table table = load();
 
@@ -189,14 +185,14 @@ public class TestRewriteManifests extends TableTestBase {
     table.newFastAppend().appendFile(FILE_B).commit();
     long appendIdB = table.currentSnapshot().snapshotId();
 
-    Assert.assertEquals(2, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);
 
     // cluster by constant will combine manifests into one
 
     table.rewriteManifests().clusterBy(file -> "file").commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals(1, manifests.size());
+    assertThat(manifests).hasSize(1);
 
     // get the file order correct
     List<DataFile> files;
@@ -218,7 +214,7 @@ public class TestRewriteManifests extends TableTestBase {
         statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceManifestsWithFilter() throws IOException {
     Table table = load();
 
@@ -231,7 +227,7 @@ public class TestRewriteManifests extends TableTestBase {
     table.newFastAppend().appendFile(FILE_C).commit();
     long appendIdC = table.currentSnapshot().snapshotId();
 
-    Assert.assertEquals(3, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(3);
 
     // keep the file A manifest, combine the other two
 
@@ -249,7 +245,7 @@ public class TestRewriteManifests extends TableTestBase {
         .commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals(2, manifests.size());
+    assertThat(manifests).hasSize(2);
 
     // get the file order correct
     List<DataFile> files;
@@ -273,13 +269,13 @@ public class TestRewriteManifests extends TableTestBase {
         manifests.get(1), ids(appendIdA), files(FILE_A), statuses(ManifestEntry.Status.ADDED));
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceManifestsMaxSize() {
     Table table = load();
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
     long appendId = table.currentSnapshot().snapshotId();
 
-    Assert.assertEquals(1, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
 
     // cluster by constant will combine manifests into one but small target size will create one per
     // entry
@@ -288,7 +284,7 @@ public class TestRewriteManifests extends TableTestBase {
     rewriteManifests.clusterBy(file -> "file").commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals(2, manifests.size());
+    assertThat(manifests).hasSize(2);
     manifests.sort(Comparator.comparing(ManifestFile::path));
 
     validateManifestEntries(
@@ -297,7 +293,7 @@ public class TestRewriteManifests extends TableTestBase {
         manifests.get(1), ids(appendId), files(FILE_B), statuses(ManifestEntry.Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testConcurrentRewriteManifest() throws IOException {
     Table table = load();
     table.newFastAppend().appendFile(FILE_A).commit();
@@ -323,14 +319,14 @@ public class TestRewriteManifests extends TableTestBase {
             })
         .commit();
 
-    Assert.assertEquals(2, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);
 
     // commit the rewrite manifests in progress - this should perform a full rewrite as the manifest
     // with file B is no longer part of the snapshot
     rewrite.commit();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals(1, manifests.size());
+    assertThat(manifests).hasSize(1);
 
     // get the file order correct
     List<DataFile> files;
@@ -352,7 +348,7 @@ public class TestRewriteManifests extends TableTestBase {
         statuses(ManifestEntry.Status.EXISTING, ManifestEntry.Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testAppendDuringRewriteManifest() {
     Table table = load();
     table.newFastAppend().appendFile(FILE_A).commit();
@@ -366,7 +362,7 @@ public class TestRewriteManifests extends TableTestBase {
     table.newFastAppend().appendFile(FILE_B).commit();
     long appendIdB = table.currentSnapshot().snapshotId();
 
-    Assert.assertEquals(2, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);
 
     // commit the rewrite manifests in progress
     rewrite.commit();
@@ -376,7 +372,7 @@ public class TestRewriteManifests extends TableTestBase {
     // have a single cluster key, rewritten one should be the first in the list
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals(2, manifests.size());
+    assertThat(manifests).hasSize(2);
 
     validateManifestEntries(
         manifests.get(0), ids(appendIdA), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
@@ -384,7 +380,7 @@ public class TestRewriteManifests extends TableTestBase {
         manifests.get(1), ids(appendIdB), files(FILE_B), statuses(ManifestEntry.Status.ADDED));
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteManifestDuringAppend() {
     Table table = load();
     table.newFastAppend().appendFile(FILE_A).commit();
@@ -397,14 +393,14 @@ public class TestRewriteManifests extends TableTestBase {
     // rewrite the manifests - only affects the first
     table.rewriteManifests().clusterBy(file -> "file").commit();
 
-    Assert.assertEquals(1, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
 
     // commit the append in progress
     append.commit();
     long appendIdB = table.currentSnapshot().snapshotId();
 
     List<ManifestFile> manifests = table.currentSnapshot().allManifests(table.io());
-    Assert.assertEquals(2, manifests.size());
+    assertThat(manifests).hasSize(2);
 
     // last append should be the first in the list
 
@@ -414,15 +410,15 @@ public class TestRewriteManifests extends TableTestBase {
         manifests.get(1), ids(appendIdA), files(FILE_A), statuses(ManifestEntry.Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testBasicManifestReplacement() throws IOException {
-    Assert.assertNull("Table should be empty", table.currentSnapshot());
+    assertThat(table.currentSnapshot()).isNull();
 
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot firstSnapshot = table.currentSnapshot();
     List<ManifestFile> firstSnapshotManifests = firstSnapshot.allManifests(table.io());
-    Assert.assertEquals(1, firstSnapshotManifests.size());
+    assertThat(firstSnapshotManifests).hasSize(1);
     ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
 
     table.newFastAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
@@ -445,7 +441,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
-    Assert.assertEquals(3, manifests.size());
+    assertThat(manifests).hasSize(3);
 
     if (formatVersion == 1) {
       assertThat(manifests.get(0).path()).isNotEqualTo(firstNewManifest.path());
@@ -476,9 +472,9 @@ public class TestRewriteManifests extends TableTestBase {
         statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
   }
 
-  @Test
+  @TestTemplate
   public void testBasicManifestReplacementWithSnapshotIdInheritance() throws IOException {
-    Assert.assertNull("Table should be empty", table.currentSnapshot());
+    assertThat(table.currentSnapshot()).isNull();
 
     table.updateProperties().set(SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
 
@@ -486,7 +482,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     List<ManifestFile> firstSnapshotManifests = firstSnapshot.allManifests(table.io());
-    Assert.assertEquals(1, firstSnapshotManifests.size());
+    assertThat(firstSnapshotManifests).hasSize(1);
     ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
 
     table.newFastAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
@@ -509,7 +505,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
-    Assert.assertEquals(3, manifests.size());
+    assertThat(manifests).hasSize(3);
 
     assertThat(manifests.get(0).path()).isEqualTo(firstNewManifest.path());
     assertThat(manifests.get(1).path()).isEqualTo(secondNewManifest.path());
@@ -538,17 +534,14 @@ public class TestRewriteManifests extends TableTestBase {
     table.newDelete().deleteFromRowFilter(Expressions.alwaysTrue()).commit();
   }
 
-  @Test
+  @TestTemplate
   public void testWithMultiplePartitionSpec() throws IOException {
-    Assert.assertNull("Table should be empty", table.currentSnapshot());
+    assertThat(table.currentSnapshot()).isNull();
 
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     TableMetadata base = readMetadata();
-    Assert.assertEquals(
-        "Should create 1 manifest for initial write",
-        1,
-        base.currentSnapshot().allManifests(table.io()).size());
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(1);
     ManifestFile initialManifest = base.currentSnapshot().allManifests(table.io()).get(0);
 
     int initialPartitionSpecId = initialManifest.partitionSpecId();
@@ -580,8 +573,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     table.newAppend().appendFile(newFileZ).commit();
 
-    Assert.assertEquals(
-        "Should use 3 manifest files", 3, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(3);
 
     RewriteManifests rewriteManifests = table.rewriteManifests();
     // try to cluster in 1 manifest file, but because of 2 partition specs
@@ -589,40 +581,33 @@ public class TestRewriteManifests extends TableTestBase {
     rewriteManifests.clusterBy(dataFile -> "file").commit();
     List<ManifestFile> manifestFiles = table.currentSnapshot().allManifests(table.io());
 
-    Assert.assertEquals(
-        "Rewrite manifest should produce 2 manifest files", 2, manifestFiles.size());
+    assertThat(manifestFiles).as("Rewrite manifest should produce 2 manifest files").hasSize(2);
 
-    Assert.assertEquals(
-        "2 manifest files should have different partitionSpecId",
-        true,
-        manifestFiles.get(0).partitionSpecId() != manifestFiles.get(1).partitionSpecId());
+    assertThat(manifestFiles.get(1).partitionSpecId())
+        .as("2 manifest files should have different partitionSpecId")
+        .isNotEqualTo(manifestFiles.get(0).partitionSpecId());
 
     matchNumberOfManifestFileWithSpecId(manifestFiles, initialPartitionSpecId, 1);
 
     matchNumberOfManifestFileWithSpecId(manifestFiles, table.ops().current().spec().specId(), 1);
 
-    Assert.assertEquals(
-        "first manifest file should have 2 data files",
-        Integer.valueOf(2),
-        manifestFiles.get(0).existingFilesCount());
+    assertThat(manifestFiles.get(0).existingFilesCount())
+        .as("first manifest file should have 2 data files")
+        .isEqualTo(2);
 
-    Assert.assertEquals(
-        "second manifest file should have 2 data files",
-        Integer.valueOf(2),
-        manifestFiles.get(1).existingFilesCount());
+    assertThat(manifestFiles.get(1).existingFilesCount())
+        .as("second manifest file should have 2 data files")
+        .isEqualTo(2);
   }
 
-  @Test
+  @TestTemplate
   public void testManifestSizeWithMultiplePartitionSpec() throws IOException {
-    Assert.assertNull("Table should be empty", table.currentSnapshot());
+    assertThat(table.currentSnapshot()).isNull();
 
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     TableMetadata base = readMetadata();
-    Assert.assertEquals(
-        "Should create 1 manifest for initial write",
-        1,
-        base.currentSnapshot().allManifests(table.io()).size());
+    assertThat(base.currentSnapshot().allManifests(table.io())).hasSize(1);
     ManifestFile initialManifest = base.currentSnapshot().allManifests(table.io()).get(0);
     int initialPartitionSpecId = initialManifest.partitionSpecId();
 
@@ -653,10 +638,9 @@ public class TestRewriteManifests extends TableTestBase {
 
     table.newAppend().appendFile(newFileZ).commit();
 
-    Assert.assertEquals(
-        "Rewrite manifests should produce 3 manifest files",
-        3,
-        table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io()))
+        .as("Rewrite manifests should produce 3 manifest files")
+        .hasSize(3);
 
     // cluster by constant will combine manifests into one but small target size will create one per
     // entry
@@ -667,42 +651,28 @@ public class TestRewriteManifests extends TableTestBase {
     rewriteManifests.clusterBy(dataFile -> "file").commit();
     List<ManifestFile> manifestFiles = table.currentSnapshot().allManifests(table.io());
 
-    Assert.assertEquals("Should use 4 manifest files", 4, manifestFiles.size());
+    assertThat(manifestFiles).hasSize(4);
 
     matchNumberOfManifestFileWithSpecId(manifestFiles, initialPartitionSpecId, 2);
 
     matchNumberOfManifestFileWithSpecId(manifestFiles, table.ops().current().spec().specId(), 2);
 
-    Assert.assertEquals(
-        "first manifest file should have 1 data files",
-        Integer.valueOf(1),
-        manifestFiles.get(0).existingFilesCount());
+    assertThat(manifestFiles.get(0).existingFilesCount()).isEqualTo(1);
 
-    Assert.assertEquals(
-        "second manifest file should have 1 data files",
-        Integer.valueOf(1),
-        manifestFiles.get(1).existingFilesCount());
-
-    Assert.assertEquals(
-        "third manifest file should have 1 data files",
-        Integer.valueOf(1),
-        manifestFiles.get(2).existingFilesCount());
-
-    Assert.assertEquals(
-        "fourth manifest file should have 1 data files",
-        Integer.valueOf(1),
-        manifestFiles.get(3).existingFilesCount());
+    assertThat(manifestFiles.get(1).existingFilesCount()).isEqualTo(1);
+    assertThat(manifestFiles.get(2).existingFilesCount()).isEqualTo(1);
+    assertThat(manifestFiles.get(3).existingFilesCount()).isEqualTo(1);
   }
 
-  @Test
+  @TestTemplate
   public void testManifestReplacementConcurrentAppend() throws IOException {
-    Assert.assertNull("Table should be empty", table.currentSnapshot());
+    assertThat(table.currentSnapshot()).isNull();
 
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot firstSnapshot = table.currentSnapshot();
     List<ManifestFile> firstSnapshotManifests = firstSnapshot.allManifests(table.io());
-    Assert.assertEquals(1, firstSnapshotManifests.size());
+    assertThat(firstSnapshotManifests).hasSize(1);
     ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
 
     ManifestFile firstNewManifest =
@@ -722,13 +692,13 @@ public class TestRewriteManifests extends TableTestBase {
     table.newFastAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
     Snapshot secondSnapshot = table.currentSnapshot();
 
-    Assert.assertEquals(2, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);
 
     rewriteManifests.commit();
 
     Snapshot snapshot = table.currentSnapshot();
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
-    Assert.assertEquals(3, manifests.size());
+    assertThat(manifests).hasSize(3);
 
     validateSummary(snapshot, 1, 1, 2, 0);
 
@@ -751,9 +721,9 @@ public class TestRewriteManifests extends TableTestBase {
         statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
   }
 
-  @Test
+  @TestTemplate
   public void testManifestReplacementConcurrentDelete() throws IOException {
-    Assert.assertNull("Table should be empty", table.currentSnapshot());
+    assertThat(table.currentSnapshot()).isNull();
 
     table.updateProperties().set(MANIFEST_MERGE_ENABLED, "false").commit();
 
@@ -761,7 +731,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     List<ManifestFile> firstSnapshotManifests = firstSnapshot.allManifests(table.io());
-    Assert.assertEquals(1, firstSnapshotManifests.size());
+    assertThat(firstSnapshotManifests).hasSize(1);
     ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
 
     table.newFastAppend().appendFile(FILE_C).appendFile(FILE_D).commit();
@@ -788,7 +758,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
-    Assert.assertEquals(3, manifests.size());
+    assertThat(manifests).hasSize(3);
 
     validateSummary(snapshot, 1, 1, 2, 0);
 
@@ -811,15 +781,15 @@ public class TestRewriteManifests extends TableTestBase {
         statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testManifestReplacementConcurrentConflictingDelete() throws IOException {
-    Assert.assertNull("Table should be empty", table.currentSnapshot());
+    assertThat(table.currentSnapshot()).isNull();
 
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     Snapshot firstSnapshot = table.currentSnapshot();
     List<ManifestFile> firstSnapshotManifests = firstSnapshot.allManifests(table.io());
-    Assert.assertEquals(1, firstSnapshotManifests.size());
+    assertThat(firstSnapshotManifests).hasSize(1);
     ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
 
     ManifestFile firstNewManifest =
@@ -838,20 +808,23 @@ public class TestRewriteManifests extends TableTestBase {
 
     table.newDelete().deleteFile(FILE_A).commit();
 
-    Assertions.assertThatThrownBy(rewriteManifests::commit)
+    assertThatThrownBy(rewriteManifests::commit)
         .isInstanceOf(ValidationException.class)
-        .hasMessageStartingWith("Manifest is missing");
+        .hasMessageStartingWith(
+            String.format(
+                "Deleted manifest %s could not be found in the latest snapshot %d",
+                firstSnapshotManifest.path(), table.currentSnapshot().snapshotId()));
   }
 
-  @Test
+  @TestTemplate
   public void testManifestReplacementCombinedWithRewrite() throws IOException {
-    Assert.assertNull("Table should be empty", table.currentSnapshot());
+    assertThat(table.currentSnapshot()).isNull();
 
     table.newFastAppend().appendFile(FILE_A).commit();
 
     Snapshot firstSnapshot = table.currentSnapshot();
     List<ManifestFile> firstSnapshotManifests = firstSnapshot.allManifests(table.io());
-    Assert.assertEquals(1, firstSnapshotManifests.size());
+    assertThat(firstSnapshotManifests).hasSize(1);
     ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
 
     table.newFastAppend().appendFile(FILE_B).commit();
@@ -862,7 +835,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     table.newFastAppend().appendFile(FILE_D).commit();
 
-    Assert.assertEquals(4, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).hasSize(4);
 
     ManifestFile newManifest =
         writeManifest(
@@ -886,7 +859,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
-    Assert.assertEquals(3, manifests.size());
+    assertThat(manifests).hasSize(3);
 
     validateSummary(snapshot, 3, 1, 2, 2);
 
@@ -903,9 +876,9 @@ public class TestRewriteManifests extends TableTestBase {
         statuses(ManifestEntry.Status.ADDED));
   }
 
-  @Test
+  @TestTemplate
   public void testManifestReplacementCombinedWithRewriteConcurrentDelete() throws IOException {
-    Assert.assertNull("Table should be empty", table.currentSnapshot());
+    assertThat(table.currentSnapshot()).isNull();
 
     table.updateProperties().set(MANIFEST_MERGE_ENABLED, "false").commit();
 
@@ -913,7 +886,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     List<ManifestFile> firstSnapshotManifests = firstSnapshot.allManifests(table.io());
-    Assert.assertEquals(1, firstSnapshotManifests.size());
+    assertThat(firstSnapshotManifests).hasSize(1);
     ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
 
     table.newFastAppend().appendFile(FILE_B).commit();
@@ -922,7 +895,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     table.newFastAppend().appendFile(FILE_C).commit();
 
-    Assert.assertEquals(3, Iterables.size(table.snapshots()));
+    assertThat(table.snapshots()).hasSize(3);
 
     ManifestEntry<DataFile> entry =
         manifestEntry(ManifestEntry.Status.EXISTING, firstSnapshot.snapshotId(), FILE_A);
@@ -945,7 +918,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     Snapshot snapshot = table.currentSnapshot();
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
-    Assert.assertEquals(2, manifests.size());
+    assertThat(manifests).hasSize(2);
 
     validateSummary(snapshot, 3, 0, 2, 1);
 
@@ -962,15 +935,15 @@ public class TestRewriteManifests extends TableTestBase {
         statuses(ManifestEntry.Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testInvalidUsage() throws IOException {
-    Assert.assertNull("Table should be empty", table.currentSnapshot());
+    assertThat(table.currentSnapshot()).isNull();
 
     table.newFastAppend().appendFile(FILE_A).commit();
 
     Snapshot snapshot = table.currentSnapshot();
     List<ManifestFile> manifests = snapshot.allManifests(table.io());
-    Assert.assertEquals(1, manifests.size());
+    assertThat(manifests).hasSize(1);
     ManifestFile manifest = manifests.get(0);
 
     ManifestEntry<DataFile> appendEntry =
@@ -980,7 +953,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     ManifestFile invalidAddedFileManifest = writeManifest("manifest-file-2.avro", appendEntry);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 table
                     .rewriteManifests()
@@ -997,7 +970,7 @@ public class TestRewriteManifests extends TableTestBase {
 
     ManifestFile invalidDeletedFileManifest = writeManifest("manifest-file-3.avro", deleteEntry);
 
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 table
                     .rewriteManifests()
@@ -1007,28 +980,28 @@ public class TestRewriteManifests extends TableTestBase {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot add manifest with deleted files");
 
-    Assertions.assertThatThrownBy(() -> table.rewriteManifests().deleteManifest(manifest).commit())
+    assertThatThrownBy(() -> table.rewriteManifests().deleteManifest(manifest).commit())
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith(
             "Replaced and created manifests must have the same number of active files");
   }
 
-  @Test
+  @TestTemplate
   public void testManifestReplacementFailure() throws IOException {
-    Assert.assertNull("Table should be empty", table.currentSnapshot());
+    assertThat(table.currentSnapshot()).isNull();
 
     table.newFastAppend().appendFile(FILE_A).commit();
 
     Snapshot firstSnapshot = table.currentSnapshot();
     List<ManifestFile> firstSnapshotManifests = firstSnapshot.allManifests(table.io());
-    Assert.assertEquals(1, firstSnapshotManifests.size());
+    assertThat(firstSnapshotManifests).hasSize(1);
     ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
 
     table.newFastAppend().appendFile(FILE_B).commit();
 
     Snapshot secondSnapshot = table.currentSnapshot();
     List<ManifestFile> secondSnapshotManifests = secondSnapshot.allManifests(table.io());
-    Assert.assertEquals(2, secondSnapshotManifests.size());
+    assertThat(secondSnapshotManifests).hasSize(2);
     ManifestFile secondSnapshotManifest = secondSnapshotManifests.get(0);
 
     ManifestFile newManifest =
@@ -1046,16 +1019,16 @@ public class TestRewriteManifests extends TableTestBase {
     rewriteManifests.deleteManifest(secondSnapshotManifest);
     rewriteManifests.addManifest(newManifest);
 
-    Assertions.assertThatThrownBy(rewriteManifests::commit)
+    assertThatThrownBy(rewriteManifests::commit)
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
 
-    Assert.assertTrue("New manifest should not be deleted", new File(newManifest.path()).exists());
+    assertThat(new File(newManifest.path())).exists();
   }
 
-  @Test
+  @TestTemplate
   public void testManifestReplacementFailureWithSnapshotIdInheritance() throws IOException {
-    Assert.assertNull("Table should be empty", table.currentSnapshot());
+    assertThat(table.currentSnapshot()).isNull();
 
     table.updateProperties().set(SNAPSHOT_ID_INHERITANCE_ENABLED, "true").commit();
 
@@ -1063,14 +1036,14 @@ public class TestRewriteManifests extends TableTestBase {
 
     Snapshot firstSnapshot = table.currentSnapshot();
     List<ManifestFile> firstSnapshotManifests = firstSnapshot.allManifests(table.io());
-    Assert.assertEquals(1, firstSnapshotManifests.size());
+    assertThat(firstSnapshotManifests).hasSize(1);
     ManifestFile firstSnapshotManifest = firstSnapshotManifests.get(0);
 
     table.newFastAppend().appendFile(FILE_B).commit();
 
     Snapshot secondSnapshot = table.currentSnapshot();
     List<ManifestFile> secondSnapshotManifests = secondSnapshot.allManifests(table.io());
-    Assert.assertEquals(2, secondSnapshotManifests.size());
+    assertThat(secondSnapshotManifests).hasSize(2);
     ManifestFile secondSnapshotManifest = secondSnapshotManifests.get(0);
 
     ManifestFile newManifest =
@@ -1088,27 +1061,27 @@ public class TestRewriteManifests extends TableTestBase {
     rewriteManifests.deleteManifest(secondSnapshotManifest);
     rewriteManifests.addManifest(newManifest);
 
-    Assertions.assertThatThrownBy(rewriteManifests::commit)
+    assertThatThrownBy(rewriteManifests::commit)
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
 
-    Assert.assertTrue("New manifest should not be deleted", new File(newManifest.path()).exists());
+    assertThat(new File(newManifest.path())).exists();
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteManifestsOnBranchUnsupported() {
 
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    Assert.assertEquals(1, table.currentSnapshot().allManifests(table.io()).size());
+    assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(1);
 
-    Assertions.assertThatThrownBy(() -> table.rewriteManifests().toBranch("someBranch").commit())
+    assertThatThrownBy(() -> table.rewriteManifests().toBranch("someBranch").commit())
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage(
             "Cannot commit to branch someBranch: org.apache.iceberg.BaseRewriteManifests does not support branch commits");
   }
 
-  @Test
+  @TestTemplate
   public void testRewriteDataManifestsPreservesDeletes() {
     assumeThat(formatVersion).isGreaterThan(1);
 
@@ -1170,7 +1143,7 @@ public class TestRewriteManifests extends TableTestBase {
         statuses(ManifestEntry.Status.ADDED, ManifestEntry.Status.ADDED));
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceDeleteManifestsOnly() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
 
@@ -1256,7 +1229,7 @@ public class TestRewriteManifests extends TableTestBase {
         statuses(ManifestEntry.Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testReplaceDataAndDeleteManifests() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
 
@@ -1375,7 +1348,7 @@ public class TestRewriteManifests extends TableTestBase {
         statuses(ManifestEntry.Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteManifestReplacementConcurrentAppend() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
 
@@ -1478,7 +1451,7 @@ public class TestRewriteManifests extends TableTestBase {
         statuses(ManifestEntry.Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteManifestReplacementConcurrentDeleteFileRemoval() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
 
@@ -1586,7 +1559,7 @@ public class TestRewriteManifests extends TableTestBase {
         statuses(ManifestEntry.Status.DELETED, ManifestEntry.Status.EXISTING));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteManifestReplacementConflictingDeleteFileRemoval() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
 
@@ -1632,12 +1605,15 @@ public class TestRewriteManifests extends TableTestBase {
     table.newRewrite().deleteFile(FILE_A_DELETES).commit();
 
     // the rewrite must fail as the original delete manifest was replaced concurrently
-    Assertions.assertThatThrownBy(rewriteManifests::commit)
+    assertThatThrownBy(rewriteManifests::commit)
         .isInstanceOf(ValidationException.class)
-        .hasMessageStartingWith("Manifest is missing");
+        .hasMessageStartingWith(
+            String.format(
+                "Deleted manifest %s could not be found in the latest snapshot %d",
+                originalDeleteManifest.path(), table.currentSnapshot().snapshotId()));
   }
 
-  @Test
+  @TestTemplate
   public void testDeleteManifestReplacementFailure() throws IOException {
     assumeThat(formatVersion).isGreaterThan(1);
 
@@ -1693,7 +1669,7 @@ public class TestRewriteManifests extends TableTestBase {
     rewriteManifests.addManifest(newDeleteManifest);
 
     // the rewrite must fail
-    Assertions.assertThatThrownBy(rewriteManifests::commit)
+    assertThatThrownBy(rewriteManifests::commit)
         .isInstanceOf(CommitFailedException.class)
         .hasMessage("Injected failure");
 
@@ -1717,18 +1693,11 @@ public class TestRewriteManifests extends TableTestBase {
   private void validateSummary(
       Snapshot snapshot, int replaced, int kept, int created, int entryCount) {
     Map<String, String> summary = snapshot.summary();
-    Assert.assertEquals(
-        "Replaced manifest count should match",
-        replaced,
-        Integer.parseInt(summary.get("manifests-replaced")));
-    Assert.assertEquals(
-        "Kept manifest count should match", kept, Integer.parseInt(summary.get("manifests-kept")));
-    Assert.assertEquals(
-        "Created manifest count should match",
-        created,
-        Integer.parseInt(summary.get("manifests-created")));
-    Assert.assertEquals(
-        "Entry count should match", entryCount, Integer.parseInt(summary.get("entries-processed")));
+    assertThat(summary)
+        .containsEntry("manifests-replaced", String.valueOf(replaced))
+        .containsEntry("manifests-kept", String.valueOf(kept))
+        .containsEntry("manifests-created", String.valueOf(created))
+        .containsEntry("entries-processed", String.valueOf(entryCount));
   }
 
   private void matchNumberOfManifestFileWithSpecId(
@@ -1740,12 +1709,12 @@ public class TestRewriteManifests extends TableTestBase {
             .filter(m -> m.partitionSpecId() == toBeMatchedPartitionSpecId)
             .count();
 
-    Assert.assertEquals(
-        "manifest list should have "
-            + numberOfManifestWithPartitionSpecID
-            + " manifests matching this partitionSpecId "
-            + toBeMatchedPartitionSpecId,
-        numberOfManifestWithPartitionSpecID,
-        matchedManifestsCounter);
+    assertThat(matchedManifestsCounter)
+        .as(
+            "manifest list should have "
+                + numberOfManifestWithPartitionSpecID
+                + " manifests matching this partitionSpecId "
+                + toBeMatchedPartitionSpecId)
+        .isEqualTo(numberOfManifestWithPartitionSpecID);
   }
 }

@@ -18,10 +18,7 @@ title: "Hive and Iceberg Quickstart"
  - limitations under the License.
  -->
 
-
-## Hive and Iceberg Quickstart
-
-This guide will get you up and running with an Iceberg and Hive environment, including sample code to
+This guide will get you up and running with Apache Iceberg™ using Apache Hive™, including sample code to
 highlight some powerful features. You can learn more about Iceberg's Hive runtime by checking out the [Hive](docs/latest/hive.md) section.
 
 - [Docker Images](#docker-images)
@@ -35,11 +32,11 @@ highlight some powerful features. You can learn more about Iceberg's Hive runtim
 The fastest way to get started is to use [Apache Hive images](https://hub.docker.com/r/apache/hive) 
 which provides a SQL-like interface to create and query Iceberg tables from your laptop. You need to install the [Docker Desktop](https://www.docker.com/products/docker-desktop/).
 
-Take a look at the Tags tab in [Apache Hive docker images](https://hub.docker.com/r/apache/hive/tags?page=1&ordering=-last_updated) to see the available Hive versions.
+Take a look at the Tags tab in [Apache Hive docker images](https://hub.docker.com/r/apache/hive/tags?ordering=last_updated) to see the available Hive versions.
 
 Set the version variable.
 ```sh
-export HIVE_VERSION=4.0.0-beta-1
+export HIVE_VERSION=4.0.0
 ```
 
 Start the container, using the option `--platform linux/amd64` for a Mac with an M-Series chip:
@@ -108,7 +105,7 @@ SELECT * FROM nyc.taxis;
 
 #### Adding Iceberg to Hive
 
-If you already have a Hive 4.0.0-alpha-1, or later, environment, it comes with the Iceberg 0.13.1 included. No additional downloads or jars are needed. If you have a Hive 2.3.x or Hive 3.1.x environment see [Enabling Iceberg support in Hive](docs/latest/hive.md#enabling-iceberg-support-in-hive).
+If you already have a Hive 4.0.0, or later, environment, it comes with the Iceberg 1.4.3 included. No additional downloads or jars are needed. If you have a Hive 2.3.x or Hive 3.1.x environment see [Enabling Iceberg support in Hive](docs/latest/hive.md#hive-23x-hive-31x).
 
 #### Learn More
 

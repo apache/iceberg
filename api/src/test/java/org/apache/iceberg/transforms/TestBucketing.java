@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -34,7 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.hash.HashFunction;
 import org.apache.iceberg.relocated.com.google.common.hash.Hashing;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BucketUtil;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -163,6 +163,62 @@ public class TestBucketing {
     assertThat(BucketUtil.hash(num))
         .as("Long hash should match hash of little-endian bytes")
         .isEqualTo(hashBytes(buffer.array()));
+  }
+
+  @Test
+  public void testTimestampNanoPromotion() {
+    Types.TimestampType tsType = Types.TimestampType.withoutZone();
+    Types.TimestampNanoType tsNsType = Types.TimestampNanoType.withoutZone();
+    Bucket<Object> tsNsBucket = Bucket.get(tsNsType, 1);
+    Bucket<Object> tsBucket = Bucket.get(tsType, 1);
+
+    // Values from spec Appendix B: 32-bit Hash Requirements
+    assertThat(tsBucket.hash(Literal.of("2017-11-16T22:31:08").to(tsType).value()))
+        .as(
+            "Spec example: hash(2017-11-16T22:31:08) = -2047944441 for Timestamp and TimestampNano should match")
+        .isEqualTo(-2047944441);
+    assertThat(tsNsBucket.hash(Literal.of("2017-11-16T22:31:08").to(tsNsType).value()))
+        .as(
+            "Spec example: hash(2017-11-16T22:31:08) = -2047944441 for Timestamp and TimestampNano should match")
+        .isEqualTo(-2047944441);
+
+    assertThat(tsBucket.hash(Literal.of("2017-11-16T22:31:08.000001").to(tsType).value()))
+        .as(
+            "Spec example: hash(2017-11-16T22:31:08.000001) = -1207196810 for Timestamp and TimestampNano should match")
+        .isEqualTo(-1207196810);
+    assertThat(tsNsBucket.hash(Literal.of("2017-11-16T22:31:08.000001001").to(tsNsType).value()))
+        .as(
+            "Spec example: hash(2017-11-16T22:31:08.000001) = -1207196810 for Timestamp and TimestampNano should match")
+        .isEqualTo(-1207196810);
+  }
+
+  @Test
+  public void testTimestampTzNanoPromotion() {
+    Types.TimestampType tsTzType = Types.TimestampType.withZone();
+    Types.TimestampNanoType tsTzNsType = Types.TimestampNanoType.withZone();
+    Bucket<Object> tsTzNsBucket = Bucket.get(tsTzNsType, 1);
+    Bucket<Object> tsTzBucket = Bucket.get(tsTzType, 1);
+
+    // Values from spec Appendix B: 32-bit Hash Requirements
+    assertThat(tsTzBucket.hash(Literal.of("2017-11-16T14:31:08-08:00").to(tsTzType).value()))
+        .as(
+            "Spec example: hash(2017-11-16T14:31:08-08:00) = -2047944441 for Timestamp and TimestampNano should match")
+        .isEqualTo(-2047944441);
+    assertThat(tsTzNsBucket.hash(Literal.of("2017-11-16T14:31:08-08:00").to(tsTzNsType).value()))
+        .as(
+            "Spec example: hash(2017-11-16T14:31:08-08:00) = -2047944441 for Timestamp and TimestampNano should match")
+        .isEqualTo(-2047944441);
+
+    assertThat(tsTzBucket.hash(Literal.of("2017-11-16T14:31:08.000001-08:00").to(tsTzType).value()))
+        .as(
+            "Spec example: hash(2017-11-16T14:31:08.000001-08:00) = -1207196810 for Timestamp and TimestampNano should match")
+        .isEqualTo(-1207196810);
+    assertThat(
+            tsTzNsBucket.hash(
+                Literal.of("2017-11-16T14:31:08.000001001-08:00").to(tsTzNsType).value()))
+        .as(
+            "Spec example: hash(2017-11-16T14:31:08.000001-08:00) = -1207196810 for Timestamp and TimestampNano should match")
+        .isEqualTo(-1207196810);
   }
 
   @Test
@@ -356,7 +412,7 @@ public class TestBucketing {
 
   @Test
   public void testVerifiedIllegalNumBuckets() {
-    Assertions.assertThatThrownBy(() -> Bucket.get(0))
+    assertThatThrownBy(() -> Bucket.get(0))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid number of buckets: 0 (must be > 0)");
   }
@@ -383,7 +439,7 @@ public class TestBucketing {
    */
   private static UUID newUUID(byte[] bytes) {
     try {
-      return uuidBytesConstructor.newInstance((Object) bytes);
+      return uuidBytesConstructor.newInstance(bytes);
     } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
       throw new RuntimeException(e);
     }

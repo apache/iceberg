@@ -18,10 +18,12 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+
 import java.util.Map;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class TestRESTUtil {
@@ -45,7 +47,7 @@ public class TestRESTUtil {
 
     Map<String, String> actual = RESTUtil.extractPrefixMap(input, "rest.");
 
-    Assertions.assertThat(actual).isEqualTo(expected);
+    assertThat(actual).isEqualTo(expected);
   }
 
   @Test
@@ -61,7 +63,7 @@ public class TestRESTUtil {
     for (String[] testCase : testCases) {
       String input = testCase[0];
       String expected = testCase[1];
-      Assertions.assertThat(RESTUtil.stripTrailingSlash(input)).isEqualTo(expected);
+      assertThat(RESTUtil.stripTrailingSlash(input)).isEqualTo(expected);
     }
   }
 
@@ -87,21 +89,21 @@ public class TestRESTUtil {
       Namespace namespace = Namespace.of(levels);
 
       // To be placed into a URL path as query parameter or path parameter
-      Assertions.assertThat(RESTUtil.encodeNamespace(namespace)).isEqualTo(encodedNs);
+      assertThat(RESTUtil.encodeNamespace(namespace)).isEqualTo(encodedNs);
 
       // Decoded (after pulling as String) from URL
       Namespace asNamespace = RESTUtil.decodeNamespace(encodedNs);
-      Assertions.assertThat(asNamespace).isEqualTo(namespace);
+      assertThat(asNamespace).isEqualTo(namespace);
     }
   }
 
   @Test
   public void testNamespaceUrlEncodeDecodeDoesNotAllowNull() {
-    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+    assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> RESTUtil.encodeNamespace(null))
         .withMessage("Invalid namespace: null");
 
-    Assertions.assertThatExceptionOfType(IllegalArgumentException.class)
+    assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> RESTUtil.decodeNamespace(null))
         .withMessage("Invalid namespace: null");
   }
@@ -113,7 +115,7 @@ public class TestRESTUtil {
     String utf8 = "\u0020\u0025\u0026\u002B\u00A3\u20AC";
     String expected = "+%25%26%2B%C2%A3%E2%82%AC";
 
-    Assertions.assertThat(RESTUtil.encodeString(utf8)).isEqualTo(expected);
+    assertThat(RESTUtil.encodeString(utf8)).isEqualTo(expected);
   }
 
   @Test
@@ -124,7 +126,7 @@ public class TestRESTUtil {
     Map<String, String> formData = ImmutableMap.of("client_id", "12345", "client_secret", utf8);
     String expected = "client_id=12345&client_secret=" + asString;
 
-    Assertions.assertThat(RESTUtil.encodeFormData(formData)).isEqualTo(expected);
+    assertThat(RESTUtil.encodeFormData(formData)).isEqualTo(expected);
   }
 
   @Test
@@ -135,6 +137,6 @@ public class TestRESTUtil {
     Map<String, String> expected = ImmutableMap.of("client_id", "12345", "client_secret", utf8);
     String formString = "client_id=12345&client_secret=" + asString;
 
-    Assertions.assertThat(RESTUtil.decodeFormData(formString)).isEqualTo(expected);
+    assertThat(RESTUtil.decodeFormData(formString)).isEqualTo(expected);
   }
 }

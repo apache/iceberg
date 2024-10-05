@@ -19,7 +19,6 @@
 package org.apache.iceberg.spark.source;
 
 import java.util.List;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.io.FileWriterFactory;
 import org.apache.iceberg.io.TestPartitioningWriters;
@@ -32,10 +31,6 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
 public class TestSparkPartitioningWriters extends TestPartitioningWriters<InternalRow> {
-
-  public TestSparkPartitioningWriters(FileFormat fileFormat) {
-    super(fileFormat);
-  }
 
   @Override
   protected FileWriterFactory<InternalRow> newWriterFactory(
@@ -66,7 +61,7 @@ public class TestSparkPartitioningWriters extends TestPartitioningWriters<Intern
     StructLikeSet set = StructLikeSet.create(table.schema().asStruct());
     StructType sparkType = SparkSchemaUtil.convert(table.schema());
     for (InternalRow row : rows) {
-      InternalRowWrapper wrapper = new InternalRowWrapper(sparkType);
+      InternalRowWrapper wrapper = new InternalRowWrapper(sparkType, table.schema().asStruct());
       set.add(wrapper.wrap(row));
     }
     return set;

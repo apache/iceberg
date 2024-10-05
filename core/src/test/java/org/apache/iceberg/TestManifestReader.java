@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
@@ -31,7 +32,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -40,7 +40,11 @@ public class TestManifestReader extends TestBase {
   private static final RecursiveComparisonConfiguration FILE_COMPARISON_CONFIG =
       RecursiveComparisonConfiguration.builder()
           .withIgnoredFields(
-              "dataSequenceNumber", "fileOrdinal", "fileSequenceNumber", "fromProjectionPos")
+              "dataSequenceNumber",
+              "fileOrdinal",
+              "fileSequenceNumber",
+              "fromProjectionPos",
+              "manifestLocation")
           .build();
 
   @TestTemplate
@@ -73,7 +77,7 @@ public class TestManifestReader extends TestBase {
   @TestTemplate
   public void testInvalidUsage() throws IOException {
     ManifestFile manifest = writeManifest(FILE_A, FILE_B);
-    Assertions.assertThatThrownBy(() -> ManifestFiles.read(manifest, FILE_IO))
+    assertThatThrownBy(() -> ManifestFiles.read(manifest, FILE_IO))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot read from ManifestFile with null (unassigned) snapshot ID");
   }
@@ -134,6 +138,16 @@ public class TestManifestReader extends TestBase {
   }
 
   @TestTemplate
+  public void testDataFileManifestPaths() throws IOException {
+    ManifestFile manifest = writeManifest(1000L, FILE_A, FILE_B, FILE_C);
+    try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
+      for (DataFile file : reader) {
+        assertThat(file.manifestLocation()).isEqualTo(manifest.path());
+      }
+    }
+  }
+
+  @TestTemplate
   public void testDeleteFilePositions() throws IOException {
     assumeThat(formatVersion).as("Delete files only work for format version 2").isEqualTo(2);
     ManifestFile manifest =
@@ -147,6 +161,21 @@ public class TestManifestReader extends TestBase {
             .as("Position from field index should match")
             .isEqualTo(expectedPos);
         expectedPos += 1;
+      }
+    }
+  }
+
+  @TestTemplate
+  public void testDeleteFileManifestPaths() throws IOException {
+    assumeThat(formatVersion)
+        .as("Delete files only work for format version 2 or higher")
+        .isGreaterThanOrEqualTo(2);
+    ManifestFile manifest =
+        writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES, FILE_B_DELETES);
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, null)) {
+      for (DeleteFile file : reader) {
+        assertThat(file.manifestLocation()).isEqualTo(manifest.path());
       }
     }
   }

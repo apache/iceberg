@@ -19,18 +19,19 @@
 package org.apache.iceberg.connect.data;
 
 import java.util.List;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.kafka.connect.sink.SinkRecord;
 
-public class NoOpWriter implements RecordWriter {
+class NoOpWriter implements RecordWriter {
   @Override
   public void write(SinkRecord record) {
     // NO-OP
   }
 
   @Override
-  public List<WriterResult> complete() {
+  public List<IcebergWriterResult> complete() {
     // NO-OP
-    return null;
+    return ImmutableList.of();
   }
 
   @Override

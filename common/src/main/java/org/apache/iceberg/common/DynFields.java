@@ -387,19 +387,6 @@ public class DynFields {
     }
 
     /**
-     * Returns the first valid implementation as a StaticField or throws a NoSuchFieldException if
-     * there is none.
-     *
-     * @param <T> Java class stored in the field
-     * @return a {@link StaticField} with a valid implementation
-     * @throws IllegalStateException if the method is not static
-     * @throws NoSuchFieldException if no implementation was found
-     */
-    public <T> StaticField<T> buildStaticChecked() throws NoSuchFieldException {
-      return this.<T>buildChecked().asStatic();
-    }
-
-    /**
      * Returns the first valid implementation as a StaticField or throws a RuntimeException if there
      * is none.
      *
@@ -414,7 +401,7 @@ public class DynFields {
   }
 
   private static class MakeFieldAccessible implements PrivilegedAction<Void> {
-    private Field hidden;
+    private final Field hidden;
 
     MakeFieldAccessible(Field hidden) {
       this.hidden = hidden;

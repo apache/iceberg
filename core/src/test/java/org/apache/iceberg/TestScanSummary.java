@@ -25,28 +25,24 @@ import static org.apache.iceberg.expressions.Expressions.greaterThan;
 import static org.apache.iceberg.expressions.Expressions.greaterThanOrEqual;
 import static org.apache.iceberg.expressions.Expressions.lessThan;
 import static org.apache.iceberg.expressions.Expressions.lessThanOrEqual;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Arrays;
+import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.Pair;
-import org.assertj.core.api.Assertions;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@RunWith(Parameterized.class)
-public class TestScanSummary extends TableTestBase {
-  @Parameterized.Parameters(name = "formatVersion = {0}")
-  public static Object[] parameters() {
-    return new Object[] {1, 2};
+@ExtendWith(ParameterizedTestExtension.class)
+public class TestScanSummary extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(1, 2, 3);
   }
 
-  public TestScanSummary(int formatVersion) {
-    super(formatVersion);
-  }
-
-  @Test
+  @TestTemplate
   public void testSnapshotTimeRangeValidation() {
     long t0 = System.currentTimeMillis();
 
@@ -76,12 +72,8 @@ public class TestScanSummary extends TableTestBase {
     // expire the first snapshot
     table.expireSnapshots().expireOlderThan(t1).commit();
 
-    Assert.assertEquals(
-        "Should have one snapshot", 1, Lists.newArrayList(table.snapshots()).size());
-    Assert.assertEquals(
-        "Snapshot should be the second snapshot created",
-        secondSnapshotId,
-        table.currentSnapshot().snapshotId());
+    assertThat(table.snapshots()).hasSize(1);
+    assertThat(table.currentSnapshot().snapshotId()).isEqualTo(secondSnapshotId);
 
     // this should include the first snapshot, but it was removed from the dataset
     TableScan scan =
@@ -90,63 +82,56 @@ public class TestScanSummary extends TableTestBase {
             .filter(greaterThanOrEqual("dateCreated", t0))
             .filter(lessThan("dateCreated", t2));
 
-    Assertions.assertThatThrownBy(() -> new ScanSummary.Builder(scan).build())
+    assertThatThrownBy(() -> new ScanSummary.Builder(scan).build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot satisfy time filters: time range may include expired snapshots");
   }
 
-  @Test
+  @TestTemplate
   public void testTimestampRanges() {
     long lower = 1542750188523L;
     long upper = 1542750695131L;
 
-    Assert.assertEquals(
-        "Should use inclusive bound",
-        Pair.of(Long.MIN_VALUE, upper),
-        timestampRange(ImmutableList.of(lessThanOrEqual("ts_ms", upper))));
+    assertThat(timestampRange(ImmutableList.of(lessThanOrEqual("ts_ms", upper))))
+        .isEqualTo(Pair.of(Long.MIN_VALUE, upper));
 
-    Assert.assertEquals(
-        "Should use lower value for upper bound",
-        Pair.of(Long.MIN_VALUE, upper),
-        timestampRange(
-            ImmutableList.of(
-                lessThanOrEqual("ts_ms", upper + 918234), lessThanOrEqual("ts_ms", upper))));
+    assertThat(
+            timestampRange(
+                ImmutableList.of(
+                    lessThanOrEqual("ts_ms", upper + 918234), lessThanOrEqual("ts_ms", upper))))
+        .as("Should use lower value for upper bound")
+        .isEqualTo(Pair.of(Long.MIN_VALUE, upper));
 
-    Assert.assertEquals(
-        "Should make upper bound inclusive",
-        Pair.of(Long.MIN_VALUE, upper - 1),
-        timestampRange(ImmutableList.of(lessThan("ts_ms", upper))));
+    assertThat(timestampRange(ImmutableList.of(lessThan("ts_ms", upper))))
+        .as("Should make upper bound inclusive")
+        .isEqualTo(Pair.of(Long.MIN_VALUE, upper - 1));
 
-    Assert.assertEquals(
-        "Should use inclusive bound",
-        Pair.of(lower, Long.MAX_VALUE),
-        timestampRange(ImmutableList.of(greaterThanOrEqual("ts_ms", lower))));
+    assertThat(timestampRange(ImmutableList.of(greaterThanOrEqual("ts_ms", lower))))
+        .isEqualTo(Pair.of(lower, Long.MAX_VALUE));
 
-    Assert.assertEquals(
-        "Should use upper value for lower bound",
-        Pair.of(lower, Long.MAX_VALUE),
-        timestampRange(
-            ImmutableList.of(
-                greaterThanOrEqual("ts_ms", lower - 918234), greaterThanOrEqual("ts_ms", lower))));
+    assertThat(
+            timestampRange(
+                ImmutableList.of(
+                    greaterThanOrEqual("ts_ms", lower - 918234),
+                    greaterThanOrEqual("ts_ms", lower))))
+        .as("Should use upper value for lower bound")
+        .isEqualTo(Pair.of(lower, Long.MAX_VALUE));
 
-    Assert.assertEquals(
-        "Should make lower bound inclusive",
-        Pair.of(lower + 1, Long.MAX_VALUE),
-        timestampRange(ImmutableList.of(greaterThan("ts_ms", lower))));
+    assertThat(timestampRange(ImmutableList.of(greaterThan("ts_ms", lower))))
+        .as("Should make lower bound inclusive")
+        .isEqualTo(Pair.of(lower + 1, Long.MAX_VALUE));
 
-    Assert.assertEquals(
-        "Should set both bounds for equals",
-        Pair.of(lower, lower),
-        timestampRange(ImmutableList.of(equal("ts_ms", lower))));
+    assertThat(timestampRange(ImmutableList.of(equal("ts_ms", lower))))
+        .isEqualTo(Pair.of(lower, lower));
 
-    Assert.assertEquals(
-        "Should set both bounds",
-        Pair.of(lower, upper - 1),
-        timestampRange(
-            ImmutableList.of(greaterThanOrEqual("ts_ms", lower), lessThan("ts_ms", upper))));
+    assertThat(
+            timestampRange(
+                ImmutableList.of(greaterThanOrEqual("ts_ms", lower), lessThan("ts_ms", upper))))
+        .as("Should set both bounds and make upper bound inclusive")
+        .isEqualTo(Pair.of(lower, upper - 1));
 
     // >= lower and < lower is an empty range
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () ->
                 timestampRange(
                     ImmutableList.of(greaterThanOrEqual("ts_ms", lower), lessThan("ts_ms", lower))))
@@ -154,11 +139,11 @@ public class TestScanSummary extends TableTestBase {
         .hasMessageStartingWith("No timestamps can match filters");
   }
 
-  @Test
+  @TestTemplate
   public void testToMillis() {
     long millis = 1542750947417L;
-    Assert.assertEquals(1542750947000L, toMillis(millis / 1000));
-    Assert.assertEquals(1542750947417L, toMillis(millis));
-    Assert.assertEquals(1542750947417L, toMillis(millis * 1000 + 918));
+    assertThat(toMillis(millis / 1000)).isEqualTo(1542750947000L);
+    assertThat(toMillis(millis)).isEqualTo(1542750947417L);
+    assertThat(toMillis(millis * 1000 + 918)).isEqualTo(1542750947417L);
   }
 }
