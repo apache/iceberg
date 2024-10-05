@@ -22,7 +22,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -36,7 +35,6 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptionManager;
-import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.hadoop.HadoopConfigurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
@@ -114,7 +112,7 @@ class RESTTableOperations implements TableOperations, Closeable {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     LoadTableResponse loadTableResponse =
             client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler());
-    updateCurrentMetadata(loadTableResponse);
+    this.current = loadTableResponse.tableMetadata();
     updateIO(loadTableResponse);
     return this.current;
   }
@@ -173,16 +171,12 @@ class RESTTableOperations implements TableOperations, Closeable {
     // all future commits should be simple commits
     this.updateType = UpdateType.SIMPLE;
 
-    updateCurrentMetadata(response);
+    this.current = response.tableMetadata();
   }
 
   @Override
   public FileIO io() {
     return io;
-  }
-
-  private void updateCurrentMetadata(LoadTableResponse response) {
-    this.current = response.tableMetadata();
   }
 
   private void updateIO(LoadTableResponse response) {
