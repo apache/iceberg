@@ -151,7 +151,11 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
     List<PartitionSpec> specs =
         Lists.newArrayList(
             Iterables.transform(
-                table.specs().values(), spec -> TableMetadata.updateSpecSchema(schema, spec)));
+                table.specs().values(),
+                spec -> {
+                  PartitionSpec.checkCompatibility(spec, schema);
+                  return TableMetadata.updateSpecSchema(schema, spec);
+                }));
     return Maps.newHashMap(PartitionUtil.indexSpecs(specs));
   }
 
