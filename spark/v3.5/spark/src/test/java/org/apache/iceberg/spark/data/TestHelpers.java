@@ -116,6 +116,21 @@ public class TestHelpers {
     }
   }
 
+  public static void assertEqualsBatchWithRows(
+      Types.StructType struct, Iterator<Row> expected, ColumnarBatch batch) {
+    for (int rowId = 0; rowId < batch.numRows(); rowId++) {
+      List<Types.NestedField> fields = struct.fields();
+      InternalRow row = batch.getRow(rowId);
+      Row expectedRow = expected.next();
+      for (int i = 0; i < fields.size(); i += 1) {
+        Type fieldType = fields.get(i).type();
+        Object expectedValue = expectedRow.get(i);
+        Object actualValue = row.isNullAt(i) ? null : row.get(i, convert(fieldType));
+        assertEqualsUnsafe(fieldType, expectedValue, actualValue);
+      }
+    }
+  }
+
   private static void assertEqualsSafe(Types.ListType list, Collection<?> expected, List actual) {
     Type elementType = list.elementType();
     List<?> expectedElements = Lists.newArrayList(expected);

@@ -23,8 +23,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Iterator;
+import java.util.List;
 import org.apache.avro.generic.GenericData;
+import org.apache.iceberg.Files;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
@@ -33,10 +39,34 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.spark.data.RandomData;
+import org.apache.iceberg.spark.data.TestHelpers;
+import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
+import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVectorizedReads {
+
+  protected static SparkSession spark = null;
+
+  @BeforeAll
+  public static void startSpark() {
+    spark = SparkSession.builder().master("local[2]").getOrCreate();
+  }
+
+  @AfterAll
+  public static void stopSpark() {
+    if (spark != null) {
+      spark.stop();
+      spark = null;
+    }
+  }
 
   @Override
   Iterable<GenericData.Record> generateData(
@@ -92,5 +122,40 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
         mixedFile,
         true,
         BATCH_SIZE);
+  }
+
+  @Test
+  public void testDecimalNotAllPagesDictionaryEncoded() throws Exception {
+    Schema schema = new Schema(Types.NestedField.required(1, "id", Types.DecimalType.of(38, 0)));
+    Path path =
+        Paths.get(
+            getClass()
+                .getClassLoader()
+                .getResource("decimal_dict_and_plain_encoding.parquet")
+                .toURI());
+
+    Dataset<Row> df = spark.read().parquet(path.toString());
+    List<Row> expected = df.collectAsList();
+    long expectedSize = df.count();
+
+    Parquet.ReadBuilder readBuilder =
+        Parquet.read(Files.localInput(path.toFile()))
+            .project(schema)
+            .createBatchedReaderFunc(
+                type ->
+                    VectorizedSparkParquetReaders.buildReader(
+                        schema, type, ImmutableMap.of(), null));
+
+    try (CloseableIterable<ColumnarBatch> batchReader = readBuilder.build()) {
+      Iterator<Row> expectedIter = expected.iterator();
+      Iterator<ColumnarBatch> batches = batchReader.iterator();
+      int numRowsRead = 0;
+      while (batches.hasNext()) {
+        ColumnarBatch batch = batches.next();
+        numRowsRead += batch.numRows();
+        TestHelpers.assertEqualsBatchWithRows(schema.asStruct(), expectedIter, batch);
+      }
+      assertThat(numRowsRead).isEqualTo(expectedSize);
+    }
   }
 }
