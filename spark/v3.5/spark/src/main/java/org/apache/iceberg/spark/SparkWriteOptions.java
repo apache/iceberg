@@ -85,4 +85,7 @@ public class SparkWriteOptions {
 
   // Overrides the delete granularity
   public static final String DELETE_GRANULARITY = "delete-granularity";
+
+  // Overrides merging position deletes during writes
+  public static final String MAINTAIN_POSITION_DELETES_DURING_WRITE = "maintain-position-deletes";
 }

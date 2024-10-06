@@ -24,6 +24,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -48,6 +50,8 @@ import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkV2Filters;
+import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -68,6 +72,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   private final Long asOfTimestamp;
   private final String tag;
   private final List<Expression> runtimeFilterExpressions;
+  private Map<String, DeleteFileSet> dataToFileScopedDeletes;
 
   SparkBatchQueryScan(
       SparkSession spark,
@@ -156,6 +161,26 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
       // save the evaluated filter for equals/hashCode
       runtimeFilterExpressions.add(runtimeFilterExpr);
     }
+  }
+
+  protected Map<String, DeleteFileSet> dataToFileScopedDeletes() {
+    if (dataToFileScopedDeletes == null) {
+      dataToFileScopedDeletes = Maps.newHashMap();
+      for (ScanTask task : tasks()) {
+        FileScanTask fileScanTask = task.asFileScanTask();
+        List<DeleteFile> fileScopedDeletes =
+            fileScanTask.deletes().stream()
+                .filter(file -> ContentFileUtil.referencedDataFileLocation(file) != null)
+                .collect(Collectors.toList());
+        for (DeleteFile deleteFile : fileScopedDeletes) {
+          dataToFileScopedDeletes
+              .computeIfAbsent(fileScanTask.file().location(), ignored -> DeleteFileSet.create())
+              .add(deleteFile);
+        }
+      }
+    }
+
+    return dataToFileScopedDeletes;
   }
 
   // at this moment, Spark can only pass IN filters for a single attribute

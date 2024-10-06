@@ -49,7 +49,7 @@ public class TestRewritePositionDeleteFilesProcedure extends ExtensionsTestBase 
     String partitionStmt = partitioned ? "PARTITIONED BY (id)" : "";
     sql(
         "CREATE TABLE %s (id bigint, data string) USING iceberg %s TBLPROPERTIES"
-            + "('format-version'='2', 'write.delete.mode'='merge-on-read')",
+            + "('format-version'='2', 'write.delete.mode'='merge-on-read', 'write.delete.maintain-during-write'='false')",
         tableName, partitionStmt);
 
     List<SimpleRecord> records =

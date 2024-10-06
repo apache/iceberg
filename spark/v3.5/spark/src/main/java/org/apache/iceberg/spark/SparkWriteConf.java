@@ -721,4 +721,13 @@ public class SparkWriteConf {
             .parse();
     return DeleteGranularity.fromString(valueAsString);
   }
+
+  public boolean maintainPositionDeletesDuringWrite() {
+    return confParser
+        .booleanConf()
+        .option(SparkWriteOptions.MAINTAIN_POSITION_DELETES_DURING_WRITE)
+        .tableProperty(TableProperties.MAINTAIN_POSITION_DELETES_DURING_WRITE)
+        .defaultValue(TableProperties.MAINTAIN_POSITION_DELETES_DURING_WRITE_DEFAULT)
+        .parse();
+  }
 }

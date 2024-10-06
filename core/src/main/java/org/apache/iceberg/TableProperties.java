@@ -383,4 +383,8 @@ public class TableProperties {
   public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
 
   public static final int ENCRYPTION_AAD_LENGTH_DEFAULT = 16;
+
+  public static final String MAINTAIN_POSITION_DELETES_DURING_WRITE =
+      "write.delete.maintain-during-write";
+  public static final boolean MAINTAIN_POSITION_DELETES_DURING_WRITE_DEFAULT = true;
 }
