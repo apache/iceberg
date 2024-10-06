@@ -86,6 +86,10 @@ public class ContentFileUtil {
     return location != null ? location.toString() : null;
   }
 
+  public static boolean isFileScoped(DeleteFile deleteFile) {
+    return referencedDataFile(deleteFile) != null;
+  }
+
   public static boolean isDV(DeleteFile deleteFile) {
     return deleteFile.format() == FileFormat.PUFFIN;
   }
