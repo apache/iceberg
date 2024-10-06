@@ -455,7 +455,11 @@ public class Tasks {
                       minSleepTimeMs * Math.pow(scaleFactor, attempt - 1), (double) maxSleepTimeMs);
           int jitter = ThreadLocalRandom.current().nextInt(Math.max(1, (int) (delayMs * 0.1)));
 
-          LOG.warn("Retrying task after failure: {}", e.getMessage(), e);
+          if (LOG.isDebugEnabled()) {
+            LOG.warn("Retrying task after failure: {}", e.getMessage(), e);
+          } else {
+            LOG.warn("Retrying task after failure: {}", e.getMessage());
+          }
 
           try {
             TimeUnit.MILLISECONDS.sleep(delayMs + jitter);
@@ -486,7 +490,11 @@ public class Tasks {
             future.get();
 
           } catch (InterruptedException e) {
-            LOG.warn("Interrupted while getting future results", e);
+            if (LOG.isDebugEnabled()) {
+              LOG.warn("Interrupted while getting future results", e);
+            } else {
+              LOG.warn("Interrupted while getting future results");
+            }
             for (Throwable t : uncaught) {
               e.addSuppressed(t);
             }
@@ -519,7 +527,11 @@ public class Tasks {
         try {
           Thread.sleep(10);
         } catch (InterruptedException e) {
-          LOG.warn("Interrupted while waiting for tasks to finish", e);
+          if (LOG.isDebugEnabled()) {
+            LOG.warn("Interrupted while waiting for tasks to finish", e);
+          } else {
+            LOG.warn("Interrupted while waiting for tasks to finish");
+          }
 
           for (Future<?> future : futures) {
             future.cancel(true);
