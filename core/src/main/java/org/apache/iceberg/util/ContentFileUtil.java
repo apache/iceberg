@@ -80,4 +80,8 @@ public class ContentFileUtil {
     CharSequence location = referencedDataFile(deleteFile);
     return location != null ? location.toString() : null;
   }
+
+  public static boolean isFileScopedDelete(DeleteFile deleteFile) {
+    return referencedDataFile(deleteFile) != null;
+  }
 }
