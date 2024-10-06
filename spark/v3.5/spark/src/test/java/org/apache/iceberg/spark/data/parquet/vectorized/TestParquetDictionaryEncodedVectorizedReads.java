@@ -124,6 +124,10 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
         BATCH_SIZE);
   }
 
+  /**
+   * decimal_dict_and_plain_encoding.parquet contains one column chunk of decimal(38, 0) data in two
+   * pages, one RLE dictionary encoded and one plain encoded, each with 200 rows.
+   */
   @Test
   public void testDecimalNotAllPagesDictionaryEncoded() throws Exception {
     Schema schema = new Schema(Types.NestedField.required(1, "id", Types.DecimalType.of(38, 0)));
