@@ -172,7 +172,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       if (!closed && recordCount > 0) {
         // recordCount > 0 when there are records in the write store that have not been flushed to
         // the Parquet file
-        length += writeStore.getBufferedSize();
+        length += estimateBufferSize();
       }
 
       return length;
@@ -192,7 +192,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
 
   private long estimateBufferSize() {
     if (totalRowGroupSize == 0 || totalBufferSize == 0) {
-      return currentBufferSize;
+      return writeStore.getBufferedSize();
     }
 
     return currentBufferSize * totalRowGroupSize / totalBufferSize;

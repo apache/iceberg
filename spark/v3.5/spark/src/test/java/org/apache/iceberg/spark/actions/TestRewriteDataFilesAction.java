@@ -557,8 +557,8 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @Test
   public void testBinPackCombineMediumFiles() {
-    Table table = createTable(4);
-    shouldHaveFiles(table, 4);
+    Table table = createTable(6);
+    shouldHaveFiles(table, 6);
 
     List<Object[]> expectedRecords = currentData();
     int targetSize = ((int) testDataSize(table) / 3);
@@ -578,7 +578,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(result.rewrittenDataFilesCount())
         .as("Action should delete 4 data files")
-        .isEqualTo(4);
+        .isEqualTo(6);
     assertThat(result.addedDataFilesCount()).as("Action should add 3 data files").isEqualTo(3);
     assertThat(result.rewrittenBytesCount()).isEqualTo(dataSizeBefore);
 
