@@ -178,6 +178,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
 
+  public static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
+
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
 
@@ -994,7 +996,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       return ioBuilder.apply(context, properties);
     } else {
       String ioImpl = properties.getOrDefault(
-              CatalogProperties.FILE_IO_IMPL, CatalogProperties.DEFAULT_REST_FILE_IO_IMPL);
+              CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
       return CatalogUtil.loadFileIO(ioImpl, properties, conf);
     }
   }

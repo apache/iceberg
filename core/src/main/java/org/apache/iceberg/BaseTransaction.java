@@ -554,7 +554,7 @@ public class BaseTransaction implements Transaction {
     @Override
     @SuppressWarnings("ConsistentOverrides")
     public void commit(TableMetadata underlyingBase, TableMetadata metadata) {
-      if (!underlyingBase.metadataFileLocation().equals(current.metadataFileLocation())) {
+      if (underlyingBase != current) {
         // trigger a refresh and retry
         throw new CommitFailedException("Table metadata refresh is required");
       }

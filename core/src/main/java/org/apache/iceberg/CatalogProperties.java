@@ -30,7 +30,6 @@ public class CatalogProperties {
   public static final String TABLE_DEFAULT_PREFIX = "table-default.";
   public static final String TABLE_OVERRIDE_PREFIX = "table-override.";
   public static final String METRICS_REPORTER_IMPL = "metrics-reporter-impl";
-  public static final String DEFAULT_REST_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
   /**
    * Controls whether the catalog will cache table entries upon load.
