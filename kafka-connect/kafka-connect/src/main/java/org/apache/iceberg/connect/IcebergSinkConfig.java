@@ -55,6 +55,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String ROUTE_REGEX = "route-regex";
   private static final String ID_COLUMNS = "id-columns";
   private static final String PARTITION_BY = "partition-by";
+  private static final String REMOVE_PARTITION_BY = "remove-partition-by";
+  private static final String ADD_PARTITION_BY = "add-partition-by";
   private static final String COMMIT_BRANCH = "commit-branch";
 
   private static final String CATALOG_PROP_PREFIX = "iceberg.catalog.";
@@ -94,6 +96,10 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String DEFAULT_CATALOG_NAME = "iceberg";
   private static final String DEFAULT_CONTROL_TOPIC = "control-iceberg";
   public static final String DEFAULT_CONTROL_GROUP_PREFIX = "cg-control-";
+
+  private static final String TABLE_REMOVE_PARTITION_BY = "iceberg.tables.remove-partition-by";
+  private static final String TABLE_ADD_PARTITION_BY = "iceberg.tables.add-partition-by";
+  private static final String SUPPORT_PARTITION_EVOLUTION = "iceberg.support-partition-evolution";
 
   public static final int SCHEMA_UPDATE_RETRIES = 2; // 3 total attempts
   public static final int CREATE_TABLE_RETRIES = 2; // 3 total attempts
@@ -210,6 +216,24 @@ public class IcebergSinkConfig extends AbstractConfig {
         null,
         Importance.MEDIUM,
         "If specified, Hadoop config files in this directory will be loaded");
+    configDef.define(
+        TABLE_ADD_PARTITION_BY,
+        ConfigDef.Type.STRING,
+        "",
+        Importance.LOW,
+        "partition to add");
+    configDef.define(
+        TABLE_REMOVE_PARTITION_BY,
+        ConfigDef.Type.STRING,
+        "",
+        Importance.LOW,
+        "partition to remove");
+    configDef.define(
+        SUPPORT_PARTITION_EVOLUTION,
+        ConfigDef.Type.BOOLEAN,
+        false,
+        Importance.LOW,
+        "config for enabling partition evolution");
     return configDef;
   }
 
@@ -322,6 +346,18 @@ public class IcebergSinkConfig extends AbstractConfig {
     return getString(TABLES_DEFAULT_PARTITION_BY);
   }
 
+  public String tablesRemovePartitionBy() {
+    return getString(TABLE_REMOVE_PARTITION_BY);
+  }
+
+  public String tablesAddPartitionBy() {
+    return getString(TABLE_ADD_PARTITION_BY);
+  }
+
+  public boolean isPartitionEvolutionSupported() {
+    return getBoolean(SUPPORT_PARTITION_EVOLUTION);
+  }
+
   public TableSinkConfig tableConfig(String tableName) {
     return tableConfigMap.computeIfAbsent(
         tableName,
@@ -341,6 +377,16 @@ public class IcebergSinkConfig extends AbstractConfig {
 
           String commitBranch =
               tableConfig.getOrDefault(COMMIT_BRANCH, tablesDefaultCommitBranch());
+
+          if(isPartitionEvolutionSupported()) {
+            String removePartitionByStr = tableConfig.getOrDefault(REMOVE_PARTITION_BY, tablesRemovePartitionBy());
+            List<String> removePartitionBy = stringToList(removePartitionByStr, COMMA_NO_PARENS_REGEX);
+
+            String addPartitionByStr = tableConfig.getOrDefault(ADD_PARTITION_BY, tablesAddPartitionBy());
+            List<String> addPartitionBy = stringToList(addPartitionByStr, COMMA_NO_PARENS_REGEX);
+
+            return new TableSinkConfig(routeRegex, idColumns, partitionBy, removePartitionBy, addPartitionBy, commitBranch);
+          }
 
           return new TableSinkConfig(routeRegex, idColumns, partitionBy, commitBranch);
         });
