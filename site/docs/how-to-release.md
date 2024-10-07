@@ -422,10 +422,11 @@ spark-runtime jar for the Spark installation):
 ```bash
 spark-shell \
     --conf spark.jars.repositories=${MAVEN_URL} \
-    --packages org.apache.iceberg:iceberg-spark3-runtime:{{ icebergVersion }} \
+    --packages org.apache.iceberg:iceberg-spark3-runtime:{{ icebergVersion }},org.xerial:sqlite-jdbc:3.46.1.3 \
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
     --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
-    --conf spark.sql.catalog.local.type=hadoop \
+    --conf spark.sql.catalog.local.type=jdbc \
+    --conf spark.sql.catalog.local.uri=jdbc:sqlite::memory: \
     --conf spark.sql.catalog.local.warehouse=${LOCAL_WAREHOUSE_PATH} \
     --conf spark.sql.catalog.local.default-namespace=default \
     --conf spark.sql.defaultCatalog=local

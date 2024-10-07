@@ -26,7 +26,9 @@ highlight some powerful features. You can learn more about Iceberg's Spark runti
 - [Writing Data to a Table](#writing-data-to-a-table)
 - [Reading Data from a Table](#reading-data-from-a-table)
 - [Adding A Catalog](#adding-a-catalog)
-- [Next Steps](#next-steps)
+- [Next steps](#next-steps)
+  - [Adding Iceberg to Spark](#adding-iceberg-to-spark)
+  - [Learn More](#learn-more)
 
 ### Docker-Compose
 
@@ -274,17 +276,18 @@ Catalogs are configured using properties under `spark.sql.catalog.(catalog_name)
 we use JDBC, but you can follow these instructions to configure other catalog types. To learn more, check out
 the [Catalog](docs/latest/spark-configuration.md#catalogs) page in the Spark section.
 
-This configuration creates a path-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog.
+This configuration creates a sql-based catalog named `local` for tables under `$PWD/warehouse` and adds support for Iceberg tables to Spark's built-in catalog.
 
 === "CLI"
 
     ```sh
-    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }}\
+    spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }},org.xerial:sqlite-jdbc:3.46.1.3 \
         --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
         --conf spark.sql.catalog.spark_catalog=org.apache.iceberg.spark.SparkSessionCatalog \
         --conf spark.sql.catalog.spark_catalog.type=hive \
         --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
-        --conf spark.sql.catalog.local.type=hadoop \
+        --conf spark.sql.catalog.local.type=jdbc \
+        --conf spark.sql.catalog.local.uri=jdbc:sqlite::memory: \
         --conf spark.sql.catalog.local.warehouse=$PWD/warehouse \
         --conf spark.sql.defaultCatalog=local
     ```
@@ -297,7 +300,8 @@ This configuration creates a path-based catalog named `local` for tables under `
     spark.sql.catalog.spark_catalog                      org.apache.iceberg.spark.SparkSessionCatalog
     spark.sql.catalog.spark_catalog.type                 hive
     spark.sql.catalog.local                              org.apache.iceberg.spark.SparkCatalog
-    spark.sql.catalog.local.type                         hadoop
+    spark.sql.catalog.local.type                         jdbc
+    spark.sql.catalog.local.uri                          jdbc:sqlite::memory:
     spark.sql.catalog.local.warehouse                    $PWD/warehouse
     spark.sql.defaultCatalog                             local
     ```
