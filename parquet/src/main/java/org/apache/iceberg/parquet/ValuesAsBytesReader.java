@@ -47,6 +47,14 @@ public class ValuesAsBytesReader extends ValuesReader {
     throw new UnsupportedOperationException();
   }
 
+  public void skipBytes(int toSkip) {
+    try {
+      valuesInputStream.skipFully(toSkip);
+    } catch (IOException e) {
+      throw new ParquetDecodingException("Failed to skip " + toSkip + " bytes", e);
+    }
+  }
+
   public ByteBuffer getBuffer(int length) {
     try {
       return valuesInputStream.slice(length).order(ByteOrder.LITTLE_ENDIAN);

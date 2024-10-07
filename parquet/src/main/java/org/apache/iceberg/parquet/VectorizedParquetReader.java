@@ -113,7 +113,6 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     private long nextRowGroupStart = 0;
     private long valuesRead = 0;
     private T last = null;
-    private final long[] rowGroupsStartRowPos;
 
     FileIterator(ReadConf conf) {
       this.reader = conf.reader();
@@ -124,7 +123,6 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       this.batchSize = conf.batchSize();
       this.model.setBatchSize(this.batchSize);
       this.columnChunkMetadata = conf.columnChunkMetadataForRowGroups();
-      this.rowGroupsStartRowPos = conf.startRowPositions();
     }
 
     @Override
@@ -156,17 +154,16 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     private void advance() {
       while (shouldSkip[nextRowGroup]) {
         nextRowGroup += 1;
-        reader.skipNextRowGroup();
       }
+
       PageReadStore pages;
       try {
-        pages = reader.readNextRowGroup();
+        pages = reader.readFilteredRowGroup(nextRowGroup);
       } catch (IOException e) {
         throw new RuntimeIOException(e);
       }
 
-      long rowPosition = rowGroupsStartRowPos[nextRowGroup];
-      model.setRowGroupInfo(pages, columnChunkMetadata.get(nextRowGroup), rowPosition);
+      model.setRowGroupInfo(pages, columnChunkMetadata.get(nextRowGroup));
       nextRowGroupStart += pages.getRowCount();
       nextRowGroup += 1;
     }
