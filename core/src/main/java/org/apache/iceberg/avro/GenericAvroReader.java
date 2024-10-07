@@ -211,16 +211,14 @@ public class GenericAvroReader<T>
             return ValueReaders.ints();
 
           case "time-micros":
+          case "timestamp-micros":
+            // Spark uses the same representation
             return ValueReaders.longs();
 
           case "timestamp-millis":
             // adjust to microseconds
             ValueReader<Long> longs = ValueReaders.longs();
             return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
-
-          case "timestamp-micros":
-            // Spark uses the same representation
-            return ValueReaders.longs();
 
           case "decimal":
             return ValueReaders.decimal(
