@@ -52,7 +52,7 @@ spark-sql --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ iceber
     --conf spark.sql.catalog.spark_catalog.type=hive \
     --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.local.type=jdbc \
-    --conf spark.sql.catalog.local.uri=jdbc:sqlite::memory: \
+    --conf spark.sql.catalog.local.uri=jdbc:sqlite:$PWD/iceberg_catalog_db.sqlite \
     --conf spark.sql.catalog.local.warehouse=$PWD/warehouse
 ```
 

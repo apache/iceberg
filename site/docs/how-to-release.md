@@ -426,7 +426,7 @@ spark-shell \
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
     --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.local.type=jdbc \
-    --conf spark.sql.catalog.local.uri=jdbc:sqlite::memory: \
+    --conf spark.sql.catalog.local.uri=jdbc:sqlite:${LOCAL_WAREHOUSE_PATH}/iceberg_catalog_db.sqlite \
     --conf spark.sql.catalog.local.warehouse=${LOCAL_WAREHOUSE_PATH} \
     --conf spark.sql.catalog.local.default-namespace=default \
     --conf spark.sql.defaultCatalog=local

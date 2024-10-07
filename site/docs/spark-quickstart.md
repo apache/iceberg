@@ -287,7 +287,7 @@ This configuration creates a sql-based catalog named `local` for tables under `$
         --conf spark.sql.catalog.spark_catalog.type=hive \
         --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
         --conf spark.sql.catalog.local.type=jdbc \
-        --conf spark.sql.catalog.local.uri=jdbc:sqlite::memory: \
+        --conf spark.sql.catalog.local.uri=jdbc:sqlite:$PWD/iceberg_catalog_db.sqlite \
         --conf spark.sql.catalog.local.warehouse=$PWD/warehouse \
         --conf spark.sql.defaultCatalog=local
     ```
@@ -301,7 +301,7 @@ This configuration creates a sql-based catalog named `local` for tables under `$
     spark.sql.catalog.spark_catalog.type                 hive
     spark.sql.catalog.local                              org.apache.iceberg.spark.SparkCatalog
     spark.sql.catalog.local.type                         jdbc
-    spark.sql.catalog.local.uri                          jdbc:sqlite::memory:
+    spark.sql.catalog.local.uri                          jdbc:sqlite:$PWD/iceberg_catalog_db.sqlite
     spark.sql.catalog.local.warehouse                    $PWD/warehouse
     spark.sql.defaultCatalog                             local
     ```
