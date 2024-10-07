@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.apache.iceberg.TableProperties.DEFAULT_PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_COMPRESSION_LEVEL;
 import static org.apache.iceberg.TableProperties.DELETE_PARQUET_DICT_SIZE_BYTES;
@@ -46,6 +47,7 @@ import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_REC
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_CHECK_MIN_RECORD_COUNT_DEFAULT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
+import static org.apache.iceberg.TableProperties.PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES;
 
 import java.io.File;
 import java.io.IOException;
@@ -519,6 +521,29 @@ public class Parquet {
             dictionaryEnabled);
       }
 
+      // context for position delete whose schema has only `file_path` and `pos` fields
+      static Context pathPosDeleteContext(Map<String, String> config) {
+        int rowGroupSize =
+            PropertyUtil.propertyAsInt(
+                config,
+                PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES,
+                DEFAULT_PATH_POS_DELETE_PARQUET_ROW_GROUP_SIZE_BYTES);
+
+        Context context = deleteContext(config);
+        return new Context(
+            rowGroupSize,
+            context.pageSize(),
+            context.pageRowLimit(),
+            context.dictionaryPageSize(),
+            context.codec(),
+            context.compressionLevel(),
+            context.rowGroupCheckMinRecordCount(),
+            context.rowGroupCheckMaxRecordCount(),
+            context.bloomFilterMaxBytes(),
+            context.columnBloomFilterEnabled(),
+            context.dictionaryEnabled());
+      }
+
       static Context deleteContext(Map<String, String> config) {
         // default delete config using data config
         Context dataContext = dataContext(config);
@@ -955,6 +980,8 @@ public class Parquet {
               }
             });
 
+        appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+
       } else {
         appenderBuilder.schema(DeleteSchemaUtil.pathPosSchema());
 
@@ -965,9 +992,9 @@ public class Parquet {
                 new PositionDeleteStructWriter<T>(
                     (StructWriter<?>) GenericParquetWriter.buildWriter(parquetSchema),
                     Function.identity()));
-      }
 
-      appenderBuilder.createContextFunc(WriteBuilder.Context::deleteContext);
+        appenderBuilder.createContextFunc(WriteBuilder.Context::pathPosDeleteContext);
+      }
 
       return new PositionDeleteWriter<>(
           appenderBuilder.build(), FileFormat.PARQUET, location, spec, partition, keyMetadata);
