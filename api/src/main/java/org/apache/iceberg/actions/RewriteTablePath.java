@@ -18,13 +18,35 @@
  */
 package org.apache.iceberg.actions;
 
-import org.apache.iceberg.Table;
-
+/**
+ * An action that rewrites the table's metadata files to a staging directory, replacing all source
+ * prefixes in absolute paths with a specified target prefix. There are two modes:
+ *
+ * <ul>
+ *   <li><b>Complete copy:</b> Rewrites all metadata files to the staging directory.
+ *   <li><b>Incremental copy:</b> Rewrites a subset of metadata files to the staging directory,
+ *       consisting of metadata files added since a specified start version and/or until end
+ *       version. The start/end version is identified by the name of a metadata.json file, and all
+ *       metadata files added before/after these file are marked for rewrite.
+ * </ul>
+ *
+ * This action can be used as the starting point to fully or incrementally copy an Iceberg table
+ * located under the source prefix to the target prefix.
+ *
+ * <p>The action returns the following:
+ *
+ * <ol>
+ *   <li>The name of the latest metadata.json file copied.
+ *   <li>A listing of rewritten table metadata files, relative to the staging directory, that can be
+ *       copied to the target prefix.
+ *   <li>A listing of table data files, relative to the source prefix, that can be copied to the
+ *       target prefix.
+ * </ol>
+ */
 public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTablePath.Result> {
 
   /**
-   * Passes the source and target prefixes that will be used to replace the source prefix with the
-   * target one.
+   * Configure a source prefix that will be replaced by the specified target prefix in all paths
    *
    * @param sourcePrefix the source prefix to be replaced
    * @param targetPrefix the target prefix
@@ -33,59 +55,48 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
   RewriteTablePath rewriteLocationPrefix(String sourcePrefix, String targetPrefix);
 
   /**
-   * Pass the version copied last time. It is optional if the target table is provided. The default
-   * value is the target table's current version. User needs to make sure whether the start version
-   * is valid if target table is not provided.
+   * First metadata version to rewrite, identified by name of a metadata.json file in the table's
+   * metadata log. It is optional, if provided then this action will only rewrite metadata files
+   * added after this version.
    *
-   * @param lastCopiedVersion only version file name is needed, not the metadata json file path. For
-   *     example, the version file would be "v2.metadata.json" for a Hadoop table. For metastore
-   *     tables, the version file would be like
+   * @param startVersion name of a metadata.json file. For example,
    *     "00001-8893aa9e-f92e-4443-80e7-cfa42238a654.metadata.json".
    * @return this for method chaining
    */
-  RewriteTablePath lastCopiedVersion(String lastCopiedVersion);
+  RewriteTablePath startVersion(String startVersion);
 
   /**
-   * The latest version of the table to copy. It is optional, the default value is the source
-   * table's current version.
+   * Last metadata version to rewrite, identified by name of a metadata.json file in the table's
+   * metadata log. It is optional, if provided then this action will only rewrite metadata files
+   * added before this file, including the file itself.
    *
-   * @param endVersion only version file name is needed, not the metadata json file path. For
-   *     example, the version file would be "v2.metadata.json" for a Hadoop table. For metastore
-   *     tables, the version file would be like
+   * @param endVersion name of a metadata.json file. For example,
    *     "00001-8893aa9e-f92e-4443-80e7-cfa42238a654.metadata.json".
    * @return this for method chaining
    */
   RewriteTablePath endVersion(String endVersion);
 
   /**
-   * Set the customized staging location. It is optional. By default, staging location is a
-   * subdirectory under table's metadata directory.
+   * Custom staging location. It is optional. By default, staging location is a subdirectory under
+   * table's metadata directory.
    *
    * @param stagingLocation the staging location
    * @return this for method chaining
    */
   RewriteTablePath stagingLocation(String stagingLocation);
 
-  /**
-   * Set the target table. It is optional if the start version is provided.
-   *
-   * @param targetTable the target table
-   * @return this for method chaining
-   */
-  RewriteTablePath targetTable(Table targetTable);
-
   /** The action result that contains a summary of the execution. */
   interface Result {
-    /** Return staging location */
+    /** staging location of rewritten files */
     String stagingLocation();
 
-    /** Return directory of data files list. */
+    /** path of data files list file. */
     String dataFileListLocation();
 
-    /** Return directory of metadata files list. */
+    /** path of metadata files list file. */
     String metadataFileListLocation();
 
-    /** Return the latest version */
+    /** name of latest metadata file version */
     String latestVersion();
   }
 }

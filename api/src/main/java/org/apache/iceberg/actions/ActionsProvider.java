@@ -77,7 +77,7 @@ public interface ActionsProvider {
         this.getClass().getName() + " does not implement computeTableStats");
   }
 
-  /** Instantiates an action to rewrite table files absolute path. */
+  /** Instantiates an action to rewrite all absolute paths in table metadata. */
   default RewriteTablePath rewriteTablePath(Table table) {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement rewriteTablePath");
