@@ -378,10 +378,10 @@ At the time when the current default, `FlinkSink` implementation was created, Fl
 limitations that were not acceptable for the Iceberg tables purpose. Due to these limitations, `FlinkSink` is based 
 on a custom chain of `StreamOperator`s  terminated by `DiscardingSink`.
 
-In the Flink 1.15 version, [SinkV2 interface](https://cwiki.apache.org/confluence/display/FLINK/FLIP-191%3A+Extend+unified+Sink+interface+to+support+small+file+compaction) 
-was introduced. This interface is used in the new, `IcebergSink` implementation that is also available in the `iceberg-flink` module. 
-The new implementation will be a base for further work on features such as [table maintenance](maintenance.md).
-The SinkV2 based implementation is currently an experimental feature so please use it with caution.
+In the 1.15 version of Flink [SinkV2 interface](https://cwiki.apache.org/confluence/display/FLINK/FLIP-191%3A+Extend+unified+Sink+interface+to+support+small+file+compaction)
+was introduced. This interface is used in the new `IcebergSink` implementation which is available in the `iceberg-flink` module.
+The new implementation is a base for further work on features such as [table maintenance](maintenance.md).
+The SinkV2 based implementation is currently an experimental feature so use it with caution.
 
 ## Writing with SQL
 

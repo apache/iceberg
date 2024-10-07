@@ -63,9 +63,10 @@ public class TestFlinkTableSink extends CatalogTestBase {
         for (Object[] catalogParams : CatalogTestBase.parameters()) {
           String catalogName = (String) catalogParams[0];
           Namespace baseNamespace = (Namespace) catalogParams[1];
-          boolean doNotUseV2Sink = false;
           parameters.add(
-              new Object[] {catalogName, baseNamespace, format, isStreaming, doNotUseV2Sink});
+              new Object[] {
+                catalogName, baseNamespace, format, isStreaming, false /* don't use v2 sink */
+              });
         }
       }
     }
@@ -75,8 +76,8 @@ public class TestFlinkTableSink extends CatalogTestBase {
       for (Boolean isStreaming : new Boolean[] {true, false}) {
         String catalogName = "testhadoop_basenamespace";
         Namespace baseNamespace = Namespace.of("l0", "l1");
-        boolean useV2Sink = true;
-        parameters.add(new Object[] {catalogName, baseNamespace, format, isStreaming, useV2Sink});
+        parameters.add(
+            new Object[] {catalogName, baseNamespace, format, isStreaming, true /* use v2 sink */});
       }
     }
 
