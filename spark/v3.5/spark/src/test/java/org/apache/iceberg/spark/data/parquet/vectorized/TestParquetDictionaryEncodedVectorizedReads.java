@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark.data.parquet.vectorized;
 
+import static org.apache.iceberg.TableProperties.PARQUET_DICT_SIZE_BYTES;
+import static org.apache.iceberg.TableProperties.PARQUET_PAGE_ROW_LIMIT;
 import static org.apache.iceberg.TableProperties.PARQUET_ROW_GROUP_SIZE_BYTES_DEFAULT;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -122,6 +124,27 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
         mixedFile,
         true,
         BATCH_SIZE);
+  }
+
+  @Test
+  public void testBinaryNotAllPagesDictionaryEncoded() throws IOException {
+    Schema schema = new Schema(Types.NestedField.required(1, "bytes", Types.BinaryType.get()));
+    File parquetFile = File.createTempFile("junit", null, temp.toFile());
+    assertThat(parquetFile.delete()).as("Delete should succeed").isTrue();
+
+    Iterable<GenericData.Record> records = RandomData.generateFallbackData(schema, 500, 0L, 100);
+    try (FileAppender<GenericData.Record> writer =
+        Parquet.write(Files.localOutput(parquetFile))
+            .schema(schema)
+            .set(PARQUET_DICT_SIZE_BYTES, "4096")
+            .set(PARQUET_PAGE_ROW_LIMIT, "100")
+            .build()) {
+      writer.addAll(records);
+    }
+    // After this, parquetFile contains one column chunk of binary data in five pages,
+    // the first two RLE dictionary encoded, and the remaining three plain encoded.
+
+    assertRecordsMatch(schema, 500, records, parquetFile, true, BATCH_SIZE);
   }
 
   /**
