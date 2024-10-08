@@ -29,7 +29,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.spark.network.util.JavaUtils;
 import org.apache.spark.sql.RuntimeConfig;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.internal.RuntimeConfigImpl;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
@@ -41,7 +40,7 @@ class SparkConfParser {
 
   SparkConfParser() {
     this.properties = ImmutableMap.of();
-    this.sessionConf = new RuntimeConfigImpl(SQLConf.get());
+    this.sessionConf = new RuntimeConfig(SQLConf.get());
     this.options = CaseInsensitiveStringMap.empty();
   }
 

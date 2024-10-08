@@ -28,15 +28,12 @@ import org.apache.datasketches.theta.Sketch
 import org.apache.datasketches.theta.UpdateSketch
 import org.apache.iceberg.spark.SparkSchemaUtil
 import org.apache.iceberg.types.Conversions
-import org.apache.spark.SparkException
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.aggregate.ImperativeAggregate
 import org.apache.spark.sql.catalyst.expressions.aggregate.TypedImperativeAggregate
 import org.apache.spark.sql.catalyst.trees.UnaryLike
 import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.internal.ColumnNode
-import org.apache.spark.sql.internal.ExpressionColumnNode
 import org.apache.spark.sql.types.BinaryType
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.Decimal
@@ -59,7 +56,7 @@ case class ThetaSketchAgg(
   private lazy val icebergType = SparkSchemaUtil.convert(child.dataType)
 
   def this(colName: String) = {
-    this(ThetaSketchAgg.expr(col(colName).node), 0, 0)
+    this(col(colName).expr, 0, 0)
   }
 
   override def dataType: DataType = BinaryType
@@ -120,14 +117,5 @@ case class ThetaSketchAgg(
   private def toBytes(sketch: Sketch): Array[Byte] = {
     val compactSketch = sketch.compact()
     compactSketch.toByteArray
-  }
-}
-
-object ThetaSketchAgg {
-  def expr(node: ColumnNode): Expression = {
-    node match {
-      case ExpressionColumnNode(expression, _) => expression
-      case node => throw SparkException.internalError("Unsupported ColumnNode: " + node)
-    }
   }
 }

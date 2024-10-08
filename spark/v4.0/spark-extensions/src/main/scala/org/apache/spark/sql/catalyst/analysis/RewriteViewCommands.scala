@@ -169,7 +169,7 @@ case class RewriteViewCommands(spark: SparkSession) extends Rule[LogicalPlan] wi
   private def collectTemporaryFunctions(child: LogicalPlan): Seq[String] = {
     val tempFunctions = new mutable.HashSet[String]()
     child.resolveExpressionsWithPruning(_.containsAnyPattern(UNRESOLVED_FUNCTION)) {
-      case f @ UnresolvedFunction(nameParts, _, _, _, _, _, _) if isTempFunction(nameParts) =>
+      case f @ UnresolvedFunction(nameParts, _, _, _, _, _) if isTempFunction(nameParts) =>
         tempFunctions += nameParts.head
         f
       case e: SubqueryExpression =>
