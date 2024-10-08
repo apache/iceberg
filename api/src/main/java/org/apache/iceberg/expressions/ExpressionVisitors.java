@@ -88,7 +88,15 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public <T> R lt(BoundReference<T> ref, BoundReference<T> ref2) {
+      return null;
+    }
+
     public <T> R ltEq(BoundReference<T> ref, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R ltEq(BoundReference<T> ref, BoundReference<T> ref2) {
       return null;
     }
 
@@ -96,7 +104,15 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public <T> R gt(BoundReference<T> ref, BoundReference<T> ref2) {
+      return null;
+    }
+
     public <T> R gtEq(BoundReference<T> ref, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R gtEq(BoundReference<T> ref, BoundReference<T> ref2) {
       return null;
     }
 
@@ -104,7 +120,15 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public <T> R eq(BoundReference<T> ref, BoundReference<T> ref2) {
+      return null;
+    }
+
     public <T> R notEq(BoundReference<T> ref, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R notEq(BoundReference<T> ref, BoundReference<T> ref2) {
       return null;
     }
 
@@ -146,7 +170,6 @@ public class ExpressionVisitors {
       if (!(pred.term() instanceof BoundReference)) {
         return handleNonReference(pred.term());
       }
-
       if (pred.isLiteralPredicate()) {
         BoundLiteralPredicate<T> literalPred = pred.asLiteralPredicate();
         switch (pred.op()) {
@@ -196,6 +219,26 @@ public class ExpressionVisitors {
             throw new IllegalStateException(
                 "Invalid operation for BoundSetPredicate: " + pred.op());
         }
+
+      } else if (pred.isTermPredicate()) {
+        BoundTermPredicate<T> termPred = pred.asTermPredicate();
+        switch (pred.op()) {
+          case LT:
+            return lt((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case LT_EQ:
+            return ltEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case GT:
+            return gt((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case GT_EQ:
+            return gtEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case EQ:
+            return eq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case NOT_EQ:
+            return notEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          default:
+            throw new IllegalStateException(
+                "Invalid operation for BoundTermPredicate: " + pred.op());
+        }
       }
 
       throw new IllegalStateException("Unsupported bound predicate: " + pred.getClass().getName());
@@ -230,7 +273,15 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public <T> R lt(Bound<T> expr, Bound<T> expr2) {
+      return null;
+    }
+
     public <T> R ltEq(Bound<T> expr, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R ltEq(Bound<T> expr, Bound<T> expr2) {
       return null;
     }
 
@@ -238,7 +289,15 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public <T> R gt(Bound<T> expr, Bound<T> expr2) {
+      return null;
+    }
+
     public <T> R gtEq(Bound<T> expr, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R gtEq(Bound<T> expr, Bound<T> expr2) {
       return null;
     }
 
@@ -246,7 +305,15 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public <T> R eq(Bound<T> expr, Bound<T> expr2) {
+      return null;
+    }
+
     public <T> R notEq(Bound<T> expr, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R notEq(Bound<T> expr, Bound<T> expr2) {
       return null;
     }
 
@@ -316,6 +383,25 @@ public class ExpressionVisitors {
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundSetPredicate: " + pred.op());
+        }
+      } else if (pred.isTermPredicate()) {
+        BoundTermPredicate<T> termPred = pred.asTermPredicate();
+        switch (pred.op()) {
+          case LT:
+            return lt((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case LT_EQ:
+            return ltEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case GT:
+            return gt((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case GT_EQ:
+            return gtEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case EQ:
+            return eq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case NOT_EQ:
+            return notEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          default:
+            throw new IllegalStateException(
+                "Invalid operation for BoundTermPredicate: " + pred.op());
         }
       }
 
@@ -495,6 +581,25 @@ public class ExpressionVisitors {
             throw new IllegalStateException(
                 "Invalid operation for BoundSetPredicate: " + pred.op());
         }
+      } else if (pred.isTermPredicate()) {
+        BoundTermPredicate<T> termPred = pred.asTermPredicate();
+        switch (pred.op()) {
+          case LT:
+            return lt((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case LT_EQ:
+            return ltEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case GT:
+            return gt((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case GT_EQ:
+            return gtEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case EQ:
+            return eq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          case NOT_EQ:
+            return notEq((BoundReference<T>) pred.term(), (BoundReference<T>) termPred.rightTerm());
+          default:
+            throw new IllegalStateException(
+                "Invalid operation for BoundTermPredicate: " + pred.op());
+        }
       }
 
       throw new IllegalStateException("Unsupported bound predicate: " + pred.getClass().getName());
@@ -520,7 +625,15 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public <T> R lt(BoundTerm<T> term, BoundTerm<T> rightTerm) {
+      return null;
+    }
+
     public <T> R ltEq(BoundTerm<T> term, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R ltEq(BoundTerm<T> term, BoundTerm<T> rightTerm) {
       return null;
     }
 
@@ -528,7 +641,15 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public <T> R gt(BoundTerm<T> term, BoundTerm<T> rightTerm) {
+      return null;
+    }
+
     public <T> R gtEq(BoundTerm<T> term, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R gtEq(BoundTerm<T> term, BoundTerm<T> rightTerm) {
       return null;
     }
 
@@ -536,7 +657,15 @@ public class ExpressionVisitors {
       return null;
     }
 
+    public <T> R eq(BoundTerm<T> term, BoundTerm<T> rightTerm) {
+      return null;
+    }
+
     public <T> R notEq(BoundTerm<T> term, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R notEq(BoundTerm<T> term, BoundTerm<T> rightTerm) {
       return null;
     }
 

@@ -155,10 +155,7 @@ public class ParquetMetricsRowGroupFilter {
       // if the column has no non-null values, the expression cannot match
       int id = ref.fieldId();
 
-      // When filtering nested types notNull() is implicit filter passed even though complex
-      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
-      // evaluated post scan.
-      if (schema.findType(id) instanceof Type.NestedType) {
+      if (checkNestedTypes(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -232,6 +229,41 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean lt(BoundReference<T> ref, BoundReference<T> ref2) {
+      int id = ref.fieldId();
+      int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Long valueCount = valueCounts.get(id);
+      Long valueCount2 = valueCounts.get(id2);
+      if (valueCount == null || valueCount2 == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Statistics<?> colStats = stats.get(id);
+      Statistics<?> colStats2 = stats.get(id2);
+      if (colStatsExist(colStats, colStats2)) {
+        if (allNulls(colStats, valueCount) || allNulls(colStats2, valueCount2)) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        if (minMaxUndefined(colStats) || minMaxUndefined(colStats2)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (compareLowerToUpperStats(ref, id, id2, colStats, colStats2, cmp -> cmp >= 0)) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
@@ -254,6 +286,41 @@ public class ParquetMetricsRowGroupFilter {
         T lower = min(colStats, id);
         int cmp = lit.comparator().compare(lower, lit.value());
         if (cmp > 0) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean ltEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      int id = ref.fieldId();
+      int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Long valueCount = valueCounts.get(id);
+      Long valueCount2 = valueCounts.get(id2);
+      if (valueCount == null || valueCount2 == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Statistics<?> colStats = stats.get(id);
+      Statistics<?> colStats2 = stats.get(id2);
+      if (colStatsExist(colStats, colStats2)) {
+        if (allNulls(colStats, valueCount) || allNulls(colStats2, valueCount2)) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        if (minMaxUndefined(colStats) || minMaxUndefined(colStats2)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (compareLowerToUpperStats(ref, id, id2, colStats, colStats2, cmp -> cmp > 0)) {
           return ROWS_CANNOT_MATCH;
         }
       }
@@ -292,6 +359,45 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean gt(BoundReference<T> ref, BoundReference<T> ref2) {
+      int id = ref.fieldId();
+      int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Long valueCount = valueCounts.get(id);
+      Long valueCount2 = valueCounts.get(id2);
+      if (valueCount == null || valueCount2 == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Statistics<?> colStats = stats.get(id);
+      Statistics<?> colStats2 = stats.get(id2);
+      if (colStatsExist(colStats, colStats2)) {
+        if (allNulls(colStats, valueCount) || allNulls(colStats2, valueCount2)) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        if (minMaxUndefined(colStats) || minMaxUndefined(colStats2)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (compareUpperStats(ref, id, id2, colStats, colStats2, cmp -> cmp <= 0)) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        if (compareUpperToLowerStats(ref, id, id2, colStats, colStats2, cmp -> cmp <= 0)) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
@@ -322,13 +428,49 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean gtEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      int id = ref.fieldId();
+      int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Long valueCount = valueCounts.get(id);
+      Long valueCount2 = valueCounts.get(id2);
+      if (valueCount == null || valueCount2 == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Statistics<?> colStats = stats.get(id);
+      Statistics<?> colStats2 = stats.get(id2);
+      if (colStatsExist(colStats, colStats2)) {
+        if (allNulls(colStats, valueCount) || allNulls(colStats2, valueCount2)) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        if (minMaxUndefined(colStats) || minMaxUndefined(colStats2)) {
+          return ROWS_MIGHT_MATCH;
+        }
+
+        if (compareUpperStats(ref, id, id2, colStats, colStats2, cmp -> cmp < 0)) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        if (compareUpperToLowerStats(ref, id, id2, colStats, colStats2, cmp -> cmp < 0)) {
+          return ROWS_CANNOT_MATCH;
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
-      // When filtering nested types notNull() is implicit filter passed even though complex
-      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
-      // evaluated post scan.
-      if (schema.findType(id) instanceof Type.NestedType) {
+      if (checkNestedTypes(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -365,6 +507,34 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean eq(BoundReference<T> ref, BoundReference<T> ref2) {
+      int id = ref.fieldId();
+      int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      if (checkNestedTypes(id) || checkNestedTypes(id2)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Long valueCount = valueCounts.get(id);
+      Long valueCount2 = valueCounts.get(id2);
+      if (valueCount == null || valueCount2 == null) {
+        // the column is not present and is all nulls
+        return ROWS_CANNOT_MATCH;
+      }
+
+      Boolean rowsCannotMatch = compareStats(ref, id, valueCount, id2, valueCount2);
+      if (rowsCannotMatch != null) {
+        return rowsCannotMatch;
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
     public <T> Boolean notEq(BoundReference<T> ref, Literal<T> lit) {
       // because the bounds are not necessarily a min or max value, this cannot be answered using
       // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
@@ -372,13 +542,112 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean notEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      // because the bounds are not necessarily a min or max value, this cannot be answered using
+      // them. notEq(col, X) with (X, Y) doesn't guarantee that X is a value in col.
+      return ROWS_MIGHT_MATCH;
+    }
+
+    private <T> Boolean compareStats(
+        BoundReference<T> ref, int id, Long valueCount, int id2, Long valueCount2) {
+      Statistics<?> colStats = stats.get(id);
+      if (colStats != null && !colStats.isEmpty()) {
+        if (allNulls(colStats, valueCount)) {
+          return ROWS_CANNOT_MATCH;
+        }
+
+        Statistics<?> colStats2 = stats.get(id2);
+        if (colStats2 != null && !colStats2.isEmpty()) {
+          if (allNulls(colStats2, valueCount2)) {
+            return ROWS_CANNOT_MATCH;
+          }
+
+          if (minMaxUndefined(colStats) || minMaxUndefined(colStats2)) {
+            return ROWS_MIGHT_MATCH;
+          }
+
+          if (compareLowerStats(ref, id, id2, colStats, colStats2, cmp -> cmp > 0)) {
+            return ROWS_CANNOT_MATCH;
+          }
+          if (compareUpperStats(ref, id, id2, colStats, colStats2, cmp -> cmp < 0)) {
+            return ROWS_CANNOT_MATCH;
+          }
+        }
+      }
+      return ROWS_MIGHT_MATCH;
+    }
+
+    private <T> boolean compareUpperStats(
+        BoundReference<T> ref,
+        int id,
+        int id2,
+        Statistics<?> colStats,
+        Statistics<?> colStats2,
+        java.util.function.Predicate<Integer> compare) {
+      int cmp;
+
+      T upper = max(colStats, id);
+      T upper2 = max(colStats2, id2);
+      cmp = ref.comparator().compare(upper, upper2);
+      if (compare.test(cmp)) {
+        return true;
+      }
+      return false;
+    }
+
+    private <T> boolean compareLowerStats(
+        BoundReference<T> ref,
+        int id,
+        int id2,
+        Statistics<?> colStats,
+        Statistics<?> colStats2,
+        java.util.function.Predicate<Integer> compare) {
+      T lower = min(colStats, id);
+      T lower2 = min(colStats2, id2);
+      int cmp = ref.comparator().compare(lower, lower2);
+      if (compare.test(cmp)) {
+        return true;
+      }
+      return false;
+    }
+
+    private <T> boolean compareLowerToUpperStats(
+        BoundReference<T> ref,
+        int id,
+        int id2,
+        Statistics<?> colStats,
+        Statistics<?> colStats2,
+        java.util.function.Predicate<Integer> compare) {
+      T lower = min(colStats, id);
+      T upper = max(colStats2, id2);
+      int cmp = ref.comparator().compare(lower, upper);
+      if (compare.test(cmp)) {
+        return true;
+      }
+      return false;
+    }
+
+    private <T> boolean compareUpperToLowerStats(
+        BoundReference<T> ref,
+        int id,
+        int id2,
+        Statistics<?> colStats,
+        Statistics<?> colStats2,
+        java.util.function.Predicate<Integer> compare) {
+      T upper = max(colStats, id);
+      T lower = min(colStats2, id2);
+      int cmp = ref.comparator().compare(upper, lower);
+      if (compare.test(cmp)) {
+        return true;
+      }
+      return false;
+    }
+
+    @Override
     public <T> Boolean in(BoundReference<T> ref, Set<T> literalSet) {
       int id = ref.fieldId();
 
-      // When filtering nested types notNull() is implicit filter passed even though complex
-      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
-      // evaluated post scan.
-      if (schema.findType(id) instanceof Type.NestedType) {
+      if (checkNestedTypes(id)) {
         return ROWS_MIGHT_MATCH;
       }
 
@@ -427,6 +696,16 @@ public class ParquetMetricsRowGroupFilter {
       }
 
       return ROWS_MIGHT_MATCH;
+    }
+
+    private boolean checkNestedTypes(int id) {
+      // When filtering nested types notNull() is implicit filter passed even though complex
+      // filters aren't pushed down in Parquet. Leave all nested column type filters to be
+      // evaluated post scan.
+      if (schema.findType(id) instanceof Type.NestedType) {
+        return true;
+      }
+      return false;
     }
 
     @Override
@@ -563,6 +842,10 @@ public class ParquetMetricsRowGroupFilter {
     public <T> Boolean handleNonReference(Bound<T> term) {
       return ROWS_MIGHT_MATCH;
     }
+  }
+
+  private static boolean colStatsExist(Statistics<?> colStats, Statistics<?> colStats2) {
+    return colStats != null && !colStats.isEmpty() && colStats2 != null && !colStats2.isEmpty();
   }
 
   /**

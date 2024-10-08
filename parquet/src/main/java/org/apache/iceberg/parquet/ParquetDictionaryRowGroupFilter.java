@@ -217,6 +217,34 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean lt(BoundReference<T> ref, BoundReference<T> ref2) {
+      int id = ref.fieldId();
+      int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      Boolean hasNonDictPage2 = isFallback.get(id2);
+      if (hasNonDictPage == null || hasNonDictPage || hasNonDictPage2 == null || hasNonDictPage2) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, ref.comparator());
+      Set<T> dictionary2 = dict(id2, ref2.comparator());
+      for (T item : dictionary) {
+        for (T item2 : dictionary2) {
+          int cmp = ref.comparator().compare(item, item2);
+          if (cmp < 0) {
+            return ROWS_MIGHT_MATCH;
+          }
+        }
+      }
+      return ROWS_CANNOT_MATCH;
+    }
+
+    @Override
     public <T> Boolean ltEq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
@@ -235,6 +263,34 @@ public class ParquetDictionaryRowGroupFilter {
         }
       }
 
+      return ROWS_CANNOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean ltEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      int id = ref.fieldId();
+      int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      Boolean hasNonDictPage2 = isFallback.get(id2);
+      if (hasNonDictPage == null || hasNonDictPage || hasNonDictPage2 == null || hasNonDictPage2) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, ref.comparator());
+      Set<T> dictionary2 = dict(id2, ref2.comparator());
+      for (T item : dictionary) {
+        for (T item2 : dictionary2) {
+          int cmp = ref.comparator().compare(item, item2);
+          if (cmp <= 0) {
+            return ROWS_MIGHT_MATCH;
+          }
+        }
+      }
       return ROWS_CANNOT_MATCH;
     }
 
@@ -261,6 +317,34 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean gt(BoundReference<T> ref, BoundReference<T> ref2) {
+      int id = ref.fieldId();
+      int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      Boolean hasNonDictPage2 = isFallback.get(id2);
+      if (hasNonDictPage == null || hasNonDictPage || hasNonDictPage2 == null || hasNonDictPage2) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, ref.comparator());
+      Set<T> dictionary2 = dict(id2, ref2.comparator());
+      for (T item : dictionary) {
+        for (T item2 : dictionary2) {
+          int cmp = ref.comparator().compare(item, item2);
+          if (cmp > 0) {
+            return ROWS_MIGHT_MATCH;
+          }
+        }
+      }
+      return ROWS_CANNOT_MATCH;
+    }
+
+    @Override
     public <T> Boolean gtEq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
@@ -283,6 +367,35 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
+    public <T> Boolean gtEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      int id = ref.fieldId();
+      int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      Boolean hasNonDictPage2 = isFallback.get(id2);
+      if (hasNonDictPage == null || hasNonDictPage || hasNonDictPage2 == null || hasNonDictPage2) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, ref.comparator());
+      Set<T> dictionary2 = dict(id2, ref2.comparator());
+      for (T item : dictionary) {
+        for (T item2 : dictionary2) {
+          int cmp = ref.comparator().compare(item, item2);
+          if (cmp >= 0) {
+            return ROWS_MIGHT_MATCH;
+          }
+        }
+      }
+
+      return ROWS_CANNOT_MATCH;
+    }
+
+    @Override
     public <T> Boolean eq(BoundReference<T> ref, Literal<T> lit) {
       int id = ref.fieldId();
 
@@ -294,6 +407,27 @@ public class ParquetDictionaryRowGroupFilter {
       Set<T> dictionary = dict(id, lit.comparator());
 
       return dictionary.contains(lit.value()) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean eq(BoundReference<T> ref, BoundReference<T> ref2) {
+      int id = ref.fieldId();
+      int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      Boolean hasNonDictPage2 = isFallback.get(id2);
+      if (hasNonDictPage == null || hasNonDictPage || hasNonDictPage2 == null || hasNonDictPage2) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, ref.comparator());
+      Set<T> dictionary2 = dict(id2, ref2.comparator());
+
+      return hasCommonElement(dictionary, dictionary2) ? ROWS_MIGHT_MATCH : ROWS_CANNOT_MATCH;
     }
 
     @Override
@@ -311,6 +445,43 @@ public class ParquetDictionaryRowGroupFilter {
       }
 
       return dictionary.contains(lit.value()) ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean notEq(BoundReference<T> ref, BoundReference<T> ref2) {
+      int id = ref.fieldId();
+      int id2 = ref2.fieldId();
+
+      if (ref.type().typeId() != ref2.type().typeId()) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Boolean hasNonDictPage = isFallback.get(id);
+      Boolean hasNonDictPage2 = isFallback.get(id2);
+      if (hasNonDictPage == null || hasNonDictPage || hasNonDictPage2 == null || hasNonDictPage2) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Set<T> dictionary = dict(id, ref.comparator());
+      Set<T> dictionary2 = dict(id2, ref2.comparator());
+
+      if (dictionary.size() > 1
+          || mayContainNulls.get(id)
+          || dictionary2.size() > 1
+          || mayContainNulls.get(id2)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      return hasCommonElement(dictionary, dictionary2) ? ROWS_CANNOT_MATCH : ROWS_MIGHT_MATCH;
+    }
+
+    private <T> boolean hasCommonElement(Set<T> set1, Set<T> set2) {
+      for (T item : set1) {
+        if (set2.contains(item)) {
+          return true;
+        }
+      }
+      return false;
     }
 
     @Override

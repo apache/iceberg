@@ -26,6 +26,10 @@ public abstract class BoundPredicate<T> extends Predicate<T, BoundTerm<T>>
     super(op, term);
   }
 
+  protected BoundPredicate(Operation op, BoundTerm<T> term, BoundTerm<T> rightTerm) {
+    super(op, term, rightTerm);
+  }
+
   public boolean test(StructLike struct) {
     return test(term().eval(struct));
   }
@@ -56,6 +60,14 @@ public abstract class BoundPredicate<T> extends Predicate<T, BoundTerm<T>>
 
   public BoundLiteralPredicate<T> asLiteralPredicate() {
     throw new IllegalStateException("Not a literal predicate: " + this);
+  }
+
+  public boolean isTermPredicate() {
+    return false;
+  }
+
+  public BoundTermPredicate<T> asTermPredicate() {
+    throw new IllegalStateException("Not a term predicate: " + this);
   }
 
   public boolean isSetPredicate() {
