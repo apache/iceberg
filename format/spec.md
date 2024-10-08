@@ -329,11 +329,11 @@ Row lineage fields are written when row lineage is enabled. When not enabled, ro
 
 When a row is added or modified, the `_last_updated_seq` field is set to `null` so that it is inherited when reading. Similarly, the `_row_id` field for an added row is set to `null` and assigned when reading.
 
-A data file with only new rows for the table may omit the `_last_updated_seq` and `_row_id`. Files read without must be treated as if both fields are null for all rows.
+A data file with only new rows for the table may omit the `_last_updated_seq` and `_row_id`. When reading, such files must set both columns to null for all rows.
 
 On read, if `_last_updated_seq` is `null` it is assigned the `sequence_number` of the data file's manifest entry. The data sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
 
-When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the manifest list for a snapshot and is documented in [First Row ID Assignment](#first-row-id-assignment). A snapshot's `first-row-id` is to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
+When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the manifest list for a snapshot and is documented in [First Row ID Assignment](#first-row-id-assignment). A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
 
 Values for `_row_id` and `_last_updated_seq` are either read from the data file or assigned at read time. As a result on read, rows in a table always have non-null values for these fields when lineage is enabled.
 
@@ -370,7 +370,7 @@ The snapshot's manifest list would contain existing manifests, plus new manifest
 
 The first added file, `added1`, is assigned the same `first_row_id` as the snapshot and the following manifests are assigned `first_row_id` based on the number of rows added by the previously listed manifests. The second file, `added2`, does not change the `first_row_id` of the next manifest because it contains no added data files.
 
-Within the first `added`, the first added manifest, each data file' `first_row_id` follows a similar pattern:
+Within `added1`, the first added manifest, each data file's `first_row_id` follows a similar pattern:
 
 | `status` | `file_path` | `record_count` | `first_row_id` |
 |----------|-------------|----------------|----------------|
@@ -628,7 +628,7 @@ A snapshot consists of the following fields:
 | _optional_ |            |            | **`manifests`**              | A list of manifest file locations. Must be omitted if `manifest-list` is present                                                   |
 | _optional_ | _required_ | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` (see below)                                               |
 | _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                     |
-|            |            | _optional_ | **`first-row-id`**  | The first `_row_id` assigned to the first row in the first datafile in the first manifest, see [Row Lineage](#row-lineage) |
+|            |            | _optional_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
@@ -822,11 +822,11 @@ Table metadata consists of the following fields:
 | _optional_ | _optional_ | _optional_ | **`statistics`**            | A list (optional) of [table statistics](#table-statistics).                                                                                                                                                                                                                                                                                                                                      |
 | _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics).                                                                                                                                                                                                                                                                                                                              |
 |            |            | _optional_ | **`row-lineage`**           | A boolean, defaulting to false, setting whether or not to track the creation and updates to rows in the table. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                                                  |
-|            |            | _optional_ | **`next-row-id`**  | A value higher than all assigned row IDs; the next snapshot `first-row-id`. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                          |
+|            |            | _optional_ | **`next-row-id`**           | A value higher than all assigned row IDs; the next snapshot `first-row-id`. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                          |
 
 For serialization details, see Appendix C.
 
-When a new snapshot is added the table's `next-row-id` should be updated to the previous `next-row-id` plus the sum of `record_count` for all data files added in the snapshot (this is also equal to the sum of `added_rows_count` for all manifests added in the snapshot). This ensures that `next-row-id` is always higher than any assigned row ID in the table.
+When a new snapshot is added, the table's `next-row-id` should be updated to the previous `next-row-id` plus the sum of `record_count` for all data files added in the snapshot (this is also equal to the sum of `added_rows_count` for all manifests added in the snapshot). This ensures that `next-row-id` is always higher than any assigned row ID in the table.
 
 ### Table Statistics
 
