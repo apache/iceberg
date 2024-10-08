@@ -239,7 +239,7 @@ Valid primitive type promotions are:
 |------------------|------------------------------|------------------------------|--------------|
 | `unknown`        |                              | _any type_                   | |
 | `int`            | `long`                       | `long`                       | |
-| `date`           |                              | `timestamp`, `timestamp_ns`  | Promotion to `timestamptz` or `timestamptz_ns` is **not** allowed |
+| `date`           |                              | `timestamp`, `timestamp_ns`  | Promotion to `timestamptz` or `timestamptz_ns` is **not** allowed; values outside the promoted type's range must result in a runtime failure |
 | `float`          | `double`                     | `double`                     | |
 | `decimal(P, S)`  | `decimal(P', S)` if `P' > P` | `decimal(P', S)` if `P' > P` | Widen precision only |
 
@@ -1048,6 +1048,9 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`map`**          | `3-level map`                                                      | `MAP`                                       | See Parquet docs for 3-level representation.                   |
 
 
+When reading an `unknown` column, any corresponding column must be ignored and replaced with `null` values.
+
+
 ### ORC
 
 **Data Type Mappings**
@@ -1453,3 +1456,4 @@ Iceberg supports two types of histories for tables. A history of previous "curre
 might indicate different snapshot IDs for a specific timestamp. The discrepancies can be caused by a variety of table operations (e.g. updating the `current-snapshot-id` can be used to set the snapshot of a table to any arbitrary snapshot, which might have a lineage derived from a table branch or no lineage at all).
 
 When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.
+
