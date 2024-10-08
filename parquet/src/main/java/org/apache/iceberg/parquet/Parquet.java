@@ -79,6 +79,7 @@ import org.apache.iceberg.encryption.NativeEncryptionInputFile;
 import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.HadoopOutputFile;
 import org.apache.iceberg.io.CloseableIterable;
@@ -115,9 +116,13 @@ import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Parquet {
   private Parquet() {}
+
+  private static final Logger LOG = LoggerFactory.getLogger(Parquet.class);
 
   private static final Collection<String> READ_PROPERTIES_TO_REMOVE =
       Sets.newHashSet(
@@ -1195,6 +1200,14 @@ public class Parquet {
           optionsBuilder.withDecryption(fileDecryptionProperties);
         }
 
+        if (filter != null
+            && !filter.equals(Expressions.alwaysTrue())
+            && ParquetFilters.isSupportedFilter(filter)) {
+          optionsBuilder.useRecordFilter(filterRecords);
+          optionsBuilder.withRecordFilter(
+              ParquetFilters.convert(getSchemaFromFile(), filter, caseSensitive));
+        }
+
         ParquetReadOptions options = optionsBuilder.build();
 
         NameMapping mapping;
@@ -1290,6 +1303,16 @@ public class Parquet {
       }
 
       return new ParquetIterable<>(builder);
+    }
+
+    private Schema getSchemaFromFile() {
+      MessageType type;
+      try (ParquetFileReader schemaReader = ParquetFileReader.open(ParquetIO.file(file))) {
+        type = schemaReader.getFileMetaData().getSchema();
+      } catch (IOException e) {
+        throw new RuntimeIOException(e);
+      }
+      return ParquetSchemaUtil.convert(type);
     }
   }
 
