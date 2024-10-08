@@ -236,8 +236,7 @@ public class TestViews extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("SELECT * FROM %s", viewName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining(
-            String.format("The view `%s` cannot be displayed due to invalid view text", viewName));
+        .hasMessageContaining(String.format("Invalid view name: %s", viewName));
   }
 
   @TestTemplate

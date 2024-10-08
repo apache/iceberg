@@ -38,22 +38,19 @@ case class ShowV2ViewsExec(
     val rows = new ArrayBuffer[InternalRow]()
 
     // handle GLOBAL VIEWS
-    // TODO: GlobalTempViewManager.database is not accessible any more.
-    //       Comment out the global views handling for now until
-    //       GlobalTempViewManager.database can be accessed again.
-//    val globalTemp = session.sessionState.catalog.globalTempViewManager.database
-//    if (namespace.nonEmpty && globalTemp == namespace.head) {
-//      pattern.map(p => session.sessionState.catalog.globalTempViewManager.listViewNames(p))
-//        .getOrElse(session.sessionState.catalog.globalTempViewManager.listViewNames("*"))
-//        .map(name => rows += toCatalystRow(globalTemp, name, true))
-//    } else {
+    val globalTemp = session.sessionState.catalog.globalTempViewManager.database
+    if (namespace.nonEmpty && globalTemp == namespace.head) {
+      pattern.map(p => session.sessionState.catalog.globalTempViewManager.listViewNames(p))
+        .getOrElse(session.sessionState.catalog.globalTempViewManager.listViewNames("*"))
+        .map(name => rows += toCatalystRow(globalTemp, name, true))
+    } else {
       val views = catalog.listViews(namespace: _*)
       views.map { view =>
         if (pattern.map(StringUtils.filterPattern(Seq(view.name()), _).nonEmpty).getOrElse(true)) {
           rows += toCatalystRow(view.namespace().quoted, view.name(), false)
         }
       }
-//    }
+    }
 
     // include TEMP VIEWS
     pattern.map(p => session.sessionState.catalog.listLocalTempViews(p))

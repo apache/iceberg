@@ -702,12 +702,13 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageContaining("Duplicate procedure argument: table");
+        .hasMessageContaining("Missing required parameters: [table]");
 
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_data_files(table => 't', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessageEndingWith("Duplicate procedure argument: table");
+        .hasMessageEndingWith(
+            "Could not build name to arg map: Duplicate procedure argument: table");
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files('')", catalogName))
         .isInstanceOf(IllegalArgumentException.class)
