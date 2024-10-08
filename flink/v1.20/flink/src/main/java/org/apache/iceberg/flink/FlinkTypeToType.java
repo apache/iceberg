@@ -185,7 +185,7 @@ class FlinkTypeToType extends FlinkTypeVisitor<Type> {
             .collect(Collectors.toList());
 
     for (int i = 0; i < rowType.getFieldCount(); i++) {
-      int id = isRoot ? i : getNextId();
+      int id = isRoot ? i + 1 : getNextId();
 
       RowType.RowField field = rowType.getFields().get(i);
       String name = field.getName();
