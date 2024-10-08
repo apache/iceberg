@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import org.apache.arrow.vector.BaseVariableWidthVector;
 import org.apache.arrow.vector.BitVectorHelper;
-import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.IntVector;
@@ -151,15 +150,6 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     }
   }
 
-  class FixedLengthDecimalDictEncodedReader extends BaseDictEncodedReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      byte[] bytes = dict.decodeToBinary(currentVal).getBytesUnsafe();
-      DecimalVectorUtil.setBigEndian((DecimalVector) vector, idx, bytes);
-    }
-  }
-
   class VarWidthBinaryDictEncodedReader extends BaseDictEncodedReader {
     @Override
     protected void nextVal(
@@ -171,22 +161,6 @@ public class VectorizedDictionaryEncodedParquetValuesReader
               buffer.array(),
               buffer.position() + buffer.arrayOffset(),
               buffer.limit() - buffer.position());
-    }
-  }
-
-  class IntBackedDecimalDictEncodedReader extends BaseDictEncodedReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      ((DecimalVector) vector).set(idx, dict.decodeToInt(currentVal));
-    }
-  }
-
-  class LongBackedDecimalDictEncodedReader extends BaseDictEncodedReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      ((DecimalVector) vector).set(idx, dict.decodeToLong(currentVal));
     }
   }
 
@@ -233,20 +207,8 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     return new FixedWidthBinaryDictEncodedReader();
   }
 
-  public FixedLengthDecimalDictEncodedReader fixedLengthDecimalDictEncodedReader() {
-    return new FixedLengthDecimalDictEncodedReader();
-  }
-
   public VarWidthBinaryDictEncodedReader varWidthBinaryDictEncodedReader() {
     return new VarWidthBinaryDictEncodedReader();
-  }
-
-  public IntBackedDecimalDictEncodedReader intBackedDecimalDictEncodedReader() {
-    return new IntBackedDecimalDictEncodedReader();
-  }
-
-  public LongBackedDecimalDictEncodedReader longBackedDecimalDictEncodedReader() {
-    return new LongBackedDecimalDictEncodedReader();
   }
 
   public FixedSizeBinaryDictEncodedReader fixedSizeBinaryDictEncodedReader() {
