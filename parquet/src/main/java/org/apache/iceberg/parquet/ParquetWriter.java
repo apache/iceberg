@@ -66,8 +66,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private boolean closed;
   private ParquetFileWriter writer;
   private int rowGroupOrdinal;
-  private long currentBufferSize = 0;
-  private long totalBufferSize = 0;
+  private long currentRawBufferedSize = 0;
+  private long totalRawBufferedSize = 0;
   private long totalRowGroupSize = 0;
 
   private static final String COLUMN_INDEX_TRUNCATE_LENGTH = "parquet.columnindex.truncate.length";
@@ -137,7 +137,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     recordCount += 1;
     long sizeBeforeWrite = writeStore.getBufferedSize();
     model.write(0, value);
-    this.currentBufferSize += writeStore.getBufferedSize() - sizeBeforeWrite;
+    this.currentRawBufferedSize += writeStore.getBufferedSize() - sizeBeforeWrite;
     writeStore.endRecord();
     checkSize();
   }
@@ -172,7 +172,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       if (!closed && recordCount > 0) {
         // recordCount > 0 when there are records in the write store that have not been flushed to
         // the Parquet file
-        length += estimateBufferSize();
+        length += estimateBufferedSize();
       }
 
       return length;
@@ -190,17 +190,21 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     return null;
   }
 
-  private long estimateBufferSize() {
-    if (totalRowGroupSize == 0 || totalBufferSize == 0) {
+  /*
+   * Data size could reduce after written out due to encoding/compression.
+   * Use the ratio totalRowGroupSize / totalBufferSize to estimate the size after write out.
+   */
+  private long estimateBufferedSize() {
+    if (totalRowGroupSize == 0 || totalRawBufferedSize == 0 || currentRawBufferedSize == 0) {
       return writeStore.getBufferedSize();
     }
 
-    return currentBufferSize * totalRowGroupSize / totalBufferSize;
+    return currentRawBufferedSize * totalRowGroupSize / totalRawBufferedSize;
   }
 
   private void checkSize() {
     if (recordCount >= nextCheckRecordCount) {
-      long bufferedSize = estimateBufferSize();
+      long bufferedSize = estimateBufferedSize();
       double avgRecordSize = ((double) bufferedSize) / recordCount;
 
       if (bufferedSize > (targetRowGroupSize - 2 * avgRecordSize)) {
@@ -224,7 +228,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
         writer.startBlock(recordCount);
         writeStore.flush();
         pageStore.flushToFileWriter(writer);
-        totalBufferSize += currentBufferSize;
+        totalRawBufferedSize += currentRawBufferedSize;
         totalRowGroupSize += writeStore.getBufferedSize();
         writer.endBlock();
         if (!finished) {
@@ -260,7 +264,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.writeStore = props.newColumnWriteStore(parquetSchema, pageStore, pageStore);
 
     model.setColumnStore(writeStore);
-    this.currentBufferSize = 0;
+    this.currentRawBufferedSize = 0;
   }
 
   @Override
