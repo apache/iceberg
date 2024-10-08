@@ -387,8 +387,7 @@ When the new snapshot is committed, the table's `next-row-id` must also be updat
 
 ### Enabling Row Lineage for Non-empty Tables
 
-Any snapshot without the field `next-row-id` does not have any lineage information and values for `_row_id`
-and `_last_updated_seq` cannot be assigned. Both columns should be read as `null` for these rows.
+Any snapshot without the field `first-row-id` does not have any lineage information and values for `_row_id` and `_last_updated_seq` cannot be assigned accurately.  
 
 All files that were added before `row-lineage` was enabled should propagate null for all of the `row-lineage` related
 fields. The values for `_row_id` and `_last_updated_seq` should always return null and when these rows are copied, 
