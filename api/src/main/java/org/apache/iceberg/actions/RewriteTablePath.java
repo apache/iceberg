@@ -90,11 +90,11 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
     /** staging location of rewritten files */
     String stagingLocation();
 
-    /** path of data files list file. */
-    String dataFileListLocation();
-
-    /** path of metadata files list file. */
-    String metadataFileListLocation();
+    /**
+     * path to a list of comma-separated pairs of source and target path for data and metadata
+     * files.
+     */
+    String fileListLocation();
 
     /** name of latest metadata file version */
     String latestVersion();
