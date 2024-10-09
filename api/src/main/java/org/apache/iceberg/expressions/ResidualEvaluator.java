@@ -89,6 +89,12 @@ public class ResidualEvaluator implements Serializable {
     }
   }
 
+  public static ResidualEvaluator of(Expression expr) {
+    // TODO this constructor is used for REST scan planning
+    // where we dont have spec or caseSensitive flag at time of serial/deserial
+    return unpartitioned(expr);
+  }
+
   private final PartitionSpec spec;
   private final Expression expr;
   private final boolean caseSensitive;
