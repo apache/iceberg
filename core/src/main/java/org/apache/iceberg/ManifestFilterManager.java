@@ -37,10 +37,10 @@ import org.apache.iceberg.expressions.StrictMetricsEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.CharSequenceSet;
-import org.apache.iceberg.util.CharSequenceWrapper;
 import org.apache.iceberg.util.DataFileSet;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.ManifestFileUtil;
@@ -75,7 +75,6 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final FilesToDeleteHolder filesToDelete = new FilesToDeleteHolder();
   private Expression deleteExpression = Expressions.alwaysFalse();
   private long minSequenceNumber = 0;
-  private boolean hasPathOnlyDeletes = false;
   private boolean failAnyDelete = false;
   private boolean failMissingDeletePaths = false;
   private int duplicateDeleteCount = 0;
@@ -163,7 +162,6 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   void delete(CharSequence path) {
     Preconditions.checkNotNull(path, "Cannot delete file path: null");
     invalidateFilteredCache();
-    this.hasPathOnlyDeletes = true;
     deletePaths.add(path);
   }
 
@@ -234,7 +232,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
    */
   private void validateRequiredDeletes(ManifestFile... manifests) {
     if (failMissingDeletePaths) {
-      deletedFiles(manifests).validateRequiredDeletes(filesToDelete);
+      FilesToDeleteHolder deletedFiles = deletedFiles(manifests);
+      deletedFiles.validateRequiredDeletes(filesToDelete);
+      deletedFiles.validateRequiredDeletes(deletePaths);
     }
   }
 
@@ -340,7 +340,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     }
 
     boolean canContainDroppedFiles;
-    if (hasPathOnlyDeletes) {
+    if (!deletePaths.isEmpty()) {
       canContainDroppedFiles = true;
     } else if (filesToDelete.containsDeletes()) {
       // because there were no path-only deletes, the set of deleted file partitions is valid
@@ -367,14 +367,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
     for (ManifestEntry<F> entry : reader.liveEntries()) {
       F file = entry.file();
-
-      // add path-based delete to set of files to be deleted
-      if (deletePaths.contains(CharSequenceWrapper.wrap(file.path()))) {
-        filesToDelete.delete(file);
-      }
-
       boolean markedForDelete =
-          filesToDelete.markedForDelete(file)
+          deletePaths.contains(file.path())
+              || filesToDelete.markedForDelete(file)
               || dropPartitions.contains(file.specId(), file.partition())
               || (isDelete
                   && entry.isLive()
@@ -388,7 +383,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                 || isDelete, // ignore delete files where some records may not match the expression
             "Cannot delete file where some, but not all, rows match filter %s: %s",
             this.deleteExpression,
-            file.path());
+            file.location());
 
         if (allRowsMatch) {
           if (failAnyDelete) {
@@ -421,7 +416,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                 entry -> {
                   F file = entry.file();
                   boolean markedForDelete =
-                      filesToDelete.markedForDelete(file)
+                      deletePaths.contains(file.path())
+                          || filesToDelete.markedForDelete(file)
                           || dropPartitions.contains(file.specId(), file.partition())
                           || (isDelete
                               && entry.isLive()
@@ -576,6 +572,18 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                   .filter(f -> !deleteFiles.contains(f))
                   .map(ContentFile::location)
                   .collect(Collectors.toList())));
+    }
+
+    @SuppressWarnings("CollectionUndefinedEquality")
+    private void validateRequiredDeletes(CharSequenceSet filePathsToBeDeleted) {
+      CharSequenceSet deletedFiles = CharSequenceSet.empty();
+      dataFiles.stream().map(ContentFile::path).forEach(deletedFiles::add);
+      deleteFiles.stream().map(ContentFile::path).forEach(deletedFiles::add);
+
+      ValidationException.check(
+          deletedFiles.containsAll(filePathsToBeDeleted),
+          "Missing required files to delete: %s",
+          COMMA.join(Iterables.filter(filePathsToBeDeleted, path -> !deletedFiles.contains(path))));
     }
   }
 }
