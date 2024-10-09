@@ -19,7 +19,11 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -89,11 +93,25 @@ public class TestCharSequenceMap {
   }
 
   @Test
+  public void testKeySet() {
+    CharSequenceMap<String> map = CharSequenceMap.create();
+    map.put("key1", "value1");
+    map.put("key2", "value2");
+    Set<CharSequence> keySet = map.keySet();
+    assertThat(keySet).containsAll(ImmutableList.of("key1", "key2"));
+    assertThatThrownBy(() -> keySet.remove("key1"))
+        .isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
   public void testValues() {
     CharSequenceMap<String> map = CharSequenceMap.create();
     map.put("key1", "value1");
     map.put("key2", "value2");
-    assertThat(map.values()).containsAll(ImmutableList.of("value1", "value2"));
+    Collection<String> values = map.values();
+    assertThat(values).containsAll(ImmutableList.of("value1", "value2"));
+    assertThatThrownBy(() -> values.remove("value1"))
+        .isInstanceOf(UnsupportedOperationException.class);
   }
 
   @Test
@@ -101,7 +119,11 @@ public class TestCharSequenceMap {
     CharSequenceMap<String> map = CharSequenceMap.create();
     map.put("key1", "value1");
     map.put(new StringBuilder("key2"), "value2");
-    assertThat(map.entrySet()).hasSize(2);
+    Set<Map.Entry<CharSequence, String>> entrySet = map.entrySet();
+    assertThat(entrySet).hasSize(2);
+    Map.Entry<CharSequence, String> entryToRemove = entrySet.iterator().next();
+    assertThatThrownBy(() -> entrySet.remove(entryToRemove))
+        .isInstanceOf(UnsupportedOperationException.class);
   }
 
   @Test
