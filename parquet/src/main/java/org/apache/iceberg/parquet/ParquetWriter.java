@@ -205,11 +205,10 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private void checkSize() {
     if (recordCount >= nextCheckRecordCount) {
       long bufferedSize = estimateBufferedSize();
-      double avgRecordSize = ((double) bufferedSize) / recordCount;
-
-      if (bufferedSize > (targetRowGroupSize - 2 * avgRecordSize)) {
+      if (bufferedSize > targetRowGroupSize) {
         flushRowGroup(false);
       } else {
+        double avgRecordSize = ((double) bufferedSize) / recordCount;
         long remainingSpace = targetRowGroupSize - bufferedSize;
         long remainingRecords = (long) (remainingSpace / avgRecordSize);
         this.nextCheckRecordCount =
