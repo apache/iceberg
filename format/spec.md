@@ -257,7 +257,8 @@ Iceberg's Avro manifest format does not store the type of lower and upper bounds
 | `timestamp_ns`   | 8 bytes          | `timestamp_ns`              |
 | `decimal(P, S)`  | _any_            | `decimal(P', S)`; `P' <= P` |
 
-Type promotion is not allowed for a field that is referenced by `source-id` or `source-ids` of a partition field if the partition transform would produce a different value after promoting the type. For example, `bucket[N]` produces different hash values for `34` and `"34"` (2017239379 != -427558391) but the same value for `34` and `34L`; when an `int` field is the source for a bucket partition field, it may be promoted to `long` but not to `string`.
+Type promotion is not allowed for a field that is referenced by `source-id` or `source-ids` of a partition field if the partition transform would produce a different value after promoting the type. For example, `bucket[N]` produces different hash values for `34` and `"34"` (2017239379 != -427558391) but the same value for `34` and `34L`; when an `int` field is the source for a bucket partition field, it may be promoted to `long` but not to `string`. This may happen for the following type promotion cases:
+* `date` to `timestamp` or `timestamp_ns`
 
 Any struct, including a top-level schema, can evolve through deleting fields, adding new fields, renaming existing fields, reordering existing fields, or promoting a primitive using the valid type promotions. Adding a new field assigns a new ID for that field and for any nested fields. Renaming an existing field must change the name, but not the field ID. Deleting a field removes it from the current schema. Field deletion cannot be rolled back unless the field was nullable or if the current snapshot has not changed.
 
@@ -1118,7 +1119,7 @@ The types below are not currently valid for bucketing, and so are not hashed. Ho
 
 | Primitive type     | Hash specification                        | Test value                                 |
 |--------------------|-------------------------------------------|--------------------------------------------|
-| **`unknown`**      | `hashInt(0)`                              |                                            |
+| **`unknown`**      | always `null`                             |                                            |
 | **`boolean`**      | `false: hashInt(0)`, `true: hashInt(1)`   | `true` ￫ `1392991556`                      |
 | **`float`**        | `hashLong(doubleToLongBits(double(v))` [5]| `1.0F` ￫ `-142385009`, `0.0F` ￫ `1669671676`, `-0.0F` ￫ `1669671676` |
 | **`double`**       | `hashLong(doubleToLongBits(v))`        [5]| `1.0D` ￫ `-142385009`, `0.0D` ￫ `1669671676`, `-0.0D` ￫ `1669671676` |
