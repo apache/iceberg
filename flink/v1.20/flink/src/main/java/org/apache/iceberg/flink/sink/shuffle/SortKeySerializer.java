@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -169,7 +170,8 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
         default:
           // SortKey transformation is a flattened struct without list and map
           throw new UnsupportedOperationException(
-              String.format("Field %d has unsupported field type: %s", fieldId, typeId));
+              String.format(
+                  Locale.ROOT, "Field %d has unsupported field type: %s", fieldId, typeId));
       }
     }
   }
@@ -238,7 +240,8 @@ class SortKeySerializer extends TypeSerializer<SortKey> {
         default:
           // SortKey transformation is a flattened struct without list and map
           throw new UnsupportedOperationException(
-              String.format("Field %d has unsupported field type: %s", fieldId, typeId));
+              String.format(
+                  Locale.ROOT, "Field %d has unsupported field type: %s", fieldId, typeId));
       }
     }
 

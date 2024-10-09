@@ -25,39 +25,38 @@ import java.util.function.Supplier;
 import org.apache.avro.LogicalType;
 import org.apache.avro.LogicalTypes;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
-import org.apache.iceberg.common.DynClasses;
+import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
 
-public class GenericAvroReader<T>
-    implements DatumReader<T>, SupportsRowPosition, SupportsCustomRecords {
+/**
+ * A reader that produces Iceberg's internal in-memory object model.
+ *
+ * <p>Iceberg's internal in-memory object model produces the types defined in {@link
+ * Type.TypeID#javaClass()}.
+ *
+ * @param <T> Java type returned by the reader
+ */
+public class InternalReader<T> implements DatumReader<T>, SupportsRowPosition {
+  private static final int ROOT_ID = -1;
 
   private final Types.StructType expectedType;
-  private ClassLoader loader = Thread.currentThread().getContextClassLoader();
-  private Map<String, String> renames = ImmutableMap.of();
+  private final Map<Integer, Class<? extends StructLike>> typeMap = Maps.newHashMap();
   private final Map<Integer, Object> idToConstant = ImmutableMap.of();
   private Schema fileSchema = null;
   private ValueReader<T> reader = null;
 
-  public static <D> GenericAvroReader<D> create(org.apache.iceberg.Schema expectedSchema) {
-    return new GenericAvroReader<>(expectedSchema);
+  public static <D> InternalReader<D> create(org.apache.iceberg.Schema schema) {
+    return new InternalReader<>(schema);
   }
 
-  public static <D> GenericAvroReader<D> create(Schema readSchema) {
-    return new GenericAvroReader<>(readSchema);
-  }
-
-  GenericAvroReader(org.apache.iceberg.Schema expectedSchema) {
-    this.expectedType = expectedSchema.asStruct();
-  }
-
-  GenericAvroReader(Schema readSchema) {
-    this.expectedType = AvroSchemaUtil.convert(readSchema).asStructType();
+  InternalReader(org.apache.iceberg.Schema readSchema) {
+    this.expectedType = readSchema.asStruct();
   }
 
   @SuppressWarnings("unchecked")
@@ -65,10 +64,10 @@ public class GenericAvroReader<T>
     this.reader =
         (ValueReader<T>)
             AvroWithPartnerVisitor.visit(
-                expectedType,
+                Pair.of(ROOT_ID, expectedType),
                 fileSchema,
-                new ResolvingReadBuilder(expectedType, fileSchema.getFullName()),
-                AvroWithPartnerVisitor.FieldIDAccessors.get());
+                new ResolvingReadBuilder(),
+                AccessByID.instance());
   }
 
   @Override
@@ -77,14 +76,14 @@ public class GenericAvroReader<T>
     initReader();
   }
 
-  @Override
-  public void setClassLoader(ClassLoader newClassLoader) {
-    this.loader = newClassLoader;
+  public InternalReader<T> setRootType(Class<? extends StructLike> rootClass) {
+    typeMap.put(ROOT_ID, rootClass);
+    return this;
   }
 
-  @Override
-  public void setRenames(Map<String, String> renames) {
-    this.renames = renames;
+  public InternalReader<T> setCustomType(int fieldId, Class<? extends StructLike> structClass) {
+    typeMap.put(fieldId, structClass);
+    return this;
   }
 
   @Override
@@ -99,77 +98,65 @@ public class GenericAvroReader<T>
     return reader.read(decoder, reuse);
   }
 
-  private class ResolvingReadBuilder extends AvroWithPartnerVisitor<Type, ValueReader<?>> {
-    private final Map<Type, Schema> avroSchemas;
-
-    private ResolvingReadBuilder(Types.StructType expectedType, String rootName) {
-      this.avroSchemas = AvroSchemaUtil.convertTypes(expectedType, rootName);
-    }
-
+  private class ResolvingReadBuilder
+      extends AvroWithPartnerVisitor<Pair<Integer, Type>, ValueReader<?>> {
     @Override
-    public ValueReader<?> record(Type partner, Schema record, List<ValueReader<?>> fieldResults) {
+    public ValueReader<?> record(
+        Pair<Integer, Type> partner, Schema record, List<ValueReader<?>> fieldResults) {
       if (partner == null) {
         return ValueReaders.skipStruct(fieldResults);
       }
 
-      Types.StructType expected = partner.asStructType();
+      Types.StructType expected = partner.second().asStructType();
       List<Pair<Integer, ValueReader<?>>> readPlan =
           ValueReaders.buildReadPlan(expected, record, fieldResults, idToConstant);
 
-      return recordReader(readPlan, avroSchemas.get(partner), record.getFullName());
+      return structReader(readPlan, partner.first(), expected);
     }
 
-    @SuppressWarnings("unchecked")
-    private ValueReader<?> recordReader(
-        List<Pair<Integer, ValueReader<?>>> readPlan, Schema avroSchema, String recordName) {
-      String className = renames.getOrDefault(recordName, recordName);
-      if (className != null) {
-        try {
-          Class<?> recordClass = DynClasses.builder().loader(loader).impl(className).buildChecked();
-          if (IndexedRecord.class.isAssignableFrom(recordClass)) {
-            return ValueReaders.record(
-                avroSchema, (Class<? extends IndexedRecord>) recordClass, readPlan);
-          }
-        } catch (ClassNotFoundException e) {
-          // use a generic record reader below
-        }
-      }
+    private ValueReader<?> structReader(
+        List<Pair<Integer, ValueReader<?>>> readPlan, int fieldId, Types.StructType struct) {
 
-      return ValueReaders.record(avroSchema, readPlan);
+      Class<? extends StructLike> structClass = typeMap.get(fieldId);
+      if (structClass != null) {
+        return InternalReaders.struct(struct, structClass, readPlan);
+      } else {
+        return InternalReaders.struct(struct, readPlan);
+      }
     }
 
     @Override
-    public ValueReader<?> union(Type partner, Schema union, List<ValueReader<?>> options) {
+    public ValueReader<?> union(
+        Pair<Integer, Type> partner, Schema union, List<ValueReader<?>> options) {
       return ValueReaders.union(options);
     }
 
     @Override
     public ValueReader<?> arrayMap(
-        Type partner, Schema map, ValueReader<?> keyReader, ValueReader<?> valueReader) {
-      if (keyReader == ValueReaders.utf8s()) {
-        return ValueReaders.arrayMap(ValueReaders.strings(), valueReader);
-      }
-
+        Pair<Integer, Type> partner,
+        Schema map,
+        ValueReader<?> keyReader,
+        ValueReader<?> valueReader) {
       return ValueReaders.arrayMap(keyReader, valueReader);
     }
 
     @Override
-    public ValueReader<?> array(Type partner, Schema array, ValueReader<?> elementReader) {
+    public ValueReader<?> array(
+        Pair<Integer, Type> partner, Schema array, ValueReader<?> elementReader) {
       return ValueReaders.array(elementReader);
     }
 
     @Override
-    public ValueReader<?> map(Type partner, Schema map, ValueReader<?> valueReader) {
+    public ValueReader<?> map(Pair<Integer, Type> partner, Schema map, ValueReader<?> valueReader) {
       return ValueReaders.map(ValueReaders.strings(), valueReader);
     }
 
     @Override
-    public ValueReader<?> primitive(Type partner, Schema primitive) {
+    public ValueReader<?> primitive(Pair<Integer, Type> partner, Schema primitive) {
       LogicalType logicalType = primitive.getLogicalType();
       if (logicalType != null) {
         switch (logicalType.getName()) {
           case "date":
-            // Spark uses the same representation
             return ValueReaders.ints();
 
           case "time-micros":
@@ -181,7 +168,6 @@ public class GenericAvroReader<T>
             return (ValueReader<Long>) (decoder, ignored) -> longs.read(decoder, null) * 1000L;
 
           case "timestamp-micros":
-            // Spark uses the same representation
             return ValueReaders.longs();
 
           case "decimal":
@@ -203,21 +189,21 @@ public class GenericAvroReader<T>
         case BOOLEAN:
           return ValueReaders.booleans();
         case INT:
-          if (partner != null && partner.typeId() == Type.TypeID.LONG) {
+          if (partner != null && partner.second().typeId() == Type.TypeID.LONG) {
             return ValueReaders.intsAsLongs();
           }
           return ValueReaders.ints();
         case LONG:
           return ValueReaders.longs();
         case FLOAT:
-          if (partner != null && partner.typeId() == Type.TypeID.DOUBLE) {
+          if (partner != null && partner.second().typeId() == Type.TypeID.DOUBLE) {
             return ValueReaders.floatsAsDoubles();
           }
           return ValueReaders.floats();
         case DOUBLE:
           return ValueReaders.doubles();
         case STRING:
-          return ValueReaders.utf8s();
+          return ValueReaders.strings();
         case FIXED:
           return ValueReaders.fixed(primitive);
         case BYTES:
@@ -227,6 +213,40 @@ public class GenericAvroReader<T>
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }
+    }
+  }
+
+  private static class AccessByID
+      implements AvroWithPartnerVisitor.PartnerAccessors<Pair<Integer, Type>> {
+    private static final AccessByID INSTANCE = new AccessByID();
+
+    public static AccessByID instance() {
+      return INSTANCE;
+    }
+
+    @Override
+    public Pair<Integer, Type> fieldPartner(
+        Pair<Integer, Type> partner, Integer fieldId, String name) {
+      Types.NestedField field = partner.second().asStructType().field(fieldId);
+      return field != null ? Pair.of(field.fieldId(), field.type()) : null;
+    }
+
+    @Override
+    public Pair<Integer, Type> mapKeyPartner(Pair<Integer, Type> partner) {
+      Types.MapType map = partner.second().asMapType();
+      return Pair.of(map.keyId(), map.keyType());
+    }
+
+    @Override
+    public Pair<Integer, Type> mapValuePartner(Pair<Integer, Type> partner) {
+      Types.MapType map = partner.second().asMapType();
+      return Pair.of(map.valueId(), map.valueType());
+    }
+
+    @Override
+    public Pair<Integer, Type> listElementPartner(Pair<Integer, Type> partner) {
+      Types.ListType list = partner.second().asListType();
+      return Pair.of(list.elementId(), list.elementType());
     }
   }
 }

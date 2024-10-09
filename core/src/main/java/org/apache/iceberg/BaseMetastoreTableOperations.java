@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -327,7 +328,8 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
             TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
     String fileExtension = TableMetadataParser.getFileExtension(codecName);
     return metadataFileLocation(
-        meta, String.format("%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
+        meta,
+        String.format(Locale.ROOT, "%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
   }
 
   /**

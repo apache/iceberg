@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.snowflake;
 
+import java.util.Locale;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -47,8 +48,10 @@ class NamespaceHelpers {
       default:
         throw new IllegalArgumentException(
             String.format(
+                Locale.ROOT,
                 "Snowflake max namespace level is %d, got namespace '%s'",
-                MAX_NAMESPACE_DEPTH, namespace));
+                MAX_NAMESPACE_DEPTH,
+                namespace));
     }
   }
 
