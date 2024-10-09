@@ -19,10 +19,12 @@
 package org.apache.iceberg.connect;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -61,6 +63,20 @@ public class IcebergSinkTask extends SinkTask {
   @Override
   public void close(Collection<TopicPartition> partitions) {
     close();
+    /*
+    In Incremental Cooperative Rebalancing, close call happens for only the partition which are revoked from this task.
+    It might be possible that this task had [0,1] and due to zero this was co-ordinator,
+    and we got the call for close(partition=1), but since we are blindly closing the co-ordinator, this will lead to
+    closing of coordinator on this task and since 0 is still retained by this, no other task will be elected as
+    coordinator
+     */
+    if(!context.assignment().isEmpty() && !Sets.newHashSet(context.assignment()).equals(Sets.newHashSet(partitions))) {
+      /*
+       if this task has at-least 1 partition, calling dummy open() to make sure the co-ordinator is started on this
+       in case we closed it on this task and it had partition "0"
+       */
+      open(List.of());
+    }
   }
 
   private void close() {
@@ -97,7 +113,7 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public Map<TopicPartition, OffsetAndMetadata> preCommit(
-      Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
+          Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
     // offset commit is handled by the worker
     return ImmutableMap.of();
   }
