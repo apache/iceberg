@@ -105,7 +105,7 @@ public class PlanTableScanRequest implements RESTRequest {
     private Long endSnapshotId;
     private List<String> statsFields;
 
-    private Builder() {}
+    public Builder() {}
 
     public Builder withSnapshotId(Long withSnapshotId) {
       this.snapshotId = withSnapshotId;

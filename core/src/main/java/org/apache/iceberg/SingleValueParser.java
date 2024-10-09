@@ -47,7 +47,8 @@ public class SingleValueParser {
   private static final String VALUES = "values";
 
   public static Object fromJson(Type type, JsonNode defaultValue) {
-    if (defaultValue == null || defaultValue.isNull()) {
+    //TODO added null check since we dont have paritionType at time of serial/deserial
+    if (defaultValue == null || defaultValue.isNull() || type == null) {
       return null;
     }
 
