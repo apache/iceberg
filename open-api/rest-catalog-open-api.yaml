@@ -2922,6 +2922,53 @@ components:
           items:
             type: integer
 
+    OverwriteRowsUpdate:
+      description:
+        This update operation is used to perform row updates in the table. The operation involves adding new data rows and/or 
+        removing existing rows
+      allOf:
+        - $ref: '#/components/schemas/BaseUpdate'
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum: [ "overwrite-rows" ]
+        added-rows:
+          description:
+            List of data files to add to the table. These data files represent new data that will 
+            be added to the table as part of the table update operation
+          type: array
+          items:
+            $ref: '#/components/schemas/DataFile'
+        removed-rows:
+          description:
+            List of data files to remove from the table. These data files contain rows that will be
+            replaced or deleted as part of the table update operation
+          type: array
+          items:
+            $ref: '#/components/schemas/DataFile'
+        delete-filter:
+          description:
+            A filter expression used to identify rows to remove from the table. All rows that match
+            the filter will be removed as part of the table update operation
+          $ref: '#/components/schemas/Expression'
+        snapshot-properties:
+          type: object
+          description:
+            Properties to be set on the new snapshot. These are additional metadata properties that can
+            be added when creating a new snapshot of the table
+          additionalProperties:
+            type: string
+        branch:
+          type: string
+          description: 
+            The branch where the update should be applied. Defaults to the main branch if not provided
+        case-sensitive:
+          type: boolean
+          description:
+            Indicates if the operation should be case-sensitive for column names
+
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -2942,6 +2989,7 @@ components:
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
         - $ref: '#/components/schemas/RemovePartitionSpecsUpdate'
+        - $ref: '#/components/schemas/OverwriteRowsUpdate'
 
     ViewUpdate:
       anyOf:
@@ -2967,6 +3015,7 @@ components:
           assert-last-assigned-partition-id: '#/components/schemas/AssertLastAssignedPartitionId'
           assert-default-spec-id: '#/components/schemas/AssertDefaultSpecId'
           assert-default-sort-order-id: '#/components/schemas/AssertDefaultSortOrderId'
+          assert-overwrite-rows: '#/components/schemas/AssertOverwriteRows'
       oneOf:
         - $ref: '#/components/schemas/AssertCreate'
         - $ref: '#/components/schemas/AssertTableUUID'
@@ -2976,6 +3025,7 @@ components:
         - $ref: '#/components/schemas/AssertLastAssignedPartitionId'
         - $ref: '#/components/schemas/AssertDefaultSpecId'
         - $ref: '#/components/schemas/AssertDefaultSortOrderId'
+        - $ref: '#/components/schemas/AssertOverwriteRows'
 
     AssertCreate:
       type: object
@@ -3081,6 +3131,47 @@ components:
           enum: [ "assert-default-sort-order-id" ]
         default-sort-order-id:
           type: integer
+
+    AssertOverwriteRows:
+      description:
+        This validation helps ensure that overwrite row updates are aligned with the current state of the table.
+        It checks that no conflicting data has been added, deleted, or modified since the operation began. 
+        A conflict detection filter can be applied to identify overlapping data changes, helping to ensure
+        that the update modifies only the intended rows. This validation is optional and may not be required 
+        for certain operations, such as append only table updates
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [ "assert-overwrite-rows" ]
+        conflict-detection-filter:
+          description:
+            A filter expression to detect potential conflicts. This helps to ensure that no new data files 
+            or delete files matching the filter have been added to the table during the update operation
+          $ref: '#/components/schemas/Expression'
+        validate-from-snapshot:
+          description:
+            Ensures the operation is performed starting from a specific snapshot ID, so the overwrite
+            is based on a known point in time. This helps verify that no intervening changes invalidate
+            the overwrite
+          type: integer
+          format: int64
+        validate-added-files-match-overwrite-filter:
+          type: boolean
+          description:
+            Ensures that any files added as part of the overwrite match the specified row filter. If files
+            don't match the filter, the overwrite may not apply as intended
+        validate-no-conflicting-data:
+          type: boolean
+          description:
+            Ensures that no new data has been added that conflicts with the overwrite operation. This helps
+            verify that the new data files do not overlap with the rows being updated
+        validate-no-conflicting-deletes:
+          type: boolean
+          description:
+            Ensures that no new delete files have been added since the operation began. This guarantees that
+            deletes applied to the table since the operation started do not invalidate the rows being overwritten
 
     ViewRequirement:
       type: object
