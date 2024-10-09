@@ -159,7 +159,9 @@ GCP:
   - changed-files:
     - any-glob-to-any-file: [
       'gcp/**/*',
-      'gcp-bundle/**/*'
+      'gcp-bundle/**/*',
+      'bigquery/**/*',
+      'bigquery-bundle/**/*'
     ]
 
 DELL:
