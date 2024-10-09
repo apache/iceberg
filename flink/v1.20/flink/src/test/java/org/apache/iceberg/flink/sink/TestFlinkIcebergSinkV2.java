@@ -106,22 +106,15 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         .setIdentifierFields("type")
         .commit();
 
-    DataStream<Row> dataStream =
-        env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
-    FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
-
     // Use schema identifier field IDs as equality field id list by default
-    assertThat(builder.checkAndGetEqualityFieldIds())
-        .containsExactlyInAnyOrderElementsOf(table.schema().identifierFieldIds());
+    assertThat(SinkUtil.checkAndGetEqualityFieldIds(table, null))
+        .containsAll(table.schema().identifierFieldIds());
 
     // Use user-provided equality field column as equality field id list
-    builder.equalityFieldColumns(Lists.newArrayList("id"));
-    assertThat(builder.checkAndGetEqualityFieldIds())
+    assertThat(SinkUtil.checkAndGetEqualityFieldIds(table, Lists.newArrayList("id")))
         .containsExactlyInAnyOrder(table.schema().findField("id").fieldId());
 
-    builder.equalityFieldColumns(Lists.newArrayList("type"));
-    assertThat(builder.checkAndGetEqualityFieldIds())
+    assertThat(SinkUtil.checkAndGetEqualityFieldIds(table, Lists.newArrayList("type")))
         .containsExactlyInAnyOrder(table.schema().findField("type").fieldId());
   }
 
@@ -168,8 +161,8 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   public void testUpsertModeCheck() throws Exception {
     DataStream<Row> dataStream =
         env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
-    FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+    IcebergSinkBuilder builder =
+        IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, useV2Sink)
             .tableLoader(tableLoader)
             .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
             .writeParallelism(parallelism)

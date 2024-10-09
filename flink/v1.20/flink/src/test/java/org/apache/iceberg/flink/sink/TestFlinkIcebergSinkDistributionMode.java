@@ -65,6 +65,9 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBase {
 
+  // It is hardcoded because rangeDistributionStatisticsType is configurable only for v1 (FlinkSink)
+  private static final boolean DO_NOT_USE_V2_SINK = false;
+
   @RegisterExtension
   public static MiniClusterExtension miniClusterResource =
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
@@ -116,7 +119,8 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
 
   @TestTemplate
   public void testShuffleByPartitionWithSchema() throws Exception {
-    testWriteRow(parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH);
+    testWriteRow(
+        parallelism, SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH, DO_NOT_USE_V2_SINK);
     if (partitioned) {
       assertThat(partitionFiles("aaa")).isEqualTo(1);
       assertThat(partitionFiles("bbb")).isEqualTo(1);
@@ -131,7 +135,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
-    testWriteRow(parallelism, null, DistributionMode.NONE);
+    testWriteRow(parallelism, null, DistributionMode.NONE, DO_NOT_USE_V2_SINK);
 
     if (parallelism > 1) {
       if (partitioned) {
@@ -148,7 +152,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         .set(TableProperties.WRITE_DISTRIBUTION_MODE, DistributionMode.HASH.modeName())
         .commit();
 
-    testWriteRow(parallelism, null, null);
+    testWriteRow(parallelism, null, null, DO_NOT_USE_V2_SINK);
 
     if (partitioned) {
       assertThat(partitionFiles("aaa")).isEqualTo(1);
@@ -159,7 +163,7 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
 
   @TestTemplate
   public void testPartitionWriteMode() throws Exception {
-    testWriteRow(parallelism, null, DistributionMode.HASH);
+    testWriteRow(parallelism, null, DistributionMode.HASH, DO_NOT_USE_V2_SINK);
     if (partitioned) {
       assertThat(partitionFiles("aaa")).isEqualTo(1);
       assertThat(partitionFiles("bbb")).isEqualTo(1);
@@ -175,8 +179,8 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
     List<Row> rows = createRows("");
     DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
 
-    FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+    IcebergSinkBuilder builder =
+        IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
             .table(table)
             .tableLoader(tableLoader)
             .writeParallelism(parallelism)
@@ -201,8 +205,8 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         env.addSource(
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
-    FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+    IcebergSinkBuilder builder =
+        IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
             .table(table)
             .tableLoader(tableLoader)
             .writeParallelism(parallelism);
@@ -228,8 +232,8 @@ public class TestFlinkIcebergSinkDistributionMode extends TestFlinkIcebergSinkBa
         env.addSource(
             createRangeDistributionBoundedSource(createCharRows(numOfCheckpoints, 10)),
             ROW_TYPE_INFO);
-    FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+    IcebergSinkBuilder builder =
+        IcebergSinkBuilder.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA, DO_NOT_USE_V2_SINK)
             .table(table)
             .tableLoader(tableLoader)
             .writeParallelism(parallelism);
