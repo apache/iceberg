@@ -16,13 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.parquet.havasu;
+package org.apache.iceberg.parquet;
 
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
-import org.apache.iceberg.havasu.GeometryFieldMetrics;
-import org.apache.iceberg.parquet.ParquetValueWriters;
-import org.apache.iceberg.types.Types.GeometryType;
+import org.apache.iceberg.GeometryFieldMetrics;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.locationtech.jts.geom.Geometry;
@@ -32,13 +30,11 @@ public class ParquetGeometryValueWriters {
 
   private ParquetGeometryValueWriters() {}
 
-  public static ParquetValueWriters.PrimitiveWriter<Geometry> buildWriter(
-      GeometryType geometryType, ColumnDescriptor desc) {
+  public static ParquetValueWriters.PrimitiveWriter<Geometry> buildWriter(ColumnDescriptor desc) {
     return new GeometryWKBWriter(desc);
   }
 
-  private static class GeometryWKBWriter
-      extends ParquetValueWriters.PrimitiveWriter<Geometry> {
+  private static class GeometryWKBWriter extends ParquetValueWriters.PrimitiveWriter<Geometry> {
 
     private final GeometryFieldMetrics.GenericBuilder metricsBuilder;
 

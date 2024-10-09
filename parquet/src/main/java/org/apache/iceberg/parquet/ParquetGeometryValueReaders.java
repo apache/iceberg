@@ -16,11 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.parquet.havasu;
+package org.apache.iceberg.parquet;
 
-import org.apache.iceberg.parquet.ParquetValueReader;
-import org.apache.iceberg.parquet.ParquetValueReaders;
-import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.locationtech.jts.geom.Geometry;
@@ -31,8 +28,7 @@ public class ParquetGeometryValueReaders {
 
   private ParquetGeometryValueReaders() {}
 
-  public static ParquetValueReader<Geometry> buildReader(
-      Types.GeometryType geometryType, ColumnDescriptor desc) {
+  public static ParquetValueReader<Geometry> buildReader(ColumnDescriptor desc) {
     return new GeometryWKBReader(desc);
   }
 

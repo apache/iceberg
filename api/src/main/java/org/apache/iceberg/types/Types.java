@@ -34,7 +34,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
-import org.apache.iceberg.types.havasu.GeometryEncoding;
 
 public class Types {
 
@@ -59,7 +58,8 @@ public class Types {
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
-  private static final Pattern GEOMETRY = Pattern.compile("geometry\\(\\s*(\\w+)\\s*\\)");
+  private static final Pattern GEOMETRY =
+      Pattern.compile("geometry(?:\\(\\s*(\\w+)?\\s*(?:,\\s*(\\w+)\\s*)?\\))?");
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
@@ -71,7 +71,7 @@ public class Types {
 
     Matcher geometry = GEOMETRY.matcher(lowerTypeString);
     if (geometry.matches()) {
-      return GeometryType.get(geometry.group(1));
+      return GeometryType.of(geometry.group(1), geometry.group(2));
     }
 
     Matcher fixed = FIXED.matcher(lowerTypeString);
@@ -476,22 +476,52 @@ public class Types {
   }
 
   public static class GeometryType extends PrimitiveType {
-    private final GeometryEncoding encoding;
 
-    private GeometryType(GeometryEncoding encoding) {
-      this.encoding = encoding;
+    public enum Edges {
+      PLANAR("planar"),
+      SPHERICAL("spherical");
+
+      private final String value;
+
+      Edges(String value) {
+        this.value = value;
+      }
+
+      public String value() {
+        return value;
+      }
+
+      public static Edges fromName(String value) {
+        return Edges.valueOf(value.toUpperCase(Locale.ENGLISH));
+      }
+    }
+
+    public static final String DEFAULT_CRS = "OGC:CRS84";
+    public static final Edges DEFAULT_EDGES = Edges.PLANAR;
+
+    private final String crs;
+    private final Edges edges;
+
+    private GeometryType(String crs, Edges edges) {
+      this.crs = crs;
+      this.edges = edges;
     }
 
     public static GeometryType get() {
-      return get(GeometryEncoding.DEFAULT_ENCODING);
+      return of(DEFAULT_CRS);
     }
 
-    public static GeometryType get(GeometryEncoding encoding) {
-      return new GeometryType(encoding);
+    public static GeometryType of(String crs) {
+      return of(crs, DEFAULT_EDGES);
     }
 
-    public static GeometryType get(String encoding) {
-      return new GeometryType(GeometryEncoding.fromName(encoding));
+    public static GeometryType of(String crs, Edges edges) {
+      return new GeometryType(crs, edges);
+    }
+
+    public static GeometryType of(String crs, String edgesName) {
+      Edges edges = (edgesName == null ? DEFAULT_EDGES : Edges.fromName(edgesName));
+      return new GeometryType(crs == null ? DEFAULT_CRS : crs, edges);
     }
 
     @Override
@@ -499,8 +529,12 @@ public class Types {
       return TypeID.GEOMETRY;
     }
 
-    public GeometryEncoding encoding() {
-      return encoding;
+    public String crs() {
+      return crs;
+    }
+
+    public Edges edges() {
+      return edges;
     }
 
     @Override
@@ -512,17 +546,17 @@ public class Types {
       }
 
       GeometryType that = (GeometryType) o;
-      return encoding.equals(that.encoding);
+      return crs.equals(that.crs) && edges.equals(that.edges);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(GeometryType.class, encoding);
+      return Objects.hash(GeometryType.class, crs, edges);
     }
 
     @Override
     public String toString() {
-      return String.format("geometry(%s)", encoding.encoding());
+      return String.format("geometry(%s, %s)", crs, edges.value());
     }
   }
 

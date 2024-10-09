@@ -168,6 +168,7 @@ public class ParquetUtil {
           // of binary columns).
           // Statistics for geometry values collected by geometry value writers were stored in the
           // newly added geom_lower_bound/geom_upper_bound properties in the manifest.
+          // TODO: we need to switch to the new parquet-java library with geometry support
           if (metricsMode != MetricsModes.Counts.get()
               && (!fieldMetricsMap.containsKey(fieldId)
                   || icebergFieldType.typeId() == Type.TypeID.GEOMETRY)) {
@@ -177,7 +178,7 @@ public class ParquetUtil {
               // Interpret parquet values for geometry columns as the physical type of the geometry
               // column
               if (fieldType.typeId() == Type.TypeID.GEOMETRY) {
-                fieldType = ((Types.GeometryType) fieldType).encoding().physicalType();
+                fieldType = Types.BinaryType.get();
               }
               Literal<?> min =
                   ParquetConversions.fromParquetPrimitive(
@@ -202,12 +203,7 @@ public class ParquetUtil {
       upperBounds.remove(fieldId);
     }
 
-    updateFromFieldMetrics(
-        fieldMetricsMap,
-        metricsConfig,
-        fileSchema,
-        lowerBounds,
-        upperBounds);
+    updateFromFieldMetrics(fieldMetricsMap, metricsConfig, fileSchema, lowerBounds, upperBounds);
 
     return new Metrics(
         rowCount,
@@ -384,13 +380,11 @@ public class ParquetUtil {
     }
   }
 
-  private static Map<Integer, ByteBuffer> toBufferMap(
-      Schema schema, Map<Integer, Literal<?>> map) {
+  private static Map<Integer, ByteBuffer> toBufferMap(Schema schema, Map<Integer, Literal<?>> map) {
     Map<Integer, ByteBuffer> bufferMap = Maps.newHashMap();
     for (Map.Entry<Integer, Literal<?>> entry : map.entrySet()) {
       Type fieldType = schema.findType(entry.getKey());
-        bufferMap.put(
-            entry.getKey(), Conversions.toByteBuffer(fieldType, entry.getValue().value()));
+      bufferMap.put(entry.getKey(), Conversions.toByteBuffer(fieldType, entry.getValue().value()));
     }
     return bufferMap;
   }
