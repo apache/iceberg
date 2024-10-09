@@ -956,6 +956,9 @@ project(':iceberg-snowflake') {
 
 project(':iceberg-open-api') {
   apply plugin: 'java-test-fixtures'
+  apply plugin: 'io.github.goooler.shadow'
+
+  build.dependsOn shadowJar
 
   dependencies {
     testImplementation project(':iceberg-api')
@@ -1008,6 +1011,37 @@ project(':iceberg-open-api') {
     recommend.set(true)
   }
   check.dependsOn('validateRESTCatalogSpec')
+
+  // Create a custom configuration that extends testFixturesImplementation and is resolvable
+  configurations {
+    testFixturesShadowImplementation {
+      canBeResolved = true
+      canBeConsumed = false
+      extendsFrom testFixturesImplementation
+    }
+  }
+
+  shadowJar {
+    archiveBaseName.set("iceberg-open-api-test-fixtures-runtime")
+    archiveClassifier.set(null)
+    configurations = [project.configurations.testFixturesShadowImplementation]
+    from sourceSets.testFixtures.output
+    zip64 true
+
+    // include the LICENSE and NOTICE files for the runtime Jar
+    from(projectDir) {
+      include 'LICENSE'
+      include 'NOTICE'
+    }
+
+    manifest {
+      attributes 'Main-Class': 'org.apache.iceberg.rest.RESTCatalogServer'
+    }
+  }
+
+  jar {
+    enabled = false
+  }
 }
 
 @Memoized
