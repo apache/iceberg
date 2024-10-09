@@ -26,20 +26,34 @@ public class AesGcmInputFile implements InputFile {
   private final InputFile sourceFile;
   private final byte[] dataKey;
   private final byte[] fileAADPrefix;
-  private long plaintextLength;
+  private Long encryptedLength;
+  private Long plaintextLength;
 
   public AesGcmInputFile(InputFile sourceFile, byte[] dataKey, byte[] fileAADPrefix) {
+    this(sourceFile, dataKey, fileAADPrefix, null);
+  }
+
+  public AesGcmInputFile(InputFile sourceFile, byte[] dataKey, byte[] fileAADPrefix, Long length) {
     this.sourceFile = sourceFile;
     this.dataKey = dataKey;
     this.fileAADPrefix = fileAADPrefix;
-    this.plaintextLength = -1;
+    this.encryptedLength = length;
+    this.plaintextLength = null;
+  }
+
+  private long encryptedLength() {
+    if (encryptedLength == null) {
+      this.encryptedLength = sourceFile.getLength();
+    }
+
+    return encryptedLength;
   }
 
   @Override
   public long getLength() {
-    if (plaintextLength == -1) {
+    if (plaintextLength == null) {
       // Presumes all streams use hard-coded plaintext block size.
-      plaintextLength = AesGcmInputStream.calculatePlaintextLength(sourceFile.getLength());
+      plaintextLength = AesGcmInputStream.calculatePlaintextLength(encryptedLength());
     }
 
     return plaintextLength;
@@ -47,7 +61,7 @@ public class AesGcmInputFile implements InputFile {
 
   @Override
   public SeekableInputStream newStream() {
-    long ciphertextLength = sourceFile.getLength();
+    long ciphertextLength = encryptedLength();
     Preconditions.checkState(
         ciphertextLength >= Ciphers.MIN_STREAM_LENGTH,
         "Invalid encrypted stream: %d is shorter than the minimum possible stream length",
