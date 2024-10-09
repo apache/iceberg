@@ -125,25 +125,29 @@ The blob metadata for this blob may include following properties:
 
 #### `delete-vector-v1` blob type
 
-A serialized delete vector that represents the positions of rows in a file that
-are deleted.  A set bit at position P indicates that the row at position P is
-deleted.
+A serialized delete vector (bitmap) that represents the positions of rows in a
+file that are deleted.  A set bit at position P indicates that the row at
+position P is deleted.
 
-The bitmap supports positive 64-bit positions, but is optimized for cases where
+The vector supports positive 64-bit positions, but is optimized for cases where
 most positions fit in 32 bits by using a collection of 32-bit Roaring bitmaps.
 64-bit positions are divided into a 32-bit "key" using the most significant 4
-bytes and a 32-bit position using the least significant 4 bytes. For each key
-in the set of positions, a 32-bit Roaring bitmap is maintained to store a set
-of 32-bit positions for that key.
+bytes and a 32-bit sub-position using the least significant 4 bytes. For each
+key in the set of positions, a 32-bit Roaring bitmap is maintained to store a
+set of 32-bit sub-positions for that key.
 
 To test whether a certain position is set, its most significant 4 bytes (the
-key) are used to find a 32-bit bitmap and the least significant 4 bytes are
-tested for inclusion in the bitmap. If a bitmap is not found for the key, then
-it is not set.
+key) are used to find a 32-bit bitmap and the least significant 4 bytes (the
+sub-position) are tested for inclusion in the bitmap. If a bitmap is not found
+for the key, then it is not set.
 
-The serialized blob starts with a 4-byte magic sequence, `D1D33964` (1681511377
-stored as 4 bytes, little-endian). Following the magic bytes is the serialized
-collection of bitmaps. The collection is stored using the Roaring bitmap
+The serialized blob contains:
+* The length of the vector and magic bytes stored as 4 bytes, little-endian
+* A 4-byte magic sequence, `D1D33964` (1681511377 as 4 bytes, little-endian)
+* The vector, serialized as described below
+* A 4-byte CRC-32 checksum of the serialized vector
+
+The position vector is serialized using the Roaring bitmap
 ["portable" format][roaring-bitmap-portable-serialization]. This representation
 consists of:
 
@@ -154,7 +158,8 @@ consists of:
 
 The blob metadata must include the following properties:
 
-* `referenced-data-file`: location of the data file the delete vector applies to
+* `referenced-data-file`: location of the data file the delete vector applies
+  to; must be equal to the data file's `location` in table metadata
 * `cardinality`: number of deleted rows (set positions) in the delete vector
 
 
