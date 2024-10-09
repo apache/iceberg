@@ -461,7 +461,7 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 | ---------- | ---------- | ---------- |-----------------------------------|------------------------------|-------------|
 |            | _required_ | _required_ | **`134  content`**                | `int` with meaning: `0: DATA`, `1: POSITION DELETES`, `2: EQUALITY DELETES` | Type of content stored by the data file: data, equality deletes, or position deletes (all v1 files are data files) |
 | _required_ | _required_ | _required_ | **`100  file_path`**              | `string`                     | Full URI for the file with FS scheme |
-| _required_ | _required_ | _required_ | **`101  file_format`**            | `string`                     | String file format name, avro, orc or parquet |
+| _required_ | _required_ | _required_ | **`101  file_format`**            | `string`                     | String file format name, `avro`, `orc`, `parquet`, or `puffin` |
 | _required_ | _required_ | _required_ | **`102  partition`**              | `struct<...>`                | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
 | _required_ | _required_ | _required_ | **`103  record_count`**           | `long`                       | Number of records in this file, or the cardinality of a deletion vector |
 | _required_ | _required_ | _required_ | **`104  file_size_in_bytes`**     | `long`                       | Total file size in bytes |
@@ -637,6 +637,7 @@ Delete files and deletion vector metadata that match the filters must be applied
     - The data file's `file_path` is equal to the delete file's `referenced_data_file` if it is non-null
     - The data file's data sequence number is _less than or equal to_ the delete file's data sequence number
     - The data file's partition (both spec and partition values) is equal [4] to the delete file's partition
+    - There is no deletion vector that must be applied to the data file (when added, such a vector must contain all deletes from existing position delete files)
 * An _equality_ delete file must be applied to a data file when all of the following are true:
     - The data file's data sequence number is _strictly less than_ the delete's data sequence number
     - The data file's partition (both spec id and partition values) is equal [4] to the delete file's partition _or_ the delete file's partition spec is unpartitioned
