@@ -240,7 +240,6 @@ public class TestLocationProvider extends TestBase {
 
     String dataPath = "s3://random/data/location";
     table.updateProperties().set(TableProperties.WRITE_DATA_LOCATION, dataPath).commit();
-
     assertThat(table.locationProvider().newDataLocation("file"))
         .as("write data path should be used when set")
         .contains(dataPath);
@@ -303,5 +302,36 @@ public class TestLocationProvider extends TestBase {
     String partitionString = parts.get(parts.size() - 2);
 
     assertThat(partitionString).isEqualTo("data%231=val%231");
+  }
+
+  @TestTemplate
+  public void testExcludePartitionInPath() {
+    // Update the table to use a string field for partitioning with special characters in the name
+    table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "true").commit();
+    table
+        .updateProperties()
+        .set(TableProperties.WRITE_OBJECT_STORE_PARTITIONED_PATHS, "false")
+        .commit();
+
+    // Use a partition value that has a special character
+    StructLike partitionData = TestHelpers.CustomRow.of(0, "val");
+    String fileLocation =
+        table.locationProvider().newDataLocation(table.spec(), partitionData, "test.parquet");
+
+    // no partition values included in the path
+    assertThat(fileLocation).endsWith("/data/01101010001111101000/test.parquet");
+  }
+
+  @TestTemplate
+  public void testHashInjection() {
+    table.updateProperties().set(TableProperties.OBJECT_STORE_ENABLED, "true").commit();
+    assertThat(table.locationProvider().newDataLocation("a"))
+        .endsWith("/data/01010110100110110010/a");
+    assertThat(table.locationProvider().newDataLocation("b"))
+        .endsWith("/data/11100111111000000011/b");
+    assertThat(table.locationProvider().newDataLocation("c"))
+        .endsWith("/data/00101101011001011111/c");
+    assertThat(table.locationProvider().newDataLocation("d"))
+        .endsWith("/data/10010001010001110011/d");
   }
 }
