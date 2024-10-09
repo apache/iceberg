@@ -39,6 +39,9 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.JsonUtil;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKTReader;
 
 public class SingleValueParser {
   private SingleValueParser() {}
@@ -160,6 +163,15 @@ public class SingleValueParser {
         byte[] binaryBytes =
             BaseEncoding.base16().decode(defaultValue.textValue().toUpperCase(Locale.ROOT));
         return ByteBuffer.wrap(binaryBytes);
+      case GEOMETRY:
+        Preconditions.checkArgument(
+            defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
+        WKTReader wktReader = new WKTReader();
+        try {
+          return wktReader.read(defaultValue.textValue());
+        } catch (ParseException e) {
+          throw new RuntimeException("Cannot parse geometry value from WKT", e);
+        }
       case LIST:
         return listFromJson(type, defaultValue);
       case MAP:
@@ -334,6 +346,11 @@ public class SingleValueParser {
         } else {
           generator.writeString(decimalValue.toString());
         }
+        break;
+      case GEOMETRY:
+        Preconditions.checkArgument(
+            defaultValue instanceof Geometry, "Invalid default %s value: %s", type, defaultValue);
+        generator.writeString(((Geometry) defaultValue).toText());
         break;
       case LIST:
         Preconditions.checkArgument(

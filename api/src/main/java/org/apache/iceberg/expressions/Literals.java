@@ -41,6 +41,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.iceberg.util.NaNUtil;
+import org.locationtech.jts.geom.Geometry;
 
 class Literals {
   private Literals() {}
@@ -80,6 +81,8 @@ class Literals {
       return (Literal<T>) new Literals.BinaryLiteral((ByteBuffer) value);
     } else if (value instanceof BigDecimal) {
       return (Literal<T>) new Literals.DecimalLiteral((BigDecimal) value);
+    } else if (value instanceof Geometry) {
+      return (Literal<T>) new Literals.GeometryLiteral((Geometry) value);
     }
 
     throw new IllegalArgumentException(
@@ -685,6 +688,35 @@ class Literals {
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
       return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+    }
+  }
+
+  static class GeometryLiteral extends BaseLiteral<Geometry> {
+    @SuppressWarnings("unchecked")
+    private static final Comparator<Geometry> CMP =
+        Comparators.<Geometry>nullsFirst().thenComparing(Comparator.naturalOrder());
+
+    GeometryLiteral(Geometry value) {
+      super(value);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Literal<T> to(Type type) {
+      if (type.typeId() == Type.TypeID.GEOMETRY) {
+        return (Literal<T>) this;
+      }
+      return null;
+    }
+
+    @Override
+    public Comparator<Geometry> comparator() {
+      return CMP;
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.GEOMETRY;
     }
   }
 }

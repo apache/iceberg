@@ -33,6 +33,7 @@ import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types.DecimalType;
 import org.apache.iceberg.types.Types.FixedType;
+import org.apache.iceberg.types.Types.GeometryType;
 import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
@@ -186,6 +187,22 @@ public class TypeToMessageType {
             .as(LogicalTypeAnnotation.uuidType())
             .id(id)
             .named(name);
+
+      case GEOMETRY:
+        GeometryType geomType = (GeometryType) primitive;
+        switch (geomType.encoding()) {
+          case EWKB:
+          case WKB:
+            return Types.primitive(BINARY, repetition).id(id).named(name);
+          case GEOJSON:
+          case WKT:
+            return Types.primitive(BINARY, repetition)
+                .as(LogicalTypeAnnotation.stringType())
+                .id(id)
+                .named(name);
+          default:
+            throw new UnsupportedOperationException("Unsupported geometry encoding: " + geomType);
+        }
 
       default:
         throw new UnsupportedOperationException("Unsupported type for Parquet: " + primitive);

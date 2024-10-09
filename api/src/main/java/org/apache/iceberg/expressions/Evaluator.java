@@ -25,6 +25,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundVisitor;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
+import org.locationtech.jts.geom.Geometry;
 
 /**
  * Evaluates an {@link Expression} for data described by a {@link StructType}.
@@ -155,6 +156,18 @@ public class Evaluator implements Serializable {
     @Override
     public <T> Boolean notStartsWith(Bound<T> valueExpr, Literal<T> lit) {
       return !startsWith(valueExpr, lit);
+    }
+
+    @Override
+    public <T> Boolean stIntersects(Bound<T> valueExpr, Literal<T> lit) {
+      T evalRes = valueExpr.eval(struct);
+      return evalRes != null && ((Geometry) evalRes).intersects((Geometry) lit.value());
+    }
+
+    @Override
+    public <T> Boolean stCovers(Bound<T> valueExpr, Literal<T> lit) {
+      T evalRes = valueExpr.eval(struct);
+      return evalRes != null && ((Geometry) evalRes).covers((Geometry) lit.value());
     }
   }
 }

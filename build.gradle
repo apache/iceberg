@@ -292,6 +292,7 @@ project(':iceberg-api') {
 
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api libs.jts.core
     compileOnly libs.errorprone.annotations
     compileOnly libs.findbugs.jsr305
     testImplementation libs.avro.avro

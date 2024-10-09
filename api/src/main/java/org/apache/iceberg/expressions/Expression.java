@@ -44,6 +44,8 @@ public interface Expression extends Serializable {
     OR,
     STARTS_WITH,
     NOT_STARTS_WITH,
+    ST_INTERSECTS,
+    ST_COVERS,
     COUNT,
     COUNT_STAR,
     MAX,

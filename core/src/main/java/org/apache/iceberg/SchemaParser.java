@@ -29,7 +29,10 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.GeometryType;
+import org.apache.iceberg.types.havasu.GeometryEncoding;
 import org.apache.iceberg.util.JsonUtil;
 
 public class SchemaParser {
@@ -55,6 +58,7 @@ public class SchemaParser {
   private static final String REQUIRED = "required";
   private static final String ELEMENT_REQUIRED = "element-required";
   private static final String VALUE_REQUIRED = "value-required";
+  private static final String GEOMETRY_ENCODING = "havasu.geometry-encoding";
 
   private static void toJson(Types.StructType struct, JsonGenerator generator) throws IOException {
     toJson(struct, null, null, generator);
@@ -126,7 +130,18 @@ public class SchemaParser {
   }
 
   static void toJson(Type.PrimitiveType primitive, JsonGenerator generator) throws IOException {
-    generator.writeString(primitive.toString());
+    if (primitive.typeId() == Type.TypeID.GEOMETRY) {
+      GeometryType geometryType = (GeometryType) primitive;
+      GeometryEncoding encoding = geometryType.encoding();
+      TypeID physicalType = encoding.physicalTypeId();
+      generator.writeString(physicalType.toString());
+      // Write an additional encoding field for geometry column, so that we'll know that the column
+      // should be interpreted as a geometry column in specified encoding.
+      generator.writeFieldName(GEOMETRY_ENCODING);
+      generator.writeString(encoding.encoding());
+    } else {
+      generator.writeString(primitive.toString());
+    }
   }
 
   static void toJson(Type type, JsonGenerator generator) throws IOException {
@@ -199,6 +214,18 @@ public class SchemaParser {
       int id = JsonUtil.getInt(ID, field);
       String name = JsonUtil.getString(NAME, field);
       Type type = typeFromJson(JsonUtil.get(TYPE, field));
+
+      // special handling of geometry types: if there's a GEOMETRY_ENCODING in this field,
+      // we should treat it as a geometry field.
+      String geometryEncoding = JsonUtil.getStringOrNull(GEOMETRY_ENCODING, field);
+      if (geometryEncoding != null) {
+        GeometryEncoding encoding = GeometryEncoding.fromName(geometryEncoding);
+        Preconditions.checkArgument(
+            type.typeId().equals(encoding.physicalTypeId()),
+            "Field type is inconsistent with geometry encoding: %s",
+            field);
+        type = GeometryType.get(encoding);
+      }
 
       String doc = JsonUtil.getStringOrNull(DOC, field);
       boolean isRequired = JsonUtil.getBool(REQUIRED, field);

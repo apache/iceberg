@@ -64,7 +64,9 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           "nan_value_counts",
           "lower_bounds",
           "upper_bounds",
-          "record_count");
+          "record_count",
+          "geom_lower_bounds",
+          "geom_upper_bounds");
 
   protected enum FileType {
     DATA_FILES(GenericDataFile.class),
