@@ -277,6 +277,14 @@ public class SparkReadConf {
         .parse();
   }
 
+  public boolean limitPushDownEnabled() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.LIMIT_PUSH_DOWN_ENABLED)
+        .defaultValue(SparkSQLProperties.LIMIT_PUSH_DOWN_ENABLED_DEFAULT)
+        .parse();
+  }
+
   public boolean adaptiveSplitSizeEnabled() {
     return confParser
         .booleanConf()

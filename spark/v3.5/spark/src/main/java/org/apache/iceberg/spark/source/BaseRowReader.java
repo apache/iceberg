@@ -39,6 +39,8 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 
 abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow, T> {
+  private Integer pushedLimit;
+
   BaseRowReader(
       Table table,
       ScanTaskGroup<T> taskGroup,
@@ -46,6 +48,17 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Schema expectedSchema,
       boolean caseSensitive) {
     super(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
+  }
+
+  BaseRowReader(
+      Table table,
+      ScanTaskGroup<T> taskGroup,
+      Schema tableSchema,
+      Schema expectedSchema,
+      boolean caseSensitive,
+      Integer pushedLimit) {
+    this(table, taskGroup, tableSchema, expectedSchema, caseSensitive);
+    this.pushedLimit = pushedLimit;
   }
 
   protected CloseableIterable<InternalRow> newIterable(
@@ -58,7 +71,8 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       Map<Integer, ?> idToConstant) {
     switch (format) {
       case PARQUET:
-        return newParquetIterable(file, start, length, residual, projection, idToConstant);
+        return newParquetIterable(
+            file, start, length, residual, projection, idToConstant, pushedLimit);
 
       case AVRO:
         return newAvroIterable(file, start, length, projection, idToConstant);
@@ -88,17 +102,23 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
       long length,
       Expression residual,
       Schema readSchema,
-      Map<Integer, ?> idToConstant) {
-    return Parquet.read(file)
-        .reuseContainers()
-        .split(start, length)
-        .project(readSchema)
-        .createReaderFunc(
-            fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
-        .filter(residual)
-        .caseSensitive(caseSensitive())
-        .withNameMapping(nameMapping())
-        .build();
+      Map<Integer, ?> idToConstant,
+      Integer limit) {
+    Parquet.ReadBuilder readerBuilder =
+        Parquet.read(file)
+            .reuseContainers()
+            .split(start, length)
+            .project(readSchema)
+            .createReaderFunc(
+                fileSchema -> SparkParquetReaders.buildReader(readSchema, fileSchema, idToConstant))
+            .filter(residual)
+            .caseSensitive(caseSensitive())
+            .withNameMapping(nameMapping());
+    if (limit != null && limit > 0) {
+      readerBuilder = readerBuilder.pushedlimit(limit);
+    }
+
+    return readerBuilder.build();
   }
 
   private CloseableIterable<InternalRow> newOrcIterable(

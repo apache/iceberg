@@ -28,6 +28,10 @@ import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.spark.ImmutableOrcBatchReadConf;
+import org.apache.iceberg.spark.ImmutableParquetBatchReadConf;
+import org.apache.iceberg.spark.OrcBatchReadConf;
+import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkUtil;
 import org.apache.iceberg.types.Types;
@@ -50,6 +54,7 @@ class SparkBatch implements Batch {
   private final boolean localityEnabled;
   private final boolean executorCacheLocalityEnabled;
   private final int scanHashCode;
+  private Integer pushedLimit;
 
   SparkBatch(
       JavaSparkContext sparkContext,
@@ -70,6 +75,19 @@ class SparkBatch implements Batch {
     this.localityEnabled = readConf.localityEnabled();
     this.executorCacheLocalityEnabled = readConf.executorCacheLocalityEnabled();
     this.scanHashCode = scanHashCode;
+  }
+
+  SparkBatch(
+      JavaSparkContext sparkContext,
+      Table table,
+      SparkReadConf readConf,
+      Types.StructType groupingKeyType,
+      List<? extends ScanTaskGroup<?>> taskGroups,
+      Schema expectedSchema,
+      int scanHashCode,
+      Integer pushedLimit) {
+    this(sparkContext, table, readConf, groupingKeyType, taskGroups, expectedSchema, scanHashCode);
+    this.pushedLimit = pushedLimit;
   }
 
   @Override
@@ -114,16 +132,29 @@ class SparkBatch implements Batch {
   @Override
   public PartitionReaderFactory createReaderFactory() {
     if (useParquetBatchReads()) {
-      int batchSize = readConf.parquetBatchSize();
-      return new SparkColumnarReaderFactory(batchSize);
+      return new SparkColumnarReaderFactory(parquetBatchReadConf());
 
     } else if (useOrcBatchReads()) {
-      int batchSize = readConf.orcBatchSize();
-      return new SparkColumnarReaderFactory(batchSize);
+      return new SparkColumnarReaderFactory(orcBatchReadConf());
 
     } else {
-      return new SparkRowReaderFactory();
+      return new SparkRowReaderFactory(pushedLimit);
     }
+  }
+
+  private ParquetBatchReadConf parquetBatchReadConf() {
+    ImmutableParquetBatchReadConf.Builder builder =
+        ImmutableParquetBatchReadConf.builder().batchSize(readConf.parquetBatchSize());
+
+    if (pushedLimit != null && pushedLimit >= 1) {
+      builder.limit(pushedLimit);
+    }
+
+    return builder.build();
+  }
+
+  private OrcBatchReadConf orcBatchReadConf() {
+    return ImmutableOrcBatchReadConf.builder().batchSize(readConf.parquetBatchSize()).build();
   }
 
   // conditions for using Parquet batch reads:
