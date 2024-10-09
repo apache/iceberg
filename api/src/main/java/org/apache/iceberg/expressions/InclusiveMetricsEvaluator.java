@@ -59,7 +59,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 public class InclusiveMetricsEvaluator {
   private static final int IN_PREDICATE_LIMIT = 200;
 
-  private static final GeometryFactory factory = new GeometryFactory();
+  private static final GeometryFactory FACTORY = new GeometryFactory();
 
   private final Expression expr;
 
@@ -497,7 +497,7 @@ public class InclusiveMetricsEvaluator {
         Geometry upperBound = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
         if (lowerBound != null && upperBound != null) {
           Envelope bound = new Envelope(lowerBound.getCoordinate(), upperBound.getCoordinate());
-          Geometry boundGeom = factory.toGeometry(bound);
+          Geometry boundGeom = FACTORY.toGeometry(bound);
           if (!boundGeom.intersects(queryWindow)) {
             return ROWS_CANNOT_MATCH;
           }
@@ -527,7 +527,7 @@ public class InclusiveMetricsEvaluator {
         Geometry upperBound = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
         if (lowerBound != null && upperBound != null) {
           Envelope bound = new Envelope(lowerBound.getCoordinate(), upperBound.getCoordinate());
-          Geometry boundGeom = factory.toGeometry(bound);
+          Geometry boundGeom = FACTORY.toGeometry(bound);
           if (!boundGeom.covers(queryWindow)) {
             return ROWS_CANNOT_MATCH;
           }

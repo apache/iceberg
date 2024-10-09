@@ -130,7 +130,7 @@ public class TestManifestReader extends TestBase {
       long expectedPos = 0L;
       for (DataFile file : reader) {
         assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
-        assertThat(((BaseFile) file).get(19))
+        assertThat(((BaseFile) file).get(17))
             .as("Position from field index should match")
             .isEqualTo(expectedPos);
         expectedPos += 1;
@@ -158,7 +158,7 @@ public class TestManifestReader extends TestBase {
       long expectedPos = 0L;
       for (DeleteFile file : reader) {
         assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
-        assertThat(((BaseFile) file).get(19))
+        assertThat(((BaseFile) file).get(17))
             .as("Position from field index should match")
             .isEqualTo(expectedPos);
         expectedPos += 1;

@@ -56,26 +56,17 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.types.havasu.GeometryEncoding;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 
-@RunWith(Parameterized.class)
 public class TestGeometryReadersAndWriters {
-
-  @Parameterized.Parameters(name = "encoding = {0}")
-  public static Object[] parameters() {
-    return new Object[] {"ewkb", "wkb", "wkt", "geojson"};
-  }
 
   private final Schema schema;
   private static final Configuration CONF = new Configuration();
@@ -83,17 +74,16 @@ public class TestGeometryReadersAndWriters {
 
   @Rule public final TemporaryFolder temp = new TemporaryFolder();
 
-  private static final GeometryFactory factory = new GeometryFactory();
+  private static final GeometryFactory FACTORY = new GeometryFactory();
 
   private final List<List<Record>> testData;
 
-  public TestGeometryReadersAndWriters(String encodingName) {
-    GeometryEncoding encoding = GeometryEncoding.fromName(encodingName);
+  public TestGeometryReadersAndWriters() {
     this.schema =
         new Schema(
             required(1, "id", Types.LongType.get()),
             required(2, "part", Types.IntegerType.get()),
-            optional(3, "geom", Types.GeometryType.get(encoding)));
+            optional(3, "geom", Types.GeometryType.get()));
     testData = prepareTestData();
   }
 
@@ -121,7 +111,7 @@ public class TestGeometryReadersAndWriters {
             center = new Coordinate(k, -k);
             break;
         }
-        Point point = factory.createPoint(center);
+        Point point = FACTORY.createPoint(center);
         Geometry polygon = point.buffer(0.5);
 
         Record record = GenericRecord.create(schema);
@@ -226,30 +216,30 @@ public class TestGeometryReadersAndWriters {
 
     // Read the table with spatial predicates
     // test the intersects predicate
-    Expression expr = Expressions.stIntersects("geom", factory.createPoint(new Coordinate(1, 1)));
+    Expression expr = Expressions.stIntersects("geom", FACTORY.createPoint(new Coordinate(1, 1)));
     validateScan(table, expr, 1, 2);
-    expr = Expressions.stIntersects("geom", factory.createPoint(new Coordinate(0, 0)));
+    expr = Expressions.stIntersects("geom", FACTORY.createPoint(new Coordinate(0, 0)));
     validateScan(table, expr, 0, 0);
-    expr = Expressions.stIntersects("geom", factory.createPoint(new Coordinate(1.5, 1.5)));
+    expr = Expressions.stIntersects("geom", FACTORY.createPoint(new Coordinate(1.5, 1.5)));
     validateScan(table, expr, 1, 0);
-    expr = Expressions.stIntersects("geom", factory.toGeometry(new Envelope(0.5, 1.1, -1.1, 1.1)));
+    expr = Expressions.stIntersects("geom", FACTORY.toGeometry(new Envelope(0.5, 1.1, -1.1, 1.1)));
     validateScan(table, expr, 2, 4);
-    expr = Expressions.stIntersects("geom", factory.toGeometry(new Envelope(0, 0.75, 0, 0.75)));
+    expr = Expressions.stIntersects("geom", FACTORY.toGeometry(new Envelope(0, 0.75, 0, 0.75)));
     validateScan(table, expr, 1, 1);
     expr =
-        Expressions.stIntersects("geom", factory.toGeometry(new Envelope(0.75, 1.25, 0.75, 1.25)));
+        Expressions.stIntersects("geom", FACTORY.toGeometry(new Envelope(0.75, 1.25, 0.75, 1.25)));
     validateScan(table, expr, 1, 2);
 
     // test the covers predicate
-    expr = Expressions.stCovers("geom", factory.createPoint(new Coordinate(1, 1)));
+    expr = Expressions.stCovers("geom", FACTORY.createPoint(new Coordinate(1, 1)));
     validateScan(table, expr, 1, 2);
-    expr = Expressions.stCovers("geom", factory.createPoint(new Coordinate(0, 0)));
+    expr = Expressions.stCovers("geom", FACTORY.createPoint(new Coordinate(0, 0)));
     validateScan(table, expr, 0, 0);
-    expr = Expressions.stCovers("geom", factory.createPoint(new Coordinate(1.5, 1.5)));
+    expr = Expressions.stCovers("geom", FACTORY.createPoint(new Coordinate(1.5, 1.5)));
     validateScan(table, expr, 1, 0);
-    expr = Expressions.stCovers("geom", factory.toGeometry(new Envelope(0, 0.75, 0, 0.75)));
+    expr = Expressions.stCovers("geom", FACTORY.toGeometry(new Envelope(0, 0.75, 0, 0.75)));
     validateScan(table, expr, 0, 0);
-    expr = Expressions.stCovers("geom", factory.toGeometry(new Envelope(0.75, 1.25, 0.75, 1.25)));
+    expr = Expressions.stCovers("geom", FACTORY.toGeometry(new Envelope(0.75, 1.25, 0.75, 1.25)));
     validateScan(table, expr, 1, 1);
 
     // test spatial predicate and other predicate mixed together
@@ -257,7 +247,7 @@ public class TestGeometryReadersAndWriters {
         Expressions.and(
             Expressions.lessThanOrEqual("id", 10L),
             Expressions.stIntersects(
-                "geom", factory.toGeometry(new Envelope(0.5, 1.1, -1.1, 1.1))));
+                "geom", FACTORY.toGeometry(new Envelope(0.5, 1.1, -1.1, 1.1))));
     validateScan(table, expr, 1, 2);
   }
 
@@ -301,7 +291,7 @@ public class TestGeometryReadersAndWriters {
 
     // Read the table with spatial predicates
     // test the intersects predicate
-    Expression expr = Expressions.stIntersects("geom", factory.createPoint(new Coordinate(1, 1)));
+    Expression expr = Expressions.stIntersects("geom", FACTORY.createPoint(new Coordinate(1, 1)));
     validateScan(table, expr, 1, 2);
 
     // test spatial predicate and partition condition mixed together
@@ -309,7 +299,7 @@ public class TestGeometryReadersAndWriters {
         Expressions.and(
             Expressions.equal("part", 3),
             Expressions.stIntersects(
-                "geom", factory.toGeometry(new Envelope(0.5, 1.1, -1.1, 1.1))));
+                "geom", FACTORY.toGeometry(new Envelope(0.5, 1.1, -1.1, 1.1))));
     validateScan(table, expr, 1, 2);
   }
 

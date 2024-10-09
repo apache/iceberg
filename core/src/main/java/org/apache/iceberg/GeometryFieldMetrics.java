@@ -16,9 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.havasu;
+package org.apache.iceberg;
 
-import org.apache.iceberg.FieldMetrics;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
@@ -32,7 +31,7 @@ import org.locationtech.jts.geom.GeometryFactory;
  */
 public class GeometryFieldMetrics extends FieldMetrics<Geometry> {
 
-  private static final GeometryFactory factory = new GeometryFactory();
+  private static final GeometryFactory FACTORY = new GeometryFactory();
 
   private GeometryFieldMetrics(int id, long valueCount, Geometry min, Geometry max) {
     super(id, valueCount, 0L, 0L, min, max);
@@ -68,8 +67,8 @@ public class GeometryFieldMetrics extends FieldMetrics<Geometry> {
       return new GeometryFieldMetrics(
           id,
           valueCount,
-          hasBound ? factory.createPoint(new Coordinate(xMin, yMin)) : null,
-          hasBound ? factory.createPoint(new Coordinate(xMax, yMax)) : null);
+          hasBound ? FACTORY.createPoint(new Coordinate(xMin, yMin)) : null,
+          hasBound ? FACTORY.createPoint(new Coordinate(xMax, yMax)) : null);
     }
 
     public void add(Geometry geom) {

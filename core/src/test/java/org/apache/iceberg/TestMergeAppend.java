@@ -420,7 +420,7 @@ public class TestMergeAppend extends TestBase {
         // Each initial v1/v2 ManifestFile is 5661/6397 bytes respectively. Merging two of the given
         // manifests make one v1/v2 ManifestFile of 5672/6408 bytes respectively, so 15000 bytes
         // limit will give us two bins with three manifest/data files.
-        .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, "18000")
+        .set(TableProperties.MANIFEST_TARGET_SIZE_BYTES, "15000")
         .commit();
 
     TableMetadata base = readMetadata();

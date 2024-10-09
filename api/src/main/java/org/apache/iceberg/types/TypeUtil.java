@@ -418,21 +418,6 @@ public class TypeUtil {
         Types.DecimalType toDecimal = (Types.DecimalType) to;
         return fromDecimal.scale() == toDecimal.scale()
             && fromDecimal.precision() <= toDecimal.precision();
-
-      case STRING:
-      case BINARY:
-        if (to.typeId() == Type.TypeID.GEOMETRY) {
-          if (((Types.GeometryType) to).encoding().physicalTypeId() == from.typeId()) {
-            return true;
-          }
-        }
-        break;
-
-      case GEOMETRY:
-        if (((Types.GeometryType) from).encoding().physicalTypeId() == to.typeId()) {
-          return true;
-        }
-        break;
     }
 
     return false;

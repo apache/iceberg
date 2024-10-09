@@ -28,11 +28,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.parquet.ParquetGeometryValueWriters;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
-import org.apache.iceberg.parquet.havasu.ParquetGeometryValueWriters;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
@@ -137,9 +137,8 @@ public abstract class BaseParquetWriter<T> {
         org.apache.iceberg.types.Type.PrimitiveType iPrimitive, PrimitiveType primitive) {
       if (iPrimitive != null
           && iPrimitive.typeId() == org.apache.iceberg.types.Type.TypeID.GEOMETRY) {
-        Types.GeometryType geometryType = (Types.GeometryType) iPrimitive;
         ColumnDescriptor desc = type.getColumnDescription(currentPath());
-        return ParquetGeometryValueWriters.buildWriter(geometryType, desc);
+        return ParquetGeometryValueWriters.buildWriter(desc);
       } else {
         return primitive(primitive);
       }
