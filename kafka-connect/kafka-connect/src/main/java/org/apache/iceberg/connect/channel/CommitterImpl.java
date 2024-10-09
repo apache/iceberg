@@ -20,7 +20,9 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -28,6 +30,9 @@ import org.apache.iceberg.connect.data.SinkWriter;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
+
+import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsOptions;
+import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsResult;
 import org.apache.kafka.clients.admin.MemberDescription;
 import org.apache.kafka.common.ConsumerGroupState;
 import org.apache.kafka.common.TopicPartition;
@@ -36,6 +41,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import static java.util.stream.Collectors.toMap;
 
 public class CommitterImpl implements Committer {
 
@@ -62,6 +68,7 @@ public class CommitterImpl implements Committer {
 
     ConsumerGroupDescription groupDesc;
     try (Admin admin = clientFactory.createAdmin()) {
+      syncConsumerLastCommittedOffsets(admin, config, context);
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
     }
 
@@ -80,6 +87,23 @@ public class CommitterImpl implements Committer {
     SinkWriter sinkWriter = new SinkWriter(catalog, config);
     worker = new Worker(config, clientFactory, sinkWriter, context);
     worker.start();
+  }
+
+  private void syncConsumerLastCommittedOffsets(
+          Admin admin, IcebergSinkConfig config, SinkTaskContext context) {
+    Map<TopicPartition, Long> stableConsumerOffsets;
+    try {
+      ListConsumerGroupOffsetsResult response =
+              admin.listConsumerGroupOffsets(
+                      config.connectGroupId(), new ListConsumerGroupOffsetsOptions().requireStable(true));
+      stableConsumerOffsets =
+              response.partitionsToOffsetAndMetadata().get().entrySet().stream()
+                      .filter(entry -> context.assignment().contains(entry.getKey()))
+                      .collect(toMap(Map.Entry::getKey, entry -> entry.getValue().offset()));
+    } catch (InterruptedException | ExecutionException e) {
+      throw new ConnectException(e);
+    }
+    context.offset(stableConsumerOffsets);
   }
 
   @Override
