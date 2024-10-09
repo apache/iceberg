@@ -21,7 +21,6 @@ package org.apache.iceberg.connect;
 import java.util.Collection;
 import java.util.Map;
 import org.apache.iceberg.catalog.Catalog;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -46,26 +45,31 @@ public class IcebergSinkTask extends SinkTask {
   @Override
   public void start(Map<String, String> props) {
     this.config = new IcebergSinkConfig(props);
+    catalog = CatalogUtils.loadCatalog(config);
+    committer = CommitterFactory.createCommitter(catalog, config, context);
+    committer.start(ResourceType.WORKER);
   }
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
-    Preconditions.checkArgument(catalog == null, "Catalog already open");
-    Preconditions.checkArgument(committer == null, "Committer already open");
-
-    catalog = CatalogUtils.loadCatalog(config);
-    committer = CommitterFactory.createCommitter(config);
-    committer.start(catalog, config, context);
+    if(committer.leader(partitions)) {
+      committer.start(ResourceType.COORDINATOR);
+    }
+    partitions.forEach(partition -> committer.open(partition));
   }
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
-    close();
+    if(committer.leader(partitions)) {
+      committer.stop(ResourceType.COORDINATOR);
+    }
+    partitions.forEach(partition -> committer.close(partition));
   }
 
   private void close() {
     if (committer != null) {
-      committer.stop();
+      committer.stop(ResourceType.WORKER);
+      committer.stop(ResourceType.COORDINATOR);
       committer = null;
     }
 
@@ -97,7 +101,7 @@ public class IcebergSinkTask extends SinkTask {
 
   @Override
   public Map<TopicPartition, OffsetAndMetadata> preCommit(
-      Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
+          Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
     // offset commit is handled by the worker
     return ImmutableMap.of();
   }

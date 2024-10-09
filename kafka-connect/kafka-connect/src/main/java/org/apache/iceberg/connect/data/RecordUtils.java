@@ -55,7 +55,7 @@ class RecordUtils {
       return valueFromMap((Map<String, ?>) recordValue, fields);
     } else {
       throw new UnsupportedOperationException(
-          "Cannot extract value from type: " + recordValue.getClass().getName());
+              "Cannot extract value from type: " + recordValue.getClass().getName());
     }
   }
 
@@ -95,20 +95,20 @@ class RecordUtils {
   }
 
   public static TaskWriter<Record> createTableWriter(
-      Table table, String tableName, IcebergSinkConfig config) {
+          Table table, String tableName, IcebergSinkConfig config, String filenameSuffix) {
     Map<String, String> tableProps = Maps.newHashMap(table.properties());
     tableProps.putAll(config.writeProps());
 
     String formatStr =
-        tableProps.getOrDefault(
-            TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+            tableProps.getOrDefault(
+                    TableProperties.DEFAULT_FILE_FORMAT, TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
     FileFormat format = FileFormat.fromString(formatStr);
 
     long targetFileSize =
-        PropertyUtil.propertyAsLong(
-            tableProps,
-            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
-            TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
+            PropertyUtil.propertyAsLong(
+                    tableProps,
+                    TableProperties.WRITE_TARGET_FILE_SIZE_BYTES,
+                    TableProperties.WRITE_TARGET_FILE_SIZE_BYTES_DEFAULT);
 
     Set<Integer> identifierFieldIds = table.schema().identifierFieldIds();
 
@@ -116,57 +116,58 @@ class RecordUtils {
     List<String> idCols = config.tableConfig(tableName).idColumns();
     if (!idCols.isEmpty()) {
       identifierFieldIds =
-          idCols.stream()
-              .map(
-                  colName -> {
-                    NestedField field = table.schema().findField(colName);
-                    if (field == null) {
-                      throw new IllegalArgumentException("ID column not found: " + colName);
-                    }
-                    return field.fieldId();
-                  })
-              .collect(Collectors.toSet());
+              idCols.stream()
+                      .map(
+                              colName -> {
+                                NestedField field = table.schema().findField(colName);
+                                if (field == null) {
+                                  throw new IllegalArgumentException("ID column not found: " + colName);
+                                }
+                                return field.fieldId();
+                              })
+                      .collect(Collectors.toSet());
     }
 
     FileAppenderFactory<Record> appenderFactory;
     if (identifierFieldIds == null || identifierFieldIds.isEmpty()) {
       appenderFactory =
-          new GenericAppenderFactory(table.schema(), table.spec(), null, null, null)
-              .setAll(tableProps);
+              new GenericAppenderFactory(table.schema(), table.spec(), null, null, null)
+                      .setAll(tableProps);
     } else {
       appenderFactory =
-          new GenericAppenderFactory(
-                  table.schema(),
-                  table.spec(),
-                  Ints.toArray(identifierFieldIds),
-                  TypeUtil.select(table.schema(), Sets.newHashSet(identifierFieldIds)),
-                  null)
-              .setAll(tableProps);
+              new GenericAppenderFactory(
+                      table.schema(),
+                      table.spec(),
+                      Ints.toArray(identifierFieldIds),
+                      TypeUtil.select(table.schema(), Sets.newHashSet(identifierFieldIds)),
+                      null)
+                      .setAll(tableProps);
     }
 
     // (partition ID + task ID + operation ID) must be unique
     OutputFileFactory fileFactory =
-        OutputFileFactory.builderFor(table, 1, System.currentTimeMillis())
-            .defaultSpec(table.spec())
-            .operationId(UUID.randomUUID().toString())
-            .format(format)
-            .build();
+            OutputFileFactory.builderFor(table, 1, System.currentTimeMillis())
+                    .defaultSpec(table.spec())
+                    .operationId(UUID.randomUUID().toString())
+                    .format(format)
+                    .suffix(filenameSuffix)
+                    .build();
 
     TaskWriter<Record> writer;
     if (table.spec().isUnpartitioned()) {
       writer =
-          new UnpartitionedWriter<>(
-              table.spec(), format, appenderFactory, fileFactory, table.io(), targetFileSize);
+              new UnpartitionedWriter<>(
+                      table.spec(), format, appenderFactory, fileFactory, table.io(), targetFileSize);
     } else {
       writer =
-          new PartitionedAppendWriter(
-              table.spec(),
-              format,
-              appenderFactory,
-              fileFactory,
-              table.io(),
-              targetFileSize,
-              table.schema());
+              new PartitionedAppendWriter(
+                      table.spec(),
+                      format,
+                      appenderFactory,
+                      fileFactory,
+                      table.io(),
+                      targetFileSize,
+                      table.schema());
     }
     return writer;
   }

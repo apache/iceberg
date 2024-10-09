@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -38,20 +37,22 @@ class IcebergWriter implements RecordWriter {
   private final String tableName;
   private final IcebergSinkConfig config;
   private final List<IcebergWriterResult> writerResults;
+  private final String filenameSuffix;
 
   private RecordConverter recordConverter;
   private TaskWriter<Record> writer;
 
-  IcebergWriter(Table table, String tableName, IcebergSinkConfig config) {
+  IcebergWriter(Table table, String tableName, IcebergSinkConfig config, String filenameSuffix) {
     this.table = table;
     this.tableName = tableName;
     this.config = config;
     this.writerResults = Lists.newArrayList();
+    this.filenameSuffix = filenameSuffix;
     initNewWriter();
   }
 
   private void initNewWriter() {
-    this.writer = RecordUtils.createTableWriter(table, tableName, config);
+    this.writer = RecordUtils.createTableWriter(table, tableName, config, filenameSuffix);
     this.recordConverter = new RecordConverter(table, config);
   }
 
@@ -65,13 +66,10 @@ class IcebergWriter implements RecordWriter {
       }
     } catch (Exception e) {
       throw new DataException(
-          String.format(
-              Locale.ROOT,
-              "An error occurred converting record, topic: %s, partition, %d, offset: %d",
-              record.topic(),
-              record.kafkaPartition(),
-              record.kafkaOffset()),
-          e);
+              String.format(
+                      "An error occurred converting record, topic: %s, partition, %d, offset: %d",
+                      record.topic(), record.kafkaPartition(), record.kafkaOffset()),
+              e);
     }
   }
 
@@ -106,11 +104,11 @@ class IcebergWriter implements RecordWriter {
     }
 
     writerResults.add(
-        new IcebergWriterResult(
-            TableIdentifier.parse(tableName),
-            Arrays.asList(writeResult.dataFiles()),
-            Arrays.asList(writeResult.deleteFiles()),
-            table.spec().partitionType()));
+            new IcebergWriterResult(
+                    TableIdentifier.parse(tableName),
+                    Arrays.asList(writeResult.dataFiles()),
+                    Arrays.asList(writeResult.deleteFiles()),
+                    table.spec().partitionType()));
   }
 
   @Override
