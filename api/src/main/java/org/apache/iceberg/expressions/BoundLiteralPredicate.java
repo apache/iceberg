@@ -23,6 +23,7 @@ import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Type;
+import org.locationtech.jts.geom.Geometry;
 
 public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
   private static final Set<Type.TypeID> INTEGRAL_TYPES =
@@ -88,6 +89,10 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         return String.valueOf(value).startsWith((String) literal.value());
       case NOT_STARTS_WITH:
         return !String.valueOf(value).startsWith((String) literal.value());
+      case ST_INTERSECTS:
+        return ((Geometry) value).intersects((Geometry) literal.value());
+      case ST_COVERS:
+        return ((Geometry) value).covers((Geometry) literal.value());
       default:
         throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + op());
     }
@@ -159,6 +164,10 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         return term() + " startsWith \"" + literal + "\"";
       case NOT_STARTS_WITH:
         return term() + " notStartsWith \"" + literal + "\"";
+      case ST_INTERSECTS:
+        return term() + " intersects " + literal;
+      case ST_COVERS:
+        return term() + " coveredBy " + literal;
       case IN:
         return term() + " in { " + literal + " }";
       case NOT_IN:

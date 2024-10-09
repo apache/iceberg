@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
+import org.apache.iceberg.types.havasu.GeometryEncoding;
 
 public class Types {
 
@@ -58,6 +59,7 @@ public class Types {
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
+  private static final Pattern GEOMETRY = Pattern.compile("geometry\\(\\s*(\\w+)\\s*\\)");
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
@@ -65,6 +67,11 @@ public class Types {
     String lowerTypeString = typeString.toLowerCase(Locale.ROOT);
     if (TYPES.containsKey(lowerTypeString)) {
       return TYPES.get(lowerTypeString);
+    }
+
+    Matcher geometry = GEOMETRY.matcher(lowerTypeString);
+    if (geometry.matches()) {
+      return GeometryType.get(geometry.group(1));
     }
 
     Matcher fixed = FIXED.matcher(lowerTypeString);
@@ -465,6 +472,57 @@ public class Types {
     @Override
     public int hashCode() {
       return Objects.hash(DecimalType.class, scale, precision);
+    }
+  }
+
+  public static class GeometryType extends PrimitiveType {
+    private final GeometryEncoding encoding;
+
+    private GeometryType(GeometryEncoding encoding) {
+      this.encoding = encoding;
+    }
+
+    public static GeometryType get() {
+      return get(GeometryEncoding.DEFAULT_ENCODING);
+    }
+
+    public static GeometryType get(GeometryEncoding encoding) {
+      return new GeometryType(encoding);
+    }
+
+    public static GeometryType get(String encoding) {
+      return new GeometryType(GeometryEncoding.fromName(encoding));
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.GEOMETRY;
+    }
+
+    public GeometryEncoding encoding() {
+      return encoding;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof GeometryType)) {
+        return false;
+      }
+
+      GeometryType that = (GeometryType) o;
+      return encoding.equals(that.encoding);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(GeometryType.class, encoding);
+    }
+
+    @Override
+    public String toString() {
+      return String.format("geometry(%s)", encoding.encoding());
     }
   }
 

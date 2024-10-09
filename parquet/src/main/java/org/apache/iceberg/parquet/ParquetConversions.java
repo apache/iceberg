@@ -55,7 +55,11 @@ class ParquetConversions {
         return (Literal<T>) Literal.of((CharSequence) stringConversion.apply(value));
       case UUID:
         Function<Object, Object> uuidConversion = converterFromParquet(parquetType);
-        return (Literal<T>) Literal.of((UUID) uuidConversion.apply(value));
+        ByteBuffer byteBuffer = (ByteBuffer) uuidConversion.apply(value);
+        byteBuffer.order(ByteOrder.BIG_ENDIAN);
+        long mostSignificantBits = byteBuffer.getLong();
+        long leastSignificantBits = byteBuffer.getLong();
+        return (Literal<T>) Literal.of(new UUID(mostSignificantBits, leastSignificantBits));
       case FIXED:
       case BINARY:
         Function<Object, Object> binaryConversion = converterFromParquet(parquetType);

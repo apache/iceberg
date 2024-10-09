@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
+import org.locationtech.jts.geom.Geometry;
 
 public class ExpressionParser {
 
@@ -226,6 +227,8 @@ public class ExpressionParser {
         BigDecimal decimal = (BigDecimal) object;
         SingleValueParser.toJson(
             Types.DecimalType.of(decimal.precision(), decimal.scale()), decimal, gen);
+      } else if (object instanceof Geometry) {
+        SingleValueParser.toJson(Types.GeometryType.get(), object, gen);
       }
     }
 
@@ -347,6 +350,8 @@ public class ExpressionParser {
       case NOT_EQ:
       case STARTS_WITH:
       case NOT_STARTS_WITH:
+      case ST_INTERSECTS:
+      case ST_COVERS:
         // literal predicates
         Preconditions.checkArgument(
             node.has(VALUE), "Cannot parse %s predicate: missing value", op);

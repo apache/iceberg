@@ -32,6 +32,10 @@ import java.util.UUID;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.util.UUIDUtil;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKBReader;
+import org.locationtech.jts.io.WKBWriter;
 
 public class Conversions {
 
@@ -117,6 +121,10 @@ public class Conversions {
         return (ByteBuffer) value;
       case DECIMAL:
         return ByteBuffer.wrap(((BigDecimal) value).unscaledValue().toByteArray());
+      case GEOMETRY:
+        WKBWriter wkbWriter = new WKBWriter();
+        byte[] wkb = wkbWriter.write((Geometry) value);
+        return ByteBuffer.wrap(wkb);
       default:
         throw new UnsupportedOperationException("Cannot serialize type: " + typeId);
     }
@@ -177,6 +185,15 @@ public class Conversions {
         byte[] unscaledBytes = new byte[buffer.remaining()];
         tmp.get(unscaledBytes);
         return new BigDecimal(new BigInteger(unscaledBytes), decimal.scale());
+      case GEOMETRY:
+        WKBReader wkbReader = new WKBReader();
+        byte[] wkb = new byte[buffer.remaining()];
+        tmp.get(wkb);
+        try {
+          return wkbReader.read(wkb);
+        } catch (ParseException e) {
+          throw new RuntimeException("Geometry value is not encoded as valid WKB", e);
+        }
       default:
         throw new UnsupportedOperationException("Cannot deserialize type: " + type);
     }

@@ -259,6 +259,18 @@ public class ParquetBloomRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean stIntersects(BoundReference<T> ref, Literal<T> lit) {
+      // bloom filter is based on hash and cannot eliminate based on stIntersects
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stCovers(BoundReference<T> ref, Literal<T> lit) {
+      // bloom filter is based on hash and cannot eliminate based on stCovers
+      return ROWS_MIGHT_MATCH;
+    }
+
     private BloomFilter loadBloomFilter(int id) {
       if (bloomCache.containsKey(id)) {
         return bloomCache.get(id);

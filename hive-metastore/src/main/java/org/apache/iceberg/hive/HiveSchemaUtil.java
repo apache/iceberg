@@ -170,6 +170,8 @@ public final class HiveSchemaUtil {
       case DECIMAL:
         final Types.DecimalType decimalType = (Types.DecimalType) type;
         return String.format("decimal(%s,%s)", decimalType.precision(), decimalType.scale());
+      case GEOMETRY:
+        return convertToTypeString(((Types.GeometryType) type).encoding().physicalType());
       case STRUCT:
         final Types.StructType structType = type.asStructType();
         final String nameToType =

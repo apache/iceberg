@@ -24,6 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
+import org.locationtech.jts.geom.Geometry;
 
 /** Factory methods for creating {@link Expression expressions}. */
 public class Expressions {
@@ -195,6 +196,23 @@ public class Expressions {
 
   public static UnboundPredicate<String> notStartsWith(UnboundTerm<String> expr, String value) {
     return new UnboundPredicate<>(Expression.Operation.NOT_STARTS_WITH, expr, value);
+  }
+
+  public static UnboundPredicate<Geometry> stIntersects(String name, Geometry value) {
+    return new UnboundPredicate<>(Expression.Operation.ST_INTERSECTS, ref(name), value);
+  }
+
+  public static UnboundPredicate<Geometry> stIntersects(
+      UnboundTerm<Geometry> expr, Geometry value) {
+    return new UnboundPredicate<>(Expression.Operation.ST_INTERSECTS, expr, value);
+  }
+
+  public static UnboundPredicate<Geometry> stCovers(String name, Geometry value) {
+    return new UnboundPredicate<>(Expression.Operation.ST_COVERS, ref(name), value);
+  }
+
+  public static UnboundPredicate<Geometry> stCovers(UnboundTerm<Geometry> expr, Geometry value) {
+    return new UnboundPredicate<>(Expression.Operation.ST_COVERS, expr, value);
   }
 
   public static <T> UnboundPredicate<T> in(String name, T... values) {

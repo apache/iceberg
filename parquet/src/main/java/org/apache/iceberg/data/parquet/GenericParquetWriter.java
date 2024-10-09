@@ -19,6 +19,7 @@
 package org.apache.iceberg.data.parquet;
 
 import java.util.List;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.StructWriter;
@@ -31,6 +32,11 @@ public class GenericParquetWriter extends BaseParquetWriter<Record> {
 
   public static ParquetValueWriter<Record> buildWriter(MessageType type) {
     return INSTANCE.createWriter(type);
+  }
+
+  public static ParquetValueWriter<Record> buildWriter(
+      Schema tableSchema, MessageType messageType) {
+    return INSTANCE.createWriter(tableSchema, messageType);
   }
 
   @Override
