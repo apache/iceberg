@@ -78,6 +78,7 @@ import org.apache.spark.sql.SparkSession;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -108,14 +109,14 @@ public class TestCompressionSettings extends CatalogTestBase {
         SparkCatalogConfig.SPARK.implementation(),
         SparkCatalogConfig.SPARK.properties(),
         PARQUET,
-        ImmutableMap.of(COMPRESSION_CODEC, "gzip")
+        ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_LEVEL, "1")
       },
       {
         SparkCatalogConfig.SPARK.catalogName(),
         SparkCatalogConfig.SPARK.implementation(),
         SparkCatalogConfig.SPARK.properties(),
         PARQUET,
-        ImmutableMap.of(COMPRESSION_CODEC, "zstd", COMPRESSION_LEVEL, "1")
+        ImmutableMap.of(COMPRESSION_CODEC, "gzip")
       },
       {
         SparkCatalogConfig.SPARK.catalogName(),
@@ -144,6 +145,12 @@ public class TestCompressionSettings extends CatalogTestBase {
   @BeforeAll
   public static void startSpark() {
     TestCompressionSettings.spark = SparkSession.builder().master("local[2]").getOrCreate();
+  }
+
+  @BeforeEach
+  public void resetSpecificConfigurations() {
+    spark.conf().unset(COMPRESSION_CODEC);
+    spark.conf().unset(COMPRESSION_LEVEL);
   }
 
   @AfterEach

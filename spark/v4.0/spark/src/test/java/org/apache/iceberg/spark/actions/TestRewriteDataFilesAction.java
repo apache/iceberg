@@ -138,7 +138,6 @@ public class TestRewriteDataFilesAction extends TestBase {
   public static void setupSpark() {
     // disable AQE as tests assume that writes generate a particular number of files
     spark.conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), "false");
-    spark.conf().set(SQLConf.ANSI_ENABLED().key(), "false");
   }
 
   @BeforeEach
@@ -1336,6 +1335,7 @@ public class TestRewriteDataFilesAction extends TestBase {
 
   @Test
   public void testZOrderAllTypesSort() {
+    spark.conf().set("spark.sql.ansi.enabled", "false");
     Table table = createTypeTestTable();
     shouldHaveFiles(table, 10);
 

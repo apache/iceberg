@@ -38,7 +38,6 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.internal.ExpressionColumnNode;
 import org.apache.spark.sql.stats.ThetaSketchAgg;
 
 public class NDVSketchUtil {
@@ -85,6 +84,6 @@ public class NDVSketchUtil {
 
   private static Column toAggColumn(String colName) {
     ThetaSketchAgg agg = new ThetaSketchAgg(colName);
-    return new Column(ExpressionColumnNode.apply(agg.toAggregateExpression()));
+    return new Column(agg.toAggregateExpression());
   }
 }

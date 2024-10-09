@@ -24,7 +24,6 @@ import org.apache.spark.sql.catalyst.expressions.Attribute
 import org.apache.spark.sql.catalyst.util.StringUtils
 import org.apache.spark.sql.connector.catalog.ViewCatalog
 import org.apache.spark.sql.execution.LeafExecNode
-import org.apache.spark.sql.internal.SQLConf
 import scala.collection.mutable.ArrayBuffer
 
 case class ShowV2ViewsExec(
@@ -39,7 +38,7 @@ case class ShowV2ViewsExec(
     val rows = new ArrayBuffer[InternalRow]()
 
     // handle GLOBAL VIEWS
-    val globalTemp: String = SQLConf.get.globalTempDatabase
+    val globalTemp = session.sessionState.catalog.globalTempViewManager.database
     if (namespace.nonEmpty && globalTemp == namespace.head) {
       pattern.map(p => session.sessionState.catalog.globalTempViewManager.listViewNames(p))
         .getOrElse(session.sessionState.catalog.globalTempViewManager.listViewNames("*"))

@@ -34,7 +34,6 @@ import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.TableIdentifier
 import org.apache.spark.sql.catalyst.analysis.RewriteViewCommands
 import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.parser.CompoundBody
 import org.apache.spark.sql.catalyst.parser.ParserInterface
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.NonReservedContext
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSqlExtensionsParser.QuotedIdentifierContext
@@ -101,10 +100,6 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
   override def parseTableSchema(sqlText: String): StructType = {
     delegate.parseTableSchema(sqlText)
   }
-
- override def parseScript(sqlScriptText: String): CompoundBody = {
-   delegate.parseScript(sqlScriptText)
- }
 
   override def parseSortOrder(sqlText: String): java.util.List[RawOrderField] = {
     val fields = parse(sqlText) { parser => astBuilder.visitSingleOrder(parser.singleOrder()) }
