@@ -21,10 +21,10 @@ package org.apache.iceberg;
 import java.util.Set;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.DataFileSet;
 
 class BaseRewriteFiles extends MergingSnapshotProducer<RewriteFiles> implements RewriteFiles {
-  private final Set<DataFile> replacedDataFiles = Sets.newHashSet();
+  private final DataFileSet replacedDataFiles = DataFileSet.create();
   private Long startingSnapshotId = null;
 
   BaseRewriteFiles(String tableName, TableOperations ops) {
