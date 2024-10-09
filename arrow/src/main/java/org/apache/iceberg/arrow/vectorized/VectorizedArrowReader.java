@@ -455,6 +455,10 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     return NullVectorReader.INSTANCE;
   }
 
+  public static VectorizedArrowReader nulls(Types.NestedField icebergField) {
+    return new NullVectorReader(icebergField);
+  }
+
   public static VectorizedArrowReader positions() {
     return new PositionVectorReader(false);
   }
@@ -464,11 +468,15 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
   }
 
   private static final class NullVectorReader extends VectorizedArrowReader {
-    private static final NullVectorReader INSTANCE = new NullVectorReader();
+    private static final NullVectorReader INSTANCE = new NullVectorReader(null);
+
+    private NullVectorReader(Types.NestedField icebergField) {
+      super(icebergField);
+    }
 
     @Override
     public VectorHolder read(VectorHolder reuse, int numValsToRead) {
-      return VectorHolder.dummyHolder(numValsToRead);
+      return new VectorHolder.ConstantVectorHolder<>(icebergField(), numValsToRead, null);
     }
 
     @Override
