@@ -278,20 +278,16 @@ public class ArrowReaderTest {
     org.apache.arrow.vector.types.pojo.Schema expectedSchema =
         new org.apache.arrow.vector.types.pojo.Schema(expectedFields);
 
-    int batchSize = 1;
-    int expectedNumRowsPerBatch = 1;
-    int expectedTotalRows = 1;
-
-    Schema tableSchemaV1 =
+    Schema schema =
         new Schema(
             Types.NestedField.required(1, "a", Types.IntegerType.get()),
             Types.NestedField.optional(2, "b", Types.IntegerType.get()));
 
-    PartitionSpec spec = PartitionSpec.builderFor(tableSchemaV1).build();
-    Table table = tables.create(tableSchemaV1, spec, tableLocation);
+    PartitionSpec spec = PartitionSpec.builderFor(schema).build();
+    Table table = tables.create(schema, spec, tableLocation);
 
     // Add one record to the table
-    GenericRecord rec = GenericRecord.create(tableSchemaV1);
+    GenericRecord rec = GenericRecord.create(schema);
     rec.setField("a", 1);
     List<GenericRecord> genericRecords = Lists.newArrayList();
     genericRecords.add(rec);
@@ -309,6 +305,9 @@ public class ArrowReaderTest {
 
     // Select all columns, all rows from the table
     TableScan scan = table.newScan().select("*");
+
+    int batchSize = 1;
+    int expectedNumRowsPerBatch = 1;
 
     Set<String> columns = ImmutableSet.of("a", "b", "z");
     // Read the data and verify that the returned ColumnarBatches match expected rows.
@@ -352,6 +351,8 @@ public class ArrowReaderTest {
             (columnVector, i) -> columnVector.isNullAt(i) ? null : columnVector.getInt(i));
       }
     }
+
+    int expectedTotalRows = 1;
 
     // Read the data and verify that the returned Arrow VectorSchemaRoots match expected rows.
     try (VectorizedTableScanIterable itr =

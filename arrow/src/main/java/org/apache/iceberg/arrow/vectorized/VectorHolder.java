@@ -155,6 +155,7 @@ public class VectorHolder {
       if (null == constantValue) {
         nullabilityHolder().setNulls(0, numRows);
       }
+
       this.numRows = numRows;
       this.constantValue = constantValue;
     }
