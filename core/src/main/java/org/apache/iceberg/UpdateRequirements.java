@@ -105,6 +105,8 @@ public class UpdateRequirements {
         update((MetadataUpdate.SetDefaultPartitionSpec) update);
       } else if (update instanceof MetadataUpdate.SetDefaultSortOrder) {
         update((MetadataUpdate.SetDefaultSortOrder) update);
+      } else if (update instanceof MetadataUpdate.RemovePartitionSpecs) {
+        update((MetadataUpdate.RemovePartitionSpecs) update);
       }
 
       return this;
@@ -170,6 +172,26 @@ public class UpdateRequirements {
           require(new UpdateRequirement.AssertDefaultSortOrderID(base.defaultSortOrderId()));
         }
         this.setOrderId = true;
+      }
+    }
+
+    private void update(MetadataUpdate.RemovePartitionSpecs unused) {
+      // require that the default partition spec has not changed
+      if (!setSpecId) {
+        if (base != null && !isReplace) {
+          require(new UpdateRequirement.AssertDefaultSpecID(base.defaultSpecId()));
+        }
+        this.setSpecId = true;
+      }
+      // require that all the branch has not changed, so that old specs won't be written.
+      if (base != null && !isReplace) {
+        base.refs()
+            .forEach(
+                (name, ref) -> {
+                  if (ref.isBranch() && !name.equals(SnapshotRef.MAIN_BRANCH)) {
+                    require(new UpdateRequirement.AssertRefSnapshotID(name, ref.snapshotId()));
+                  }
+                });
       }
     }
 
