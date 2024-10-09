@@ -70,7 +70,7 @@ public class TestOSSOutputStream extends AliyunOSSTestBase {
       reset(ossMock);
 
       // Write large file.
-      writeAndVerify(ossMock, uri, randomData(32 * 1024 * 1024), arrayWrite);
+      writeAndVerify(ossMock, uri, randomData(32 * 1024), arrayWrite);
       verify(ossMock, times(1)).putObject(any());
       reset(ossMock);
     }

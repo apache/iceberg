@@ -65,7 +65,7 @@ public class TestUtility {
     } else {
       LOG.info(
           "Initializing AliyunOSSExtension implementation with default AliyunOSSMockExtension");
-      extension = AliyunOSSMockExtension.builder().silent().build();
+      extension = AliyunOSSMockExtension.builder().build();
     }
 
     return extension;
