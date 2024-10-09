@@ -213,7 +213,7 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
     }
 
     if (newManifests == null && !newFiles.isEmpty()) {
-      this.newManifests = writeDataManifests(Lists.newArrayList(newFiles), spec);
+      this.newManifests = writeDataManifests(newFiles, spec);
       hasNewFiles = false;
     }
 

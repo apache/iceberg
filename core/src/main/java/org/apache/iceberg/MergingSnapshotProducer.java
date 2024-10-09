@@ -1034,6 +1034,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     protected ManifestReader<DataFile> newManifestReader(ManifestFile manifest) {
       return MergingSnapshotProducer.this.newManifestReader(manifest);
     }
+
+    @Override
+    protected Set<DataFile> newFileSet() {
+      return DataFileSet.create();
+    }
   }
 
   private class DataFileMergeManager extends ManifestMergeManager<DataFile> {
@@ -1086,6 +1091,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     @Override
     protected ManifestReader<DeleteFile> newManifestReader(ManifestFile manifest) {
       return MergingSnapshotProducer.this.newDeleteManifestReader(manifest);
+    }
+
+    @Override
+    protected Set<DeleteFile> newFileSet() {
+      return DeleteFileSet.create();
     }
   }
 
