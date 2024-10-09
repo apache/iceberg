@@ -141,15 +141,6 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     }
   }
 
-  class FixedWidthBinaryDictEncodedReader extends BaseDictEncodedReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, Dictionary dict, int idx, int currentVal, int typeWidth) {
-      ByteBuffer buffer = dict.decodeToBinary(currentVal).toByteBuffer();
-      vector.getDataBuffer().setBytes(idx, buffer);
-    }
-  }
-
   class VarWidthBinaryDictEncodedReader extends BaseDictEncodedReader {
     @Override
     protected void nextVal(
@@ -201,10 +192,6 @@ public class VectorizedDictionaryEncodedParquetValuesReader
 
   public DoubleDictEncodedReader doubleDictEncodedReader() {
     return new DoubleDictEncodedReader();
-  }
-
-  public FixedWidthBinaryDictEncodedReader fixedWidthBinaryDictEncodedReader() {
-    return new FixedWidthBinaryDictEncodedReader();
   }
 
   public VarWidthBinaryDictEncodedReader varWidthBinaryDictEncodedReader() {

@@ -21,7 +21,6 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 import java.io.IOException;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
-import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.BasePageIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
@@ -417,36 +416,6 @@ public class VectorizedPageIterator extends BasePageIterator {
     }
   }
 
-  /**
-   * Method for reading batches of fixed width binary type (e.g. BYTE[7]). Spark does not support
-   * fixed width binary data type. To work around this limitation, the data is read as fixed width
-   * binary from parquet and stored in a {@link VarBinaryVector} in Arrow.
-   */
-  class FixedWidthBinaryPageReader extends BasePageReader {
-    @Override
-    protected void nextVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .fixedWidthBinaryReader()
-          .nextBatch(vector, numVals, typeWidth, batchSize, holder, plainValuesReader);
-    }
-
-    @Override
-    protected void nextDictEncodedVal(
-        FieldVector vector, int batchSize, int numVals, int typeWidth, NullabilityHolder holder) {
-      vectorizedDefinitionLevelReader
-          .fixedWidthBinaryReader()
-          .nextDictEncodedBatch(
-              vector,
-              numVals,
-              typeWidth,
-              batchSize,
-              holder,
-              dictionaryEncodedValuesReader,
-              dictionary);
-    }
-  }
-
   /** Method for reading batches of booleans. */
   class BooleanPageReader extends BasePageReader {
     @Override
@@ -494,10 +463,6 @@ public class VectorizedPageIterator extends BasePageIterator {
 
   VarWidthTypePageReader varWidthTypePageReader() {
     return new VarWidthTypePageReader();
-  }
-
-  FixedWidthBinaryPageReader fixedWidthBinaryPageReader() {
-    return new FixedWidthBinaryPageReader();
   }
 
   BooleanPageReader booleanPageReader() {
