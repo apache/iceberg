@@ -650,7 +650,7 @@ Valid snapshots are stored as a list in table metadata. For serialization, see A
 
 ### Snapshot Row IDs
 
-When row lineage is not enabled, `first-row-id` should be omitted. The rest of this section applies when row lineage is enabled.
+When row lineage is not enabled, `first-row-id` must be omitted. The rest of this section applies when row lineage is enabled.
 
 A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on each commit attempt. If a commit is retried, the `first-row-id` must be reassigned. If a commit contains no new rows, `first-row-id` should be omitted.
 
