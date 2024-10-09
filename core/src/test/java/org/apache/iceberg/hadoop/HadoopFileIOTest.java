@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Random;
 import java.util.UUID;
@@ -36,6 +37,7 @@ import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
+import org.apache.iceberg.io.FileIOParser;
 import org.apache.iceberg.io.ResolvingFileIO;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -174,6 +176,52 @@ public class HadoopFileIOTest {
             .build(resolvingFileIO)
             .invoke("hdfs://foo/bar");
     assertThat(result).isInstanceOf(HadoopFileIO.class);
+  }
+
+  @Test
+  public void testJsonParserWithoutHadoopConf() throws Exception {
+    this.hadoopFileIO = new HadoopFileIO();
+
+    hadoopFileIO.initialize(ImmutableMap.of("properties-bar", "2"));
+    assertThat(hadoopFileIO.properties().get("properties-bar")).isEqualTo("2");
+
+    testJsonParser(hadoopFileIO, tempDir);
+  }
+
+  @Test
+  public void testJsonParserWithHadoopConf() throws Exception {
+    this.hadoopFileIO = new HadoopFileIO();
+
+    Configuration hadoopConf = new Configuration();
+    hadoopConf.setInt("hadoop-conf-foo", 1);
+    hadoopFileIO.setConf(hadoopConf);
+    assertThat(hadoopFileIO.conf().get("hadoop-conf-foo")).isNotNull();
+
+    hadoopFileIO.initialize(ImmutableMap.of("properties-bar", "2"));
+    assertThat(hadoopFileIO.properties().get("properties-bar")).isEqualTo("2");
+
+    testJsonParser(hadoopFileIO, tempDir);
+  }
+
+  private static void testJsonParser(HadoopFileIO hadoopFileIO, File tempDir) throws Exception {
+    String json = FileIOParser.toJson(hadoopFileIO);
+    try (FileIO deserialized = FileIOParser.fromJson(json)) {
+      assertThat(deserialized).isInstanceOf(HadoopFileIO.class);
+      HadoopFileIO deserializedHadoopFileIO = (HadoopFileIO) deserialized;
+
+      // properties are carried over during serialization and deserialization
+      assertThat(deserializedHadoopFileIO.properties()).isEqualTo(hadoopFileIO.properties());
+
+      // FileIOParser doesn't serialize and deserialize Hadoop configuration
+      // so config "foo" is not restored in deserialized object.
+      assertThat(deserializedHadoopFileIO.conf().get("hadoop-conf-foo")).isNull();
+
+      // make sure deserialized io can create input file
+      String inputFilePath =
+          Files.createTempDirectory(tempDir.toPath(), "junit").toFile().getAbsolutePath()
+              + "/test.parquet";
+      deserializedHadoopFileIO.newInputFile(inputFilePath);
+    }
   }
 
   private List<Path> createRandomFiles(Path parent, int count) {
