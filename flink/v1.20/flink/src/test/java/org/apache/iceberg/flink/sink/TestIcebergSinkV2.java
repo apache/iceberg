@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.List;
-import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.test.junit5.MiniClusterExtension;
@@ -33,7 +32,9 @@ import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
@@ -64,6 +65,51 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   @RegisterExtension
   private static final HadoopCatalogExtension CATALOG_EXTENSION =
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
+
+  @Parameter(index = 0)
+  FileFormat format;
+
+  @Parameter(index = 1)
+  int parallelism;
+
+  @Parameter(index = 2)
+  boolean partitioned;
+
+  @Parameter(index = 3)
+  String writeDistributionMode;
+
+  @Override
+  protected int getParallelism() {
+    return parallelism;
+  }
+
+  @Override
+  protected boolean isPartitioned() {
+    return partitioned;
+  }
+
+  @Override
+  protected String getWriteDistributionMode() {
+    return writeDistributionMode;
+  }
+
+  @Parameters(name = "FileFormat={0}, Parallelism={1}, Partitioned={2}, WriteDistributionMode={3}")
+  public static Object[][] parameters() {
+    return new Object[][] {
+      new Object[] {FileFormat.AVRO, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+      new Object[] {FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+      new Object[] {FileFormat.AVRO, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+      new Object[] {FileFormat.AVRO, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
+      new Object[] {FileFormat.ORC, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+      new Object[] {FileFormat.ORC, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+      new Object[] {FileFormat.ORC, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+      new Object[] {FileFormat.ORC, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
+      new Object[] {FileFormat.PARQUET, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+      new Object[] {FileFormat.PARQUET, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+      new Object[] {FileFormat.PARQUET, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
+      new Object[] {FileFormat.PARQUET, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE}
+    };
+  }
 
   @BeforeEach
   public void setupTable() {
@@ -107,15 +153,16 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         .setIdentifierFields("type")
         .commit();
 
-    DataStream<Row> dataStream =
-        env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
-    IcebergSink.Builder builder =
-        IcebergSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
+    // Use schema identifier field IDs as equality field id list by default
+    assertThat(SinkUtil.checkAndGetEqualityFieldIds(table, null))
+        .containsExactlyInAnyOrderElementsOf(table.schema().identifierFieldIds());
 
     // Use user-provided equality field column as equality field id list
-    builder.equalityFieldColumns(Lists.newArrayList("id"));
     assertThat(SinkUtil.checkAndGetEqualityFieldIds(table, Lists.newArrayList("id")))
         .containsExactlyInAnyOrder(table.schema().findField("id").fieldId());
+
+    assertThat(SinkUtil.checkAndGetEqualityFieldIds(table, Lists.newArrayList("type")))
+        .containsExactlyInAnyOrder(table.schema().findField("type").fieldId());
   }
 
   @TestTemplate
@@ -135,7 +182,6 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
 
     testChangeLogs(
         ImmutableList.of("data"),
-        row -> row.getField(ROW_DATA_POS),
         true,
         elementsPerCheckpoint,
         expectedRecords,
@@ -212,12 +258,7 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
     List<List<Record>> expectedRecords = ImmutableList.of(ImmutableList.of(record(1, "aaa")));
 
     testChangeLogs(
-        ImmutableList.of("id", "data"),
-        row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
-        false,
-        elementsPerCheckpoint,
-        expectedRecords,
-        "main");
+        ImmutableList.of("id", "data"), false, elementsPerCheckpoint, expectedRecords, "main");
 
     DeleteFile deleteFile = table.currentSnapshot().addedDeleteFiles(table.io()).iterator().next();
     String fromStat =
@@ -229,7 +270,6 @@ public class TestIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
 
   protected void testChangeLogs(
       List<String> equalityFieldColumns,
-      KeySelector<Row, Object> keySelector,
       boolean insertAsUpsert,
       List<List<Row>> elementsPerCheckpoint,
       List<List<Record>> expectedRecordsPerCheckpoint,
