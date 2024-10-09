@@ -26,7 +26,11 @@ import static org.mockito.Mockito.when;
 
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.WriterFactory;
+import org.mockito.Mockito;
 import org.apache.iceberg.connect.data.IcebergWriterResult;
 import org.apache.iceberg.connect.data.Offset;
 import org.apache.iceberg.connect.data.SinkWriter;
@@ -72,16 +76,17 @@ public class WorkerTest extends ChannelTestBase {
               ImmutableList.of(),
               StructType.of());
 
-      Map<TopicPartition, Offset> offsets =
-          ImmutableMap.of(topicPartition, new Offset(1L, EventTestUtil.now()));
+      Offset offsets =
+              new Offset(1L, EventTestUtil.now());
 
       SinkWriterResult sinkWriterResult =
           new SinkWriterResult(ImmutableList.of(writeResult), offsets);
       SinkWriter sinkWriter = mock(SinkWriter.class);
       when(sinkWriter.completeWrite()).thenReturn(sinkWriterResult);
 
-      Worker worker = new Worker(config, clientFactory, sinkWriter, context);
+      Worker worker = new Worker(catalog, config, clientFactory, context);
       worker.start();
+      worker.open(topicPartition);
 
       // init consumer after subscribe()
       initConsumer();
@@ -111,6 +116,8 @@ public class WorkerTest extends ChannelTestBase {
       assertThat(dataComplete.commitId()).isEqualTo(commitId);
       assertThat(dataComplete.assignments()).hasSize(1);
       assertThat(dataComplete.assignments().get(0).offset()).isEqualTo(1L);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
   }
 }

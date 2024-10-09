@@ -67,7 +67,7 @@ class IcebergWriterFactory {
       }
     }
 
-    return new IcebergWriter(table, tableName, config);
+    return new IcebergWriter(table, tableName, config, "topic=" + sample.topic() + "/partition=" + sample.kafkaPartition() + "/offset=" + sample.kafkaOffset());
   }
 
   @VisibleForTesting
@@ -94,27 +94,27 @@ class IcebergWriterFactory {
       spec = SchemaUtils.createPartitionSpec(schema, partitionBy);
     } catch (Exception e) {
       LOG.error(
-          "Unable to create partition spec {}, table {} will be unpartitioned",
-          partitionBy,
-          identifier,
-          e);
+              "Unable to create partition spec {}, table {} will be unpartitioned",
+              partitionBy,
+              identifier,
+              e);
       spec = PartitionSpec.unpartitioned();
     }
 
     PartitionSpec partitionSpec = spec;
     AtomicReference<Table> result = new AtomicReference<>();
     Tasks.range(1)
-        .retry(IcebergSinkConfig.CREATE_TABLE_RETRIES)
-        .run(
-            notUsed -> {
-              try {
-                result.set(
-                    catalog.createTable(
-                        identifier, schema, partitionSpec, config.autoCreateProps()));
-              } catch (AlreadyExistsException e) {
-                result.set(catalog.loadTable(identifier));
-              }
-            });
+            .retry(IcebergSinkConfig.CREATE_TABLE_RETRIES)
+            .run(
+                    notUsed -> {
+                      try {
+                        result.set(
+                                catalog.createTable(
+                                        identifier, schema, partitionSpec, config.autoCreateProps()));
+                      } catch (AlreadyExistsException e) {
+                        result.set(catalog.loadTable(identifier));
+                      }
+                    });
     return result.get();
   }
 
@@ -129,7 +129,7 @@ class IcebergWriterFactory {
       Namespace namespace = Namespace.of(Arrays.copyOfRange(levels, 0, index + 1));
       try {
         ((SupportsNamespaces) catalog).createNamespace(namespace);
-      } catch (AlreadyExistsException | ForbiddenException ex) {
+      } catch (Exception ex) {
         // Ignoring the error as forcefully creating the namespace even if it exists
         // to avoid double namespaceExists() check.
       }

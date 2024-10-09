@@ -18,11 +18,14 @@
  */
 package org.apache.iceberg.connect;
 
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.channel.CommitterImpl;
+import org.apache.kafka.connect.sink.SinkTaskContext;
 
 class CommitterFactory {
-  static Committer createCommitter(IcebergSinkConfig config) {
-    return new CommitterImpl();
+
+  static Committer createCommitter(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
+    return new CommitterImpl(catalog, config, context);
   }
 
   private CommitterFactory() {}
