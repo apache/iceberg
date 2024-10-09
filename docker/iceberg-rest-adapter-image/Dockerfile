@@ -40,5 +40,5 @@ ENV REST_PORT=8181
 
 EXPOSE $REST_PORT
 USER iceberg:iceberg
-ENV LANG en_US.UTF-8
+ENV LANG=en_US.UTF-8
 CMD ["java", "-jar", "iceberg-rest-adapter.jar"]
