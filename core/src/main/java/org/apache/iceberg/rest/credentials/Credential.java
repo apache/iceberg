@@ -18,4 +18,12 @@
  */
 package org.apache.iceberg.rest.credentials;
 
-public interface Credential {}
+import java.util.Map;
+import org.immutables.value.Value;
+
+@Value.Immutable
+public interface Credential {
+  String prefix();
+
+  Map<String, String> config();
+}

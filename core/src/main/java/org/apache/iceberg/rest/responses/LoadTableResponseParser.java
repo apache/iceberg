@@ -21,7 +21,6 @@ package org.apache.iceberg.rest.responses;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.util.Optional;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -103,10 +102,9 @@ public class LoadTableResponseParser {
       Preconditions.checkArgument(
           credentials.isArray(), "Cannot parse credentials from non-array: %s", credentials);
 
-      credentials.forEach(
-          cred ->
-              Optional.ofNullable(CredentialParser.fromJson(cred))
-                  .ifPresent(builder::addCredential));
+      for (JsonNode credential : credentials) {
+        builder.addCredential(CredentialParser.fromJson(credential));
+      }
     }
 
     return builder.build();
