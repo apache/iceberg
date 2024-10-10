@@ -33,6 +33,10 @@ public class TableMaintenanceMetrics {
   public static final String FAILED_TASK_COUNTER = "failedTasks";
   public static final String LAST_RUN_DURATION_MS = "lastRunDurationMs";
 
+  // DeleteFiles metrics
+  public static final String DELETE_FILE_FAILED_COUNTER = "deleteFailed";
+  public static final String DELETE_FILE_SUCCEEDED_COUNTER = "deleteSucceeded";
+
   private TableMaintenanceMetrics() {
     // do not instantiate
   }

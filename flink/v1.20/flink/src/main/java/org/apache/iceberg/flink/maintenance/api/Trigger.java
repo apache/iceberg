@@ -16,50 +16,50 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.operator;
+package org.apache.iceberg.flink.maintenance.api;
 
-import java.util.List;
 import org.apache.flink.annotation.Internal;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-/** The result of a single Maintenance Task. */
-@Internal
-public class TaskResult {
-  private final int taskIndex;
-  private final long startEpoch;
-  private final boolean success;
-  private final List<Exception> exceptions;
+public class Trigger {
+  private final long timestamp;
+  private final Integer taskId;
+  private final boolean isRecovery;
 
-  public TaskResult(int taskIndex, long startEpoch, boolean success, List<Exception> exceptions) {
-    this.taskIndex = taskIndex;
-    this.startEpoch = startEpoch;
-    this.success = success;
-    this.exceptions = exceptions;
+  private Trigger(long timestamp, Integer taskId, boolean isRecovery) {
+    this.timestamp = timestamp;
+    this.taskId = taskId;
+    this.isRecovery = isRecovery;
   }
 
-  public int taskIndex() {
-    return taskIndex;
+  @Internal
+  public static Trigger create(long timestamp, int taskId) {
+    return new Trigger(timestamp, taskId, false);
   }
 
-  public long startEpoch() {
-    return startEpoch;
+  @Internal
+  public static Trigger recovery(long timestamp) {
+    return new Trigger(timestamp, null, true);
   }
 
-  public boolean success() {
-    return success;
+  public long timestamp() {
+    return timestamp;
   }
 
-  public List<Exception> exceptions() {
-    return exceptions;
+  public Integer taskId() {
+    return taskId;
+  }
+
+  public boolean isRecovery() {
+    return isRecovery;
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("taskIndex", taskIndex)
-        .add("startEpoch", startEpoch)
-        .add("success", success)
-        .add("exceptions", exceptions)
+        .add("timestamp", timestamp)
+        .add("taskId", taskId)
+        .add("isRecovery", isRecovery)
         .toString();
   }
 }
