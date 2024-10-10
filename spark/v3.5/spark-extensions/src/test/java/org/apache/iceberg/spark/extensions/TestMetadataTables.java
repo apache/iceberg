@@ -22,11 +22,11 @@ import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
 import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_REST;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.avro.generic.GenericData.Record;
@@ -743,11 +743,10 @@ public class TestMetadataTables extends ExtensionsTestBase {
 
   @TestTemplate
   public void metadataLogEntriesAfterReplacingTable() throws Exception {
-    if (Set.of(ICEBERG_CATALOG_TYPE_REST).contains(catalogConfig.get(ICEBERG_CATALOG_TYPE))) {
-      // need to fix https://github.com/apache/iceberg/issues/11109 before enabling this test on
-      // rest catalog
-      return;
-    }
+    // need to fix https://github.com/apache/iceberg/issues/11109 before enabling this test on
+    // rest catalog
+    assumeFalse(ICEBERG_CATALOG_TYPE_REST.equals(catalogConfig.get(ICEBERG_CATALOG_TYPE)));
+
     sql(
         "CREATE TABLE %s (id bigint, data string) "
             + "USING iceberg "

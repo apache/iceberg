@@ -71,9 +71,23 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   @BeforeAll
-  public static void createWarehouseAndStartRest() throws IOException {
+  public static void setUpAll() throws IOException {
     TestBaseWithCatalog.warehouse = File.createTempFile("warehouse", null);
     assertThat(warehouse.delete()).isTrue();
+    startRESTServer();
+  }
+
+  @AfterAll
+  public static void tearDownAll() throws IOException {
+    if (warehouse != null && warehouse.exists()) {
+      Path warehousePath = new Path(warehouse.getAbsolutePath());
+      FileSystem fs = warehousePath.getFileSystem(hiveConf);
+      assertThat(fs.delete(warehousePath, true)).as("Failed to delete " + warehousePath).isTrue();
+    }
+    stopRESTServer();
+  }
+
+  private static void startRESTServer() {
     try {
       restServer = new RESTCatalogServer();
       // prevent using already-in-use port when testing
@@ -95,13 +109,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
     }
   }
 
-  @AfterAll
-  public static void dropWarehouseAndStopRest() throws IOException {
-    if (warehouse != null && warehouse.exists()) {
-      Path warehousePath = new Path(warehouse.getAbsolutePath());
-      FileSystem fs = warehousePath.getFileSystem(hiveConf);
-      assertThat(fs.delete(warehousePath, true)).as("Failed to delete " + warehousePath).isTrue();
-    }
+  private static void stopRESTServer() {
     try {
       if (restCatalog != null) {
         restCatalog.close();
@@ -130,8 +138,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
   protected TableIdentifier tableIdent = TableIdentifier.of(Namespace.of("default"), "table");
   protected String tableName;
 
-  @BeforeEach
-  public void before() {
+  private void configureValidationCatalog() {
     if (catalogConfig.containsKey(ICEBERG_CATALOG_TYPE)) {
       switch (catalogConfig.get(ICEBERG_CATALOG_TYPE)) {
         case ICEBERG_CATALOG_TYPE_HADOOP:
@@ -157,6 +164,11 @@ public abstract class TestBaseWithCatalog extends TestBase {
       }
     }
     this.validationNamespaceCatalog = (SupportsNamespaces) validationCatalog;
+  }
+
+  @BeforeEach
+  public void before() {
+    configureValidationCatalog();
 
     spark.conf().set("spark.sql.catalog." + catalogName, implementation);
     catalogConfig.forEach(
