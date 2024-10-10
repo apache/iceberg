@@ -467,6 +467,14 @@ class AssertViewUUID(BaseModel):
     uuid: str
 
 
+class StorageCredential(BaseModel):
+    prefix: str = Field(
+        ...,
+        description='Indicates a storage location prefix where the credential is relevant. Clients should choose the most specific prefix (by selecting the longest prefix) if several credentials of the same type are available.',
+    )
+    config: Dict[str, str]
+
+
 class PlanStatus(BaseModel):
     __root__: Literal['completed', 'submitted', 'cancelled', 'failed'] = Field(
         ..., description='Status of a server-side planning operation'
@@ -1168,12 +1176,6 @@ class ViewUpdate(BaseModel):
     ]
 
 
-class Credential(BaseModel):
-    __root__: Union[ADLSCredential, GCSCredential, S3Credential] = Field(
-        ..., discriminator='type'
-    )
-
-
 class LoadTableResult(BaseModel):
     """
     Result used when a table is successfully loaded.
@@ -1203,9 +1205,8 @@ class LoadTableResult(BaseModel):
 
     ## Storage Credentials
 
-    Credentials for ADLS / GCS / S3 are provided through the `storage-credentials` field.
-    In order to avoid leaking non-expiring credentials, all credentials are required to have an expiration.
-    Clients should first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
+    Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
+    Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
 
     """
 
@@ -1215,10 +1216,10 @@ class LoadTableResult(BaseModel):
         description='May be null if the table is staged as part of a transaction',
     )
     metadata: TableMetadata
-    storage_credentials: Optional[List[Credential]] = Field(
+    config: Optional[Dict[str, str]] = None
+    storage_credentials: Optional[List[StorageCredential]] = Field(
         None, alias='storage-credentials'
     )
-    config: Optional[Dict[str, str]] = None
 
 
 class ScanTasks(BaseModel):
@@ -1328,18 +1329,17 @@ class LoadViewResult(BaseModel):
 
     ## Storage Credentials
 
-    Credentials for ADLS / GCS / S3 are provided through the `storage-credentials` field.
-    In order to avoid leaking non-expiring credentials, all credentials are required to have an expiration.
-    Clients should first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
+    Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
+    Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
 
     """
 
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: ViewMetadata
-    storage_credentials: Optional[List[Credential]] = Field(
+    config: Optional[Dict[str, str]] = None
+    storage_credentials: Optional[List[StorageCredential]] = Field(
         None, alias='storage-credentials'
     )
-    config: Optional[Dict[str, str]] = None
 
 
 class ReportMetricsRequest(BaseModel):
@@ -1422,50 +1422,6 @@ class Schema(StructType):
     )
 
 
-class ADLSCredential(BaseModel):
-    type: Literal['adls']
-    prefix: Optional[str] = Field(
-        None,
-        description='Indicates a storage location prefix where the credential is relevant. Clients should choose the most specific prefix if several credentials of the same type are available.',
-    )
-    sas_token: str = Field(..., alias='sas-token')
-    expires_at_ms: int = Field(
-        ...,
-        alias='expires-at-ms',
-        description='The epoch millis since 1970-01-01T00:00:00Z at which the given token expires',
-    )
-
-
-class GCSCredential(BaseModel):
-    type: Literal['gcs']
-    prefix: Optional[str] = Field(
-        None,
-        description='Indicates a storage location prefix where the credential is relevant. Clients should choose the most specific prefix if several credentials of the same type are available.',
-    )
-    token: str
-    expires_at_ms: int = Field(
-        ...,
-        alias='expires-at-ms',
-        description='The epoch millis since 1970-01-01T00:00:00Z at which the given token expires',
-    )
-
-
-class S3Credential(BaseModel):
-    type: Literal['s3']
-    prefix: Optional[str] = Field(
-        None,
-        description='Indicates a storage location prefix where the credential is relevant. Clients should choose the most specific prefix if several credentials of the same type are available.',
-    )
-    access_key_id: str = Field(..., alias='access-key-id')
-    secret_access_key: str = Field(..., alias='secret-access-key')
-    session_token: str = Field(..., alias='session-token')
-    expires_at_ms: int = Field(
-        ...,
-        alias='expires-at-ms',
-        description='The epoch millis since 1970-01-01T00:00:00Z at which the given token expires',
-    )
-
-
 class CompletedPlanningResult(ScanTasks):
     """
     Completed server-side planning result
@@ -1498,16 +1454,12 @@ Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
-Credential.update_forward_refs()
 ScanTasks.update_forward_refs()
 FetchPlanningResult.update_forward_refs()
 PlanTableScanResult.update_forward_refs()
 CreateTableRequest.update_forward_refs()
 CreateViewRequest.update_forward_refs()
 ReportMetricsRequest.update_forward_refs()
-ADLSCredential.update_forward_refs()
-GCSCredential.update_forward_refs()
-S3Credential.update_forward_refs()
 CompletedPlanningResult.update_forward_refs()
 FetchScanTasksResult.update_forward_refs()
 CompletedPlanningWithIDResult.update_forward_refs()

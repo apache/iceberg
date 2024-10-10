@@ -3103,94 +3103,20 @@ components:
         uuid:
           type: string
 
-    ADLSCredential:
+    StorageCredential:
       type: object
-      allOf:
-        - $ref: '#/components/schemas/Credential'
       required:
-        - type
-        - sas-token
-        - expires-at-ms
+        - prefix
+        - config
       properties:
-        type:
-          type: string
-          enum: [ "adls" ]
         prefix:
           type: string
           description: Indicates a storage location prefix where the credential is relevant. Clients should choose the most
-            specific prefix if several credentials of the same type are available.
-        sas-token:
-          type: string
-        expires-at-ms:
-          type: integer
-          format: int64
-          description: The epoch millis since 1970-01-01T00:00:00Z at which the given token expires
-
-
-    GCSCredential:
-      type: object
-      allOf:
-        - $ref: '#/components/schemas/Credential'
-      required:
-        - type
-        - token
-        - expires-at-ms
-      properties:
-        type:
-          type: string
-          enum: [ "gcs" ]
-        prefix:
-          type: string
-          description: Indicates a storage location prefix where the credential is relevant. Clients should choose the most
-            specific prefix if several credentials of the same type are available.
-        token:
-          type: string
-        expires-at-ms:
-          type: integer
-          format: int64
-          description: The epoch millis since 1970-01-01T00:00:00Z at which the given token expires
-
-    S3Credential:
-      type: object
-      allOf:
-        - $ref: '#/components/schemas/Credential'
-      required:
-        - type
-        - access-key-id
-        - secret-access-key
-        - session-token
-        - expires-at-ms
-      properties:
-        type:
-          type: string
-          enum: [ "s3" ]
-        prefix:
-          type: string
-          description: Indicates a storage location prefix where the credential is relevant. Clients should choose the most
-            specific prefix if several credentials of the same type are available.
-        access-key-id:
-          type: string
-        secret-access-key:
-          type: string
-        session-token:
-          type: string
-        expires-at-ms:
-          type: integer
-          format: int64
-          description: The epoch millis since 1970-01-01T00:00:00Z at which the given token expires
-
-    Credential:
-      type: object
-      discriminator:
-        propertyName: type
-        mapping:
-          adls: '#/components/schemas/ADLSCredential'
-          gcs: '#/components/schemas/GCSCredential'
-          s3: '#/components/schemas/S3Credential'
-      oneOf:
-        - $ref: '#/components/schemas/ADLSCredential'
-        - $ref: '#/components/schemas/GCSCredential'
-        - $ref: '#/components/schemas/S3Credential'
+            specific prefix (by selecting the longest prefix) if several credentials of the same type are available.
+        config:
+          type: object
+          additionalProperties:
+            type: string
 
     LoadTableResult:
       description: |
@@ -3221,9 +3147,8 @@ components:
 
         ## Storage Credentials
 
-        Credentials for ADLS / GCS / S3 are provided through the `storage-credentials` field.
-        In order to avoid leaking non-expiring credentials, all credentials are required to have an expiration.
-        Clients should first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
+        Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
+        Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
       type: object
       required:
         - metadata
@@ -3233,14 +3158,14 @@ components:
           description: May be null if the table is staged as part of a transaction
         metadata:
           $ref: '#/components/schemas/TableMetadata'
-        storage-credentials:
-          type: array
-          items:
-            $ref: '#/components/schemas/Credential'
         config:
           type: object
           additionalProperties:
             type: string
+        storage-credentials:
+          type: array
+          items:
+            $ref: '#/components/schemas/StorageCredential'
 
     ScanTasks:
       type: object
@@ -3496,9 +3421,8 @@ components:
 
         ## Storage Credentials
 
-        Credentials for ADLS / GCS / S3 are provided through the `storage-credentials` field.
-        In order to avoid leaking non-expiring credentials, all credentials are required to have an expiration.
-        Clients should first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
+        Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
+        Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
       type: object
       required:
         - metadata-location
@@ -3508,14 +3432,14 @@ components:
           type: string
         metadata:
           $ref: '#/components/schemas/ViewMetadata'
-        storage-credentials:
-          type: array
-          items:
-            $ref: '#/components/schemas/Credential'
         config:
           type: object
           additionalProperties:
             type: string
+        storage-credentials:
+          type: array
+          items:
+            $ref: '#/components/schemas/StorageCredential'
 
     TokenType:
       type: string
