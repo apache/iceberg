@@ -18,9 +18,10 @@
  */
 package org.apache.iceberg.mr.hive.serde.objectinspector;
 
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import org.apache.hadoop.hive.serde2.io.TimestampWritable;
+import java.time.ZoneOffset;
+import org.apache.hadoop.hive.common.type.Timestamp;
+import org.apache.hadoop.hive.serde2.io.TimestampWritableV2;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveJavaObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
@@ -41,30 +42,45 @@ public class IcebergTimestampObjectInspector extends AbstractPrimitiveJavaObject
 
   @Override
   public LocalDateTime convert(Object o) {
-    return o == null ? null : ((Timestamp) o).toLocalDateTime();
+    if (o == null) {
+      return null;
+    }
+    Timestamp timestamp = (Timestamp) o;
+    return LocalDateTime.ofEpochSecond(
+        timestamp.toEpochSecond(), timestamp.getNanos(), ZoneOffset.UTC);
   }
 
   @Override
+  @SuppressWarnings("JavaLocalDateTimeGetNano")
   public Timestamp getPrimitiveJavaObject(Object o) {
-    return o == null ? null : Timestamp.valueOf((LocalDateTime) o);
+    if (o == null) {
+      return null;
+    }
+    LocalDateTime time = (LocalDateTime) o;
+    Timestamp timestamp = Timestamp.ofEpochMilli(time.toInstant(ZoneOffset.UTC).toEpochMilli());
+    timestamp.setNanos(time.getNano());
+    return timestamp;
   }
 
   @Override
-  public TimestampWritable getPrimitiveWritableObject(Object o) {
+  public TimestampWritableV2 getPrimitiveWritableObject(Object o) {
     Timestamp ts = getPrimitiveJavaObject(o);
-    return ts == null ? null : new TimestampWritable(ts);
+    return ts == null ? null : new TimestampWritableV2(ts);
   }
 
   @Override
   public Object copyObject(Object o) {
+    if (o == null) {
+      return null;
+    }
+
     if (o instanceof Timestamp) {
       Timestamp ts = (Timestamp) o;
-      Timestamp copy = new Timestamp(ts.getTime());
+      Timestamp copy = new Timestamp(ts);
       copy.setNanos(ts.getNanos());
       return copy;
     } else if (o instanceof LocalDateTime) {
-      LocalDateTime ldt = (LocalDateTime) o;
-      return LocalDateTime.of(ldt.toLocalDate(), ldt.toLocalTime());
+      return LocalDateTime.of(((LocalDateTime) o).toLocalDate(), ((LocalDateTime) o).toLocalTime());
     } else {
       return o;
     }
