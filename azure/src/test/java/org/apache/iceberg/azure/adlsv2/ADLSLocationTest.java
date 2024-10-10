@@ -38,10 +38,25 @@ public class ADLSLocationTest {
     assertThat(location.path()).isEqualTo("path/to/file");
   }
 
-  @Test
-  public void testEncodedString() {
-    String p1 = "abfs://container@account.dfs.core.windows.net/path%20to%20file";
+  @ParameterizedTest
+  @ValueSource(strings = {"wasb", "wasbs"})
+  public void testWasbLocationParsing(String scheme) {
+    String p1 = scheme + "://container@account.blob.core.windows.net/path/to/file";
     ADLSLocation location = new ADLSLocation(p1);
+
+    assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
+    assertThat(location.container().get()).isEqualTo("container");
+    assertThat(location.path()).isEqualTo("path/to/file");
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "abfs://container@account.dfs.core.windows.net/path%20to%20file",
+        "wasb://container@account.blob.core.windows.net/path%20to%20file"
+      })
+  public void testEncodedString(String path) {
+    ADLSLocation location = new ADLSLocation(path);
 
     assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
@@ -62,40 +77,56 @@ public class ADLSLocationTest {
         .hasMessage("Invalid ADLS URI: s3://bucket/path/to/file");
   }
 
-  @Test
-  public void testNoContainer() {
-    String p1 = "abfs://account.dfs.core.windows.net/path/to/file";
-    ADLSLocation location = new ADLSLocation(p1);
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "abfs://account.dfs.core.windows.net/path/to/file",
+        "wasb://account.blob.core.windows.net/path/to/file"
+      })
+  public void testNoContainer(String path) {
+    ADLSLocation location = new ADLSLocation(path);
 
     assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
     assertThat(location.container().isPresent()).isFalse();
     assertThat(location.path()).isEqualTo("path/to/file");
   }
 
-  @Test
-  public void testNoPath() {
-    String p1 = "abfs://container@account.dfs.core.windows.net";
-    ADLSLocation location = new ADLSLocation(p1);
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "abfs://container@account.dfs.core.windows.net",
+        "wasb://container@account.blob.core.windows.net"
+      })
+  public void testNoPath(String path) {
+    ADLSLocation location = new ADLSLocation(path);
 
     assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("");
   }
 
-  @Test
-  public void testQueryAndFragment() {
-    String p1 = "abfs://container@account.dfs.core.windows.net/path/to/file?query=foo#123";
-    ADLSLocation location = new ADLSLocation(p1);
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "abfs://container@account.dfs.core.windows.net/path/to/file?query=foo#123",
+        "wasb://container@account.blob.core.windows.net/path/to/file?query=foo#123"
+      })
+  public void testQueryAndFragment(String path) {
+    ADLSLocation location = new ADLSLocation(path);
 
     assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path/to/file");
   }
 
-  @Test
-  public void testQueryAndFragmentNoPath() {
-    String p1 = "abfs://container@account.dfs.core.windows.net?query=foo#123";
-    ADLSLocation location = new ADLSLocation(p1);
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "abfs://container@account.dfs.core.windows.net?query=foo#123",
+        "wasb://container@account.blob.core.windows.net?query=foo#123"
+      })
+  public void testQueryAndFragmentNoPath(String path) {
+    ADLSLocation location = new ADLSLocation(path);
 
     assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
