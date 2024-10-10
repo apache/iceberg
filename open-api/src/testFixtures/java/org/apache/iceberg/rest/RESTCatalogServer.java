@@ -26,6 +26,7 @@ import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.jdbc.JdbcCatalog;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.handler.gzip.GzipHandler;
@@ -42,7 +43,7 @@ public class RESTCatalogServer {
 
   private Server httpServer;
 
-  RESTCatalogServer() {}
+  public RESTCatalogServer() {}
 
   static class CatalogContext {
     private final Catalog catalog;
@@ -64,7 +65,9 @@ public class RESTCatalogServer {
 
   private CatalogContext initializeBackendCatalog() throws IOException {
     // Translate environment variables to catalog properties
-    Map<String, String> catalogProperties = RCKUtils.environmentCatalogConfig();
+    Map<String, String> catalogProperties = Maps.newHashMap();
+    catalogProperties.putAll(RCKUtils.environmentCatalogConfig());
+    catalogProperties.putAll(Maps.fromProperties(System.getProperties()));
 
     // Fallback to a JDBCCatalog impl if one is not set
     catalogProperties.putIfAbsent(CatalogProperties.CATALOG_IMPL, JdbcCatalog.class.getName());

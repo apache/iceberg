@@ -18,9 +18,12 @@
  */
 package org.apache.iceberg.spark.sql;
 
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE;
+import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_REST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -275,6 +278,9 @@ public class TestAlterTable extends CatalogTestBase {
 
   @TestTemplate
   public void testTableRename() {
+    // need to fix https://github.com/apache/iceberg/issues/11109 before enabling this test on
+    // rest catalog
+    assumeFalse(ICEBERG_CATALOG_TYPE_REST.equals(catalogConfig.get(ICEBERG_CATALOG_TYPE)));
     assumeThat(validationCatalog)
         .as("Hadoop catalog does not support rename")
         .isNotInstanceOf(HadoopCatalog.class);
