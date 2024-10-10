@@ -19,15 +19,16 @@
 package org.apache.iceberg;
 
 import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.CoordinateFilter;
+import org.locationtech.jts.geom.CoordinateXYZM;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 
 /**
  * Iceberg internally tracked field level metrics, used by Parquet and ORC writers only.
  *
- * <p>Bounding box of geometry fields were tracked and recorded in both manifest file and geoparquet
- * footer, which can help us prunning data files disjoint with the query window.
+ * <p>Bounding box of geometry fields were tracked and recorded in both manifest file and parquet
+ * statistics, which can help us pruning data files disjoint with the query window.
  */
 public class GeometryFieldMetrics extends FieldMetrics<Geometry> {
 
@@ -49,17 +50,37 @@ public class GeometryFieldMetrics extends FieldMetrics<Geometry> {
     private double xMax = Double.NEGATIVE_INFINITY;
     private double yMin = Double.POSITIVE_INFINITY;
     private double yMax = Double.NEGATIVE_INFINITY;
+    private double zMin = Double.POSITIVE_INFINITY;
+    private double zMax = Double.NEGATIVE_INFINITY;
+    private double mMin = Double.POSITIVE_INFINITY;
+    private double mMax = Double.NEGATIVE_INFINITY;
 
     public GenericBuilder(int id) {
       this.id = id;
     }
 
-    protected void addEnvelope(double minX, double minY, double maxX, double maxY) {
+    protected void addEnvelope(
+        double minX,
+        double minY,
+        double maxX,
+        double maxY,
+        double minZ,
+        double maxZ,
+        double minM,
+        double maxM) {
       nonEmptyValueCount++;
       this.xMin = Math.min(minX, this.xMin);
       this.yMin = Math.min(minY, this.yMin);
       this.xMax = Math.max(maxX, this.xMax);
       this.yMax = Math.max(maxY, this.yMax);
+      if (minZ <= maxZ) {
+        this.zMin = Math.min(minZ, this.zMin);
+        this.zMax = Math.max(maxZ, this.zMax);
+      }
+      if (minM <= maxM) {
+        this.mMin = Math.min(minM, this.mMin);
+        this.mMax = Math.max(maxM, this.mMax);
+      }
     }
 
     public GeometryFieldMetrics build() {
@@ -67,22 +88,59 @@ public class GeometryFieldMetrics extends FieldMetrics<Geometry> {
       return new GeometryFieldMetrics(
           id,
           valueCount,
-          hasBound ? FACTORY.createPoint(new Coordinate(xMin, yMin)) : null,
-          hasBound ? FACTORY.createPoint(new Coordinate(xMax, yMax)) : null);
+          hasBound ? FACTORY.createPoint(new CoordinateXYZM(xMin, yMin, zMin, mMin)) : null,
+          hasBound ? FACTORY.createPoint(new CoordinateXYZM(xMax, yMax, zMax, mMax)) : null);
     }
 
     public void add(Geometry geom) {
       this.valueCount++;
-      Envelope env = geom.getEnvelopeInternal();
-      if (!env.isNull()) {
-        addEnvelope(env.getMinX(), env.getMinY(), env.getMaxX(), env.getMaxY());
+      GeometryBoundExtractor boundExtractor = new GeometryBoundExtractor();
+      geom.apply(boundExtractor);
+      if (boundExtractor.isValid()) {
+        addEnvelope(
+            boundExtractor.xMin,
+            boundExtractor.yMin,
+            boundExtractor.xMax,
+            boundExtractor.yMax,
+            boundExtractor.zMin,
+            boundExtractor.zMax,
+            boundExtractor.mMin,
+            boundExtractor.mMax);
       }
     }
+  }
 
-    public void add(Envelope env) {
-      this.valueCount++;
-      if (!env.isNull()) {
-        addEnvelope(env.getMinX(), env.getMinY(), env.getMaxX(), env.getMaxY());
+  private static class GeometryBoundExtractor implements CoordinateFilter {
+    private double xMin = Double.POSITIVE_INFINITY;
+    private double xMax = Double.NEGATIVE_INFINITY;
+    private double yMin = Double.POSITIVE_INFINITY;
+    private double yMax = Double.NEGATIVE_INFINITY;
+    private double zMin = Double.POSITIVE_INFINITY;
+    private double zMax = Double.NEGATIVE_INFINITY;
+    private double mMin = Double.POSITIVE_INFINITY;
+    private double mMax = Double.NEGATIVE_INFINITY;
+
+    public boolean isValid() {
+      return xMin <= xMax && yMin <= yMax;
+    }
+
+    @Override
+    public void filter(Coordinate coord) {
+      double x = coord.getX();
+      double y = coord.getY();
+      double z = coord.getZ();
+      double m = coord.getM();
+      xMin = Math.min(x, xMin);
+      yMin = Math.min(y, yMin);
+      xMax = Math.max(x, xMax);
+      yMax = Math.max(y, yMax);
+      if (!Double.isNaN(z)) {
+        zMin = Math.min(z, zMin);
+        zMax = Math.max(z, zMax);
+      }
+      if (!Double.isNaN(m)) {
+        mMin = Math.min(m, mMin);
+        mMax = Math.max(m, mMax);
       }
     }
   }
