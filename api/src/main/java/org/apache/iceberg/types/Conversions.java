@@ -122,7 +122,7 @@ public class Conversions {
       case DECIMAL:
         return ByteBuffer.wrap(((BigDecimal) value).unscaledValue().toByteArray());
       case GEOMETRY:
-        WKBWriter wkbWriter = new WKBWriter();
+        WKBWriter wkbWriter = new WKBWriter(4);
         byte[] wkb = wkbWriter.write((Geometry) value);
         return ByteBuffer.wrap(wkb);
       default:
