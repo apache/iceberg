@@ -18,11 +18,12 @@
  */
 package org.apache.iceberg.rest.auth;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.SessionCatalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -56,17 +57,113 @@ public class OAuth2Manager extends RefreshingAuthManager {
   private AuthConfig config;
   private long startTimeMillis;
   private OAuthTokenResponse authResponse;
+  private AuthSessionCache sessionCache;
 
   @Override
   public void initialize(String owner, RESTClient restClient, Map<String, String> props) {
-    super.initialize(owner, restClient, props);
     this.client = restClient;
     this.properties = props;
     this.config = createConfig(props);
+    this.sessionCache = new AuthSessionCache(sessionTimeout(props));
     setExecutorNamePrefix(owner + "-token-refresh");
     setKeepRefreshed(config.keepRefreshed());
     // keep track of the start time for token refresh
     this.startTimeMillis = System.currentTimeMillis();
+  }
+
+  @Override
+  public AuthSession catalogSession() {
+    OAuth2Util.AuthSession session =
+        new OAuth2Util.AuthSession(
+            RESTUtil.merge(configHeaders(properties), OAuth2Util.authHeaders(config.token())),
+            config);
+    if (config.credential() != null && authResponse == null) {
+      this.authResponse =
+          OAuth2Util.fetchToken(
+              client,
+              session,
+              config.credential(),
+              config.scope(),
+              config.oauth2ServerUri(),
+              config.optionalOAuthParams());
+    }
+    if (authResponse != null) {
+      return OAuth2Util.AuthSession.fromTokenResponse(
+          client, refreshExecutor(), authResponse, startTimeMillis, session);
+    } else if (config.token() != null) {
+      return OAuth2Util.AuthSession.fromAccessToken(
+          client, refreshExecutor(), config.token(), config.expiresAtMillis(), session);
+    }
+    return session;
+  }
+
+  @Override
+  public AuthSession contextualSession(SessionCatalog.SessionContext context, AuthSession parent) {
+    return maybeCreateChildSession(
+        context.credentials(),
+        context.properties(),
+        ignored -> context.sessionId(),
+        (OAuth2Util.AuthSession) parent);
+  }
+
+  @Override
+  public AuthSession tableSession(
+      TableIdentifier table, Map<String, String> props, AuthSession parent) {
+    return maybeCreateChildSession(
+        Maps.filterKeys(props, TABLE_SESSION_ALLOW_LIST::contains),
+        props,
+        props::get,
+        (OAuth2Util.AuthSession) parent);
+  }
+
+  @Override
+  public void close() {
+    try {
+      super.close();
+    } finally {
+      sessionCache.close();
+    }
+  }
+
+  private AuthSession maybeCreateChildSession(
+      Map<String, String> credentials,
+      Map<String, String> props,
+      Function<String, String> keyFunc,
+      OAuth2Util.AuthSession parent) {
+    if (credentials != null) {
+      // use the bearer token without exchanging
+      if (credentials.containsKey(OAuth2Properties.TOKEN)) {
+        String token = credentials.get(OAuth2Properties.TOKEN);
+        return sessionCache.cachedSession(
+            keyFunc.apply(OAuth2Properties.TOKEN),
+            () ->
+                OAuth2Util.AuthSession.fromAccessToken(
+                    client, refreshExecutor(), token, expiresAtMillis(props), parent));
+      }
+
+      if (credentials.containsKey(OAuth2Properties.CREDENTIAL)) {
+        // fetch a token using the client credentials flow
+        String credential = credentials.get(OAuth2Properties.CREDENTIAL);
+        return sessionCache.cachedSession(
+            keyFunc.apply(OAuth2Properties.CREDENTIAL),
+            () ->
+                OAuth2Util.AuthSession.fromCredential(
+                    client, refreshExecutor(), credential, parent));
+      }
+
+      for (String tokenType : TOKEN_PREFERENCE_ORDER) {
+        if (credentials.containsKey(tokenType)) {
+          // exchange the token for an access token using the token exchange flow
+          String token = credentials.get(tokenType);
+          return sessionCache.cachedSession(
+              keyFunc.apply(tokenType),
+              () ->
+                  OAuth2Util.AuthSession.fromTokenExchange(
+                      client, refreshExecutor(), token, tokenType, parent));
+        }
+      }
+    }
+    return parent;
   }
 
   private static AuthConfig createConfig(Map<String, String> props) {
@@ -90,98 +187,13 @@ public class OAuth2Manager extends RefreshingAuthManager {
         .build();
   }
 
-  @Override
-  public AuthSession catalogSession() {
-    OAuth2Util.AuthSession session = sessionFromConfig();
-    if (config.credential() != null && authResponse == null) {
-      this.authResponse =
-          OAuth2Util.fetchToken(
-              client,
-              session,
-              config.credential(),
-              config.scope(),
-              config.oauth2ServerUri(),
-              config.optionalOAuthParams());
-    }
-    if (authResponse != null) {
-      return OAuth2Util.AuthSession.fromTokenResponse(
-          client, refreshExecutor(), authResponse, startTimeMillis, session);
-    } else if (config.token() != null) {
-      return OAuth2Util.AuthSession.fromAccessToken(
-          client, refreshExecutor(), config.token(), config.expiresAtMillis(), session);
-    }
-    return session;
-  }
-
-  private OAuth2Util.AuthSession sessionFromConfig() {
-    Map<String, String> headers =
-        RESTUtil.merge(configHeaders(properties), OAuth2Util.authHeaders(config.token()));
-    return new OAuth2Util.AuthSession(headers, config);
-  }
-
-  @Override
-  protected Optional<CacheableAuthSession> cacheableContextSession(
-      SessionCatalog.SessionContext context, AuthSession parent) {
-    CacheableAuthSession session =
-        newSession(
-            context.credentials(),
-            context.properties(),
-            prop -> context.sessionId(),
-            (OAuth2Util.AuthSession) parent);
-    return Optional.ofNullable(session);
-  }
-
-  @Override
-  protected Optional<CacheableAuthSession> cacheableTableSession(
-      TableIdentifier table, Map<String, String> props, AuthSession parent) {
-    CacheableAuthSession session =
-        newSession(
-            Maps.filterKeys(props, TABLE_SESSION_ALLOW_LIST::contains),
+  private static Duration sessionTimeout(Map<String, String> props) {
+    long expirationIntervalMs =
+        PropertyUtil.propertyAsLong(
             props,
-            props::get,
-            (OAuth2Util.AuthSession) parent);
-    return Optional.ofNullable(session);
-  }
-
-  private CacheableAuthSession newSession(
-      Map<String, String> credentials,
-      Map<String, String> props,
-      Function<String, String> keyFunc,
-      OAuth2Util.AuthSession parent) {
-    if (credentials != null) {
-      // use the bearer token without exchanging
-      if (credentials.containsKey(OAuth2Properties.TOKEN)) {
-        String token = credentials.get(OAuth2Properties.TOKEN);
-        return ImmutableCacheableAuthSession.of(
-            keyFunc.apply(OAuth2Properties.TOKEN),
-            () ->
-                OAuth2Util.AuthSession.fromAccessToken(
-                    client, refreshExecutor(), token, expiresAtMillis(props), parent));
-      }
-
-      if (credentials.containsKey(OAuth2Properties.CREDENTIAL)) {
-        // fetch a token using the client credentials flow
-        String credential = credentials.get(OAuth2Properties.CREDENTIAL);
-        return ImmutableCacheableAuthSession.of(
-            keyFunc.apply(OAuth2Properties.CREDENTIAL),
-            () ->
-                OAuth2Util.AuthSession.fromCredential(
-                    client, refreshExecutor(), credential, parent));
-      }
-
-      for (String tokenType : TOKEN_PREFERENCE_ORDER) {
-        if (credentials.containsKey(tokenType)) {
-          // exchange the token for an access token using the token exchange flow
-          String token = credentials.get(tokenType);
-          return ImmutableCacheableAuthSession.of(
-              keyFunc.apply(tokenType),
-              () ->
-                  OAuth2Util.AuthSession.fromTokenExchange(
-                      client, refreshExecutor(), token, tokenType, parent));
-        }
-      }
-    }
-    return null;
+            CatalogProperties.AUTH_SESSION_TIMEOUT_MS,
+            CatalogProperties.AUTH_SESSION_TIMEOUT_MS_DEFAULT);
+    return Duration.ofMillis(expirationIntervalMs);
   }
 
   private static Long expiresAtMillis(Map<String, String> props) {

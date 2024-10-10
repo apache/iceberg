@@ -22,12 +22,13 @@ import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** An AuthManager that provides machinery for refreshing authentication data. */
-public abstract class RefreshingAuthManager extends CachingAuthManager {
+public abstract class RefreshingAuthManager implements AuthManager {
 
   private static final Logger LOG = LoggerFactory.getLogger(RefreshingAuthManager.class);
 
@@ -45,14 +46,6 @@ public abstract class RefreshingAuthManager extends CachingAuthManager {
 
   @Override
   public void close() {
-    try {
-      super.close();
-    } finally {
-      shutdownExecutor();
-    }
-  }
-
-  private void shutdownExecutor() {
     ScheduledExecutorService service = refreshExecutor;
     try {
       if (service != null) {
@@ -78,6 +71,7 @@ public abstract class RefreshingAuthManager extends CachingAuthManager {
     }
   }
 
+  @Nullable
   protected ScheduledExecutorService refreshExecutor() {
     if (!keepRefreshed) {
       return null;
