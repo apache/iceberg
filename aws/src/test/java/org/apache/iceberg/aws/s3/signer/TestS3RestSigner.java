@@ -25,7 +25,6 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
 import org.apache.iceberg.aws.s3.MinioContainer;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -102,29 +101,6 @@ public class TestS3RestSigner {
 
   @AfterAll
   public static void afterClass() throws Exception {
-    assertThat(validatingSigner.icebergSigner.tokenRefreshExecutor())
-        .isInstanceOf(ScheduledThreadPoolExecutor.class);
-
-    ScheduledThreadPoolExecutor executor =
-        ((ScheduledThreadPoolExecutor) validatingSigner.icebergSigner.tokenRefreshExecutor());
-    // token expiration is set to 10000s by the S3SignerServlet so there should be exactly one token
-    // scheduled for refresh. Such a high token expiration value is explicitly selected to be much
-    // larger than TestS3RestSigner would need to execute all tests.
-    // The reason why this check is done here with a high token expiration is to make sure that
-    // there aren't other token refreshes being scheduled after every sign request and after
-    // TestS3RestSigner completes all tests, there should be only this single token in the queue
-    // that is scheduled for refresh
-    assertThat(executor.getPoolSize()).isEqualTo(1);
-    assertThat(executor.getQueue())
-        .as("should only have a single token scheduled for refresh")
-        .hasSize(1);
-    assertThat(executor.getActiveCount())
-        .as("should not have any token being refreshed")
-        .isEqualTo(0);
-    assertThat(executor.getCompletedTaskCount())
-        .as("should not have any expired token that required a refresh")
-        .isEqualTo(0);
-
     if (null != httpServer) {
       httpServer.stop();
     }

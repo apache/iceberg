@@ -39,6 +39,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
@@ -83,11 +84,19 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
               Object body,
               Class<T> responseType,
               Map<String, String> headers,
+              AuthSession authSession,
               Consumer<ErrorResponse> errorHandler) {
             Object request = roundTripSerialize(body, "request");
             T response =
                 super.execute(
-                    method, path, queryParams, request, responseType, headers, errorHandler);
+                    method,
+                    path,
+                    queryParams,
+                    request,
+                    responseType,
+                    headers,
+                    authSession,
+                    errorHandler);
             T responseAfterSerialization = roundTripSerialize(response, "response");
             return responseAfterSerialization;
           }
@@ -188,7 +197,8 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             any(),
             any(),
             eq(ConfigResponse.class),
-            any(),
+            eq(ImmutableMap.of()),
+            any(AuthSession.class),
             any());
 
     Mockito.verify(adapter, times(numberOfItems))
@@ -198,7 +208,8 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             any(),
             any(),
             eq(LoadViewResponse.class),
-            any(),
+            eq(ImmutableMap.of()),
+            any(AuthSession.class),
             any());
 
     // verify initial request with empty pageToken

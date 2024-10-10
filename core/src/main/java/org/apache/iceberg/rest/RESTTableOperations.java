@@ -19,11 +19,9 @@
 package org.apache.iceberg.rest;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.TableMetadata;
@@ -36,7 +34,9 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
@@ -53,7 +53,7 @@ class RESTTableOperations implements TableOperations {
 
   private final RESTClient client;
   private final String path;
-  private final Supplier<Map<String, String>> headers;
+  private final AuthSession authSession;
   private final FileIO io;
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
@@ -64,17 +64,18 @@ class RESTTableOperations implements TableOperations {
   RESTTableOperations(
       RESTClient client,
       String path,
-      Supplier<Map<String, String>> headers,
+      AuthSession authSession,
       FileIO io,
       TableMetadata current,
       Set<Endpoint> endpoints) {
-    this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current, endpoints);
+    this(
+        client, path, authSession, io, UpdateType.SIMPLE, Lists.newArrayList(), current, endpoints);
   }
 
   RESTTableOperations(
       RESTClient client,
       String path,
-      Supplier<Map<String, String>> headers,
+      AuthSession authSession,
       FileIO io,
       UpdateType updateType,
       List<MetadataUpdate> createChanges,
@@ -82,7 +83,7 @@ class RESTTableOperations implements TableOperations {
       Set<Endpoint> endpoints) {
     this.client = client;
     this.path = path;
-    this.headers = headers;
+    this.authSession = authSession;
     this.io = io;
     this.updateType = updateType;
     this.createChanges = createChanges;
@@ -104,7 +105,12 @@ class RESTTableOperations implements TableOperations {
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     return updateCurrentMetadata(
-        client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
+        client.get(
+            path,
+            LoadTableResponse.class,
+            ImmutableMap.of(),
+            authSession,
+            ErrorHandlers.tableErrorHandler()));
   }
 
   @Override
@@ -156,7 +162,8 @@ class RESTTableOperations implements TableOperations {
     // UnknownCommitStateException
     // TODO: ensure that the HTTP client lib passes HTTP client errors to the error handler
     LoadTableResponse response =
-        client.post(path, request, LoadTableResponse.class, headers, errorHandler);
+        client.post(
+            path, request, LoadTableResponse.class, ImmutableMap.of(), authSession, errorHandler);
 
     // all future commits should be simple commits
     this.updateType = UpdateType.SIMPLE;
