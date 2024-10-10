@@ -31,7 +31,6 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Parameter;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -81,15 +80,6 @@ public abstract class DeleteReadTests {
   protected DataFile dataFile = null;
 
   @Parameter protected FileFormat format;
-
-  @Parameters(name = "fileFormat = {0}")
-  public static Object[][] parameters() {
-    return new Object[][] {
-      new Object[] {FileFormat.PARQUET},
-      new Object[] {FileFormat.AVRO},
-      new Object[] {FileFormat.ORC}
-    };
-  }
 
   @BeforeEach
   public void writeTestDataFile() throws IOException {
