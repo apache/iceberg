@@ -42,6 +42,7 @@ public class SchemaParser {
   private static final String STRUCT = "struct";
   private static final String LIST = "list";
   private static final String MAP = "map";
+  private static final String GEOMETRY = "geometry";
   private static final String FIELDS = "fields";
   private static final String ELEMENT = "element";
   private static final String KEY = "key";
@@ -126,7 +127,16 @@ public class SchemaParser {
   }
 
   static void toJson(Type.PrimitiveType primitive, JsonGenerator generator) throws IOException {
-    generator.writeString(primitive.toString());
+    if (primitive.typeId() == Type.TypeID.GEOMETRY) {
+      Types.GeometryType geometryType = (Types.GeometryType) primitive;
+      generator.writeStartObject();
+      generator.writeStringField("type", "geometry");
+      generator.writeStringField("crs", geometryType.crs());
+      generator.writeStringField("edges", geometryType.edges().value());
+      generator.writeEndObject();
+    } else {
+      generator.writeString(primitive.toString());
+    }
   }
 
   static void toJson(Type type, JsonGenerator generator) throws IOException {
@@ -177,6 +187,8 @@ public class SchemaParser {
           return listFromJson(json);
         } else if (MAP.equals(type)) {
           return mapFromJson(json);
+        } else if (GEOMETRY.equals(type)) {
+          return geometryFromJson(json);
         }
       }
     }
@@ -238,6 +250,12 @@ public class SchemaParser {
     } else {
       return Types.MapType.ofOptional(keyId, valueId, keyType, valueType);
     }
+  }
+
+  private static Types.GeometryType geometryFromJson(JsonNode json) {
+    String crs = JsonUtil.getString("crs", json);
+    String edges = JsonUtil.getString("edges", json);
+    return Types.GeometryType.of(crs, edges);
   }
 
   public static Schema fromJson(JsonNode json) {

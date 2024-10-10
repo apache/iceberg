@@ -58,6 +58,8 @@ public class Types {
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
+  private static final Pattern GEOMETRY_PARAMETERS =
+      Pattern.compile("(?:\\(\\s*([^,]+)?\\s*(?:,\\s*(\\w+)\\s*)?\\))?");
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
@@ -65,6 +67,13 @@ public class Types {
     String lowerTypeString = typeString.toLowerCase(Locale.ROOT);
     if (TYPES.containsKey(lowerTypeString)) {
       return TYPES.get(lowerTypeString);
+    }
+
+    if (lowerTypeString.startsWith("geometry")) {
+      Matcher geometry = GEOMETRY_PARAMETERS.matcher(typeString.substring(8));
+      if (geometry.matches()) {
+        return GeometryType.of(geometry.group(1), geometry.group(2));
+      }
     }
 
     Matcher fixed = FIXED.matcher(lowerTypeString);
@@ -465,6 +474,95 @@ public class Types {
     @Override
     public int hashCode() {
       return Objects.hash(DecimalType.class, scale, precision);
+    }
+  }
+
+  public static class GeometryType extends PrimitiveType {
+
+    public enum Edges {
+      PLANAR("planar"),
+      SPHERICAL("spherical");
+
+      private final String value;
+
+      Edges(String value) {
+        this.value = value;
+      }
+
+      public String value() {
+        return value;
+      }
+
+      public static Edges fromName(String edgesName) {
+        try {
+          return Edges.valueOf(edgesName.toUpperCase(Locale.ENGLISH));
+        } catch (IllegalArgumentException e) {
+          throw new IllegalArgumentException(String.format("Invalid edges name: %s", edgesName), e);
+        }
+      }
+    }
+
+    public static final String DEFAULT_CRS = "OGC:CRS84";
+    public static final Edges DEFAULT_EDGES = Edges.PLANAR;
+
+    private final String crs;
+    private final Edges edges;
+
+    private GeometryType(String crs, Edges edges) {
+      this.crs = crs;
+      this.edges = edges;
+    }
+
+    public static GeometryType get() {
+      return of(DEFAULT_CRS);
+    }
+
+    public static GeometryType of(String crs) {
+      return of(crs, DEFAULT_EDGES);
+    }
+
+    public static GeometryType of(String crs, Edges edges) {
+      return new GeometryType(crs, edges);
+    }
+
+    public static GeometryType of(String crs, String edgesName) {
+      Edges edges = (edgesName == null ? DEFAULT_EDGES : Edges.fromName(edgesName));
+      return new GeometryType(crs == null ? DEFAULT_CRS : crs, edges);
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.GEOMETRY;
+    }
+
+    public String crs() {
+      return crs;
+    }
+
+    public Edges edges() {
+      return edges;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof GeometryType)) {
+        return false;
+      }
+
+      GeometryType that = (GeometryType) o;
+      return crs.equals(that.crs) && edges.equals(that.edges);
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(GeometryType.class, crs, edges);
+    }
+
+    @Override
+    public String toString() {
+      return String.format("geometry(%s, %s)", crs, edges.value());
     }
   }
 
