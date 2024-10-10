@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.List;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -53,6 +54,26 @@ public interface PendingUpdate<T> {
    *     should be done in this case.
    */
   void commit();
+
+  /**
+   * Apply the pending changes, validate the current version of the table, and commit.
+   *
+   * <p>Changes are committed by calling the underlying table's commit method.
+   *
+   * <p>Once the commit is successful, the updated table will be refreshed.
+   *
+   * @param validations A list of {@link Validation} which will be used to test whether it is safe
+   *     to commit the pending changes to the current version of the table at commit time.
+   * @throws ValidationException If the update cannot be applied to the current table metadata.
+   * @throws UnsupportedOperationException If any of the supplied validations attempt to modify the
+   *     table it is given.
+   * @throws CommitFailedException If the update cannot be committed due to conflicts.
+   * @throws CommitStateUnknownException If the update success or failure is unknown, no cleanup
+   *     should be done in this case.
+   */
+  default void commitIf(List<Validation> validations) {
+    throw new UnsupportedOperationException();
+  }
 
   /**
    * Generates update event to notify about metadata changes
