@@ -1103,7 +1103,7 @@ class LoadTableResult(BaseModel):
     ## General Configurations
 
     - `token`: Authorization bearer token to use for table requests if OAuth2 security is enabled
-    - `expires-at-ms`: if present, specifies timestamp in milliseconds when credentials for storage(AWS S3/Azure/), specified in config would expire
+    - `expires-at-ms`: if present, specifies timestamp in milliseconds when credentials for storage(AWS S3/Azure/GCP), specified in config would expire
 
     ## AWS Configurations
 
