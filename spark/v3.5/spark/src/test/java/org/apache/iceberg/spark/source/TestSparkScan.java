@@ -44,8 +44,10 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
+import org.apache.iceberg.spark.SparkReadOptions;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
+import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.functions.BucketFunction;
 import org.apache.iceberg.spark.functions.DaysFunction;
 import org.apache.iceberg.spark.functions.HoursFunction;
@@ -56,6 +58,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.connector.catalog.functions.BoundFunction;
 import org.apache.spark.sql.connector.expressions.Expression;
 import org.apache.spark.sql.connector.expressions.FieldReference;
@@ -291,6 +294,70 @@ public class TestSparkScan extends TestBaseWithCatalog {
     expectedTwoNDVs.put("id", 4L);
     expectedTwoNDVs.put("data", 2L);
     withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, expectedTwoNDVs));
+  }
+
+  @TestTemplate
+  public void testMultipleSnapshotsWithColStats() throws NoSuchTableException, ParseException {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "a"),
+            new SimpleRecord(4, "b"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId1 = table.currentSnapshot().snapshotId();
+    SparkActions.get().computeTableStats(table).execute();
+
+    spark
+        .createDataset(List.of(new SimpleRecord(5, "a")), Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+    table.refresh();
+    long snapshotId2 = table.currentSnapshot().snapshotId();
+    SparkActions.get().computeTableStats(table).execute();
+
+    spark
+        .createDataset(List.of(new SimpleRecord(6, "a")), Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+    table.refresh();
+    // No stats generated for this snapshot
+    long snapshotId3 = table.currentSnapshot().snapshotId();
+
+    SparkScan scan1 = buildScanForSnapshot(snapshotId1);
+    SparkScan scan2 = buildScanForSnapshot(snapshotId2);
+    SparkScan scan3 = buildScanForSnapshot(snapshotId3);
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+    withSQLConf(
+        reportColStatsEnabled,
+        () -> {
+          checkColStatisticsReported(scan1, 4, Map.of("id", 4L));
+          checkColStatisticsReported(scan2, 5, Map.of("id", 5L));
+          checkColStatisticsNotReported(scan3, 6L);
+        });
+  }
+
+  private SparkScan buildScanForSnapshot(Long snapshotId)
+      throws NoSuchTableException, ParseException {
+    Table table = Spark3Util.loadIcebergTable(spark, tableName);
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(
+            spark,
+            table,
+            new CaseInsensitiveStringMap(
+                Map.of(SparkReadOptions.SNAPSHOT_ID, String.valueOf(snapshotId))));
+    return (SparkScan) scanBuilder.build();
   }
 
   @TestTemplate
