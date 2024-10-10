@@ -78,9 +78,11 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private boolean failMissingDeletePaths = false;
   private int duplicateDeleteCount = 0;
   private boolean caseSensitive = true;
+  private boolean allDeletesReferenceManifests = true;
 
   // cache filtered manifests to avoid extra work when commits fail.
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
+  private final Set<String> manifestsWithDeletedFiles = Sets.newConcurrentHashSet();
 
   // tracking where files were deleted to validate retries quickly
   private final Map<ManifestFile, Iterable<F>> filteredManifestToDeletedFiles =
@@ -120,6 +122,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     Preconditions.checkNotNull(expr, "Cannot delete files using filter: null");
     invalidateFilteredCache();
     this.deleteExpression = Expressions.or(deleteExpression, expr);
+    this.allDeletesReferenceManifests = false;
   }
 
   /** Add a partition tuple to drop from the table during the delete phase. */
@@ -127,6 +130,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     Preconditions.checkNotNull(partition, "Cannot delete files in invalid partition: null");
     invalidateFilteredCache();
     dropPartitions.add(specId, partition);
+    this.allDeletesReferenceManifests = false;
   }
 
   /**
@@ -153,7 +157,13 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   void delete(F file) {
     Preconditions.checkNotNull(file, "Cannot delete file: null");
     invalidateFilteredCache();
-    deletePaths.add(file.path());
+    if (file.manifestLocation() == null) {
+      this.allDeletesReferenceManifests = false;
+    } else {
+      manifestsWithDeletedFiles.add(file.manifestLocation());
+    }
+
+    deletePaths.add(file.location());
     deleteFilePartitions.add(file.specId(), file.partition());
   }
 
@@ -162,11 +172,13 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     Preconditions.checkNotNull(path, "Cannot delete file path: null");
     invalidateFilteredCache();
     this.hasPathOnlyDeletes = true;
+    this.allDeletesReferenceManifests = false;
     deletePaths.add(path);
   }
 
   boolean containsDeletes() {
-    return !deletePaths.isEmpty()
+    return !manifestsWithDeletedFiles.isEmpty()
+        || !deletePaths.isEmpty()
         || deleteExpression != Expressions.alwaysFalse()
         || !dropPartitions.isEmpty();
   }
@@ -308,11 +320,15 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       PartitionSpec spec = reader.spec();
       PartitionAndMetricsEvaluator evaluator =
           new PartitionAndMetricsEvaluator(tableSchema, spec, deleteExpression);
+      boolean hasDeletedFiles = manifestsWithDeletedFiles.contains(manifest.path());
+      if (hasDeletedFiles) {
+        return filterManifestWithDeletedFiles(evaluator, manifest, reader);
+      }
 
       // this assumes that the manifest doesn't have files to remove and streams through the
       // manifest without copying data. if a manifest does have a file to remove, this will break
       // out of the loop and move on to filtering the manifest.
-      boolean hasDeletedFiles = manifestHasDeletedFiles(evaluator, reader);
+      hasDeletedFiles = manifestHasDeletedFiles(evaluator, reader);
       if (!hasDeletedFiles) {
         filteredManifests.put(manifest, manifest);
         return manifest;
@@ -325,7 +341,15 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private boolean canContainDeletedFiles(ManifestFile manifest) {
+    boolean manifestReferencedInDelete = manifestsWithDeletedFiles.contains(manifest.path());
+    if (manifest.content() == ManifestContent.DELETES && allDeletesReferenceManifests) {
+      return manifestReferencedInDelete || manifest.minSequenceNumber() < minSequenceNumber;
+    } else if (manifestReferencedInDelete) {
+      return true;
+    }
+
     boolean canContainExpressionDeletes;
     if (deleteExpression != null && deleteExpression != Expressions.alwaysFalse()) {
       ManifestEvaluator manifestEvaluator =
