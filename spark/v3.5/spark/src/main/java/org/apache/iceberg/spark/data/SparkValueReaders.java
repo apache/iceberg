@@ -32,6 +32,7 @@ import org.apache.iceberg.avro.ValueReader;
 import org.apache.iceberg.avro.ValueReaders;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
@@ -72,6 +73,10 @@ public class SparkValueReaders {
 
   static ValueReader<ArrayBasedMapData> map(ValueReader<?> keyReader, ValueReader<?> valueReader) {
     return new MapReader(keyReader, valueReader);
+  }
+
+  static ValueReader<InternalRow> struct(List<Pair<Integer, ValueReader<?>>> readPlan, int numFields) {
+    return new PlannedStructReader(readPlan, numFields);
   }
 
   static ValueReader<InternalRow> struct(
@@ -246,6 +251,38 @@ public class SparkValueReaders {
       return new ArrayBasedMapData(
           new GenericArrayData(reusedKeyList.toArray()),
           new GenericArrayData(reusedValueList.toArray()));
+    }
+  }
+
+  static class PlannedStructReader extends ValueReaders.PlannedStructReader<InternalRow> {
+    private final int numFields;
+
+    protected PlannedStructReader(List<Pair<Integer, ValueReader<?>>> readPlan, int numFields) {
+      super(readPlan);
+      this.numFields = numFields;
+    }
+
+    @Override
+    protected InternalRow reuseOrCreate(Object reuse) {
+      if (reuse instanceof GenericInternalRow
+          && ((GenericInternalRow) reuse).numFields() == numFields) {
+        return (InternalRow) reuse;
+      }
+      return new GenericInternalRow(numFields);
+    }
+
+    @Override
+    protected Object get(InternalRow struct, int pos) {
+      return null;
+    }
+
+    @Override
+    protected void set(InternalRow struct, int pos, Object value) {
+      if (value != null) {
+        struct.update(pos, value);
+      } else {
+        struct.setNullAt(pos);
+      }
     }
   }
 

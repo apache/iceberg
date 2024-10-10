@@ -37,7 +37,7 @@ public class AvroWithPartnerVisitor<P, R> {
     P listElementPartner(P partnerList);
   }
 
-  static class FieldIDAccessors implements AvroWithPartnerVisitor.PartnerAccessors<Type> {
+  public static class FieldIDAccessors implements AvroWithPartnerVisitor.PartnerAccessors<Type> {
     private static final FieldIDAccessors INSTANCE = new FieldIDAccessors();
 
     public static FieldIDAccessors get() {
