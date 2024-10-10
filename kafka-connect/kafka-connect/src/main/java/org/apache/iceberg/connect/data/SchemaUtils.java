@@ -243,7 +243,7 @@ class SchemaUtils {
         case INT32:
           if (Date.LOGICAL_NAME.equals(valueSchema.name())) {
             return DateType.get();
-          } else if (Time.LOGICAL_NAME.equals(valueSchema.name())) {
+          } else if (!config.shouldConvertConnectTimeToIcebergIntegerType() && Time.LOGICAL_NAME.equals(valueSchema.name())) {
             return TimeType.get();
           }
           return IntegerType.get();
@@ -307,7 +307,7 @@ class SchemaUtils {
       } else if (value instanceof LocalDate) {
         return DateType.get();
       } else if (value instanceof LocalTime) {
-        return TimeType.get();
+        return config.shouldConvertConnectTimeToIcebergIntegerType() ? IntegerType.get() : TimeType.get();
       } else if (value instanceof java.util.Date || value instanceof OffsetDateTime) {
         return TimestampType.withZone();
       } else if (value instanceof LocalDateTime) {
