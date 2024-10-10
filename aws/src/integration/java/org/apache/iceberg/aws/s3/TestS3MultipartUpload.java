@@ -59,7 +59,7 @@ public class TestS3MultipartUpload {
 
   @AfterAll
   public static void afterClass() {
-    AwsIntegTestUtil.cleanS3Bucket(s3, bucketName, prefix);
+    AwsIntegTestUtil.cleanS3GeneralBucket(s3, bucketName, prefix);
   }
 
   @BeforeEach
