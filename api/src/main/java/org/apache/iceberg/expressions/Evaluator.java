@@ -169,5 +169,15 @@ public class Evaluator implements Serializable {
       T evalRes = valueExpr.eval(struct);
       return evalRes != null && ((Geometry) evalRes).covers((Geometry) lit.value());
     }
+
+    @Override
+    public <T> Boolean stDisjoint(Bound<T> valueExpr, Literal<T> lit) {
+      return !stIntersects(valueExpr, lit);
+    }
+
+    @Override
+    public <T> Boolean stNotCovers(Bound<T> valueExpr, Literal<T> lit) {
+      return !stCovers(valueExpr, lit);
+    }
   }
 }

@@ -537,6 +537,41 @@ public class InclusiveMetricsEvaluator {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean stDisjoint(BoundReference<T> ref, Literal<T> lit) {
+      Preconditions.checkArgument(
+          ref.type().typeId() == Type.TypeID.GEOMETRY,
+          "Cannot evaluate stDisjoint predicate on non-geometry column");
+      Integer id = ref.fieldId();
+
+      if (containsNullsOnly(id)) {
+        return ROWS_MIGHT_MATCH;
+      }
+
+      Geometry queryWindow = (Geometry) lit.value();
+      if (lowerBounds != null
+          && upperBounds != null
+          && lowerBounds.containsKey(id)
+          && upperBounds.containsKey(id)) {
+        Geometry lowerBound = Conversions.fromByteBuffer(ref.type(), lowerBounds.get(id));
+        Geometry upperBound = Conversions.fromByteBuffer(ref.type(), upperBounds.get(id));
+        if (lowerBound != null && upperBound != null) {
+          Envelope bound = new Envelope(lowerBound.getCoordinate(), upperBound.getCoordinate());
+          Geometry boundGeom = FACTORY.toGeometry(bound);
+          if (boundGeom.coveredBy(queryWindow)) {
+            return ROWS_CANNOT_MATCH;
+          }
+        }
+      }
+
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stNotCovers(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
     private boolean mayContainNull(Integer id) {
       return nullCounts == null || (nullCounts.containsKey(id) && nullCounts.get(id) != 0);
     }

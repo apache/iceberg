@@ -416,6 +416,16 @@ public class ParquetDictionaryRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean stDisjoint(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stNotCovers(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> Set<T> dict(int id, Comparator<T> comparator) {
       Preconditions.checkNotNull(dictionaries, "Dictionary is required");

@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import java.util.stream.Stream;
 import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.GeometryFieldMetrics;
+import org.apache.iceberg.util.GeometryUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.locationtech.jts.geom.Geometry;
@@ -37,6 +38,9 @@ public class ParquetGeometryValueWriters {
   private static class GeometryWKBWriter extends ParquetValueWriters.PrimitiveWriter<Geometry> {
 
     private final GeometryFieldMetrics.GenericBuilder metricsBuilder;
+    private final WKBWriter[] wkbWriters = {
+      new WKBWriter(2, false), new WKBWriter(3, false), new WKBWriter(4, false)
+    };
 
     GeometryWKBWriter(ColumnDescriptor desc) {
       super(desc);
@@ -46,8 +50,8 @@ public class ParquetGeometryValueWriters {
 
     @Override
     public void write(int rl, Geometry geom) {
-      WKBWriter wkbWriter = new WKBWriter(getDimension(geom), false);
-      byte[] wkb = wkbWriter.write(geom);
+      int numDimensions = GeometryUtil.getDimension(geom);
+      byte[] wkb = wkbWriters[numDimensions - 2].write(geom);
       column.writeBinary(rl, Binary.fromReusedByteArray(wkb));
       metricsBuilder.add(geom);
     }
@@ -56,11 +60,5 @@ public class ParquetGeometryValueWriters {
     public Stream<FieldMetrics<?>> metrics() {
       return Stream.of(metricsBuilder.build());
     }
-  }
-
-  private static int getDimension(Geometry geom) {
-    return geom.getCoordinate() != null && !java.lang.Double.isNaN(geom.getCoordinate().getZ())
-        ? 3
-        : 2;
   }
 }

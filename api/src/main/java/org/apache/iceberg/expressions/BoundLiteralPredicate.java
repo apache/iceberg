@@ -93,6 +93,10 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         return ((Geometry) value).intersects((Geometry) literal.value());
       case ST_COVERS:
         return ((Geometry) value).covers((Geometry) literal.value());
+      case ST_DISJOINT:
+        return ((Geometry) value).disjoint((Geometry) literal.value());
+      case ST_NOT_COVERS:
+        return !((Geometry) value).covers((Geometry) literal.value());
       default:
         throw new IllegalStateException("Invalid operation for BoundLiteralPredicate: " + op());
     }
@@ -167,7 +171,11 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
       case ST_INTERSECTS:
         return term() + " intersects " + literal;
       case ST_COVERS:
-        return term() + " coveredBy " + literal;
+        return term() + " covers " + literal;
+      case ST_DISJOINT:
+        return term() + " disjoint " + literal;
+      case ST_NOT_COVERS:
+        return term() + " notCovers " + literal;
       case IN:
         return term() + " in { " + literal + " }";
       case NOT_IN:

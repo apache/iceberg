@@ -62,7 +62,10 @@ public class TestSerializableTypes {
           Types.DecimalType.of(9, 3),
           Types.DecimalType.of(11, 0),
           Types.FixedType.ofLength(4),
-          Types.FixedType.ofLength(34)
+          Types.FixedType.ofLength(34),
+          Types.GeometryType.get(),
+          Types.GeometryType.of("test_crs"),
+          Types.GeometryType.of("test_crs", Types.GeometryType.Edges.SPHERICAL)
         };
 
     for (Type type : equalityPrimitives) {

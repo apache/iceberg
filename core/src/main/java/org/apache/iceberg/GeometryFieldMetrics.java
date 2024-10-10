@@ -125,6 +125,7 @@ public class GeometryFieldMetrics extends FieldMetrics<Geometry> {
     }
 
     @Override
+    @SuppressWarnings("LocalVariableName")
     public void filter(Coordinate coord) {
       double x = coord.getX();
       double y = coord.getY();

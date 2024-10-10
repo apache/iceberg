@@ -34,6 +34,9 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.junit.jupiter.api.Test;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class TestExpressionUtil {
   private static final Schema SCHEMA =
@@ -47,7 +50,8 @@ public class TestExpressionUtil {
           Types.NestedField.required(7, "time", Types.DateType.get()),
           Types.NestedField.optional(8, "data", Types.StringType.get()),
           Types.NestedField.optional(9, "measurement", Types.DoubleType.get()),
-          Types.NestedField.optional(10, "test", Types.IntegerType.get()));
+          Types.NestedField.optional(10, "test", Types.IntegerType.get()),
+          Types.NestedField.optional(11, "geom", Types.GeometryType.get()));
 
   private static final Types.StructType STRUCT = SCHEMA.asStruct();
 
@@ -797,7 +801,45 @@ public class TestExpressionUtil {
   }
 
   @Test
+  public void testSanitizeSpatialPredicates() {
+    Pattern filterPattern = Pattern.compile("^g (\\w+) \\(geometry\\)$");
+    GeometryFactory factory = new GeometryFactory();
+    Geometry queryWindow = factory.toGeometry(new Envelope(0, 1, 0, 1));
+    Geometry emptyGeometry = factory.createPoint();
+
+    assertEquals(
+        ExpressionUtil.sanitize(Expressions.stIntersects("g", queryWindow)),
+        ExpressionUtil.sanitize(Expressions.stIntersects("g", emptyGeometry)));
+    String sanitizedFilter =
+        ExpressionUtil.toSanitizedString(Expressions.stIntersects("g", queryWindow));
+    assertThat(filterPattern.matcher(sanitizedFilter)).matches();
+    assertThat(sanitizedFilter).contains("ST_INTERSECTS");
+
+    assertEquals(
+        ExpressionUtil.sanitize(Expressions.stCovers("g", queryWindow)),
+        ExpressionUtil.sanitize(Expressions.stCovers("g", emptyGeometry)));
+    sanitizedFilter = ExpressionUtil.toSanitizedString(Expressions.stCovers("g", queryWindow));
+    assertThat(filterPattern.matcher(sanitizedFilter)).matches();
+    assertThat(sanitizedFilter).contains("ST_COVERS");
+
+    assertEquals(
+        ExpressionUtil.sanitize(Expressions.stDisjoint("g", queryWindow)),
+        ExpressionUtil.sanitize(Expressions.stDisjoint("g", emptyGeometry)));
+    sanitizedFilter = ExpressionUtil.toSanitizedString(Expressions.stDisjoint("g", queryWindow));
+    assertThat(filterPattern.matcher(sanitizedFilter)).matches();
+    assertThat(sanitizedFilter).contains("ST_DISJOINT");
+
+    assertEquals(
+        ExpressionUtil.sanitize(Expressions.stNotCovers("g", queryWindow)),
+        ExpressionUtil.sanitize(Expressions.stNotCovers("g", emptyGeometry)));
+    sanitizedFilter = ExpressionUtil.toSanitizedString(Expressions.stNotCovers("g", queryWindow));
+    assertThat(filterPattern.matcher(sanitizedFilter)).matches();
+    assertThat(sanitizedFilter).contains("ST_NOT_COVERS");
+  }
+
+  @Test
   public void testIdenticalExpressionIsEquivalent() {
+    GeometryFactory factory = new GeometryFactory();
     Expression[] exprs =
         new Expression[] {
           Expressions.isNull("data"),
@@ -814,10 +856,14 @@ public class TestExpressionUtil {
           Expressions.notIn("id", 5, 6),
           Expressions.startsWith("data", "aaa"),
           Expressions.notStartsWith("data", "aaa"),
+          Expressions.stIntersects("geom", factory.toGeometry(new Envelope(0, 1, 0, 1))),
+          Expressions.stCovers("geom", factory.toGeometry(new Envelope(0, 1, 0, 1))),
+          Expressions.stDisjoint("geom", factory.toGeometry(new Envelope(0, 1, 0, 1))),
+          Expressions.stNotCovers("geom", factory.toGeometry(new Envelope(0, 1, 0, 1))),
           Expressions.alwaysTrue(),
           Expressions.alwaysFalse(),
           Expressions.and(Expressions.lessThan("id", 5), Expressions.notNull("data")),
-          Expressions.or(Expressions.lessThan("id", 5), Expressions.notNull("data")),
+          Expressions.or(Expressions.lessThan("id", 5), Expressions.notNull("data"))
         };
 
     for (Expression expr : exprs) {
