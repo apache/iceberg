@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.azure.adlsv2;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,17 +27,25 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * This class represents a fully qualified location in Azure expressed as a URI.
+ * This class represents a fully qualified location in Azure Data Lake Storage, expressed as a URI.
  *
  * <p>Locations follow the conventions used by Hadoop's Azure support, i.e.
  *
- * <pre>{@code abfs[s]://[<container>@]<storage account host>/<file path>}</pre>
+ * <pre>{@code abfs[s]://[<container>@]<storageAccount>.dfs.core.windows.net/<path>}</pre>
  *
- * <p>See <a href="https://hadoop.apache.org/docs/stable/hadoop-azure/abfs.html">Hadoop Azure
- * Support</a>
+ * or
+ *
+ * <pre>{@code wasb[s]://<container>@<storageAccount>.blob.core.windows.net/<path>}</pre>
+ *
+ * For compatibility, paths using the wasb scheme are also accepted but will be processed via the
+ * Azure Data Lake Storage Gen2 APIs and not the Blob Storage APIs.
+ *
+ * <p>See <a
+ * href="https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction-abfs-uri#uri-syntax">Hadoop
+ * Azure Support</a>
  */
 class ADLSLocation {
-  private static final Pattern URI_PATTERN = Pattern.compile("^abfss?://([^/?#]+)(.*)?$");
+  private static final Pattern URI_PATTERN = Pattern.compile("^(abfss?|wasbs?)://([^/?#]+)(.*)?$");
 
   private final String storageAccount;
   private final String container;
@@ -53,19 +63,17 @@ class ADLSLocation {
 
     ValidationException.check(matcher.matches(), "Invalid ADLS URI: %s", location);
 
-    String authority = matcher.group(1);
-    String[] parts = authority.split("@", -1);
-    if (parts.length > 1) {
-      this.container = parts[0];
-      this.storageAccount = parts[1];
-    } else {
-      this.container = null;
-      this.storageAccount = authority;
+    try {
+      URI uri = new URI(location);
+      this.container = uri.getUserInfo();
+      // storage account name is the first part of the host
+      int accountSplit = uri.getHost().indexOf('.');
+      String storageAccountName = uri.getHost().substring(0, accountSplit);
+      this.storageAccount = String.format("%s.dfs.core.windows.net", storageAccountName);
+      this.path = uri.getPath().length() > 1 ? uri.getRawPath().substring(1) : "";
+    } catch (URISyntaxException e) {
+      throw new ValidationException("Invalid URI: %s", location);
     }
-
-    String uriPath = matcher.group(2);
-    uriPath = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
-    this.path = uriPath.split("\\?", -1)[0].split("#", -1)[0];
   }
 
   /** Returns Azure storage account. */
