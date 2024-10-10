@@ -21,7 +21,6 @@ package org.apache.iceberg.rest.responses;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.util.Optional;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.credentials.CredentialParser;
@@ -98,10 +97,9 @@ public class LoadViewResponseParser {
       Preconditions.checkArgument(
           credentials.isArray(), "Cannot parse credentials from non-array: %s", credentials);
 
-      credentials.forEach(
-          cred ->
-              Optional.ofNullable(CredentialParser.fromJson(cred))
-                  .ifPresent(builder::addCredentials));
+      for (JsonNode credential : credentials) {
+        builder.addCredentials(CredentialParser.fromJson(credential));
+      }
     }
 
     return builder.build();

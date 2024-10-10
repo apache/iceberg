@@ -21,65 +21,31 @@ package org.apache.iceberg.rest.credentials;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import java.time.Instant;
+import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.JsonUtil;
 
 public class CredentialParser {
-  private static final String TYPE = "type";
-  private static final String S3 = "s3";
-  private static final String GCS = "gcs";
-  private static final String ADLS = "adls";
-  private static final String ACCESS_KEY_ID = "access-key-id";
-  private static final String SECRET_ACCESS_KEY = "secret-access-key";
-  private static final String GCS_TOKEN = "token";
-  private static final String ADLS_TOKEN = "sas-token";
-  private static final String S3_TOKEN = "session-token";
-  private static final String EXPIRES_AT = "expires-at-ms";
   private static final String PREFIX = "prefix";
+  private static final String CONFIG = "config";
 
   private CredentialParser() {}
 
-  public static String toJson(Credential credentials) {
-    return toJson(credentials, false);
+  public static String toJson(Credential credential) {
+    return toJson(credential, false);
   }
 
-  public static String toJson(Credential credentials, boolean pretty) {
-    return JsonUtil.generate(gen -> toJson(credentials, gen), pretty);
+  public static String toJson(Credential credential, boolean pretty) {
+    return JsonUtil.generate(gen -> toJson(credential, gen), pretty);
   }
 
-  public static void toJson(Credential credentials, JsonGenerator gen) throws IOException {
-    Preconditions.checkArgument(null != credentials, "Invalid credential: null");
+  public static void toJson(Credential credential, JsonGenerator gen) throws IOException {
+    Preconditions.checkArgument(null != credential, "Invalid credential: null");
 
     gen.writeStartObject();
 
-    if (credentials instanceof S3Credential) {
-      S3Credential s3 = (S3Credential) credentials;
-      gen.writeStringField(TYPE, S3);
-      gen.writeStringField(ACCESS_KEY_ID, s3.accessKeyId());
-      gen.writeStringField(SECRET_ACCESS_KEY, s3.secretAccessKey());
-      gen.writeStringField(S3_TOKEN, s3.sessionToken());
-      gen.writeNumberField(EXPIRES_AT, s3.expiresAt().toEpochMilli());
-      if (null != s3.prefix()) {
-        gen.writeStringField(PREFIX, s3.prefix());
-      }
-    } else if (credentials instanceof GcsCredential) {
-      GcsCredential gcs = (GcsCredential) credentials;
-      gen.writeStringField(TYPE, GCS);
-      gen.writeStringField(GCS_TOKEN, gcs.token());
-      gen.writeNumberField(EXPIRES_AT, gcs.expiresAt().toEpochMilli());
-      if (null != gcs.prefix()) {
-        gen.writeStringField(PREFIX, gcs.prefix());
-      }
-    } else if (credentials instanceof AdlsCredential) {
-      AdlsCredential adls = (AdlsCredential) credentials;
-      gen.writeStringField(TYPE, ADLS);
-      gen.writeStringField(ADLS_TOKEN, adls.sasToken());
-      gen.writeNumberField(EXPIRES_AT, adls.expiresAt().toEpochMilli());
-      if (null != adls.prefix()) {
-        gen.writeStringField(PREFIX, adls.prefix());
-      }
-    }
+    gen.writeStringField(PREFIX, credential.prefix());
+    JsonUtil.writeStringMap(CONFIG, credential.config(), gen);
 
     gen.writeEndObject();
   }
@@ -90,32 +56,8 @@ public class CredentialParser {
 
   public static Credential fromJson(JsonNode json) {
     Preconditions.checkArgument(null != json, "Cannot parse credential from null object");
-    String credentialType = JsonUtil.getString(TYPE, json);
-    String prefix = JsonUtil.getStringOrNull(PREFIX, json);
-    switch (credentialType) {
-      case S3:
-        return ImmutableS3Credential.builder()
-            .prefix(prefix)
-            .accessKeyId(JsonUtil.getString(ACCESS_KEY_ID, json))
-            .secretAccessKey(JsonUtil.getString(SECRET_ACCESS_KEY, json))
-            .sessionToken(JsonUtil.getString(S3_TOKEN, json))
-            .expiresAt(Instant.ofEpochMilli(JsonUtil.getLong(EXPIRES_AT, json)))
-            .build();
-      case GCS:
-        return ImmutableGcsCredential.builder()
-            .prefix(prefix)
-            .token(JsonUtil.getString(GCS_TOKEN, json))
-            .expiresAt(Instant.ofEpochMilli(JsonUtil.getLong(EXPIRES_AT, json)))
-            .build();
-      case ADLS:
-        return ImmutableAdlsCredential.builder()
-            .prefix(prefix)
-            .sasToken(JsonUtil.getString(ADLS_TOKEN, json))
-            .expiresAt(Instant.ofEpochMilli(JsonUtil.getLong(EXPIRES_AT, json)))
-            .build();
-
-      default:
-        return null;
-    }
+    String prefix = JsonUtil.getString(PREFIX, json);
+    Map<String, String> config = JsonUtil.getStringMap(CONFIG, json);
+    return ImmutableCredential.builder().prefix(prefix).config(config).build();
   }
 }

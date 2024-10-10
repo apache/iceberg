@@ -22,14 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import java.time.Instant;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.credentials.ImmutableAdlsCredential;
-import org.apache.iceberg.rest.credentials.ImmutableGcsCredential;
+import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 
@@ -224,20 +222,30 @@ public class TestLoadTableResponseParser {
             .withTableMetadata(metadata)
             .addAllConfig(ImmutableMap.of("key1", "val1", "key2", "val2"))
             .addCredential(
-                ImmutableGcsCredential.builder()
-                    .token("gcsToken")
-                    .expiresAt(Instant.ofEpochMilli(1000))
+                ImmutableCredential.builder()
+                    .prefix("s3://custom-uri")
+                    .config(
+                        ImmutableMap.of(
+                            "s3.access-key-id",
+                            "keyId",
+                            "s3.secret-access-key",
+                            "accessKey",
+                            "s3.session-token",
+                            "sessionToken"))
                     .build())
             .addCredential(
-                ImmutableGcsCredential.builder()
+                ImmutableCredential.builder()
                     .prefix("gs://custom-uri")
-                    .token("token")
-                    .expiresAt(Instant.ofEpochMilli(1000))
+                    .config(
+                        ImmutableMap.of(
+                            "gcs.oauth2.token", "gcsToken1", "gcs.oauth2.token-expires-at", "1000"))
                     .build())
             .addCredential(
-                ImmutableAdlsCredential.builder()
-                    .sasToken("sasToken")
-                    .expiresAt(Instant.ofEpochMilli(1000))
+                ImmutableCredential.builder()
+                    .prefix("gs")
+                    .config(
+                        ImmutableMap.of(
+                            "gcs.oauth2.token", "gcsToken2", "gcs.oauth2.token-expires-at", "2000"))
                     .build())
             .build();
 
@@ -288,18 +296,24 @@ public class TestLoadTableResponseParser {
                 + "    \"key2\" : \"val2\"\n"
                 + "  },\n"
                 + "  \"storage-credentials\" : [ {\n"
-                + "    \"type\" : \"gcs\",\n"
-                + "    \"token\" : \"gcsToken\",\n"
-                + "    \"expires-at-ms\" : 1000\n"
+                + "    \"prefix\" : \"s3://custom-uri\",\n"
+                + "    \"config\" : {\n"
+                + "      \"s3.access-key-id\" : \"keyId\",\n"
+                + "      \"s3.secret-access-key\" : \"accessKey\",\n"
+                + "      \"s3.session-token\" : \"sessionToken\"\n"
+                + "    }\n"
                 + "  }, {\n"
-                + "    \"type\" : \"gcs\",\n"
-                + "    \"token\" : \"token\",\n"
-                + "    \"expires-at-ms\" : 1000,\n"
-                + "    \"prefix\" : \"gs://custom-uri\"\n"
+                + "    \"prefix\" : \"gs://custom-uri\",\n"
+                + "    \"config\" : {\n"
+                + "      \"gcs.oauth2.token\" : \"gcsToken1\",\n"
+                + "      \"gcs.oauth2.token-expires-at\" : \"1000\"\n"
+                + "    }\n"
                 + "  }, {\n"
-                + "    \"type\" : \"adls\",\n"
-                + "    \"sas-token\" : \"sasToken\",\n"
-                + "    \"expires-at-ms\" : 1000\n"
+                + "    \"prefix\" : \"gs\",\n"
+                + "    \"config\" : {\n"
+                + "      \"gcs.oauth2.token\" : \"gcsToken2\",\n"
+                + "      \"gcs.oauth2.token-expires-at\" : \"2000\"\n"
+                + "    }\n"
                 + "  } ]\n"
                 + "}",
             metadata.lastUpdatedMillis());
@@ -309,101 +323,5 @@ public class TestLoadTableResponseParser {
     // can't do an equality comparison because Schema doesn't implement equals/hashCode
     assertThat(LoadTableResponseParser.toJson(LoadTableResponseParser.fromJson(json), true))
         .isEqualTo(expectedJson);
-  }
-
-  @Test
-  public void unknownCredentials() {
-    String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
-    TableMetadata metadata =
-        TableMetadata.buildFromEmpty()
-            .assignUUID(uuid)
-            .setLocation("location")
-            .setCurrentSchema(
-                new Schema(Types.NestedField.required(1, "x", Types.LongType.get())), 1)
-            .addPartitionSpec(PartitionSpec.unpartitioned())
-            .addSortOrder(SortOrder.unsorted())
-            .discardChanges()
-            .withMetadataLocation("metadata-location")
-            .build();
-
-    LoadTableResponse expected =
-        LoadTableResponse.builder()
-            .withTableMetadata(metadata)
-            .addAllConfig(ImmutableMap.of("key1", "val1", "key2", "val2"))
-            .addCredential(
-                ImmutableAdlsCredential.builder()
-                    .sasToken("sasToken")
-                    .expiresAt(Instant.ofEpochMilli(1000))
-                    .build())
-            .build();
-
-    String json =
-        String.format(
-            "{\n"
-                + "  \"metadata-location\" : \"metadata-location\",\n"
-                + "  \"metadata\" : {\n"
-                + "    \"format-version\" : 2,\n"
-                + "    \"table-uuid\" : \"386b9f01-002b-4d8c-b77f-42c3fd3b7c9b\",\n"
-                + "    \"location\" : \"location\",\n"
-                + "    \"last-sequence-number\" : 0,\n"
-                + "    \"last-updated-ms\" : %s,\n"
-                + "    \"last-column-id\" : 1,\n"
-                + "    \"current-schema-id\" : 0,\n"
-                + "    \"schemas\" : [ {\n"
-                + "      \"type\" : \"struct\",\n"
-                + "      \"schema-id\" : 0,\n"
-                + "      \"fields\" : [ {\n"
-                + "        \"id\" : 1,\n"
-                + "        \"name\" : \"x\",\n"
-                + "        \"required\" : true,\n"
-                + "        \"type\" : \"long\"\n"
-                + "      } ]\n"
-                + "    } ],\n"
-                + "    \"default-spec-id\" : 0,\n"
-                + "    \"partition-specs\" : [ {\n"
-                + "      \"spec-id\" : 0,\n"
-                + "      \"fields\" : [ ]\n"
-                + "    } ],\n"
-                + "    \"last-partition-id\" : 999,\n"
-                + "    \"default-sort-order-id\" : 0,\n"
-                + "    \"sort-orders\" : [ {\n"
-                + "      \"order-id\" : 0,\n"
-                + "      \"fields\" : [ ]\n"
-                + "    } ],\n"
-                + "    \"properties\" : { },\n"
-                + "    \"current-snapshot-id\" : -1,\n"
-                + "    \"refs\" : { },\n"
-                + "    \"snapshots\" : [ ],\n"
-                + "    \"statistics\" : [ ],\n"
-                + "    \"partition-statistics\" : [ ],\n"
-                + "    \"snapshot-log\" : [ ],\n"
-                + "    \"metadata-log\" : [ ]\n"
-                + "  },\n"
-                + "  \"config\" : {\n"
-                + "    \"key1\" : \"val1\",\n"
-                + "    \"key2\" : \"val2\"\n"
-                + "  },\n"
-                + "  \"storage-credentials\" : [ {\n"
-                + "    \"type\" : \"unknown1\",\n"
-                + "    \"scheme\" : \"gs\",\n"
-                + "    \"token\" : \"gcsToken\",\n"
-                + "    \"expires-at-ms\" : 1000\n"
-                + "  }, {\n"
-                + "    \"type\" : \"unknown2\",\n"
-                + "    \"scheme\" : \"gs://custom-uri\",\n"
-                + "    \"token\" : \"token\",\n"
-                + "    \"expires-at-ms\" : 1000\n"
-                + "  }, {\n"
-                + "    \"type\" : \"adls\",\n"
-                + "    \"scheme\" : \"afbs\",\n"
-                + "    \"sas-token\" : \"sasToken\",\n"
-                + "    \"expires-at-ms\" : 1000\n"
-                + "  } ]\n"
-                + "}",
-            metadata.lastUpdatedMillis());
-
-    assertThat(LoadTableResponseParser.fromJson(json).credentials())
-        .hasSize(1)
-        .isEqualTo(expected.credentials());
   }
 }
