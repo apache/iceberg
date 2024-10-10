@@ -55,14 +55,12 @@ public class CommitterImpl implements Committer {
   private final SinkTaskContext context;
   private final KafkaClientFactory clientFactory;
   private Collection<MemberDescription> membersWhenWorkerIsCoordinator;
-  private final Admin admin;
 
   public CommitterImpl(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
     this.catalog = catalog;
     this.config = config;
     this.context = context;
     this.clientFactory = new KafkaClientFactory(config.kafkaProps());
-    this.admin = clientFactory.createAdmin();
   }
 
   public CommitterImpl() {
@@ -70,7 +68,6 @@ public class CommitterImpl implements Committer {
     this.config = null;
     this.context = null;
     this.clientFactory = null;
-    this.admin = null;
   }
 
   static class TopicPartitionComparator implements Comparator<TopicPartition> {
@@ -91,7 +88,7 @@ public class CommitterImpl implements Committer {
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
     }
-    if (groupDesc.state() == ConsumerGroupState.STABLE) {
+      if (groupDesc.state() == ConsumerGroupState.STABLE) {
       Collection<MemberDescription> members = groupDesc.members();
       Set<TopicPartition> partitions = context.assignment();
       if (isLeader(members, partitions)) {
@@ -125,7 +122,7 @@ public class CommitterImpl implements Committer {
   @Override
   public void syncLastCommittedOffsets() {
     Map<TopicPartition, Long> stableConsumerOffsets;
-    try {
+    try (Admin admin = clientFactory.createAdmin()) {
       ListConsumerGroupOffsetsResult response =
               admin.listConsumerGroupOffsets(
                       config.connectGroupId(), new ListConsumerGroupOffsetsOptions().requireStable(true));
