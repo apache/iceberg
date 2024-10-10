@@ -46,26 +46,31 @@ public class IcebergSinkTask extends SinkTask {
   @Override
   public void start(Map<String, String> props) {
     this.config = new IcebergSinkConfig(props);
+    catalog = CatalogUtils.loadCatalog(config);
+    committer = CommitterFactory.createCommitter(catalog, config, context);
   }
 
   @Override
   public void open(Collection<TopicPartition> partitions) {
-    Preconditions.checkArgument(catalog == null, "Catalog already open");
-    Preconditions.checkArgument(committer == null, "Committer already open");
-
-    catalog = CatalogUtils.loadCatalog(config);
-    committer = CommitterFactory.createCommitter(config);
-    committer.start(catalog, config, context);
+    if(committer.isLeader(partitions)) {
+      committer.start(ResourceType.COORDINATOR);
+    }
+    committer.syncLastCommittedOffsets();
   }
 
   @Override
   public void close(Collection<TopicPartition> partitions) {
-    close();
+    // We need to close worker here in every case to ensure exactly once.
+    committer.stop(ResourceType.WORKER);
+    if(committer.isLeader(partitions)) {
+      committer.stop(ResourceType.COORDINATOR);
+    }
   }
 
   private void close() {
     if (committer != null) {
-      committer.stop();
+      committer.stop(ResourceType.WORKER);
+      committer.stop(ResourceType.COORDINATOR);
       committer = null;
     }
 
