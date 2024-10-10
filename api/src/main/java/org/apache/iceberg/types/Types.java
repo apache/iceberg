@@ -58,8 +58,8 @@ public class Types {
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[\\s*(\\d+)\\s*\\]");
-  private static final Pattern GEOMETRY =
-      Pattern.compile("geometry(?:\\(\\s*(\\w+)?\\s*(?:,\\s*(\\w+)\\s*)?\\))?");
+  private static final Pattern GEOMETRY_PARAMETERS =
+      Pattern.compile("(?:\\(\\s*([^,]+)?\\s*(?:,\\s*(\\w+)\\s*)?\\))?");
   private static final Pattern DECIMAL =
       Pattern.compile("decimal\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)");
 
@@ -69,9 +69,11 @@ public class Types {
       return TYPES.get(lowerTypeString);
     }
 
-    Matcher geometry = GEOMETRY.matcher(lowerTypeString);
-    if (geometry.matches()) {
-      return GeometryType.of(geometry.group(1), geometry.group(2));
+    if (lowerTypeString.startsWith("geometry")) {
+      Matcher geometry = GEOMETRY_PARAMETERS.matcher(typeString.substring(8));
+      if (geometry.matches()) {
+        return GeometryType.of(geometry.group(1), geometry.group(2));
+      }
     }
 
     Matcher fixed = FIXED.matcher(lowerTypeString);
@@ -491,8 +493,12 @@ public class Types {
         return value;
       }
 
-      public static Edges fromName(String value) {
-        return Edges.valueOf(value.toUpperCase(Locale.ENGLISH));
+      public static Edges fromName(String edgesName) {
+        try {
+          return Edges.valueOf(edgesName.toUpperCase(Locale.ENGLISH));
+        } catch (IllegalArgumentException e) {
+          throw new IllegalArgumentException(String.format("Invalid edges name: %s", edgesName), e);
+        }
       }
     }
 

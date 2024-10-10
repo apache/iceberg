@@ -136,6 +136,16 @@ public class ExpressionVisitors {
           "stContains expression is not supported by the visitor");
     }
 
+    public <T> R stDisjoint(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException(
+          "stDisjoint expression is not supported by the visitor");
+    }
+
+    public <T> R stNotCovers(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException(
+          "stNotCovers expression is not supported by the visitor");
+    }
+
     /**
      * Handle a non-reference value in this visitor.
      *
@@ -180,6 +190,10 @@ public class ExpressionVisitors {
             return stIntersects((BoundReference<T>) pred.term(), literalPred.literal());
           case ST_COVERS:
             return stCovers((BoundReference<T>) pred.term(), literalPred.literal());
+          case ST_DISJOINT:
+            return stDisjoint((BoundReference<T>) pred.term(), literalPred.literal());
+          case ST_NOT_COVERS:
+            return stNotCovers((BoundReference<T>) pred.term(), literalPred.literal());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -288,6 +302,14 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("Unsupported operation.");
     }
 
+    public <T> R stDisjoint(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
+    public <T> R stNotCovers(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
     @Override
     public <T> R predicate(BoundPredicate<T> pred) {
       if (pred.isLiteralPredicate()) {
@@ -313,6 +335,10 @@ public class ExpressionVisitors {
             return stIntersects(pred.term(), literalPred.literal());
           case ST_COVERS:
             return stCovers(pred.term(), literalPred.literal());
+          case ST_DISJOINT:
+            return stDisjoint(pred.term(), literalPred.literal());
+          case ST_NOT_COVERS:
+            return stNotCovers(pred.term(), literalPred.literal());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -495,6 +521,10 @@ public class ExpressionVisitors {
             return stIntersects(pred.term(), literalPred.literal());
           case ST_COVERS:
             return stCovers(pred.term(), literalPred.literal());
+          case ST_DISJOINT:
+            return stDisjoint(pred.term(), literalPred.literal());
+          case ST_NOT_COVERS:
+            return stNotCovers(pred.term(), literalPred.literal());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -591,6 +621,14 @@ public class ExpressionVisitors {
     }
 
     public <T> R stCovers(BoundTerm<T> term, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R stDisjoint(BoundTerm<T> term, Literal<T> lit) {
+      return null;
+    }
+
+    public <T> R stNotCovers(BoundTerm<T> term, Literal<T> lit) {
       return null;
     }
   }

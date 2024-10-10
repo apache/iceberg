@@ -215,6 +215,22 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.ST_COVERS, expr, value);
   }
 
+  public static UnboundPredicate<Geometry> stDisjoint(String name, Geometry value) {
+    return new UnboundPredicate<>(Expression.Operation.ST_DISJOINT, ref(name), value);
+  }
+
+  public static UnboundPredicate<Geometry> stDisjoint(UnboundTerm<Geometry> expr, Geometry value) {
+    return new UnboundPredicate<>(Expression.Operation.ST_DISJOINT, expr, value);
+  }
+
+  public static UnboundPredicate<Geometry> stNotCovers(String name, Geometry value) {
+    return new UnboundPredicate<>(Expression.Operation.ST_NOT_COVERS, ref(name), value);
+  }
+
+  public static UnboundPredicate<Geometry> stNotCovers(UnboundTerm<Geometry> expr, Geometry value) {
+    return new UnboundPredicate<>(Expression.Operation.ST_NOT_COVERS, expr, value);
+  }
+
   public static <T> UnboundPredicate<T> in(String name, T... values) {
     return predicate(Operation.IN, name, Lists.newArrayList(values));
   }

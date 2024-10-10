@@ -271,6 +271,18 @@ public class ParquetBloomRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean stDisjoint(BoundReference<T> ref, Literal<T> lit) {
+      // bloom filter is based on hash and cannot eliminate based on stDisjoint
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stNotCovers(BoundReference<T> ref, Literal<T> lit) {
+      // bloom filter is based on hash and cannot eliminate based on stNotCovers
+      return ROWS_MIGHT_MATCH;
+    }
+
     private BloomFilter loadBloomFilter(int id) {
       if (bloomCache.containsKey(id)) {
         return bloomCache.get(id);
