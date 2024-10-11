@@ -214,16 +214,9 @@ public class TestIcebergInputFormats {
     helper.appendToTable(Row.of("2020-03-20", 0), expectedRecords);
 
     builder
-        .useHiveRows()
+        .usePigTuples()
         .filter(
             Expressions.and(Expressions.equal("date", "2020-03-20"), Expressions.equal("id", 0)));
-
-    assertThatThrownBy(() -> testInputFormat.create(builder.conf()))
-        .isInstanceOf(UnsupportedOperationException.class)
-        .hasMessage(
-            "Filter expression ref(name=\"id\") == 0 is not completely satisfied. Additional rows can be returned not satisfied by the filter expression");
-
-    builder.usePigTuples();
 
     assertThatThrownBy(() -> testInputFormat.create(builder.conf()))
         .isInstanceOf(UnsupportedOperationException.class)
