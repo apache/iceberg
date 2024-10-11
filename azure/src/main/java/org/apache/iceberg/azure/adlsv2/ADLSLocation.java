@@ -23,7 +23,6 @@ import java.net.URISyntaxException;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
@@ -45,9 +44,9 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  * Azure Support</a>
  */
 class ADLSLocation {
-  private static final Pattern URI_PATTERN = Pattern.compile("^(abfss?|wasbs?)://([^/?#]+)(.*)?$");
+  private static final Pattern URI_PATTERN = Pattern.compile("^(abfss?|wasbs?)://[^/?#]+.*$");
 
-  private final String storageAccount;
+  private final String storageEndpoint;
   private final String container;
   private final String path;
 
@@ -60,25 +59,23 @@ class ADLSLocation {
     Preconditions.checkArgument(location != null, "Invalid location: null");
 
     Matcher matcher = URI_PATTERN.matcher(location);
-
-    ValidationException.check(matcher.matches(), "Invalid ADLS URI: %s", location);
+    if (!matcher.matches()) {
+      throw new IllegalArgumentException(String.format("Invalid ADLS URI: %s", location));
+    }
 
     try {
       URI uri = new URI(location);
       this.container = uri.getUserInfo();
-      // storage account name is the first part of the host
-      int accountSplit = uri.getHost().indexOf('.');
-      String storageAccountName = uri.getHost().substring(0, accountSplit);
-      this.storageAccount = String.format("%s.dfs.core.windows.net", storageAccountName);
-      this.path = uri.getPath().length() > 1 ? uri.getRawPath().substring(1) : "";
+      this.storageEndpoint = uri.getHost();
+      this.path = stripLeadingSlash(uri.getRawPath());
     } catch (URISyntaxException e) {
-      throw new ValidationException("Invalid URI: %s", location);
+      throw new IllegalArgumentException(String.format("Invalid ADLS URI: %s", location), e);
     }
   }
 
-  /** Returns Azure storage account. */
-  public String storageAccount() {
-    return storageAccount;
+  /** Returns Azure storage service endpoint. */
+  public String storageEndpoint() {
+    return storageEndpoint;
   }
 
   /** Returns Azure container name. */
@@ -89,5 +86,13 @@ class ADLSLocation {
   /** Returns ADLS path. */
   public String path() {
     return path;
+  }
+
+  private static String stripLeadingSlash(String path) {
+    if (path.startsWith("/")) {
+      return path.substring(1);
+    } else {
+      return path;
+    }
   }
 }
