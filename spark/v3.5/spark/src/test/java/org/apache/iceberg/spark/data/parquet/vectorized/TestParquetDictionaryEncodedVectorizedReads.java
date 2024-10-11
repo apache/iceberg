@@ -141,9 +141,9 @@ public class TestParquetDictionaryEncodedVectorizedReads extends TestParquetVect
             .build()) {
       writer.addAll(records);
     }
-    // After this, parquetFile contains one column chunk of binary data in five pages,
-    // the first two RLE dictionary encoded, and the remaining three plain encoded.
 
+    // After the above, parquetFile contains one column chunk of binary data in five pages,
+    // the first two RLE dictionary encoded, and the remaining three plain encoded.
     assertRecordsMatch(schema, 500, records, parquetFile, true, BATCH_SIZE);
   }
 
