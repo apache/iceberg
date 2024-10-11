@@ -35,7 +35,7 @@ import org.immutables.value.Value;
 
 /** Context object with optional arguments for a TableScan. */
 @Value.Immutable
-abstract class TableScanContext {
+public abstract class TableScanContext {
 
   @Nullable
   public abstract Long snapshotId();
