@@ -26,7 +26,6 @@ import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_REST;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -71,14 +70,14 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   @BeforeAll
-  public static void setUpAll() throws IOException {
+  public static void setUpAll() throws Exception {
     TestBaseWithCatalog.warehouse = File.createTempFile("warehouse", null);
     assertThat(warehouse.delete()).isTrue();
     startRESTServer();
   }
 
   @AfterAll
-  public static void tearDownAll() throws IOException {
+  public static void tearDownAll() throws Exception {
     if (warehouse != null && warehouse.exists()) {
       Path warehousePath = new Path(warehouse.getAbsolutePath());
       FileSystem fs = warehousePath.getFileSystem(hiveConf);
@@ -87,38 +86,30 @@ public abstract class TestBaseWithCatalog extends TestBase {
     stopRESTServer();
   }
 
-  private static void startRESTServer() {
-    try {
-      restServer = new RESTCatalogServer();
-      // prevent using already-in-use port when testing
-      System.setProperty("rest.port", String.valueOf(MetaStoreUtils.findFreePort()));
-      System.setProperty(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath());
-      // In-memory sqlite database by default is private to the connection that created it.
-      // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
-      // JdbcCatalog, then different jdbc connections could provide different views of table
-      // status even belonging to the same catalog. Reference:
-      // https://www.sqlite.org/inmemorydb.html
-      System.setProperty(CatalogProperties.CLIENT_POOL_SIZE, "1");
-      restServer.start(false);
-      restCatalog = RCKUtils.initCatalogClient();
-      System.clearProperty("rest.port");
-      System.clearProperty(CatalogProperties.WAREHOUSE_LOCATION);
-      System.clearProperty(CatalogProperties.CLIENT_POOL_SIZE);
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+  private static void startRESTServer() throws Exception {
+    restServer = new RESTCatalogServer();
+    // prevent using already-in-use port when testing
+    System.setProperty("rest.port", String.valueOf(MetaStoreUtils.findFreePort()));
+    System.setProperty(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath());
+    // In-memory sqlite database by default is private to the connection that created it.
+    // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
+    // JdbcCatalog, then different jdbc connections could provide different views of table
+    // status even belonging to the same catalog. Reference:
+    // https://www.sqlite.org/inmemorydb.html
+    System.setProperty(CatalogProperties.CLIENT_POOL_SIZE, "1");
+    restServer.start(false);
+    restCatalog = RCKUtils.initCatalogClient();
+    System.clearProperty("rest.port");
+    System.clearProperty(CatalogProperties.WAREHOUSE_LOCATION);
+    System.clearProperty(CatalogProperties.CLIENT_POOL_SIZE);
   }
 
-  private static void stopRESTServer() {
-    try {
-      if (restCatalog != null) {
-        restCatalog.close();
-      }
-      if (restServer != null) {
-        restServer.stop();
-      }
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+  private static void stopRESTServer() throws Exception {
+    if (restCatalog != null) {
+      restCatalog.close();
+    }
+    if (restServer != null) {
+      restServer.stop();
     }
   }
 
