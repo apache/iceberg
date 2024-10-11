@@ -19,21 +19,6 @@
 
 project(':iceberg-hive3') {
 
-  // run the tests in iceberg-mr with Hive3 dependencies
-  sourceSets {
-    test {
-      java.srcDirs = ['../mr/src/test/java', 'src/test/java']
-      resources.srcDirs = ['../mr/src/test/resources', 'src/test/resources']
-    }
-  }
-
-  // exclude these Hive2-specific tests from iceberg-mr
-  test {
-    exclude '**/TestIcebergDateObjectInspector.class'
-    exclude '**/TestIcebergTimestampObjectInspector.class'
-    exclude '**/TestIcebergTimestampWithZoneObjectInspector.class'
-  }
-
   dependencies {
     compileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     compileOnly project(':iceberg-api')
@@ -86,10 +71,13 @@ project(':iceberg-hive3') {
       exclude group: 'org.codehaus.jackson'
     }
 
+    implementation libs.caffeine
+
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-mr', configuration: 'testArtifacts')
 
     testImplementation libs.avro.avro
     testImplementation libs.calcite.core

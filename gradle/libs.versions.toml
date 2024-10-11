@@ -49,7 +49,6 @@ guava = "33.3.1-jre"
 hadoop2 = "2.7.3"
 hadoop3 = "3.4.1"
 httpcomponents-httpclient5 = "5.4.1"
-hive2 = { strictly = "2.3.9"} # see rich version usage explanation above
 hive3 = "3.1.3"
 immutables-value = "2.10.1"
 jackson-bom = "2.18.1"
@@ -136,12 +135,9 @@ hadoop2-mapreduce-client-core = { module = "org.apache.hadoop:hadoop-mapreduce-c
 hadoop2-minicluster = { module = "org.apache.hadoop:hadoop-minicluster", version.ref = "hadoop2" }
 hadoop3-client = { module = "org.apache.hadoop:hadoop-client", version.ref = "hadoop3" }
 hadoop3-common = { module = "org.apache.hadoop:hadoop-common", version.ref = "hadoop3" }
-hive2-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive2" }
-hive2-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive2" }
-hive2-serde = { module = "org.apache.hive:hive-serde", version.ref = "hive2" }
-hive2-service = { module = "org.apache.hive:hive-service", version.ref = "hive2" }
 hive3-exec = { module = "org.apache.hive:hive-exec", version.ref = "hive3" }
 hive3-metastore = { module = "org.apache.hive:hive-metastore", version.ref = "hive3" }
+hive3-standalone-metastore = { module = "org.apache.hive:hive-standalone-metastore", version.ref = "hive3" }
 hive3-serde = { module = "org.apache.hive:hive-serde", version.ref = "hive3" }
 hive3-service = { module = "org.apache.hive:hive-service", version.ref = "hive3" }
 httpcomponents-httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5", version.ref = "httpcomponents-httpclient5" }

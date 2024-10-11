@@ -20,21 +20,21 @@ package org.apache.iceberg.mr.hive.serde.objectinspector;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import org.apache.hadoop.hive.serde2.io.TimestampWritable;
+import java.time.ZoneId;
+import org.apache.hadoop.hive.common.type.Timestamp;
+import org.apache.hadoop.hive.serde2.io.TimestampWritableV2;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.junit.jupiter.api.Test;
 
-public class TestIcebergTimestampWithZoneObjectInspector {
+public class TestIcebergTimestampObjectInspector {
 
   @Test
-  public void testIcebergTimestampObjectInspectorWithUTCAdjustment() {
-    IcebergTimestampWithZoneObjectInspector oi = IcebergTimestampWithZoneObjectInspector.get();
+  public void testIcebergTimestampObjectInspector() {
+    IcebergTimestampObjectInspector oi = IcebergTimestampObjectInspector.get();
 
     assertThat(oi.getCategory()).isEqualTo(ObjectInspector.Category.PRIMITIVE);
     assertThat(oi.getPrimitiveCategory())
@@ -44,32 +44,27 @@ public class TestIcebergTimestampWithZoneObjectInspector {
     assertThat(oi.getTypeName()).isEqualTo(TypeInfoFactory.timestampTypeInfo.getTypeName());
 
     assertThat(oi.getJavaPrimitiveClass()).isEqualTo(Timestamp.class);
-    assertThat(oi.getPrimitiveWritableClass()).isEqualTo(TimestampWritable.class);
+    assertThat(oi.getPrimitiveWritableClass()).isEqualTo(TimestampWritableV2.class);
 
     assertThat(oi.copyObject(null)).isNull();
     assertThat(oi.getPrimitiveJavaObject(null)).isNull();
     assertThat(oi.getPrimitiveWritableObject(null)).isNull();
     assertThat(oi.convert(null)).isNull();
 
-    LocalDateTime local = LocalDateTime.of(2020, 1, 1, 16, 45, 33, 456000);
-    OffsetDateTime offsetDateTime = OffsetDateTime.of(local, ZoneOffset.ofHours(-5));
-    Timestamp ts = Timestamp.from(offsetDateTime.toInstant());
+    long epochMilli = 1601471970000L;
+    LocalDateTime local =
+        LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMilli), ZoneId.of("UTC"))
+            .plusNanos(34000);
+    Timestamp ts = Timestamp.ofEpochMilli(epochMilli);
+    ts.setNanos(34000);
 
-    assertThat(oi.getPrimitiveJavaObject(offsetDateTime)).isEqualTo(ts);
-    assertThat(oi.getPrimitiveWritableObject(offsetDateTime)).isEqualTo(new TimestampWritable(ts));
+    assertThat(oi.getPrimitiveJavaObject(local)).isEqualTo(ts);
+    assertThat(oi.getPrimitiveWritableObject(local)).isEqualTo(new TimestampWritableV2(ts));
 
     Timestamp copy = (Timestamp) oi.copyObject(ts);
 
-    assertThat(copy).isEqualTo(ts);
-    assertThat(copy).isNotSameAs(ts);
-
+    assertThat(copy).isEqualTo(ts).isNotSameAs(ts);
     assertThat(oi.preferWritable()).isFalse();
-
-    assertThat(oi.convert(ts))
-        .isEqualTo(
-            OffsetDateTime.ofInstant(local.toInstant(ZoneOffset.ofHours(-5)), ZoneOffset.UTC));
-
-    assertThat(offsetDateTime.withOffsetSameInstant(ZoneOffset.UTC))
-        .isEqualTo(oi.convert(Timestamp.from(offsetDateTime.toInstant())));
+    assertThat(oi.convert(ts)).isEqualTo(local);
   }
 }

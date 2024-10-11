@@ -27,18 +27,17 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitive
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampLocalTZObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
-public class IcebergTimestampWithZoneObjectInspectorHive3
-    extends AbstractPrimitiveJavaObjectInspector
+public class IcebergTimestampWithZoneObjectInspector extends AbstractPrimitiveJavaObjectInspector
     implements TimestampLocalTZObjectInspector, WriteObjectInspector {
 
-  private static final IcebergTimestampWithZoneObjectInspectorHive3 INSTANCE =
-      new IcebergTimestampWithZoneObjectInspectorHive3();
+  private static final IcebergTimestampWithZoneObjectInspector INSTANCE =
+      new IcebergTimestampWithZoneObjectInspector();
 
-  public static IcebergTimestampWithZoneObjectInspectorHive3 get() {
+  public static IcebergTimestampWithZoneObjectInspector get() {
     return INSTANCE;
   }
 
-  private IcebergTimestampWithZoneObjectInspectorHive3() {
+  private IcebergTimestampWithZoneObjectInspector() {
     super(TypeInfoFactory.timestampLocalTZTypeInfo);
   }
 

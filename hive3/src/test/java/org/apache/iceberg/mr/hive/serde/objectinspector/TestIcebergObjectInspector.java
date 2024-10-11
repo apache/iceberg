@@ -29,7 +29,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -99,14 +98,8 @@ public class TestIcebergObjectInspector {
     assertThat(dateField.getFieldID()).isEqualTo(3);
     assertThat(dateField.getFieldName()).isEqualTo("date_field");
     assertThat(dateField.getFieldComment()).isEqualTo("date comment");
-    if (HiveVersion.min(HiveVersion.HIVE_3)) {
-      assertThat(dateField.getFieldObjectInspector().getClass().getName())
-          .isEqualTo(
-              "org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspectorHive3");
-    } else {
-      assertThat(dateField.getFieldObjectInspector().getClass().getName())
-          .isEqualTo("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspector");
-    }
+    assertThat(dateField.getFieldObjectInspector().getClass().getName())
+        .isEqualTo("org.apache.iceberg.mr.hive.serde.objectinspector.IcebergDateObjectInspector");
 
     // decimal
     StructField decimalField = soi.getStructFieldRef("decimal_field");
@@ -168,26 +161,16 @@ public class TestIcebergObjectInspector {
     assertThat(timestampField.getFieldID()).isEqualTo(11);
     assertThat(timestampField.getFieldName()).isEqualTo("timestamp_field");
     assertThat(timestampField.getFieldComment()).isEqualTo("timestamp comment");
-    if (HiveVersion.min(HiveVersion.HIVE_3)) {
-      assertThat(timestampField.getFieldObjectInspector().getClass().getSimpleName())
-          .isEqualTo("IcebergTimestampObjectInspectorHive3");
-    } else {
-      assertThat(timestampField.getFieldObjectInspector())
-          .isEqualTo(IcebergTimestampObjectInspector.get());
-    }
+    assertThat(timestampField.getFieldObjectInspector().getClass().getSimpleName())
+        .isEqualTo("IcebergTimestampObjectInspector");
 
     // timestamp with tz
     StructField timestampTzField = soi.getStructFieldRef("timestamptz_field");
     assertThat(timestampTzField.getFieldID()).isEqualTo(12);
     assertThat(timestampTzField.getFieldName()).isEqualTo("timestamptz_field");
     assertThat(timestampTzField.getFieldComment()).isEqualTo("timestamptz comment");
-    if (HiveVersion.min(HiveVersion.HIVE_3)) {
-      assertThat(timestampTzField.getFieldObjectInspector().getClass().getSimpleName())
-          .isEqualTo("IcebergTimestampWithZoneObjectInspectorHive3");
-    } else {
-      assertThat(timestampTzField.getFieldObjectInspector())
-          .isEqualTo(IcebergTimestampWithZoneObjectInspector.get());
-    }
+    assertThat(timestampTzField.getFieldObjectInspector().getClass().getSimpleName())
+        .isEqualTo("IcebergTimestampWithZoneObjectInspector");
 
     // UUID
     StructField uuidField = soi.getStructFieldRef("uuid_field");

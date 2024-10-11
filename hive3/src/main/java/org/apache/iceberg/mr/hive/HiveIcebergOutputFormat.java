@@ -41,6 +41,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.mr.mapreduce.Utils;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class HiveIcebergOutputFormat<T>
@@ -72,8 +73,7 @@ public class HiveIcebergOutputFormat<T>
   private static HiveIcebergRecordWriter writer(JobConf jc) {
     TaskAttemptID taskAttemptID = TezUtil.taskAttemptWrapper(jc);
     // It gets the config from the FileSinkOperator which has its own config for every target table
-    Table table =
-        HiveIcebergStorageHandler.table(jc, jc.get(hive_metastoreConstants.META_TABLE_NAME));
+    Table table = Utils.table(jc, jc.get(hive_metastoreConstants.META_TABLE_NAME));
     Schema schema = HiveIcebergStorageHandler.schema(jc);
     PartitionSpec spec = table.spec();
     FileFormat fileFormat =

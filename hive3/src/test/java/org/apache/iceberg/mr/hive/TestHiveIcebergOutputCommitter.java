@@ -52,6 +52,7 @@ import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.mr.mapred.Container;
+import org.apache.iceberg.mr.mapreduce.Utils;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -282,7 +283,7 @@ public class TestHiveIcebergOutputCommitter {
       throws IOException {
     List<Record> expected = Lists.newArrayListWithExpectedSize(RECORD_NUM * taskNum);
 
-    Table table = HiveIcebergStorageHandler.table(conf, name);
+    Table table = Utils.table(conf, name);
     FileIO io = table.io();
     Schema schema = HiveIcebergStorageHandler.schema(conf);
     PartitionSpec spec = table.spec();
