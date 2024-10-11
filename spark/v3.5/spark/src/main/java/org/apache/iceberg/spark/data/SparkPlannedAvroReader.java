@@ -47,7 +47,8 @@ public class SparkPlannedAvroReader implements DatumReader<InternalRow>, Support
     return create(schema, ImmutableMap.of());
   }
 
-  public static SparkPlannedAvroReader create(org.apache.iceberg.Schema schema, Map<Integer, ?> constants) {
+  public static SparkPlannedAvroReader create(
+      org.apache.iceberg.Schema schema, Map<Integer, ?> constants) {
     return new SparkPlannedAvroReader(schema, constants);
   }
 
@@ -60,12 +61,13 @@ public class SparkPlannedAvroReader implements DatumReader<InternalRow>, Support
   @Override
   @SuppressWarnings("unchecked")
   public void setSchema(Schema fileSchema) {
-    this.reader = (ValueReader<InternalRow>)
-        AvroWithPartnerVisitor.visit(
-            expectedType,
-            fileSchema,
-            new ReadBuilder(idToConstant),
-            AvroWithPartnerVisitor.FieldIDAccessors.get());
+    this.reader =
+        (ValueReader<InternalRow>)
+            AvroWithPartnerVisitor.visit(
+                expectedType,
+                fileSchema,
+                new ReadBuilder(idToConstant),
+                AvroWithPartnerVisitor.FieldIDAccessors.get());
   }
 
   @Override

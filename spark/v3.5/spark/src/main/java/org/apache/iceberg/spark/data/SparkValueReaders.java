@@ -75,7 +75,8 @@ public class SparkValueReaders {
     return new MapReader(keyReader, valueReader);
   }
 
-  static ValueReader<InternalRow> struct(List<Pair<Integer, ValueReader<?>>> readPlan, int numFields) {
+  static ValueReader<InternalRow> struct(
+      List<Pair<Integer, ValueReader<?>>> readPlan, int numFields) {
     return new PlannedStructReader(readPlan, numFields);
   }
 
