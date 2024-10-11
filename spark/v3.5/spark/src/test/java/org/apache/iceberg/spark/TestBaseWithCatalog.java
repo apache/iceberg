@@ -178,10 +178,6 @@ public abstract class TestBaseWithCatalog extends TestBase {
       spark.conf().set("spark.sql.catalog." + catalogName + ".warehouse", "file:" + warehouse);
     }
 
-    if (!catalogName.equals("spark_catalog")) {
-      spark.conf().set("spark.sql.default.catalog", catalogName);
-    }
-
     this.tableName =
         (catalogName.equals("spark_catalog") ? "" : catalogName + ".") + "default.table";
 
