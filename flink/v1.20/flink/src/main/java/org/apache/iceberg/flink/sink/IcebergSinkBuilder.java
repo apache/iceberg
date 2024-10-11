@@ -31,13 +31,14 @@ import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 
+/**
+ * This class is for internal purpose of transition between the previous implementation of Flink's
+ * sink ({@link FlinkSink}) and the new one implementation based on Flink SinkV2 API ({@link
+ * IcebergSink}). After we remove the previous implementation, all occurrences of this class would
+ * be replaced by direct {@link IcebergSink} usage.
+ */
 @Internal
-/*
- This class is for internal purpose of transition between the previous implementation of Flink's sink (FlinkSink)
- and the new one implementation based on Flink v2 sink's API (IcebergSink). After we remove the previous implementation,
- all occurrences of this class would be replaced by direct IcebergSink usage.
-*/
-public interface IcebergSinkBuilder<T extends IcebergSinkBuilder<?>> {
+interface IcebergSinkBuilder<T extends IcebergSinkBuilder<?>> {
 
   T tableSchema(TableSchema newTableSchema);
 
