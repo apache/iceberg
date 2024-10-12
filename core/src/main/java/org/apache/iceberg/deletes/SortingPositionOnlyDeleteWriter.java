@@ -21,6 +21,7 @@ package org.apache.iceberg.deletes;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.iceberg.DeleteFile;
@@ -54,7 +55,7 @@ public class SortingPositionOnlyDeleteWriter<T>
 
   private final Supplier<FileWriter<PositionDelete<T>, DeleteWriteResult>> writers;
   private final DeleteGranularity granularity;
-  private final CharSequenceMap<PositionDeleteIndex> positionsByPath;
+  private final Map<CharSequence, PositionDeleteIndex> positionsByPath;
   private final Function<CharSequence, PositionDeleteIndex> loadPreviousDeletes;
   private DeleteWriteResult result = null;
 

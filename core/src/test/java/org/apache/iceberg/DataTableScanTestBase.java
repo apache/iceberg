@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
@@ -189,7 +190,7 @@ public abstract class DataTableScanTestBase<
   private void validateExpectedFileScanTasks(
       ScanT scan,
       Collection<CharSequence> expectedFileScanPaths,
-      CharSequenceMap<String> fileToManifest)
+      Map<CharSequence, String> fileToManifest)
       throws IOException {
     try (CloseableIterable<T> scanTasks = scan.planFiles()) {
       assertThat(scanTasks).hasSameSizeAs(expectedFileScanPaths);
@@ -273,7 +274,7 @@ public abstract class DataTableScanTestBase<
             .filter(manifest -> manifest.snapshotId() == table.currentSnapshot().snapshotId())
             .collect(Collectors.toList())
             .get(0);
-    CharSequenceMap<String> fileToManifest = CharSequenceMap.create();
+    Map<CharSequence, String> fileToManifest = CharSequenceMap.create();
     fileToManifest.put(FILE_A.path(), firstDataManifest.path());
     fileToManifest.put(FILE_B.path(), secondDataManifest.path());
     fileToManifest.put(FILE_C.path(), secondDataManifest.path());
@@ -289,7 +290,7 @@ public abstract class DataTableScanTestBase<
     ManifestFile firstManifest = table.currentSnapshot().allManifests(table.io()).get(0);
     DeleteFile deleteFile = newDeleteFile("data_bucket=0");
     table.newRowDelta().addDeletes(deleteFile).commit();
-    CharSequenceMap<String> fileToManifest = CharSequenceMap.create();
+    Map<CharSequence, String> fileToManifest = CharSequenceMap.create();
     fileToManifest.put(FILE_A.path(), firstManifest.path());
     ScanT scan = newScan();
     validateExpectedFileScanTasks(scan, ImmutableList.of(FILE_A.path()), fileToManifest);

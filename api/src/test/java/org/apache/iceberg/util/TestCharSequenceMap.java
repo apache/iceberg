@@ -20,6 +20,7 @@ package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -37,7 +38,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testEmptyMap() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    Map<CharSequence, String> map = CharSequenceMap.create();
     assertThat(map).isEmpty();
     assertThat(map).hasSize(0);
     assertThat(map).doesNotContainKey("key");
@@ -49,7 +50,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testDifferentCharSequenceImplementations() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    Map<CharSequence, String> map = CharSequenceMap.create();
     map.put("abc", "value1");
     map.put(new StringBuffer("def"), "value2");
     assertThat(map).containsEntry(new StringBuilder("abc"), "value1");
@@ -58,14 +59,14 @@ public class TestCharSequenceMap {
 
   @Test
   public void testPutAndGet() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    Map<CharSequence, String> map = CharSequenceMap.create();
     map.put("key1", "value1");
     assertThat(map).containsEntry("key1", "value1");
   }
 
   @Test
   public void testRemove() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    Map<CharSequence, String> map = CharSequenceMap.create();
     map.put("key1", "value1");
     map.remove(new StringBuilder("key1"));
     assertThat(map).doesNotContainKey("key1");
@@ -74,7 +75,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testPutAll() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    Map<CharSequence, String> map = CharSequenceMap.create();
     map.putAll(ImmutableMap.of("key1", "value1", "key2", "value2"));
     assertThat(map).containsEntry("key1", "value1");
     assertThat(map).containsEntry("key2", "value2");
@@ -82,7 +83,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testClear() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    Map<CharSequence, String> map = CharSequenceMap.create();
     map.put("key1", "value1");
     map.clear();
     assertThat(map).isEmpty();
@@ -90,7 +91,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testValues() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    Map<CharSequence, String> map = CharSequenceMap.create();
     map.put("key1", "value1");
     map.put("key2", "value2");
     assertThat(map.values()).containsAll(ImmutableList.of("value1", "value2"));
@@ -98,7 +99,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testEntrySet() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    Map<CharSequence, String> map = CharSequenceMap.create();
     map.put("key1", "value1");
     map.put(new StringBuilder("key2"), "value2");
     assertThat(map.entrySet()).hasSize(2);
@@ -106,10 +107,10 @@ public class TestCharSequenceMap {
 
   @Test
   public void testEquals() {
-    CharSequenceMap<String> map1 = CharSequenceMap.create();
+    Map<CharSequence, String> map1 = CharSequenceMap.create();
     map1.put(new StringBuilder("key"), "value");
 
-    CharSequenceMap<String> map2 = CharSequenceMap.create();
+    Map<CharSequence, String> map2 = CharSequenceMap.create();
     map2.put("key", "value");
 
     assertThat(map1).isEqualTo(map2);
@@ -117,10 +118,10 @@ public class TestCharSequenceMap {
 
   @Test
   public void testHashCode() {
-    CharSequenceMap<String> map1 = CharSequenceMap.create();
+    Map<CharSequence, String> map1 = CharSequenceMap.create();
     map1.put(new StringBuilder("key"), "value");
 
-    CharSequenceMap<String> map2 = CharSequenceMap.create();
+    Map<CharSequence, String> map2 = CharSequenceMap.create();
     map2.put("key", "value");
 
     assertThat(map1.hashCode()).isEqualTo(map2.hashCode());
@@ -128,7 +129,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testToString() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    Map<CharSequence, String> map = CharSequenceMap.create();
 
     // empty map
     assertThat(map.toString()).isEqualTo("{}");
@@ -146,7 +147,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testComputeIfAbsent() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    Map<CharSequence, String> map = CharSequenceMap.create();
 
     String result1 = map.computeIfAbsent("key1", key -> "computedValue1");
     assertThat(result1).isEqualTo("computedValue1");
@@ -160,7 +161,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testMerge() {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    Map<CharSequence, String> map = CharSequenceMap.create();
     map.put("key1", "value1");
     map.put("key2", "value2");
 
@@ -184,7 +185,7 @@ public class TestCharSequenceMap {
 
   @Test
   public void testConcurrentReadAccess() throws InterruptedException {
-    CharSequenceMap<String> map = CharSequenceMap.create();
+    Map<CharSequence, String> map = CharSequenceMap.create();
     map.put("key1", "value1");
     map.put("key2", "value2");
     map.put("key3", "value3");

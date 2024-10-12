@@ -21,6 +21,7 @@ package org.apache.iceberg.deletes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -124,7 +125,7 @@ public class Deletes {
     }
   }
 
-  public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
+  public static <T extends StructLike> Map<CharSequence, PositionDeleteIndex> toPositionIndexes(
       CloseableIterable<T> posDeletes) {
     return toPositionIndexes(posDeletes, null /* unknown delete file */);
   }
@@ -140,9 +141,9 @@ public class Deletes {
    * @param file the source delete file for the deletes
    * @return the map of position delete indexes by path
    */
-  public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
+  public static <T extends StructLike> Map<CharSequence, PositionDeleteIndex> toPositionIndexes(
       CloseableIterable<T> posDeletes, DeleteFile file) {
-    CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
+    Map<CharSequence, PositionDeleteIndex> indexes = CharSequenceMap.create();
 
     try (CloseableIterable<T> deletes = posDeletes) {
       for (T delete : deletes) {
