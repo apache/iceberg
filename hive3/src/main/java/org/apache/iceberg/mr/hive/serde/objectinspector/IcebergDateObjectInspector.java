@@ -26,17 +26,16 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspect
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.iceberg.util.DateTimeUtil;
 
-public final class IcebergDateObjectInspectorHive3 extends AbstractPrimitiveJavaObjectInspector
+public final class IcebergDateObjectInspector extends AbstractPrimitiveJavaObjectInspector
     implements DateObjectInspector, WriteObjectInspector {
 
-  private static final IcebergDateObjectInspectorHive3 INSTANCE =
-      new IcebergDateObjectInspectorHive3();
+  private static final IcebergDateObjectInspector INSTANCE = new IcebergDateObjectInspector();
 
-  public static IcebergDateObjectInspectorHive3 get() {
+  public static IcebergDateObjectInspector get() {
     return INSTANCE;
   }
 
-  private IcebergDateObjectInspectorHive3() {
+  private IcebergDateObjectInspector() {
     super(TypeInfoFactory.dateTypeInfo);
   }
 

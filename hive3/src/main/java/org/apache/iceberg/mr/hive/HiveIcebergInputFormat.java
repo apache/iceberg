@@ -40,7 +40,6 @@ import org.apache.hadoop.mapred.Reporter;
 import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.mapred.AbstractMapredIcebergRecordReader;
 import org.apache.iceberg.mr.mapred.Container;
@@ -48,7 +47,6 @@ import org.apache.iceberg.mr.mapred.MapredIcebergInputFormat;
 import org.apache.iceberg.mr.mapreduce.IcebergInputFormat;
 import org.apache.iceberg.mr.mapreduce.IcebergSplit;
 import org.apache.iceberg.mr.mapreduce.IcebergSplitContainer;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.util.SerializationUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,19 +61,15 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
       HIVE_VECTORIZED_RECORDREADER_CTOR;
 
   static {
-    if (HiveVersion.min(HiveVersion.HIVE_3)) {
-      HIVE_VECTORIZED_RECORDREADER_CTOR =
-          DynConstructors.builder(AbstractMapredIcebergRecordReader.class)
-              .impl(
-                  HIVE_VECTORIZED_RECORDREADER_CLASS,
-                  IcebergInputFormat.class,
-                  IcebergSplit.class,
-                  JobConf.class,
-                  Reporter.class)
-              .build();
-    } else {
-      HIVE_VECTORIZED_RECORDREADER_CTOR = null;
-    }
+    HIVE_VECTORIZED_RECORDREADER_CTOR =
+        DynConstructors.builder(AbstractMapredIcebergRecordReader.class)
+            .impl(
+                HIVE_VECTORIZED_RECORDREADER_CLASS,
+                IcebergInputFormat.class,
+                IcebergSplit.class,
+                JobConf.class,
+                Reporter.class)
+            .build();
   }
 
   @Override
@@ -113,8 +107,6 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
 
     if (HiveConf.getBoolVar(job, HiveConf.ConfVars.HIVE_VECTORIZATION_ENABLED)
         && Utilities.getVectorizedRowBatchCtx(job) != null) {
-      Preconditions.checkArgument(
-          HiveVersion.min(HiveVersion.HIVE_3), "Vectorization only supported for Hive 3+");
 
       job.setEnum(InputFormatConfig.IN_MEMORY_DATA_MODEL, InputFormatConfig.InMemoryDataModel.HIVE);
       job.setBoolean(InputFormatConfig.SKIP_RESIDUAL_FILTERING, true);
@@ -134,9 +126,7 @@ public class HiveIcebergInputFormat extends MapredIcebergInputFormat<Record>
     return true;
   }
 
-  // Override annotation commented out, since this interface method has been introduced only in Hive
-  // 3
-  // @Override
+  @Override
   public VectorizedSupport.Support[] getSupportedFeatures() {
     return new VectorizedSupport.Support[0];
   }
