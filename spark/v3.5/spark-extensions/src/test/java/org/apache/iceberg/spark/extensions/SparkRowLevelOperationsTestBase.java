@@ -159,6 +159,28 @@ public abstract class SparkRowLevelOperationsTestBase extends ExtensionsTestBase
         false,
         "test",
         DISTRIBUTED
+      },
+      {
+        "spark_catalog",
+        SparkSessionCatalog.class.getName(),
+        ImmutableMap.of(
+            "type",
+            "hive",
+            "default-namespace",
+            "default",
+            "clients",
+            "1",
+            "parquet-enabled",
+            "false",
+            "cache-enabled",
+            "false" // Spark will delete tables using v1, leaving the cache out of sync
+            ),
+        "parquet",
+        false,
+        WRITE_DISTRIBUTION_MODE_RANGE,
+        false,
+        "test",
+        DISTRIBUTED
       }
     };
   }

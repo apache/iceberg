@@ -324,6 +324,7 @@ public abstract class TestDelete extends SparkRowLevelOperationsTestBase {
 
     sql("DELETE FROM %s AS t WHERE t.id = 1", commitTarget());
 
+    table.refresh();
     List<DataFile> dataFilesAfter = TestHelpers.dataFiles(table, branch);
     assertThat(dataFilesAfter)
         .as("Data file should have been removed")
