@@ -63,6 +63,7 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.tables                             | Comma-separated list of destination tables                                                                       |
 | iceberg.tables.dynamic-enabled             | Set to `true` to route to a table specified in `routeField` instead of using `routeRegex`, default is `false`    |
 | iceberg.tables.route-field                 | For multi-table fan-out, the name of the field used to route records to tables                                   |
+| iceberg.tables.route-pattern               | For topic-based routing, the format string used to route records to tables, e.g. `db.{topic}`
 | iceberg.tables.default-commit-branch       | Default branch for commits, main is used if not specified                                                        |
 | iceberg.tables.default-id-columns          | Default comma-separated list of columns that identify a row in tables (primary key)                              |
 | iceberg.tables.default-partition-by        | Default comma-separated list of partition field names to use when creating tables                                |
@@ -87,8 +88,8 @@ for exactly-once semantics. This requires Kafka 2.5 or later.
 | iceberg.kafka.*                            | Properties passed through to control topic Kafka client initialization                                           |
 
 If `iceberg.tables.dynamic-enabled` is `false` (the default) then you must specify `iceberg.tables`. If
-`iceberg.tables.dynamic-enabled` is `true` then you must specify `iceberg.tables.route-field` which will
-contain the name of the table.
+`iceberg.tables.dynamic-enabled` is `true` then you must specify either `iceberg.tables.route-field` which will
+contain the name of the table or `iceberg.tables.route-pattern` which specifies a format string for the table.
 
 ### Kafka configuration
 
@@ -343,6 +344,34 @@ See above for creating two tables.
     "topics": "events",
     "iceberg.tables.dynamic-enabled": "true",
     "iceberg.tables.route-field": "db_table",
+    "iceberg.catalog.type": "rest",
+    "iceberg.catalog.uri": "https://localhost",
+    "iceberg.catalog.credential": "<credential>",
+    "iceberg.catalog.warehouse": "<warehouse name>"
+    }
+}
+```
+
+### Topic-based dynamic routing
+
+This example writes to tables based on the topic name. For example, if the route pattern was
+`db.{topic}`, then records from the `events_list` topic will be written to the `db.events_list` table.
+
+#### Create two destination tables
+
+See above for creating two tables.
+
+#### Connector config
+
+```json
+{
+"name": "events-sink",
+"config": {
+    "connector.class": "org.apache.iceberg.connect.IcebergSinkConnector",
+    "tasks.max": "2",
+    "topics": "events_list,events_create",
+    "iceberg.tables.dynamic-enabled": "true",
+    "iceberg.tables.route-pattern": "default.{topic}",
     "iceberg.catalog.type": "rest",
     "iceberg.catalog.uri": "https://localhost",
     "iceberg.catalog.credential": "<credential>",
