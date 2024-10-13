@@ -19,7 +19,9 @@
 package org.apache.iceberg.parquet;
 
 import java.nio.ByteBuffer;
+import java.util.Set;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.expressions.And;
 import org.apache.iceberg.expressions.BoundPredicate;
 import org.apache.iceberg.expressions.BoundReference;
 import org.apache.iceberg.expressions.Expression;
@@ -28,7 +30,9 @@ import org.apache.iceberg.expressions.ExpressionVisitors;
 import org.apache.iceberg.expressions.ExpressionVisitors.ExpressionVisitor;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.Not;
 import org.apache.iceberg.expressions.UnboundPredicate;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
@@ -36,6 +40,17 @@ import org.apache.parquet.filter2.predicate.Operators;
 import org.apache.parquet.io.api.Binary;
 
 class ParquetFilters {
+
+  private static final Set<Operation> SUPPORTED_OPS =
+      ImmutableSet.of(
+          Operation.IS_NULL,
+          Operation.NOT_NULL,
+          Operation.EQ,
+          Operation.NOT_EQ,
+          Operation.GT,
+          Operation.GT_EQ,
+          Operation.LT,
+          Operation.LT_EQ);
 
   private ParquetFilters() {}
 
@@ -171,6 +186,22 @@ class ParquetFilters {
       }
       throw new UnsupportedOperationException("Cannot convert to Parquet filter: " + pred);
     }
+  }
+
+  public static boolean isSupportedFilter(Expression expr) {
+    if (expr.op().equals(Operation.AND)) {
+      return isSupportedFilter(((And) expr).left()) && isSupportedFilter(((And) expr).right());
+    } else if (expr.op().equals(Operation.OR)) {
+      return isSupportedFilter(((And) expr).left()) && isSupportedFilter(((And) expr).right());
+    } else if (expr.op().equals(Operation.NOT)) {
+      return isSupportedFilter(((Not) expr).child());
+    } else {
+      return isSupportedOp(expr);
+    }
+  }
+
+  private static boolean isSupportedOp(Expression expr) {
+    return SUPPORTED_OPS.contains(expr.op());
   }
 
   @SuppressWarnings("checkstyle:MethodTypeParameterName")
