@@ -640,45 +640,48 @@ public class TestStrictMetricsEvaluator {
   }
 
   @Test
-  public void testEvaluateOnNestedColumns() {
+  public void testEvaluateOnNestedColumnWithoutStats() {
     boolean shouldRead =
         new StrictMetricsEvaluator(
                 SCHEMA, greaterThanOrEqual("struct.nested_col_no_stats", INT_MIN_VALUE))
             .eval(FILE);
-    assertThat(shouldRead).as("Should not match: nested column").isFalse();
+    assertThat(shouldRead).as("greaterThanOrEqual nested column should not match").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(
                 SCHEMA, lessThanOrEqual("struct.nested_col_no_stats", INT_MAX_VALUE))
             .eval(FILE);
-    assertThat(shouldRead).as("Should not match: nested column").isFalse();
+    assertThat(shouldRead).as("lessThanOrEqual nested column should not match").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, isNull("struct.nested_col_no_stats")).eval(FILE);
-    assertThat(shouldRead).as("Should not match: nested column").isFalse();
+    assertThat(shouldRead).as("isNull nested column should not match").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notNull("struct.nested_col_no_stats")).eval(FILE);
-    assertThat(shouldRead).as("Should not match: nested column").isFalse();
+    assertThat(shouldRead).as("notNull nested column should not match").isFalse();
+  }
 
-    shouldRead =
+  @Test
+  public void testEvaluateOnNestedColumnWithStats() {
+    boolean shouldRead =
         new StrictMetricsEvaluator(
                 SCHEMA, greaterThanOrEqual("struct.nested_col_with_stats", INT_MIN_VALUE))
             .eval(FILE);
-    assertThat(shouldRead).as("Should not match: nested column").isFalse();
+    assertThat(shouldRead).as("greaterThanOrEqual nested column should not match").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(
                 SCHEMA, lessThanOrEqual("struct.nested_col_with_stats", INT_MAX_VALUE))
             .eval(FILE);
-    assertThat(shouldRead).as("Should not match: nested column").isFalse();
+    assertThat(shouldRead).as("lessThanOrEqual nested column should not match").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, isNull("struct.nested_col_with_stats")).eval(FILE);
-    assertThat(shouldRead).as("Should not match: nested column").isFalse();
+    assertThat(shouldRead).as("isNull nested column should not match").isFalse();
 
     shouldRead =
         new StrictMetricsEvaluator(SCHEMA, notNull("struct.nested_col_with_stats")).eval(FILE);
-    assertThat(shouldRead).as("Should not match: nested column").isFalse();
+    assertThat(shouldRead).as("notNull nested column should not match").isFalse();
   }
 }
