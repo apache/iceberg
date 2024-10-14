@@ -21,7 +21,7 @@
 // name. This is to be used by Hive3 for features including e.g. vectorization.
 project(':iceberg-hive3-orc-bundle') {
 
-  apply plugin: 'io.github.goooler.shadow'
+  apply plugin: 'com.gradleup.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 
