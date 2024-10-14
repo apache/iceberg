@@ -253,6 +253,10 @@ class S3OutputStream extends PositionOutputStream {
 
   @Override
   public void close() throws IOException {
+    close(true);
+  }
+
+  private void close(boolean completeUploads) throws IOException {
     if (closed) {
       return;
     }
@@ -262,7 +266,9 @@ class S3OutputStream extends PositionOutputStream {
 
     try {
       stream.close();
-      completeUploads();
+      if (completeUploads) {
+        completeUploads();
+      }
     } finally {
       cleanUpStagingFiles();
     }
@@ -475,12 +481,12 @@ class S3OutputStream extends PositionOutputStream {
     }
   }
 
-  @SuppressWarnings("checkstyle:NoFinalizer")
+  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
   @Override
   protected void finalize() throws Throwable {
     super.finalize();
     if (!closed) {
-      close(); // releasing resources is more important than printing the warning
+      close(false); // releasing resources is more important than printing the warning
       String trace = Joiner.on("\n\t").join(Arrays.copyOfRange(createStack, 1, createStack.length));
       LOG.warn("Unclosed output stream created by:\n\t{}", trace);
     }

@@ -28,51 +28,83 @@ import org.junit.jupiter.api.TestTemplate;
 public class TestFormatVersions extends TestBase {
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
-    return Arrays.asList(1);
+    return Arrays.asList(1, 2);
   }
 
   @TestTemplate
   public void testDefaultFormatVersion() {
-    assertThat(table.ops().current().formatVersion()).isEqualTo(1);
+    assertThat(table.ops().current().formatVersion()).isEqualTo(formatVersion);
   }
 
   @TestTemplate
   public void testFormatVersionUpgrade() {
     TableOperations ops = table.ops();
-    TableMetadata base = ops.current();
-    ops.commit(base, base.upgradeToFormatVersion(2));
+    int newFormatVersion = formatVersion + 1;
 
-    assertThat(ops.current().formatVersion()).isEqualTo(2);
+    TableMetadata newTableMetadata = ops.current().upgradeToFormatVersion(newFormatVersion);
+
+    assertThat(
+            newTableMetadata.changes().stream()
+                .filter(MetadataUpdate.UpgradeFormatVersion.class::isInstance)
+                .map(MetadataUpdate.UpgradeFormatVersion.class::cast)
+                .map(MetadataUpdate.UpgradeFormatVersion::formatVersion))
+        .containsExactly(newFormatVersion);
+
+    ops.commit(ops.current(), newTableMetadata);
+
+    assertThat(ops.current().formatVersion()).isEqualTo(newFormatVersion);
+  }
+
+  @TestTemplate
+  public void testFormatVersionUpgradeToLatest() {
+    TableOperations ops = table.ops();
+
+    TableMetadata newTableMetadata =
+        ops.current().upgradeToFormatVersion(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION);
+
+    assertThat(
+            newTableMetadata.changes().stream()
+                .filter(MetadataUpdate.UpgradeFormatVersion.class::isInstance)
+                .map(MetadataUpdate.UpgradeFormatVersion.class::cast)
+                .map(MetadataUpdate.UpgradeFormatVersion::formatVersion))
+        .isEqualTo(List.of(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION));
+
+    ops.commit(ops.current(), newTableMetadata);
+
+    assertThat(ops.current().formatVersion())
+        .isEqualTo(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION);
   }
 
   @TestTemplate
   public void testFormatVersionDowngrade() {
     TableOperations ops = table.ops();
-    TableMetadata base = ops.current();
-    ops.commit(base, base.upgradeToFormatVersion(2));
+    int newFormatVersion = formatVersion + 1;
+    ops.commit(ops.current(), ops.current().upgradeToFormatVersion(newFormatVersion));
 
-    assertThat(ops.current().formatVersion()).isEqualTo(2);
+    assertThat(ops.current().formatVersion()).isEqualTo(newFormatVersion);
 
-    assertThatThrownBy(() -> ops.current().upgradeToFormatVersion(1))
+    assertThatThrownBy(() -> ops.current().upgradeToFormatVersion(formatVersion))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot downgrade v2 table to v1");
+        .hasMessage(
+            String.format("Cannot downgrade v%d table to v%d", newFormatVersion, formatVersion));
 
-    assertThat(ops.current().formatVersion()).isEqualTo(2);
+    assertThat(ops.current().formatVersion()).isEqualTo(newFormatVersion);
   }
 
   @TestTemplate
   public void testFormatVersionUpgradeNotSupported() {
     TableOperations ops = table.ops();
     TableMetadata base = ops.current();
+    int unsupportedFormatVersion = TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1;
 
     assertThatThrownBy(
-            () ->
-                ops.commit(
-                    base,
-                    base.upgradeToFormatVersion(TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION + 1)))
+            () -> ops.commit(base, base.upgradeToFormatVersion(unsupportedFormatVersion)))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot upgrade table to unsupported format version: v3 (supported: v2)");
+        .hasMessage(
+            String.format(
+                "Cannot upgrade table to unsupported format version: v%d (supported: v%d)",
+                unsupportedFormatVersion, TableMetadata.SUPPORTED_TABLE_FORMAT_VERSION));
 
-    assertThat(ops.current().formatVersion()).isEqualTo(1);
+    assertThat(ops.current().formatVersion()).isEqualTo(formatVersion);
   }
 }

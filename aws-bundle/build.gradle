@@ -19,7 +19,7 @@
 
 project(":iceberg-aws-bundle") {
 
-  apply plugin: 'io.github.goooler.shadow'
+  apply plugin: 'com.gradleup.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 
@@ -27,6 +27,7 @@ project(":iceberg-aws-bundle") {
     implementation platform(libs.awssdk.bom)
     implementation "software.amazon.awssdk:apache-client"
     implementation "software.amazon.awssdk:auth"
+    implementation "software.amazon.awssdk:http-auth-aws-crt"
     implementation "software.amazon.awssdk:iam"
     implementation "software.amazon.awssdk:sso"
     implementation "software.amazon.awssdk:s3"

@@ -36,6 +36,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -69,6 +71,9 @@ public class TestS3FileIOProperties {
 
     assertThat(S3FileIOProperties.DUALSTACK_ENABLED_DEFAULT)
         .isEqualTo(s3FileIOProperties.isDualStackEnabled());
+
+    assertThat(S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED_DEFAULT)
+        .isEqualTo(s3FileIOProperties.isCrossRegionAccessEnabled());
 
     assertThat(S3FileIOProperties.PATH_STYLE_ACCESS_DEFAULT)
         .isEqualTo(s3FileIOProperties.isPathStyleAccess());
@@ -152,6 +157,11 @@ public class TestS3FileIOProperties {
         .containsEntry(
             S3FileIOProperties.DUALSTACK_ENABLED,
             String.valueOf(s3FileIOProperties.isDualStackEnabled()));
+
+    assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED,
+            String.valueOf(s3FileIOProperties.isCrossRegionAccessEnabled()));
 
     assertThat(map)
         .containsEntry(
@@ -380,6 +390,7 @@ public class TestS3FileIOProperties {
     map.put(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true");
     map.put(S3FileIOProperties.ACCELERATION_ENABLED, "true");
     map.put(S3FileIOProperties.DUALSTACK_ENABLED, "true");
+    map.put(S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED, "true");
     map.put(
         S3FileIOProperties.MULTIPART_SIZE,
         String.valueOf(S3FileIOProperties.MULTIPART_SIZE_DEFAULT));
@@ -425,6 +436,7 @@ public class TestS3FileIOProperties {
   public void testApplyS3ServiceConfigurations() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(S3FileIOProperties.DUALSTACK_ENABLED, "true");
+    properties.put(S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED, "true");
     properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
     properties.put(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true");
     // acceleration enabled has to be set to false if path style is true
@@ -436,6 +448,7 @@ public class TestS3FileIOProperties {
         ArgumentCaptor.forClass(S3Configuration.class);
 
     Mockito.doReturn(mockA).when(mockA).dualstackEnabled(Mockito.anyBoolean());
+    Mockito.doReturn(mockA).when(mockA).crossRegionAccessEnabled(Mockito.anyBoolean());
     Mockito.doReturn(mockA).when(mockA).serviceConfiguration(Mockito.any(S3Configuration.class));
 
     s3FileIOProperties.applyServiceConfigurations(mockA);
@@ -490,5 +503,18 @@ public class TestS3FileIOProperties {
 
     Mockito.verify(mockS3ClientBuilder)
         .overrideConfiguration(Mockito.any(ClientOverrideConfiguration.class));
+  }
+
+  @Test
+  public void testApplyRetryConfiguration() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put(S3FileIOProperties.S3_RETRY_NUM_RETRIES, "999");
+    S3FileIOProperties s3FileIOProperties = new S3FileIOProperties(properties);
+
+    S3ClientBuilder builder = S3Client.builder();
+    s3FileIOProperties.applyRetryConfigurations(builder);
+
+    RetryPolicy retryPolicy = builder.overrideConfiguration().retryPolicy().get();
+    assertThat(retryPolicy.numRetries()).as("retries was not set").isEqualTo(999);
   }
 }

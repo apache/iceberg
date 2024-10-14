@@ -28,11 +28,8 @@ import org.apache.avro.Schema;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.Decoder;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.common.DynClasses;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.Pair;
@@ -43,20 +40,20 @@ public class GenericAvroReader<T>
   private final Types.StructType expectedType;
   private ClassLoader loader = Thread.currentThread().getContextClassLoader();
   private Map<String, String> renames = ImmutableMap.of();
-  private final Map<Integer, ?> idToConstant = ImmutableMap.of();
+  private final Map<Integer, Object> idToConstant = ImmutableMap.of();
   private Schema fileSchema = null;
   private ValueReader<T> reader = null;
 
-  public static <D> GenericAvroReader<D> create(org.apache.iceberg.Schema schema) {
-    return new GenericAvroReader<>(schema);
+  public static <D> GenericAvroReader<D> create(org.apache.iceberg.Schema expectedSchema) {
+    return new GenericAvroReader<>(expectedSchema);
   }
 
-  public static <D> GenericAvroReader<D> create(Schema schema) {
-    return new GenericAvroReader<>(schema);
+  public static <D> GenericAvroReader<D> create(Schema readSchema) {
+    return new GenericAvroReader<>(readSchema);
   }
 
-  GenericAvroReader(org.apache.iceberg.Schema readSchema) {
-    this.expectedType = readSchema.asStruct();
+  GenericAvroReader(org.apache.iceberg.Schema expectedSchema) {
+    this.expectedType = expectedSchema.asStruct();
   }
 
   GenericAvroReader(Schema readSchema) {
@@ -111,46 +108,13 @@ public class GenericAvroReader<T>
 
     @Override
     public ValueReader<?> record(Type partner, Schema record, List<ValueReader<?>> fieldResults) {
-      Types.StructType expected = partner != null ? partner.asStructType() : null;
-      Map<Integer, Integer> idToPos = idToPos(expected);
-
-      List<Pair<Integer, ValueReader<?>>> readPlan = Lists.newArrayList();
-      List<Schema.Field> fileFields = record.getFields();
-      for (int pos = 0; pos < fileFields.size(); pos += 1) {
-        Schema.Field field = fileFields.get(pos);
-        ValueReader<?> fieldReader = fieldResults.get(pos);
-        Integer fieldId = AvroSchemaUtil.fieldId(field);
-        Integer projectionPos = idToPos.remove(fieldId);
-
-        Object constant = idToConstant.get(fieldId);
-        if (projectionPos != null && constant != null) {
-          readPlan.add(
-              Pair.of(projectionPos, ValueReaders.replaceWithConstant(fieldReader, constant)));
-        } else {
-          readPlan.add(Pair.of(projectionPos, fieldReader));
-        }
+      if (partner == null) {
+        return ValueReaders.skipStruct(fieldResults);
       }
 
-      // handle any expected columns that are not in the data file
-      for (Map.Entry<Integer, Integer> idAndPos : idToPos.entrySet()) {
-        int fieldId = idAndPos.getKey();
-        int pos = idAndPos.getValue();
-
-        Object constant = idToConstant.get(fieldId);
-        Types.NestedField field = expected.field(fieldId);
-        if (constant != null) {
-          readPlan.add(Pair.of(pos, ValueReaders.constant(constant)));
-        } else if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
-          readPlan.add(Pair.of(pos, ValueReaders.constant(false)));
-        } else if (fieldId == MetadataColumns.ROW_POSITION.fieldId()) {
-          readPlan.add(Pair.of(pos, ValueReaders.positions()));
-        } else if (field.isOptional()) {
-          readPlan.add(Pair.of(pos, ValueReaders.constant(null)));
-        } else {
-          throw new IllegalArgumentException(
-              String.format("Missing required field: %s", field.name()));
-        }
-      }
+      Types.StructType expected = partner.asStructType();
+      List<Pair<Integer, ValueReader<?>>> readPlan =
+          ValueReaders.buildReadPlan(expected, record, fieldResults, idToConstant);
 
       return recordReader(readPlan, avroSchemas.get(partner), record.getFullName());
     }
@@ -263,20 +227,6 @@ public class GenericAvroReader<T>
         default:
           throw new IllegalArgumentException("Unsupported type: " + primitive);
       }
-    }
-
-    private Map<Integer, Integer> idToPos(Types.StructType struct) {
-      Map<Integer, Integer> idToPos = Maps.newHashMap();
-
-      if (struct != null) {
-        List<Types.NestedField> fields = struct.fields();
-        for (int pos = 0; pos < fields.size(); pos += 1) {
-          Types.NestedField field = fields.get(pos);
-          idToPos.put(field.fieldId(), pos);
-        }
-      }
-
-      return idToPos;
     }
   }
 }

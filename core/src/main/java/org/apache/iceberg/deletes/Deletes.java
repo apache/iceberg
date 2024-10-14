@@ -26,16 +26,15 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.iceberg.Accessor;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
-import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.io.CloseableIterator;
-import org.apache.iceberg.io.FilterIterator;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.Filter;
@@ -43,12 +42,8 @@ import org.apache.iceberg.util.ParallelIterable;
 import org.apache.iceberg.util.SortedMerge;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.ThreadPools;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class Deletes {
-
-  private static final Logger LOG = LoggerFactory.getLogger(Deletes.class);
 
   private static final Schema POSITION_DELETE_SCHEMA =
       new Schema(MetadataColumns.DELETE_FILE_PATH, MetadataColumns.DELETE_FILE_POS);
@@ -129,6 +124,11 @@ public class Deletes {
     }
   }
 
+  public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
+      CloseableIterable<T> posDeletes) {
+    return toPositionIndexes(posDeletes, null /* unknown delete file */);
+  }
+
   /**
    * Builds a map of position delete indexes by path.
    *
@@ -137,10 +137,11 @@ public class Deletes {
    * entire delete file content is needed (e.g. caching).
    *
    * @param posDeletes position deletes
+   * @param file the source delete file for the deletes
    * @return the map of position delete indexes by path
    */
   public static <T extends StructLike> CharSequenceMap<PositionDeleteIndex> toPositionIndexes(
-      CloseableIterable<T> posDeletes) {
+      CloseableIterable<T> posDeletes, DeleteFile file) {
     CharSequenceMap<PositionDeleteIndex> indexes = CharSequenceMap.create();
 
     try (CloseableIterable<T> deletes = posDeletes) {
@@ -148,7 +149,7 @@ public class Deletes {
         CharSequence filePath = (CharSequence) FILENAME_ACCESSOR.get(delete);
         long position = (long) POSITION_ACCESSOR.get(delete);
         PositionDeleteIndex index =
-            indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex());
+            indexes.computeIfAbsent(filePath, key -> new BitmapPositionDeleteIndex(file));
         index.delete(position);
       }
     } catch (IOException e) {
@@ -159,10 +160,32 @@ public class Deletes {
   }
 
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
+      CharSequence dataLocation, CloseableIterable<T> posDeletes, DeleteFile file) {
+    CloseableIterable<Long> positions = extractPositions(dataLocation, posDeletes);
+    List<DeleteFile> files = ImmutableList.of(file);
+    return toPositionIndex(positions, files);
+  }
+
+  private static <T extends StructLike> CloseableIterable<Long> extractPositions(
+      CharSequence dataLocation, CloseableIterable<T> rows) {
+    DataFileFilter<T> filter = new DataFileFilter<>(dataLocation);
+    CloseableIterable<T> filteredRows = filter.filter(rows);
+    return CloseableIterable.transform(filteredRows, row -> (Long) POSITION_ACCESSOR.get(row));
+  }
+
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0; use delete loaders.
+   */
+  @Deprecated
+  public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
       CharSequence dataLocation, List<CloseableIterable<T>> deleteFiles) {
     return toPositionIndex(dataLocation, deleteFiles, ThreadPools.getDeleteWorkerPool());
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0; use delete loaders.
+   */
+  @Deprecated
   public static <T extends StructLike> PositionDeleteIndex toPositionIndex(
       CharSequence dataLocation,
       List<CloseableIterable<T>> deleteFiles,
@@ -182,8 +205,13 @@ public class Deletes {
   }
 
   public static PositionDeleteIndex toPositionIndex(CloseableIterable<Long> posDeletes) {
+    return toPositionIndex(posDeletes, ImmutableList.of());
+  }
+
+  private static PositionDeleteIndex toPositionIndex(
+      CloseableIterable<Long> posDeletes, List<DeleteFile> files) {
     try (CloseableIterable<Long> deletes = posDeletes) {
-      PositionDeleteIndex positionDeleteIndex = new BitmapPositionDeleteIndex();
+      PositionDeleteIndex positionDeleteIndex = new BitmapPositionDeleteIndex(files);
       deletes.forEach(positionDeleteIndex::delete);
       return positionDeleteIndex;
     } catch (IOException e) {
@@ -191,6 +219,10 @@ public class Deletes {
     }
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
+   */
+  @Deprecated
   public static <T> CloseableIterable<T> streamingFilter(
       CloseableIterable<T> rows,
       Function<T, Long> rowToPosition,
@@ -198,20 +230,32 @@ public class Deletes {
     return streamingFilter(rows, rowToPosition, posDeletes, new DeleteCounter());
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
+   */
+  @Deprecated
   public static <T> CloseableIterable<T> streamingFilter(
       CloseableIterable<T> rows,
       Function<T, Long> rowToPosition,
       CloseableIterable<Long> posDeletes,
       DeleteCounter counter) {
-    return new PositionStreamDeleteFilter<>(rows, rowToPosition, posDeletes, counter);
+    PositionDeleteIndex positionIndex = toPositionIndex(posDeletes);
+    Predicate<T> isDeleted = row -> positionIndex.isDeleted(rowToPosition.apply(row));
+    return filterDeleted(rows, isDeleted, counter);
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
+   */
+  @Deprecated
   public static <T> CloseableIterable<T> streamingMarker(
       CloseableIterable<T> rows,
       Function<T, Long> rowToPosition,
       CloseableIterable<Long> posDeletes,
-      Consumer<T> markDeleted) {
-    return new PositionStreamDeleteMarker<>(rows, rowToPosition, posDeletes, markDeleted);
+      Consumer<T> markRowDeleted) {
+    PositionDeleteIndex positionIndex = toPositionIndex(posDeletes);
+    Predicate<T> isDeleted = row -> positionIndex.isDeleted(rowToPosition.apply(row));
+    return markDeleted(rows, isDeleted, markRowDeleted);
   }
 
   public static CloseableIterable<Long> deletePositions(
@@ -247,148 +291,6 @@ public class Deletes {
     }
   }
 
-  private abstract static class PositionStreamDeleteIterable<T> extends CloseableGroup
-      implements CloseableIterable<T> {
-    private final CloseableIterable<T> rows;
-    private final CloseableIterator<Long> deletePosIterator;
-    private final Function<T, Long> rowToPosition;
-    private long nextDeletePos;
-
-    PositionStreamDeleteIterable(
-        CloseableIterable<T> rows,
-        Function<T, Long> rowToPosition,
-        CloseableIterable<Long> deletePositions) {
-      this.rows = rows;
-      this.rowToPosition = rowToPosition;
-      this.deletePosIterator = deletePositions.iterator();
-    }
-
-    @Override
-    public CloseableIterator<T> iterator() {
-      CloseableIterator<T> iter;
-      if (deletePosIterator.hasNext()) {
-        nextDeletePos = deletePosIterator.next();
-        iter = applyDelete(rows.iterator(), deletePosIterator);
-      } else {
-        iter = rows.iterator();
-      }
-
-      addCloseable(iter);
-      addCloseable(deletePosIterator);
-
-      return iter;
-    }
-
-    boolean isDeleted(T row) {
-      long currentPos = rowToPosition.apply(row);
-      if (currentPos < nextDeletePos) {
-        return false;
-      }
-
-      // consume delete positions until the next is past the current position
-      boolean isDeleted = currentPos == nextDeletePos;
-      while (deletePosIterator.hasNext() && nextDeletePos <= currentPos) {
-        this.nextDeletePos = deletePosIterator.next();
-        if (!isDeleted && currentPos == nextDeletePos) {
-          // if any delete position matches the current position
-          isDeleted = true;
-        }
-      }
-
-      return isDeleted;
-    }
-
-    protected abstract CloseableIterator<T> applyDelete(
-        CloseableIterator<T> items, CloseableIterator<Long> deletePositions);
-  }
-
-  private static class PositionStreamDeleteFilter<T> extends PositionStreamDeleteIterable<T> {
-    private final DeleteCounter counter;
-
-    PositionStreamDeleteFilter(
-        CloseableIterable<T> rows,
-        Function<T, Long> rowToPosition,
-        CloseableIterable<Long> deletePositions,
-        DeleteCounter counter) {
-      super(rows, rowToPosition, deletePositions);
-      this.counter = counter;
-    }
-
-    @Override
-    protected CloseableIterator<T> applyDelete(
-        CloseableIterator<T> items, CloseableIterator<Long> deletePositions) {
-      return new FilterIterator<T>(items) {
-        @Override
-        protected boolean shouldKeep(T item) {
-          boolean deleted = isDeleted(item);
-          if (deleted) {
-            counter.increment();
-          }
-
-          return !deleted;
-        }
-
-        @Override
-        public void close() {
-          try {
-            deletePositions.close();
-          } catch (IOException e) {
-            LOG.warn("Error closing delete file", e);
-          }
-          super.close();
-        }
-      };
-    }
-  }
-
-  private static class PositionStreamDeleteMarker<T> extends PositionStreamDeleteIterable<T> {
-    private final Consumer<T> markDeleted;
-
-    PositionStreamDeleteMarker(
-        CloseableIterable<T> rows,
-        Function<T, Long> rowToPosition,
-        CloseableIterable<Long> deletePositions,
-        Consumer<T> markDeleted) {
-      super(rows, rowToPosition, deletePositions);
-      this.markDeleted = markDeleted;
-    }
-
-    @Override
-    protected CloseableIterator<T> applyDelete(
-        CloseableIterator<T> items, CloseableIterator<Long> deletePositions) {
-
-      return new CloseableIterator<T>() {
-        @Override
-        public void close() {
-          try {
-            deletePositions.close();
-          } catch (IOException e) {
-            LOG.warn("Error closing delete file", e);
-          }
-          try {
-            items.close();
-          } catch (IOException e) {
-            LOG.warn("Error closing data file", e);
-          }
-        }
-
-        @Override
-        public boolean hasNext() {
-          return items.hasNext();
-        }
-
-        @Override
-        public T next() {
-          T row = items.next();
-          if (isDeleted(row)) {
-            markDeleted.accept(row);
-          }
-          return row;
-        }
-      };
-    }
-  }
-
   private static class DataFileFilter<T extends StructLike> extends Filter<T> {
     private final CharSequence dataLocation;
 
@@ -398,33 +300,9 @@ public class Deletes {
 
     @Override
     protected boolean shouldKeep(T posDelete) {
-      return charSeqEquals(dataLocation, (CharSequence) FILENAME_ACCESSOR.get(posDelete));
-    }
-
-    private boolean charSeqEquals(CharSequence s1, CharSequence s2) {
-      if (s1 == s2) {
-        return true;
-      }
-
-      int count = s1.length();
-      if (count != s2.length()) {
-        return false;
-      }
-
-      if (s1 instanceof String && s2 instanceof String && s1.hashCode() != s2.hashCode()) {
-        return false;
-      }
-
-      // File paths inside a delete file normally have more identical chars at the beginning. For
-      // example, a typical
-      // path is like "s3:/bucket/db/table/data/partition/00000-0-[uuid]-00001.parquet".
-      // The uuid is where the difference starts. So it's faster to find the first diff backward.
-      for (int i = count - 1; i >= 0; i--) {
-        if (s1.charAt(i) != s2.charAt(i)) {
-          return false;
-        }
-      }
-      return true;
+      return Comparators.filePath()
+              .compare(dataLocation, (CharSequence) FILENAME_ACCESSOR.get(posDelete))
+          == 0;
     }
   }
 }

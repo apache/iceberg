@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg;
 
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -285,17 +286,6 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   }
 
   /**
-   * @deprecated since 1.6.0, will be removed in 1.7.0; Use {@link
-   *     BaseMetastoreOperations.CommitStatus} instead
-   */
-  @Deprecated
-  protected enum CommitStatus {
-    FAILURE,
-    SUCCESS,
-    UNKNOWN
-  }
-
-  /**
    * Attempt to load the table and see if any current or past metadata location matches the one we
    * were attempting to set. This is used as a last resort when we are dealing with exceptions that
    * may indicate the commit has failed but are not proof that this is the case. Past locations must
@@ -338,7 +328,8 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
             TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
     String fileExtension = TableMetadataParser.getFileExtension(codecName);
     return metadataFileLocation(
-        meta, String.format("%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
+        meta,
+        String.format(Locale.ROOT, "%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
   }
 
   /**

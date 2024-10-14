@@ -407,7 +407,7 @@ public class TestNessieTable extends BaseTestIceberg {
     table.newAppend().appendFile(file1).appendFile(file2).commit();
 
     // delete file2
-    table.newDelete().deleteFile(file2.path()).commit();
+    table.newDelete().deleteFile(file2).commit();
 
     String manifestListLocation =
         table.currentSnapshot().manifestListLocation().replace("file:", "");

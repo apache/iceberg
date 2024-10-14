@@ -37,6 +37,7 @@ import java.time.temporal.Temporal;
 import java.util.Base64;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -61,6 +62,7 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.ConnectException;
 
 class RecordConverter {
 
@@ -70,7 +72,7 @@ class RecordConverter {
       new DateTimeFormatterBuilder()
           .append(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
           .appendOffset("+HHmm", "Z")
-          .toFormatter();
+          .toFormatter(Locale.ROOT);
 
   private final Schema tableSchema;
   private final NameMapping nameMapping;
@@ -421,7 +423,7 @@ class RecordConverter {
       int days = (int) (((Date) value).getTime() / 1000 / 60 / 60 / 24);
       return DateTimeUtil.dateFromDays(days);
     }
-    throw new RuntimeException("Cannot convert date: " + value);
+    throw new ConnectException("Cannot convert date: " + value);
   }
 
   @SuppressWarnings("JavaUtilDate")
@@ -437,7 +439,7 @@ class RecordConverter {
       long millis = ((Date) value).getTime();
       return DateTimeUtil.timeFromMicros(millis * 1000);
     }
-    throw new RuntimeException("Cannot convert time: " + value);
+    throw new ConnectException("Cannot convert time: " + value);
   }
 
   protected Temporal convertTimestampValue(Object value, TimestampType type) {
@@ -461,7 +463,7 @@ class RecordConverter {
     } else if (value instanceof Date) {
       return DateTimeUtil.timestamptzFromMicros(((Date) value).getTime() * 1000);
     }
-    throw new RuntimeException(
+    throw new ConnectException(
         "Cannot convert timestamptz: " + value + ", type: " + value.getClass());
   }
 
@@ -489,7 +491,7 @@ class RecordConverter {
     } else if (value instanceof Date) {
       return DateTimeUtil.timestampFromMicros(((Date) value).getTime() * 1000);
     }
-    throw new RuntimeException(
+    throw new ConnectException(
         "Cannot convert timestamp: " + value + ", type: " + value.getClass());
   }
 

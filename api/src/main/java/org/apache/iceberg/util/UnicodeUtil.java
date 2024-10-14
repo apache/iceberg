@@ -82,9 +82,9 @@ public class UnicodeUtil {
     for (int i = length - 1; i >= 0; i--) {
       // Get the offset in the truncated string buffer where the number of unicode characters = i
       int offsetByCodePoint = truncatedStringBuilder.offsetByCodePoints(0, i);
-      int nextCodePoint = truncatedStringBuilder.codePointAt(offsetByCodePoint) + 1;
+      int nextCodePoint = incrementCodePoint(truncatedStringBuilder.codePointAt(offsetByCodePoint));
       // No overflow
-      if (nextCodePoint != 0 && Character.isValidCodePoint(nextCodePoint)) {
+      if (nextCodePoint != 0) {
         truncatedStringBuilder.setLength(offsetByCodePoint);
         // Append next code point to the truncated substring
         truncatedStringBuilder.appendCodePoint(nextCodePoint);
@@ -92,5 +92,25 @@ public class UnicodeUtil {
       }
     }
     return null; // Cannot find a valid upper bound
+  }
+
+  private static int incrementCodePoint(int codePoint) {
+    // surrogate code points are not Unicode scalar values,
+    // any UTF-8 byte sequence that would otherwise map to code points U+D800..U+DFFF is ill-formed.
+    // see https://www.unicode.org/versions/Unicode16.0.0/core-spec/chapter-3/#G27288
+    Preconditions.checkArgument(
+        codePoint < Character.MIN_SURROGATE || codePoint > Character.MAX_SURROGATE,
+        "invalid code point: %s",
+        codePoint);
+
+    if (codePoint == Character.MIN_SURROGATE - 1) {
+      // increment to the next Unicode scalar value
+      return Character.MAX_SURROGATE + 1;
+    } else if (codePoint == Character.MAX_CODE_POINT) {
+      // overflow
+      return 0;
+    } else {
+      return codePoint + 1;
+    }
   }
 }

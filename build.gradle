@@ -26,14 +26,9 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'io.github.goooler.shadow:shadow-gradle-plugin:8.1.8'
-    classpath 'com.palantir.baseline:gradle-baseline-java:4.42.0'
-    // com.palantir.baseline:gradle-baseline-java:4.42.0 (the last version supporting Java 8) pulls
-    // in an old version of the errorprone, which doesn't work w/ Gradle 8, so bump errorpone as
-    // well.
-    classpath "net.ltgt.gradle:gradle-errorprone-plugin:3.1.0"
-
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
+    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.3'
+    classpath 'com.palantir.baseline:gradle-baseline-java:5.69.0'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.25.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
@@ -56,10 +51,7 @@ try {
   project.logger.error(e.getMessage())
 }
 
-if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
-  project.ext.jdkVersion = '8'
-  project.ext.extraJvmArgs = []
-} else if (JavaVersion.current() == JavaVersion.VERSION_11) {
+if (JavaVersion.current() == JavaVersion.VERSION_11) {
   project.ext.jdkVersion = '11'
   project.ext.extraJvmArgs = []
 } else if (JavaVersion.current() == JavaVersion.VERSION_17 || JavaVersion.current() == JavaVersion.VERSION_21) {
@@ -86,7 +78,7 @@ if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
                               "--add-opens", "java.base/sun.security.action=ALL-UNNAMED",
                               "--add-opens", "java.base/sun.util.calendar=ALL-UNNAMED"]
 } else {
-  throw new GradleException("This build must be run with JDK 8 or 11 or 17 or 21 but was executed with JDK " + JavaVersion.current())
+  throw new GradleException("This build must be run with JDK 11 or 17 or 21 but was executed with JDK " + JavaVersion.current())
 }
 
 tasks.withType(AbstractArchiveTask).configureEach {
@@ -194,20 +186,14 @@ subprojects {
     testArtifacts
   }
 
-  compileJava {
+  tasks.withType(JavaCompile.class).configureEach {
     options.encoding = "UTF-8"
-  }
-
-  compileTestJava {
-    options.encoding = "UTF-8"
+    options.release = 11
   }
 
   javadoc {
     options.encoding = 'UTF-8'
   }
-
-  sourceCompatibility = '1.8'
-  targetCompatibility = '1.8'
 
   dependencies {
     implementation libs.slf4j.api
@@ -251,12 +237,16 @@ subprojects {
   plugins.withType(ScalaPlugin.class) {
     tasks.withType(ScalaCompile.class) {
       scalaCompileOptions.keepAliveMode.set(KeepAliveMode.DAEMON)
+      // `options.release` doesn't seem to work for ScalaCompile :(
+      sourceCompatibility = "11"
+      targetCompatibility = "11"
+      scalaCompileOptions.additionalParameters.add("-release:11")
     }
   }
 }
 
 project(':iceberg-bundled-guava') {
-  apply plugin: 'io.github.goooler.shadow'
+  apply plugin: 'com.gradleup.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 
@@ -347,7 +337,7 @@ project(':iceberg-core') {
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
 
-    implementation(libs.avro.avro) {
+    api(libs.avro.avro) {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
 
@@ -357,6 +347,7 @@ project(':iceberg-core') {
     implementation libs.jackson.core
     implementation libs.jackson.databind
     implementation libs.caffeine
+    implementation libs.failsafe
     implementation libs.roaringbitmap
     compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -364,6 +355,7 @@ project(':iceberg-core') {
     }
 
     testImplementation libs.jetty.servlet
+    testImplementation libs.jakarta.servlet
     testImplementation libs.jetty.server
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
@@ -471,6 +463,7 @@ project(':iceberg-aws') {
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
     implementation libs.caffeine
+    implementation libs.failsafe
     implementation platform(libs.jackson.bom)
     implementation libs.jackson.core
     implementation libs.jackson.databind
@@ -480,6 +473,7 @@ project(':iceberg-aws') {
     compileOnly("software.amazon.awssdk:url-connection-client")
     compileOnly("software.amazon.awssdk:apache-client")
     compileOnly("software.amazon.awssdk:auth")
+    compileOnly("software.amazon.awssdk:http-auth-aws-crt")
     compileOnly("software.amazon.awssdk:s3")
     compileOnly("software.amazon.awssdk:kms")
     compileOnly("software.amazon.awssdk:glue")
@@ -887,23 +881,8 @@ project(':iceberg-pig') {
 }
 
 project(':iceberg-nessie') {
-  if (JavaVersion.current().isJava11Compatible()) {
-    test {
-      useJUnitPlatform()
-    }
-    compileTestJava {
-      sourceCompatibility = "11"
-      targetCompatibility = "11"
-    }
-  } else {
-    // Do not test Nessie against Java 8, because in-JVM testing requires Nessie server components,
-    // which require Java 11+.
-    test {
-      enabled = false
-    }
-    compileTestJava {
-      enabled = false
-    }
+  test {
+    useJUnitPlatform()
   }
 
   dependencies {
@@ -922,21 +901,19 @@ project(':iceberg-nessie') {
     // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
     compileOnly libs.microprofile.openapi.api
 
-    if (JavaVersion.current().isJava11Compatible()) {
-      testImplementation libs.nessie.jaxrs.testextension
-      testImplementation libs.nessie.versioned.storage.inmemory.tests
-      testImplementation libs.nessie.versioned.storage.testextension
-      // Need to "pull in" el-api explicitly :(
-      testImplementation libs.jakarta.el.api
+    testImplementation libs.nessie.jaxrs.testextension
+    testImplementation libs.nessie.versioned.storage.inmemory.tests
+    testImplementation libs.nessie.versioned.storage.testextension
+    // Need to "pull in" el-api explicitly :(
+    testImplementation libs.jakarta.el.api
 
-      testImplementation libs.avro.avro
+    testImplementation libs.avro.avro
 
-      testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-      testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 
-      // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
-      testCompileOnly libs.microprofile.openapi.api
-    }
+    // Only there to prevent "warning: unknown enum constant SchemaType.OBJECT" compile messages
+    testCompileOnly libs.microprofile.openapi.api
   }
 }
 
@@ -978,6 +955,53 @@ project(':iceberg-snowflake') {
 }
 
 project(':iceberg-open-api') {
+  apply plugin: 'java-test-fixtures'
+
+  dependencies {
+    testImplementation project(':iceberg-api')
+    testImplementation project(':iceberg-core')
+    testImplementation project(':iceberg-core').sourceSets.test.runtimeClasspath
+    testImplementation(testFixtures(project(':iceberg-open-api')))
+
+    testImplementation libs.junit.jupiter
+    testImplementation libs.junit.suite.api
+    testImplementation libs.junit.suite.engine
+    testImplementation libs.assertj.core
+
+    testImplementation project(':iceberg-aws-bundle')
+    testImplementation project(':iceberg-gcp-bundle')
+    testImplementation project(':iceberg-azure-bundle')
+
+    testFixturesImplementation project(':iceberg-api')
+    testFixturesImplementation project(':iceberg-core')
+    testFixturesImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testFixturesImplementation project(':iceberg-core').sourceSets.test.runtimeClasspath
+    testFixturesImplementation project(':iceberg-aws')
+    testFixturesImplementation project(':iceberg-gcp')
+    testFixturesImplementation project(':iceberg-azure')
+
+    testFixturesImplementation libs.jetty.servlet
+    testFixturesImplementation libs.jetty.server
+    testFixturesImplementation libs.sqlite.jdbc
+
+    testFixturesCompileOnly libs.apiguardian
+  }
+
+  test {
+    useJUnitPlatform()
+
+    // Always rerun the compatibility tests
+    outputs.upToDateWhen {false}
+    maxParallelForks = 1
+
+    // Pass through any system properties that start with "rck" (REST Compatibility Kit)
+    // Note: only pass through specific properties so they do not affect other build/test
+    //       configurations
+    systemProperties System.properties
+            .findAll { k, v -> k.startsWith("rck") }
+            .collectEntries { k, v -> { [(k):v, (k.replaceFirst("rck.", "")):v] }} // strip prefix
+  }
+
   def restCatalogSpec = "$projectDir/rest-catalog-open-api.yaml"
   tasks.register('validateRESTCatalogSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
     inputSpec.set(restCatalogSpec)

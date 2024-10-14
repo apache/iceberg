@@ -25,8 +25,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.avro.io.DatumReader;
 import org.apache.iceberg.avro.Avro;
 import org.apache.iceberg.avro.AvroIterable;
+import org.apache.iceberg.avro.InternalReader;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Evaluator;
 import org.apache.iceberg.expressions.Expression;
@@ -65,16 +67,16 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
           "record_count");
 
   protected enum FileType {
-    DATA_FILES(GenericDataFile.class.getName()),
-    DELETE_FILES(GenericDeleteFile.class.getName());
+    DATA_FILES(GenericDataFile.class),
+    DELETE_FILES(GenericDeleteFile.class);
 
-    private final String fileClass;
+    private final Class<? extends StructLike> fileClass;
 
-    FileType(String fileClass) {
+    FileType(Class<? extends StructLike> fileClass) {
       this.fileClass = fileClass;
     }
 
-    private String fileClass() {
+    private Class<? extends StructLike> fileClass() {
       return fileClass;
     }
   }
@@ -261,12 +263,7 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
         AvroIterable<ManifestEntry<F>> reader =
             Avro.read(file)
                 .project(ManifestEntry.wrapFileSchema(Types.StructType.of(fields)))
-                .rename("manifest_entry", GenericManifestEntry.class.getName())
-                .rename("partition", PartitionData.class.getName())
-                .rename("r102", PartitionData.class.getName())
-                .rename("data_file", content.fileClass())
-                .rename("r2", content.fileClass())
-                .classLoader(GenericManifestEntry.class.getClassLoader())
+                .createResolvingReader(this::newReader)
                 .reuseContainers()
                 .build();
 
@@ -277,6 +274,13 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
       default:
         throw new UnsupportedOperationException("Invalid format for manifest file: " + format);
     }
+  }
+
+  private DatumReader<?> newReader(Schema schema) {
+    return InternalReader.create(schema)
+        .setRootType(GenericManifestEntry.class)
+        .setCustomType(ManifestEntry.DATA_FILE_ID, content.fileClass())
+        .setCustomType(DataFile.PARTITION_ID, PartitionData.class);
   }
 
   CloseableIterable<ManifestEntry<F>> liveEntries() {
@@ -292,7 +296,9 @@ public class ManifestReader<F extends ContentFile<F>> extends CloseableGroup
     return entry != null && entry.status() != ManifestEntry.Status.DELETED;
   }
 
-  /** @return an Iterator of DataFile. Makes defensive copies of files before returning */
+  /**
+   * @return an Iterator of DataFile. Makes defensive copies of files before returning
+   */
   @Override
   public CloseableIterator<F> iterator() {
     boolean dropStats = dropStats(columns);

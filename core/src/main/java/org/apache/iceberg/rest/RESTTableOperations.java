@@ -21,6 +21,7 @@ package org.apache.iceberg.rest;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.iceberg.LocationProviders;
@@ -56,6 +57,7 @@ class RESTTableOperations implements TableOperations {
   private final FileIO io;
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
+  private final Set<Endpoint> endpoints;
   private UpdateType updateType;
   private TableMetadata current;
 
@@ -64,8 +66,9 @@ class RESTTableOperations implements TableOperations {
       String path,
       Supplier<Map<String, String>> headers,
       FileIO io,
-      TableMetadata current) {
-    this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current);
+      TableMetadata current,
+      Set<Endpoint> endpoints) {
+    this(client, path, headers, io, UpdateType.SIMPLE, Lists.newArrayList(), current, endpoints);
   }
 
   RESTTableOperations(
@@ -75,7 +78,8 @@ class RESTTableOperations implements TableOperations {
       FileIO io,
       UpdateType updateType,
       List<MetadataUpdate> createChanges,
-      TableMetadata current) {
+      TableMetadata current,
+      Set<Endpoint> endpoints) {
     this.client = client;
     this.path = path;
     this.headers = headers;
@@ -88,6 +92,7 @@ class RESTTableOperations implements TableOperations {
     } else {
       this.current = current;
     }
+    this.endpoints = endpoints;
   }
 
   @Override
@@ -97,12 +102,14 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public TableMetadata refresh() {
+    Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
     return updateCurrentMetadata(
         client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
   }
 
   @Override
   public void commit(TableMetadata base, TableMetadata metadata) {
+    Endpoint.check(endpoints, Endpoint.V1_UPDATE_TABLE);
     Consumer<ErrorResponse> errorHandler;
     List<UpdateRequirement> requirements;
     List<MetadataUpdate> updates;

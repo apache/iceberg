@@ -414,6 +414,9 @@
             <property name="format" value="@Test\(.*expected.*\)"/>
             <property name="message" value="Prefer using Assertions.assertThatThrownBy(...).isInstanceOf(...) instead."/>
         </module>
+        <module name="IllegalToken">
+            <property name="tokens" value="LITERAL_ASSERT"/>
+        </module>
         <module name="IllegalImport">
             <property name="id" value="BanExpectedExceptionUsage"/>
             <property name="illegalClasses" value="org.junit.rules.ExpectedException"/>
@@ -422,6 +425,11 @@
         <module name="IllegalImport">
             <property name="id" value="BanHamcrestUsage"/>
             <property name="illegalPkgs" value="org.hamcrest"/>
+            <message key="import.illegal" value="Prefer using org.assertj.core.api.Assertions instead."/>
+        </module>
+        <module name="IllegalImport">
+            <property name="id" value="BanJUnit5Assertions"/>
+            <property name="illegalPkgs" value="org.junit.jupiter.api.Assertions"/>
             <message key="import.illegal" value="Prefer using org.assertj.core.api.Assertions instead."/>
         </module>
         <module name="RegexpSinglelineJava">

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -65,8 +66,11 @@ class IcebergWriter implements RecordWriter {
     } catch (Exception e) {
       throw new DataException(
           String.format(
+              Locale.ROOT,
               "An error occurred converting record, topic: %s, partition, %d, offset: %d",
-              record.topic(), record.kafkaPartition(), record.kafkaOffset()),
+              record.topic(),
+              record.kafkaPartition(),
+              record.kafkaOffset()),
           e);
     }
   }

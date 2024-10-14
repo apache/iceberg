@@ -39,7 +39,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 public class TestManifestReaderStats extends TestBase {
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
-    return Arrays.asList(1, 2);
+    return Arrays.asList(1, 2, 3);
   }
 
   private static final Map<Integer, Long> VALUE_COUNT = ImmutableMap.of(3, 3L);

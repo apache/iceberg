@@ -41,7 +41,6 @@ include 'gcp-bundle'
 include 'dell'
 include 'snowflake'
 include 'delta-lake'
-include 'kafka-connect'
 include 'open-api'
 
 project(':bom').name = 'iceberg-bom'
@@ -67,13 +66,13 @@ project(':gcp-bundle').name = 'iceberg-gcp-bundle'
 project(':dell').name = 'iceberg-dell'
 project(':snowflake').name = 'iceberg-snowflake'
 project(':delta-lake').name = 'iceberg-delta-lake'
-project(':kafka-connect').name = 'iceberg-kafka-connect'
 project(':open-api').name = 'iceberg-open-api'
 
 if (null != System.getProperty("allModules")) {
   System.setProperty("flinkVersions", System.getProperty("knownFlinkVersions"))
   System.setProperty("sparkVersions", System.getProperty("knownSparkVersions"))
   System.setProperty("hiveVersions", System.getProperty("knownHiveVersions"))
+  System.setProperty("kafkaVersions", System.getProperty("knownKafkaVersions"))
 }
 
 List<String> knownFlinkVersions = System.getProperty("knownFlinkVersions").split(",")
@@ -100,6 +99,14 @@ if (!knownSparkVersions.containsAll(sparkVersions)) {
   throw new GradleException("Found unsupported Spark versions: " + (sparkVersions - knownSparkVersions))
 }
 
+List<String> knownKafkaVersions = System.getProperty("knownKafkaVersions").split(",")
+String kafkaVersionsString = System.getProperty("kafkaVersions") != null ? System.getProperty("kafkaVersions") : System.getProperty("defaultKafkaVersions")
+List<String> kafkaVersions = kafkaVersionsString != null && !kafkaVersionsString.isEmpty() ? kafkaVersionsString.split(",") : []
+
+if (!knownKafkaVersions.containsAll(kafkaVersions)) {
+  throw new GradleException("Found unsupported Kafka versions: " + (kafkaVersions - knownKafkaVersions))
+}
+
 List<String> knownScalaVersions = System.getProperty("knownScalaVersions").split(",")
 String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
 
@@ -110,15 +117,6 @@ if (!knownScalaVersions.contains(scalaVersion)) {
 if (!flinkVersions.isEmpty()) {
   include 'flink'
   project(':flink').name = 'iceberg-flink'
-}
-
-if (flinkVersions.contains("1.17")) {
-  include ":iceberg-flink:flink-1.17"
-  include ":iceberg-flink:flink-runtime-1.17"
-  project(":iceberg-flink:flink-1.17").projectDir = file('flink/v1.17/flink')
-  project(":iceberg-flink:flink-1.17").name = "iceberg-flink-1.17"
-  project(":iceberg-flink:flink-runtime-1.17").projectDir = file('flink/v1.17/flink-runtime')
-  project(":iceberg-flink:flink-runtime-1.17").name = "iceberg-flink-runtime-1.17"
 }
 
 if (flinkVersions.contains("1.18")) {
@@ -137,6 +135,15 @@ if (flinkVersions.contains("1.19")) {
   project(":iceberg-flink:flink-1.19").name = "iceberg-flink-1.19"
   project(":iceberg-flink:flink-runtime-1.19").projectDir = file('flink/v1.19/flink-runtime')
   project(":iceberg-flink:flink-runtime-1.19").name = "iceberg-flink-runtime-1.19"
+}
+
+if (flinkVersions.contains("1.20")) {
+  include ":iceberg-flink:flink-1.20"
+  include ":iceberg-flink:flink-runtime-1.20"
+  project(":iceberg-flink:flink-1.20").projectDir = file('flink/v1.20/flink')
+  project(":iceberg-flink:flink-1.20").name = "iceberg-flink-1.20"
+  project(":iceberg-flink:flink-runtime-1.20").projectDir = file('flink/v1.20/flink-runtime')
+  project(":iceberg-flink:flink-runtime-1.20").name = "iceberg-flink-runtime-1.20"
 }
 
 if (sparkVersions.contains("3.3")) {
@@ -191,10 +198,19 @@ if (hiveVersions.contains("3")) {
   project(':hive3-orc-bundle').name = 'iceberg-hive3-orc-bundle'
 }
 
-include ":iceberg-kafka-connect:kafka-connect-events"
-project(":iceberg-kafka-connect:kafka-connect-events").projectDir = file('kafka-connect/kafka-connect-events')
-project(":iceberg-kafka-connect:kafka-connect-events").name = "iceberg-kafka-connect-events"
+if (kafkaVersions.contains("3")) {
+  include 'kafka-connect'
+  project(':kafka-connect').name = 'iceberg-kafka-connect'
 
-include ":iceberg-kafka-connect:kafka-connect"
-project(":iceberg-kafka-connect:kafka-connect").projectDir = file('kafka-connect/kafka-connect')
-project(":iceberg-kafka-connect:kafka-connect").name = "iceberg-kafka-connect"
+  include ":iceberg-kafka-connect:kafka-connect-events"
+  project(":iceberg-kafka-connect:kafka-connect-events").projectDir = file('kafka-connect/kafka-connect-events')
+  project(":iceberg-kafka-connect:kafka-connect-events").name = "iceberg-kafka-connect-events"
+
+  include ":iceberg-kafka-connect:kafka-connect"
+  project(":iceberg-kafka-connect:kafka-connect").projectDir = file('kafka-connect/kafka-connect')
+  project(":iceberg-kafka-connect:kafka-connect").name = "iceberg-kafka-connect"
+
+  include ":iceberg-kafka-connect:kafka-connect-runtime"
+  project(":iceberg-kafka-connect:kafka-connect-runtime").projectDir = file('kafka-connect/kafka-connect-runtime')
+  project(":iceberg-kafka-connect:kafka-connect-runtime").name = "iceberg-kafka-connect-runtime"
+}

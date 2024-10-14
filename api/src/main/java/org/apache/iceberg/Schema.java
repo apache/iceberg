@@ -54,6 +54,8 @@ public class Schema implements Serializable {
   private static final Joiner NEWLINE = Joiner.on('\n');
   private static final String ALL_COLUMNS = "*";
   private static final int DEFAULT_SCHEMA_ID = 0;
+  private static final Map<Type.TypeID, Integer> MIN_FORMAT_VERSIONS =
+      ImmutableMap.of(Type.TypeID.TIMESTAMP_NANO, 3);
 
   private final StructType struct;
   private final int schemaId;
@@ -572,5 +574,28 @@ public class Schema implements Serializable {
               return newId;
             });
     return res.asStructType().fields();
+  }
+
+  /**
+   * Check the compatibility of the schema with a format version.
+   *
+   * <p>This validates that the schema does not contain types that were released in later format
+   * versions.
+   *
+   * @param schema a Schema
+   * @param formatVersion table format version
+   */
+  public static void checkCompatibility(Schema schema, int formatVersion) {
+    // check the type in each field
+    for (NestedField field : schema.lazyIdToField().values()) {
+      Integer minFormatVersion = MIN_FORMAT_VERSIONS.get(field.type().typeId());
+      Preconditions.checkState(
+          minFormatVersion == null || formatVersion >= minFormatVersion,
+          "Invalid type in v%s schema: %s %s is not supported until v%s",
+          formatVersion,
+          schema.findColumnName(field.fieldId()),
+          field.type(),
+          minFormatVersion);
+    }
   }
 }

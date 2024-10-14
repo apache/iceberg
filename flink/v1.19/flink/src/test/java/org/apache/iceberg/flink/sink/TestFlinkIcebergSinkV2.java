@@ -30,6 +30,7 @@ import org.apache.flink.test.junit5.MiniClusterExtension;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -38,7 +39,6 @@ import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.HadoopCatalogExtension;
-import org.apache.iceberg.flink.MiniClusterResource;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
@@ -57,7 +57,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 @Timeout(value = 60)
 public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   @RegisterExtension
-  public static MiniClusterExtension miniClusterResource =
+  public static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
       MiniFlinkClusterExtension.createWithClassloaderCheckDisabled();
 
   @RegisterExtension
@@ -89,7 +89,7 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
 
     env =
         StreamExecutionEnvironment.getExecutionEnvironment(
-                MiniClusterResource.DISABLE_CLASSLOADER_CHECK_CONFIG)
+                MiniFlinkClusterExtension.DISABLE_CLASSLOADER_CHECK_CONFIG)
             .enableCheckpointing(100L)
             .setParallelism(parallelism)
             .setMaxParallelism(parallelism);
@@ -185,11 +185,21 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         .hasMessage(
             "OVERWRITE mode shouldn't be enable when configuring to use UPSERT data stream.");
 
-    assertThatThrownBy(
-            () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessage(
-            "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
+    if (writeDistributionMode.equals(DistributionMode.RANGE.modeName()) && !partitioned) {
+      // validation error thrown from distributeDataStream
+      assertThatThrownBy(
+              () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Invalid write distribution mode: range. Need to define sort order or partition spec.");
+    } else {
+      // validation error thrown from appendWriter
+      assertThatThrownBy(
+              () -> builder.equalityFieldColumns(ImmutableList.of()).overwrite(false).append())
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Equality field columns shouldn't be empty when configuring to use UPSERT data stream.");
+    }
   }
 
   @TestTemplate

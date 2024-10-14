@@ -25,6 +25,7 @@ import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFA
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -71,6 +72,7 @@ import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.view.BaseView;
 import org.apache.iceberg.view.SQLViewRepresentation;
@@ -82,7 +84,7 @@ import org.apache.iceberg.view.ViewRepresentation;
 
 public class CatalogHandlers {
   private static final Schema EMPTY_SCHEMA = new Schema();
-  private static final String INTIAL_PAGE_TOKEN = "";
+  private static final String INITIAL_PAGE_TOKEN = "";
 
   private CatalogHandlers() {}
 
@@ -108,6 +110,19 @@ public class CatalogHandlers {
     }
   }
 
+  private static <T> Pair<List<T>, String> paginate(List<T> list, String pageToken, int pageSize) {
+    int pageStart = INITIAL_PAGE_TOKEN.equals(pageToken) ? 0 : Integer.parseInt(pageToken);
+    if (pageStart >= list.size()) {
+      return Pair.of(Collections.emptyList(), null);
+    }
+
+    int end = Math.min(pageStart + pageSize, list.size());
+    List<T> subList = list.subList(pageStart, end);
+    String nextPageToken = end >= list.size() ? null : String.valueOf(end);
+
+    return Pair.of(subList, nextPageToken);
+  }
+
   public static ListNamespacesResponse listNamespaces(
       SupportsNamespaces catalog, Namespace parent) {
     List<Namespace> results;
@@ -123,7 +138,6 @@ public class CatalogHandlers {
   public static ListNamespacesResponse listNamespaces(
       SupportsNamespaces catalog, Namespace parent, String pageToken, String pageSize) {
     List<Namespace> results;
-    List<Namespace> subResults;
 
     if (parent.isEmpty()) {
       results = catalog.listNamespaces();
@@ -131,16 +145,12 @@ public class CatalogHandlers {
       results = catalog.listNamespaces(parent);
     }
 
-    int start = INTIAL_PAGE_TOKEN.equals(pageToken) ? 0 : Integer.parseInt(pageToken);
-    int end = start + Integer.parseInt(pageSize);
-    subResults = results.subList(start, end);
-    String nextToken = String.valueOf(end);
+    Pair<List<Namespace>, String> page = paginate(results, pageToken, Integer.parseInt(pageSize));
 
-    if (end >= results.size()) {
-      nextToken = null;
-    }
-
-    return ListNamespacesResponse.builder().addAll(subResults).nextPageToken(nextToken).build();
+    return ListNamespacesResponse.builder()
+        .addAll(page.first())
+        .nextPageToken(page.second())
+        .build();
   }
 
   public static CreateNamespaceResponse createNamespace(
@@ -203,18 +213,11 @@ public class CatalogHandlers {
   public static ListTablesResponse listTables(
       Catalog catalog, Namespace namespace, String pageToken, String pageSize) {
     List<TableIdentifier> results = catalog.listTables(namespace);
-    List<TableIdentifier> subResults;
 
-    int start = INTIAL_PAGE_TOKEN.equals(pageToken) ? 0 : Integer.parseInt(pageToken);
-    int end = start + Integer.parseInt(pageSize);
-    subResults = results.subList(start, end);
-    String nextToken = String.valueOf(end);
+    Pair<List<TableIdentifier>, String> page =
+        paginate(results, pageToken, Integer.parseInt(pageSize));
 
-    if (end >= results.size()) {
-      nextToken = null;
-    }
-
-    return ListTablesResponse.builder().addAll(subResults).nextPageToken(nextToken).build();
+    return ListTablesResponse.builder().addAll(page.first()).nextPageToken(page.second()).build();
   }
 
   public static LoadTableResponse stageTableCreate(
@@ -448,18 +451,11 @@ public class CatalogHandlers {
   public static ListTablesResponse listViews(
       ViewCatalog catalog, Namespace namespace, String pageToken, String pageSize) {
     List<TableIdentifier> results = catalog.listViews(namespace);
-    List<TableIdentifier> subResults;
 
-    int start = INTIAL_PAGE_TOKEN.equals(pageToken) ? 0 : Integer.parseInt(pageToken);
-    int end = start + Integer.parseInt(pageSize);
-    subResults = results.subList(start, end);
-    String nextToken = String.valueOf(end);
+    Pair<List<TableIdentifier>, String> page =
+        paginate(results, pageToken, Integer.parseInt(pageSize));
 
-    if (end >= results.size()) {
-      nextToken = null;
-    }
-
-    return ListTablesResponse.builder().addAll(subResults).nextPageToken(nextToken).build();
+    return ListTablesResponse.builder().addAll(page.first()).nextPageToken(page.second()).build();
   }
 
   public static LoadViewResponse createView(

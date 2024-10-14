@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.actions;
 
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ActionsProvider;
+import org.apache.iceberg.actions.ComputeTableStats;
 import org.apache.iceberg.actions.RemoveDanglingDeleteFiles;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
@@ -97,9 +98,15 @@ public class SparkActions implements ActionsProvider {
   public RewritePositionDeleteFilesSparkAction rewritePositionDeletes(Table table) {
     return new RewritePositionDeleteFilesSparkAction(spark, table);
   }
-
+  
   @Override
-  public RemoveDanglingDeleteFiles removeDanglingDeleteFiles(Table table) {
-    return new RemoveDanglingDeletesSparkAction(spark, table);
+  public ComputeTableStats computeTableStats(Table table) {
+    return new ComputeTableStatsSparkAction(spark, table);
   }
+
+  @Override  
+  public RemoveDanglingDeleteFiles removeDanglingDeleteFiles(Table table) {
+  return new RemoveDanglingDeletesSparkAction(spark, table);
+  }
+
 }

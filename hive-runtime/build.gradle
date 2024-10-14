@@ -20,7 +20,7 @@
 def hiveVersions = (System.getProperty("hiveVersions") != null ? System.getProperty("hiveVersions") : System.getProperty("defaultHiveVersions")).split(",")
 
 project(':iceberg-hive-runtime') {
-  apply plugin: 'io.github.goooler.shadow'
+  apply plugin: 'com.gradleup.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 
@@ -38,7 +38,7 @@ project(':iceberg-hive-runtime') {
 
   dependencies {
     implementation project(':iceberg-mr')
-    if (jdkVersion == '8' && hiveVersions.contains("3")) {
+    if (hiveVersions.contains("3")) {
       implementation project(':iceberg-hive3')
     }
     implementation(project(':iceberg-nessie')) {

@@ -85,7 +85,7 @@ class IcebergSourceSplitReader<T> implements SplitReader<RecordAndPosition<T>, I
       } else {
         // return an empty result, which will lead to split fetch to be idle.
         // SplitFetcherManager will then close idle fetcher.
-        return new RecordsBySplits(Collections.emptyMap(), Collections.emptySet());
+        return new RecordsBySplits<>(Collections.emptyMap(), Collections.emptySet());
       }
     }
 

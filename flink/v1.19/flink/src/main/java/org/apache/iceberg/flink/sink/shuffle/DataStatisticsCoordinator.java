@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -38,11 +39,11 @@ import org.apache.flink.util.ThrowableCatchingRunnable;
 import org.apache.flink.util.function.ThrowingRunnable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
-import org.apache.iceberg.SortOrderComparators;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Comparators;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -91,7 +92,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
     this.context = context;
     this.schema = schema;
     this.sortOrder = sortOrder;
-    this.comparator = SortOrderComparators.forSchema(schema, sortOrder);
+    this.comparator = Comparators.forType(SortKeyUtil.sortKeySchema(schema, sortOrder).asStruct());
     this.downstreamParallelism = downstreamParallelism;
     this.statisticsType = statisticsType;
     this.closeFileCostWeightPercentage = closeFileCostWeightPercentage;
@@ -202,17 +203,23 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
         aggregatedStatisticsTracker.updateAndCheckCompletion(subtask, event);
 
     if (maybeCompletedStatistics != null) {
-      // completedStatistics contains the complete samples, which is needed to compute
-      // the range bounds in globalStatistics if downstreamParallelism changed.
-      this.completedStatistics = maybeCompletedStatistics;
-      // globalStatistics only contains assignment calculated based on Map or Sketch statistics
-      this.globalStatistics =
-          globalStatistics(
-              maybeCompletedStatistics,
-              downstreamParallelism,
-              comparator,
-              closeFileCostWeightPercentage);
-      sendGlobalStatisticsToSubtasks(globalStatistics);
+      if (maybeCompletedStatistics.isEmpty()) {
+        LOG.info(
+            "Skip aggregated statistics for checkpoint {} as it is empty.", event.checkpointId());
+      } else {
+        LOG.info("Completed statistics aggregation for checkpoint {}", event.checkpointId());
+        // completedStatistics contains the complete samples, which is needed to compute
+        // the range bounds in globalStatistics if downstreamParallelism changed.
+        this.completedStatistics = maybeCompletedStatistics;
+        // globalStatistics only contains assignment calculated based on Map or Sketch statistics
+        this.globalStatistics =
+            globalStatistics(
+                maybeCompletedStatistics,
+                downstreamParallelism,
+                comparator,
+                closeFileCostWeightPercentage);
+        sendGlobalStatisticsToSubtasks(globalStatistics);
+      }
     }
   }
 
@@ -259,8 +266,10 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
           }
         },
         String.format(
+            Locale.ROOT,
             "Failed to send operator %s coordinator global data statistics for checkpoint %d",
-            operatorName, statistics.checkpointId()));
+            operatorName,
+            statistics.checkpointId()));
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
@@ -284,8 +293,11 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
             }
           },
           String.format(
+              Locale.ROOT,
               "Failed to send operator %s coordinator global data statistics to requesting subtask %d for checkpoint %d",
-              operatorName, subtask, globalStatistics.checkpointId()));
+              operatorName,
+              subtask,
+              globalStatistics.checkpointId()));
     } else {
       LOG.info(
           "Ignore global statistics request from subtask {} as statistics not available", subtask);
@@ -312,8 +324,11 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
           }
         },
         String.format(
+            Locale.ROOT,
             "handling operator event %s from subtask %d (#%d)",
-            event.getClass(), subtask, attemptNumber));
+            event.getClass(),
+            subtask,
+            attemptNumber));
   }
 
   @Override
@@ -324,11 +339,16 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
               "Snapshotting data statistics coordinator {} for checkpoint {}",
               operatorName,
               checkpointId);
-          resultFuture.complete(
-              StatisticsUtil.serializeCompletedStatistics(
-                  completedStatistics, completedStatisticsSerializer));
+          if (completedStatistics == null) {
+            // null checkpoint result is not allowed, hence supply an empty byte array
+            resultFuture.complete(new byte[0]);
+          } else {
+            resultFuture.complete(
+                StatisticsUtil.serializeCompletedStatistics(
+                    completedStatistics, completedStatisticsSerializer));
+          }
         },
-        String.format("taking checkpoint %d", checkpointId));
+        String.format(Locale.ROOT, "taking checkpoint %d", checkpointId));
   }
 
   @Override
@@ -338,7 +358,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
   public void resetToCheckpoint(long checkpointId, byte[] checkpointData) {
     Preconditions.checkState(
         !started, "The coordinator %s can only be reset if it was not yet started", operatorName);
-    if (checkpointData == null) {
+    if (checkpointData == null || checkpointData.length == 0) {
       LOG.info(
           "Data statistic coordinator {} has nothing to restore from checkpoint {}",
           operatorName,
@@ -370,7 +390,8 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
               this.coordinatorThreadFactory.isCurrentThreadCoordinatorThread());
           subtaskGateways.reset(subtask);
         },
-        String.format("handling subtask %d recovery to checkpoint %d", subtask, checkpointId));
+        String.format(
+            Locale.ROOT, "handling subtask %d recovery to checkpoint %d", subtask, checkpointId));
   }
 
   @Override
@@ -386,7 +407,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
               this.coordinatorThreadFactory.isCurrentThreadCoordinatorThread());
           subtaskGateways.unregisterSubtaskGateway(subtask, attemptNumber);
         },
-        String.format("handling subtask %d (#%d) failure", subtask, attemptNumber));
+        String.format(Locale.ROOT, "handling subtask %d (#%d) failure", subtask, attemptNumber));
   }
 
   @Override
@@ -400,7 +421,10 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
           subtaskGateways.registerSubtaskGateway(gateway);
         },
         String.format(
-            "making event gateway to subtask %d (#%d) available", subtask, attemptNumber));
+            Locale.ROOT,
+            "making event gateway to subtask %d (#%d) available",
+            subtask,
+            attemptNumber));
   }
 
   @VisibleForTesting

@@ -43,6 +43,7 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.PartitionUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 
@@ -51,7 +52,7 @@ public class TableMetadata implements Serializable {
   static final long INITIAL_SEQUENCE_NUMBER = 0;
   static final long INVALID_SEQUENCE_NUMBER = -1;
   static final int DEFAULT_TABLE_FORMAT_VERSION = 2;
-  static final int SUPPORTED_TABLE_FORMAT_VERSION = 2;
+  static final int SUPPORTED_TABLE_FORMAT_VERSION = 3;
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
@@ -331,7 +332,7 @@ public class TableMetadata implements Serializable {
 
     this.snapshotsById = indexAndValidateSnapshots(snapshots, lastSequenceNumber);
     this.schemasById = indexSchemas();
-    this.specsById = indexSpecs(specs);
+    this.specsById = PartitionUtil.indexSpecs(specs);
     this.sortOrdersById = indexSortOrders(sortOrders);
     this.refs = validateRefs(currentSnapshotId, refs, snapshotsById);
     this.statisticsFiles = ImmutableList.copyOf(statisticsFiles);
@@ -562,6 +563,10 @@ public class TableMetadata implements Serializable {
   // The caller is responsible to pass a newPartitionSpec with correct partition field IDs
   public TableMetadata updatePartitionSpec(PartitionSpec newPartitionSpec) {
     return new Builder(this).setDefaultPartitionSpec(newPartitionSpec).build();
+  }
+
+  public TableMetadata addPartitionSpec(PartitionSpec newPartitionSpec) {
+    return new Builder(this).addPartitionSpec(newPartitionSpec).build();
   }
 
   public TableMetadata replaceSortOrder(SortOrder newOrder) {
@@ -806,14 +811,6 @@ public class TableMetadata implements Serializable {
     return builder.build();
   }
 
-  private static Map<Integer, PartitionSpec> indexSpecs(List<PartitionSpec> specs) {
-    ImmutableMap.Builder<Integer, PartitionSpec> builder = ImmutableMap.builder();
-    for (PartitionSpec spec : specs) {
-      builder.put(spec.specId(), spec);
-    }
-    return builder.build();
-  }
-
   private static Map<Integer, SortOrder> indexSortOrders(List<SortOrder> sortOrders) {
     ImmutableMap.Builder<Integer, SortOrder> builder = ImmutableMap.builder();
     for (SortOrder sortOrder : sortOrders) {
@@ -969,6 +966,15 @@ public class TableMetadata implements Serializable {
 
     public Builder withMetadataLocation(String newMetadataLocation) {
       this.metadataLocation = newMetadataLocation;
+      if (null != base) {
+        // carry over lastUpdatedMillis from base and set previousFileLocation to null to avoid
+        // writing a new metadata log entry
+        // this is safe since setting metadata location doesn't cause any changes and no other
+        // changes can be added when metadata location is configured
+        this.lastUpdatedMillis = base.lastUpdatedMillis();
+        this.previousFileLocation = null;
+      }
+
       return this;
     }
 
@@ -1050,7 +1056,7 @@ public class TableMetadata implements Serializable {
       this.specs =
           Lists.newArrayList(Iterables.transform(specs, spec -> updateSpecSchema(schema, spec)));
       specsById.clear();
-      specsById.putAll(indexSpecs(specs));
+      specsById.putAll(PartitionUtil.indexSpecs(specs));
 
       this.sortOrders =
           Lists.newArrayList(
@@ -1496,6 +1502,8 @@ public class TableMetadata implements Serializable {
           "Invalid last column ID: %s < %s (previous last column ID)",
           newLastColumnId,
           lastColumnId);
+
+      Schema.checkCompatibility(schema, formatVersion);
 
       int newSchemaId = reuseOrCreateNewSchemaId(schema);
       boolean schemaFound = schemasById.containsKey(newSchemaId);

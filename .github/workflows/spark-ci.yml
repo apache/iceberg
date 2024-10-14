@@ -36,6 +36,7 @@ on:
     - '.github/workflows/hive-ci.yml'
     - '.github/workflows/java-ci.yml'
     - '.github/workflows/jmh-benchmarks-ci.yml'
+    - '.github/workflows/kafka-connect-ci.yml'
     - '.github/workflows/labeler.yml'
     - '.github/workflows/licence-check.yml'
     - '.github/workflows/open-api.yml'
@@ -52,6 +53,7 @@ on:
     - 'hive3-orc-bundle/**'
     - 'hive-runtime/**'
     - 'flink/**'
+    - 'kafka-connect/**'
     - 'pig/**'
     - 'docs/**'
     - 'open-api/**'
@@ -71,7 +73,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        jvm: [8, 11, 17, 21]
+        jvm: [11, 17, 21]
         spark: ['3.3', '3.4', '3.5']
         scala: ['2.12', '2.13']
         exclude:
@@ -101,7 +103,7 @@ jobs:
           tool-cache: false
       - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
       - run: |
-          ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala }} -DhiveVersions= -DflinkVersions= \
+          ./gradlew -DsparkVersions=${{ matrix.spark }} -DscalaVersion=${{ matrix.scala }} -DhiveVersions= -DflinkVersions= -DkafkaVersions= \
             :iceberg-spark:iceberg-spark-${{ matrix.spark }}_${{ matrix.scala }}:check \
             :iceberg-spark:iceberg-spark-extensions-${{ matrix.spark }}_${{ matrix.scala }}:check \
             :iceberg-spark:iceberg-spark-runtime-${{ matrix.spark }}_${{ matrix.scala }}:check \

@@ -127,7 +127,7 @@ Create a table and insert some data:
 
 ```sql
 CREATE TABLE db.table (id bigint, data string, col float);
-INSERT INTO db.table values (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', 3.0);
+INSERT INTO db.table VALUES (1, 'a', 1.0), (2, 'b', 2.0), (3, 'c', 3.0);
 SELECT * FROM db.table;
 1	a	1.0
 2	b	2.0
@@ -148,11 +148,11 @@ SELECT * FROM db.table.branch_test_branch;
 Modify the table's schema by dropping the `col` column and adding a new column named `new_col`:
 
 ```sql
-ALTER TABLE db.table drop column float;
+ALTER TABLE db.table DROP COLUMN col;
 
-ALTER TABLE db.table add column new_col date;
+ALTER TABLE db.table ADD COLUMN new_col date;
 
-INSERT INTO db.table values (4, 'd', date('2024-04-04')), (5, 'e', date('2024-05-05'));
+INSERT INTO db.table VALUES (4, 'd', date('2024-04-04')), (5, 'e', date('2024-05-05'));
 
 SELECT * FROM db.table;
 1	a	NULL
@@ -195,7 +195,7 @@ When writing to the branch, the **table's schema** is used for validation:
 
 ```sql
 
-INSERT INTO db.table.branch_test_branch values (6, 'e', date('2024-06-06')), (7, 'g', date('2024-07-07'));
+INSERT INTO db.table.branch_test_branch VALUES (6, 'e', date('2024-06-06')), (7, 'g', date('2024-07-07'));
 
 SELECT * FROM db.table.branch_test_branch;
 6	e	2024-06-06
