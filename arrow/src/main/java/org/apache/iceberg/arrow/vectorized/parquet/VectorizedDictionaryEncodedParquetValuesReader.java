@@ -141,6 +141,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     }
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
+   */
+  @Deprecated
   class FixedWidthBinaryDictEncodedReader extends BaseDictEncodedReader {
     @Override
     protected void nextVal(
@@ -203,6 +207,10 @@ public class VectorizedDictionaryEncodedParquetValuesReader
     return new DoubleDictEncodedReader();
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
+   */
+  @Deprecated
   public FixedWidthBinaryDictEncodedReader fixedWidthBinaryDictEncodedReader() {
     return new FixedWidthBinaryDictEncodedReader();
   }

@@ -493,6 +493,10 @@ public final class VectorizedParquetDefinitionLevelReader
     }
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
+   */
+  @Deprecated
   class FixedWidthBinaryReader extends BaseReader {
     @Override
     protected void nextVal(
@@ -732,6 +736,10 @@ public final class VectorizedParquetDefinitionLevelReader
     return new TimestampInt96Reader();
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
+   */
+  @Deprecated
   FixedWidthBinaryReader fixedWidthBinaryReader() {
     return new FixedWidthBinaryReader();
   }
