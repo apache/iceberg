@@ -36,13 +36,6 @@ configure(sparkProjects) {
       }
     }
   }
-
-  test {
-    // This flag is set to keep the backward compatibility between JUnit 5.10 and 5.11.
-    // Remove this after all Spark tests are migrated to JUnit 5.11.
-    // See https://github.com/apache/iceberg/pull/11262#issuecomment-2395411961
-    jvmArgs += "-Djunit.platform.reflection.search.useLegacySemantics=true"
-  }
 }
 
 project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
@@ -310,11 +303,6 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     description = "Test Spark3 Runtime Jar against Spark ${sparkMajorVersion}"
     group = "verification"
     jvmArgs += project.property('extraJvmArgs')
-
-    // This flag is set to keep the backward compatibility between JUnit 5.10 and 5.11.
-    // Remove this after all Spark tests are migrated to JUnit 5.11.
-    // See https://github.com/apache/iceberg/pull/11262#issuecomment-2395411961
-    jvmArgs += "-Djunit.platform.reflection.search.useLegacySemantics=true"
     testClassesDirs = sourceSets.integration.output.classesDirs
     classpath = sourceSets.integration.runtimeClasspath + files(shadowJar.archiveFile.get().asFile.path)
     inputs.file(shadowJar.archiveFile.get().asFile.path)

@@ -38,13 +38,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestOutputFileFactory extends TestBase {
 
-  private static final int PARTITION_ID = 1;
-  private static final int TASK_ID = 100;
-
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
     return Arrays.asList(1, 2, 3);
   }
+
+  private static final int PARTITION_ID = 1;
+  private static final int TASK_ID = 100;
 
   @TestTemplate
   public void testOutputFileFactoryWithCustomFormat() {

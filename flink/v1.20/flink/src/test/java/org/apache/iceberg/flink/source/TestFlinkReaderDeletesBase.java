@@ -22,9 +22,7 @@ import java.util.Map;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.CatalogUtil;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -49,15 +47,6 @@ public abstract class TestFlinkReaderDeletesBase extends DeleteReadTests {
   protected static HiveConf hiveConf = null;
   protected static HiveCatalog catalog = null;
   private static TestHiveMetastore metastore = null;
-
-  @Parameters(name = "fileFormat = {0}")
-  public static Object[][] parameters() {
-    return new Object[][] {
-      new Object[] {FileFormat.PARQUET},
-      new Object[] {FileFormat.AVRO},
-      new Object[] {FileFormat.ORC}
-    };
-  }
 
   @BeforeAll
   public static void startMetastore() {

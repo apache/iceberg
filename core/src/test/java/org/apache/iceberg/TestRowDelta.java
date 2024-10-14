@@ -45,7 +45,7 @@ import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestRowDelta extends TestBase {
+public class TestRowDelta extends V2TableTestBase {
 
   @Parameter(index = 1)
   private String branch;

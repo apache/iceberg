@@ -18,26 +18,12 @@
  */
 package org.apache.iceberg;
 
-public class TestLocalDataTableScan
-    extends DataTableScanTestBase<TableScan, FileScanTask, CombinedScanTask> {
+import java.util.Arrays;
+import java.util.List;
 
-  @Override
-  protected TableScan useRef(TableScan scan, String ref) {
-    return scan.useRef(ref);
-  }
-
-  @Override
-  protected TableScan useSnapshot(TableScan scan, long snapshotId) {
-    return scan.useSnapshot(snapshotId);
-  }
-
-  @Override
-  protected TableScan asOfTime(TableScan scan, long timestampMillis) {
-    return scan.asOfTime(timestampMillis);
-  }
-
-  @Override
-  protected TableScan newScan() {
-    return table.newScan();
+public class V2TableTestBase extends TestBase {
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(2);
   }
 }
