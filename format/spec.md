@@ -121,7 +121,7 @@ Tables do not require random-access writes. Once written, data and metadata file
 Tables do not require rename, except for tables that use atomic rename to implement the commit operation for new metadata files.
 
 
-# Specification
+## Specification
 
 ### Terms
 
