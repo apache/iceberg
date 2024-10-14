@@ -139,6 +139,7 @@ public class SparkCatalog extends BaseCatalog
   private ViewCatalog asViewCatalog = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
+  private boolean clientPurgeEnabled;
 
   /**
    * Build an Iceberg {@link Catalog} to be used by this Spark catalog adapter.
@@ -367,8 +368,7 @@ public class SparkCatalog extends BaseCatalog
       String metadataFileLocation =
           ((HasTableOperations) table).operations().current().metadataFileLocation();
 
-      boolean clientSidePurgeEnabled = PropertyUtil.propertyAsBoolean(table.properties(), IO_CLIENT_SIDE_PURGE_ENABLED, IO_CLIENT_SIDE_PURGE_ENABLED_DEFAULT);
-      if (clientSidePurgeEnabled) {
+      if (this.clientPurgeEnabled) {
         boolean dropped = dropTableWithoutPurging(ident);
 
         if (dropped) {
@@ -757,6 +757,11 @@ public class SparkCatalog extends BaseCatalog
             options,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+
+    this.clientPurgeEnabled = PropertyUtil.propertyAsBoolean(
+            options,
+            IO_CLIENT_SIDE_PURGE_ENABLED,
+            IO_CLIENT_SIDE_PURGE_ENABLED_DEFAULT);
 
     // An expiration interval of 0ms effectively disables caching.
     // Do not wrap with CachingCatalog.
