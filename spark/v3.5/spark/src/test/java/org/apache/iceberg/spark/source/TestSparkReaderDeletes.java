@@ -272,6 +272,49 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   }
 
   @TestTemplate
+  public void testMergeEqualityDeletesOOM() throws IOException {
+    String tableName = table.name().substring(table.name().lastIndexOf(".") + 1);
+    Schema deleteRowSchema = table.schema().select("data");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+
+    // Create an extremely large dataset
+    List<Record> dataDeletes = Lists.newArrayList();
+    for (int i = 0; i < 500_000_000; i++) { // Adjust this number up if necessary
+      // Creating large strings for each record to consume more memory
+      dataDeletes.add(dataDelete.copy("data", "item" + i + "data".repeat(100)));
+      System.out.println(dataDeletes);
+    }
+
+    DeleteFile eqDeletes =
+            FileHelpers.writeDeleteFile(
+                    table,
+                    Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+                    TestHelpers.Row.of(0), // not partition specific because key = 0
+                    dataDeletes,
+                    deleteRowSchema);
+
+    table.newRowDelta().addDeletes(eqDeletes).commit();
+
+    Types.StructType projection = table.schema().select("*").asStruct();
+    Dataset<Row> df =
+            spark
+                    .read()
+                    .format("iceberg")
+                    .load(TableIdentifier.of("default", tableName).toString())
+                    .filter("data = 'item0" + "data".repeat(100) + "'") // filtering a specific deleted row
+                    .selectExpr("*");
+
+    StructLikeSet actual = StructLikeSet.create(projection);
+    df.collectAsList()
+            .forEach(
+                    row -> {
+                      SparkStructLike rowWrapper = new SparkStructLike(projection);
+                      actual.add(rowWrapper.wrap(row));
+                    });
+    assertThat(actual).as("Table should contain no rows").hasSize(0);
+  }
+
+  @TestTemplate
   public void testReadEqualityDeleteRows() throws IOException {
     Schema deleteSchema1 = table.schema().select("data");
     Record dataDelete = GenericRecord.create(deleteSchema1);
