@@ -129,10 +129,23 @@ public class ContentCache {
     return input;
   }
 
+  /**
+   * Invalidate the cache entry for the given key.
+   *
+   * <p>Note: if there is ongoing load, this is a blocking operation, i.e. it will wait for the load
+   * to complete before invalidating the entry.
+   */
   public void invalidate(String key) {
     cache.invalidate(key);
   }
 
+  /**
+   * @deprecated since 1.6.0, will be removed in 1.7.0; This method does only best-effort
+   *     invalidation and is susceptible to a race condition. If the caller changed the state that
+   *     could be cached (perhaps files on the storage) and calls this method, there is no guarantee
+   *     that the cache will not contain stale entries some time after this method returns.
+   */
+  @Deprecated
   public void invalidateAll() {
     cache.invalidateAll();
   }
