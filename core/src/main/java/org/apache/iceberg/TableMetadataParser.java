@@ -130,7 +130,6 @@ public class TableMetadataParser {
           generator.useDefaultPrettyPrinter();
           toJson(metadata, generator);
           generator.flush();
-      }
     } catch (IOException e) {
       throw new RuntimeIOException(e, "Failed to write json to file: %s", outputFile);
     }
