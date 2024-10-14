@@ -87,21 +87,19 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   private static void startRESTServer() throws Exception {
-    restServer = new RESTCatalogServer();
-    // prevent using already-in-use port when testing
-    System.setProperty("rest.port", String.valueOf(MetaStoreUtils.findFreePort()));
-    System.setProperty(CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath());
-    // In-memory sqlite database by default is private to the connection that created it.
-    // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
-    // JdbcCatalog, then different jdbc connections could provide different views of table
-    // status even belonging to the same catalog. Reference:
-    // https://www.sqlite.org/inmemorydb.html
-    System.setProperty(CatalogProperties.CLIENT_POOL_SIZE, "1");
+    Map<String, String> config =
+        Map.of(
+            RESTCatalogServer.REST_PORT, String.valueOf(MetaStoreUtils.findFreePort()),
+            CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath(),
+            // In-memory sqlite database by default is private to the connection that created it.
+            // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
+            // JdbcCatalog, then different jdbc connections could provide different views of table
+            // status even belonging to the same catalog. Reference:
+            // https://www.sqlite.org/inmemorydb.html
+            CatalogProperties.CLIENT_POOL_SIZE, "1");
+    restServer = new RESTCatalogServer(config);
     restServer.start(false);
-    restCatalog = RCKUtils.initCatalogClient();
-    System.clearProperty("rest.port");
-    System.clearProperty(CatalogProperties.WAREHOUSE_LOCATION);
-    System.clearProperty(CatalogProperties.CLIENT_POOL_SIZE);
+    restCatalog = RCKUtils.initCatalogClient(config);
   }
 
   private static void stopRESTServer() throws Exception {

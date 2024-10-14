@@ -77,7 +77,11 @@ public class RCKUtils {
   }
 
   public static RESTCatalog initCatalogClient() {
-    Map<String, String> catalogProperties = Maps.newHashMap();
+    return initCatalogClient(Maps.newHashMap());
+  }
+
+  public static RESTCatalog initCatalogClient(Map<String, String> properties) {
+    Map<String, String> catalogProperties = Maps.newHashMap(properties);
     catalogProperties.putAll(RCKUtils.environmentCatalogConfig());
     catalogProperties.putAll(Maps.fromProperties(System.getProperties()));
 

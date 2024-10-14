@@ -38,12 +38,19 @@ import org.slf4j.LoggerFactory;
 public class RESTCatalogServer {
   private static final Logger LOG = LoggerFactory.getLogger(RESTCatalogServer.class);
 
-  static final String REST_PORT = "rest.port";
+  public static final String REST_PORT = "rest.port";
   static final int REST_PORT_DEFAULT = 8181;
 
   private Server httpServer;
+  private final Map<String, String> config;
 
-  public RESTCatalogServer() {}
+  public RESTCatalogServer() {
+    this.config = Maps.newHashMap();
+  }
+
+  public RESTCatalogServer(Map<String, String> config) {
+    this.config = config;
+  }
 
   static class CatalogContext {
     private final Catalog catalog;
@@ -65,7 +72,7 @@ public class RESTCatalogServer {
 
   private CatalogContext initializeBackendCatalog() throws IOException {
     // Translate environment variables to catalog properties
-    Map<String, String> catalogProperties = Maps.newHashMap();
+    Map<String, String> catalogProperties = Maps.newHashMap(config);
     catalogProperties.putAll(RCKUtils.environmentCatalogConfig());
     catalogProperties.putAll(Maps.fromProperties(System.getProperties()));
 
