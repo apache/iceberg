@@ -412,7 +412,20 @@ public class TestDeleteFiles extends TestBase {
 
     assertThatThrownBy(
             () -> commit(table, table.newDelete().deleteFile(FILE_B).validateFilesExist(), branch))
-        .isInstanceOf(ValidationException.class);
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing required files to delete: /path/to/data-b.parquet");
+
+    assertThatThrownBy(
+            () ->
+                commit(
+                    table,
+                    table
+                        .newDelete()
+                        .deleteFile("/path/to/non-existing.parquet")
+                        .validateFilesExist(),
+                    branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Missing required files to delete: /path/to/non-existing.parquet");
   }
 
   @TestTemplate

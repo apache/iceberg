@@ -36,6 +36,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -567,17 +568,17 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return true;
   }
 
-  protected List<ManifestFile> writeDataManifests(List<DataFile> files, PartitionSpec spec) {
+  protected List<ManifestFile> writeDataManifests(Collection<DataFile> files, PartitionSpec spec) {
     return writeDataManifests(files, null /* inherit data seq */, spec);
   }
 
   protected List<ManifestFile> writeDataManifests(
-      List<DataFile> files, Long dataSeq, PartitionSpec spec) {
+      Collection<DataFile> files, Long dataSeq, PartitionSpec spec) {
     return writeManifests(files, group -> writeDataFileGroup(group, dataSeq, spec));
   }
 
   private List<ManifestFile> writeDataFileGroup(
-      List<DataFile> files, Long dataSeq, PartitionSpec spec) {
+      Collection<DataFile> files, Long dataSeq, PartitionSpec spec) {
     RollingManifestWriter<DataFile> writer = newRollingManifestWriter(spec);
 
     try (RollingManifestWriter<DataFile> closableWriter = writer) {
@@ -594,12 +595,12 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected List<ManifestFile> writeDeleteManifests(
-      List<DeleteFileHolder> files, PartitionSpec spec) {
+      Collection<DeleteFileHolder> files, PartitionSpec spec) {
     return writeManifests(files, group -> writeDeleteFileGroup(group, spec));
   }
 
   private List<ManifestFile> writeDeleteFileGroup(
-      List<DeleteFileHolder> files, PartitionSpec spec) {
+      Collection<DeleteFileHolder> files, PartitionSpec spec) {
     RollingManifestWriter<DeleteFile> writer = newRollingDeleteManifestWriter(spec);
 
     try (RollingManifestWriter<DeleteFile> closableWriter = writer) {
@@ -618,7 +619,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   private static <F> List<ManifestFile> writeManifests(
-      List<F> files, Function<List<F>, List<ManifestFile>> writeFunc) {
+      Collection<F> files, Function<List<F>, List<ManifestFile>> writeFunc) {
     int parallelism = manifestWriterCount(ThreadPools.WORKER_THREAD_POOL_SIZE, files.size());
     List<List<F>> groups = divide(files, parallelism);
     Queue<ManifestFile> manifests = Queues.newConcurrentLinkedQueue();
@@ -630,7 +631,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return ImmutableList.copyOf(manifests);
   }
 
-  private static <T> List<List<T>> divide(List<T> list, int groupCount) {
+  private static <T> List<List<T>> divide(Collection<T> collection, int groupCount) {
+    List<T> list = Lists.newArrayList(collection);
     int groupSize = IntMath.divide(list.size(), groupCount, RoundingMode.CEILING);
     return Lists.partition(list, groupSize);
   }
