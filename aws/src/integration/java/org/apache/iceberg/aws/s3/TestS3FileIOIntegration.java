@@ -183,6 +183,29 @@ public class TestS3FileIOIntegration {
   }
 
   @Test
+  public void testCrossRegionAccessEnabled() throws Exception {
+    clientFactory.initialize(
+        ImmutableMap.of(S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED, "true"));
+    S3Client s3Client = clientFactory.s3();
+    String crossBucketObjectKey = String.format("%s/%s", prefix, UUID.randomUUID());
+    String crossBucketObjectUri =
+        String.format("s3://%s/%s", crossRegionBucketName, crossBucketObjectKey);
+    try {
+      s3Client.putObject(
+          PutObjectRequest.builder()
+              .bucket(crossRegionBucketName)
+              .key(crossBucketObjectKey)
+              .build(),
+          RequestBody.fromBytes(contentBytes));
+      // make a copy in cross-region bucket
+      S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+      validateRead(s3FileIO, crossBucketObjectUri);
+    } finally {
+      AwsIntegTestUtil.cleanS3Bucket(s3Client, crossRegionBucketName, crossBucketObjectKey);
+    }
+  }
+
+  @Test
   public void testNewInputStreamWithCrossRegionAccessPoint() throws Exception {
     clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
     S3Client s3Client = clientFactory.s3();
@@ -550,7 +573,11 @@ public class TestS3FileIOIntegration {
   }
 
   private void validateRead(S3FileIO s3FileIO) throws Exception {
-    InputFile file = s3FileIO.newInputFile(objectUri);
+    validateRead(s3FileIO, objectUri);
+  }
+
+  private void validateRead(S3FileIO s3FileIO, String s3Uri) throws Exception {
+    InputFile file = s3FileIO.newInputFile(s3Uri);
     assertThat(file.getLength()).isEqualTo(contentBytes.length);
     try (InputStream stream = file.newStream()) {
       String result = IoUtils.toUtf8String(stream);

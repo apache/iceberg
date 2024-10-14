@@ -377,6 +377,16 @@ public class S3FileIOProperties implements Serializable {
   public static final boolean DUALSTACK_ENABLED_DEFAULT = false;
 
   /**
+   * Determines if S3 client will allow Cross-Region bucket access, default to false.
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/s3-cross-region.html
+   */
+  public static final String CROSS_REGION_ACCESS_ENABLED = "s3.cross-region-access-enabled";
+
+  public static final boolean CROSS_REGION_ACCESS_ENABLED_DEFAULT = false;
+
+  /**
    * Used by {@link S3FileIO}, prefix used for bucket access point configuration. To set, we can
    * pass a catalog property.
    *
@@ -442,6 +452,7 @@ public class S3FileIOProperties implements Serializable {
   private final Map<String, String> bucketToAccessPointMapping;
   private boolean isPreloadClientEnabled;
   private final boolean isDualStackEnabled;
+  private final boolean isCrossRegionAccessEnabled;
   private final boolean isPathStyleAccess;
   private final boolean isUseArnRegionEnabled;
   private final boolean isAccelerationEnabled;
@@ -477,6 +488,7 @@ public class S3FileIOProperties implements Serializable {
     this.bucketToAccessPointMapping = Collections.emptyMap();
     this.isPreloadClientEnabled = PRELOAD_CLIENT_ENABLED_DEFAULT;
     this.isDualStackEnabled = DUALSTACK_ENABLED_DEFAULT;
+    this.isCrossRegionAccessEnabled = CROSS_REGION_ACCESS_ENABLED_DEFAULT;
     this.isPathStyleAccess = PATH_STYLE_ACCESS_DEFAULT;
     this.isUseArnRegionEnabled = USE_ARN_REGION_ENABLED_DEFAULT;
     this.isAccelerationEnabled = ACCELERATION_ENABLED_DEFAULT;
@@ -521,6 +533,9 @@ public class S3FileIOProperties implements Serializable {
             properties, ACCELERATION_ENABLED, ACCELERATION_ENABLED_DEFAULT);
     this.isDualStackEnabled =
         PropertyUtil.propertyAsBoolean(properties, DUALSTACK_ENABLED, DUALSTACK_ENABLED_DEFAULT);
+    this.isCrossRegionAccessEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, CROSS_REGION_ACCESS_ENABLED, CROSS_REGION_ACCESS_ENABLED_DEFAULT);
     try {
       this.multiPartSize =
           PropertyUtil.propertyAsInt(properties, MULTIPART_SIZE, MULTIPART_SIZE_DEFAULT);
@@ -680,6 +695,10 @@ public class S3FileIOProperties implements Serializable {
     return this.isDualStackEnabled;
   }
 
+  public boolean isCrossRegionAccessEnabled() {
+    return this.isCrossRegionAccessEnabled;
+  }
+
   public boolean isPathStyleAccess() {
     return this.isPathStyleAccess;
   }
@@ -832,7 +851,7 @@ public class S3FileIOProperties implements Serializable {
 
   /**
    * Configure services settings for an S3 client. The settings include: s3DualStack,
-   * s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
+   * crossRegionAccessEnabled, s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
    *
    * <p>Sample usage:
    *
@@ -843,6 +862,7 @@ public class S3FileIOProperties implements Serializable {
   public <T extends S3ClientBuilder> void applyServiceConfigurations(T builder) {
     builder
         .dualstackEnabled(isDualStackEnabled)
+        .crossRegionAccessEnabled(isCrossRegionAccessEnabled)
         .serviceConfiguration(
             S3Configuration.builder()
                 .pathStyleAccessEnabled(isPathStyleAccess)
