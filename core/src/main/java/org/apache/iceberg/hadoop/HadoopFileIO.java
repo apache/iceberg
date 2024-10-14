@@ -84,23 +84,23 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
 
   @Override
   public InputFile newInputFile(String path) {
-    return HadoopInputFile.fromLocation(path, hadoopConf.get());
+    return HadoopInputFile.fromLocation(path, getConf());
   }
 
   @Override
   public InputFile newInputFile(String path, long length) {
-    return HadoopInputFile.fromLocation(path, length, hadoopConf.get());
+    return HadoopInputFile.fromLocation(path, length, getConf());
   }
 
   @Override
   public OutputFile newOutputFile(String path) {
-    return HadoopOutputFile.fromPath(new Path(path), hadoopConf.get());
+    return HadoopOutputFile.fromPath(new Path(path), getConf());
   }
 
   @Override
   public void deleteFile(String path) {
     Path toDelete = new Path(path);
-    FileSystem fs = Util.getFs(toDelete, hadoopConf.get());
+    FileSystem fs = Util.getFs(toDelete, getConf());
     try {
       fs.delete(toDelete, false /* not recursive */);
     } catch (IOException e) {
@@ -121,7 +121,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   @Override
   public Configuration getConf() {
     // Create a default hadoopConf as it is required for the object to be valid.
-    // E.g. newInputFile would throw NPE with hadoopConf.get() otherwise.
+    // E.g. newInputFile would throw NPE with getConf() otherwise.
     if (hadoopConf == null) {
       this.hadoopConf = new SerializableConfiguration(new Configuration())::get;
     }
@@ -138,7 +138,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
     Path prefixToList = new Path(prefix);
-    FileSystem fs = Util.getFs(prefixToList, hadoopConf.get());
+    FileSystem fs = Util.getFs(prefixToList, getConf());
 
     return () -> {
       try {
@@ -160,7 +160,7 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
   @Override
   public void deletePrefix(String prefix) {
     Path prefixToDelete = new Path(prefix);
-    FileSystem fs = Util.getFs(prefixToDelete, hadoopConf.get());
+    FileSystem fs = Util.getFs(prefixToDelete, getConf());
 
     try {
       fs.delete(prefixToDelete, true /* recursive */);
