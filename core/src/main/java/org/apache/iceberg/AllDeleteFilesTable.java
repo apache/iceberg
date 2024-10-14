@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg;
 
+import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.util.Pair;
 
 /**
  * A {@link Table} implementation that exposes its valid delete files as rows.
@@ -65,6 +67,15 @@ public class AllDeleteFilesTable extends BaseFilesTable {
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
       return reachableManifests(snapshot -> snapshot.deleteManifests(table().io()));
+    }
+
+    @Override
+    protected CloseableIterable<Pair<Snapshot, ManifestFile>> snapshotManifestPairs() {
+      return reachableSnapshotManifestPairs(
+          snapshot ->
+              snapshot.deleteManifests(table().io()).stream()
+                  .map(manifestFile -> Pair.of(snapshot, manifestFile))
+                  .collect(Collectors.toSet()));
     }
   }
 }
