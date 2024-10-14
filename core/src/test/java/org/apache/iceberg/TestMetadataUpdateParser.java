@@ -372,7 +372,8 @@ public class TestMetadataUpdateParser {
             DataOperations.REPLACE,
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             schemaId,
-            manifestList);
+            manifestList,
+            0L);
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String expected = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate update = new MetadataUpdate.AddSnapshot(snapshot);
@@ -400,7 +401,8 @@ public class TestMetadataUpdateParser {
             DataOperations.REPLACE,
             summary,
             schemaId,
-            manifestList);
+            manifestList,
+            0L);
     String snapshotJson = SnapshotParser.toJson(snapshot, /* pretty */ false);
     String json = String.format("{\"action\":\"%s\",\"snapshot\":%s}", action, snapshotJson);
     MetadataUpdate expected = new MetadataUpdate.AddSnapshot(snapshot);

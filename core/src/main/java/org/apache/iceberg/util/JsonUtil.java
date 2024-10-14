@@ -155,6 +155,17 @@ public class JsonUtil {
     return pNode.asBoolean();
   }
 
+  public static Boolean getBoolOrNull(String property, JsonNode node) {
+    if (!node.has(property)) {
+      return null;
+    }
+    JsonNode pNode = node.get(property);
+    if (pNode != null && pNode.isNull()) {
+      return null;
+    }
+    return getBool(property, node);
+  }
+
   public static String getString(String property, JsonNode node) {
     Preconditions.checkArgument(node.has(property), "Cannot parse missing string: %s", property);
     JsonNode pNode = node.get(property);

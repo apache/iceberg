@@ -91,6 +91,18 @@ public class MetadataColumns {
           "_commit_snapshot_id",
           Types.LongType.get(),
           "Commit snapshot ID");
+  public static final NestedField ROW_ID =
+      NestedField.optional(
+          Integer.MAX_VALUE - 107,
+          "_row_id",
+          Types.LongType.get(),
+          "Unique identifier for this row");
+  public static final NestedField LAST_UPDATED_SEQUENCE_NUMBER =
+      NestedField.optional(
+          Integer.MAX_VALUE - 108,
+          "_last_updated_seq",
+          Types.LongType.get(),
+          "Unique identifier for this row");
 
   private static final Map<String, NestedField> META_COLUMNS =
       ImmutableMap.of(

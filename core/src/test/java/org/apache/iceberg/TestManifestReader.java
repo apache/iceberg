@@ -130,8 +130,8 @@ public class TestManifestReader extends TestBase {
       long expectedPos = 0L;
       for (DataFile file : reader) {
         assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
-        assertThat(((BaseFile) file).get(20))
-            .as("Position from field index should match")
+        assertThat(((BaseFile) file).get(((BaseFile) file).size()))
+            .as("Position from field index (last field in the struct) should match")
             .isEqualTo(expectedPos);
         expectedPos += 1;
       }
@@ -158,8 +158,8 @@ public class TestManifestReader extends TestBase {
       long expectedPos = 0L;
       for (DeleteFile file : reader) {
         assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
-        assertThat(((BaseFile) file).get(20))
-            .as("Position from field index should match")
+        assertThat(((BaseFile<?>) file).get(((BaseFile<?>) file).size()))
+            .as("Position from field index (last field in the struct) should match")
             .isEqualTo(expectedPos);
         expectedPos += 1;
       }

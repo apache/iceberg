@@ -282,6 +282,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       throw new RuntimeIOException(e, "Failed to write manifest list file");
     }
 
+    Long firstRowId = null;
+    if (base.rowLineage() != null && base.rowLineage()) {
+      firstRowId = base.lastRowId();
+    }
+
     return new BaseSnapshot(
         sequenceNumber,
         snapshotId(),
@@ -290,7 +295,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         operation(),
         summary(base),
         base.currentSchemaId(),
-        manifestList.location());
+        manifestList.location(),
+        firstRowId);
   }
 
   protected abstract Map<String, String> summary();
@@ -726,6 +732,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           deletedFiles,
           deletedRows,
           stats.summaries(),
+          null,
           null);
 
     } catch (IOException e) {

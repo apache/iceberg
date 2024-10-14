@@ -43,7 +43,7 @@ public class TestSnapshotJson {
 
     Snapshot expected =
         new BaseSnapshot(
-            0, snapshotId, parentId, System.currentTimeMillis(), null, null, 1, manifestList);
+            0, snapshotId, parentId, System.currentTimeMillis(), null, null, 1, manifestList, 10L);
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -51,7 +51,8 @@ public class TestSnapshotJson {
     assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
     assertThat(snapshot.operation()).isNull();
     assertThat(snapshot.summary()).isNull();
-    assertThat(snapshot.schemaId()).isEqualTo(1);
+    assertThat(snapshot.schemaId()).isEqualTo(expected.schemaId());
+    assertThat(snapshot.firstRowId()).isEqualTo(expected.firstRowId());
   }
 
   @Test
@@ -62,7 +63,15 @@ public class TestSnapshotJson {
 
     Snapshot expected =
         new BaseSnapshot(
-            0, snapshotId, parentId, System.currentTimeMillis(), null, null, null, manifestList);
+            0,
+            snapshotId,
+            parentId,
+            System.currentTimeMillis(),
+            null,
+            null,
+            null,
+            manifestList,
+            40L);
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
 
@@ -89,7 +98,8 @@ public class TestSnapshotJson {
             DataOperations.REPLACE,
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             3,
-            manifestList);
+            manifestList,
+            40L);
 
     String json = SnapshotParser.toJson(expected);
     Snapshot snapshot = SnapshotParser.fromJson(json);
@@ -105,6 +115,7 @@ public class TestSnapshotJson {
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
     assertThat(snapshot.schemaId()).isEqualTo(expected.schemaId());
+    assertThat(snapshot.firstRowId()).isEqualTo(expected.firstRowId());
   }
 
   @Test
@@ -123,7 +134,8 @@ public class TestSnapshotJson {
             DataOperations.REPLACE,
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             3,
-            new String[] {"/tmp/manifest1.avro", "/tmp/manifest2.avro"});
+            new String[] {"/tmp/manifest1.avro", "/tmp/manifest2.avro"},
+            null);
 
     String expectedJson =
         String.format(

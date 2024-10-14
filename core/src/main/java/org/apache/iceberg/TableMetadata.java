@@ -56,6 +56,7 @@ public class TableMetadata implements Serializable {
   static final int INITIAL_SPEC_ID = 0;
   static final int INITIAL_SORT_ORDER_ID = 1;
   static final int INITIAL_SCHEMA_ID = 0;
+  static final int INITIAL_ROW_ID = 0;
 
   private static final long ONE_MINUTE = TimeUnit.MINUTES.toMillis(1);
 
@@ -262,6 +263,8 @@ public class TableMetadata implements Serializable {
   private volatile Map<Long, Snapshot> snapshotsById;
   private volatile Map<String, SnapshotRef> refs;
   private volatile boolean snapshotsLoaded;
+  private final Boolean rowLineage;
+  private final long lastRowId;
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   TableMetadata(
@@ -288,7 +291,9 @@ public class TableMetadata implements Serializable {
       Map<String, SnapshotRef> refs,
       List<StatisticsFile> statisticsFiles,
       List<PartitionStatisticsFile> partitionStatisticsFiles,
-      List<MetadataUpdate> changes) {
+      List<MetadataUpdate> changes,
+      Boolean rowLineage,
+      Long lastRowId) {
     Preconditions.checkArgument(
         specs != null && !specs.isEmpty(), "Partition specs cannot be null or empty");
     Preconditions.checkArgument(
@@ -340,6 +345,9 @@ public class TableMetadata implements Serializable {
     this.refs = validateRefs(currentSnapshotId, refs, snapshotsById);
     this.statisticsFiles = ImmutableList.copyOf(statisticsFiles);
     this.partitionStatisticsFiles = ImmutableList.copyOf(partitionStatisticsFiles);
+
+    this.rowLineage = rowLineage;
+    this.lastRowId = lastRowId == null ? INITIAL_ROW_ID : lastRowId;
 
     HistoryEntry last = null;
     for (HistoryEntry logEntry : snapshotLog) {
@@ -561,6 +569,14 @@ public class TableMetadata implements Serializable {
 
   public TableMetadata withUUID() {
     return new Builder(this).assignUUID().build();
+  }
+
+  public Boolean rowLineage() {
+    return rowLineage;
+  }
+
+  public Long lastRowId() {
+    return this.lastRowId;
   }
 
   /**
@@ -912,6 +928,10 @@ public class TableMetadata implements Serializable {
     private Integer lastAddedSpecId = null;
     private Integer lastAddedOrderId = null;
 
+    // Row Lineage
+    private Boolean rowLineage = false;
+    private long lastRowId = INITIAL_ROW_ID;
+
     // handled in build
     private final List<HistoryEntry> snapshotLog;
     private String previousFileLocation;
@@ -971,6 +991,8 @@ public class TableMetadata implements Serializable {
       this.snapshots = Lists.newArrayList(base.snapshots());
       this.changes = Lists.newArrayList(base.changes);
       this.startingChangeCount = changes.size();
+      this.rowLineage = base.rowLineage;
+      this.lastRowId = base.lastRowId;
 
       this.snapshotLog = Lists.newArrayList(base.snapshotLog);
       this.previousFileLocation = base.metadataFileLocation;
@@ -1455,6 +1477,29 @@ public class TableMetadata implements Serializable {
       return this;
     }
 
+    public Builder enableRowLineage() {
+      Preconditions.checkArgument(
+          formatVersion >= 3,
+          "Cannot use row Lineage with format version %s. Only format version 3 or higher support row lineage",
+          formatVersion);
+      this.rowLineage = true;
+      return this;
+    }
+
+    public Builder lastRowId(long lastRowId) {
+      Preconditions.checkArgument(
+          this.rowLineage, "Cannot set last-row-id if row lineage is not enabled");
+      Preconditions.checkArgument(
+          this.lastRowId <= lastRowId,
+          "Cannot decrease last-row-id, last-row-id must increase monotonically."
+              + " Current last-row-id (%d) is greater that the new last-row-id (%d)",
+          this.lastRowId,
+          lastRowId);
+
+      this.lastRowId = lastRowId;
+      return this;
+    }
+
     private boolean hasChanges() {
       return changes.size() != startingChangeCount
           || (discardChanges && !changes.isEmpty())
@@ -1522,7 +1567,9 @@ public class TableMetadata implements Serializable {
           partitionStatisticsFiles.values().stream()
               .flatMap(List::stream)
               .collect(Collectors.toList()),
-          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes));
+          discardChanges ? ImmutableList.of() : ImmutableList.copyOf(changes),
+          rowLineage,
+          lastRowId);
     }
 
     private int addSchemaInternal(Schema schema, int newLastColumnId) {

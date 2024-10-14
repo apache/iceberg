@@ -93,7 +93,8 @@ public class TestManifestEncryption {
           METRICS,
           CONTENT_KEY_METADATA,
           OFFSETS,
-          SORT_ORDER_ID);
+          SORT_ORDER_ID,
+          null);
 
   private static final List<Integer> EQUALITY_IDS = ImmutableList.of(1);
   private static final int[] EQUALITY_ID_ARR = new int[] {1};

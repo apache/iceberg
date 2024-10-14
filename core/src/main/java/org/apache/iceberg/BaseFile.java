@@ -83,6 +83,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   private String referencedDataFile = null;
   private Long contentOffset = null;
   private Long contentSizeInBytes = null;
+  private Long firstRowId = null;
 
   // cached schema
   private transient Schema avroSchema = null;
@@ -114,7 +115,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
           DataFile.REFERENCED_DATA_FILE,
           DataFile.CONTENT_OFFSET,
           DataFile.CONTENT_SIZE,
-          MetadataColumns.ROW_POSITION);
+          MetadataColumns.ROW_POSITION,
+          DataFile.FIRST_ROW_ID);
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
   BaseFile(Schema avroSchema) {
@@ -158,7 +160,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       ByteBuffer keyMetadata,
       String referencedDataFile,
       Long contentOffset,
-      Long contentSizeInBytes) {
+      Long contentSizeInBytes,
+      Long firstRowId) {
     super(BASE_TYPE.fields().size());
     this.partitionSpecId = specId;
     this.content = content;
@@ -190,6 +193,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.referencedDataFile = referencedDataFile;
     this.contentOffset = contentOffset;
     this.contentSizeInBytes = contentSizeInBytes;
+    this.firstRowId = firstRowId;
   }
 
   /**
@@ -245,6 +249,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.referencedDataFile = toCopy.referencedDataFile;
     this.contentOffset = toCopy.contentOffset;
     this.contentSizeInBytes = toCopy.contentSizeInBytes;
+    this.firstRowId = toCopy.firstRowId;
   }
 
   /** Constructor for Java serialization. */
@@ -365,6 +370,9 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       case 20:
         this.fileOrdinal = (long) value;
         return;
+      case 21:
+        this.firstRowId = (Long) value;
+        return;
       default:
         // ignore the object, it must be from a newer version of the format
     }
@@ -419,6 +427,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         return contentSizeInBytes;
       case 20:
         return fileOrdinal;
+      case 21:
+        return firstRowId;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
     }
@@ -556,6 +566,11 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     return contentSizeInBytes;
   }
 
+  @Override
+  public Long firstRowId() {
+    return firstRowId;
+  }
+
   private static <K, V> Map<K, V> copyMap(Map<K, V> map, Set<K> keys) {
     return keys == null ? SerializableMap.copyOf(map) : SerializableMap.filteredCopyOf(map, keys);
   }
@@ -610,6 +625,7 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         .add("referenced_data_file", referencedDataFile == null ? "null" : referencedDataFile)
         .add("content_offset", contentOffset == null ? "null" : contentOffset)
         .add("content_size_in_bytes", contentSizeInBytes == null ? "null" : contentSizeInBytes)
+        .add("first_row_id", firstRowId == null ? "null" : firstRowId)
         .toString();
   }
 }

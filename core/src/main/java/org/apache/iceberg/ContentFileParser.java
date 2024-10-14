@@ -48,6 +48,7 @@ class ContentFileParser {
   private static final String REFERENCED_DATA_FILE = "referenced-data-file";
   private static final String CONTENT_OFFSET = "content-offset";
   private static final String CONTENT_SIZE = "content-size-in-bytes";
+  private static final String FIRST_ROW_ID = "first-row-id";
 
   private ContentFileParser() {}
 
@@ -167,6 +168,7 @@ class ContentFileParser {
     String referencedDataFile = JsonUtil.getStringOrNull(REFERENCED_DATA_FILE, jsonNode);
     Long contentOffset = JsonUtil.getLongOrNull(CONTENT_OFFSET, jsonNode);
     Long contentSizeInBytes = JsonUtil.getLongOrNull(CONTENT_SIZE, jsonNode);
+    Long firstRowId = JsonUtil.getLongOrNull(FIRST_ROW_ID, jsonNode);
 
     if (fileContent == FileContent.DATA) {
       return new GenericDataFile(
@@ -178,7 +180,8 @@ class ContentFileParser {
           metrics,
           keyMetadata,
           splitOffsets,
-          sortOrderId);
+          sortOrderId,
+          firstRowId);
     } else {
       return new GenericDeleteFile(
           specId,
