@@ -20,14 +20,13 @@ package org.apache.iceberg.actions;
 
 import java.util.Map;
 import java.util.Set;
-import org.apache.iceberg.DataFile;
 import org.apache.iceberg.RewriteFiles;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.CleanableFailure;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.DataFileSet;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,8 +72,8 @@ public class RewriteDataFilesCommitManager {
    * @param fileGroups fileSets to commit
    */
   public void commitFileGroups(Set<RewriteFileGroup> fileGroups) {
-    Set<DataFile> rewrittenDataFiles = Sets.newHashSet();
-    Set<DataFile> addedDataFiles = Sets.newHashSet();
+    DataFileSet rewrittenDataFiles = DataFileSet.create();
+    DataFileSet addedDataFiles = DataFileSet.create();
     for (RewriteFileGroup group : fileGroups) {
       rewrittenDataFiles.addAll(group.rewrittenFiles());
       addedDataFiles.addAll(group.addedFiles());
