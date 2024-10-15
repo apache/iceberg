@@ -54,6 +54,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.TableMetadata.MetadataLogEntry;
 import org.apache.iceberg.TableMetadata.SnapshotLogEntry;
+import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -1605,7 +1606,13 @@ public class TestTableMetadata {
     manifestList.deleteOnExit();
 
     try (ManifestListWriter writer =
-        ManifestLists.write(1, Files.localOutput(manifestList), snapshotId, parentSnapshotId, 0)) {
+        ManifestLists.write(
+            1,
+            PlaintextEncryptionManager.instance(),
+            Files.localOutput(manifestList),
+            snapshotId,
+            parentSnapshotId,
+            0)) {
       writer.addAll(
           ImmutableList.of(new GenericManifestFile(localInput(manifestFile), SPEC_5.specId())));
     }
