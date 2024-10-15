@@ -68,9 +68,9 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
   private final Map<Integer, PartitionSpec> specsById;
   private final PartitionSet deleteFilePartitions;
+  private final Set<F> deleteFiles = newFileSet();
   private final PartitionSet dropPartitions;
   private final CharSequenceSet deletePaths = CharSequenceSet.empty();
-  private final Set<F> deleteFiles = newFileSet();
   private Expression deleteExpression = Expressions.alwaysFalse();
   private long minSequenceNumber = 0;
   private boolean failAnyDelete = false;
