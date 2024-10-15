@@ -220,7 +220,7 @@ public class HadoopFileIOTest {
       String inputFilePath =
           Files.createTempDirectory(tempDir.toPath(), "junit").toFile().getAbsolutePath()
               + "/test.parquet";
-      deserializedHadoopFileIO.newInputFile(inputFilePath);
+      deserializedHadoopFileIO.newInputFile(File.createTempFile("test", "parquet", tempDir).toString());
     }
   }
 
