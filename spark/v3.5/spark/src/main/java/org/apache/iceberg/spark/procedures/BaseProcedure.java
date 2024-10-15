@@ -34,17 +34,20 @@ import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.SparkTable;
+import org.apache.iceberg.spark.source.SparkView;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.spark.sql.connector.catalog.View;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.execution.CacheManager;
 import org.apache.spark.sql.execution.datasources.SparkExpressionConverter;
@@ -100,6 +103,15 @@ abstract class BaseProcedure implements Procedure {
     }
   }
 
+  protected <T> T withIcebergView(
+      Identifier ident, Function<org.apache.iceberg.view.View, T> func) {
+    try {
+      return executeView(ident, func);
+    } finally {
+      closeService();
+    }
+  }
+
   private <T> T execute(
       Identifier ident, boolean refreshSparkCache, Function<org.apache.iceberg.Table, T> func) {
     SparkTable sparkTable = loadSparkTable(ident);
@@ -114,13 +126,20 @@ abstract class BaseProcedure implements Procedure {
     return result;
   }
 
+  private <T> T executeView(Identifier ident, Function<org.apache.iceberg.view.View, T> func) {
+    SparkView sparkView = loadSparkView(ident);
+    org.apache.iceberg.view.View icebergView = sparkView.view();
+
+    return func.apply(icebergView);
+  }
+
   protected Identifier toIdentifier(String identifierAsString, String argName) {
     CatalogAndIdentifier catalogAndIdentifier =
         toCatalogAndIdentifier(identifierAsString, argName, catalog);
 
     Preconditions.checkArgument(
         catalogAndIdentifier.catalog().equals(catalog),
-        "Cannot run procedure in catalog '%s': '%s' is a table in catalog '%s'",
+        "Cannot run procedure in catalog '%s': '%s' is a table or view in catalog '%s'",
         catalog.name(),
         identifierAsString,
         catalogAndIdentifier.catalog().name());
@@ -148,6 +167,19 @@ abstract class BaseProcedure implements Procedure {
     } catch (NoSuchTableException e) {
       String errMsg =
           String.format("Couldn't load table '%s' in catalog '%s'", ident, catalog.name());
+      throw new RuntimeException(errMsg, e);
+    }
+  }
+
+  protected SparkView loadSparkView(Identifier ident) {
+    try {
+      View view = catalog.loadView(ident);
+      ValidationException.check(
+          view instanceof SparkView, "%s is not %s", ident, SparkView.class.getName());
+      return (SparkView) view;
+    } catch (NoSuchViewException e) {
+      String errMsg =
+          String.format("Couldn't load view '%s' in catalog '%s'", ident, catalog.name());
       throw new RuntimeException(errMsg, e);
     }
   }

@@ -56,6 +56,7 @@ public class SparkProcedures {
     mapBuilder.put("create_changelog_view", CreateChangelogViewProcedure::builder);
     mapBuilder.put("rewrite_position_delete_files", RewritePositionDeleteFilesProcedure::builder);
     mapBuilder.put("fast_forward", FastForwardBranchProcedure::builder);
+    mapBuilder.put("add_view_dialect", AddViewDialectProcedure::builder);
     return mapBuilder.build();
   }
 
