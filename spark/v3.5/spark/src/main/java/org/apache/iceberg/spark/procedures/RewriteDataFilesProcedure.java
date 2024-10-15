@@ -29,11 +29,11 @@ import org.apache.iceberg.expressions.NamedReference;
 import org.apache.iceberg.expressions.Zorder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.ExtendedParser;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -80,12 +80,12 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     return new Builder<RewriteDataFilesProcedure>() {
       @Override
       protected RewriteDataFilesProcedure doBuild() {
-        return new RewriteDataFilesProcedure(tableCatalog());
+        return new RewriteDataFilesProcedure(catalog());
       }
     };
   }
 
-  private RewriteDataFilesProcedure(TableCatalog tableCatalog) {
+  private RewriteDataFilesProcedure(BaseCatalog tableCatalog) {
     super(tableCatalog);
   }
 

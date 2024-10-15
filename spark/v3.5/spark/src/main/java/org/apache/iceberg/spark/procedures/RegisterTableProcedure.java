@@ -24,11 +24,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.spark.source.HasIcebergCatalog;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -50,15 +50,15 @@ class RegisterTableProcedure extends BaseProcedure {
             new StructField("total_data_files_count", DataTypes.LongType, true, Metadata.empty())
           });
 
-  private RegisterTableProcedure(TableCatalog tableCatalog) {
-    super(tableCatalog);
+  private RegisterTableProcedure(BaseCatalog catalog) {
+    super(catalog);
   }
 
   public static ProcedureBuilder builder() {
     return new BaseProcedure.Builder<RegisterTableProcedure>() {
       @Override
       protected RegisterTableProcedure doBuild() {
-        return new RegisterTableProcedure(tableCatalog());
+        return new RegisterTableProcedure(catalog());
       }
     };
   }

@@ -21,11 +21,11 @@ package org.apache.iceberg.spark.procedures;
 import java.util.List;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -49,15 +49,15 @@ public class AncestorsOfProcedure extends BaseProcedure {
             new StructField("timestamp", DataTypes.LongType, true, Metadata.empty())
           });
 
-  private AncestorsOfProcedure(TableCatalog tableCatalog) {
-    super(tableCatalog);
+  private AncestorsOfProcedure(BaseCatalog catalog) {
+    super(catalog);
   }
 
   public static SparkProcedures.ProcedureBuilder builder() {
     return new Builder<AncestorsOfProcedure>() {
       @Override
       protected AncestorsOfProcedure doBuild() {
-        return new AncestorsOfProcedure(tableCatalog());
+        return new AncestorsOfProcedure(catalog());
       }
     };
   }

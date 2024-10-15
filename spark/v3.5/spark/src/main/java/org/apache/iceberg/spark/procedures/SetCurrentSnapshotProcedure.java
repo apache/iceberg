@@ -23,10 +23,10 @@ import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -61,12 +61,12 @@ class SetCurrentSnapshotProcedure extends BaseProcedure {
     return new BaseProcedure.Builder<SetCurrentSnapshotProcedure>() {
       @Override
       protected SetCurrentSnapshotProcedure doBuild() {
-        return new SetCurrentSnapshotProcedure(tableCatalog());
+        return new SetCurrentSnapshotProcedure(catalog());
       }
     };
   }
 
-  private SetCurrentSnapshotProcedure(TableCatalog catalog) {
+  private SetCurrentSnapshotProcedure(BaseCatalog catalog) {
     super(catalog);
   }
 

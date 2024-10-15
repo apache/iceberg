@@ -36,6 +36,7 @@ import org.apache.iceberg.mapping.NameMappingParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTableUtil;
 import org.apache.iceberg.spark.SparkTableUtil.SparkPartition;
@@ -45,7 +46,6 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.TableIdentifier;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -82,15 +82,15 @@ class AddFilesProcedure extends BaseProcedure {
             new StructField("changed_partition_count", DataTypes.LongType, true, Metadata.empty()),
           });
 
-  private AddFilesProcedure(TableCatalog tableCatalog) {
-    super(tableCatalog);
+  private AddFilesProcedure(BaseCatalog catalog) {
+    super(catalog);
   }
 
   public static SparkProcedures.ProcedureBuilder builder() {
     return new BaseProcedure.Builder<AddFilesProcedure>() {
       @Override
       protected AddFilesProcedure doBuild() {
-        return new AddFilesProcedure(tableCatalog());
+        return new AddFilesProcedure(catalog());
       }
     };
   }

@@ -22,7 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 
 public class SparkProcedures {
@@ -60,7 +60,7 @@ public class SparkProcedures {
   }
 
   public interface ProcedureBuilder {
-    ProcedureBuilder withTableCatalog(TableCatalog tableCatalog);
+    ProcedureBuilder withCatalog(BaseCatalog catalog);
 
     Procedure build();
   }
