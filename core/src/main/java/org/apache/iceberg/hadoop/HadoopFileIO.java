@@ -123,7 +123,11 @@ public class HadoopFileIO implements HadoopConfigurable, DelegateFileIO {
     // Create a default hadoopConf as it is required for the object to be valid.
     // E.g. newInputFile would throw NPE with getConf() otherwise.
     if (hadoopConf == null) {
-      this.hadoopConf = new SerializableConfiguration(new Configuration())::get;
+      synchronized (this) {
+        if (hadoopConf == null) {
+          this.hadoopConf = new SerializableConfiguration(new Configuration())::get;
+        }
+      }
     }
 
     return hadoopConf.get();
