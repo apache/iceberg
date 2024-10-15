@@ -29,6 +29,7 @@ import com.google.common.base.Suppliers;
 import com.google.common.base.Throwables;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.FluentIterable;
+import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -71,6 +72,7 @@ public class GuavaClasses {
     Splitter.class.getName();
     Throwables.class.getName();
     BiMap.class.getName();
+    HashBiMap.class.getName();
     FluentIterable.class.getName();
     ImmutableBiMap.class.getName();
     ImmutableList.class.getName();
