@@ -370,7 +370,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
-  void testOperatorsUidNameNoUidSuffix() throws Exception {
+  void testOperatorsUidNameNoUidSuffix() {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream =
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");
@@ -392,7 +392,7 @@ public class TestIcebergSink extends TestFlinkIcebergSinkBase {
   }
 
   @TestTemplate
-  void testOperatorsUidNameWitUidSuffix() throws Exception {
+  void testOperatorsUidNameWithUidSuffix() {
     List<Row> rows = createRows("");
     DataStream<Row> dataStream =
         env.addSource(createBoundedSource(rows), ROW_TYPE_INFO).uid("mySourceId");

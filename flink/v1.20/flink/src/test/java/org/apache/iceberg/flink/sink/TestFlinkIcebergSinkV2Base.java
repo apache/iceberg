@@ -25,15 +25,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
-import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Parameter;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
@@ -48,48 +44,21 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.StructLikeSet;
 
-class TestFlinkIcebergSinkV2Base {
+abstract class TestFlinkIcebergSinkV2Base {
 
   static final int FORMAT_V2 = 2;
   static final TypeInformation<Row> ROW_TYPE_INFO =
       new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
 
-  static final int ROW_ID_POS = 0;
-  static final int ROW_DATA_POS = 1;
-
   TableLoader tableLoader;
   Table table;
   StreamExecutionEnvironment env;
 
-  @Parameter(index = 0)
-  FileFormat format;
+  protected abstract int getParallelism();
 
-  @Parameter(index = 1)
-  int parallelism = 1;
+  protected abstract boolean isPartitioned();
 
-  @Parameter(index = 2)
-  boolean partitioned;
-
-  @Parameter(index = 3)
-  String writeDistributionMode;
-
-  @Parameters(name = "FileFormat={0}, Parallelism={1}, Partitioned={2}, WriteDistributionMode={3}")
-  public static Object[][] parameters() {
-    return new Object[][] {
-      new Object[] {FileFormat.AVRO, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {FileFormat.AVRO, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {FileFormat.AVRO, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE},
-      new Object[] {FileFormat.ORC, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {FileFormat.ORC, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {FileFormat.ORC, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {FileFormat.ORC, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_HASH},
-      new Object[] {FileFormat.PARQUET, 1, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
-      new Object[] {FileFormat.PARQUET, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
-      new Object[] {FileFormat.PARQUET, 4, true, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE},
-      new Object[] {FileFormat.PARQUET, 4, false, TableProperties.WRITE_DISTRIBUTION_MODE_RANGE}
-    };
-  }
+  protected abstract String getWriteDistributionMode();
 
   static final Map<String, RowKind> ROW_KIND_MAP =
       ImmutableMap.of(
@@ -120,12 +89,7 @@ class TestFlinkIcebergSinkV2Base {
             ImmutableList.of(record(1, "aaa"), record(2, "ccc")),
             ImmutableList.of(record(1, "bbb"), record(2, "ccc")));
     testChangeLogs(
-        ImmutableList.of("id", "data"),
-        row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
-        true,
-        elementsPerCheckpoint,
-        expectedRecords,
-        branch);
+        ImmutableList.of("id", "data"), true, elementsPerCheckpoint, expectedRecords, branch);
   }
 
   void testChangeLogOnIdDataKey(String branch) throws Exception {
@@ -149,12 +113,7 @@ class TestFlinkIcebergSinkV2Base {
                 record(1, "aaa"), record(1, "ccc"), record(2, "aaa"), record(2, "bbb")));
 
     testChangeLogs(
-        ImmutableList.of("data", "id"),
-        row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
-        false,
-        elementsPerCheckpoint,
-        expectedRecords,
-        branch);
+        ImmutableList.of("data", "id"), false, elementsPerCheckpoint, expectedRecords, branch);
   }
 
   void testChangeLogOnSameKey(String branch) throws Exception {
@@ -177,12 +136,7 @@ class TestFlinkIcebergSinkV2Base {
             ImmutableList.of(record(1, "aaa"), record(1, "aaa")));
 
     testChangeLogs(
-        ImmutableList.of("id", "data"),
-        row -> Row.of(row.getField(ROW_ID_POS), row.getField(ROW_DATA_POS)),
-        false,
-        elementsPerCheckpoint,
-        expectedRecords,
-        branch);
+        ImmutableList.of("id", "data"), false, elementsPerCheckpoint, expectedRecords, branch);
   }
 
   void testChangeLogOnDataKey(String branch) throws Exception {
@@ -204,13 +158,7 @@ class TestFlinkIcebergSinkV2Base {
             ImmutableList.of(
                 record(1, "aaa"), record(1, "ccc"), record(2, "aaa"), record(2, "ccc")));
 
-    testChangeLogs(
-        ImmutableList.of("data"),
-        row -> row.getField(ROW_DATA_POS),
-        false,
-        elementsPerCheckpoint,
-        expectedRecords,
-        branch);
+    testChangeLogs(ImmutableList.of("data"), false, elementsPerCheckpoint, expectedRecords, branch);
   }
 
   void testUpsertOnDataKey(String branch) throws Exception {
@@ -226,13 +174,7 @@ class TestFlinkIcebergSinkV2Base {
             ImmutableList.of(record(4, "aaa"), record(5, "bbb")),
             ImmutableList.of(record(6, "aaa"), record(7, "bbb")));
 
-    testChangeLogs(
-        ImmutableList.of("data"),
-        row -> row.getField(ROW_DATA_POS),
-        true,
-        elementsPerCheckpoint,
-        expectedRecords,
-        branch);
+    testChangeLogs(ImmutableList.of("data"), true, elementsPerCheckpoint, expectedRecords, branch);
   }
 
   void testChangeLogOnIdKey(String branch) throws Exception {
@@ -259,12 +201,12 @@ class TestFlinkIcebergSinkV2Base {
             ImmutableList.of(record(1, "bbb"), record(2, "ddd")),
             ImmutableList.of(record(1, "ddd"), record(2, "ddd")));
 
-    if (partitioned && writeDistributionMode.equals(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)) {
+    if (isPartitioned()
+        && getWriteDistributionMode().equals(TableProperties.WRITE_DISTRIBUTION_MODE_HASH)) {
       assertThatThrownBy(
               () ->
                   testChangeLogs(
                       ImmutableList.of("id"),
-                      row -> row.getField(ROW_ID_POS),
                       false,
                       elementsPerCheckpoint,
                       expectedRecords,
@@ -275,13 +217,7 @@ class TestFlinkIcebergSinkV2Base {
           .hasMessageContaining("should be included in equality fields:");
 
     } else {
-      testChangeLogs(
-          ImmutableList.of("id"),
-          row -> row.getField(ROW_ID_POS),
-          false,
-          elementsPerCheckpoint,
-          expectedRecords,
-          branch);
+      testChangeLogs(ImmutableList.of("id"), false, elementsPerCheckpoint, expectedRecords, branch);
     }
   }
 
@@ -298,24 +234,13 @@ class TestFlinkIcebergSinkV2Base {
             ImmutableList.of(record(1, "ccc")),
             ImmutableList.of(record(1, "eee")));
 
-    if (!partitioned) {
-      testChangeLogs(
-          ImmutableList.of("id"),
-          row -> row.getField(ROW_ID_POS),
-          true,
-          elementsPerCheckpoint,
-          expectedRecords,
-          branch);
+    if (!isPartitioned()) {
+      testChangeLogs(ImmutableList.of("id"), true, elementsPerCheckpoint, expectedRecords, branch);
     } else {
       assertThatThrownBy(
               () ->
                   testChangeLogs(
-                      ImmutableList.of("id"),
-                      row -> row.getField(ROW_ID_POS),
-                      true,
-                      elementsPerCheckpoint,
-                      expectedRecords,
-                      branch))
+                      ImmutableList.of("id"), true, elementsPerCheckpoint, expectedRecords, branch))
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("should be included in equality fields:");
     }
@@ -323,7 +248,6 @@ class TestFlinkIcebergSinkV2Base {
 
   void testChangeLogs(
       List<String> equalityFieldColumns,
-      KeySelector<Row, Object> keySelector,
       boolean insertAsUpsert,
       List<List<Row>> elementsPerCheckpoint,
       List<List<Record>> expectedRecordsPerCheckpoint,
@@ -335,7 +259,7 @@ class TestFlinkIcebergSinkV2Base {
     FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
         .tableLoader(tableLoader)
         .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
-        .writeParallelism(parallelism)
+        .writeParallelism(getParallelism())
         .equalityFieldColumns(equalityFieldColumns)
         .upsert(insertAsUpsert)
         .toBranch(branch)

@@ -49,6 +49,21 @@ public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
   @Parameter(index = 0)
   private String branch;
 
+  @Override
+  protected int getParallelism() {
+    return 1;
+  }
+
+  @Override
+  protected boolean isPartitioned() {
+    return false;
+  }
+
+  @Override
+  protected String getWriteDistributionMode() {
+    return null;
+  }
+
   @Parameters(name = "branch = {0}")
   public static Object[][] parameters() {
     return new Object[][] {new Object[] {"main"}, new Object[] {"testBranch"}};
