@@ -23,9 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
@@ -40,15 +38,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Branch {
 
-  @Parameter(index = 0)
-  private String branch;
-
-  @Parameters(name = "branch = {0}")
-  public static Object[][] parameters() {
-    return new Object[][] {new Object[] {"main"}, new Object[] {"testBranch"}};
-  }
-
   @BeforeEach
+  @Override
   public void before() throws IOException {
     table =
         CATALOG_EXTENSION
