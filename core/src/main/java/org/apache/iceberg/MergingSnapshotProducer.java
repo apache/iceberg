@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.events.CreateSnapshotEvent;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -42,7 +41,6 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.base.Predicate;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterators;
@@ -159,12 +157,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   protected List<DataFile> addedDataFiles() {
-    return ImmutableList.copyOf(
-        newDataFilesBySpec.values().stream().flatMap(Set::stream).collect(Collectors.toList()));
-  }
-
-  protected Map<PartitionSpec, DataFileSet> addedDataFilesBySpec() {
-    return ImmutableMap.copyOf(newDataFilesBySpec);
+    return newDataFilesBySpec.values().stream()
+        .flatMap(Set::stream)
+        .collect(ImmutableList.toImmutableList());
   }
 
   protected void failAnyDelete() {
@@ -234,19 +229,23 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   /** Add a data file to the new snapshot. */
   protected void add(DataFile file) {
     Preconditions.checkNotNull(file, "Invalid data file: null");
-    PartitionSpec fileSpec = ops.current().spec(file.specId());
+    PartitionSpec spec = spec(file.specId());
     Preconditions.checkArgument(
-        fileSpec != null,
+        spec != null,
         "Cannot find partition spec %s for data file: %s",
         file.specId(),
         file.location());
 
     DataFileSet dataFiles =
-        newDataFilesBySpec.computeIfAbsent(fileSpec, ignored -> DataFileSet.create());
+        newDataFilesBySpec.computeIfAbsent(spec, ignored -> DataFileSet.create());
     if (dataFiles.add(file)) {
-      addedFilesSummary.addedFile(fileSpec, file);
+      addedFilesSummary.addedFile(spec, file);
       hasNewDataFiles = true;
     }
+  }
+
+  private PartitionSpec spec(int specId) {
+    return ops.current().spec(specId);
   }
 
   /** Add a delete file to the new snapshot. */
@@ -261,14 +260,18 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     add(new PendingDeleteFile(file, dataSequenceNumber));
   }
 
-  private void add(PendingDeleteFile deleteFile) {
-    int specId = deleteFile.specId();
-    DeleteFileSet deleteFiles =
-        newDeleteFilesBySpec.computeIfAbsent(specId, s -> DeleteFileSet.create());
+  private void add(PendingDeleteFile file) {
+    PartitionSpec spec = spec(file.specId());
+    Preconditions.checkArgument(
+        spec != null,
+        "Cannot find partition spec %s for delete file: %s",
+        file.specId(),
+        file.location());
 
-    if (deleteFiles.add(deleteFile)) {
-      PartitionSpec fileSpec = ops.current().spec(specId);
-      addedFilesSummary.addedFile(fileSpec, deleteFile);
+    DeleteFileSet deleteFiles =
+        newDeleteFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DeleteFileSet.create());
+    if (deleteFiles.add(file)) {
+      addedFilesSummary.addedFile(spec, file);
       hasNewDeleteFiles = true;
     }
   }
@@ -970,8 +973,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       newDataFilesBySpec.forEach(
           (dataSpec, dataFiles) -> {
             List<ManifestFile> newDataManifests =
-                writeDataManifests(
-                    Lists.newArrayList(dataFiles), newDataFilesDataSequenceNumber, dataSpec);
+                writeDataManifests(dataFiles, newDataFilesDataSequenceNumber, dataSpec);
             cachedNewDataManifests.addAll(newDataManifests);
           });
       this.hasNewDataFiles = false;
@@ -1002,8 +1004,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
       newDeleteFilesBySpec.forEach(
           (specId, deleteFiles) -> {
             PartitionSpec spec = ops.current().spec(specId);
-            List<ManifestFile> newDeleteManifests =
-                writeDeleteManifests(Lists.newArrayList(deleteFiles), spec);
+            List<ManifestFile> newDeleteManifests = writeDeleteManifests(deleteFiles, spec);
             cachedNewDeleteManifests.addAll(newDeleteManifests);
           });
 

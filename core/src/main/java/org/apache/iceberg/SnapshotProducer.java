@@ -606,6 +606,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     try (RollingManifestWriter<DeleteFile> closableWriter = writer) {
       for (DeleteFile file : files) {
+        Preconditions.checkArgument(
+            file instanceof PendingDeleteFile, "Invalid delete file: must be PendingDeleteFile");
         if (file.dataSequenceNumber() != null) {
           closableWriter.add(file, file.dataSequenceNumber());
         } else {
@@ -778,6 +780,14 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
       this.dataSequenceNumber = null;
     }
 
+    private PendingDeleteFile wrap(DeleteFile file) {
+      if (null != dataSequenceNumber) {
+        return new PendingDeleteFile(file, dataSequenceNumber);
+      }
+
+      return new PendingDeleteFile(file);
+    }
+
     @Override
     public Long dataSequenceNumber() {
       return dataSequenceNumber;
@@ -790,22 +800,22 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
     @Override
     public DeleteFile copy() {
-      return deleteFile.copy();
+      return wrap(deleteFile.copy());
     }
 
     @Override
     public DeleteFile copyWithoutStats() {
-      return deleteFile.copyWithoutStats();
+      return wrap(deleteFile.copyWithoutStats());
     }
 
     @Override
     public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
-      return deleteFile.copyWithStats(requestedColumnIds);
+      return wrap(deleteFile.copyWithStats(requestedColumnIds));
     }
 
     @Override
     public DeleteFile copy(boolean withStats) {
-      return deleteFile.copy(withStats);
+      return wrap(deleteFile.copy(withStats));
     }
 
     @Override
