@@ -25,10 +25,6 @@ public class FetchScanTasksRequest implements RESTRequest {
 
   private String planTask;
 
-  public FetchScanTasksRequest() {
-    // Needed for Jackson Deserialization.
-  }
-
   public FetchScanTasksRequest(String planTask) {
     this.planTask = planTask;
     validate();

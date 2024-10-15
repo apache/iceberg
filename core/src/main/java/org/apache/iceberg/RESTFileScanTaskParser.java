@@ -16,22 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest;
+package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.util.List;
-import org.apache.iceberg.BaseFileScanTask;
-import org.apache.iceberg.DataFile;
-import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FileScanTask;
+import java.util.Set;
+import org.apache.commons.compress.utils.Sets;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
-import org.apache.iceberg.expressions.Expressions;
-import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.util.JsonUtil;
 
 public class RESTFileScanTaskParser {
   private static final String DATA_FILE = "data-file";
@@ -41,23 +38,28 @@ public class RESTFileScanTaskParser {
   private RESTFileScanTaskParser() {}
 
   public static void toJson(
-      FileScanTask fileScanTask, List<DeleteFile> deleteFiles, JsonGenerator generator)
+      FileScanTask fileScanTask, Set<Integer> deleteFileReferences, JsonGenerator generator)
       throws IOException {
     Preconditions.checkArgument(fileScanTask != null, "Invalid file scan task: null");
     Preconditions.checkArgument(generator != null, "Invalid JSON generator: null");
 
     generator.writeStartObject();
     generator.writeFieldName(DATA_FILE);
-    RESTContentFileParser.toJson(fileScanTask.file(), generator);
+    ContentFileParser.toJson(fileScanTask.file(), fileScanTask.spec());
 
-    // TODO revisit this logic
-    if (deleteFiles != null) {
+    if (deleteFileReferences != null) {
       generator.writeArrayFieldStart(DELETE_FILE_REFERENCES);
-      for (int delIndex = 0; delIndex < deleteFiles.size(); delIndex++) {
-        generator.writeNumber(delIndex);
-      }
+      deleteFileReferences.forEach(
+          delIdx -> {
+            try {
+              generator.writeNumber(delIdx);
+            } catch (IOException e) {
+              throw new RuntimeException(e);
+            }
+          });
       generator.writeEndArray();
     }
+
     if (fileScanTask.residual() != null) {
       generator.writeFieldName(RESIDUAL);
       ExpressionParser.toJson(fileScanTask.residual(), generator);
@@ -70,40 +72,24 @@ public class RESTFileScanTaskParser {
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for file scan task: non-object (%s)", jsonNode);
 
-    DataFile dataFile = (DataFile) RESTContentFileParser.fromJson(jsonNode.get(DATA_FILE));
+    BaseFile dataFile =
+        (BaseFile) ContentFileParser.unboundContentFileFromJson(jsonNode.get(DATA_FILE));
 
-    DeleteFile[] matchedDeleteFiles = null;
-    List<Integer> deleteFileReferences = null;
+    Set<Integer> deleteFileReferences = Sets.newHashSet();
     if (jsonNode.has(DELETE_FILE_REFERENCES)) {
-      ImmutableList.Builder deleteFileReferencesBuilder = ImmutableList.builder();
-      JsonNode deletesArray = jsonNode.get(DELETE_FILE_REFERENCES);
-      for (JsonNode deleteRef : deletesArray) {
-        deleteFileReferencesBuilder.add(deleteRef);
-      }
-      deleteFileReferences = deleteFileReferencesBuilder.build();
+      deleteFileReferences.addAll(JsonUtil.getIntegerList(DELETE_FILE_REFERENCES, jsonNode));
     }
 
-    if (deleteFileReferences != null) {
-      ImmutableList.Builder matchedDeleteFilesBuilder = ImmutableList.builder();
-      for (Integer deleteFileIdx : deleteFileReferences) {
-        matchedDeleteFilesBuilder.add(allDeleteFiles.get(deleteFileIdx));
-      }
-      matchedDeleteFiles = (DeleteFile[]) matchedDeleteFilesBuilder.build().stream().toArray();
-    }
+    List<DeleteFile> deleteFilesForTask = Lists.newArrayList();
+    deleteFileReferences.forEach(delIdx -> deleteFilesForTask.add(allDeleteFiles.get(delIdx)));
 
-    // TODO revisit this in spec
-    Expression filter = Expressions.alwaysTrue();
+    Expression filter = null;
     if (jsonNode.has(RESIDUAL)) {
       filter = ExpressionParser.fromJson(jsonNode.get(RESIDUAL));
     }
 
-    ResidualEvaluator residualEvaluator = ResidualEvaluator.of(filter);
-
-    // TODO at the time of creation we dont have the schemaString and specString so can we avoid
-    // setting this
-    // will need to refresh before returning closed iterable of tasks, for now put place holder null
-    BaseFileScanTask baseFileScanTask =
-        new BaseFileScanTask(dataFile, matchedDeleteFiles, null, null, residualEvaluator);
-    return baseFileScanTask;
+    // TODO at the time of creation we dont have the schemaString, specString, and residual so will
+    // need to bind later
+    return new UnboundBaseFileScanTask(dataFile, (BaseFile[]) deleteFilesForTask.toArray(), filter);
   }
 }

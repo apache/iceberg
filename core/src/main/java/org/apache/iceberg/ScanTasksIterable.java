@@ -83,8 +83,8 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       this.resourcePaths = resourcePaths;
       this.tableIdentifier = tableIdentifier;
       this.headers = headers;
-      this.planTasks = planTasks != null ? planTasks : new ArrayList<String>();
-      this.fileScanTasks = fileScanTasks != null ? fileScanTasks : new ArrayList<FileScanTask>();
+      this.planTasks = planTasks != null ? planTasks : new ArrayList<>();
+      this.fileScanTasks = fileScanTasks != null ? fileScanTasks : new ArrayList<>();
     }
 
     @Override
@@ -96,7 +96,7 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       // Out of file scan tasks, so need to now fetch more from each planTask
       // Service can send back more planTasks which acts as pagination
       if (!planTasks.isEmpty()) {
-        executeFetchScanTasks(planTasks.remove(0));
+        fetchScanTasks(planTasks.remove(0));
         // Make another hasNext() call, as more planTasks and fileScanTasks have been fetched
         return hasNext();
       }
@@ -110,7 +110,7 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       return fileScanTasks.remove(0);
     }
 
-    private void executeFetchScanTasks(String planTask) {
+    private void fetchScanTasks(String planTask) {
       FetchScanTasksRequest fetchScanTasksRequest = new FetchScanTasksRequest(planTask);
       FetchScanTasksResponse response =
           client.post(

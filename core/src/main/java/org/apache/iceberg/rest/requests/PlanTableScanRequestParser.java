@@ -53,31 +53,30 @@ public class PlanTableScanRequestParser {
     if (request.snapshotId() != null) {
       gen.writeNumberField(SNAPSHOT_ID, request.snapshotId());
     }
+
     if (request.select() != null && !request.select().isEmpty()) {
       JsonUtil.writeStringArray(SELECT, request.select(), gen);
     }
+
     if (request.filter() != null) {
       gen.writeStringField(FILTER, ExpressionParser.toJson(request.filter()));
     }
-    if (request.caseSensitive() != null) {
-      gen.writeBooleanField(CASE_SENSITIVE, request.caseSensitive());
-    } else {
-      gen.writeBooleanField(CASE_SENSITIVE, true);
-    }
-    if (request.useSnapshotSchema() != null) {
-      gen.writeBooleanField(USE_SNAPSHOT_SCHEMA, request.useSnapshotSchema());
-    } else {
-      gen.writeBooleanField(USE_SNAPSHOT_SCHEMA, false);
-    }
+
+    gen.writeBooleanField(CASE_SENSITIVE, request.caseSensitive());
+    gen.writeBooleanField(USE_SNAPSHOT_SCHEMA, request.useSnapshotSchema());
+
     if (request.startSnapshotId() != null) {
       gen.writeNumberField(START_SNAPSHOT_ID, request.startSnapshotId());
     }
+
     if (request.endSnapshotId() != null) {
       gen.writeNumberField(END_SNAPSHOT_ID, request.endSnapshotId());
     }
-    if (request.statsFields() != null) {
+
+    if (request.statsFields() != null && !request.statsFields().isEmpty()) {
       JsonUtil.writeStringArray(STATS_FIELDS, request.statsFields(), gen);
     }
+
     gen.writeEndObject();
   }
 

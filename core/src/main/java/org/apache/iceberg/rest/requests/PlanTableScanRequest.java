@@ -45,11 +45,11 @@ public class PlanTableScanRequest implements RESTRequest {
     return filter;
   }
 
-  public Boolean caseSensitive() {
+  public boolean caseSensitive() {
     return caseSensitive;
   }
 
-  public Boolean useSnapshotSchema() {
+  public boolean useSnapshotSchema() {
     return useSnapshotSchema;
   }
 
@@ -65,16 +65,12 @@ public class PlanTableScanRequest implements RESTRequest {
     return statsFields;
   }
 
-  public PlanTableScanRequest() {
-    // Needed for Jackson Deserialization.
-  }
-
-  public PlanTableScanRequest(
+  private PlanTableScanRequest(
       Long snapshotId,
       List<String> select,
       Expression filter,
-      Boolean caseSensitive,
-      Boolean useSnapshotSchema,
+      boolean caseSensitive,
+      boolean useSnapshotSchema,
       Long startSnapshotId,
       Long endSnapshotId,
       List<String> statsFields) {
@@ -99,8 +95,8 @@ public class PlanTableScanRequest implements RESTRequest {
     private Long snapshotId;
     private List<String> select;
     private Expression filter;
-    private Boolean caseSensitive;
-    private Boolean useSnapshotSchema;
+    private boolean caseSensitive = true;
+    private boolean useSnapshotSchema = false;
     private Long startSnapshotId;
     private Long endSnapshotId;
     private List<String> statsFields;
@@ -122,12 +118,12 @@ public class PlanTableScanRequest implements RESTRequest {
       return this;
     }
 
-    public Builder withCaseSensitive(Boolean withCaseSensitive) {
+    public Builder withCaseSensitive(boolean withCaseSensitive) {
       this.caseSensitive = withCaseSensitive;
       return this;
     }
 
-    public Builder withUseSnapshotSchema(Boolean withUseSnapshotSchema) {
+    public Builder withUseSnapshotSchema(boolean withUseSnapshotSchema) {
       this.useSnapshotSchema = withUseSnapshotSchema;
       return this;
     }

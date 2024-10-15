@@ -72,17 +72,6 @@ public class PartitionData
     this.stringSchema = schema.toString();
   }
 
-  public PartitionData() {
-    // This construtor has niche case of being used at time for rest serial/deserilization
-    // where we do not have the partition spec and can not populate these values.
-    // these values will be refreshed before returning to client engine
-    this.partitionType = null;
-    this.size = 0;
-    this.data = new Object[size];
-    this.schema = null;
-    this.stringSchema = null;
-  }
-
   /** Copy constructor */
   private PartitionData(PartitionData toCopy) {
     this.partitionType = toCopy.partitionType;

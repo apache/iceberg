@@ -19,8 +19,10 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.RESTResponse;
@@ -33,20 +35,19 @@ public class FetchPlanningResultResponse implements RESTResponse {
   private List<FileScanTask> fileScanTasks;
 
   private List<DeleteFile> deleteFiles;
+  private Map<Integer, PartitionSpec> partitionSpecsById;
 
-  public FetchPlanningResultResponse() {
-    // Needed for Jackson Deserialization.
-  }
-
-  public FetchPlanningResultResponse(
+  private FetchPlanningResultResponse(
       PlanStatus planStatus,
       List<String> planTasks,
       List<FileScanTask> fileScanTasks,
-      List<DeleteFile> deleteFiles) {
+      List<DeleteFile> deleteFiles,
+      Map<Integer, PartitionSpec> partitionSpecsById) {
     this.planStatus = planStatus;
     this.planTasks = planTasks;
     this.fileScanTasks = fileScanTasks;
     this.deleteFiles = deleteFiles;
+    this.partitionSpecsById = partitionSpecsById;
   }
 
   public PlanStatus planStatus() {
@@ -63,6 +64,14 @@ public class FetchPlanningResultResponse implements RESTResponse {
 
   public List<DeleteFile> deleteFiles() {
     return deleteFiles;
+  }
+
+  public Map<Integer, PartitionSpec> partitionSpecsById() {
+    return partitionSpecsById;
+  }
+
+  public void setPartitionSpecsById(Map<Integer, PartitionSpec> partitionSpecsById) {
+    this.partitionSpecsById = partitionSpecsById;
   }
 
   @Override
@@ -87,6 +96,8 @@ public class FetchPlanningResultResponse implements RESTResponse {
 
     private List<DeleteFile> deleteFiles;
 
+    private Map<Integer, PartitionSpec> partitionSpecsById;
+
     public Builder withPlanStatus(PlanStatus withPlanStatus) {
       this.planStatus = withPlanStatus;
       return this;
@@ -107,8 +118,14 @@ public class FetchPlanningResultResponse implements RESTResponse {
       return this;
     }
 
+    public Builder withPartitionSpecsById(Map<Integer, PartitionSpec> withParitionSpecById) {
+      this.partitionSpecsById = withParitionSpecById;
+      return this;
+    }
+
     public FetchPlanningResultResponse build() {
-      return new FetchPlanningResultResponse(planStatus, planTasks, fileScanTasks, deleteFiles);
+      return new FetchPlanningResultResponse(
+          planStatus, planTasks, fileScanTasks, deleteFiles, partitionSpecsById);
     }
   }
 }

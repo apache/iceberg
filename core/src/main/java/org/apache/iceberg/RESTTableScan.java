@@ -115,11 +115,10 @@ public class RESTTableScan extends DataTableScan {
       planTableScanRequestBuilder.withSnapshotId(table().currentSnapshot().snapshotId());
     }
 
-    return executePlanTableScan(planTableScanRequestBuilder.build());
+    return planTableScan(planTableScanRequestBuilder.build());
   }
 
-  private CloseableIterable<FileScanTask> executePlanTableScan(
-      PlanTableScanRequest planTableScanRequest) {
+  private CloseableIterable<FileScanTask> planTableScan(PlanTableScanRequest planTableScanRequest) {
     PlanTableScanResponse response =
         client.post(
             resourcePaths.planTableScan(tableIdentifier),
@@ -139,7 +138,7 @@ public class RESTTableScan extends DataTableScan {
             tableIdentifier,
             headers);
       case SUBMITTED:
-        return executeFetchPlanningResult(response.planId());
+        return fetchPlanningResult(response.planId());
       case FAILED:
         throw new RuntimeException(
             "Received \"failed\" status from service when planning a table scan");
@@ -149,7 +148,7 @@ public class RESTTableScan extends DataTableScan {
     }
   }
 
-  private CloseableIterable<FileScanTask> executeFetchPlanningResult(String planId) {
+  private CloseableIterable<FileScanTask> fetchPlanningResult(String planId) {
 
     // TODO need to introduce a max wait time for this loop potentially
     boolean planningFinished = false;
