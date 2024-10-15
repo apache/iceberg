@@ -19,13 +19,13 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.ResourcePaths;
@@ -83,8 +83,8 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       this.resourcePaths = resourcePaths;
       this.tableIdentifier = tableIdentifier;
       this.headers = headers;
-      this.planTasks = planTasks != null ? planTasks : new ArrayList<>();
-      this.fileScanTasks = fileScanTasks != null ? fileScanTasks : new ArrayList<>();
+      this.planTasks = planTasks != null ? planTasks : Lists.newArrayList();
+      this.fileScanTasks = fileScanTasks != null ? fileScanTasks : Lists.newArrayList();
     }
 
     @Override

@@ -37,7 +37,7 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
     super(projection);
   }
 
-  public GenericDeleteFile(
+  GenericDeleteFile(
       int specId,
       FileContent content,
       String filePath,
