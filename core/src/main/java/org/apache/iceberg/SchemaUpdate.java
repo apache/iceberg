@@ -45,7 +45,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Schema evolution API implementation. */
-class SchemaUpdate implements UpdateSchema {
+class SchemaUpdate extends BasePendingUpdate<Schema> implements UpdateSchema {
   private static final Logger LOG = LoggerFactory.getLogger(SchemaUpdate.class);
   private static final int TABLE_ROOT_ID = -1;
 
@@ -445,6 +445,7 @@ class SchemaUpdate implements UpdateSchema {
   @Override
   public void commit() {
     TableMetadata update = applyChangesToMetadata(base.updateSchema(apply(), lastColumnId));
+    validate(base);
     ops.commit(base, update);
   }
 

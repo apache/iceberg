@@ -31,7 +31,7 @@ import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.expressions.Term;
 import org.apache.iceberg.util.Tasks;
 
-public class BaseReplaceSortOrder implements ReplaceSortOrder {
+public class BaseReplaceSortOrder extends BasePendingUpdate<SortOrder> implements ReplaceSortOrder {
   private final TableOperations ops;
   private final SortOrder.Builder builder;
   private TableMetadata base;
@@ -62,6 +62,7 @@ public class BaseReplaceSortOrder implements ReplaceSortOrder {
               this.base = ops.refresh();
               SortOrder newOrder = apply();
               TableMetadata updated = base.replaceSortOrder(newOrder);
+              validate(base);
               taskOps.commit(base, updated);
             });
   }
