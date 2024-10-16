@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,7 +39,6 @@ import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
-import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.util.LocationUtil;
@@ -63,8 +61,6 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
     implements SupportsNamespaces, Configurable<Object> {
 
   private static final Logger LOG = LoggerFactory.getLogger(NessieCatalog.class);
-  private static final Joiner SLASH = Joiner.on("/");
-  private static final String NAMESPACE_LOCATION_PROPS = "location";
 
   private static final Map<String, String> DEFAULT_CATALOG_OPTIONS =
       ImmutableMap.<String, String>builder()
@@ -238,24 +234,7 @@ public class NessieCatalog extends BaseMetastoreViewCatalog
 
   @Override
   protected String defaultWarehouseLocation(TableIdentifier table) {
-    String location;
-    if (table.hasNamespace()) {
-      String baseLocation = SLASH.join(warehouseLocation, table.namespace().toString());
-      try {
-        baseLocation =
-            loadNamespaceMetadata(table.namespace())
-                .getOrDefault(NAMESPACE_LOCATION_PROPS, baseLocation);
-      } catch (NoSuchNamespaceException e) {
-        // do nothing we want the same behavior that if the location is not defined
-      }
-      location = SLASH.join(baseLocation, table.name());
-    } else {
-      location = SLASH.join(warehouseLocation, table.name());
-    }
-    // Different tables with same table name can exist across references in Nessie.
-    // To avoid sharing same table path between two tables with same name, use uuid in the table
-    // path.
-    return location + "_" + UUID.randomUUID();
+    return client.locationForNewEntity(table, warehouseLocation);
   }
 
   @Override
