@@ -82,6 +82,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkScan extends TestBaseWithCatalog {
 
+  private static final String DUMMY_BLOB_TYPE = "sum-data-size-bytes-v1";
+
   @Parameter(index = 3)
   private String format;
 
@@ -179,6 +181,59 @@ public class TestSparkScan extends TestBaseWithCatalog {
   }
 
   @TestTemplate
+  public void testTableWithoutApacheDatasketchColStat() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "a"),
+            new SimpleRecord(4, "b"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+
+    Map<String, String> reportColStatsDisabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId,
+            "/test/statistics/file.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    DUMMY_BLOB_TYPE,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("data_size", "4"))));
+
+    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+
+    checkColStatisticsNotReported(scan, 4L);
+    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
+    // The expected col NDVs are nulls
+    withSQLConf(
+        reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, Maps.newHashMap()));
+  }
+
+  @TestTemplate
   public void testTableWithOneColStats() throws NoSuchTableException {
     sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
 
@@ -221,6 +276,67 @@ public class TestSparkScan extends TestBaseWithCatalog {
                     1,
                     ImmutableList.of(1),
                     ImmutableMap.of("ndv", "4"))));
+
+    table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
+
+    checkColStatisticsNotReported(scan, 4L);
+    withSQLConf(reportColStatsDisabled, () -> checkColStatisticsNotReported(scan, 4L));
+
+    Map<String, Long> expectedOneNDV = Maps.newHashMap();
+    expectedOneNDV.put("id", 4L);
+    withSQLConf(reportColStatsEnabled, () -> checkColStatisticsReported(scan, 4L, expectedOneNDV));
+  }
+
+  @TestTemplate
+  public void testTableWithOneApacheDatasketchColStatAndOneDifferentColStat()
+      throws NoSuchTableException {
+    sql("CREATE TABLE %s (id int, data string) USING iceberg", tableName);
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(2, "b"),
+            new SimpleRecord(3, "a"),
+            new SimpleRecord(4, "b"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(tableName)
+        .append();
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    long snapshotId = table.currentSnapshot().snapshotId();
+
+    SparkScanBuilder scanBuilder =
+        new SparkScanBuilder(spark, table, CaseInsensitiveStringMap.empty());
+    SparkScan scan = (SparkScan) scanBuilder.build();
+
+    Map<String, String> reportColStatsDisabled =
+        ImmutableMap.of(
+            SQLConf.CBO_ENABLED().key(), "true", SparkSQLProperties.REPORT_COLUMN_STATS, "false");
+
+    Map<String, String> reportColStatsEnabled =
+        ImmutableMap.of(SQLConf.CBO_ENABLED().key(), "true");
+
+    GenericStatisticsFile statisticsFile =
+        new GenericStatisticsFile(
+            snapshotId,
+            "/test/statistics/file.puffin",
+            100,
+            42,
+            ImmutableList.of(
+                new GenericBlobMetadata(
+                    APACHE_DATASKETCHES_THETA_V1,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("ndv", "4")),
+                new GenericBlobMetadata(
+                    DUMMY_BLOB_TYPE,
+                    snapshotId,
+                    1,
+                    ImmutableList.of(1),
+                    ImmutableMap.of("data_size", "2"))));
 
     table.updateStatistics().setStatistics(snapshotId, statisticsFile).commit();
 
@@ -911,9 +1027,15 @@ public class TestSparkScan extends TestBaseWithCatalog {
     assertThat(stats.numRows().getAsLong()).isEqualTo(expectedRowCount);
 
     Map<NamedReference, ColumnStatistics> columnStats = stats.columnStats();
-    for (Map.Entry<String, Long> entry : expectedNDVs.entrySet()) {
-      assertThat(columnStats.get(FieldReference.column(entry.getKey())).distinctCount().getAsLong())
-          .isEqualTo(entry.getValue());
+    if (expectedNDVs.isEmpty()) {
+      assertThat(columnStats.values().stream().allMatch(value -> value.distinctCount().isEmpty()))
+          .isTrue();
+    } else {
+      for (Map.Entry<String, Long> entry : expectedNDVs.entrySet()) {
+        assertThat(
+                columnStats.get(FieldReference.column(entry.getKey())).distinctCount().getAsLong())
+            .isEqualTo(entry.getValue());
+      }
     }
   }
 
