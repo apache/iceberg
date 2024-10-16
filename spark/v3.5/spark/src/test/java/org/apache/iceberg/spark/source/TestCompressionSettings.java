@@ -267,12 +267,14 @@ public class TestCompressionSettings extends CatalogTestBase {
   private void assertSparkConf() {
     assertThat(spark.conf().get(COMPRESSION_CODEC))
         .isEqualToIgnoringCase(properties.get(COMPRESSION_CODEC));
+
     if (properties.get(COMPRESSION_LEVEL) != null) {
       assertThat(spark.conf().get(COMPRESSION_LEVEL))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_LEVEL));
     } else {
       assertThat(spark.conf().contains(COMPRESSION_LEVEL)).isFalse();
     }
+
     if (properties.get(COMPRESSION_STRATEGY) != null) {
       assertThat(spark.conf().get(COMPRESSION_STRATEGY))
           .isEqualToIgnoringCase(properties.get(COMPRESSION_STRATEGY));
