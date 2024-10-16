@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
+import static org.apache.iceberg.CatalogProperties.IO_CLIENT_SIDE_PURGE_ENABLED;
+import static org.apache.iceberg.CatalogProperties.IO_CLIENT_SIDE_PURGE_ENABLED_DEFAULT;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
@@ -137,6 +139,7 @@ public class SparkCatalog extends BaseCatalog
   private ViewCatalog asViewCatalog = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
+  private boolean clientPurgeEnabled;
 
   /**
    * Build an Iceberg {@link Catalog} to be used by this Spark catalog adapter.
@@ -365,21 +368,32 @@ public class SparkCatalog extends BaseCatalog
       String metadataFileLocation =
           ((HasTableOperations) table).operations().current().metadataFileLocation();
 
-      boolean dropped = dropTableWithoutPurging(ident);
+      if (this.clientPurgeEnabled) {
+        boolean dropped = dropTableWithoutPurging(ident);
 
-      if (dropped) {
-        // check whether the metadata file exists because HadoopCatalog/HadoopTables
-        // will drop the warehouse directly and ignore the `purge` argument
-        boolean metadataFileExists = table.io().newInputFile(metadataFileLocation).exists();
+        if (dropped) {
+          // check whether the metadata file exists because HadoopCatalog/HadoopTables
+          // will drop the warehouse directly and ignore the `purge` argument
+          boolean metadataFileExists = table.io().newInputFile(metadataFileLocation).exists();
 
-        if (metadataFileExists) {
-          SparkActions.get().deleteReachableFiles(metadataFileLocation).io(table.io()).execute();
+          if (metadataFileExists) {
+            SparkActions.get().deleteReachableFiles(metadataFileLocation).io(table.io()).execute();
+          }
         }
+        return dropped;
+      } else {
+         return dropTableWithPurging(ident);
       }
-
-      return dropped;
     } catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
       return false;
+    }
+  }
+
+  private boolean dropTableWithPurging(Identifier ident) {
+    if (isPathIdentifier(ident)) {
+      return tables.dropTable(((PathIdentifier) ident).location(), true);
+    } else {
+      return icebergCatalog.dropTable(buildIdentifier(ident), true);
     }
   }
 
@@ -743,6 +757,11 @@ public class SparkCatalog extends BaseCatalog
             options,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
+
+    this.clientPurgeEnabled = PropertyUtil.propertyAsBoolean(
+            options,
+            IO_CLIENT_SIDE_PURGE_ENABLED,
+            IO_CLIENT_SIDE_PURGE_ENABLED_DEFAULT);
 
     // An expiration interval of 0ms effectively disables caching.
     // Do not wrap with CachingCatalog.
