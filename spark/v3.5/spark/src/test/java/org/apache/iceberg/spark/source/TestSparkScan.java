@@ -1028,9 +1028,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
 
     Map<NamedReference, ColumnStatistics> columnStats = stats.columnStats();
     if (expectedNDVs.isEmpty()) {
-      assertThat(
-              columnStats.isEmpty()
-                  || columnStats.values().stream().allMatch(value -> value.distinctCount().isEmpty()))
+      assertThat(columnStats.values().stream().allMatch(value -> value.distinctCount().isEmpty()))
           .isTrue();
     } else {
       for (Map.Entry<String, Long> entry : expectedNDVs.entrySet()) {
