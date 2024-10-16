@@ -406,7 +406,7 @@ public class IcebergSinkConfig extends AbstractConfig {
     return jsonConverter;
   }
 
-  public static boolean checkClassName(String className) {
+  static boolean checkClassName(String className) {
     return (className.matches(".*\\.ConnectDistributed.*") || className.matches(".*\\.ConnectStandalone.*"));
   }
 
