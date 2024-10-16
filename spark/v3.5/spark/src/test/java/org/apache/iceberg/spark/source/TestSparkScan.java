@@ -1030,7 +1030,7 @@ public class TestSparkScan extends TestBaseWithCatalog {
     if (expectedNDVs.isEmpty()) {
       assertThat(
               columnStats.isEmpty()
-                  || columnStats.values().iterator().next().distinctCount().isEmpty())
+                  || columnStats.values().stream().allMatch(value -> value.distinctCount().isEmpty()))
           .isTrue();
     } else {
       for (Map.Entry<String, Long> entry : expectedNDVs.entrySet()) {
