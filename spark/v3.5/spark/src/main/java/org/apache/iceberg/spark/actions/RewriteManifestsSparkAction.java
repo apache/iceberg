@@ -19,10 +19,12 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.MetadataTableType.ENTRIES;
+import static org.apache.spark.sql.functions.col;
 
 import java.io.Serializable;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -37,6 +39,7 @@ import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.ManifestWriter;
+import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.RollingManifestWriter;
@@ -71,6 +74,10 @@ import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.api.java.UDF1;
+import org.apache.spark.sql.expressions.UserDefinedFunction;
+import org.apache.spark.sql.functions;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,6 +105,8 @@ public class RewriteManifestsSparkAction
           .addedManifests(ImmutableList.of())
           .build();
 
+  private static final String CUSTOM_CLUSTERING_COLUMN_NAME = "__clustering_column__";
+
   private final Table table;
   private final int formatVersion;
   private final long targetManifestSizeBytes;
@@ -106,6 +115,9 @@ public class RewriteManifestsSparkAction
   private PartitionSpec spec;
   private Predicate<ManifestFile> predicate = manifest -> true;
   private String outputLocation;
+
+  private List<String> partitionFieldClustering = null;
+  private Function<DataFile, String> partitionClusteringFunction = null;
 
   RewriteManifestsSparkAction(SparkSession spark, Table table) {
     super(spark);
@@ -158,6 +170,32 @@ public class RewriteManifestsSparkAction
     } else {
       LOG.warn("Ignoring provided staging location as new manifests will be committed directly");
     }
+    return this;
+  }
+
+  @Override
+  public RewriteManifestsSparkAction clusterBy(List<String> clusteringColumns) {
+    // Collect set of allowable partition columns to cluster on
+    Set<String> availablePartitionNames =
+        spec.fields().stream().map(PartitionField::name).collect(Collectors.toSet());
+
+    // Check if these partition fields are included in the spec
+    Preconditions.checkArgument(
+        clusteringColumns.stream().allMatch(availablePartitionNames::contains),
+        "Cannot use custom clustering to rewrite manifests '%s'. All partition columns must be "
+            + "defined in the current partition spec: %s. Choose from the available partitionable columns: %s",
+        clusteringColumns,
+        this.spec.specId(),
+        availablePartitionNames);
+
+    this.partitionFieldClustering = clusteringColumns;
+    return this;
+  }
+
+  @Override
+  public RewriteManifests clusterBy(Function<DataFile, String> clusteringFunction) {
+    this.partitionClusteringFunction =
+        (Function<DataFile, String> & Serializable) clusteringFunction;
     return this;
   }
 
@@ -251,12 +289,59 @@ public class RewriteManifestsSparkAction
   private List<ManifestFile> writePartitionedManifests(
       ManifestContent content, Dataset<Row> manifestEntryDF, int numManifests) {
 
+    // Extract desired clustering criteria into a dedicated column
+    Dataset<Row> clusteredManifestEntryDF;
+
+    if (partitionClusteringFunction != null) {
+      LOG.info(
+          "Sorting manifests for specId {} using custom clustering function",
+          spec.specId(),
+          partitionClusteringFunction);
+      Types.StructType partitionType = DataFile.getType(table.spec().partitionType());
+      StructType dataFileSchema = manifestEntryDF.select("data_file.*").schema();
+
+      // Create a UDF to wrap the custom partitionClusteringFunction call
+      UserDefinedFunction clusteringUdf =
+          functions.udf(
+              new CustomDataFileClusteringUdf(
+                  this.partitionClusteringFunction, partitionType, dataFileSchema),
+              DataTypes.StringType);
+      // Apply supplied partitionSortFunction function to the data_file datums within this dataframe
+      // The results are stored as a String in the new __clustering_column__
+      clusteredManifestEntryDF =
+          manifestEntryDF.withColumn(
+              CUSTOM_CLUSTERING_COLUMN_NAME, clusteringUdf.apply(col("data_file")));
+    } else if (partitionFieldClustering != null) {
+      LOG.info(
+          "Clustering manifests for specId {} by partition columns by {} ",
+          spec.specId(),
+          partitionFieldClustering);
+
+      // Map the top level partition column names to the column name referenced within the manifest
+      // entry dataframe
+      Column[] actualPartitionColumns =
+          partitionFieldClustering.stream()
+              .map(p -> col("data_file.partition." + p))
+              .toArray(Column[]::new);
+
+      // Form a new temporary column to cluster manifests on, based on the custom clustering columns
+      // order provided
+      clusteredManifestEntryDF =
+          manifestEntryDF.withColumn(
+              CUSTOM_CLUSTERING_COLUMN_NAME, functions.struct(actualPartitionColumns));
+    } else {
+      clusteredManifestEntryDF =
+          manifestEntryDF.withColumn(CUSTOM_CLUSTERING_COLUMN_NAME, col("data_file.partition"));
+    }
+
     return withReusableDS(
-        manifestEntryDF,
+        clusteredManifestEntryDF,
         df -> {
           WriteManifests<?> writeFunc = newWriteManifestsFunc(content, df.schema());
-          Column partitionColumn = df.col("data_file.partition");
-          Dataset<Row> transformedDF = repartitionAndSort(df, partitionColumn, numManifests);
+          Column partitionColumn = df.col(CUSTOM_CLUSTERING_COLUMN_NAME);
+          Dataset<Row> transformedDF =
+              repartitionAndSort(df, partitionColumn, numManifests)
+                  .drop(CUSTOM_CLUSTERING_COLUMN_NAME);
           return writeFunc.apply(transformedDF).collectAsList();
         });
   }
@@ -548,6 +633,29 @@ public class RewriteManifestsSparkAction
 
     private Table table() {
       return tableBroadcast.value();
+    }
+  }
+
+  // UDF that will execute supplied custom manifest clustering function
+  static class CustomDataFileClusteringUdf implements UDF1<Row, String>, Serializable {
+    // Supply how the DataFile should be interpreted from a raw Row.
+    private Types.StructType dataFileType;
+    private StructType dataFileSparkType;
+    private Function<DataFile, String> clusteringFunction;
+
+    CustomDataFileClusteringUdf(
+        Function<DataFile, String> clusteringFunction,
+        Types.StructType dataFileType,
+        StructType dataFileSparkType) {
+      this.dataFileType = dataFileType;
+      this.dataFileSparkType = dataFileSparkType;
+      this.clusteringFunction = (Function<DataFile, String> & Serializable) clusteringFunction;
+    }
+
+    @Override
+    public String call(Row dataFile) throws Exception {
+      SparkDataFile wrapper = new SparkDataFile(dataFileType, dataFileSparkType);
+      return this.clusteringFunction.apply(wrapper.wrap(dataFile));
     }
   }
 }
