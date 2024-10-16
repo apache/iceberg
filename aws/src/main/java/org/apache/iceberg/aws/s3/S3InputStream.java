@@ -69,7 +69,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
           .handle(
               ImmutableList.of(
                   SSLException.class, SocketTimeoutException.class, SocketException.class))
-          .onFailure(failure -> openStream(true))
+          .onFailure(failure -> resetForRetry())
           .withMaxRetries(3)
           .build();
 
@@ -228,6 +228,10 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     } catch (NoSuchKeyException e) {
       throw new NotFoundException(e, "Location does not exist: %s", location);
     }
+  }
+
+  void resetForRetry() throws IOException {
+    openStream(true);
   }
 
   private void closeStream(boolean closeQuietly) throws IOException {
