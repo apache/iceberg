@@ -473,6 +473,13 @@ class PlanStatus(BaseModel):
     )
 
 
+class PlanningMode(BaseModel):
+    __root__: Literal['unsupported', 'supported', 'required'] = Field(
+        ...,
+        description='Indicates to clients if a service supports server-side planning for a given table.',
+    )
+
+
 class RegisterTableRequest(BaseModel):
     name: str
     metadata_location: str = Field(..., alias='metadata-location')
@@ -1176,6 +1183,17 @@ class LoadTableResult(BaseModel):
     The table metadata JSON is returned in the `metadata` field. The corresponding file location of table metadata should be returned in the `metadata-location` field, unless the metadata is not yet committed. For example, a create transaction may return metadata that is staged but not committed.
     Clients can check whether metadata has changed by comparing metadata locations after the table has been created.
 
+    The `planning-mode` returns a string enum to clients, whether a service supports server-side planning for a given table.
+
+    - When "required" the client must initiate server-side planning
+    by calling the `planTableScan` operation.
+
+    - When "supported" the client can opt to either initiate service-side planning
+    or client-side planning.
+
+    - When "unsupported" the service does not support server-side planning,
+    therefore the client will be expected to do its planning.
+
 
     The `config` map returns table-specific configuration for the table's resources, including its HTTP client and FileIO. For example, config may contain a specific FileIO implementation class for the table depending on its underlying storage.
 
@@ -1203,6 +1221,7 @@ class LoadTableResult(BaseModel):
         description='May be null if the table is staged as part of a transaction',
     )
     metadata: TableMetadata
+    planning_mode: Optional[PlanningMode] = Field(None, alias='planning-mode')
     config: Optional[Dict[str, str]] = None
 
 
