@@ -36,6 +36,7 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -242,6 +243,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     }
   }
 
+  @VisibleForTesting
   void resetForRetry() throws IOException {
     openStream(true);
   }
