@@ -31,7 +31,6 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -67,11 +66,8 @@ import org.apache.iceberg.flink.sink.shuffle.RangePartitioner;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecord;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
-import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.SerializableSupplier;
 import org.slf4j.Logger;
@@ -134,7 +130,7 @@ public class FlinkSink {
     return new Builder().forRowData(input);
   }
 
-  public static class Builder {
+  public static class Builder implements IcebergSinkBuilder<Builder> {
     private Function<String, DataStream<RowData>> inputCreator = null;
     private TableLoader tableLoader;
     private Table table;
@@ -179,6 +175,7 @@ public class FlinkSink {
      * @param newTable the loaded iceberg table instance.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder table(Table newTable) {
       this.table = newTable;
       return this;
@@ -192,6 +189,7 @@ public class FlinkSink {
      * @param newTableLoader to load iceberg table inside tasks.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder tableLoader(TableLoader newTableLoader) {
       this.tableLoader = newTableLoader;
       return this;
@@ -210,21 +208,25 @@ public class FlinkSink {
      * Set the write properties for Flink sink. View the supported properties in {@link
      * FlinkWriteOptions}
      */
+    @Override
     public Builder setAll(Map<String, String> properties) {
       writeOptions.putAll(properties);
       return this;
     }
 
+    @Override
     public Builder tableSchema(TableSchema newTableSchema) {
       this.tableSchema = newTableSchema;
       return this;
     }
 
+    @Override
     public Builder overwrite(boolean newOverwrite) {
       writeOptions.put(FlinkWriteOptions.OVERWRITE_MODE.key(), Boolean.toString(newOverwrite));
       return this;
     }
 
+    @Override
     public Builder flinkConf(ReadableConfig config) {
       this.readableConfig = config;
       return this;
@@ -237,6 +239,7 @@ public class FlinkSink {
      * @param mode to specify the write distribution mode.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder distributionMode(DistributionMode mode) {
       if (mode != null) {
         writeOptions.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), mode.modeName());
@@ -306,6 +309,7 @@ public class FlinkSink {
      * @param newWriteParallelism the number of parallel iceberg stream writer.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder writeParallelism(int newWriteParallelism) {
       writeOptions.put(
           FlinkWriteOptions.WRITE_PARALLELISM.key(), Integer.toString(newWriteParallelism));
@@ -321,6 +325,7 @@ public class FlinkSink {
      * @param enabled indicate whether it should transform all INSERT/UPDATE_AFTER events to UPSERT.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder upsert(boolean enabled) {
       writeOptions.put(FlinkWriteOptions.WRITE_UPSERT_ENABLED.key(), Boolean.toString(enabled));
       return this;
@@ -332,6 +337,7 @@ public class FlinkSink {
      * @param columns defines the iceberg table's key.
      * @return {@link Builder} to connect the iceberg table.
      */
+    @Override
     public Builder equalityFieldColumns(List<String> columns) {
       this.equalityFieldColumns = columns;
       return this;
@@ -376,6 +382,7 @@ public class FlinkSink {
       return this;
     }
 
+    @Override
     public Builder toBranch(String branch) {
       writeOptions.put(FlinkWriteOptions.BRANCH.key(), branch);
       return this;
@@ -436,40 +443,13 @@ public class FlinkSink {
      *
      * @return {@link DataStreamSink} for sink.
      */
+    @Override
     public DataStreamSink<Void> append() {
       return chainIcebergOperators();
     }
 
     private String operatorName(String suffix) {
       return uidPrefix != null ? uidPrefix + "-" + suffix : suffix;
-    }
-
-    @VisibleForTesting
-    List<Integer> checkAndGetEqualityFieldIds() {
-      List<Integer> equalityFieldIds = Lists.newArrayList(table.schema().identifierFieldIds());
-      if (equalityFieldColumns != null && !equalityFieldColumns.isEmpty()) {
-        Set<Integer> equalityFieldSet =
-            Sets.newHashSetWithExpectedSize(equalityFieldColumns.size());
-        for (String column : equalityFieldColumns) {
-          org.apache.iceberg.types.Types.NestedField field = table.schema().findField(column);
-          Preconditions.checkNotNull(
-              field,
-              "Missing required equality field column '%s' in table schema %s",
-              column,
-              table.schema());
-          equalityFieldSet.add(field.fieldId());
-        }
-
-        if (!equalityFieldSet.equals(table.schema().identifierFieldIds())) {
-          LOG.warn(
-              "The configured equality field column IDs {} are not matched with the schema identifier field IDs"
-                  + " {}, use job specified equality field columns as the equality fields by default.",
-              equalityFieldSet,
-              table.schema().identifierFieldIds());
-        }
-        equalityFieldIds = Lists.newArrayList(equalityFieldSet);
-      }
-      return equalityFieldIds;
     }
 
     @SuppressWarnings("unchecked")
