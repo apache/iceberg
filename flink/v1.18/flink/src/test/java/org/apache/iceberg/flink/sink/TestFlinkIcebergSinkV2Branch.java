@@ -49,7 +49,9 @@ public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
   @Parameter(index = 4)
   protected String branch;
 
-  @Parameters(name = "branch = {4}")
+  @Parameters(
+      name =
+          "FileFormat={0}, Parallelism={1}, Partitioned={2}, WriteDistributionMode={3}, Branch={4}")
   public static Object[][] parameters() {
     return new Object[][] {
       new Object[] {
