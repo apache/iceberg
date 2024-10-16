@@ -36,11 +36,11 @@ package org.apache.iceberg.actions;
  * <p>The action returns the following:
  *
  * <ol>
- *   <li>The name of the latest metadata.json file copied.
- *   <li>A listing of rewritten table metadata files, relative to the staging directory, that can be
- *       copied to the target prefix.
- *   <li>A listing of table data files, relative to the source prefix, that can be copied to the
- *       target prefix.
+ *   <li>The name of the latest metadata.json rewritten to staging location. After the files are
+ *       copied, this will be the root of the copied table.
+ *   <li>A list of all files added to the table between startVersion and endVersion, including their
+ *       original and target paths under the target prefix. This list covers both original and
+ *       rewritten files, allowing for copying to the target paths to form the copied table.
  * </ol>
  */
 public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTablePath.Result> {
@@ -87,16 +87,17 @@ public interface RewriteTablePath extends Action<RewriteTablePath, RewriteTableP
 
   /** The action result that contains a summary of the execution. */
   interface Result {
-    /** staging location of rewritten files */
+    /** Staging location of rewritten files */
     String stagingLocation();
 
     /**
-     * path to a list of comma-separated pairs of source and target path for data and metadata
-     * files.
+     * Path to a comma-separated list of source and target paths for all files added to the table
+     * between startVersion and endVersion, including original data files and metadata files
+     * rewritten to staging.
      */
     String fileListLocation();
 
-    /** name of latest metadata file version */
+    /** Name of latest metadata file version */
     String latestVersion();
   }
 }
