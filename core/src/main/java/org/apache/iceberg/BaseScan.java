@@ -59,9 +59,7 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
           "nan_value_counts",
           "lower_bounds",
           "upper_bounds",
-          "column_sizes",
-          "geom_lower_bounds",
-          "geom_upper_bounds");
+          "column_sizes");
 
   protected static final List<String> SCAN_WITH_STATS_COLUMNS =
       ImmutableList.<String>builder().addAll(SCAN_COLUMNS).addAll(STATS_COLUMNS).build();

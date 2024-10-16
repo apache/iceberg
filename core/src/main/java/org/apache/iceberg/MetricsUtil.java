@@ -157,43 +157,21 @@ public class MetricsUtil {
               "Lower bound",
               DataFile.LOWER_BOUNDS,
               Types.NestedField::type,
-              new LowerBoundMetricFunction()),
+              (file, field) ->
+                  file.lowerBounds() == null
+                      ? null
+                      : Conversions.fromByteBuffer(
+                          field.type(), file.lowerBounds().get(field.fieldId()))),
           new ReadableMetricColDefinition(
               "upper_bound",
               "Upper bound",
               DataFile.UPPER_BOUNDS,
               Types.NestedField::type,
-              new UpperBoundMetricFunction()));
-
-  private static class LowerBoundMetricFunction
-      implements ReadableMetricColDefinition.MetricFunction {
-    @Override
-    public Object metric(ContentFile<?> file, Types.NestedField field) {
-      if (field.type().typeId() == Type.TypeID.GEOMETRY) {
-        return null;
-      } else {
-        if (file.lowerBounds() == null) {
-          return null;
-        }
-        return Conversions.fromByteBuffer(field.type(), file.lowerBounds().get(field.fieldId()));
-      }
-    }
-  }
-
-  private static class UpperBoundMetricFunction
-      implements ReadableMetricColDefinition.MetricFunction {
-    @Override
-    public Object metric(ContentFile<?> file, Types.NestedField field) {
-      if (field.type().typeId() == Type.TypeID.GEOMETRY) {
-        return null;
-      } else {
-        if (file.upperBounds() == null) {
-          return null;
-        }
-        return Conversions.fromByteBuffer(field.type(), file.upperBounds().get(field.fieldId()));
-      }
-    }
-  }
+              (file, field) ->
+                  file.upperBounds() == null
+                      ? null
+                      : Conversions.fromByteBuffer(
+                          field.type(), file.upperBounds().get(field.fieldId()))));
 
   public static final String READABLE_METRICS = "readable_metrics";
 

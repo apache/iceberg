@@ -28,7 +28,7 @@ import org.locationtech.jts.geom.GeometryFactory;
  * Iceberg internally tracked field level metrics, used by Parquet and ORC writers only.
  *
  * <p>Bounding box of geometry fields were tracked and recorded in both manifest file and parquet
- * statistics, which can help us pruning data files disjoint with the query window.
+ * statistics, which can help us to prune data files disjoint with the query window.
  */
 public class GeometryFieldMetrics extends FieldMetrics<Geometry> {
 
@@ -38,11 +38,8 @@ public class GeometryFieldMetrics extends FieldMetrics<Geometry> {
     super(id, valueCount, 0L, 0L, min, max);
   }
 
-  /**
-   * Generic builder for tracking bounding box of geometries of any acceptable types, including byte
-   * buffers. and jts geometry objects
-   */
-  public static class GenericBuilder {
+  /** Builder for tracking bounding box of geometries */
+  public static class Builder {
     private final int id;
     private long valueCount = 0;
     private long nonEmptyValueCount = 0;
@@ -55,8 +52,25 @@ public class GeometryFieldMetrics extends FieldMetrics<Geometry> {
     private double mMin = Double.POSITIVE_INFINITY;
     private double mMax = Double.NEGATIVE_INFINITY;
 
-    public GenericBuilder(int id) {
+    public Builder(int id) {
       this.id = id;
+    }
+
+    public void add(Geometry geom) {
+      this.valueCount++;
+      GeometryBoundExtractor boundExtractor = new GeometryBoundExtractor();
+      geom.apply(boundExtractor);
+      if (boundExtractor.isValid()) {
+        addEnvelope(
+            boundExtractor.xMin,
+            boundExtractor.yMin,
+            boundExtractor.xMax,
+            boundExtractor.yMax,
+            boundExtractor.zMin,
+            boundExtractor.zMax,
+            boundExtractor.mMin,
+            boundExtractor.mMax);
+      }
     }
 
     protected void addEnvelope(
@@ -90,23 +104,6 @@ public class GeometryFieldMetrics extends FieldMetrics<Geometry> {
           valueCount,
           hasBound ? FACTORY.createPoint(new CoordinateXYZM(xMin, yMin, zMin, mMin)) : null,
           hasBound ? FACTORY.createPoint(new CoordinateXYZM(xMax, yMax, zMax, mMax)) : null);
-    }
-
-    public void add(Geometry geom) {
-      this.valueCount++;
-      GeometryBoundExtractor boundExtractor = new GeometryBoundExtractor();
-      geom.apply(boundExtractor);
-      if (boundExtractor.isValid()) {
-        addEnvelope(
-            boundExtractor.xMin,
-            boundExtractor.yMin,
-            boundExtractor.xMax,
-            boundExtractor.yMax,
-            boundExtractor.zMin,
-            boundExtractor.zMax,
-            boundExtractor.mMin,
-            boundExtractor.mMax);
-      }
     }
   }
 
