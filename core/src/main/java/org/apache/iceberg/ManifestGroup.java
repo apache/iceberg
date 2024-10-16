@@ -365,7 +365,13 @@ class ManifestGroup {
           DeleteFile[] deleteFiles = ctx.deletes().forEntry(entry);
           ScanMetricsUtil.fileTask(ctx.scanMetrics(), dataFile, deleteFiles);
           return new BaseFileScanTask(
-              dataFile, deleteFiles, ctx.schemaAsString(), ctx.specAsString(), ctx.residuals());
+              dataFile,
+              deleteFiles,
+              ctx.schemaAsString(),
+              ctx.specAsString(),
+              ctx.residuals(),
+              ctx.spec.schema(),
+              ctx.spec);
         });
   }
 
@@ -378,6 +384,7 @@ class ManifestGroup {
   static class TaskContext {
     private final String schemaAsString;
     private final String specAsString;
+    private final PartitionSpec spec;
     private final DeleteFileIndex deletes;
     private final ResidualEvaluator residuals;
     private final boolean dropStats;
@@ -393,6 +400,7 @@ class ManifestGroup {
         ScanMetrics scanMetrics) {
       this.schemaAsString = SchemaParser.toJson(spec.schema());
       this.specAsString = PartitionSpecParser.toJson(spec);
+      this.spec = spec;
       this.deletes = deletes;
       this.residuals = residuals;
       this.dropStats = dropStats;
