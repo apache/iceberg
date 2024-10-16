@@ -218,10 +218,13 @@ class IcebergToGlueConverter {
    *
    * @param tableInputBuilder Glue TableInput builder
    * @param metadata Iceberg table metadata
+   * @param disableNonCurrentFields option to disable writing non current fields to Glue table
    */
   static void setTableInputInformation(
-      TableInput.Builder tableInputBuilder, TableMetadata metadata) {
-    setTableInputInformation(tableInputBuilder, metadata, null);
+      TableInput.Builder tableInputBuilder,
+      TableMetadata metadata,
+      Boolean disableNonCurrentFields) {
+    setTableInputInformation(tableInputBuilder, metadata, null, disableNonCurrentFields);
   }
 
   /**
@@ -241,9 +244,13 @@ class IcebergToGlueConverter {
    * @param tableInputBuilder Glue TableInput builder
    * @param metadata Iceberg table metadata
    * @param existingTable optional existing Glue table, used to preserve column comments
+   * @param disableNonCurrentFields option to disable writing non current fields to Glue table
    */
   static void setTableInputInformation(
-      TableInput.Builder tableInputBuilder, TableMetadata metadata, Table existingTable) {
+      TableInput.Builder tableInputBuilder,
+      TableMetadata metadata,
+      Table existingTable,
+      Boolean disableNonCurrentFields) {
     try {
       Map<String, String> properties = metadata.properties();
       StorageDescriptor.Builder storageDescriptor = StorageDescriptor.builder();
@@ -274,7 +281,7 @@ class IcebergToGlueConverter {
         existingColumnMap = Collections.emptyMap();
       }
 
-      List<Column> columns = toColumns(metadata, existingColumnMap);
+      List<Column> columns = toColumns(metadata, existingColumnMap, disableNonCurrentFields);
 
       tableInputBuilder.storageDescriptor(
           storageDescriptor.location(metadata.location()).columns(columns).build());
@@ -340,12 +347,18 @@ class IcebergToGlueConverter {
   }
 
   private static List<Column> toColumns(
-      TableMetadata metadata, Map<String, String> existingColumnMap) {
+      TableMetadata metadata,
+      Map<String, String> existingColumnMap,
+      Boolean disableNonCurrentFields) {
     List<Column> columns = Lists.newArrayList();
     Set<String> addedNames = Sets.newHashSet();
 
     for (NestedField field : metadata.schema().columns()) {
       addColumnWithDedupe(columns, addedNames, field, true /* is current */, existingColumnMap);
+    }
+
+    if (disableNonCurrentFields) {
+      return columns;
     }
 
     for (Schema schema : metadata.schemas()) {

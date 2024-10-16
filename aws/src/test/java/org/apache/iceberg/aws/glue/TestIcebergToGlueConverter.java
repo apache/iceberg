@@ -173,7 +173,7 @@ public class TestIcebergToGlueConverter {
         PartitionSpec.builderFor(schema).identity("x").withSpecId(1000).build();
     TableMetadata tableMetadata =
         TableMetadata.newTableMetadata(schema, partitionSpec, "s3://test", tableLocationProperties);
-    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
+    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata, false);
     TableInput actualTableInput = actualTableInputBuilder.build();
 
     // Expected TableInput
@@ -239,7 +239,7 @@ public class TestIcebergToGlueConverter {
     Schema newSchema =
         new Schema(Types.NestedField.required(1, "x", Types.StringType.get(), "comment1"));
     tableMetadata = tableMetadata.updateSchema(newSchema, 3);
-    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
+    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata, false);
     TableInput actualTableInput = actualTableInputBuilder.build();
 
     // Expected TableInput
@@ -300,7 +300,7 @@ public class TestIcebergToGlueConverter {
         TableMetadata.newTableMetadata(
             schema, PartitionSpec.unpartitioned(), "s3://test", tableProperties);
 
-    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata);
+    IcebergToGlueConverter.setTableInputInformation(actualTableInputBuilder, tableMetadata, false);
     TableInput actualTableInput = actualTableInputBuilder.build();
 
     assertThat(actualTableInput.description())
@@ -335,7 +335,7 @@ public class TestIcebergToGlueConverter {
             .build();
 
     IcebergToGlueConverter.setTableInputInformation(
-        actualTableInputBuilder, tableMetadata, existingGlueTable);
+        actualTableInputBuilder, tableMetadata, existingGlueTable, false);
     TableInput actualTableInput = actualTableInputBuilder.build();
 
     // Expected TableInput
