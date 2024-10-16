@@ -77,7 +77,11 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
                     "Retrying read from S3, reopening stream (attempt {})", e.getAttemptCount());
                 resetForRetry();
               })
-          .onFailure(e -> LOG.error("Failed to read from S3 after retry policy", e.getException()))
+          .onFailure(
+              e ->
+                  LOG.error(
+                      "Failed to read from S3 input stream after exhausting all retries",
+                      e.getException()))
           .withMaxRetries(3)
           .build();
 
