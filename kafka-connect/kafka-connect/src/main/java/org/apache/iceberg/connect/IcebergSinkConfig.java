@@ -408,7 +408,8 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   @VisibleForTesting
   static boolean checkClassName(String className) {
-    return (className.matches(".*\\.ConnectDistributed.*") || className.matches(".*\\.ConnectStandalone.*"));
+    return (className.matches(".*\\.ConnectDistributed.*")
+        || className.matches(".*\\.ConnectStandalone.*"));
   }
 
   /**

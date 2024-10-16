@@ -91,7 +91,8 @@ public class IcebergSinkConfigTest {
 
   @Test
   public void testCheckClassName() {
-    Boolean result = IcebergSinkConfig.checkClassName("org.apache.kafka.connect.cli.ConnectDistributed");
+    Boolean result =
+        IcebergSinkConfig.checkClassName("org.apache.kafka.connect.cli.ConnectDistributed");
     assertThat(result).isTrue();
 
     result = IcebergSinkConfig.checkClassName("org.apache.kafka.connect.cli.ConnectStandalone");
