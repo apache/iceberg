@@ -72,10 +72,9 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
       RetryPolicy.builder()
           .handle(RETRYABLE_EXCEPTIONS)
           .onRetry(
-              failure -> {
+              e -> {
                 LOG.warn(
-                    "Retrying read from S3, reopening stream (attempt {})",
-                    failure.getAttemptCount());
+                    "Retrying read from S3, reopening stream (attempt {})", e.getAttemptCount());
                 resetForRetry();
               })
           .onFailure(e -> LOG.error("Failed to read from S3 after retry policy", e.getException()))
