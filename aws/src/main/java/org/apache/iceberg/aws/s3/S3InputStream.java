@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
+import java.util.List;
 import javax.net.ssl.SSLException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
@@ -50,6 +51,9 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
 
+  private static final List<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS =
+      ImmutableList.of(SSLException.class, SocketTimeoutException.class, SocketException.class);
+
   private final StackTraceElement[] createStack;
   private final S3Client s3;
   private final S3URI location;
@@ -66,10 +70,8 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private int skipSize = 1024 * 1024;
   private RetryPolicy<Object> retryPolicy =
       RetryPolicy.builder()
-          .handle(
-              ImmutableList.of(
-                  SSLException.class, SocketTimeoutException.class, SocketException.class))
-          .onFailure(failure -> resetForRetry())
+          .handle(RETRYABLE_EXCEPTIONS)
+          .onRetry(failure -> resetForRetry())
           .withMaxRetries(3)
           .build();
 
