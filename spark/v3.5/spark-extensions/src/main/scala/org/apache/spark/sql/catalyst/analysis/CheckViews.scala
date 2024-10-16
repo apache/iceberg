@@ -48,7 +48,8 @@ object CheckViews extends (LogicalPlan => Unit) {
         }
 
       case AlterViewAs(ResolvedV2View(_, _), _, _) =>
-        throw new AnalysisException("ALTER VIEW <viewName> AS is not supported. Use CREATE OR REPLACE VIEW instead")
+        throw new IcebergAnalysisException(
+          "ALTER VIEW <viewName> AS is not supported. Use CREATE OR REPLACE VIEW instead")
 
       case _ => // OK
     }
@@ -105,7 +106,7 @@ object CheckViews extends (LogicalPlan => Unit) {
   ): Unit = {
     val newCyclePath = cyclePath :+ currentViewIdent
     if (currentViewIdent == viewIdent) {
-      throw new AnalysisException(String.format("Recursive cycle in view detected: %s (cycle: %s)",
+      throw new IcebergAnalysisException(String.format("Recursive cycle in view detected: %s (cycle: %s)",
         viewIdent.asIdentifier, newCyclePath.map(p => p.mkString(".")).mkString(" -> ")))
     } else {
       children.foreach { c =>
