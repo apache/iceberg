@@ -1,0 +1,80 @@
+// Combined build.gradle for a new module that includes both Flink and Spark
+
+plugins {
+    id 'java'
+    id 'scala'
+}
+
+String flinkMajorVersion = '1.20'
+String sparkMajorVersion = '3.5'
+String scalaVersion = System.getProperty("scalaVersion") != null ? System.getProperty("scalaVersion") : System.getProperty("defaultScalaVersion")
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Common dependencies
+    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    api project(':iceberg-api')
+    implementation project(':iceberg-common')
+    implementation project(':iceberg-core')
+    implementation project(':iceberg-data')
+    implementation project(':iceberg-orc')
+    implementation project(':iceberg-parquet')
+    implementation project(':iceberg-hive-metastore')
+    implementation libs.datasketches
+
+    implementation project(":iceberg-flink:iceberg-flink-1.20")
+//    testImplementation project(":iceberg-flink:iceberg-flink-1.20")
+    implementation project(":iceberg-flink:iceberg-flink-runtime-1.20")
+
+    implementation project(":iceberg-spark:iceberg-spark-3.5_2.12")
+    implementation project(":iceberg-spark:iceberg-spark-extensions-3.5_2.12")
+    implementation project(":iceberg-spark:iceberg-spark-runtime-3.5_2.12")
+
+    testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-flink:iceberg-flink-1.20', configuration: 'testArtifacts')
+
+
+    // Flink-specific dependencies
+    compileOnly "org.apache.flink:flink-table-planner_${scalaVersion}:${libs.versions.flink120.get()}"
+    compileOnly libs.flink120.avro
+    compileOnly libs.flink120.metrics.dropwizard
+    compileOnly libs.flink120.streaming.java
+    compileOnly libs.flink120.table.api.java.bridge
+    compileOnly libs.flink120.connector.base
+    compileOnly libs.flink120.connector.files
+
+    // Spark-specific dependencies
+    compileOnly "org.apache.spark:spark-hive_${scalaVersion}:${libs.versions.spark.hive35.get()}"
+    implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}:${libs.versions.scala.collection.compat.get()}")
+    implementation libs.caffeine
+    implementation libs.parquet.column
+    implementation libs.parquet.hadoop
+    implementation libs.arrow.vector
+
+    // Conditional dependency for Scala 2.12
+    if (scalaVersion == '2.12') {
+        implementation 'org.scala-lang:scala-library:2.12.18'
+    }
+
+    // Test dependencies
+    testImplementation libs.flink120.connector.test.utils
+    testImplementation libs.flink120.core
+    testImplementation libs.flink120.runtime
+    testImplementation libs.awaitility
+    testImplementation libs.assertj.core
+    testImplementation libs.sqlite.jdbc
+    testImplementation libs.hadoop2.minicluster
+    testImplementation libs.junit.vintage.engine
+    testImplementation libs.junit.jupiter
+    testImplementation libs.slf4j.simple
+}
+
+test {
+    useJUnitPlatform()
+}
