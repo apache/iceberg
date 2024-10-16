@@ -43,6 +43,8 @@ public class GCPProperties implements Serializable {
   public static final String GCS_OAUTH2_TOKEN_EXPIRES_AT = "gcs.oauth2.token-expires-at";
   // Boolean to explicitly configure "no authentication" for testing purposes using a GCS emulator
   public static final String GCS_NO_AUTH = "gcs.no-auth";
+  public static final String GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT =
+      "gcs.oauth2.refresh-credentials-endpoint";
 
   /** Configure the batch size used when deleting multiple files from a given GCS bucket */
   public static final String GCS_DELETE_BATCH_SIZE = "gcs.delete.batch-size";
@@ -67,6 +69,7 @@ public class GCPProperties implements Serializable {
   private boolean gcsNoAuth;
   private String gcsOAuth2Token;
   private Date gcsOAuth2TokenExpiresAt;
+  private String gcsOauth2RefreshCredentialsEndpoint;
 
   private int gcsDeleteBatchSize = GCS_DELETE_BATCH_SIZE_DEFAULT;
 
@@ -95,6 +98,8 @@ public class GCPProperties implements Serializable {
       gcsOAuth2TokenExpiresAt =
           new Date(Long.parseLong(properties.get(GCS_OAUTH2_TOKEN_EXPIRES_AT)));
     }
+
+    gcsOauth2RefreshCredentialsEndpoint = properties.get(GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT);
     gcsNoAuth = Boolean.parseBoolean(properties.getOrDefault(GCS_NO_AUTH, "false"));
     Preconditions.checkState(
         !(gcsOAuth2Token != null && gcsNoAuth),
@@ -153,5 +158,9 @@ public class GCPProperties implements Serializable {
 
   public int deleteBatchSize() {
     return gcsDeleteBatchSize;
+  }
+
+  public Optional<String> oauth2RefreshCredentialsEndpoint() {
+    return Optional.ofNullable(gcsOauth2RefreshCredentialsEndpoint);
   }
 }
