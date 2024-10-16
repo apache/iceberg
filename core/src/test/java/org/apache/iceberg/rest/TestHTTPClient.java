@@ -42,14 +42,12 @@ import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
-import org.apache.hc.core5.http.EntityDetails;
-import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.HttpRequestInterceptor;
 import org.apache.hc.core5.http.HttpStatus;
-import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.iceberg.IcebergBuild;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.auth.AuthSession;
+import org.apache.iceberg.rest.auth.DefaultAuthSession;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ErrorResponseParser;
 import org.junit.jupiter.api.AfterAll;
@@ -147,7 +145,7 @@ public class TestHTTPClient {
           request("/" + path).withMethod(HttpMethod.HEAD.name().toUpperCase(Locale.ROOT));
       HttpResponse mockResponse = response().withStatusCode(200);
       proxyServer.when(mockRequest).respond(mockResponse);
-      clientWithProxy.head(path, ImmutableMap.of(), (onError) -> {});
+      clientWithProxy.head(path, ImmutableMap.of(), DefaultAuthSession.empty(), (onError) -> {});
       proxyServer.verify(mockRequest, VerificationTimes.exactly(1));
     }
   }
@@ -213,25 +211,19 @@ public class TestHTTPClient {
           };
 
       assertThatThrownBy(
-              () -> clientWithProxy.get("v1/config", Item.class, ImmutableMap.of(), onError))
+              () ->
+                  clientWithProxy.get(
+                      "v1/config",
+                      Item.class,
+                      ImmutableMap.of(),
+                      DefaultAuthSession.empty(),
+                      onError))
           .isInstanceOf(RuntimeException.class)
           .hasMessage(
               String.format(
                   "%s - %s",
                   "Proxy Authentication Required", HttpStatus.SC_PROXY_AUTHENTICATION_REQUIRED));
     }
-  }
-
-  @Test
-  public void testDynamicHttpRequestInterceptorLoading() {
-    Map<String, String> properties = ImmutableMap.of("key", "val");
-
-    HttpRequestInterceptor interceptor =
-        HTTPClient.loadInterceptorDynamically(
-            TestHttpRequestInterceptor.class.getName(), properties);
-
-    assertThat(interceptor).isInstanceOf(TestHttpRequestInterceptor.class);
-    assertThat(((TestHttpRequestInterceptor) interceptor).properties).isEqualTo(properties);
   }
 
   @Test
@@ -270,7 +262,9 @@ public class TestHTTPClient {
               .withDelay(TimeUnit.MILLISECONDS, 5000);
       mockServer.when(mockRequest).respond(mockResponse);
 
-      assertThatThrownBy(() -> client.head(path, ImmutableMap.of(), (unused) -> {}))
+      assertThatThrownBy(
+              () ->
+                  client.head(path, ImmutableMap.of(), DefaultAuthSession.empty(), (unused) -> {}))
           .cause()
           .isInstanceOf(SocketTimeoutException.class)
           .hasMessage("Read timed out");
@@ -395,17 +389,18 @@ public class TestHTTPClient {
       Item body,
       ErrorHandler onError,
       Consumer<Map<String, String>> responseHeaders) {
-    Map<String, String> headers = ImmutableMap.of("Authorization", "Bearer " + BEARER_AUTH_TOKEN);
+    AuthSession authSession = DefaultAuthSession.of("Authorization", "Bearer " + BEARER_AUTH_TOKEN);
     switch (method) {
       case POST:
-        return restClient.post(path, body, Item.class, headers, onError, responseHeaders);
+        return restClient.post(
+            path, body, Item.class, ImmutableMap.of(), authSession, onError, responseHeaders);
       case GET:
-        return restClient.get(path, Item.class, headers, onError);
+        return restClient.get(path, Item.class, ImmutableMap.of(), authSession, onError);
       case HEAD:
-        restClient.head(path, headers, onError);
+        restClient.head(path, ImmutableMap.of(), authSession, onError);
         return null;
       case DELETE:
-        return restClient.delete(path, Item.class, () -> headers, onError);
+        return restClient.delete(path, Item.class, ImmutableMap.of(), authSession, onError);
       default:
         throw new IllegalArgumentException(String.format("Invalid method: %s", method));
     }
@@ -443,18 +438,5 @@ public class TestHTTPClient {
       Item item = (Item) o;
       return Objects.equals(id, item.id) && Objects.equals(data, item.data);
     }
-  }
-
-  public static class TestHttpRequestInterceptor implements HttpRequestInterceptor {
-    private Map<String, String> properties;
-
-    public void initialize(Map<String, String> props) {
-      this.properties = props;
-    }
-
-    @Override
-    public void process(
-        org.apache.hc.core5.http.HttpRequest request, EntityDetails entity, HttpContext context)
-        throws HttpException, IOException {}
   }
 }
