@@ -88,4 +88,26 @@ public class IcebergSinkConfigTest {
 
   @Test
   public void testStringWithParensToList() {}
+
+  @Test
+  public void testCheckClassName() {
+    Boolean result =
+        IcebergSinkConfig.checkClassName("org.apache.kafka.connect.cli.ConnectDistributed");
+    assertThat(result).isTrue();
+
+    result = IcebergSinkConfig.checkClassName("org.apache.kafka.connect.cli.ConnectStandalone");
+    assertThat(result).isTrue();
+
+    result = IcebergSinkConfig.checkClassName("some.other.package.ConnectDistributed");
+    assertThat(result).isTrue();
+
+    result = IcebergSinkConfig.checkClassName("some.other.package.ConnectStandalone");
+    assertThat(result).isTrue();
+
+    result = IcebergSinkConfig.checkClassName("some.package.ConnectDistributedWrapper");
+    assertThat(result).isTrue();
+
+    result = IcebergSinkConfig.checkClassName("org.apache.kafka.clients.producer.KafkaProducer");
+    assertThat(result).isFalse();
+  }
 }
