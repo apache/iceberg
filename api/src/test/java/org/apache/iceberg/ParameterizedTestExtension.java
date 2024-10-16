@@ -73,12 +73,9 @@ public class ParameterizedTestExtension implements TestTemplateInvocationContext
     // Search method annotated with @Parameters
     final List<Method> parameterProviders =
         AnnotationSupport.findAnnotatedMethods(
-            context.getRequiredTestClass(), Parameters.class, HierarchyTraversalMode.TOP_DOWN);
+            context.getRequiredTestClass(), Parameters.class, HierarchyTraversalMode.BOTTOM_UP);
     if (parameterProviders.isEmpty()) {
       throw new IllegalStateException("Cannot find any parameter provider");
-    }
-    if (parameterProviders.size() > 1) {
-      throw new IllegalStateException("Multiple parameter providers are found");
     }
 
     Method parameterProvider = parameterProviders.get(0);
@@ -225,7 +222,11 @@ public class ParameterizedTestExtension implements TestTemplateInvocationContext
       Stream<Object[]> parameterValueStream, String testNameTemplate, ExtensionContext context) {
     // Search fields annotated by @Parameter
     final List<Field> parameterFields =
-        AnnotationSupport.findAnnotatedFields(context.getRequiredTestClass(), Parameter.class);
+        AnnotationSupport.findAnnotatedFields(
+            context.getRequiredTestClass(),
+            Parameter.class,
+            field -> true,
+            HierarchyTraversalMode.BOTTOM_UP);
 
     // Use constructor parameter style
     if (parameterFields.isEmpty()) {
