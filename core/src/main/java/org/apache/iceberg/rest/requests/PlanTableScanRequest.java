@@ -20,7 +20,7 @@ package org.apache.iceberg.rest.requests;
 
 import java.util.List;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.rest.RESTRequest;
 
 public class PlanTableScanRequest implements RESTRequest {
@@ -86,9 +86,21 @@ public class PlanTableScanRequest implements RESTRequest {
 
   @Override
   public void validate() {
-    Preconditions.checkArgument(
-        snapshotId() != null ^ (startSnapshotId() != null && endSnapshotId() != null),
-        "Either snapshotId must be provided or both startSnapshotId and endSnapshotId must be provided");
+    // validation logic to be performed in PlanTableScanRequestParser
+  }
+
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("snapshotId", snapshotId)
+        .add("select", select)
+        .add("filter", filter)
+        .add("caseSensitive", caseSensitive)
+        .add("useSnapshotSchema", useSnapshotSchema)
+        .add("startSnapshotId", startSnapshotId)
+        .add("endSnapshotId", endSnapshotId)
+        .add("statsFields", statsFields)
+        .toString();
   }
 
   public static class Builder {

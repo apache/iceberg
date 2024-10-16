@@ -47,11 +47,30 @@ public class PlanTableScanRequestParser {
     return JsonUtil.generate(gen -> toJson(request, gen), pretty);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static void toJson(PlanTableScanRequest request, JsonGenerator gen) throws IOException {
     Preconditions.checkArgument(null != request, "Invalid request: planTableScanRequest null");
+
+    if (request.snapshotId() != null
+        || request.startSnapshotId() != null
+        || request.endSnapshotId() != null) {
+      Preconditions.checkArgument(
+          request.snapshotId() != null
+              ^ (request.startSnapshotId() != null && request.endSnapshotId() != null),
+          "Either snapshotId must be provided or both startSnapshotId and endSnapshotId must be provided");
+    }
+
     gen.writeStartObject();
     if (request.snapshotId() != null) {
       gen.writeNumberField(SNAPSHOT_ID, request.snapshotId());
+    }
+
+    if (request.startSnapshotId() != null) {
+      gen.writeNumberField(START_SNAPSHOT_ID, request.startSnapshotId());
+    }
+
+    if (request.endSnapshotId() != null) {
+      gen.writeNumberField(END_SNAPSHOT_ID, request.endSnapshotId());
     }
 
     if (request.select() != null && !request.select().isEmpty()) {
@@ -64,14 +83,6 @@ public class PlanTableScanRequestParser {
 
     gen.writeBooleanField(CASE_SENSITIVE, request.caseSensitive());
     gen.writeBooleanField(USE_SNAPSHOT_SCHEMA, request.useSnapshotSchema());
-
-    if (request.startSnapshotId() != null) {
-      gen.writeNumberField(START_SNAPSHOT_ID, request.startSnapshotId());
-    }
-
-    if (request.endSnapshotId() != null) {
-      gen.writeNumberField(END_SNAPSHOT_ID, request.endSnapshotId());
-    }
 
     if (request.statsFields() != null && !request.statsFields().isEmpty()) {
       JsonUtil.writeStringArray(STATS_FIELDS, request.statsFields(), gen);
@@ -92,7 +103,8 @@ public class PlanTableScanRequestParser {
 
     Expression filter = null;
     if (json.has(FILTER)) {
-      filter = ExpressionParser.fromJson(json.get(FILTER));
+      // TODO without text value it adds another " "
+      filter = ExpressionParser.fromJson(json.get(FILTER).textValue());
     }
 
     Boolean caseSensitive = true;
