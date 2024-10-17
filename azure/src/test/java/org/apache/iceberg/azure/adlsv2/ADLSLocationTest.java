@@ -21,8 +21,7 @@ package org.apache.iceberg.azure.adlsv2;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.net.URI;
-import java.net.URISyntaxException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -34,33 +33,17 @@ public class ADLSLocationTest {
     String p1 = scheme + "://container@account.dfs.core.windows.net/path/to/file";
     ADLSLocation location = new ADLSLocation(p1);
 
-    assertThat(location.storageEndpoint()).isEqualTo("account.dfs.core.windows.net");
+    assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path/to/file");
   }
 
-  @ParameterizedTest
-  @ValueSource(strings = {"wasb", "wasbs"})
-  public void testWasbLocationParsing(String scheme) {
-    String p1 = scheme + "://container@account.blob.core.windows.net/path/to/file";
+  @Test
+  public void testEncodedString() {
+    String p1 = "abfs://container@account.dfs.core.windows.net/path%20to%20file";
     ADLSLocation location = new ADLSLocation(p1);
 
-    assertThat(location.storageEndpoint()).isEqualTo("account.blob.core.windows.net");
-    assertThat(location.container().get()).isEqualTo("container");
-    assertThat(location.path()).isEqualTo("path/to/file");
-  }
-
-  @ParameterizedTest
-  @ValueSource(
-      strings = {
-        "abfs://container@account.dfs.core.windows.net/path%20to%20file",
-        "wasb://container@account.blob.core.windows.net/path%20to%20file"
-      })
-  public void testEncodedString(String path) throws URISyntaxException {
-    ADLSLocation location = new ADLSLocation(path);
-    String expectedEndpoint = new URI(path).getHost();
-
-    assertThat(location.storageEndpoint()).isEqualTo(expectedEndpoint);
+    assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path%20to%20file");
   }
@@ -68,81 +51,53 @@ public class ADLSLocationTest {
   @Test
   public void testMissingScheme() {
     assertThatThrownBy(() -> new ADLSLocation("/path/to/file"))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(ValidationException.class)
         .hasMessage("Invalid ADLS URI: /path/to/file");
   }
 
   @Test
   public void testInvalidScheme() {
     assertThatThrownBy(() -> new ADLSLocation("s3://bucket/path/to/file"))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(ValidationException.class)
         .hasMessage("Invalid ADLS URI: s3://bucket/path/to/file");
   }
 
   @Test
-  public void testInvalidURI() {
-    String invalidUri = "abfs://container@account.dfs.core.windows.net/#invalidPath#";
-    assertThatThrownBy(() -> new ADLSLocation(invalidUri))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage(String.format("Invalid ADLS URI: %s", invalidUri));
-  }
+  public void testNoContainer() {
+    String p1 = "abfs://account.dfs.core.windows.net/path/to/file";
+    ADLSLocation location = new ADLSLocation(p1);
 
-  @ParameterizedTest
-  @ValueSource(
-      strings = {
-        "abfs://account.dfs.core.windows.net/path/to/file",
-        "wasb://account.blob.core.windows.net/path/to/file"
-      })
-  public void testNoContainer(String path) throws URISyntaxException {
-    ADLSLocation location = new ADLSLocation(path);
-    String expectedEndpoint = new URI(path).getHost();
-
-    assertThat(location.storageEndpoint()).isEqualTo(expectedEndpoint);
+    assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
     assertThat(location.container().isPresent()).isFalse();
     assertThat(location.path()).isEqualTo("path/to/file");
   }
 
-  @ParameterizedTest
-  @ValueSource(
-      strings = {
-        "abfs://container@account.dfs.core.windows.net",
-        "wasb://container@account.blob.core.windows.net"
-      })
-  public void testNoPath(String path) throws URISyntaxException {
-    ADLSLocation location = new ADLSLocation(path);
-    String expectedEndpoint = new URI(path).getHost();
+  @Test
+  public void testNoPath() {
+    String p1 = "abfs://container@account.dfs.core.windows.net";
+    ADLSLocation location = new ADLSLocation(p1);
 
-    assertThat(location.storageEndpoint()).isEqualTo(expectedEndpoint);
+    assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("");
   }
 
-  @ParameterizedTest
-  @ValueSource(
-      strings = {
-        "abfs://container@account.dfs.core.windows.net/path/to/file?query=foo#123",
-        "wasb://container@account.blob.core.windows.net/path/to/file?query=foo#123"
-      })
-  public void testQueryAndFragment(String path) throws URISyntaxException {
-    ADLSLocation location = new ADLSLocation(path);
-    String expectedEndpoint = new URI(path).getHost();
+  @Test
+  public void testQueryAndFragment() {
+    String p1 = "abfs://container@account.dfs.core.windows.net/path/to/file?query=foo#123";
+    ADLSLocation location = new ADLSLocation(p1);
 
-    assertThat(location.storageEndpoint()).isEqualTo(expectedEndpoint);
+    assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("path/to/file");
   }
 
-  @ParameterizedTest
-  @ValueSource(
-      strings = {
-        "abfs://container@account.dfs.core.windows.net?query=foo#123",
-        "wasb://container@account.blob.core.windows.net?query=foo#123"
-      })
-  public void testQueryAndFragmentNoPath(String path) throws URISyntaxException {
-    ADLSLocation location = new ADLSLocation(path);
-    String expectedEndpoint = new URI(path).getHost();
+  @Test
+  public void testQueryAndFragmentNoPath() {
+    String p1 = "abfs://container@account.dfs.core.windows.net?query=foo#123";
+    ADLSLocation location = new ADLSLocation(p1);
 
-    assertThat(location.storageEndpoint()).isEqualTo(expectedEndpoint);
+    assertThat(location.storageAccount()).isEqualTo("account.dfs.core.windows.net");
     assertThat(location.container().get()).isEqualTo("container");
     assertThat(location.path()).isEqualTo("");
   }

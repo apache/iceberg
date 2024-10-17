@@ -111,7 +111,7 @@ public class ADLSFileIO implements DelegateFileIO {
         new DataLakeFileSystemClientBuilder().httpClient(HTTP);
 
     location.container().ifPresent(clientBuilder::fileSystemName);
-    azureProperties.applyClientConfiguration(location.storageEndpoint(), clientBuilder);
+    azureProperties.applyClientConfiguration(location.storageAccount(), clientBuilder);
 
     return clientBuilder.buildClient();
   }
