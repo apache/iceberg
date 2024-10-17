@@ -18,12 +18,10 @@
  */
 package org.apache.iceberg.spark.data.vectorized;
 
-import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Properties;
 import org.apache.arrow.vector.NullCheckingForGet;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.arrow.vectorized.VectorizedReaderBuilder;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
@@ -51,22 +49,39 @@ public class VectorizedSparkParquetReaders {
 
   private VectorizedSparkParquetReaders() {}
 
-  public static ColumnarBatchReader buildReader(
+  public static VectorizedReader buildReader(
       Schema expectedSchema,
       MessageType fileSchema,
       Map<Integer, ?> idToConstant,
-      DeleteFilter<InternalRow> deleteFilter) {
-    return (ColumnarBatchReader)
-        TypeWithSchemaVisitor.visit(
-            expectedSchema.asStruct(),
-            fileSchema,
-            new ReaderBuilder(
-                expectedSchema,
-                fileSchema,
-                NullCheckingForGet.NULL_CHECKING_ENABLED,
-                idToConstant,
-                ColumnarBatchReader::new,
-                deleteFilter));
+      DeleteFilter<InternalRow> deleteFilter,
+      String vectorizationImpl,
+      Properties customizedVectorization) {
+    String builderImpl = "";
+    String columarBatchReaderImpl = "";
+    if (!vectorizationImpl.isEmpty()) {
+      builderImpl = vectorizationImpl + "VectorizedReaderBuilder";
+      columarBatchReaderImpl = vectorizationImpl + "ColumnarBatchReader";
+    } else {
+      builderImpl = SparkVectorizedReaderBuilder.class.getName();
+      columarBatchReaderImpl = ColumnarBatchReader.class.getName();
+    }
+    SparkVectorizedReaderBuilder vectorizedReaderBuilder =
+        VectorizedUtil.getSparkVectorizedReaderBuilder(builderImpl);
+    BaseColumnarBatchReader reader =
+        VectorizedUtil.getBaseColumnarBatchReader(columarBatchReaderImpl);
+    vectorizedReaderBuilder.initialize(
+        expectedSchema,
+        fileSchema,
+        NullCheckingForGet.NULL_CHECKING_ENABLED,
+        idToConstant,
+        readers -> {
+          reader.initialize(readers, expectedSchema, customizedVectorization);
+          return reader;
+        },
+        deleteFilter,
+        customizedVectorization);
+    return TypeWithSchemaVisitor.visit(
+        expectedSchema.asStruct(), fileSchema, vectorizedReaderBuilder);
   }
 
   // enables unsafe memory access to avoid costly checks to see if index is within bounds
@@ -100,29 +115,5 @@ public class VectorizedSparkParquetReaders {
     }
 
     return System.getenv(envName);
-  }
-
-  private static class ReaderBuilder extends VectorizedReaderBuilder {
-    private final DeleteFilter<InternalRow> deleteFilter;
-
-    ReaderBuilder(
-        Schema expectedSchema,
-        MessageType parquetSchema,
-        boolean setArrowValidityVector,
-        Map<Integer, ?> idToConstant,
-        Function<List<VectorizedReader<?>>, VectorizedReader<?>> readerFactory,
-        DeleteFilter<InternalRow> deleteFilter) {
-      super(expectedSchema, parquetSchema, setArrowValidityVector, idToConstant, readerFactory);
-      this.deleteFilter = deleteFilter;
-    }
-
-    @Override
-    protected VectorizedReader<?> vectorizedReader(List<VectorizedReader<?>> reorderedFields) {
-      VectorizedReader<?> reader = super.vectorizedReader(reorderedFields);
-      if (deleteFilter != null) {
-        ((ColumnarBatchReader) reader).setDeleteFilter(deleteFilter);
-      }
-      return reader;
-    }
   }
 }
