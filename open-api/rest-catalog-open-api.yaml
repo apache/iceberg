@@ -256,12 +256,14 @@ paths:
       parameters:
         - $ref: '#/components/parameters/page-token'
         - $ref: '#/components/parameters/page-size'
+        - $ref: '#/components/parameters/separator'
         - name: parent
           in: query
           description:
             An optional namespace, underneath which to list namespaces.
             If not provided or empty, all top-level namespaces should be listed.
-            If parent is a multipart namespace, the parts must be separated by the unit separator (`0x1F`) byte.
+            If parent is a multipart namespace, the parts must be separated by the namespace separator as
+            indicated via the `separator` query parameter, which defaults to the unit separator (`0x1F`) byte.
           required: false
           allowEmptyValue: true
           schema:
@@ -344,6 +346,8 @@ paths:
       summary: Load the metadata properties for a namespace
       operationId: loadNamespaceMetadata
       description: Return all stored metadata properties for a given namespace
+      parameters:
+        - $ref: '#/components/parameters/separator'
       responses:
         200:
           $ref: '#/components/responses/GetNamespaceResponse'
@@ -376,6 +380,8 @@ paths:
       operationId: namespaceExists
       description:
         Check if a namespace exists. The response does not contain a body.
+      parameters:
+        - $ref: '#/components/parameters/separator'
       responses:
         204:
           description: Success, no content
@@ -406,6 +412,8 @@ paths:
         - Catalog API
       summary: Drop a namespace from the catalog. Namespace must be empty.
       operationId: dropNamespace
+      parameters:
+        - $ref: '#/components/parameters/separator'
       responses:
         204:
           description: Success, no content
@@ -449,6 +457,8 @@ paths:
         Properties that are not in the request are not modified or removed by this call.
 
         Server implementations are not required to support namespace properties.
+      parameters:
+        - $ref: '#/components/parameters/separator'
       requestBody:
         required: true
         content:
@@ -508,6 +518,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/page-token'
         - $ref: '#/components/parameters/page-size'
+        - $ref: '#/components/parameters/separator'
       responses:
         200:
           $ref: '#/components/responses/ListTablesResponse'
@@ -553,6 +564,7 @@ paths:
       operationId: createTable
       parameters:
         - $ref: '#/components/parameters/data-access'
+        - $ref: '#/components/parameters/separator'
       requestBody:
         required: true
         content:
@@ -930,6 +942,7 @@ paths:
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
       parameters:
         - $ref: '#/components/parameters/data-access'
+        - $ref: '#/components/parameters/separator'
         - in: query
           name: snapshots
           description:
@@ -993,6 +1006,8 @@ paths:
         committed using this route. Transactions should include all changes to the table, including table
         initialization, like AddSchemaUpdate and SetCurrentSchemaUpdate. The `assert-create` requirement is
         used to ensure that the table was not created concurrently.
+      parameters:
+        - $ref: '#/components/parameters/separator'
       requestBody:
         required: true
         content:
@@ -1100,6 +1115,7 @@ paths:
           schema:
             type: boolean
             default: false
+        - $ref: '#/components/parameters/separator'
       responses:
         204:
           description: Success, no content
@@ -1133,6 +1149,8 @@ paths:
       operationId: tableExists
       description:
         Check if a table exists within a given namespace. The response does not contain a body.
+      parameters:
+        - $ref: '#/components/parameters/separator'
       responses:
         204:
           description: Success, no content
@@ -1232,6 +1250,8 @@ paths:
         - Catalog API
       summary: Send a metrics report to this endpoint to be processed by the backend
       operationId: reportMetrics
+      parameters:
+        - $ref: '#/components/parameters/separator'
       requestBody:
         description: The request containing the metrics report to be sent
         content:
@@ -1394,6 +1414,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/page-token'
         - $ref: '#/components/parameters/page-size'
+        - $ref: '#/components/parameters/separator'
       responses:
         200:
           $ref: '#/components/responses/ListTablesResponse'
@@ -1426,6 +1447,8 @@ paths:
       description:
         Create a view in the given namespace.
       operationId: createView
+      parameters:
+        - $ref: '#/components/parameters/separator'
       requestBody:
         required: true
         content:
@@ -1492,6 +1515,8 @@ paths:
         view. The configuration key "token" is used to pass an access token to be used as a bearer token
         for view requests. Otherwise, a token may be passed using a RFC 8693 token type as a configuration
         key. For example, "urn:ietf:params:oauth:token-type:jwt=<JWT-token>".
+      parameters:
+        - $ref: '#/components/parameters/separator'
       responses:
         200:
           $ref: '#/components/responses/LoadViewResponse'
@@ -1525,6 +1550,8 @@ paths:
       operationId: replaceView
       description:
         Commit updates to a view.
+      parameters:
+        - $ref: '#/components/parameters/separator'
       requestBody:
         required: true
         content:
@@ -1624,6 +1651,8 @@ paths:
       summary: Drop a view from the catalog
       operationId: dropView
       description: Remove a view from the catalog
+      parameters:
+        - $ref: '#/components/parameters/separator'
       responses:
         204:
           description: Success, no content
@@ -1657,6 +1686,8 @@ paths:
       operationId: viewExists
       description:
         Check if a view exists within a given namespace. This request does not return a response body.
+      parameters:
+        - $ref: '#/components/parameters/separator'
       responses:
         204:
           description: Success, no content
@@ -1747,7 +1778,8 @@ components:
       required: true
       description:
         A namespace identifier as a single string.
-        Multipart namespace parts should be separated by the unit separator (`0x1F`) byte.
+        Multipart namespace parts should be separated by the namespace separator as
+        indicated via the `separator` query parameter, which defaults to the unit separator (`0x1F`) byte.
       schema:
         type: string
       examples:
@@ -1834,6 +1866,16 @@ components:
       schema:
         type: integer
         minimum: 1
+
+    separator:
+      name: separator
+      in: query
+      description:
+        The namespace separator that the client used to encode the namespace.
+      required: false
+      schema:
+        type: string
+        example: "%1F"
 
   ##############################
   # Application Schema Objects #
