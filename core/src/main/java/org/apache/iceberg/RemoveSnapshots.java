@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -111,6 +112,22 @@ class RemoveSnapshots implements ExpireSnapshots {
   public ExpireSnapshots cleanExpiredFiles(boolean clean) {
     this.cleanExpiredFiles = clean;
     return this;
+  }
+
+  @Override
+  public Set<Snapshot> getSnapshotsToExpire() {
+    TableMetadata originalMetadata = ops.current();
+    TableMetadata updatedMetadata = internalApply();
+    return findExpiredSnapshotIds(originalMetadata, updatedMetadata);
+  }
+
+  private Set<Snapshot> findExpiredSnapshotIds(
+      TableMetadata originalMetadata, TableMetadata updatedMetadata) {
+    Set<Long> retainedSnapshots =
+        updatedMetadata.snapshots().stream().map(Snapshot::snapshotId).collect(Collectors.toSet());
+    return originalMetadata.snapshots().stream()
+        .filter(snapshot -> !retainedSnapshots.contains(snapshot.snapshotId()))
+        .collect(Collectors.toSet());
   }
 
   @Override

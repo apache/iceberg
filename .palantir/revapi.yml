@@ -1063,6 +1063,10 @@ acceptedBreaks:
       new: "method void org.apache.iceberg.encryption.PlaintextEncryptionManager::<init>()"
       justification: "Deprecations for 1.6.0 release"
   "1.6.0":
+    org.apache.iceberg:iceberg-api:
+    - code: "java.method.addedToInterface"
+      new: "method java.util.Set<org.apache.iceberg.Snapshot> org.apache.iceberg.ExpireSnapshots::getSnapshotsToExpire()"
+      justification: "testing for now"
     org.apache.iceberg:iceberg-common:
     - code: "java.method.removed"
       old: "method <T> org.apache.iceberg.common.DynFields.StaticField<T> org.apache.iceberg.common.DynFields.Builder::buildStaticChecked()\

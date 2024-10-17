@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
@@ -118,4 +119,6 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
    * @return this for method chaining
    */
   ExpireSnapshots cleanExpiredFiles(boolean clean);
+
+  Set<Snapshot> getSnapshotsToExpire();
 }

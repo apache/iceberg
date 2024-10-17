@@ -143,22 +143,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
       // fetch metadata before expiration
       TableMetadata originalMetadata = ops.current();
 
-      // perform expiration
-      org.apache.iceberg.ExpireSnapshots expireSnapshots = table.expireSnapshots();
-
-      for (long id : expiredSnapshotIds) {
-        expireSnapshots = expireSnapshots.expireSnapshotId(id);
-      }
-
-      if (expireOlderThanValue != null) {
-        expireSnapshots = expireSnapshots.expireOlderThan(expireOlderThanValue);
-      }
-
-      if (retainLastValue != null) {
-        expireSnapshots = expireSnapshots.retainLast(retainLastValue);
-      }
-
-      expireSnapshots.cleanExpiredFiles(false).commit();
+      buildExpireSnapshots().cleanExpiredFiles(false).commit();
 
       // fetch valid files after expiration
       TableMetadata updatedMetadata = ops.refresh();
@@ -179,6 +164,38 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   public ExpireSnapshots.Result execute() {
     JobGroupInfo info = newJobGroupInfo("EXPIRE-SNAPSHOTS", jobDesc());
     return withJobGroupInfo(info, this::doExecute);
+  }
+
+  public Dataset<SnapshotInfo> getSnapshotsToExpire() {
+    Set<Snapshot> snapshotsToExpire = buildExpireSnapshots().getSnapshotsToExpire();
+    List<SnapshotInfo> snapshotInfoList =
+        snapshotsToExpire.stream()
+            .map(
+                snapshot ->
+                    new SnapshotInfo(
+                        snapshot.snapshotId(),
+                        snapshot.timestampMillis(),
+                        snapshot.manifestListLocation(),
+                        snapshot.operation()))
+            .collect(Collectors.toList());
+    return this.spark().createDataset(snapshotInfoList, SnapshotInfo.ENCODER);
+  }
+
+  private org.apache.iceberg.ExpireSnapshots buildExpireSnapshots() {
+    org.apache.iceberg.ExpireSnapshots expireSnapshots = table.expireSnapshots();
+
+    for (long id : expiredSnapshotIds) {
+      expireSnapshots = expireSnapshots.expireSnapshotId(id);
+    }
+
+    if (expireOlderThanValue != null) {
+      expireSnapshots = expireSnapshots.expireOlderThan(expireOlderThanValue);
+    }
+
+    if (retainLastValue != null) {
+      expireSnapshots = expireSnapshots.retainLast(retainLastValue);
+    }
+    return expireSnapshots;
   }
 
   private String jobDesc() {
