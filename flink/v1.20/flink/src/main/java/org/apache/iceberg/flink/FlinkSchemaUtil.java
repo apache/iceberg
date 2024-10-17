@@ -58,7 +58,9 @@ public class FlinkSchemaUtil {
 
   private FlinkSchemaUtil() {}
 
-  /** @deprecated Use {@link #convert(ResolvedSchema)} instead. */
+  /**
+   * @deprecated Use {@link #convert(ResolvedSchema)} instead.
+   */
   @Deprecated
   public static Schema convert(TableSchema schema) {
     LogicalType schemaType = schema.toRowDataType().getLogicalType();

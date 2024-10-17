@@ -102,6 +102,7 @@ public interface DataFile extends ContentFile<DataFile> {
   int PARTITION_ID = 102;
   String PARTITION_NAME = "partition";
   String PARTITION_DOC = "Partition data tuple, schema based on the partition spec";
+
   // NEXT ID TO ASSIGN: 142
 
   static StructType getType(StructType partitionType) {
@@ -126,7 +127,9 @@ public interface DataFile extends ContentFile<DataFile> {
         SORT_ORDER_ID);
   }
 
-  /** @return the content stored in the file; one of DATA, POSITION_DELETES, or EQUALITY_DELETES */
+  /**
+   * @return the content stored in the file; one of DATA, POSITION_DELETES, or EQUALITY_DELETES
+   */
   @Override
   default FileContent content() {
     return FileContent.DATA;

@@ -186,7 +186,9 @@ class AggregatedStatisticsTracker {
       return subtaskSet.size() == parallelism;
     }
 
-    /** @return false if duplicate */
+    /**
+     * @return false if duplicate
+     */
     private boolean merge(int subtask, DataStatistics taskStatistics) {
       if (subtaskSet.contains(subtask)) {
         return false;

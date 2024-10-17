@@ -76,7 +76,6 @@ public class TestS3FileIOIntegration {
   private static S3Client s3;
   private static S3ControlClient s3Control;
   private static S3ControlClient crossRegionS3Control;
-  private static S3ControlClient multiRegionS3Control;
   private static KmsClient kms;
   private static String bucketName;
   private static String crossRegionBucketName;
@@ -189,6 +188,29 @@ public class TestS3FileIOIntegration {
             S3FileIOProperties.ACCESS_POINTS_PREFIX + bucketName,
             testAccessPointARN(AwsIntegTestUtil.testRegion(), accessPointName)));
     validateRead(s3FileIO);
+  }
+
+  @Test
+  public void testCrossRegionAccessEnabled() throws Exception {
+    clientFactory.initialize(
+        ImmutableMap.of(S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED, "true"));
+    S3Client s3Client = clientFactory.s3();
+    String crossBucketObjectKey = String.format("%s/%s", prefix, UUID.randomUUID());
+    String crossBucketObjectUri =
+        String.format("s3://%s/%s", crossRegionBucketName, crossBucketObjectKey);
+    try {
+      s3Client.putObject(
+          PutObjectRequest.builder()
+              .bucket(crossRegionBucketName)
+              .key(crossBucketObjectKey)
+              .build(),
+          RequestBody.fromBytes(contentBytes));
+      // make a copy in cross-region bucket
+      S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+      validateRead(s3FileIO, crossBucketObjectUri);
+    } finally {
+      AwsIntegTestUtil.cleanS3Bucket(s3Client, crossRegionBucketName, crossBucketObjectKey);
+    }
   }
 
   @Test
@@ -478,8 +500,7 @@ public class TestS3FileIOIntegration {
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
     String listPrefix = String.format("s3://%s/%s/%s", bucketName, prefix, "prefix-list-test");
 
-    scaleSizes
-        .parallelStream()
+    scaleSizes.parallelStream()
         .forEach(
             scale -> {
               String scalePrefix = String.format("%s/%s/", listPrefix, scale);
@@ -500,8 +521,7 @@ public class TestS3FileIOIntegration {
     String deletePrefix = String.format("s3://%s/%s/%s", bucketName, prefix, "prefix-delete-test");
 
     List<Integer> scaleSizes = Lists.newArrayList(0, 5, 1000, 2500);
-    scaleSizes
-        .parallelStream()
+    scaleSizes.parallelStream()
         .forEach(
             scale -> {
               String scalePrefix = String.format("%s/%s/", deletePrefix, scale);
@@ -573,7 +593,11 @@ public class TestS3FileIOIntegration {
   }
 
   private void validateRead(S3FileIO s3FileIO) throws Exception {
-    InputFile file = s3FileIO.newInputFile(objectUri);
+    validateRead(s3FileIO, objectUri);
+  }
+
+  private void validateRead(S3FileIO s3FileIO, String s3Uri) throws Exception {
+    InputFile file = s3FileIO.newInputFile(s3Uri);
     assertThat(file.getLength()).isEqualTo(contentBytes.length);
     try (InputStream stream = file.newStream()) {
       String result = IoUtils.toUtf8String(stream);

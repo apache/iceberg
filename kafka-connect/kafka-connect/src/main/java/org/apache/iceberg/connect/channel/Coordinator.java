@@ -53,6 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.kafka.clients.admin.MemberDescription;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,6 +72,7 @@ class Coordinator extends Channel {
   private final String snapshotOffsetsProp;
   private final ExecutorService exec;
   private final CommitState commitState;
+  private volatile boolean terminated;
 
   Coordinator(
       Catalog catalog,
@@ -88,7 +90,7 @@ class Coordinator extends Channel {
     this.snapshotOffsetsProp =
         String.format(
             "kafka.connect.offsets.%s.%s", config.controlTopic(), config.connectGroupId());
-    this.exec = ThreadPools.newWorkerPool("iceberg-committer", config.commitThreads());
+    this.exec = ThreadPools.newFixedThreadPool("iceberg-committer", config.commitThreads());
     this.commitState = new CommitState(config);
   }
 
@@ -218,6 +220,10 @@ class Coordinator extends Channel {
             .filter(distinctByKey(deleteFile -> deleteFile.path().toString()))
             .collect(Collectors.toList());
 
+    if (terminated) {
+      throw new ConnectException("Coordinator is terminated, commit aborted");
+    }
+
     if (dataFiles.isEmpty() && deleteFiles.isEmpty()) {
       LOG.info("Nothing to commit to table {}, skipping", tableIdentifier);
     } else {
@@ -296,19 +302,18 @@ class Coordinator extends Channel {
     return ImmutableMap.of();
   }
 
-  @Override
-  void stop() {
+  void terminate() {
+    this.terminated = true;
+
     exec.shutdownNow();
 
-    // ensure coordinator tasks are shut down, else cause the sink worker to fail
+    // wait for coordinator termination, else cause the sink task to fail
     try {
       if (!exec.awaitTermination(1, TimeUnit.MINUTES)) {
-        throw new RuntimeException("Timed out waiting for coordinator shutdown");
+        throw new ConnectException("Timed out waiting for coordinator shutdown");
       }
     } catch (InterruptedException e) {
-      throw new RuntimeException("Interrupted while waiting for coordinator shutdown", e);
+      throw new ConnectException("Interrupted while waiting for coordinator shutdown", e);
     }
-
-    super.stop();
   }
 }

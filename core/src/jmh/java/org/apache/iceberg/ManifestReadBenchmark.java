@@ -122,12 +122,11 @@ public class ManifestReadBenchmark {
     TestTables.LocalFileIO fileIO = new TestTables.LocalFileIO();
     Map<Integer, PartitionSpec> specs =
         ImmutableMap.of(PartitionSpec.unpartitioned().specId(), PartitionSpec.unpartitioned());
-    long recordCount = 0L;
     for (ManifestFile manifestFile : manifests) {
       ManifestReader<DataFile> reader = ManifestFiles.read(manifestFile, fileIO, specs);
       try (CloseableIterator<DataFile> it = reader.iterator()) {
         while (it.hasNext()) {
-          recordCount += it.next().recordCount();
+          it.next().recordCount();
         }
       }
     }

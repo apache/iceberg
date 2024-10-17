@@ -46,6 +46,7 @@ class EcsSeekableInputStream extends SeekableInputStream {
 
   /** Mutable pos set by {@link #seek(long)} */
   private long newPos = 0;
+
   /** Current pos of object content */
   private long pos = -1;
 

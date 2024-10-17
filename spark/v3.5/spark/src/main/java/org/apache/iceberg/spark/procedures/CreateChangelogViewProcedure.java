@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -37,6 +38,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.expressions.OrderUtils;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
@@ -146,10 +148,21 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     Dataset<Row> df = loadRows(changelogTableIdent, options(input));
 
     boolean netChanges = input.asBoolean(NET_CHANGES, false);
+    String[] identifierColumns = identifierColumns(input, tableIdent);
+    Set<String> unorderableColumnNames =
+        Arrays.stream(df.schema().fields())
+            .filter(field -> !OrderUtils.isOrderable(field.dataType()))
+            .map(StructField::name)
+            .collect(Collectors.toSet());
+
+    Preconditions.checkArgument(
+        identifierColumns.length > 0 || unorderableColumnNames.isEmpty(),
+        "Identifier field is required as table contains unorderable columns: %s",
+        unorderableColumnNames);
 
     if (shouldComputeUpdateImages(input)) {
       Preconditions.checkArgument(!netChanges, "Not support net changes with update images");
-      df = computeUpdateImages(identifierColumns(input, tableIdent), df);
+      df = computeUpdateImages(identifierColumns, df);
     } else {
       df = removeCarryoverRows(df, netChanges);
     }

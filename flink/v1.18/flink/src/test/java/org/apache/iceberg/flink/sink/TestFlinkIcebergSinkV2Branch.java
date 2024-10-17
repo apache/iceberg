@@ -46,12 +46,21 @@ public class TestFlinkIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
   private static final HadoopCatalogExtension CATALOG_EXTENSION =
       new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
-  @Parameter(index = 0)
-  private String branch;
+  @Parameter(index = 4)
+  protected String branch;
 
-  @Parameters(name = "branch = {0}")
+  @Parameters(
+      name =
+          "FileFormat={0}, Parallelism={1}, Partitioned={2}, WriteDistributionMode={3}, Branch={4}")
   public static Object[][] parameters() {
-    return new Object[][] {new Object[] {"main"}, new Object[] {"testBranch"}};
+    return new Object[][] {
+      new Object[] {
+        FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, "main"
+      },
+      new Object[] {
+        FileFormat.AVRO, 1, false, TableProperties.WRITE_DISTRIBUTION_MODE_NONE, "testBranch"
+      }
+    };
   }
 
   @BeforeEach

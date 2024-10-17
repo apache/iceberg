@@ -463,6 +463,11 @@ class V2Metadata {
     }
 
     @Override
+    public String manifestLocation() {
+      return null;
+    }
+
+    @Override
     public int specId() {
       return wrapped.specId();
     }

@@ -20,6 +20,7 @@ package org.apache.iceberg.rest;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -32,15 +33,21 @@ class RESTViewOperations implements ViewOperations {
   private final RESTClient client;
   private final String path;
   private final Supplier<Map<String, String>> headers;
+  private final Set<Endpoint> endpoints;
   private ViewMetadata current;
 
   RESTViewOperations(
-      RESTClient client, String path, Supplier<Map<String, String>> headers, ViewMetadata current) {
+      RESTClient client,
+      String path,
+      Supplier<Map<String, String>> headers,
+      ViewMetadata current,
+      Set<Endpoint> endpoints) {
     Preconditions.checkArgument(null != current, "Invalid view metadata: null");
     this.client = client;
     this.path = path;
     this.headers = headers;
     this.current = current;
+    this.endpoints = endpoints;
   }
 
   @Override
@@ -50,12 +57,14 @@ class RESTViewOperations implements ViewOperations {
 
   @Override
   public ViewMetadata refresh() {
+    Endpoint.check(endpoints, Endpoint.V1_LOAD_VIEW);
     return updateCurrentMetadata(
         client.get(path, LoadViewResponse.class, headers, ErrorHandlers.viewErrorHandler()));
   }
 
   @Override
   public void commit(ViewMetadata base, ViewMetadata metadata) {
+    Endpoint.check(endpoints, Endpoint.V1_UPDATE_VIEW);
     // this is only used for replacing view metadata
     Preconditions.checkState(base != null, "Invalid base metadata: null");
 

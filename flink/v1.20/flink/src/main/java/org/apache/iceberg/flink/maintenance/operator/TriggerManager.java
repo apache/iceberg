@@ -63,7 +63,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
 
   private final TableLoader tableLoader;
   private final TriggerLockFactory lockFactory;
-  private final List<String> taskNames;
+  private final List<String> maintenanceTaskNames;
   private final List<TriggerEvaluator> evaluators;
   private final long minFireDelayMs;
   private final long lockCheckDelayMs;
@@ -92,25 +92,27 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
   TriggerManager(
       TableLoader tableLoader,
       TriggerLockFactory lockFactory,
-      List<String> taskNames,
+      List<String> maintenanceTaskNames,
       List<TriggerEvaluator> evaluators,
       long minFireDelayMs,
       long lockCheckDelayMs) {
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
     Preconditions.checkNotNull(lockFactory, "Lock factory should no be null");
     Preconditions.checkArgument(
-        taskNames != null && !taskNames.isEmpty(), "Invalid task names: null or empty");
+        maintenanceTaskNames != null && !maintenanceTaskNames.isEmpty(),
+        "Invalid maintenance task names: null or empty");
     Preconditions.checkArgument(
         evaluators != null && !evaluators.isEmpty(), "Invalid evaluators: null or empty");
     Preconditions.checkArgument(
-        taskNames.size() == evaluators.size(), "Provide a name and evaluator for all of the tasks");
+        maintenanceTaskNames.size() == evaluators.size(),
+        "Provide a name and evaluator for all of the maintenance tasks");
     Preconditions.checkArgument(minFireDelayMs > 0, "Minimum fire delay should be at least 1.");
     Preconditions.checkArgument(
         lockCheckDelayMs > 0, "Minimum lock delay rate should be at least 1 ms.");
 
     this.tableLoader = tableLoader;
     this.lockFactory = lockFactory;
-    this.taskNames = taskNames;
+    this.maintenanceTaskNames = maintenanceTaskNames;
     this.evaluators = evaluators;
     this.minFireDelayMs = minFireDelayMs;
     this.lockCheckDelayMs = lockCheckDelayMs;
@@ -137,7 +139,7 @@ class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, Trigger>
                 TableMaintenanceMetrics.GROUP_KEY, TableMaintenanceMetrics.GROUP_VALUE_DEFAULT)
             .counter(TableMaintenanceMetrics.NOTHING_TO_TRIGGER);
     this.triggerCounters =
-        taskNames.stream()
+        maintenanceTaskNames.stream()
             .map(
                 name ->
                     getRuntimeContext()

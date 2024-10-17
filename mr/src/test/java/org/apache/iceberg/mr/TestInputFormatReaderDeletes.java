@@ -49,21 +49,18 @@ public class TestInputFormatReaderDeletes extends DeleteReadTests {
   private final HadoopTables tables = new HadoopTables(conf);
   private TestHelper helper;
 
-  // parametrized variables
-  @Parameter private String inputFormat;
-
   @Parameter(index = 1)
-  private FileFormat fileFormat;
+  private String inputFormat;
 
-  @Parameters(name = "inputFormat = {0}, fileFormat = {1}")
+  @Parameters(name = "fileFormat = {0}, inputFormat = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-      {"IcebergInputFormat", FileFormat.PARQUET},
-      {"IcebergInputFormat", FileFormat.AVRO},
-      {"IcebergInputFormat", FileFormat.ORC},
-      {"MapredIcebergInputFormat", FileFormat.PARQUET},
-      {"MapredIcebergInputFormat", FileFormat.AVRO},
-      {"MapredIcebergInputFormat", FileFormat.ORC},
+      {FileFormat.PARQUET, "IcebergInputFormat"},
+      {FileFormat.AVRO, "IcebergInputFormat"},
+      {FileFormat.ORC, "IcebergInputFormat"},
+      {FileFormat.PARQUET, "MapredIcebergInputFormat"},
+      {FileFormat.AVRO, "MapredIcebergInputFormat"},
+      {FileFormat.ORC, "MapredIcebergInputFormat"},
     };
   }
 
@@ -78,9 +75,9 @@ public class TestInputFormatReaderDeletes extends DeleteReadTests {
   protected Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
     Table table;
 
-    File location = temp.resolve(inputFormat).resolve(fileFormat.name()).toFile();
+    File location = temp.resolve(inputFormat).resolve(format.name()).toFile();
     assertThat(location.mkdirs()).isTrue();
-    helper = new TestHelper(conf, tables, location.toString(), schema, spec, fileFormat, temp);
+    helper = new TestHelper(conf, tables, location.toString(), schema, spec, format, temp);
     table = helper.createTable();
 
     TableOperations ops = ((BaseTable) table).operations();

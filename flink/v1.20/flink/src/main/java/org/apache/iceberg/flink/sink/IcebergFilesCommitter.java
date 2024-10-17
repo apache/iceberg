@@ -455,7 +455,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     final String operatorID = getRuntimeContext().getOperatorUniqueID();
     this.workerPool =
-        ThreadPools.newWorkerPool("iceberg-worker-pool-" + operatorID, workerPoolSize);
+        ThreadPools.newFixedThreadPool("iceberg-worker-pool-" + operatorID, workerPoolSize);
   }
 
   @Override

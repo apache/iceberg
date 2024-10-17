@@ -169,7 +169,9 @@ public class TestMetadataTableFilters extends TestBase {
     }
   }
 
-  /** @return a basic expression that always evaluates to true, to test AND logic */
+  /**
+   * @return a basic expression that always evaluates to true, to test AND logic
+   */
   private Expression dummyExpression() {
     switch (type) {
       case FILES:

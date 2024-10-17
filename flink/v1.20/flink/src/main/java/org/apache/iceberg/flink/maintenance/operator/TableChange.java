@@ -192,6 +192,8 @@ class TableChange {
     private long eqDeleteRecordCount = 0L;
     private int commitCount = 0;
 
+    private Builder() {}
+
     public Builder dataFileCount(int newDataFileCount) {
       this.dataFileCount = newDataFileCount;
       return this;

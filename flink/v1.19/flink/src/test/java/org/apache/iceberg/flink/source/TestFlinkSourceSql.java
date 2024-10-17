@@ -33,10 +33,12 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /** Use the FlinkSource */
 public class TestFlinkSourceSql extends TestSqlBase {
+  @BeforeEach
   @Override
   public void before() throws IOException {
     SqlHelpers.sql(

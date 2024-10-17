@@ -421,7 +421,10 @@ public class VectorizedPageIterator extends BasePageIterator {
    * Method for reading batches of fixed width binary type (e.g. BYTE[7]). Spark does not support
    * fixed width binary data type. To work around this limitation, the data is read as fixed width
    * binary from parquet and stored in a {@link VarBinaryVector} in Arrow.
+   *
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
    */
+  @Deprecated
   class FixedWidthBinaryPageReader extends BasePageReader {
     @Override
     protected void nextVal(
@@ -496,6 +499,10 @@ public class VectorizedPageIterator extends BasePageIterator {
     return new VarWidthTypePageReader();
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
+   */
+  @Deprecated
   FixedWidthBinaryPageReader fixedWidthBinaryPageReader() {
     return new FixedWidthBinaryPageReader();
   }

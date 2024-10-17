@@ -406,6 +406,12 @@ public class IcebergSinkConfig extends AbstractConfig {
     return jsonConverter;
   }
 
+  @VisibleForTesting
+  static boolean checkClassName(String className) {
+    return (className.matches(".*\\.ConnectDistributed.*")
+        || className.matches(".*\\.ConnectStandalone.*"));
+  }
+
   /**
    * This method attempts to load the Kafka Connect worker properties, which are not exposed to
    * connectors. It does this by parsing the Java command used to launch the worker, extracting the
@@ -422,9 +428,7 @@ public class IcebergSinkConfig extends AbstractConfig {
     String javaCmd = System.getProperty("sun.java.command");
     if (javaCmd != null && !javaCmd.isEmpty()) {
       List<String> args = Splitter.on(' ').splitToList(javaCmd);
-      if (args.size() > 1
-          && (args.get(0).endsWith(".ConnectDistributed")
-              || args.get(0).endsWith(".ConnectStandalone"))) {
+      if (args.size() > 1 && checkClassName(args.get(0))) {
         Properties result = new Properties();
         try (InputStream in = Files.newInputStream(Paths.get(args.get(1)))) {
           result.load(in);

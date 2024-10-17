@@ -39,7 +39,9 @@ nav:
   - Vendors: vendors.md
   - Project: 
     - Community: community.md
-    - Spec: spec.md
+    - Contributing: contribute.md
+    - REST Catalog Spec: https://editor-next.swagger.io/?url=https://raw.githubusercontent.com/apache/iceberg/main/open-api/rest-catalog-open-api.yaml
+    - Table Spec: spec.md
     - View spec: view-spec.md
     - Puffin spec: puffin-spec.md
     - AES GCM Stream spec: gcm-stream-spec.md

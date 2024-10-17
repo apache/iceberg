@@ -153,7 +153,7 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
     }
 
     ExecutorService workerPool =
-        ThreadPools.newWorkerPool(threadName, scanContext.planParallelism());
+        ThreadPools.newFixedThreadPool(threadName, scanContext.planParallelism());
     try (TableLoader loader = tableLoader.clone()) {
       loader.open();
       this.batchSplits =
@@ -547,7 +547,9 @@ public class IcebergSource<T> implements Source<T, IcebergSourceSplit, IcebergEn
       return this;
     }
 
-    /** @deprecated Use {@link #setAll} instead. */
+    /**
+     * @deprecated Use {@link #setAll} instead.
+     */
     @Deprecated
     public Builder<T> properties(Map<String, String> properties) {
       readOptions.putAll(properties);

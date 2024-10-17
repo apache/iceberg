@@ -38,6 +38,10 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * JDBC table backed implementation of the {@link
+ * org.apache.iceberg.flink.maintenance.operator.TriggerLockFactory}.
+ */
 public class JdbcLockFactory implements TriggerLockFactory {
   private static final Logger LOG = LoggerFactory.getLogger(JdbcLockFactory.class);
 

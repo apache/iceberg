@@ -33,9 +33,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.apache.iceberg.ManifestEntry.Status;
+import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
@@ -60,6 +62,25 @@ public class TestMergeAppend extends TestBase {
     assertThatThrownBy(() -> table.newAppend().appendFile(null).commit())
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Invalid data file: null");
+  }
+
+  @TestTemplate
+  public void testAddManyFiles() {
+    assertThat(listManifestFiles()).as("Table should start empty").isEmpty();
+
+    List<DataFile> dataFiles = Lists.newArrayList();
+
+    for (int ordinal = 0; ordinal < 2 * SnapshotProducer.MIN_FILE_GROUP_SIZE; ordinal++) {
+      StructLike partition = Row.of(ordinal % 2);
+      DataFile dataFile = FileGenerationUtil.generateDataFile(table, partition);
+      dataFiles.add(dataFile);
+    }
+
+    AppendFiles append = table.newAppend();
+    dataFiles.forEach(append::appendFile);
+    append.commit();
+
+    validateTableFiles(table, dataFiles);
   }
 
   @TestTemplate

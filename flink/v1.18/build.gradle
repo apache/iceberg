@@ -127,7 +127,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
 }
 
 project(":iceberg-flink:iceberg-flink-runtime-${flinkMajorVersion}") {
-  apply plugin: 'io.github.goooler.shadow'
+  apply plugin: 'com.gradleup.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 

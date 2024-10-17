@@ -75,4 +75,9 @@ public class ContentFileUtil {
       return null;
     }
   }
+
+  public static String referencedDataFileLocation(DeleteFile deleteFile) {
+    CharSequence location = referencedDataFile(deleteFile);
+    return location != null ? location.toString() : null;
+  }
 }

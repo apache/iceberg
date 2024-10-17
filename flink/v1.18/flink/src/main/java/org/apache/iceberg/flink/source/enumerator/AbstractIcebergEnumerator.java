@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -76,6 +77,7 @@ abstract class AbstractIcebergEnumerator
     // Iceberg source uses custom split request event to piggyback finished split ids.
     throw new UnsupportedOperationException(
         String.format(
+            Locale.ROOT,
             "Received invalid default split request event "
                 + "from subtask %d as Iceberg source uses custom split request event",
             subtaskId));
@@ -92,8 +94,10 @@ abstract class AbstractIcebergEnumerator
     } else {
       throw new IllegalArgumentException(
           String.format(
+              Locale.ROOT,
               "Received unknown event from subtask %d: %s",
-              subtaskId, sourceEvent.getClass().getCanonicalName()));
+              subtaskId,
+              sourceEvent.getClass().getCanonicalName()));
     }
   }
 

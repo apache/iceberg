@@ -106,7 +106,7 @@ public class TestIdentity {
     // value will always be in UTC
     assertThat(identity.toHumanString(timestamptz, ts.value()))
         .as("Should produce timestamp with time zone adjusted to UTC")
-        .isEqualTo("2017-12-01T18:12:55.038194Z");
+        .isEqualTo("2017-12-01T18:12:55.038194+00:00");
   }
 
   @Test

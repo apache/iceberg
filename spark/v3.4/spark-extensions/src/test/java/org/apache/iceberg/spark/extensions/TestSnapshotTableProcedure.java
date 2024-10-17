@@ -35,6 +35,7 @@ import org.junit.rules.TemporaryFolder;
 
 public class TestSnapshotTableProcedure extends SparkExtensionsTestBase {
   private static final String SOURCE_NAME = "spark_catalog.default.source";
+
   // Currently we can only Snapshot only out of the Spark Session Catalog
 
   public TestSnapshotTableProcedure(

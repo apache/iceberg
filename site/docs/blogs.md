@@ -24,6 +24,18 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 
 
 <!-- markdown-link-check-disable-next-line -->
+### [Sending Data to Apache Iceberg from Apache Kafka with Apache Flink](https://www.decodable.co/blog/kafka-to-iceberg-with-flink)
+**Date**: July 18th, 2024, **Company**: Decodable
+
+**Author**: [Robin Moffatt](https://www.linkedin.com/in/robinmoffatt)
+
+<!-- markdown-link-check-disable-next-line -->
+### [How to get data from Apache Kafka to Apache Iceberg on S3 with Decodable](https://www.decodable.co/blog/kafka-to-iceberg-with-decodable)
+**Date**: June 18th, 2024, **Company**: Decodable
+
+**Author**: [Robin Moffatt](https://www.linkedin.com/in/robinmoffatt)
+
+<!-- markdown-link-check-disable-next-line -->
 ### [End-to-End Basic Data Engineering Tutorial (Apache Spark, Apache Iceberg, Dremio, Apache Superset, Nessie)](https://medium.com/data-engineering-with-dremio/end-to-end-basic-data-engineering-tutorial-apache-spark-apache-iceberg-dremio-apache-superset-a896ecab46f6)
 **Date**: April 1st, 2024, **Company**: Dremio
 
@@ -148,6 +160,12 @@ Here is a list of company blogs that talk about Iceberg. The blogs are ordered f
 **Date**: July 13th, 2023, **Company**: Cloudera
 
 **Authors**: [Riza Suminto](https://www.linkedin.com/in/rizasuminto/)
+
+<!-- markdown-link-check-disable-next-line -->
+### [lakeFS ♥️ Apache Iceberg](https://lakefs.io/blog/using-lakefs-with-apache-iceberg/)
+**Date**: June 26th, 2023, **Company**: LakeFS
+
+**Author**: [Robin Moffatt](https://www.linkedin.com/in/robinmoffatt)
 
 <!-- markdown-link-check-disable-next-line -->
 ### [How Bilibili Builds OLAP Data Lakehouse with Apache Iceberg](https://medium.com/@lirui.fudan/how-bilibili-builds-olap-data-lakehouse-with-apache-iceberg-9f3408e53f9)

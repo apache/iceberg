@@ -108,7 +108,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
                 HiveIcebergStorageHandler.table(conf, conf.get(InputFormatConfig.TABLE_IDENTIFIER)))
             .orElseGet(() -> Catalogs.loadTable(conf));
     final ExecutorService workerPool =
-        ThreadPools.newWorkerPool(
+        ThreadPools.newFixedThreadPool(
             "iceberg-plan-worker-pool",
             conf.getInt(
                 SystemConfigs.WORKER_THREAD_POOL_SIZE.propertyKey(),

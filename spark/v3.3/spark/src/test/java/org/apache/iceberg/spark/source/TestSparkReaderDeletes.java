@@ -37,6 +37,7 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Parameter;
@@ -98,18 +99,16 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
 
-  @Parameter private String format;
-
   @Parameter(index = 1)
   private boolean vectorized;
 
   @Parameters(name = "format = {0}, vectorized = {1}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {"parquet", false},
-      new Object[] {"parquet", true},
-      new Object[] {"orc", false},
-      new Object[] {"avro", false}
+      new Object[] {FileFormat.PARQUET, false},
+      new Object[] {FileFormat.PARQUET, true},
+      new Object[] {FileFormat.ORC, false},
+      new Object[] {FileFormat.AVRO, false}
     };
   }
 
@@ -163,14 +162,14 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     TableOperations ops = ((BaseTable) table).operations();
     TableMetadata meta = ops.current();
     ops.commit(meta, meta.upgradeToFormatVersion(2));
-    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
-    if (format.equals("parquet") || format.equals("orc")) {
+    table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format.name()).commit();
+    if (format.equals(FileFormat.PARQUET) || format.equals(FileFormat.ORC)) {
       String vectorizationEnabled =
-          format.equals("parquet")
+          format.equals(FileFormat.PARQUET)
               ? TableProperties.PARQUET_VECTORIZATION_ENABLED
               : TableProperties.ORC_VECTORIZATION_ENABLED;
       String batchSize =
-          format.equals("parquet")
+          format.equals(FileFormat.PARQUET)
               ? TableProperties.PARQUET_BATCH_SIZE
               : TableProperties.ORC_BATCH_SIZE;
       table.updateProperties().set(vectorizationEnabled, String.valueOf(vectorized)).commit();

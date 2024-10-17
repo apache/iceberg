@@ -81,6 +81,7 @@ public class BasePositionDeltaWriter<T> implements PositionDeltaWriter<T> {
         .addDataFiles(dataFiles())
         .addDeleteFiles(deleteWriteResult.deleteFiles())
         .addReferencedDataFiles(deleteWriteResult.referencedDataFiles())
+        .addRewrittenDeleteFiles(deleteWriteResult.rewrittenDeleteFiles())
         .build();
   }
 

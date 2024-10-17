@@ -72,7 +72,6 @@ public class OAuth2Util {
   private static final String CLIENT_CREDENTIALS = "client_credentials";
   private static final String TOKEN_EXCHANGE = "urn:ietf:params:oauth:grant-type:token-exchange";
   private static final String SCOPE = "scope";
-  private static final String CATALOG = "catalog";
 
   // Client credentials flow
   private static final String CLIENT_ID = "client_id";
@@ -97,7 +96,6 @@ public class OAuth2Util {
   private static final String TOKEN_TYPE = "token_type";
   private static final String EXPIRES_IN = "expires_in";
   private static final String ISSUED_TOKEN_TYPE = "issued_token_type";
-  private static final String REFRESH_TOKEN = "refresh_token";
 
   public static Map<String, String> authHeaders(String token) {
     if (token != null) {

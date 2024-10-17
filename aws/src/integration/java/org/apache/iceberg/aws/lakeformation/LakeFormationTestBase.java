@@ -78,7 +78,6 @@ import software.amazon.awssdk.services.lakeformation.model.GetDataLakeSettingsRe
 import software.amazon.awssdk.services.lakeformation.model.GrantPermissionsRequest;
 import software.amazon.awssdk.services.lakeformation.model.Permission;
 import software.amazon.awssdk.services.lakeformation.model.PutDataLakeSettingsRequest;
-import software.amazon.awssdk.services.lakeformation.model.PutDataLakeSettingsResponse;
 import software.amazon.awssdk.services.lakeformation.model.RegisterResourceRequest;
 import software.amazon.awssdk.services.lakeformation.model.Resource;
 import software.amazon.awssdk.services.lakeformation.model.TableResource;
@@ -217,10 +216,9 @@ public class LakeFormationTestBase {
     // put lf data lake settings
     GetDataLakeSettingsResponse getDataLakeSettingsResponse =
         lakeformation.getDataLakeSettings(GetDataLakeSettingsRequest.builder().build());
-    PutDataLakeSettingsResponse putDataLakeSettingsResponse =
-        lakeformation.putDataLakeSettings(
-            putDataLakeSettingsRequest(
-                lfRegisterPathRoleArn, getDataLakeSettingsResponse.dataLakeSettings(), true));
+    lakeformation.putDataLakeSettings(
+        putDataLakeSettingsRequest(
+            lfRegisterPathRoleArn, getDataLakeSettingsResponse.dataLakeSettings(), true));
 
     // Build test glueCatalog with lfPrivilegedRole
     glueCatalogPrivilegedRole = new GlueCatalog();

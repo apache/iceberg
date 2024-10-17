@@ -48,7 +48,7 @@ In addition to row-level deletes, version 2 makes some requirements stricter for
 
 Version 3 of the Iceberg spec extends data types and existing metadata structures to add new capabilities:
 
-* New data types: nanosecond timestamp(tz)
+* New data types: nanosecond timestamp(tz), unknown
 * Default value support for columns
 * Multi-argument transforms for partitioning and sorting
 
@@ -184,6 +184,7 @@ Supported primitive types are defined in the table below. Primitive types added 
 
 | Added by version | Primitive type     | Description                                                              | Requirements                                     |
 |------------------|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|
+| [v3](#version-3) | **`unknown`**      | Default / null column type used when a more specific type is not known   | Must be optional with `null` defaults; not stored in data files |
 |                  | **`boolean`**      | True or false                                                            |                                                  |
 |                  | **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
 |                  | **`long`**         | 64-bit signed integers                                                   |                                                  |
@@ -221,6 +222,8 @@ The `initial-default` is set only when a field is added to an existing schema. T
 
 The `initial-default` and `write-default` produce SQL default value behavior, without rewriting data files. SQL default value behavior when a field is added handles all existing rows as though the rows were written with the new field's default value. Default value changes may only affect future records and all known fields are written into data files. Omitting a known field when writing a data file is never allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
 
+All columns of `unknown` type must default to null. Non-null values for `initial-default` or `write-default` are invalid.
+
 Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
 
 
@@ -230,11 +233,32 @@ Schemas may be evolved by type promotion or adding, deleting, renaming, or reord
 
 Evolution applies changes to the table's current schema to produce a new schema that is identified by a unique schema ID, is added to the table's list of schemas, and is set as the table's current schema.
 
-Valid type promotions are:
+Valid primitive type promotions are:
 
-* `int` to `long`
-* `float` to `double`
-* `decimal(P, S)` to `decimal(P', S)` if `P' > P` -- widen the precision of decimal types.
+| Primitive type   | v1, v2 valid type promotions | v3+ valid type promotions    | Requirements |
+|------------------|------------------------------|------------------------------|--------------|
+| `unknown`        |                              | _any type_                   | |
+| `int`            | `long`                       | `long`                       | |
+| `date`           |                              | `timestamp`, `timestamp_ns`  | Promotion to `timestamptz` or `timestamptz_ns` is **not** allowed; values outside the promoted type's range must result in a runtime failure |
+| `float`          | `double`                     | `double`                     | |
+| `decimal(P, S)`  | `decimal(P', S)` if `P' > P` | `decimal(P', S)` if `P' > P` | Widen precision only |
+
+Iceberg's Avro manifest format does not store the type of lower and upper bounds, and type promotion does not rewrite existing bounds. For example, when a `float` is promoted to `double`, existing data file bounds are encoded as 4 little-endian bytes rather than 8 little-endian bytes for `double`. To correctly decode the value, the original type at the time the file was written must be inferred according to the following table:
+
+| Current type     | Length of bounds | Inferred type at write time |
+|------------------|------------------|-----------------------------|
+| `long`           | 4 bytes          | `int`                       |
+| `long`           | 8 bytes          | `long`                      |
+| `double`         | 4 bytes          | `float`                     |
+| `double`         | 8 bytes          | `double`                    |
+| `timestamp`      | 4 bytes          | `date`                      |
+| `timestamp`      | 8 bytes          | `timestamp`                 |
+| `timestamp_ns`   | 4 bytes          | `date`                      |
+| `timestamp_ns`   | 8 bytes          | `timestamp_ns`              |
+| `decimal(P, S)`  | _any_            | `decimal(P', S)`; `P' <= P` |
+
+Type promotion is not allowed for a field that is referenced by `source-id` or `source-ids` of a partition field if the partition transform would produce a different value after promoting the type. For example, `bucket[N]` produces different hash values for `34` and `"34"` (2017239379 != -427558391) but the same value for `34` and `34L`; when an `int` field is the source for a bucket partition field, it may be promoted to `long` but not to `string`. This may happen for the following type promotion cases:
+* `date` to `timestamp` or `timestamp_ns`
 
 Any struct, including a top-level schema, can evolve through deleting fields, adding new fields, renaming existing fields, reordering existing fields, or promoting a primitive using the valid type promotions. Adding a new field assigns a new ID for that field and for any nested fields. Renaming an existing field must change the name, but not the field ID. Deleting a field removes it from the current schema. Field deletion cannot be rolled back unless the field was nullable or if the current snapshot has not changed.
 
@@ -782,12 +806,14 @@ Note that partition data tuple's schema is based on the partition spec output us
 The unified partition type is a struct containing all fields that have ever been a part of any spec in the table 
 and sorted by the field ids in ascending order.  
 In other words, the struct fields represent a union of all known partition fields sorted in ascending order by the field ids.
+
 For example,
-1) `spec#0` has two fields `{field#1, field#2}`
+
+1. `spec#0` has two fields `{field#1, field#2}`
 and then the table has evolved into `spec#1` which has three fields `{field#1, field#2, field#3}`.
 The unified partition type looks like `Struct<field#1, field#2, field#3>`.
 
-2) `spec#0` has two fields `{field#1, field#2}`
+2. `spec#0` has two fields `{field#1, field#2}`
 and then the table has evolved into `spec#1` which has just one field `{field#2}`.
 The unified partition type looks like `Struct<field#1, field#2>`.
 
@@ -947,6 +973,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 
 |Type|Avro type|Notes|
 |--- |--- |--- |
+|**`unknown`**|`null` or omitted||
 |**`boolean`**|`boolean`||
 |**`int`**|`int`||
 |**`long`**|`long`||
@@ -1000,6 +1027,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 
 | Type               | Parquet physical type                                              | Logical type                                | Notes                                                          |
 |--------------------|--------------------------------------------------------------------|---------------------------------------------|----------------------------------------------------------------|
+| **`unknown`**      | None                                                               |                                             | Omit from data files                                           |
 | **`boolean`**      | `boolean`                                                          |                                             |                                                                |
 | **`int`**          | `int`                                                              |                                             |                                                                |
 | **`long`**         | `long`                                                             |                                             |                                                                |
@@ -1021,12 +1049,16 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`map`**          | `3-level map`                                                      | `MAP`                                       | See Parquet docs for 3-level representation.                   |
 
 
+When reading an `unknown` column, any corresponding column must be ignored and replaced with `null` values.
+
+
 ### ORC
 
 **Data Type Mappings**
 
 | Type               | ORC type            | ORC type attributes                                  | Notes                                                                                   |
 |--------------------|---------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| **`unknown`**      | None                |                                                      | Omit from data files                                                                    |
 | **`boolean`**      | `boolean`           |                                                      |                                                                                         |
 | **`int`**          | `int`               |                                                      | ORC `tinyint` and `smallint` would also map to **`int`**.                               |
 | **`long`**         | `long`              |                                                      |                                                                                         |
@@ -1076,10 +1108,10 @@ The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 
 | **`time`**         | `hashLong(microsecsFromMidnight(v))`      | `22:31:08` ￫ `-662762989`                  |
 | **`timestamp`**    | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T22:31:08` ￫ `-2047944441`<br />`2017-11-16T22:31:08.000001` ￫ `-1207196810` |
 | **`timestamptz`**  | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T14:31:08-08:00` ￫ `-2047944441`<br />`2017-11-16T14:31:08.000001-08:00` ￫ `-1207196810` |
-| **`timestamp_ns`** | `hashLong(nanosecsFromUnixEpoch(v))`      | `2017-11-16T22:31:08` ￫ `-737750069`<br />`2017-11-16T22:31:08.000001` ￫ `-976603392`<br />`2017-11-16T22:31:08.000000001` ￫ `-160215926` |
-| **`timestamptz_ns`** | `hashLong(nanosecsFromUnixEpoch(v))`    | `2017-11-16T14:31:08-08:00` ￫ `-737750069`<br />`2017-11-16T14:31:08.000001-08:00` ￫ `-976603392`<br />`2017-11-16T14:31:08.000000001-08:00` ￫ `-160215926` |
+| **`timestamp_ns`** | `hashLong(microsecsFromUnixEpoch(v))` [3] | `2017-11-16T22:31:08` ￫ `-2047944441`<br />`2017-11-16T22:31:08.000001001` ￫ `-1207196810` |
+| **`timestamptz_ns`** | `hashLong(microsecsFromUnixEpoch(v))` [3]| `2017-11-16T14:31:08-08:00` ￫ `-2047944441`<br />`2017-11-16T14:31:08.000001001-08:00` ￫ `-1207196810` |
 | **`string`**       | `hashBytes(utf8Bytes(v))`                 | `iceberg` ￫ `1210000089`                   |
-| **`uuid`**         | `hashBytes(uuidBytes(v))`		[3]      | `f79c3e09-677c-4bbd-a479-3f349cb785e7` ￫ `1488055340`               |
+| **`uuid`**         | `hashBytes(uuidBytes(v))`		[4]      | `f79c3e09-677c-4bbd-a479-3f349cb785e7` ￫ `1488055340`               |
 | **`fixed(L)`**     | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
 | **`binary`**       | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
 
@@ -1087,18 +1119,20 @@ The types below are not currently valid for bucketing, and so are not hashed. Ho
 
 | Primitive type     | Hash specification                        | Test value                                 |
 |--------------------|-------------------------------------------|--------------------------------------------|
+| **`unknown`**      | always `null`                             |                                            |
 | **`boolean`**      | `false: hashInt(0)`, `true: hashInt(1)`   | `true` ￫ `1392991556`                      |
-| **`float`**        | `hashLong(doubleToLongBits(double(v))` [4]| `1.0F` ￫ `-142385009`, `0.0F` ￫ `1669671676`, `-0.0F` ￫ `1669671676` |
-| **`double`**       | `hashLong(doubleToLongBits(v))`        [4]| `1.0D` ￫ `-142385009`, `0.0D` ￫ `1669671676`, `-0.0D` ￫ `1669671676` |
+| **`float`**        | `hashLong(doubleToLongBits(double(v))` [5]| `1.0F` ￫ `-142385009`, `0.0F` ￫ `1669671676`, `-0.0F` ￫ `1669671676` |
+| **`double`**       | `hashLong(doubleToLongBits(v))`        [5]| `1.0D` ￫ `-142385009`, `0.0D` ￫ `1669671676`, `-0.0D` ￫ `1669671676` |
 
 Notes:
 
 1. Integer and long hash results must be identical for all integer values. This ensures that schema evolution does not change bucket partition values if integer types are promoted.
 2. Decimal values are hashed using the minimum number of bytes required to hold the unscaled value as a two’s complement big-endian; this representation does not include padding bytes required for storage in a fixed-length array.
 Hash results are not dependent on decimal scale, which is part of the type, not the data value.
-3. UUIDs are encoded using big endian. The test UUID for the example above is: `f79c3e09-677c-4bbd-a479-3f349cb785e7`. This UUID encoded as a byte array is:
+3. Nanosecond timestamps must be converted to microsecond precision before hashing to ensure timestamps have the same hash value.
+4. UUIDs are encoded using big endian. The test UUID for the example above is: `f79c3e09-677c-4bbd-a479-3f349cb785e7`. This UUID encoded as a byte array is:
 `F7 9C 3E 09 67 7C 4B BD A4 79 3F 34 9C B7 85 E7`
-4. `doubleToLongBits` must give the IEEE 754 compliant bit representation of the double value. All `NaN` bit patterns must be canonicalized to `0x7ff8000000000000L`. Negative zero (`-0.0`) must be canonicalized to positive zero (`0.0`). Float hash values are the result of hashing the float cast to double to ensure that schema evolution does not change hash values if float types are promoted.
+5. `doubleToLongBits` must give the IEEE 754 compliant bit representation of the double value. All `NaN` bit patterns must be canonicalized to `0x7ff8000000000000L`. Negative zero (`-0.0`) must be canonicalized to positive zero (`0.0`). Float hash values are the result of hashing the float cast to double to ensure that schema evolution does not change hash values if float types are promoted.
 
 ## Appendix C: JSON serialization
 
@@ -1116,6 +1150,7 @@ Types are serialized according to this table:
 
 |Type|JSON representation|Example|
 |--- |--- |--- |
+|**`unknown`**|`JSON string: "unknown"`|`"unknown"`|
 |**`boolean`**|`JSON string: "boolean"`|`"boolean"`|
 |**`int`**|`JSON string: "int"`|`"int"`|
 |**`long`**|`JSON string: "long"`|`"long"`|
@@ -1243,7 +1278,7 @@ Name mapping is serialized as a list of field mapping JSON Objects which are ser
 |Field mapping field|JSON representation|Example|
 |--- |--- |--- |
 |**`names`**|`JSON list of strings`|`["latitude", "lat"]`|
-|**`field_id`**|`JSON int`|`1`|
+|**`field-id`**|`JSON int`|`1`|
 |**`fields`**|`JSON field mappings (list of objects)`|`[{ `<br />&nbsp;&nbsp;`"field-id": 4,`<br />&nbsp;&nbsp;`"names": ["latitude", "lat"]`<br />`}, {`<br />&nbsp;&nbsp;`"field-id": 5,`<br />&nbsp;&nbsp;`"names": ["longitude", "long"]`<br />`}]`|
 
 Example
@@ -1264,6 +1299,7 @@ This serialization scheme is for storing single values as individual binary valu
 
 | Type                         | Binary serialization                                                                                         |
 |------------------------------|--------------------------------------------------------------------------------------------------------------|
+| **`unknown`**                | Not supported                                                                                                |
 | **`boolean`**                | `0x00` for false, non-zero byte for true                                                                     |
 | **`int`**                    | Stored as 4-byte little-endian                                                                               |
 | **`long`**                   | Stored as 8-byte little-endian                                                                               |
@@ -1316,10 +1352,11 @@ This serialization scheme is for storing single values as individual binary valu
 ### Version 3
 
 Default values are added to struct fields in v3.
+
 * The `write-default` is a forward-compatible change because it is only used at write time. Old writers will fail because the field is missing.
 * Tables with `initial-default` will be read correctly by older readers if `initial-default` is always null for optional fields. Otherwise, old readers will default optional columns with null. Old readers will fail to read required fields which are populated by `initial-default` because that default is not supported.
 
-Types `timestamp_ns` and `timestamptz_ns` are added in v3.
+Types `unknown`, `timestamp_ns`, and `timestamptz_ns` are added in v3.
 
 All readers are required to read tables with unknown partition transforms, ignoring the unsupported partition fields when filtering.
 
@@ -1420,3 +1457,4 @@ Iceberg supports two types of histories for tables. A history of previous "curre
 might indicate different snapshot IDs for a specific timestamp. The discrepancies can be caused by a variety of table operations (e.g. updating the `current-snapshot-id` can be used to set the snapshot of a table to any arbitrary snapshot, which might have a lineage derived from a table branch or no lineage at all).
 
 When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.
+

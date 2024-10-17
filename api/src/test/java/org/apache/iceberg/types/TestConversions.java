@@ -37,6 +37,7 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.LongType;
 import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.types.Types.TimeType;
+import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
 import org.junit.jupiter.api.Test;
@@ -93,7 +94,7 @@ public class TestConversions {
     assertThat(Literal.of(10000L).to(TimeType.get()).toByteBuffer().array())
         .isEqualTo(new byte[] {16, 39, 0, 0, 0, 0, 0, 0});
 
-    // timestamps are stored as microseconds from 1970-01-01 00:00:00.000000 in an 8-byte
+    // timestamps are stored as micro|nanoseconds from 1970-01-01 00:00:00 in an 8-byte
     // little-endian long
     // 400000L is 0...110|00011010|10000000 in binary
     // 10000000 -> -128, 00011010 -> 26, 00000110 -> 6, ... , 00000000 -> 0
@@ -103,6 +104,16 @@ public class TestConversions {
         .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
     assertThat(Literal.of(400000L).to(TimestampType.withZone()).toByteBuffer().array())
         .isEqualTo(new byte[] {-128, 26, 6, 0, 0, 0, 0, 0});
+    // values passed to assertConversion and Literal.of differ because Literal.of(...) assumes
+    // the value is in micros, which gets converted when to(TimestampNanoType) is called
+    assertConversion(
+        400000000L, TimestampNanoType.withoutZone(), new byte[] {0, -124, -41, 23, 0, 0, 0, 0});
+    assertConversion(
+        400000000L, TimestampNanoType.withZone(), new byte[] {0, -124, -41, 23, 0, 0, 0, 0});
+    assertThat(Literal.of(400000L).to(TimestampNanoType.withoutZone()).toByteBuffer().array())
+        .isEqualTo(new byte[] {0, -124, -41, 23, 0, 0, 0, 0});
+    assertThat(Literal.of(400000L).to(TimestampNanoType.withZone()).toByteBuffer().array())
+        .isEqualTo(new byte[] {0, -124, -41, 23, 0, 0, 0, 0});
 
     // strings are stored as UTF-8 bytes (without length)
     // 'A' -> 65, 'B' -> 66, 'C' -> 67

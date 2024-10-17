@@ -18,25 +18,13 @@
  */
 package org.apache.iceberg.deletes;
 
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-
 public class PositionDeleteIndexUtil {
 
   private PositionDeleteIndexUtil() {}
 
   public static PositionDeleteIndex merge(Iterable<? extends PositionDeleteIndex> indexes) {
     BitmapPositionDeleteIndex result = new BitmapPositionDeleteIndex();
-
-    for (PositionDeleteIndex index : indexes) {
-      if (index.isNotEmpty()) {
-        Preconditions.checkArgument(
-            index instanceof BitmapPositionDeleteIndex,
-            "Can merge only bitmap-based indexes, got %s",
-            index.getClass().getName());
-        result.merge((BitmapPositionDeleteIndex) index);
-      }
-    }
-
+    indexes.forEach(result::merge);
     return result;
   }
 }

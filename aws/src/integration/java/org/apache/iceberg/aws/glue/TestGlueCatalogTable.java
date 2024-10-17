@@ -333,8 +333,6 @@ public class TestGlueCatalogTable extends GlueTestBase {
   public void testRenameTableFailsToDeleteOldTable() {
     String namespace = createNamespace();
     String tableName = createTable(namespace);
-    TableIdentifier id = TableIdentifier.of(namespace, tableName);
-    Table table = glueCatalog.loadTable(id);
     // delete the old table metadata, so that drop old table will fail
     String newTableName = tableName + "_2";
     GLUE.updateTable(

@@ -22,6 +22,7 @@ import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import org.apache.flink.api.common.eventtime.Watermark;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.source.Boundedness;
@@ -156,23 +157,26 @@ class ManualSource<T>
 
   @Override
   public SourceReader<T, DummySplit> createReader(SourceReaderContext sourceReaderContext) {
-    return new SourceReader<T, DummySplit>() {
+    return new SourceReader<>() {
       @Override
       public void start() {
         // Do nothing
       }
 
+      @SuppressWarnings("unchecked")
       @Override
       public InputStatus pollNext(ReaderOutput<T> output) {
         Tuple2<T, Long> next = (Tuple2<T, Long>) QUEUES.get(index).poll();
 
         if (next != null) {
           if (next.f0 == null) {
-            // No more input
-            return InputStatus.END_OF_INPUT;
-          }
-
-          if (next.f1 == null) {
+            if (next.f1 == null) {
+              // No more input
+              return InputStatus.END_OF_INPUT;
+            } else {
+              output.emitWatermark(new Watermark(next.f1));
+            }
+          } else if (next.f1 == null) {
             // No event time set
             output.collect(next.f0);
           } else {

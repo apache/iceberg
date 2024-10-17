@@ -49,7 +49,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.InMemoryMetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
@@ -239,8 +238,7 @@ public class SparkScanBuilder
         buildIcebergBatchScan(true /* include Column Stats */, schemaWithMetadataColumns());
 
     try (CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles()) {
-      List<FileScanTask> tasks = ImmutableList.copyOf(fileScanTasks);
-      for (FileScanTask task : tasks) {
+      for (FileScanTask task : fileScanTasks) {
         if (!task.deletes().isEmpty()) {
           LOG.info("Skipping aggregate pushdown: detected row level deletes");
           return false;

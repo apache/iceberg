@@ -27,7 +27,9 @@ class RequestGlobalStatisticsEvent implements OperatorEvent {
     this.signature = null;
   }
 
-  /** @param signature hashCode of the subtask's existing global statistics */
+  /**
+   * @param signature hashCode of the subtask's existing global statistics
+   */
   RequestGlobalStatisticsEvent(int signature) {
     this.signature = signature;
   }

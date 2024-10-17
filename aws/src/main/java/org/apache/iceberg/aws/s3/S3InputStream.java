@@ -18,9 +18,15 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import dev.failsafe.Failsafe;
+import dev.failsafe.FailsafeException;
+import dev.failsafe.RetryPolicy;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.Arrays;
+import javax.net.ssl.SSLException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
@@ -31,6 +37,7 @@ import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +64,14 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private final Counter readOperations;
 
   private int skipSize = 1024 * 1024;
+  private RetryPolicy<Object> retryPolicy =
+      RetryPolicy.builder()
+          .handle(
+              ImmutableList.of(
+                  SSLException.class, SocketTimeoutException.class, SocketException.class))
+          .onFailure(failure -> openStream(true))
+          .withMaxRetries(3)
+          .build();
 
   S3InputStream(S3Client s3, S3URI location) {
     this(s3, location, new S3FileIOProperties(), MetricsContext.nullMetrics());
@@ -92,13 +107,21 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   public int read() throws IOException {
     Preconditions.checkState(!closed, "Cannot read: already closed");
     positionStream();
+    try {
+      int bytesRead = Failsafe.with(retryPolicy).get(() -> stream.read());
+      pos += 1;
+      next += 1;
+      readBytes.increment();
+      readOperations.increment();
 
-    pos += 1;
-    next += 1;
-    readBytes.increment();
-    readOperations.increment();
+      return bytesRead;
+    } catch (FailsafeException ex) {
+      if (ex.getCause() instanceof IOException) {
+        throw (IOException) ex.getCause();
+      }
 
-    return stream.read();
+      throw ex;
+    }
   }
 
   @Override
@@ -106,13 +129,21 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     Preconditions.checkState(!closed, "Cannot read: already closed");
     positionStream();
 
-    int bytesRead = stream.read(b, off, len);
-    pos += bytesRead;
-    next += bytesRead;
-    readBytes.increment(bytesRead);
-    readOperations.increment();
+    try {
+      int bytesRead = Failsafe.with(retryPolicy).get(() -> stream.read(b, off, len));
+      pos += bytesRead;
+      next += bytesRead;
+      readBytes.increment(bytesRead);
+      readOperations.increment();
 
-    return bytesRead;
+      return bytesRead;
+    } catch (FailsafeException ex) {
+      if (ex.getCause() instanceof IOException) {
+        throw (IOException) ex.getCause();
+      }
+
+      throw ex;
+    }
   }
 
   @Override
@@ -146,7 +177,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   public void close() throws IOException {
     super.close();
     closed = true;
-    closeStream();
+    closeStream(false);
   }
 
   private void positionStream() throws IOException {
@@ -178,6 +209,10 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   }
 
   private void openStream() throws IOException {
+    openStream(false);
+  }
+
+  private void openStream(boolean closeQuietly) throws IOException {
     GetObjectRequest.Builder requestBuilder =
         GetObjectRequest.builder()
             .bucket(location.bucket())
@@ -186,7 +221,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
     S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
 
-    closeStream();
+    closeStream(closeQuietly);
 
     try {
       stream = s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
@@ -195,7 +230,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     }
   }
 
-  private void closeStream() throws IOException {
+  private void closeStream(boolean closeQuietly) throws IOException {
     if (stream != null) {
       // if we aren't at the end of the stream, and the stream is abortable, then
       // call abort() so we don't read the remaining data with the Apache HTTP client
@@ -203,6 +238,12 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
       try {
         stream.close();
       } catch (IOException e) {
+        if (closeQuietly) {
+          stream = null;
+          LOG.warn("An error occurred while closing the stream", e);
+          return;
+        }
+
         // the Apache HTTP client will throw a ConnectionClosedException
         // when closing an aborted stream, which is expected
         if (!e.getClass().getSimpleName().equals("ConnectionClosedException")) {

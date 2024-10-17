@@ -66,8 +66,7 @@ public class HadoopFileIOTest {
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
 
-    scaleSizes
-        .parallelStream()
+    scaleSizes.parallelStream()
         .forEach(
             scale -> {
               Path scalePath = new Path(parent, Integer.toString(scale));
@@ -101,8 +100,7 @@ public class HadoopFileIOTest {
 
     List<Integer> scaleSizes = Lists.newArrayList(1, 1000, 2500);
 
-    scaleSizes
-        .parallelStream()
+    scaleSizes.parallelStream()
         .forEach(
             scale -> {
               Path scalePath = new Path(parent, Integer.toString(scale));

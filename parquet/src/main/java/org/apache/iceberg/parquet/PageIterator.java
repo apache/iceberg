@@ -19,6 +19,7 @@
 package org.apache.iceberg.parquet;
 
 import java.io.IOException;
+import java.util.Locale;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.CorruptDeltaByteArrays;
 import org.apache.parquet.bytes.ByteBufferInputStream;
@@ -211,16 +212,26 @@ abstract class PageIterator<T> extends BasePageIterator implements TripleIterato
           "Read failure possibly due to " + "PARQUET-246: try setting parquet.split.files to false",
           new ParquetDecodingException(
               String.format(
+                  Locale.ROOT,
                   "Can't read value in column %s at value %d out of %d in current page. "
                       + "repetition level: %d, definition level: %d",
-                  desc, triplesRead, triplesCount, currentRL, currentDL),
+                  desc,
+                  triplesRead,
+                  triplesCount,
+                  currentRL,
+                  currentDL),
               exception));
     }
     throw new ParquetDecodingException(
         String.format(
+            Locale.ROOT,
             "Can't read value in column %s at value %d out of %d in current page. "
                 + "repetition level: %d, definition level: %d",
-            desc, triplesRead, triplesCount, currentRL, currentDL),
+            desc,
+            triplesRead,
+            triplesCount,
+            currentRL,
+            currentDL),
         exception);
   }
 
