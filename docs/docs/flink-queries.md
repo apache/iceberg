@@ -66,12 +66,16 @@ There are some options that could be set in Flink SQL hint options for streaming
 
 ### FLIP-27 source for SQL
 
-Here are the SQL settings for the [FLIP-27](https://cwiki.apache.org/confluence/display/FLINK/FLIP-27%3A+Refactor+Source+Interface) source. All other SQL settings and options documented above are applicable to the FLIP-27 source.
+Here is the SQL setting to opt in or out of the
+[FLIP-27 source](https://cwiki.apache.org/confluence/display/FLINK/FLIP-27%3A+Refactor+Source+Interface).
 
 ```sql
--- Opt in the FLIP-27 source. Default is false.
-SET table.exec.iceberg.use-flip27-source = true;
+-- Opt out the FLIP-27 source.
+-- Default is false for Flink 1.19 and below, and true for Flink 1.20 and above.
+SET table.exec.iceberg.use-flip27-source = false;
 ```
+
+All other SQL settings and options documented above are applicable to the FLIP-27 source.
 
 ### Reading branches and tags with SQL
 Branch and tags can be read via SQL by specifying options. For more details

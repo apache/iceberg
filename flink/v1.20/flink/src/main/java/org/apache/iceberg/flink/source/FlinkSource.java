@@ -28,6 +28,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.iceberg.Schema;
@@ -46,6 +47,14 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
+/**
+ * /** Flink source builder for old {@link SourceFunction} implementation.
+ *
+ * @deprecated since 1.7.0, will be removed in 2.0.0. Use {@link IcebergSource} instead, which
+ *     implement the newer FLIP-27 source interface. This class implements the old {@link
+ *     SourceFunction} that has been marked as deprecated in Flink since Aug 2023.
+ */
+@Deprecated
 public class FlinkSource {
   private FlinkSource() {}
 
