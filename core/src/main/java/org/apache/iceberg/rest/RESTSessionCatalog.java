@@ -43,6 +43,8 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.RESTPlanningMode;
+import org.apache.iceberg.RESTTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
@@ -117,6 +119,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
   // for backwards compatibility with older REST servers where it can be assumed that a particular
   // server supports view endpoints but doesn't send the "endpoints" field in the ConfigResponse
+  private static final String REST_SERVER_PLANNING_ENABLED = "rest-server-planning-enabled";
+  private static final String REST_SERVER_PLANNING_MODE_KEY = "planning-mode";
+
   static final String VIEW_ENDPOINTS_SUPPORTED = "view-endpoints-supported";
   public static final String REST_PAGE_SIZE = "rest-page-size";
   private static final List<String> TOKEN_PREFERENCE_ORDER =
@@ -175,6 +180,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private FileIO io = null;
   private MetricsReporter reporter = null;
   private boolean reportingViaRestEnabled;
+  private boolean restServerPlanningEnabled;
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
@@ -328,6 +334,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
+
+    this.restServerPlanningEnabled =
+        PropertyUtil.propertyAsBoolean(mergedProps, REST_SERVER_PLANNING_ENABLED, false);
     super.initialize(name, mergedProps);
   }
 
@@ -511,6 +520,23 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
             endpoints);
 
     trackFileIO(ops);
+
+    if (response.config().containsKey(REST_SERVER_PLANNING_MODE_KEY)) {
+      String planningModeValue = response.config().get(REST_SERVER_PLANNING_MODE_KEY);
+      RESTPlanningMode planningMode = RESTPlanningMode.fromName(planningModeValue);
+      if (planningMode == RESTPlanningMode.REQUIRED
+          || planningMode == RESTPlanningMode.SUPPORTED && restServerPlanningEnabled) {
+        return new RESTTable(
+            ops,
+            fullTableName(finalIdentifier),
+            metricsReporter(paths.metrics(finalIdentifier), session::headers),
+            this.client,
+            paths.table(finalIdentifier),
+            session::headers,
+            finalIdentifier,
+            paths);
+      }
+    }
 
     BaseTable table =
         new BaseTable(
