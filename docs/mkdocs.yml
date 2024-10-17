@@ -62,6 +62,8 @@ nav:
   - Amazon Data Firehose: https://docs.aws.amazon.com/firehose/latest/dev/apache-iceberg-destination.html
   - Amazon Redshift: https://docs.aws.amazon.com/redshift/latest/dg/querying-iceberg.html
   - Google BigQuery: https://cloud.google.com/bigquery/docs/iceberg-tables
+  - Google Dataflow(read): https://cloud.google.com/dataflow/docs/guides/read-from-iceberg
+  - Google Dataflow(write): https://cloud.google.com/dataflow/docs/guides/write-to-iceberg
   - Snowflake: https://docs.snowflake.com/en/user-guide/tables-iceberg
   - Impala: https://impala.apache.org/docs/build/html/topics/impala_iceberg.html
   - Doris: https://doris.apache.org/docs/dev/lakehouse/datalake-analytics/iceberg
@@ -69,6 +71,7 @@ nav:
   - Kafka Connect: kafka-connect.md
   - Integrations:
     - aws.md
+    - gcp-bigquery.md
     - dell.md
     - jdbc.md
     - nessie.md
