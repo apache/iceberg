@@ -118,6 +118,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   // for backwards compatibility with older REST servers where it can be assumed that a particular
   // server supports view endpoints but doesn't send the "endpoints" field in the ConfigResponse
   static final String VIEW_ENDPOINTS_SUPPORTED = "view-endpoints-supported";
+  static final String NAMESPACE_SEPARATOR = "namespace-separator";
   public static final String REST_PAGE_SIZE = "rest-page-size";
   private static final List<String> TOKEN_PREFERENCE_ORDER =
       ImmutableList.of(
@@ -178,6 +179,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
+  private String namespaceSeparator = null;
 
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
@@ -328,6 +330,9 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     this.reportingViaRestEnabled =
         PropertyUtil.propertyAsBoolean(mergedProps, REST_METRICS_REPORTING_ENABLED, true);
+    this.namespaceSeparator =
+        PropertyUtil.propertyAsString(
+            mergedProps, NAMESPACE_SEPARATOR, RESTUtil.NAMESPACE_ESCAPED_SEPARATOR);
     super.initialize(name, mergedProps);
   }
 
@@ -615,7 +620,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     Map<String, String> queryParams = Maps.newHashMap();
     if (!namespace.isEmpty()) {
-      queryParams.put("parent", RESTUtil.encodeNamespace(namespace));
+      queryParams.put("parent", RESTUtil.encodeNamespace(namespace, namespaceSeparator));
     }
 
     ImmutableList.Builder<Namespace> namespaces = ImmutableList.builder();
