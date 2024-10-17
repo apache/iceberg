@@ -119,6 +119,9 @@ public class RandomUtil {
       case TIMESTAMP:
         return random.nextLong() % FIFTY_YEARS_IN_MICROS;
 
+      case TIMESTAMP_NANO:
+        return random.nextLong() % (FIFTY_YEARS_IN_MICROS * 1000L);
+
       case STRING:
         return randomString(random);
 
@@ -166,6 +169,7 @@ public class RandomUtil {
       case LONG:
       case TIME:
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
         return (long) value;
       case STRING:
         return String.valueOf(value);

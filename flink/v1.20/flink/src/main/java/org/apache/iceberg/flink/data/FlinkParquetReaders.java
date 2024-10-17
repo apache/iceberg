@@ -284,8 +284,13 @@ public class FlinkParquetReaders {
           } else {
             return Optional.of(new MicrosToTimestampReader(desc));
           }
+        } else if (timestampLogicalType.getUnit() == LogicalTypeAnnotation.TimeUnit.NANOS) {
+          if (timestampLogicalType.isAdjustedToUTC()) {
+            return Optional.of(new NanosToTimestampTzReader(desc));
+          } else {
+            return Optional.of(new NanosToTimestampReader(desc));
+          }
         }
-
         return LogicalTypeAnnotation.LogicalTypeAnnotationVisitor.super.visit(timestampLogicalType);
       }
 
@@ -408,6 +413,43 @@ public class FlinkParquetReaders {
     @Override
     public DecimalData read(DecimalData ignored) {
       return DecimalData.fromUnscaledLong(column.nextLong(), precision, scale);
+    }
+  }
+
+  private static class NanosToTimestampReader
+      extends ParquetValueReaders.UnboxedReader<TimestampData> {
+    NanosToTimestampReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public TimestampData read(TimestampData ignored) {
+      long value = readLong();
+      return TimestampData.fromInstant(Instant.ofEpochSecond(0, value));
+    }
+
+    @Override
+    public long readLong() {
+      return column.nextLong();
+    }
+  }
+
+  private static class NanosToTimestampTzReader
+      extends ParquetValueReaders.UnboxedReader<TimestampData> {
+    NanosToTimestampTzReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public TimestampData read(TimestampData ignored) {
+      long value = readLong();
+      return TimestampData.fromLocalDateTime(
+          Instant.ofEpochSecond(0, value).atOffset(ZoneOffset.UTC).toLocalDateTime());
+    }
+
+    @Override
+    public long readLong() {
+      return column.nextLong();
     }
   }
 
