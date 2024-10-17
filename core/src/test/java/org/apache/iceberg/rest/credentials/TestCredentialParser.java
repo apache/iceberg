@@ -38,7 +38,7 @@ public class TestCredentialParser {
   }
 
   @Test
-  public void missingFields() {
+  public void invalidOrMissingFields() {
     assertThatThrownBy(() -> CredentialParser.fromJson("{}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing string: prefix");
@@ -46,6 +46,15 @@ public class TestCredentialParser {
     assertThatThrownBy(() -> CredentialParser.fromJson("{\"prefix\": \"y\"}"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot parse missing map: config");
+
+    assertThatThrownBy(
+            () -> CredentialParser.fromJson("{\"prefix\": \"\", \"config\": {\"x\": \"23\"}}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid prefix: must be non-empty");
+
+    assertThatThrownBy(() -> CredentialParser.fromJson("{\"prefix\": \"s3\", \"config\": {}}"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Invalid config: must be non-empty");
   }
 
   @Test

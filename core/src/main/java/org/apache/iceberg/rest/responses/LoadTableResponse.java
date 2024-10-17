@@ -93,7 +93,6 @@ public class LoadTableResponse implements RESTResponse {
         .add("metadataLocation", metadataLocation)
         .add("metadata", metadata)
         .add("config", config)
-        .add("credentials", credentials)
         .toString();
   }
 
