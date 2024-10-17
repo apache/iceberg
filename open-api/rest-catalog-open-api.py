@@ -1194,6 +1194,7 @@ class LoadTableResult(BaseModel):
      - `s3.secret-access-key`: secret for credentials that provide access to data in S3
      - `s3.session-token`: if present, this value should be used for as the session token
      - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
+     - `s3.cross-region-access-enabled`: if `true`, S3 Cross-Region bucket access is enabled
 
     """
 
