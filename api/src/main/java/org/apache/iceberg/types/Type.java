@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.VariantLike;
 
 public interface Type extends Serializable {
   enum TypeID {
@@ -45,7 +46,8 @@ public interface Type extends Serializable {
     DECIMAL(BigDecimal.class),
     STRUCT(StructLike.class),
     LIST(List.class),
-    MAP(Map.class);
+    MAP(Map.class),
+    VARIANT(VariantLike.class);
 
     private final Class<?> javaClass;
 
