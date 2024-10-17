@@ -165,6 +165,23 @@ public interface MetadataUpdate extends Serializable {
     }
   }
 
+  class RemovePartitionSpecs implements MetadataUpdate {
+    private final Set<Integer> specIds;
+
+    public RemovePartitionSpecs(Set<Integer> specIds) {
+      this.specIds = specIds;
+    }
+
+    public Set<Integer> specIds() {
+      return specIds;
+    }
+
+    @Override
+    public void applyTo(TableMetadata.Builder metadataBuilder) {
+      metadataBuilder.removeUnusedSpecsById(specIds);
+    }
+  }
+
   class AddSortOrder implements MetadataUpdate {
     private final UnboundSortOrder sortOrder;
 
