@@ -82,6 +82,7 @@ public class FetchScanTasksResponseParser {
         }
         RESTFileScanTaskParser.toJson(fileScanTask, deleteFileReferences, gen);
       }
+      gen.writeEndArray();
     }
 
     gen.writeEndObject();

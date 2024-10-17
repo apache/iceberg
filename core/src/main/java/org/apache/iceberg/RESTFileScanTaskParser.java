@@ -45,7 +45,7 @@ public class RESTFileScanTaskParser {
 
     generator.writeStartObject();
     generator.writeFieldName(DATA_FILE);
-    ContentFileParser.toJson(fileScanTask.file(), fileScanTask.spec());
+    ContentFileParser.toJson(fileScanTask.file(), fileScanTask.spec(), generator);
 
     if (deleteFileReferences != null) {
       generator.writeArrayFieldStart(DELETE_FILE_REFERENCES);

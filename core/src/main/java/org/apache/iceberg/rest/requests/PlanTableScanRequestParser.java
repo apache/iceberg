@@ -99,6 +99,15 @@ public class PlanTableScanRequestParser {
     Preconditions.checkArgument(null != json, "Invalid request: planTableScanRequest null");
 
     Long snapshotId = JsonUtil.getLongOrNull(SNAPSHOT_ID, json);
+    Long startSnapshotId = JsonUtil.getLongOrNull(START_SNAPSHOT_ID, json);
+    Long endSnapshotId = JsonUtil.getLongOrNull(END_SNAPSHOT_ID, json);
+
+    if (snapshotId != null || startSnapshotId != null || endSnapshotId != null) {
+      Preconditions.checkArgument(
+          snapshotId != null ^ (startSnapshotId != null && endSnapshotId != null),
+          "Either snapshotId must be provided or both startSnapshotId and endSnapshotId must be provided");
+    }
+
     List<String> select = JsonUtil.getStringListOrNull(SELECT, json);
 
     Expression filter = null;
@@ -117,8 +126,6 @@ public class PlanTableScanRequestParser {
       useSnapshotSchema = JsonUtil.getBool(USE_SNAPSHOT_SCHEMA, json);
     }
 
-    Long startSnapshotId = JsonUtil.getLongOrNull(START_SNAPSHOT_ID, json);
-    Long endSnapshotId = JsonUtil.getLongOrNull(END_SNAPSHOT_ID, json);
     List<String> statsFields = JsonUtil.getStringListOrNull(STATS_FIELDS, json);
 
     return new PlanTableScanRequest.Builder()

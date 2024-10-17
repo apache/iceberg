@@ -40,7 +40,7 @@ public class TestPlanTableScanRequest {
   }
 
   @Test
-  public void roundTripSerdeWithEmptyObjectAndDefaultsPresent() {
+  public void roundTripSerdeWithEmptyRequestAndDefaultsPresent() {
     PlanTableScanRequest request = new PlanTableScanRequest.Builder().build();
 
     String expectedJson = "{" + "\"case-sensitive\":true," + "\"use-snapshot-schema\":false}";

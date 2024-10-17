@@ -49,8 +49,38 @@ public class PlanTableScanResponseParser {
     return JsonUtil.generate(gen -> toJson(response, gen), pretty);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static void toJson(PlanTableScanResponse response, JsonGenerator gen) throws IOException {
     Preconditions.checkArgument(null != response, "Invalid response: planTableScanResponse null");
+    Preconditions.checkArgument(
+        response.planStatus() != null, "Invalid response: status can not be null");
+
+    if (response.planStatus() == PlanStatus.SUBMITTED && response.planId() == null) {
+      throw new IllegalArgumentException(
+          "Invalid response: planId to be non-null when status is 'submitted");
+    }
+
+    if (response.planStatus() == PlanStatus.CANCELLED) {
+      throw new IllegalArgumentException(
+          "Invalid response: 'cancelled' is not a valid status for planTableScan");
+    }
+
+    if (response.planStatus() != PlanStatus.COMPLETED
+        && (response.planTasks() != null || response.fileScanTasks() != null)) {
+      throw new IllegalArgumentException(
+          "Invalid response: tasks can only be returned in a 'completed' status");
+    }
+
+    if (response.planStatus() != PlanStatus.SUBMITTED && response.planId() != null) {
+      throw new IllegalArgumentException(
+          "Invalid response: plan-id can only be returned in a 'submitted' status");
+    }
+
+    if ((response.deleteFiles() != null && !response.deleteFiles().isEmpty())
+        && (response.fileScanTasks() == null || response.fileScanTasks().isEmpty())) {
+      throw new IllegalArgumentException(
+          "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
+    }
 
     gen.writeStartObject();
     gen.writeStringField(PLAN_STATUS, response.planStatus().status());
@@ -91,17 +121,21 @@ public class PlanTableScanResponseParser {
         }
         RESTFileScanTaskParser.toJson(fileScanTask, deleteFileReferences, gen);
       }
+      gen.writeEndArray();
     }
 
     gen.writeEndObject();
   }
 
   public static PlanTableScanResponse fromJson(String json) {
-    Preconditions.checkArgument(json != null, "Cannot parse plan table response from null");
+    Preconditions.checkArgument(
+        json != null, "Cannot parse planTableScan response from empty or null object");
     return JsonUtil.parse(json, PlanTableScanResponseParser::fromJson);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static PlanTableScanResponse fromJson(JsonNode json) {
+    Preconditions.checkArgument(null != json, "Invalid response: planTableScanResponse null");
     Preconditions.checkArgument(
         json != null && !json.isEmpty(),
         "Cannot parse planTableScan response from empty or null object");
@@ -138,6 +172,31 @@ public class PlanTableScanResponseParser {
         fileScanTaskBuilder.add(fileScanTask);
       }
       fileScanTasks = fileScanTaskBuilder.build();
+    }
+
+    if (planStatus == PlanStatus.SUBMITTED && planId == null) {
+      throw new IllegalArgumentException(
+          "Invalid response: planId to be non-null when status is 'submitted");
+    }
+
+    if (planStatus == PlanStatus.CANCELLED) {
+      throw new IllegalArgumentException(
+          "Invalid response: 'cancelled' is not a valid status for planTableScan");
+    }
+
+    if (planStatus != PlanStatus.COMPLETED && (planTasks != null || fileScanTasks != null)) {
+      throw new IllegalArgumentException(
+          "Invalid response: tasks can only be returned in a 'completed' status");
+    }
+
+    if (planStatus != PlanStatus.SUBMITTED && planId != null) {
+      throw new IllegalArgumentException(
+          "Invalid response: plan-id can only be returned in a 'submitted' status");
+    }
+
+    if (allDeleteFiles != null && (fileScanTasks == null || fileScanTasks.isEmpty())) {
+      throw new IllegalArgumentException(
+          "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
     }
 
     return new PlanTableScanResponse.Builder()

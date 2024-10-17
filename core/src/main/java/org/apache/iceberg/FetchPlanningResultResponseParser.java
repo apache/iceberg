@@ -90,6 +90,7 @@ public class FetchPlanningResultResponseParser {
         }
         RESTFileScanTaskParser.toJson(fileScanTask, deleteFileReferences, gen);
       }
+      gen.writeEndArray();
     }
 
     gen.writeEndObject();

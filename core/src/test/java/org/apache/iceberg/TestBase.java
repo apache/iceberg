@@ -63,7 +63,7 @@ public class TestBase {
   public static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).bucket("data", BUCKETS_NUMBER).build();
 
-  static final DataFile FILE_A =
+  public static final DataFile FILE_A =
       DataFiles.builder(SPEC)
           .withPath("/path/to/data-a.parquet")
           .withFileSizeInBytes(10)
@@ -77,7 +77,7 @@ public class TestBase {
           .withPartitionPath("data_bucket=0") // easy way to set partition data for now
           .withRecordCount(1)
           .build();
-  static final DeleteFile FILE_A_DELETES =
+  public static final DeleteFile FILE_A_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofPositionDeletes()
           .withPath("/path/to/data-a-deletes.parquet")
@@ -86,7 +86,7 @@ public class TestBase {
           .withRecordCount(1)
           .build();
   // Equality delete files.
-  static final DeleteFile FILE_A2_DELETES =
+  public static final DeleteFile FILE_A2_DELETES =
       FileMetadata.deleteFileBuilder(SPEC)
           .ofEqualityDeletes(1)
           .withPath("/path/to/data-a2-deletes.parquet")

@@ -23,7 +23,6 @@ import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.RESTResponse;
 
@@ -80,19 +79,7 @@ public class PlanTableScanResponse implements RESTResponse {
 
   @Override
   public void validate() {
-    Preconditions.checkArgument(planStatus() != null, "invalid response, status can not be null");
-    Preconditions.checkArgument(
-        planStatus() == PlanStatus.SUBMITTED && planId != null,
-        "Invalid response: planId to be non-null when status is 'submitted");
-    Preconditions.checkArgument(
-        planStatus() != PlanStatus.CANCELLED,
-        "Invalid response: 'cancelled' is not a valid status for planTableScan");
-    Preconditions.checkArgument(
-        planStatus() != PlanStatus.COMPLETED && (planTasks() != null || fileScanTasks() != null),
-        "Invalid response: tasks can only be returned in a 'completed' status");
-    Preconditions.checkArgument(
-        deleteFiles() != null && fileScanTasks() == null,
-        "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
+    // validation logic to be performed in PlanTableScanResponseParser
   }
 
   public static class Builder {
