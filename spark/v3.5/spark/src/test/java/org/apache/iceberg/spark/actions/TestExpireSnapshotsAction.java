@@ -1337,4 +1337,60 @@ public class TestExpireSnapshotsAction extends TestBase {
     assertThat(deletedFiles).doesNotContain(FILE_C.path().toString());
     assertThat(deletedFiles).doesNotContain(FILE_D.path().toString());
   }
+
+  @Test
+  public void testGetSnapshotToBeExpired() {
+    table.newAppend().appendFile(FILE_A).commit();
+    Snapshot firstSnapshot = table.currentSnapshot();
+    rightAfterSnapshot();
+
+    table.newAppend().appendFile(FILE_B).commit();
+    rightAfterSnapshot();
+    Snapshot secondSnapshot = table.currentSnapshot();
+
+    table.newAppend().appendFile(FILE_C).commit();
+    rightAfterSnapshot();
+    Snapshot thirdSnapshot = table.currentSnapshot();
+
+    table.newAppend().appendFile(FILE_D).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    long tAfterCommits = rightAfterSnapshot();
+
+    Dataset<SnapshotInfo> snapshots =
+        SparkActions.get()
+            .expireSnapshots(table)
+            .expireOlderThan(tAfterCommits)
+            .expireSnapshotId(thirdSnapshot.snapshotId())
+            .getSnapshotsToExpire();
+
+    assertThat(table.currentSnapshot().snapshotId())
+        .as("Should not change current snapshot.")
+        .isEqualTo(snapshotId);
+
+    // since there is no snapshots expired, the number of snapshots should be the same
+    assertThat(table.snapshots()).hasSize(4);
+
+    List<SnapshotInfo> snapshotInfos = snapshots.collectAsList();
+
+    for (SnapshotInfo snapshotInfo : snapshotInfos) {
+      long id = snapshotInfo.getId();
+      if (id == firstSnapshot.snapshotId()) {
+        assertSnapshotInfoEqual(firstSnapshot, snapshotInfo);
+      } else if (id == secondSnapshot.snapshotId()) {
+        assertSnapshotInfoEqual(secondSnapshot, snapshotInfo);
+      } else if (id == thirdSnapshot.snapshotId()) {
+        assertSnapshotInfoEqual(thirdSnapshot, snapshotInfo);
+      } else {
+        // Fail the test if the else block is reached
+        assertThat(false).as("Unexpected snapshot ID: " + id).isTrue();
+      }
+    }
+  }
+
+  private void assertSnapshotInfoEqual(Snapshot snapshot, SnapshotInfo snapshotInfo) {
+    assertThat(snapshot.snapshotId()).isEqualTo(snapshotInfo.getId());
+    assertThat(snapshot.timestampMillis()).isEqualTo(snapshotInfo.getTimestampMs());
+    assertThat(snapshot.manifestListLocation()).isEqualTo(snapshotInfo.getManifestListLocation());
+    assertThat(snapshot.operation()).isEqualTo(snapshotInfo.getOperation());
+  }
 }
