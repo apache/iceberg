@@ -30,6 +30,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.ChangelogIterator;
 import org.apache.iceberg.spark.source.SparkChangelogTable;
 import org.apache.spark.api.java.function.MapPartitionsFunction;
@@ -40,7 +41,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.OrderUtils;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -118,13 +118,13 @@ public class CreateChangelogViewProcedure extends BaseProcedure {
     return new BaseProcedure.Builder<CreateChangelogViewProcedure>() {
       @Override
       protected CreateChangelogViewProcedure doBuild() {
-        return new CreateChangelogViewProcedure(tableCatalog());
+        return new CreateChangelogViewProcedure(catalog());
       }
     };
   }
 
-  private CreateChangelogViewProcedure(TableCatalog tableCatalog) {
-    super(tableCatalog);
+  private CreateChangelogViewProcedure(BaseCatalog catalog) {
+    super(catalog);
   }
 
   @Override
