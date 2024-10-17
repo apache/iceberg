@@ -62,6 +62,7 @@ public class SinkWriterTest {
           optional(2, "data", Types.StringType.get()),
           optional(3, "date", Types.StringType.get()));
   private static final String ROUTE_FIELD = "fld";
+  private static final String TOPIC_NAME = "topic";
 
   @BeforeEach
   public void before() {
@@ -167,6 +168,19 @@ public class SinkWriterTest {
     assertThat(writerResults.size()).isEqualTo(0);
   }
 
+  @Test
+  public void testTopicToTableMapRoute() {
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.topicToTableMap()).thenReturn(ImmutableMap.of(TOPIC_NAME, TABLE_IDENTIFIER));
+
+    Map<String, Object> value = ImmutableMap.of(TOPIC_NAME, TABLE_IDENTIFIER);
+
+    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
+    assertThat(writerResults.size()).isEqualTo(1);
+    IcebergWriterResult writerResult = writerResults.get(0);
+    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+  }
+
   private List<IcebergWriterResult> sinkWriterTest(
       Map<String, Object> value, IcebergSinkConfig config) {
     IcebergWriterResult writeResult =
@@ -187,7 +201,7 @@ public class SinkWriterTest {
     Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
     SinkRecord rec =
         new SinkRecord(
-            "topic",
+            TOPIC_NAME,
             1,
             null,
             "key",
@@ -200,7 +214,7 @@ public class SinkWriterTest {
 
     SinkWriterResult result = sinkWriter.completeWrite();
 
-    Offset offset = result.sourceOffsets().get(new TopicPartition("topic", 1));
+    Offset offset = result.sourceOffsets().get(new TopicPartition(TOPIC_NAME, 1));
     assertThat(offset).isNotNull();
     assertThat(offset.offset()).isEqualTo(101L); // should be 1 more than current offset
     assertThat(offset.timestamp()).isEqualTo(now.atOffset(ZoneOffset.UTC));
