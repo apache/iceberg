@@ -40,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.ManifestFileUtil;
 import org.apache.iceberg.util.Pair;
@@ -69,6 +70,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private final Map<Integer, PartitionSpec> specsById;
   private final PartitionSet deleteFilePartitions;
   private final Set<F> deleteFiles = newFileSet();
+  private final Set<String> manifestsReferencedForDeletes = Sets.newHashSet();
   private final PartitionSet dropPartitions;
   private final CharSequenceSet deletePaths = CharSequenceSet.empty();
   private Expression deleteExpression = Expressions.alwaysFalse();
@@ -77,6 +79,8 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   private boolean failMissingDeletePaths = false;
   private int duplicateDeleteCount = 0;
   private boolean caseSensitive = true;
+  private boolean allDeletesReferenceManifests = true;
+  private boolean trustReferencedManifests = false;
 
   // cache filtered manifests to avoid extra work when commits fail.
   private final Map<ManifestFile, ManifestFile> filteredManifests = Maps.newConcurrentMap();
@@ -121,6 +125,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     Preconditions.checkNotNull(expr, "Cannot delete files using filter: null");
     invalidateFilteredCache();
     this.deleteExpression = Expressions.or(deleteExpression, expr);
+    this.allDeletesReferenceManifests = false;
   }
 
   /** Add a partition tuple to drop from the table during the delete phase. */
@@ -128,6 +133,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     Preconditions.checkNotNull(partition, "Cannot delete files in invalid partition: null");
     invalidateFilteredCache();
     dropPartitions.add(specId, partition);
+    this.allDeletesReferenceManifests = false;
   }
 
   /**
@@ -154,6 +160,13 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   void delete(F file) {
     Preconditions.checkNotNull(file, "Cannot delete file: null");
     invalidateFilteredCache();
+
+    if (file.manifestLocation() == null) {
+      this.allDeletesReferenceManifests = false;
+    } else {
+      manifestsReferencedForDeletes.add(file.manifestLocation());
+    }
+
     deleteFiles.add(file);
     deleteFilePartitions.add(file.specId(), file.partition());
   }
@@ -162,11 +175,13 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   void delete(CharSequence path) {
     Preconditions.checkNotNull(path, "Cannot delete file path: null");
     invalidateFilteredCache();
+    this.allDeletesReferenceManifests = false;
     deletePaths.add(path);
   }
 
   boolean containsDeletes() {
-    return !deletePaths.isEmpty()
+    return !manifestsReferencedForDeletes.isEmpty()
+        || !deletePaths.isEmpty()
         || !deleteFiles.isEmpty()
         || deleteExpression != Expressions.alwaysFalse()
         || !dropPartitions.isEmpty();
@@ -184,6 +199,13 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       validateRequiredDeletes();
       return ImmutableList.of();
     }
+
+    // The current set of referenced manifests can be trusted if it is a subset of the manifests
+    // being filtered. If a single referenced manifest is not in the set of manifests being filtered
+    // this indicates that the referenced manifests are stale and cannot be trusted.
+    Set<String> manifestLocations =
+        manifests.stream().map(ManifestFile::path).collect(Collectors.toSet());
+    trustReferencedManifests = manifestLocations.containsAll(manifestsReferencedForDeletes);
 
     ManifestFile[] filtered = new ManifestFile[manifests.size()];
     // open all of the manifest files in parallel, use index to avoid reordering
@@ -323,11 +345,15 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
       PartitionSpec spec = reader.spec();
       PartitionAndMetricsEvaluator evaluator =
           new PartitionAndMetricsEvaluator(tableSchema, spec, deleteExpression);
+      boolean hasDeletedFiles = manifestsReferencedForDeletes.contains(manifest.path());
+      if (hasDeletedFiles) {
+        return filterManifestWithDeletedFiles(evaluator, manifest, reader);
+      }
 
       // this assumes that the manifest doesn't have files to remove and streams through the
       // manifest without copying data. if a manifest does have a file to remove, this will break
       // out of the loop and move on to filtering the manifest.
-      boolean hasDeletedFiles = manifestHasDeletedFiles(evaluator, reader);
+      hasDeletedFiles = manifestHasDeletedFiles(evaluator, reader);
       if (!hasDeletedFiles) {
         filteredManifests.put(manifest, manifest);
         return manifest;
@@ -341,43 +367,44 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
   }
 
   private boolean canContainDeletedFiles(ManifestFile manifest) {
-    boolean canContainExpressionDeletes;
+    return canContainDropBySeq(manifest)
+        || canContainExpressionDeletes(manifest)
+        || canContainDroppedPartitions(manifest)
+        || canContainDroppedFiles(manifest);
+  }
+
+  private boolean canContainDropBySeq(ManifestFile manifest) {
+    return manifest.content() == ManifestContent.DELETES
+        && manifest.minSequenceNumber() < minSequenceNumber;
+  }
+
+  private boolean canContainExpressionDeletes(ManifestFile manifest) {
     if (deleteExpression != null && deleteExpression != Expressions.alwaysFalse()) {
       ManifestEvaluator manifestEvaluator =
           ManifestEvaluator.forRowFilter(
               deleteExpression, specsById.get(manifest.partitionSpecId()), caseSensitive);
-      canContainExpressionDeletes = manifestEvaluator.eval(manifest);
-    } else {
-      canContainExpressionDeletes = false;
+      return manifestEvaluator.eval(manifest);
     }
 
-    boolean canContainDroppedPartitions;
+    return false;
+  }
+
+  private boolean canContainDroppedPartitions(ManifestFile manifest) {
     if (!dropPartitions.isEmpty()) {
-      canContainDroppedPartitions =
-          ManifestFileUtil.canContainAny(manifest, dropPartitions, specsById);
-    } else {
-      canContainDroppedPartitions = false;
+      return ManifestFileUtil.canContainAny(manifest, dropPartitions, specsById);
     }
 
-    boolean canContainDroppedFiles;
-    if (!deletePaths.isEmpty()) {
-      canContainDroppedFiles = true;
-    } else if (!deleteFiles.isEmpty()) {
-      // because there were no path-only deletes, the set of deleted file partitions is valid
-      canContainDroppedFiles =
-          ManifestFileUtil.canContainAny(manifest, deleteFilePartitions, specsById);
+    return false;
+  }
+
+  private boolean canContainDroppedFiles(ManifestFile manifest) {
+    if (manifestsReferencedForDeletes.contains(manifest.path()) || !deletePaths.isEmpty()) {
+      return true;
+    } else if (allDeletesReferenceManifests && trustReferencedManifests) {
+      return false;
     } else {
-      canContainDroppedFiles = false;
+      return ManifestFileUtil.canContainAny(manifest, deleteFilePartitions, specsById);
     }
-
-    boolean canContainDropBySeq =
-        manifest.content() == ManifestContent.DELETES
-            && manifest.minSequenceNumber() < minSequenceNumber;
-
-    return canContainExpressionDeletes
-        || canContainDroppedPartitions
-        || canContainDroppedFiles
-        || canContainDropBySeq;
   }
 
   @SuppressWarnings({"CollectionUndefinedEquality", "checkstyle:CyclomaticComplexity"})
