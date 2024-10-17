@@ -31,7 +31,6 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-import com.adobe.testing.s3mock.junit5.S3MockExtension;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -84,9 +83,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.RegisterExtension;
 import org.mockito.Mockito;
+import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -103,12 +103,12 @@ import software.amazon.awssdk.services.s3.model.S3Error;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
-@ExtendWith(S3MockExtension.class)
+@Testcontainers
 public class TestS3FileIO {
-  @RegisterExtension
-  public static final S3MockExtension S3_MOCK = S3MockExtension.builder().silent().build();
+  @Container public static MinIOContainer MINIO = MinioHelper.createContainer();
 
-  public SerializableSupplier<S3Client> s3 = S3_MOCK::createS3ClientV2;
+  public SerializableSupplier<S3Client> s3 =
+      (SerializableSupplier<S3Client>) () -> MinioHelper.createS3Client(MINIO);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3.get()));
   private final Random random = new Random(1);
   private final int numBucketsForBatchDeletion = 3;
