@@ -129,6 +129,21 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
     return this;
   }
 
+  public Dataset<SnapshotInfo> getSnapshotsToExpire() {
+    Set<Snapshot> snapshotsToExpire = buildExpireSnapshots().getSnapshotsToExpire();
+    List<SnapshotInfo> snapshotInfoList =
+        snapshotsToExpire.stream()
+            .map(
+                snapshot ->
+                    new SnapshotInfo(
+                        snapshot.snapshotId(),
+                        snapshot.timestampMillis(),
+                        snapshot.manifestListLocation(),
+                        snapshot.operation()))
+            .collect(Collectors.toList());
+    return this.spark().createDataset(snapshotInfoList, SnapshotInfo.ENCODER);
+  }
+
   /**
    * Expires snapshots and commits the changes to the table, returning a Dataset of files to delete.
    *
@@ -144,19 +159,7 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
       TableMetadata originalMetadata = ops.current();
 
       // perform expiration
-      org.apache.iceberg.ExpireSnapshots expireSnapshots = table.expireSnapshots();
-
-      for (long id : expiredSnapshotIds) {
-        expireSnapshots = expireSnapshots.expireSnapshotId(id);
-      }
-
-      if (expireOlderThanValue != null) {
-        expireSnapshots = expireSnapshots.expireOlderThan(expireOlderThanValue);
-      }
-
-      if (retainLastValue != null) {
-        expireSnapshots = expireSnapshots.retainLast(retainLastValue);
-      }
+      org.apache.iceberg.ExpireSnapshots expireSnapshots = buildExpireSnapshots();
 
       expireSnapshots.cleanExpiredFiles(false).commit();
 
@@ -179,6 +182,23 @@ public class ExpireSnapshotsSparkAction extends BaseSparkAction<ExpireSnapshotsS
   public ExpireSnapshots.Result execute() {
     JobGroupInfo info = newJobGroupInfo("EXPIRE-SNAPSHOTS", jobDesc());
     return withJobGroupInfo(info, this::doExecute);
+  }
+
+  private org.apache.iceberg.ExpireSnapshots buildExpireSnapshots() {
+    org.apache.iceberg.ExpireSnapshots expireSnapshots = table.expireSnapshots();
+
+    for (long id : expiredSnapshotIds) {
+      expireSnapshots = expireSnapshots.expireSnapshotId(id);
+    }
+
+    if (expireOlderThanValue != null) {
+      expireSnapshots = expireSnapshots.expireOlderThan(expireOlderThanValue);
+    }
+
+    if (retainLastValue != null) {
+      expireSnapshots = expireSnapshots.retainLast(retainLastValue);
+    }
+    return expireSnapshots;
   }
 
   private String jobDesc() {
