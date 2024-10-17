@@ -108,21 +108,28 @@ public class TestS3FileIOIntegration {
     content = new String(contentBytes, StandardCharsets.UTF_8);
     kmsKeyArn = kms.createKey().keyMetadata().arn();
 
-    AwsIntegTestUtil.createAccessPoint(s3Control, accessPointName, bucketName);
-    AwsIntegTestUtil.createAccessPoint(
-        crossRegionS3Control, crossRegionAccessPointName, crossRegionBucketName);
-    multiRegionAccessPointAlias = AwsIntegTestUtil.testMultiRegionAccessPointAlias();
-    s3.putBucketVersioning(
-        PutBucketVersioningRequest.builder()
-            .bucket(bucketName)
-            .versioningConfiguration(
-                VersioningConfiguration.builder().status(BucketVersioningStatus.ENABLED).build())
-            .build());
+    if (!S3FileIO.checkIfS3Express(bucketName)) {
+      s3.putBucketVersioning(
+          PutBucketVersioningRequest.builder()
+              .bucket(bucketName)
+              .versioningConfiguration(
+                      VersioningConfiguration.builder().status(BucketVersioningStatus.ENABLED).build())
+              .build());
+      AwsIntegTestUtil.createAccessPoint(s3Control, accessPointName, bucketName);
+      AwsIntegTestUtil.createAccessPoint(
+              crossRegionS3Control, crossRegionAccessPointName, crossRegionBucketName);
+      multiRegionAccessPointAlias = AwsIntegTestUtil.testMultiRegionAccessPointAlias();
+    }
   }
 
   @AfterAll
   public static void afterClass() {
-    AwsIntegTestUtil.cleanS3Bucket(s3, bucketName, prefix);
+    if (S3FileIO.checkIfS3Express(bucketName)){
+      S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
+      AwsIntegTestUtil.cleanS3DirectoryBucket(s3FileIO, prefix, bucketName);
+    } else {
+      AwsIntegTestUtil.cleanS3GeneralBucket(s3, bucketName, prefix);
+    }
     AwsIntegTestUtil.deleteAccessPoint(s3Control, accessPointName);
     AwsIntegTestUtil.deleteAccessPoint(crossRegionS3Control, crossRegionAccessPointName);
     kms.scheduleKeyDeletion(
@@ -171,6 +178,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testNewInputStreamWithAccessPoint() throws Exception {
+    requireAccessPointSupport();
     s3.putObject(
         PutObjectRequest.builder().bucket(bucketName).key(objectKey).build(),
         RequestBody.fromBytes(contentBytes));
@@ -207,6 +215,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testNewInputStreamWithCrossRegionAccessPoint() throws Exception {
+    requireAccessPointSupport();
     clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
     S3Client s3Client = clientFactory.s3();
     s3Client.putObject(
@@ -258,6 +267,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testNewOutputStreamWithAccessPoint() throws Exception {
+    requireAccessPointSupport();
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
     s3FileIO.initialize(
         ImmutableMap.of(
@@ -273,6 +283,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testNewOutputStreamWithCrossRegionAccessPoint() throws Exception {
+    requireAccessPointSupport();
     clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
     S3Client s3Client = clientFactory.s3();
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
@@ -327,6 +338,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testServerSideKmsEncryption() throws Exception {
+    requireKMSEncryptionSupport();
     S3FileIOProperties properties = new S3FileIOProperties();
     properties.setSseType(S3FileIOProperties.SSE_TYPE_KMS);
     properties.setSseKey(kmsKeyArn);
@@ -342,6 +354,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testServerSideKmsEncryptionWithDefaultKey() throws Exception {
+    requireKMSEncryptionSupport();
     S3FileIOProperties properties = new S3FileIOProperties();
     properties.setSseType(S3FileIOProperties.SSE_TYPE_KMS);
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
@@ -363,6 +376,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testDualLayerServerSideKmsEncryption() throws Exception {
+    requireKMSEncryptionSupport();
     S3FileIOProperties properties = new S3FileIOProperties();
     properties.setSseType(S3FileIOProperties.DSSE_TYPE_KMS);
     properties.setSseKey(kmsKeyArn);
@@ -378,6 +392,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testServerSideCustomEncryption() throws Exception {
+    requireKMSEncryptionSupport();
     // generate key
     KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
     keyGenerator.init(256, new SecureRandom());
@@ -413,6 +428,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testACL() throws Exception {
+    requireACLSupport();
     S3FileIOProperties properties = new S3FileIOProperties();
     properties.setAcl(ObjectCannedACL.BUCKET_OWNER_FULL_CONTROL);
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, properties);
@@ -444,6 +460,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testDeleteFilesMultipleBatchesWithAccessPoints() throws Exception {
+    requireAccessPointSupport();
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
     s3FileIO.initialize(
         ImmutableMap.of(
@@ -454,6 +471,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testDeleteFilesMultipleBatchesWithCrossRegionAccessPoints() throws Exception {
+    requireKMSEncryptionSupport();
     clientFactory.initialize(ImmutableMap.of(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true"));
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, getDeletionTestProperties());
     s3FileIO.initialize(
@@ -515,6 +533,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testFileRecoveryHappyPath() throws Exception {
+    requireVersioningSupport();
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, new S3FileIOProperties());
     String filePath = String.format("s3://%s/%s/%s", bucketName, prefix, "someFile.parquet");
     write(s3FileIO, filePath);
@@ -527,6 +546,7 @@ public class TestS3FileIOIntegration {
 
   @Test
   public void testFileRecoveryFailsToRecover() throws Exception {
+    requireVersioningSupport();
     S3FileIO s3FileIO = new S3FileIO(clientFactory::s3, new S3FileIOProperties());
     s3.putBucketVersioning(
         PutBucketVersioningRequest.builder()
@@ -612,5 +632,33 @@ public class TestS3FileIOIntegration {
                 s3.putObject(
                     builder -> builder.bucket(s3URI.bucket()).key(s3URI.key() + i).build(),
                     RequestBody.empty()));
+  }
+
+  /**
+   * S3 Express doesn't support access points
+   */
+  private void requireAccessPointSupport() {
+    Assumptions.assumeThat(S3FileIO.checkIfS3Express(bucketName)).isFalse();
+  }
+
+  /**
+   * S3 Express doesn’t support KMS/custom encryption
+   */
+  private void requireKMSEncryptionSupport() {
+    Assumptions.assumeThat(S3FileIO.checkIfS3Express(bucketName)).isFalse();
+  }
+
+  /**
+   * S3 Express doesn't support versioning
+   */
+  private void requireVersioningSupport() {
+    Assumptions.assumeThat(S3FileIO.checkIfS3Express(bucketName)).isFalse();
+  }
+
+  /**
+  * File ACLs aren’t supported by S3 Express
+  */
+  private void requireACLSupport() {
+    Assumptions.assumeThat(S3FileIO.checkIfS3Express(bucketName)).isFalse();
   }
 }
