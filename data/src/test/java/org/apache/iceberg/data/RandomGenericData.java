@@ -250,8 +250,8 @@ public class RandomGenericData {
             return EPOCH.plus((long) result, MICROS).toLocalDateTime();
           }
         case TIMESTAMP_NANO:
-          Types.TimestampNanoType ts_nano = (Types.TimestampNanoType) primitive;
-          if (ts_nano.shouldAdjustToUTC()) {
+          Types.TimestampNanoType tsNano = (Types.TimestampNanoType) primitive;
+          if (tsNano.shouldAdjustToUTC()) {
             return EPOCH.plus((long) result, NANOS);
           } else {
             return EPOCH.plus((long) result, NANOS).toLocalDateTime();

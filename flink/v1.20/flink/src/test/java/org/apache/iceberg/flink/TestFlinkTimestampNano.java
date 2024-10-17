@@ -19,9 +19,8 @@
 package org.apache.iceberg.flink;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
-import static org.junit.Assume.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
