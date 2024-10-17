@@ -284,7 +284,9 @@ public class TestSchemaUpdate {
             Types.FixedType.ofLength(4),
             Types.DecimalType.of(9, 2),
             Types.DecimalType.of(9, 3),
-            Types.DecimalType.of(18, 2));
+            Types.DecimalType.of(18, 2),
+            Types.GeometryType.get(),
+            Types.GeometryType.of("test_crs", Types.GeometryType.Edges.SPHERICAL));
 
     for (Type.PrimitiveType fromType : primitives) {
       for (Type.PrimitiveType toType : primitives) {

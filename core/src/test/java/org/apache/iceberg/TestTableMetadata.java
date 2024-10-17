@@ -1687,6 +1687,38 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testV3GeometryTypeSupport() {
+    Schema v3Schema =
+        new Schema(
+            Types.NestedField.required(3, "id", Types.LongType.get()),
+            Types.NestedField.required(4, "geom", Types.GeometryType.get()));
+
+    for (int unsupportedFormatVersion : ImmutableList.of(1, 2)) {
+      assertThatThrownBy(
+              () ->
+                  TableMetadata.newTableMetadata(
+                      v3Schema,
+                      PartitionSpec.unpartitioned(),
+                      SortOrder.unsorted(),
+                      TEST_LOCATION,
+                      ImmutableMap.of(),
+                      unsupportedFormatVersion))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessageMatching(
+              "Invalid type in v\\d schema: geom geometry.* is not supported until v3");
+    }
+
+    // should be allowed in v3
+    TableMetadata.newTableMetadata(
+        v3Schema,
+        PartitionSpec.unpartitioned(),
+        SortOrder.unsorted(),
+        TEST_LOCATION,
+        ImmutableMap.of(),
+        3);
+  }
+
+  @Test
   public void onlyMetadataLocationIsUpdatedWithoutTimestampAndMetadataLogEntry() {
     String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
     TableMetadata metadata =

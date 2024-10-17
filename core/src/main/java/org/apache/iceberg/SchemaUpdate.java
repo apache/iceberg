@@ -284,18 +284,6 @@ class SchemaUpdate implements UpdateSchema {
       return this;
     }
 
-    if (newType.typeId() == Type.TypeID.GEOMETRY) {
-      PartitionSpec spec = base.spec();
-      spec.getFieldsBySourceId(field.fieldId())
-          .forEach(
-              fieldId -> {
-                throw new IllegalArgumentException(
-                    String.format(
-                        "Cannot update column '%s' to geometry column because it is used in partition spec",
-                        name));
-              });
-    }
-
     Preconditions.checkArgument(
         TypeUtil.isPromotionAllowed(field.type(), newType),
         "Cannot change column type: %s: %s -> %s",

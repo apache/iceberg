@@ -21,9 +21,11 @@ package org.apache.iceberg;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.IOException;
+import java.util.Map;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTableTestBase;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Assertions;
@@ -45,7 +47,8 @@ public class TestGeospatialTable extends HadoopTableTestBase {
 
     TableIdentifier identifier = TableIdentifier.of("a", "geos_t1");
     try (HadoopCatalog catalog = hadoopCatalog()) {
-      catalog.createTable(identifier, schema);
+      Map<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
+      catalog.createTable(identifier, schema, PartitionSpec.unpartitioned(), properties);
       Table table = catalog.loadTable(identifier);
       Types.NestedField geomField = table.schema().findField("geom");
       Assertions.assertEquals(geomField.type().typeId(), Type.TypeID.GEOMETRY);

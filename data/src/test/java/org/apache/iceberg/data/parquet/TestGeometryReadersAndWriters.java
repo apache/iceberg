@@ -142,7 +142,11 @@ public class TestGeometryReadersAndWriters {
         TABLES.create(
             schema,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, "parquet"),
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION,
+                "3",
+                TableProperties.DEFAULT_FILE_FORMAT,
+                "parquet"),
             location.toString());
 
     // Write some data
@@ -189,7 +193,9 @@ public class TestGeometryReadersAndWriters {
         TABLES.create(
             schema,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, "parquet"),
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION, "3",
+                TableProperties.DEFAULT_FILE_FORMAT, "parquet"),
             location.toString());
 
     // Write records into 4 data files
@@ -261,7 +267,9 @@ public class TestGeometryReadersAndWriters {
         TABLES.create(
             schema,
             spec,
-            ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, "parquet"),
+            ImmutableMap.of(
+                TableProperties.FORMAT_VERSION, "3",
+                TableProperties.DEFAULT_FILE_FORMAT, "parquet"),
             location.toString());
 
     // Write records into 4 data files, with 4 partitions

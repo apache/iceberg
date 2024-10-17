@@ -50,7 +50,7 @@ public class ParquetGeometryValueWriters {
 
     @Override
     public void write(int rl, Geometry geom) {
-      int numDimensions = GeometryUtil.getDimension(geom);
+      int numDimensions = GeometryUtil.getOutputDimension(geom);
       byte[] wkb = wkbWriters[numDimensions - 2].write(geom);
       column.writeBinary(rl, Binary.fromReusedByteArray(wkb));
       metricsBuilder.add(geom);

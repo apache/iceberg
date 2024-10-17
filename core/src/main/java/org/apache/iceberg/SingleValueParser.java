@@ -165,7 +165,12 @@ public class SingleValueParser {
       case GEOMETRY:
         Preconditions.checkArgument(
             defaultValue.isTextual(), "Cannot parse default as a %s value: %s", type, defaultValue);
-        return GeometryUtil.fromWKT(defaultValue.textValue());
+        try {
+          return GeometryUtil.fromWKT(defaultValue.textValue());
+        } catch (Exception e) {
+          throw new IllegalArgumentException(
+              String.format("Cannot parse default as a %s value: %s", type, defaultValue), e);
+        }
       case LIST:
         return listFromJson(type, defaultValue);
       case MAP:

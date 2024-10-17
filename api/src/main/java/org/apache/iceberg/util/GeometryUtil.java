@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.util;
 
+import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.io.WKBReader;
 import org.locationtech.jts.io.WKBWriter;
@@ -29,12 +30,12 @@ public class GeometryUtil {
   private GeometryUtil() {}
 
   public static byte[] toWKB(Geometry geom) {
-    WKBWriter wkbWriter = new WKBWriter(getDimension(geom), false);
+    WKBWriter wkbWriter = new WKBWriter(getOutputDimension(geom), false);
     return wkbWriter.write(geom);
   }
 
   public static String toWKT(Geometry geom) {
-    WKTWriter wktWriter = new WKTWriter(getDimension(geom));
+    WKTWriter wktWriter = new WKTWriter(getOutputDimension(geom));
     return wktWriter.write(geom);
   }
 
@@ -56,9 +57,19 @@ public class GeometryUtil {
     }
   }
 
-  public static int getDimension(Geometry geom) {
-    return geom.getCoordinate() != null && !java.lang.Double.isNaN(geom.getCoordinate().getZ())
-        ? 3
-        : 2;
+  public static int getOutputDimension(Geometry geom) {
+    int dimension = 2;
+    Coordinate coordinate = geom.getCoordinate();
+
+    // We need to set outputDimension = 4 for XYM geometries to make JTS WKTWriter or WKBWriter work
+    // correctly.
+    // The WKB/WKT writers will ignore Z ordinate for XYM geometries.
+    if (!Double.isNaN(coordinate.getZ())) {
+      dimension = 3;
+    }
+    if (!Double.isNaN(coordinate.getM())) {
+      dimension = 4;
+    }
+    return dimension;
   }
 }

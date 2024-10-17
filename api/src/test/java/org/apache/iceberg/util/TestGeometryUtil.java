@@ -20,6 +20,7 @@ package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.CoordinateXY;
@@ -37,7 +38,7 @@ public class TestGeometryUtil {
     byte[] wkb = GeometryUtil.toWKB(geometry);
     Geometry readGeometry = GeometryUtil.fromWKB(wkb);
     assertThat(geometry).isEqualTo(readGeometry);
-    Coordinate coordinate = geometry.getCoordinate();
+    Coordinate coordinate = readGeometry.getCoordinate();
     assertThat(coordinate.getZ()).isNaN();
     assertThat(coordinate.getM()).isNaN();
   }
@@ -48,7 +49,7 @@ public class TestGeometryUtil {
     byte[] wkb = GeometryUtil.toWKB(geometry);
     Geometry readGeometry = GeometryUtil.fromWKB(wkb);
     assertThat(geometry).isEqualTo(readGeometry);
-    Coordinate coordinate = geometry.getCoordinate();
+    Coordinate coordinate = readGeometry.getCoordinate();
     assertThat(coordinate.getZ()).isNaN();
     assertThat(coordinate.getM()).isNaN();
   }
@@ -59,18 +60,19 @@ public class TestGeometryUtil {
     byte[] wkb = GeometryUtil.toWKB(geometry);
     Geometry readGeometry = GeometryUtil.fromWKB(wkb);
     assertThat(geometry).isEqualTo(readGeometry);
-    Coordinate coordinate = geometry.getCoordinate();
+    Coordinate coordinate = readGeometry.getCoordinate();
     assertThat(coordinate.getZ()).isEqualTo(3.0);
     assertThat(coordinate.getM()).isNaN();
   }
 
   @Test
+  @Disabled("https://github.com/locationtech/jts/issues/733")
   public void testXYMToWKB() {
     Geometry geometry = FACTORY.createPoint(new CoordinateXYM(1.0, 2.0, 3.0));
     byte[] wkb = GeometryUtil.toWKB(geometry);
     Geometry readGeometry = GeometryUtil.fromWKB(wkb);
     assertThat(geometry).isEqualTo(readGeometry);
-    Coordinate coordinate = geometry.getCoordinate();
+    Coordinate coordinate = readGeometry.getCoordinate();
     assertThat(coordinate.getZ()).isNaN();
     assertThat(coordinate.getM()).isEqualTo(3.0);
   }
@@ -81,7 +83,7 @@ public class TestGeometryUtil {
     byte[] wkb = GeometryUtil.toWKB(geometry);
     Geometry readGeometry = GeometryUtil.fromWKB(wkb);
     assertThat(geometry).isEqualTo(readGeometry);
-    Coordinate coordinate = geometry.getCoordinate();
+    Coordinate coordinate = readGeometry.getCoordinate();
     assertThat(coordinate.getZ()).isEqualTo(3.0);
     assertThat(coordinate.getM()).isEqualTo(4.0);
   }
@@ -92,7 +94,7 @@ public class TestGeometryUtil {
     String wkt = GeometryUtil.toWKT(geometry);
     Geometry readGeometry = GeometryUtil.fromWKT(wkt);
     assertThat(geometry).isEqualTo(readGeometry);
-    Coordinate coordinate = geometry.getCoordinate();
+    Coordinate coordinate = readGeometry.getCoordinate();
     assertThat(coordinate.getZ()).isNaN();
     assertThat(coordinate.getM()).isNaN();
   }
@@ -103,7 +105,7 @@ public class TestGeometryUtil {
     String wkt = GeometryUtil.toWKT(geometry);
     Geometry readGeometry = GeometryUtil.fromWKT(wkt);
     assertThat(geometry).isEqualTo(readGeometry);
-    Coordinate coordinate = geometry.getCoordinate();
+    Coordinate coordinate = readGeometry.getCoordinate();
     assertThat(coordinate.getZ()).isNaN();
     assertThat(coordinate.getM()).isNaN();
   }
@@ -114,7 +116,7 @@ public class TestGeometryUtil {
     String wkt = GeometryUtil.toWKT(geometry);
     Geometry readGeometry = GeometryUtil.fromWKT(wkt);
     assertThat(geometry).isEqualTo(readGeometry);
-    Coordinate coordinate = geometry.getCoordinate();
+    Coordinate coordinate = readGeometry.getCoordinate();
     assertThat(coordinate.getZ()).isEqualTo(3.0);
     assertThat(coordinate.getM()).isNaN();
   }
@@ -125,7 +127,7 @@ public class TestGeometryUtil {
     String wkt = GeometryUtil.toWKT(geometry);
     Geometry readGeometry = GeometryUtil.fromWKT(wkt);
     assertThat(geometry).isEqualTo(readGeometry);
-    Coordinate coordinate = geometry.getCoordinate();
+    Coordinate coordinate = readGeometry.getCoordinate();
     assertThat(coordinate.getZ()).isNaN();
     assertThat(coordinate.getM()).isEqualTo(3.0);
   }
@@ -136,7 +138,7 @@ public class TestGeometryUtil {
     String wkt = GeometryUtil.toWKT(geometry);
     Geometry readGeometry = GeometryUtil.fromWKT(wkt);
     assertThat(geometry).isEqualTo(readGeometry);
-    Coordinate coordinate = geometry.getCoordinate();
+    Coordinate coordinate = readGeometry.getCoordinate();
     assertThat(coordinate.getZ()).isEqualTo(3.0);
     assertThat(coordinate.getM()).isEqualTo(4.0);
   }
