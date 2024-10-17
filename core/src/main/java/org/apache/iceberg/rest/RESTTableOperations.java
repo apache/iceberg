@@ -18,12 +18,15 @@
  */
 package org.apache.iceberg.rest;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.apache.iceberg.CatalogProperties;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.TableMetadata;
@@ -32,6 +35,8 @@ import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.hadoop.HadoopConfigurable;
+import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -42,7 +47,7 @@ import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.util.LocationUtil;
 
-class RESTTableOperations implements TableOperations {
+class RESTTableOperations implements TableOperations, Closeable {
   private static final String METADATA_FOLDER_NAME = "metadata";
 
   enum UpdateType {
@@ -54,12 +59,13 @@ class RESTTableOperations implements TableOperations {
   private final RESTClient client;
   private final String path;
   private final Supplier<Map<String, String>> headers;
-  private final FileIO io;
   private final List<MetadataUpdate> createChanges;
   private final TableMetadata replaceBase;
   private final Set<Endpoint> endpoints;
+  private final CloseableGroup closeableGroup;
   private UpdateType updateType;
   private TableMetadata current;
+  private FileIO io;
 
   RESTTableOperations(
       RESTClient client,
@@ -93,6 +99,7 @@ class RESTTableOperations implements TableOperations {
       this.current = current;
     }
     this.endpoints = endpoints;
+    this.closeableGroup = new CloseableGroup();
   }
 
   @Override
@@ -103,8 +110,11 @@ class RESTTableOperations implements TableOperations {
   @Override
   public TableMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_TABLE);
-    return updateCurrentMetadata(
-        client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler()));
+    LoadTableResponse loadTableResponse =
+            client.get(path, LoadTableResponse.class, headers, ErrorHandlers.tableErrorHandler());
+    this.current = loadTableResponse.tableMetadata();
+    updateIO(loadTableResponse);
+    return this.current;
   }
 
   @Override
@@ -161,7 +171,7 @@ class RESTTableOperations implements TableOperations {
     // all future commits should be simple commits
     this.updateType = UpdateType.SIMPLE;
 
-    updateCurrentMetadata(response);
+    this.current = response.tableMetadata();
   }
 
   @Override
@@ -169,16 +179,17 @@ class RESTTableOperations implements TableOperations {
     return io;
   }
 
-  private TableMetadata updateCurrentMetadata(LoadTableResponse response) {
-    // LoadTableResponse is used to deserialize the response, but config is not allowed by the REST
-    // spec so it can be
-    // safely ignored. there is no requirement to update config on refresh or commit.
-    if (current == null
-        || !Objects.equals(current.metadataFileLocation(), response.metadataLocation())) {
-      this.current = response.tableMetadata();
+  private void updateIO(LoadTableResponse response) {
+    Map<String, String> mergedConfig = RESTUtil.merge(this.io.properties(), response.config());
+    String ioImpl =mergedConfig.getOrDefault(
+            CatalogProperties.FILE_IO_IMPL, RESTSessionCatalog.DEFAULT_FILE_IO_IMPL);
+    Object hadoopConf = null;
+    if (this.io instanceof HadoopConfigurable) {
+      hadoopConf = ((HadoopConfigurable) this.io).getConf();
     }
 
-    return current;
+    closeableGroup.addCloseable(this.io);
+    this.io = CatalogUtil.loadFileIO(ioImpl, mergedConfig, hadoopConf);
   }
 
   private static String metadataFileLocation(TableMetadata metadata, String filename) {
@@ -246,5 +257,11 @@ class RESTTableOperations implements TableOperations {
         return RESTTableOperations.this.newSnapshotId();
       }
     };
+  }
+
+  public void close() throws IOException {
+    if (null != closeableGroup) {
+      closeableGroup.close();
+    }
   }
 }
