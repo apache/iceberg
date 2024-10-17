@@ -20,11 +20,10 @@ package org.apache.iceberg.connect.channel;
 
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.Set;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.Committer;
 import org.apache.iceberg.connect.IcebergSinkConfig;
-import org.apache.iceberg.connect.data.SinkWriter;
+import org.apache.iceberg.connect.ResourceType;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.ConsumerGroupDescription;
@@ -43,6 +42,11 @@ public class CommitterImpl implements Committer {
 
   private CoordinatorThread coordinatorThread;
   private Worker worker;
+  private IcebergSinkConfig config;
+  private SinkTaskContext context;
+  private Catalog catalog;
+  private KafkaClientFactory clientFactory;
+  private Collection<MemberDescription> stableMembers;
 
   static class TopicPartitionComparator implements Comparator<TopicPartition> {
 
@@ -56,10 +60,40 @@ public class CommitterImpl implements Committer {
     }
   }
 
-  @Override
-  public void start(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
-    KafkaClientFactory clientFactory = new KafkaClientFactory(config.kafkaProps());
+  public CommitterImpl() {}
 
+  public CommitterImpl(Catalog catalog, IcebergSinkConfig config, SinkTaskContext context) {
+    this.catalog = catalog;
+    this.config = config;
+    this.context = context;
+    this.clientFactory = new KafkaClientFactory(config.kafkaProps());
+  }
+
+  @Override
+  public void start(ResourceType resourceType) {
+    switch (resourceType) {
+      case WORKER:
+        startWorker();
+        break;
+      case COORDINATOR:
+        startCoordinator();
+    }
+  }
+
+  public void startCoordinator() {
+    LOG.info("Task elected leader, starting commit coordinator");
+    Coordinator coordinator = new Coordinator(catalog, config, stableMembers, clientFactory, context);
+    coordinatorThread = new CoordinatorThread(coordinator);
+    coordinatorThread.start();
+  }
+
+  public void startWorker() {
+    worker = new Worker(catalog, config, clientFactory, context);
+    worker.start();
+  }
+
+  @Override
+  public boolean leader(Collection<TopicPartition> currentAssignedPartitions) {
     ConsumerGroupDescription groupDesc;
     try (Admin admin = clientFactory.createAdmin()) {
       groupDesc = KafkaUtils.consumerGroupDescription(config.connectGroupId(), admin);
@@ -67,19 +101,19 @@ public class CommitterImpl implements Committer {
 
     if (groupDesc.state() == ConsumerGroupState.STABLE) {
       Collection<MemberDescription> members = groupDesc.members();
-      Set<TopicPartition> partitions = context.assignment();
-      if (isLeader(members, partitions)) {
-        LOG.info("Task elected leader, starting commit coordinator");
-        Coordinator coordinator = new Coordinator(catalog, config, members, clientFactory, context);
-        coordinatorThread = new CoordinatorThread(coordinator);
-        coordinatorThread.start();
+      if(isLeader(members, currentAssignedPartitions)) {
+        LOG.info("Task elected leader");
+        stableMembers = groupDesc.members();
+        return true;
       }
+      return false;
     }
+    return false;
+  }
 
-    LOG.info("Starting commit worker");
-    SinkWriter sinkWriter = new SinkWriter(catalog, config);
-    worker = new Worker(config, clientFactory, sinkWriter, context);
-    worker.start();
+  @Override
+  public void open(TopicPartition topicPartition) {
+    worker.open(topicPartition);
   }
 
   @Override
@@ -91,16 +125,33 @@ public class CommitterImpl implements Committer {
   }
 
   @Override
-  public void stop() {
+  public void stop(ResourceType resourceType) {
+    switch (resourceType) {
+      case WORKER:
+        stopWorker();
+        break;
+      case COORDINATOR:
+        stopCoordinator();
+    }
+  }
+
+  private void stopWorker() {
     if (worker != null) {
       worker.stop();
       worker = null;
     }
+  }
 
+  private void stopCoordinator() {
     if (coordinatorThread != null) {
       coordinatorThread.terminate();
       coordinatorThread = null;
     }
+  }
+
+  @Override
+  public void close(TopicPartition topicPartition) {
+    worker.close(topicPartition);
   }
 
   @VisibleForTesting
@@ -108,11 +159,11 @@ public class CommitterImpl implements Committer {
     // there should only be one task assigned partition 0 of the first topic,
     // so elect that one the leader
     TopicPartition firstTopicPartition =
-        members.stream()
-            .flatMap(member -> member.assignment().topicPartitions().stream())
-            .min(new TopicPartitionComparator())
-            .orElseThrow(
-                () -> new ConnectException("No partitions assigned, cannot determine leader"));
+            members.stream()
+                    .flatMap(member -> member.assignment().topicPartitions().stream())
+                    .min(new TopicPartitionComparator())
+                    .orElseThrow(
+                            () -> new ConnectException("No partitions assigned, cannot determine leader"));
 
     return partitions.contains(firstTopicPartition);
   }

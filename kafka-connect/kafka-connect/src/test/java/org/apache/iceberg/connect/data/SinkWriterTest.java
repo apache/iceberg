@@ -196,11 +196,11 @@ public class SinkWriterTest {
             100L,
             now.toEpochMilli(),
             TimestampType.LOG_APPEND_TIME);
-    sinkWriter.save(ImmutableList.of(rec));
+    sinkWriter.save(rec);
 
     SinkWriterResult result = sinkWriter.completeWrite();
 
-    Offset offset = result.sourceOffsets().get(new TopicPartition("topic", 1));
+    Offset offset = result.sourceOffset();
     assertThat(offset).isNotNull();
     assertThat(offset.offset()).isEqualTo(101L); // should be 1 more than current offset
     assertThat(offset.timestamp()).isEqualTo(now.atOffset(ZoneOffset.UTC));

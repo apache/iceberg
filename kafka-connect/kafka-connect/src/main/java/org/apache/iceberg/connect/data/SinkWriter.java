@@ -21,7 +21,7 @@ package org.apache.iceberg.connect.data;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -29,8 +29,10 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.events.TopicPartitionOffset;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.Pair;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
 
@@ -38,46 +40,42 @@ public class SinkWriter {
   private final IcebergSinkConfig config;
   private final IcebergWriterFactory writerFactory;
   private final Map<String, RecordWriter> writers;
-  private final Map<TopicPartition, Offset> sourceOffsets;
+  private Offset sourceOffsets;
 
   public SinkWriter(Catalog catalog, IcebergSinkConfig config) {
     this.config = config;
     this.writerFactory = new IcebergWriterFactory(catalog, config);
     this.writers = Maps.newHashMap();
-    this.sourceOffsets = Maps.newHashMap();
+    this.sourceOffsets = Offset.NULL_OFFSET;
   }
 
   public void close() {
     writers.values().forEach(RecordWriter::close);
+    writers.clear();
+    sourceOffsets = Offset.NULL_OFFSET;
   }
 
   public SinkWriterResult completeWrite() {
     List<IcebergWriterResult> writerResults =
-        writers.values().stream()
-            .flatMap(writer -> writer.complete().stream())
-            .collect(Collectors.toList());
-    Map<TopicPartition, Offset> offsets = Maps.newHashMap(sourceOffsets);
+            writers.values().stream()
+                    .flatMap(writer -> writer.complete().stream())
+                    .collect(Collectors.toList());
+    Offset offsets = new Offset(sourceOffsets.offset(), sourceOffsets.timestamp());
 
     writers.clear();
-    sourceOffsets.clear();
+    sourceOffsets = Offset.NULL_OFFSET;
 
     return new SinkWriterResult(writerResults, offsets);
   }
 
-  public void save(Collection<SinkRecord> sinkRecords) {
-    sinkRecords.forEach(this::save);
-  }
-
-  private void save(SinkRecord record) {
+  public void save(SinkRecord record) {
     // the consumer stores the offsets that corresponds to the next record to consume,
     // so increment the record offset by one
     OffsetDateTime timestamp =
-        record.timestamp() == null
-            ? null
-            : OffsetDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneOffset.UTC);
-    sourceOffsets.put(
-        new TopicPartition(record.topic(), record.kafkaPartition()),
-        new Offset(record.kafkaOffset() + 1, timestamp));
+            record.timestamp() == null
+                    ? null
+                    : OffsetDateTime.ofInstant(Instant.ofEpochMilli(record.timestamp()), ZoneOffset.UTC);
+    sourceOffsets = new Offset(record.kafkaOffset() + 1, timestamp);
 
     if (config.dynamicTablesEnabled()) {
       routeRecordDynamically(record);
@@ -92,24 +90,24 @@ public class SinkWriter {
     if (routeField == null) {
       // route to all tables
       config
-          .tables()
-          .forEach(
-              tableName -> {
-                writerForTable(tableName, record, false).write(record);
-              });
+              .tables()
+              .forEach(
+                      tableName -> {
+                        writerForTable(tableName, record, false).write(record);
+                      });
 
     } else {
       String routeValue = extractRouteValue(record.value(), routeField);
       if (routeValue != null) {
         config
-            .tables()
-            .forEach(
-                tableName -> {
-                  Pattern regex = config.tableConfig(tableName).routeRegex();
-                  if (regex != null && regex.matcher(routeValue).matches()) {
-                    writerForTable(tableName, record, false).write(record);
-                  }
-                });
+                .tables()
+                .forEach(
+                        tableName -> {
+                          Pattern regex = config.tableConfig(tableName).routeRegex();
+                          if (regex != null && regex.matcher(routeValue).matches()) {
+                            writerForTable(tableName, record, false).write(record);
+                          }
+                        });
       }
     }
   }
@@ -134,8 +132,8 @@ public class SinkWriter {
   }
 
   private RecordWriter writerForTable(
-      String tableName, SinkRecord sample, boolean ignoreMissingTable) {
+          String tableName, SinkRecord sample, boolean ignoreMissingTable) {
     return writers.computeIfAbsent(
-        tableName, notUsed -> writerFactory.createWriter(tableName, sample, ignoreMissingTable));
+            tableName, notUsed -> writerFactory.createWriter(tableName, sample, ignoreMissingTable));
   }
 }

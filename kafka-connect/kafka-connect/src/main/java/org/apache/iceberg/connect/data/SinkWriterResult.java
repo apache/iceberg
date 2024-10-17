@@ -19,24 +19,22 @@
 package org.apache.iceberg.connect.data;
 
 import java.util.List;
-import java.util.Map;
-import org.apache.kafka.common.TopicPartition;
 
 public class SinkWriterResult {
   private final List<IcebergWriterResult> writerResults;
-  private final Map<TopicPartition, Offset> sourceOffsets;
+  private final Offset sourceOffset;
 
   public SinkWriterResult(
-      List<IcebergWriterResult> writerResults, Map<TopicPartition, Offset> sourceOffsets) {
+          List<IcebergWriterResult> writerResults, Offset sourceOffset) {
     this.writerResults = writerResults;
-    this.sourceOffsets = sourceOffsets;
+    this.sourceOffset = sourceOffset;
   }
 
   public List<IcebergWriterResult> writerResults() {
     return writerResults;
   }
 
-  public Map<TopicPartition, Offset> sourceOffsets() {
-    return sourceOffsets;
+  public Offset sourceOffset() {
+    return sourceOffset;
   }
 }
