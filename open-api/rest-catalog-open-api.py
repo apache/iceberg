@@ -1190,7 +1190,7 @@ class LoadTableResult(BaseModel):
 
     The following configurations should be respected when working with tables stored in AWS S3
      - `client.region`: region to configure client for making requests to AWS
-     - `s3.access-key-id`: id for for credentials that provide access to the data in S3
+     - `s3.access-key-id`: id for credentials that provide access to the data in S3
      - `s3.secret-access-key`: secret for credentials that provide access to data in S3
      - `s3.session-token`: if present, this value should be used for as the session token
      - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
