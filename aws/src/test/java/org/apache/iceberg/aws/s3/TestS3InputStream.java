@@ -57,6 +57,10 @@ public class TestS3InputStream {
     testRead(s3);
   }
 
+  S3InputStream newInputStream(S3Client s3Client, S3URI uri) {
+    return new S3InputStream(s3Client, uri);
+  }
+
   protected void testRead(S3Client s3Client) throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/read.dat");
     int dataSize = 1024 * 1024 * 10;
@@ -64,7 +68,7 @@ public class TestS3InputStream {
 
     writeS3Data(uri, data);
 
-    try (SeekableInputStream in = new S3InputStream(s3Client, uri)) {
+    try (SeekableInputStream in = newInputStream(s3Client, uri)) {
       int readSize = 1024;
       readAndCheck(in, in.getPos(), readSize, data, false);
       readAndCheck(in, in.getPos(), readSize, data, true);
@@ -128,7 +132,7 @@ public class TestS3InputStream {
 
     writeS3Data(uri, expected);
 
-    try (RangeReadable in = new S3InputStream(s3Client, uri)) {
+    try (RangeReadable in = newInputStream(s3Client, uri)) {
       // first 1k
       position = 0;
       offset = 0;
@@ -160,7 +164,7 @@ public class TestS3InputStream {
   @Test
   public void testClose() throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/closed.dat");
-    SeekableInputStream closed = new S3InputStream(s3, uri);
+    SeekableInputStream closed = newInputStream(s3, uri);
     closed.close();
     assertThatThrownBy(() -> closed.seek(0))
         .isInstanceOf(IllegalStateException.class)
@@ -178,7 +182,7 @@ public class TestS3InputStream {
 
     writeS3Data(uri, expected);
 
-    try (SeekableInputStream in = new S3InputStream(s3Client, uri)) {
+    try (SeekableInputStream in = newInputStream(s3Client, uri)) {
       in.seek(expected.length / 2);
       byte[] actual = new byte[expected.length / 2];
       IOUtil.readFully(in, actual, 0, expected.length / 2);

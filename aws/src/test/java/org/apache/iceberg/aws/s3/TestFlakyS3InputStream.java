@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -29,6 +30,7 @@ import java.net.SocketTimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import javax.net.ssl.SSLException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -49,10 +51,29 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
 public class TestFlakyS3InputStream extends TestS3InputStream {
 
+  private AtomicInteger resetForRetryCounter;
+
+  @BeforeEach
+  public void setupTest() {
+    resetForRetryCounter = new AtomicInteger(0);
+  }
+
+  @Override
+  S3InputStream newInputStream(S3Client s3Client, S3URI uri) {
+    return new S3InputStream(s3Client, uri) {
+      @Override
+      void resetForRetry() throws IOException {
+        resetForRetryCounter.incrementAndGet();
+        super.resetForRetry();
+      }
+    };
+  }
+
   @ParameterizedTest
   @MethodSource("retryableExceptions")
   public void testReadWithFlakyStreamRetrySucceed(IOException exception) throws Exception {
     testRead(flakyStreamClient(new AtomicInteger(3), exception));
+    assertThat(resetForRetryCounter.get()).isEqualTo(2);
   }
 
   @ParameterizedTest
@@ -61,6 +82,7 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
     assertThatThrownBy(() -> testRead(flakyStreamClient(new AtomicInteger(5), exception)))
         .isInstanceOf(exception.getClass())
         .hasMessage(exception.getMessage());
+    assertThat(resetForRetryCounter.get()).isEqualTo(3);
   }
 
   @ParameterizedTest
@@ -69,12 +91,14 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
     assertThatThrownBy(() -> testRead(flakyStreamClient(new AtomicInteger(3), exception)))
         .isInstanceOf(exception.getClass())
         .hasMessage(exception.getMessage());
+    assertThat(resetForRetryCounter.get()).isEqualTo(0);
   }
 
   @ParameterizedTest
   @MethodSource("retryableExceptions")
   public void testSeekWithFlakyStreamRetrySucceed(IOException exception) throws Exception {
     testSeek(flakyStreamClient(new AtomicInteger(3), exception));
+    assertThat(resetForRetryCounter.get()).isEqualTo(2);
   }
 
   @ParameterizedTest
@@ -83,6 +107,7 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
     assertThatThrownBy(() -> testSeek(flakyStreamClient(new AtomicInteger(5), exception)))
         .isInstanceOf(exception.getClass())
         .hasMessage(exception.getMessage());
+    assertThat(resetForRetryCounter.get()).isEqualTo(3);
   }
 
   @ParameterizedTest
@@ -91,6 +116,7 @@ public class TestFlakyS3InputStream extends TestS3InputStream {
     assertThatThrownBy(() -> testSeek(flakyStreamClient(new AtomicInteger(3), exception)))
         .isInstanceOf(exception.getClass())
         .hasMessage(exception.getMessage());
+    assertThat(resetForRetryCounter.get()).isEqualTo(0);
   }
 
   private static Stream<Arguments> retryableExceptions() {

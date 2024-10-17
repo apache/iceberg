@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.Arrays;
+import java.util.List;
 import javax.net.ssl.SSLException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
@@ -35,6 +36,7 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -49,6 +51,9 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
+
+  private static final List<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS =
+      ImmutableList.of(SSLException.class, SocketTimeoutException.class, SocketException.class);
 
   private final StackTraceElement[] createStack;
   private final S3Client s3;
@@ -66,10 +71,18 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private int skipSize = 1024 * 1024;
   private RetryPolicy<Object> retryPolicy =
       RetryPolicy.builder()
-          .handle(
-              ImmutableList.of(
-                  SSLException.class, SocketTimeoutException.class, SocketException.class))
-          .onFailure(failure -> openStream(true))
+          .handle(RETRYABLE_EXCEPTIONS)
+          .onRetry(
+              e -> {
+                LOG.warn(
+                    "Retrying read from S3, reopening stream (attempt {})", e.getAttemptCount());
+                resetForRetry();
+              })
+          .onFailure(
+              e ->
+                  LOG.error(
+                      "Failed to read from S3 input stream after exhausting all retries",
+                      e.getException()))
           .withMaxRetries(3)
           .build();
 
@@ -228,6 +241,11 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     } catch (NoSuchKeyException e) {
       throw new NotFoundException(e, "Location does not exist: %s", location);
     }
+  }
+
+  @VisibleForTesting
+  void resetForRetry() throws IOException {
+    openStream(true);
   }
 
   private void closeStream(boolean closeQuietly) throws IOException {
