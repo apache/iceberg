@@ -60,6 +60,7 @@ import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.util.DateTimeUtil;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.kafka.connect.data.Struct;
 
 class RecordConverter {
@@ -126,10 +127,10 @@ class RecordConverter {
       case STRING:
         return convertString(value);
       case UUID:
-        return convertUUID(value);
+        return UUIDUtil.convert(convertUUID(value));
       case BINARY:
       case FIXED:
-        return convertBase64Binary(value);
+        return convertBase64Binary(value).array();
       case DATE:
         return convertDateValue(value);
       case TIME:
