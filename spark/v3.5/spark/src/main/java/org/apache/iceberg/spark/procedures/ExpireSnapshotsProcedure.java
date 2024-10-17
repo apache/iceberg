@@ -22,13 +22,13 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.actions.ExpireSnapshotsSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -76,13 +76,13 @@ public class ExpireSnapshotsProcedure extends BaseProcedure {
     return new BaseProcedure.Builder<ExpireSnapshotsProcedure>() {
       @Override
       protected ExpireSnapshotsProcedure doBuild() {
-        return new ExpireSnapshotsProcedure(tableCatalog());
+        return new ExpireSnapshotsProcedure(catalog());
       }
     };
   }
 
-  private ExpireSnapshotsProcedure(TableCatalog tableCatalog) {
-    super(tableCatalog);
+  private ExpireSnapshotsProcedure(BaseCatalog catalog) {
+    super(catalog);
   }
 
   @Override

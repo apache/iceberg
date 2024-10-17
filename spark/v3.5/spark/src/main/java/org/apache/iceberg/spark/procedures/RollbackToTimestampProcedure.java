@@ -19,11 +19,11 @@
 package org.apache.iceberg.spark.procedures;
 
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -57,12 +57,12 @@ class RollbackToTimestampProcedure extends BaseProcedure {
     return new BaseProcedure.Builder<RollbackToTimestampProcedure>() {
       @Override
       protected RollbackToTimestampProcedure doBuild() {
-        return new RollbackToTimestampProcedure(tableCatalog());
+        return new RollbackToTimestampProcedure(catalog());
       }
     };
   }
 
-  private RollbackToTimestampProcedure(TableCatalog catalog) {
+  private RollbackToTimestampProcedure(BaseCatalog catalog) {
     super(catalog);
   }
 

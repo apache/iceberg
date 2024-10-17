@@ -28,6 +28,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.MoreExecutors;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.Spark3Util.CatalogAndIdentifier;
 import org.apache.iceberg.spark.actions.SparkActions;
@@ -58,14 +59,14 @@ abstract class BaseProcedure implements Procedure {
   protected static final DataType STRING_ARRAY = DataTypes.createArrayType(DataTypes.StringType);
 
   private final SparkSession spark;
-  private final TableCatalog tableCatalog;
+  private final BaseCatalog catalog;
 
   private SparkActions actions;
   private ExecutorService executorService = null;
 
-  protected BaseProcedure(TableCatalog tableCatalog) {
+  protected BaseProcedure(BaseCatalog catalog) {
     this.spark = SparkSession.active();
-    this.tableCatalog = tableCatalog;
+    this.catalog = catalog;
   }
 
   protected SparkSession spark() {
@@ -80,7 +81,7 @@ abstract class BaseProcedure implements Procedure {
   }
 
   protected TableCatalog tableCatalog() {
-    return this.tableCatalog;
+    return this.catalog;
   }
 
   protected <T> T modifyIcebergTable(Identifier ident, Function<org.apache.iceberg.Table, T> func) {
@@ -115,12 +116,12 @@ abstract class BaseProcedure implements Procedure {
 
   protected Identifier toIdentifier(String identifierAsString, String argName) {
     CatalogAndIdentifier catalogAndIdentifier =
-        toCatalogAndIdentifier(identifierAsString, argName, tableCatalog);
+        toCatalogAndIdentifier(identifierAsString, argName, catalog);
 
     Preconditions.checkArgument(
-        catalogAndIdentifier.catalog().equals(tableCatalog),
+        catalogAndIdentifier.catalog().equals(catalog),
         "Cannot run procedure in catalog '%s': '%s' is a table in catalog '%s'",
-        tableCatalog.name(),
+        catalog.name(),
         identifierAsString,
         catalogAndIdentifier.catalog().name());
 
@@ -128,25 +129,25 @@ abstract class BaseProcedure implements Procedure {
   }
 
   protected CatalogAndIdentifier toCatalogAndIdentifier(
-      String identifierAsString, String argName, CatalogPlugin catalog) {
+      String identifierAsString, String argName, CatalogPlugin catalogPlugin) {
     Preconditions.checkArgument(
         identifierAsString != null && !identifierAsString.isEmpty(),
         "Cannot handle an empty identifier for argument %s",
         argName);
 
     return Spark3Util.catalogAndIdentifier(
-        "identifier for arg " + argName, spark, identifierAsString, catalog);
+        "identifier for arg " + argName, spark, identifierAsString, catalogPlugin);
   }
 
   protected SparkTable loadSparkTable(Identifier ident) {
     try {
-      Table table = tableCatalog.loadTable(ident);
+      Table table = catalog.loadTable(ident);
       ValidationException.check(
           table instanceof SparkTable, "%s is not %s", ident, SparkTable.class.getName());
       return (SparkTable) table;
     } catch (NoSuchTableException e) {
       String errMsg =
-          String.format("Couldn't load table '%s' in catalog '%s'", ident, tableCatalog.name());
+          String.format("Couldn't load table '%s' in catalog '%s'", ident, catalog.name());
       throw new RuntimeException(errMsg, e);
     }
   }
@@ -159,13 +160,13 @@ abstract class BaseProcedure implements Procedure {
   protected void refreshSparkCache(Identifier ident, Table table) {
     CacheManager cacheManager = spark.sharedState().cacheManager();
     DataSourceV2Relation relation =
-        DataSourceV2Relation.create(table, Option.apply(tableCatalog), Option.apply(ident));
+        DataSourceV2Relation.create(table, Option.apply(catalog), Option.apply(ident));
     cacheManager.recacheByPlan(spark, relation);
   }
 
   protected Expression filterExpression(Identifier ident, String where) {
     try {
-      String name = Spark3Util.quotedFullIdentifier(tableCatalog.name(), ident);
+      String name = Spark3Util.quotedFullIdentifier(catalog.name(), ident);
       org.apache.spark.sql.catalyst.expressions.Expression expression =
           SparkExpressionConverter.collectResolvedSparkExpression(spark, name, where);
       return SparkExpressionConverter.convertToIcebergExpression(expression);
@@ -179,11 +180,11 @@ abstract class BaseProcedure implements Procedure {
   }
 
   protected abstract static class Builder<T extends BaseProcedure> implements ProcedureBuilder {
-    private TableCatalog tableCatalog;
+    private BaseCatalog catalog;
 
     @Override
-    public Builder<T> withTableCatalog(TableCatalog newTableCatalog) {
-      this.tableCatalog = newTableCatalog;
+    public Builder<T> withCatalog(BaseCatalog newCatalog) {
+      this.catalog = newCatalog;
       return this;
     }
 
@@ -194,8 +195,8 @@ abstract class BaseProcedure implements Procedure {
 
     protected abstract T doBuild();
 
-    TableCatalog tableCatalog() {
-      return tableCatalog;
+    BaseCatalog catalog() {
+      return catalog;
     }
   }
 
