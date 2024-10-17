@@ -90,6 +90,29 @@ public class TestSnapshotSummary extends TestBase {
   }
 
   @TestTemplate
+  public void testManifestStatSummaryWithDeletes() {
+    if (formatVersion == 1) {
+      return;
+    }
+
+    // fast append
+    table.newFastAppend().appendFile(FILE_A).commit();
+    Map<String, String> summary = table.currentSnapshot().summary();
+
+    assertThat(summary)
+        .containsEntry(SnapshotSummary.TOTAL_DATA_MANIFEST_FILES, "1")
+        .doesNotContainKey(SnapshotSummary.TOTAL_DELETE_MANIFEST_FILES);
+
+    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
+    table.refresh();
+    summary = table.currentSnapshot().summary();
+
+    assertThat(summary)
+        .containsEntry(SnapshotSummary.TOTAL_DATA_MANIFEST_FILES, "1")
+        .containsEntry(SnapshotSummary.TOTAL_DELETE_MANIFEST_FILES, "1");
+  }
+
+  @TestTemplate
   public void testIcebergVersionInSummary() {
     table.newFastAppend().appendFile(FILE_A).commit();
     Map<String, String> summary = table.currentSnapshot().summary();
@@ -108,7 +131,7 @@ public class TestSnapshotSummary extends TestBase {
         .commit();
 
     assertThat(table.currentSnapshot().summary())
-        .hasSize(11)
+        .hasSize(12)
         .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
         .containsEntry(SnapshotSummary.ADDED_FILE_SIZE_PROP, "10")
         .containsEntry(SnapshotSummary.ADDED_RECORDS_PROP, "1")
@@ -118,6 +141,7 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "10")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_MANIFEST_FILES, "1")
         .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "1");
   }
 
@@ -133,7 +157,7 @@ public class TestSnapshotSummary extends TestBase {
         .commit();
 
     assertThat(table.currentSnapshot().summary())
-        .hasSize(11)
+        .hasSize(12)
         .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
         .containsEntry(SnapshotSummary.ADDED_FILE_SIZE_PROP, "10")
         .containsEntry(SnapshotSummary.ADDED_RECORDS_PROP, "1")
@@ -143,6 +167,7 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "10")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_MANIFEST_FILES, "1")
         .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "1");
   }
 
@@ -162,7 +187,7 @@ public class TestSnapshotSummary extends TestBase {
         .commit();
 
     assertThat(table.currentSnapshot().summary())
-        .hasSize(14)
+        .hasSize(15)
         .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
         .containsEntry(SnapshotSummary.ADDED_FILE_SIZE_PROP, "10")
         .containsEntry(SnapshotSummary.ADDED_RECORDS_PROP, "1")
@@ -175,6 +200,7 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "10")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_MANIFEST_FILES, "2")
         .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "1");
   }
 
@@ -194,7 +220,7 @@ public class TestSnapshotSummary extends TestBase {
         .commit();
 
     assertThat(table.currentSnapshot().summary())
-        .hasSize(11)
+        .hasSize(12)
         .containsEntry(SnapshotSummary.CHANGED_PARTITION_COUNT_PROP, "2")
         .containsEntry(SnapshotSummary.DELETED_FILES_PROP, "2")
         .containsEntry(SnapshotSummary.DELETED_RECORDS_PROP, "2")
@@ -204,7 +230,8 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "0")
-        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "0");
+        .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "0")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_MANIFEST_FILES, "1");
   }
 
   @TestTemplate
@@ -219,7 +246,7 @@ public class TestSnapshotSummary extends TestBase {
         .commit();
 
     assertThat(table.currentSnapshot().summary())
-        .hasSize(12)
+        .hasSize(13)
         .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
         .containsEntry(SnapshotSummary.ADDED_FILE_SIZE_PROP, "10")
         .containsEntry(SnapshotSummary.ADDED_RECORDS_PROP, "1")
@@ -230,6 +257,7 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "10")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_MANIFEST_FILES, "1")
         .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "1");
   }
 
@@ -245,7 +273,7 @@ public class TestSnapshotSummary extends TestBase {
         .commit();
 
     assertThat(table.currentSnapshot().summary())
-        .hasSize(11)
+        .hasSize(12)
         .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
         .containsEntry(SnapshotSummary.ADDED_FILE_SIZE_PROP, "10")
         .containsEntry(SnapshotSummary.ADDED_RECORDS_PROP, "1")
@@ -255,6 +283,7 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "10")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_MANIFEST_FILES, "1")
         .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "1");
   }
 
@@ -274,7 +303,7 @@ public class TestSnapshotSummary extends TestBase {
         .commit();
 
     assertThat(table.currentSnapshot().summary())
-        .hasSize(14)
+        .hasSize(16)
         .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
         .containsEntry(SnapshotSummary.ADDED_DELETE_FILES_PROP, "1")
         .containsEntry(SnapshotSummary.ADDED_FILE_SIZE_PROP, "20") // size of data + delete file
@@ -287,6 +316,8 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, "1")
         .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "20")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_MANIFEST_FILES, "1")
+        .containsEntry(SnapshotSummary.TOTAL_DELETE_MANIFEST_FILES, "1")
         .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "1");
   }
 
@@ -307,7 +338,7 @@ public class TestSnapshotSummary extends TestBase {
         .commit();
 
     assertThat(table.currentSnapshot().summary())
-        .hasSize(14)
+        .hasSize(15)
         .containsEntry(SnapshotSummary.ADDED_FILES_PROP, "1")
         .containsEntry(SnapshotSummary.ADDED_FILE_SIZE_PROP, "10")
         .containsEntry(SnapshotSummary.ADDED_RECORDS_PROP, "1")
@@ -320,6 +351,7 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "10")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_MANIFEST_FILES, "2")
         .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "1");
   }
 
@@ -341,7 +373,7 @@ public class TestSnapshotSummary extends TestBase {
         .commit();
 
     assertThat(table.currentSnapshot().summary())
-        .hasSize(16)
+        .hasSize(18)
         .containsEntry(SnapshotSummary.ADDED_DELETE_FILES_PROP, "1")
         .containsEntry(SnapshotSummary.ADDED_FILE_SIZE_PROP, "10")
         .containsEntry(SnapshotSummary.ADD_POS_DELETE_FILES_PROP, "1")
@@ -356,6 +388,8 @@ public class TestSnapshotSummary extends TestBase {
         .containsEntry(SnapshotSummary.TOTAL_EQ_DELETES_PROP, "0")
         .containsEntry(SnapshotSummary.TOTAL_POS_DELETES_PROP, "1")
         .containsEntry(SnapshotSummary.TOTAL_FILE_SIZE_PROP, "20")
+        .containsEntry(SnapshotSummary.TOTAL_DATA_MANIFEST_FILES, "1")
+        .containsEntry(SnapshotSummary.TOTAL_DELETE_MANIFEST_FILES, "2")
         .containsEntry(SnapshotSummary.TOTAL_RECORDS_PROP, "1");
   }
 }

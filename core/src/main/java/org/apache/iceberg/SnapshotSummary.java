@@ -58,6 +58,8 @@ public class SnapshotSummary {
   public static final String SOURCE_SNAPSHOT_ID_PROP = "source-snapshot-id";
   public static final String REPLACE_PARTITIONS_PROP = "replace-partitions";
   public static final String EXTRA_METADATA_PREFIX = "snapshot-property.";
+  public static final String TOTAL_DATA_MANIFEST_FILES = "total-data-manifest-files";
+  public static final String TOTAL_DELETE_MANIFEST_FILES = "total-delete-manifest-files";
 
   public static final MapJoiner MAP_JOINER = Joiner.on(",").withKeyValueSeparator("=");
 
@@ -142,6 +144,10 @@ public class SnapshotSummary {
       this.trustPartitionMetrics = false;
       partitionMetrics.clear();
       metrics.addedManifest(manifest);
+    }
+
+    public void addedManifestStats(ManifestFile manifest) {
+      metrics.addedManifestStats(manifest);
     }
 
     public void set(String property, String value) {
@@ -229,6 +235,8 @@ public class SnapshotSummary {
     private long removedPosDeletes = 0L;
     private long addedEqDeletes = 0L;
     private long removedEqDeletes = 0L;
+    private long totalDataManifestFiles = 0L;
+    private long totalDeleteManifestFiles = 0L;
     private boolean trustSizeAndDeleteCounts = true;
 
     void clear() {
@@ -248,6 +256,8 @@ public class SnapshotSummary {
       this.removedPosDeletes = 0L;
       this.addedEqDeletes = 0L;
       this.removedEqDeletes = 0L;
+      this.totalDataManifestFiles = 0L;
+      this.totalDeleteManifestFiles = 0L;
       this.trustSizeAndDeleteCounts = true;
     }
 
@@ -263,6 +273,12 @@ public class SnapshotSummary {
       setIf(removedDeleteFiles > 0, builder, REMOVED_DELETE_FILES_PROP, removedDeleteFiles);
       setIf(addedRecords > 0, builder, ADDED_RECORDS_PROP, addedRecords);
       setIf(deletedRecords > 0, builder, DELETED_RECORDS_PROP, deletedRecords);
+      setIf(totalDataManifestFiles > 0, builder, TOTAL_DATA_MANIFEST_FILES, totalDataManifestFiles);
+      setIf(
+          totalDeleteManifestFiles > 0,
+          builder,
+          TOTAL_DELETE_MANIFEST_FILES,
+          totalDeleteManifestFiles);
 
       if (trustSizeAndDeleteCounts) {
         setIf(addedSize > 0, builder, ADDED_FILE_SIZE_PROP, addedSize);
@@ -336,6 +352,16 @@ public class SnapshotSummary {
       }
     }
 
+    void addedManifestStats(ManifestFile manifest) {
+      switch (manifest.content()) {
+        case DATA:
+          this.totalDataManifestFiles++;
+          break;
+        case DELETES:
+          this.totalDeleteManifestFiles++;
+      }
+    }
+
     void merge(UpdateMetrics other) {
       this.addedFiles += other.addedFiles;
       this.removedFiles += other.removedFiles;
@@ -353,6 +379,8 @@ public class SnapshotSummary {
       this.removedPosDeletes += other.removedPosDeletes;
       this.addedEqDeletes += other.addedEqDeletes;
       this.removedEqDeletes += other.removedEqDeletes;
+      this.totalDataManifestFiles += other.totalDataManifestFiles;
+      this.totalDeleteManifestFiles += other.totalDeleteManifestFiles;
       this.trustSizeAndDeleteCounts = trustSizeAndDeleteCounts && other.trustSizeAndDeleteCounts;
     }
   }

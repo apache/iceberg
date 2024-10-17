@@ -50,6 +50,8 @@ public interface CommitMetricsResult {
   String ADDED_EQ_DELETES = "added-equality-deletes";
   String REMOVED_EQ_DELETES = "removed-equality-deletes";
   String TOTAL_EQ_DELETES = "total-equality-deletes";
+  String TOTAL_DATA_MANIFEST_FILES = "total-data-manifest-files";
+  String TOTAL_DELETE_MANIFEST_FILES = "total-delete-manifest-files";
 
   @Nullable
   TimerResult totalDuration();
@@ -123,6 +125,12 @@ public interface CommitMetricsResult {
   @Nullable
   CounterResult totalEqualityDeletes();
 
+  @Nullable
+  CounterResult totalDataManifestFiles();
+
+  @Nullable
+  CounterResult totalDeleteManifestFiles();
+
   static CommitMetricsResult from(
       CommitMetrics commitMetrics, Map<String, String> snapshotSummary) {
     Preconditions.checkArgument(null != commitMetrics, "Invalid commit metrics: null");
@@ -163,6 +171,10 @@ public interface CommitMetricsResult {
         .removedEqualityDeletes(
             counterFrom(snapshotSummary, SnapshotSummary.REMOVED_EQ_DELETES_PROP))
         .totalEqualityDeletes(counterFrom(snapshotSummary, SnapshotSummary.TOTAL_EQ_DELETES_PROP))
+        .totalDataManifestFiles(
+            counterFrom(snapshotSummary, SnapshotSummary.TOTAL_DATA_MANIFEST_FILES))
+        .totalDeleteManifestFiles(
+            counterFrom(snapshotSummary, SnapshotSummary.TOTAL_DELETE_MANIFEST_FILES))
         .build();
   }
 

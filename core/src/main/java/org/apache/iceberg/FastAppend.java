@@ -160,6 +160,8 @@ class FastAppend extends SnapshotProducer<AppendFiles> implements AppendFiles {
       manifests.addAll(snapshot.allManifests(ops.io()));
     }
 
+    manifests.forEach(summaryBuilder::addedManifestStats);
+
     return manifests;
   }
 
