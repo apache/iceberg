@@ -178,6 +178,11 @@ A **`list`** is a collection of values with some element type. The element field
 
 A **`map`** is a collection of key-value pairs with a key type and a value type. Both the key field and value field each have an integer id that is unique in the table schema. Map keys are required and map values can be either optional or required. Both map keys and map values may be any type, including nested types.
 
+### Semi-structured Types
+
+A **`variant`** is a type to represent semi-structured data. A variant value can store a value of any other type, including any primitive, struct, list or map value. The variant encoding is defined the [Apache Parquet Project](https://github.com/apache/parquet-format/blob/4f208158dba80ff4bff4afaa4441d7270103dff6/VariantEncoding.md). Variant type is added in [v3](#version-3).
+Limitation: only map value with string-type keys is supported in variant.
+
 ### Primitive Types
 
 Supported primitive types are defined in the table below. Primitive types added after v1 have an "added by" version that is the first spec version in which the type is allowed. For example, nanosecond-precision timestamps are part of the v3 spec; using v3 types in v1 or v2 tables can break forward compatibility.
@@ -1356,7 +1361,7 @@ Default values are added to struct fields in v3.
 * The `write-default` is a forward-compatible change because it is only used at write time. Old writers will fail because the field is missing.
 * Tables with `initial-default` will be read correctly by older readers if `initial-default` is always null for optional fields. Otherwise, old readers will default optional columns with null. Old readers will fail to read required fields which are populated by `initial-default` because that default is not supported.
 
-Types `unknown`, `timestamp_ns`, and `timestamptz_ns` are added in v3.
+Types `variant`, `unknown`, `timestamp_ns`, and `timestamptz_ns` are added in v3.
 
 All readers are required to read tables with unknown partition transforms, ignoring the unsupported partition fields when filtering.
 
