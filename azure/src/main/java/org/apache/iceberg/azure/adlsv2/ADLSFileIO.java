@@ -182,7 +182,7 @@ public class ADLSFileIO implements DelegateFileIO {
             .map(
                 pathItem ->
                     new FileInfo(
-                        pathItem.getName(),
+                        location.root() + pathItem.getName(),
                         pathItem.getContentLength(),
                         pathItem.getCreationTime().toInstant().toEpochMilli()))
             .iterator();
