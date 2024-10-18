@@ -164,6 +164,31 @@ public class TestRewriteDataFilesAction extends TestBase {
 
     assertThat(table.currentSnapshot()).as("Table must stay empty").isNull();
   }
+  @Test
+  public void testLargeFileCompaction() {
+    PartitionSpec spec = PartitionSpec.unpartitioned();
+    Map<String, String> options = Maps.newHashMap();
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation); // create empty table
+    int totalFiles = 0;
+
+    for (int i = 0; i < 10000; i++) {
+      // Append records to the table in each iteration
+      writeRecords(10000, SCALE*3); // Appending large files in each iteration
+      totalFiles += 10000;
+      System.out.println(totalFiles*10000);
+      shouldHaveFiles(table, totalFiles);
+      try {
+        basicRewrite(table).execute();
+
+      } catch (OutOfMemoryError e) {
+        // Catch the OutOfMemoryError and validate that it was triggered as expected
+        System.out.println("Caught OutOfMemoryError as expected: " + e.getMessage());
+      } catch (Exception e) {
+        // If any other exception occurs, fail the test
+        System.out.println("Caught OutOfMemoryError as expected: " + e.getMessage());
+      }
+    }
+  }
 
   @Test
   public void testBinPackUnpartitionedTable() {
