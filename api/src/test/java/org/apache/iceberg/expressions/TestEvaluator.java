@@ -37,6 +37,10 @@ import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.predicate;
+import static org.apache.iceberg.expressions.Expressions.stCovers;
+import static org.apache.iceberg.expressions.Expressions.stDisjoint;
+import static org.apache.iceberg.expressions.Expressions.stIntersects;
+import static org.apache.iceberg.expressions.Expressions.stNotCovers;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -52,6 +56,10 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.Test;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class TestEvaluator {
   private static final StructType STRUCT =
@@ -808,5 +816,89 @@ public class TestEvaluator {
             () -> new Evaluator(STRUCT, predicate(Expression.Operation.NOT_IN, "x", 5.1)))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Invalid value for conversion to type int");
+  }
+
+  @Test
+  public void testStIntersects() {
+    StructType struct = StructType.of(required(24, "g", Types.GeometryType.get()));
+    GeometryFactory factory = new GeometryFactory();
+    Geometry queryWindow = factory.toGeometry(new Envelope(0, 1, 0, 1));
+    Evaluator evaluator = new Evaluator(struct, stIntersects("g", queryWindow));
+
+    assertThat(evaluator.eval(TestHelpers.Row.of(factory.createPoint(new Coordinate(0.5, 0.5)))))
+        .as("Point intersects with the query window")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(factory.createPoint(new Coordinate(2, 2)))))
+        .as("Point does not intersect with the query window")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(factory.toGeometry(new Envelope(0.5, 2, 0.5, 2)))))
+        .as("Envelope intersects with the query window")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of((Geometry) null)))
+        .as("null does not intersect with the query window")
+        .isFalse();
+  }
+
+  @Test
+  public void testStCovers() {
+    StructType struct = StructType.of(required(24, "g", Types.GeometryType.get()));
+    GeometryFactory factory = new GeometryFactory();
+    Geometry queryWindow = factory.toGeometry(new Envelope(0, 1, 0, 1));
+    Evaluator evaluator = new Evaluator(struct, stCovers("g", queryWindow));
+
+    assertThat(evaluator.eval(TestHelpers.Row.of(factory.createPoint(new Coordinate(0.5, 0.5)))))
+        .as("Point does not cover the query window")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(factory.toGeometry(new Envelope(0.5, 2, 0.5, 2)))))
+        .as("Envelope does not cover the query window")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(factory.toGeometry(new Envelope(0, 2, 0, 2)))))
+        .as("Envelope covers the query window")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of((Geometry) null)))
+        .as("null does not cover the query window")
+        .isFalse();
+  }
+
+  @Test
+  public void testDisjoint() {
+    StructType struct = StructType.of(required(24, "g", Types.GeometryType.get()));
+    GeometryFactory factory = new GeometryFactory();
+    Geometry queryWindow = factory.toGeometry(new Envelope(0, 1, 0, 1));
+    Evaluator evaluator = new Evaluator(struct, stDisjoint("g", queryWindow));
+
+    assertThat(evaluator.eval(TestHelpers.Row.of(factory.createPoint(new Coordinate(0.5, 0.5)))))
+        .as("Point intersects with the query window")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of(factory.createPoint(new Coordinate(2, 2)))))
+        .as("Point disjoint with the query window")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(factory.toGeometry(new Envelope(0.5, 2, 0.5, 2)))))
+        .as("Envelope intersects with the query window")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of((Geometry) null)))
+        .as("null disjoint with the query window")
+        .isTrue();
+  }
+
+  @Test
+  public void testStNotCovers() {
+    StructType struct = StructType.of(required(24, "g", Types.GeometryType.get()));
+    GeometryFactory factory = new GeometryFactory();
+    Geometry queryWindow = factory.toGeometry(new Envelope(0, 1, 0, 1));
+    Evaluator evaluator = new Evaluator(struct, stNotCovers("g", queryWindow));
+
+    assertThat(evaluator.eval(TestHelpers.Row.of(factory.createPoint(new Coordinate(0.5, 0.5)))))
+        .as("Point does not cover the query window")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(factory.toGeometry(new Envelope(0.5, 2, 0.5, 2)))))
+        .as("Envelope does not cover the query window")
+        .isTrue();
+    assertThat(evaluator.eval(TestHelpers.Row.of(factory.toGeometry(new Envelope(0, 2, 0, 2)))))
+        .as("Envelope covers the query window")
+        .isFalse();
+    assertThat(evaluator.eval(TestHelpers.Row.of((Geometry) null)))
+        .as("null does not cover the query window")
+        .isTrue();
   }
 }

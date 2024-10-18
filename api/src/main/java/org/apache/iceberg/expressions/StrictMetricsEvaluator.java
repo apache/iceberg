@@ -476,6 +476,26 @@ public class StrictMetricsEvaluator {
       return struct.field(id) == null;
     }
 
+    @Override
+    public <T> Boolean stIntersects(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stCovers(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stDisjoint(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stNotCovers(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_NOT_MATCH;
+    }
+
     private boolean canContainNulls(Integer id) {
       return nullCounts == null || (nullCounts.containsKey(id) && nullCounts.get(id) > 0);
     }

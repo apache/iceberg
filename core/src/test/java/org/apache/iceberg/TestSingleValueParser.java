@@ -53,6 +53,17 @@ public class TestSingleValueParser {
           {Types.DecimalType.of(9, 4), "\"123.4500\""},
           {Types.DecimalType.of(9, 0), "\"2\""},
           {Types.DecimalType.of(9, -20), "\"2E+20\""},
+          {Types.GeometryType.get(), "\"POINT (1 2)\""},
+          {Types.GeometryType.get(), "\"POINT Z(1 2 3)\""},
+          {Types.GeometryType.get(), "\"POINT M(1 2 3)\""},
+          {Types.GeometryType.get(), "\"POINT ZM(1 2 3 4)\""},
+          {
+            Types.GeometryType.of("test_crs", Types.GeometryType.Edges.SPHERICAL), "\"POINT (1 2)\""
+          },
+          {
+            Types.GeometryType.of("test_crs", Types.GeometryType.Edges.SPHERICAL),
+            "\"POINT ZM(1 2 3 4)\""
+          },
           {Types.ListType.ofOptional(1, Types.IntegerType.get()), "[1, 2, 3]"},
           {
             Types.MapType.ofOptional(2, 3, Types.IntegerType.get(), Types.StringType.get()),
@@ -155,6 +166,15 @@ public class TestSingleValueParser {
     assertThatThrownBy(() -> defaultValueParseAndUnParseRoundTrip(expectedType, defaultJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageStartingWith("Cannot parse default as a timestamptz value");
+  }
+
+  @Test
+  public void testInvalidGeometry() {
+    Type expectedType = Types.GeometryType.get();
+    String defaultJson = "\"POINT (1 2 3 4 5 6)\"";
+    assertThatThrownBy(() -> defaultValueParseAndUnParseRoundTrip(expectedType, defaultJson))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageMatching("Cannot parse default as a geometry.* value.*");
   }
 
   // serialize to json and deserialize back should return the same result
