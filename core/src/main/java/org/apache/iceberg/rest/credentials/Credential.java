@@ -16,31 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.rest.responses;
+package org.apache.iceberg.rest.credentials;
 
-import java.util.List;
 import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.rest.RESTResponse;
-import org.apache.iceberg.rest.credentials.Credential;
-import org.apache.iceberg.view.ViewMetadata;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.immutables.value.Value;
 
 @Value.Immutable
-public interface LoadViewResponse extends RESTResponse {
-  String metadataLocation();
-
-  ViewMetadata metadata();
+public interface Credential {
+  String prefix();
 
   Map<String, String> config();
 
-  @Value.Default
-  default List<Credential> credentials() {
-    return ImmutableList.of();
-  }
-
-  @Override
+  @Value.Check
   default void validate() {
-    // nothing to validate as it's not possible to create an invalid instance
+    Preconditions.checkArgument(!prefix().isEmpty(), "Invalid prefix: must be non-empty");
+    Preconditions.checkArgument(!config().isEmpty(), "Invalid config: must be non-empty");
   }
 }
