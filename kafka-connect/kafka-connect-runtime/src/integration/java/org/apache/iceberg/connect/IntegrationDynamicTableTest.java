@@ -20,12 +20,9 @@ package org.apache.iceberg.connect;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Namespace;
@@ -116,15 +113,7 @@ public class IntegrationDynamicTableTest extends IntegrationTestBase {
 
     TestEvent event1 = new TestEvent(1, "type1", Instant.now(), TEST_DB + "." + TEST_TABLE1);
     TestEvent event2 = new TestEvent(2, "type2", Instant.now(), TEST_DB + "." + TEST_TABLE2);
-    TestEvent event3 =
-        new TestEvent(
-            3,
-            "type3",
-            Instant.now(),
-            TEST_DB + ".tbl3",
-            "op",
-            UUID.randomUUID().toString(),
-            Arrays.toString(ByteBuffer.wrap(new byte[] {1, 2, 3}).array()));
+    TestEvent event3 = new TestEvent(3, "type3", Instant.now(), TEST_DB + ".tbl3");
 
     send(testTopic(), event1, useSchema);
     send(testTopic(), event2, useSchema);

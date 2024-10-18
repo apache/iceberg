@@ -19,6 +19,7 @@
 package org.apache.iceberg.connect.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -40,13 +41,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.connect.IcebergSinkConfig;
+import org.apache.iceberg.connect.TableSinkConfig;
 import org.apache.iceberg.connect.data.SchemaUpdate.AddColumn;
 import org.apache.iceberg.connect.data.SchemaUpdate.UpdateType;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.io.UnpartitionedWriter;
+import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -89,7 +94,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class RecordConverterTest {
+public class RecordConverterTest extends BaseWriterTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -187,7 +192,7 @@ public class RecordConverterTest {
   private static final BigDecimal DEC_VAL = new BigDecimal("12.34");
   private static final String STR_VAL = "foobar";
   private static final UUID UUID_VAL = UUID.randomUUID();
-  private static final byte[] BYTES_VAL = ByteBuffer.wrap(new byte[] {1, 2, 3}).array();
+  private static final ByteBuffer BYTES_VAL = ByteBuffer.wrap(new byte[] {1, 2, 3});
   private static final List<String> LIST_VAL = ImmutableList.of("hello", "world");
   private static final Map<String, String> MAP_VAL = ImmutableMap.of("one", "1", "two", "2");
 
@@ -207,6 +212,8 @@ public class RecordConverterTest {
 
   @BeforeEach
   public void before() {
+    super.before();
+    when(table.schema()).thenReturn(SCHEMA);
     this.config = mock(IcebergSinkConfig.class);
     when(config.jsonConverter()).thenReturn(JSON_CONVERTER);
   }
@@ -874,8 +881,8 @@ public class RecordConverterTest {
         .put("s", STR_VAL)
         .put("b", true)
         .put("u", UUID_VAL.toString())
-        .put("f", Base64.getEncoder().encodeToString(BYTES_VAL))
-        .put("bi", Base64.getEncoder().encodeToString(BYTES_VAL))
+        .put("f", Base64.getEncoder().encodeToString(BYTES_VAL.array()))
+        .put("bi", Base64.getEncoder().encodeToString(BYTES_VAL.array()))
         .put("li", LIST_VAL)
         .put("ma", MAP_VAL)
         .build();
@@ -923,10 +930,23 @@ public class RecordConverterTest {
     assertThat(rec.getField("s")).isEqualTo(STR_VAL);
     assertThat(rec.getField("b")).isEqualTo(true);
     assertThat(rec.getField("u")).isEqualTo(UUIDUtil.convert(UUID_VAL));
-    assertThat(rec.getField("f")).isEqualTo(BYTES_VAL);
+    assertThat(rec.getField("f")).isEqualTo(BYTES_VAL.array());
     assertThat(rec.getField("bi")).isEqualTo(BYTES_VAL);
     assertThat(rec.getField("li")).isEqualTo(LIST_VAL);
     assertThat(rec.getField("ma")).isEqualTo(MAP_VAL);
+
+    // check by actually writing it
+    for (String format : new String[] {"parquet"}) {
+      IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+      when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+      when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
+      WriteResult result = writeTest(ImmutableList.of(rec), config, UnpartitionedWriter.class);
+
+      assertThat(result.dataFiles()).hasSize(1);
+      assertThat(result.dataFiles())
+          .allMatch(file -> file.format() == FileFormat.fromString(format));
+      assertThat(result.deleteFiles()).hasSize(0);
+    }
   }
 
   private void assertNestedRecordValues(Record record) {
