@@ -123,7 +123,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
 
     long start = System.currentTimeMillis();
     doCommit(base, metadata);
-    TableMetadata.deleteRemovedMetadataFiles(io(), base, metadata);
+    CatalogUtil.deleteRemovedMetadataFiles(io(), base, metadata);
     requestRefresh();
 
     LOG.info(

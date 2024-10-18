@@ -30,6 +30,7 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.LockManager;
 import org.apache.iceberg.TableMetadata;
@@ -164,7 +165,7 @@ public class HadoopTableOperations implements TableOperations {
     // update the best-effort version pointer
     writeVersionHint(nextVersion);
 
-    TableMetadata.deleteRemovedMetadataFiles(io(), base, metadata);
+    CatalogUtil.deleteRemovedMetadataFiles(io(), base, metadata);
 
     this.shouldRefresh = true;
   }
