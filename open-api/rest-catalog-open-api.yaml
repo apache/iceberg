@@ -2321,8 +2321,6 @@ components:
       required:
         - snapshot-id
         - timestamp-ms
-        - manifest-list
-        - summary
       properties:
         snapshot-id:
           type: integer
@@ -2339,6 +2337,11 @@ components:
         manifest-list:
           type: string
           description: Location of the snapshot's manifest list file
+        manifests:
+          type: array
+          items:
+            type: string
+          description: A list of manifest file locations. Must be omitted if manifest-list is present
         summary:
           type: object
           required:
