@@ -69,6 +69,8 @@ public class TestFlinkSchemaUtil {
             .field("time", DataTypes.TIME())
             .field("timestampWithoutZone", DataTypes.TIMESTAMP())
             .field("timestampWithZone", DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE())
+            .field("timestampNanoWithoutZone", DataTypes.TIMESTAMP(9))
+            .field("timestampNanoWithZone", DataTypes.TIMESTAMP_WITH_LOCAL_TIME_ZONE(9))
             .field("date", DataTypes.DATE())
             .field("decimal", DataTypes.DECIMAL(2, 2))
             .field("decimal2", DataTypes.DECIMAL(38, 2))
@@ -85,17 +87,17 @@ public class TestFlinkSchemaUtil {
                 3,
                 "locations",
                 Types.MapType.ofOptional(
-                    24,
-                    25,
+                    26,
+                    27,
                     Types.StringType.get(),
                     Types.StructType.of(
-                        Types.NestedField.required(22, "posX", Types.DoubleType.get(), "X field"),
+                        Types.NestedField.required(24, "posX", Types.DoubleType.get(), "X field"),
                         Types.NestedField.required(
-                            23, "posY", Types.DoubleType.get(), "Y field")))),
+                            25, "posY", Types.DoubleType.get(), "Y field")))),
             Types.NestedField.optional(
-                4, "strArray", Types.ListType.ofOptional(26, Types.StringType.get())),
+                4, "strArray", Types.ListType.ofOptional(28, Types.StringType.get())),
             Types.NestedField.optional(
-                5, "intArray", Types.ListType.ofOptional(27, Types.IntegerType.get())),
+                5, "intArray", Types.ListType.ofOptional(29, Types.IntegerType.get())),
             Types.NestedField.required(6, "char", Types.StringType.get()),
             Types.NestedField.required(7, "varchar", Types.StringType.get()),
             Types.NestedField.optional(8, "boolean", Types.BooleanType.get()),
@@ -108,14 +110,18 @@ public class TestFlinkSchemaUtil {
             Types.NestedField.optional(
                 15, "timestampWithoutZone", Types.TimestampType.withoutZone()),
             Types.NestedField.optional(16, "timestampWithZone", Types.TimestampType.withZone()),
-            Types.NestedField.optional(17, "date", Types.DateType.get()),
-            Types.NestedField.optional(18, "decimal", Types.DecimalType.of(2, 2)),
-            Types.NestedField.optional(19, "decimal2", Types.DecimalType.of(38, 2)),
-            Types.NestedField.optional(20, "decimal3", Types.DecimalType.of(10, 1)),
             Types.NestedField.optional(
-                21,
+                17, "timestampNanoWithoutZone", Types.TimestampNanoType.withoutZone()),
+            Types.NestedField.optional(
+                18, "timestampNanoWithZone", Types.TimestampNanoType.withZone()),
+            Types.NestedField.optional(19, "date", Types.DateType.get()),
+            Types.NestedField.optional(20, "decimal", Types.DecimalType.of(2, 2)),
+            Types.NestedField.optional(21, "decimal2", Types.DecimalType.of(38, 2)),
+            Types.NestedField.optional(22, "decimal3", Types.DecimalType.of(10, 1)),
+            Types.NestedField.optional(
+                23,
                 "multiset",
-                Types.MapType.ofRequired(28, 29, Types.StringType.get(), Types.IntegerType.get())));
+                Types.MapType.ofRequired(30, 31, Types.StringType.get(), Types.IntegerType.get())));
 
     checkSchema(flinkSchema, icebergSchema);
   }
