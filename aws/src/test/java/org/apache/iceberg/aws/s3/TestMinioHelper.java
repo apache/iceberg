@@ -37,9 +37,9 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Testcontainers
 public class TestMinioHelper {
-  @Container public static MinIOContainer MINIO = MinioHelper.createContainer();
+  @Container public static MinIOContainer minio = MinioHelper.createContainer();
 
-  private S3Client s3Client = MinioHelper.createS3Client(MINIO);
+  private S3Client s3Client = MinioHelper.createS3Client(minio);
 
   @Test
   void validateS3ConditionalWrites() {
