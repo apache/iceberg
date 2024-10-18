@@ -495,20 +495,18 @@ project(':iceberg-aws') {
     testImplementation("software.amazon.awssdk:s3control")
     testImplementation("software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin")
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation(libs.s3mock.junit5) {
-      exclude module: "spring-boot-starter-logging"
-      exclude module: "logback-classic"
-      exclude group: 'junit'
-    }
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.sqlite.jdbc
     testImplementation libs.testcontainers
+    testImplementation libs.testcontainers.junit.jupiter
+    testImplementation libs.testcontainers.minio
     testImplementation libs.httpcomponents.httpclient5
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.jaxb.api
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation libs.awaitility
+    testImplementation 'org.eclipse.jetty:jetty-servlet:9.4.56.v20240826'
   }
 
   sourceSets {
