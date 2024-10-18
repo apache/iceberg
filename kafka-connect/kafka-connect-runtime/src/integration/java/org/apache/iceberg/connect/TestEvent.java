@@ -55,9 +55,9 @@ public class TestEvent {
           .field("type", org.apache.kafka.connect.data.Schema.STRING_SCHEMA)
           .field("ts", Timestamp.SCHEMA)
           .field("payload", org.apache.kafka.connect.data.Schema.STRING_SCHEMA)
-          .field("op", org.apache.kafka.connect.data.Schema.OPTIONAL_STRING_SCHEMA)
           .field("uu", org.apache.kafka.connect.data.Schema.OPTIONAL_STRING_SCHEMA)
-          .field("fx", org.apache.kafka.connect.data.Schema.OPTIONAL_STRING_SCHEMA);
+          .field("fx", org.apache.kafka.connect.data.Schema.OPTIONAL_STRING_SCHEMA)
+          .field("op", org.apache.kafka.connect.data.Schema.OPTIONAL_STRING_SCHEMA);
 
   public static final PartitionSpec TEST_SPEC =
       PartitionSpec.builderFor(TEST_SCHEMA).day("ts").build();
@@ -82,14 +82,14 @@ public class TestEvent {
   }
 
   public TestEvent(
-      long id, String type, Instant ts, String payload, String op, String uu, String fx) {
+      long id, String type, Instant ts, String payload, String uu, String fx, String op) {
     this.id = id;
     this.type = type;
     this.ts = ts;
     this.payload = payload;
-    this.op = op;
     this.uu = uu;
     this.fx = fx;
+    this.op = op;
   }
 
   public long id() {
@@ -104,9 +104,9 @@ public class TestEvent {
               .put("type", type)
               .put("ts", Date.from(ts))
               .put("payload", payload)
-              .put("op", op)
               .put("uu", uu)
-              .put("fx", fx);
+              .put("fx", fx)
+              .put("op", op);
 
       String convertMethod =
           useSchema ? "convertToJsonWithEnvelope" : "convertToJsonWithoutEnvelope";
