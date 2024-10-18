@@ -49,6 +49,7 @@ import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.Float4Vector;
 import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.NullVector;
 import org.apache.arrow.vector.TimeMicroVector;
 import org.apache.arrow.vector.TimeStampMicroTZVector;
 import org.apache.arrow.vector.TimeStampMicroVector;
@@ -59,6 +60,7 @@ import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -70,6 +72,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
+import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
@@ -260,6 +263,143 @@ public class ArrowReaderTest {
     TableScan scan = table.newScan().select("timestamp");
     readAndCheckQueryResult(
         scan, NUM_ROWS_PER_MONTH, 12 * NUM_ROWS_PER_MONTH, ImmutableList.of("timestamp"));
+  }
+
+  @Test
+  public void testReadColumnThatDoesNotExistInParquetSchema() throws Exception {
+    rowsWritten = Lists.newArrayList();
+    tables = new HadoopTables();
+
+    List<Field> expectedFields =
+        ImmutableList.of(
+            new Field("a", new FieldType(false, MinorType.INT.getType(), null), null),
+            new Field("b", new FieldType(true, MinorType.INT.getType(), null), null),
+            new Field("z", new FieldType(true, MinorType.NULL.getType(), null), null));
+    org.apache.arrow.vector.types.pojo.Schema expectedSchema =
+        new org.apache.arrow.vector.types.pojo.Schema(expectedFields);
+
+    Schema schema =
+        new Schema(
+            Types.NestedField.required(1, "a", Types.IntegerType.get()),
+            Types.NestedField.optional(2, "b", Types.IntegerType.get()));
+
+    PartitionSpec spec = PartitionSpec.builderFor(schema).build();
+    Table table = tables.create(schema, spec, tableLocation);
+
+    // Add one record to the table
+    GenericRecord rec = GenericRecord.create(schema);
+    rec.setField("a", 1);
+    List<GenericRecord> genericRecords = Lists.newArrayList();
+    genericRecords.add(rec);
+
+    AppendFiles appendFiles = table.newAppend();
+    appendFiles.appendFile(writeParquetFile(table, genericRecords));
+    appendFiles.commit();
+
+    // Alter the table schema by adding a new, optional column.
+    // Do not add any data for this new column in the one existing row in the table
+    // and do not insert any new rows into the table.
+    UpdateSchema updateSchema = table.updateSchema().addColumn("z", Types.IntegerType.get());
+    updateSchema.apply();
+    updateSchema.commit();
+
+    // Select all columns, all rows from the table
+    TableScan scan = table.newScan().select("*");
+
+    int batchSize = 1;
+    int expectedNumRowsPerBatch = 1;
+
+    Set<String> columns = ImmutableSet.of("a", "b", "z");
+    // Read the data and verify that the returned ColumnarBatches match expected rows.
+    try (VectorizedTableScanIterable itr =
+        new VectorizedTableScanIterable(scan, batchSize, false)) {
+      int rowIndex = 0;
+      for (ColumnarBatch batch : itr) {
+        List<GenericRecord> expectedRows =
+            rowsWritten.subList(rowIndex, rowIndex + expectedNumRowsPerBatch);
+        rowIndex++;
+
+        assertThat(batch.numRows()).isEqualTo(expectedNumRowsPerBatch);
+        assertThat(batch.numCols()).isEqualTo(columns.size());
+
+        checkColumnarArrayValues(
+            expectedNumRowsPerBatch,
+            expectedRows,
+            batch,
+            0,
+            columns,
+            "a",
+            (records, i) -> records.get(i).getField("a"),
+            ColumnVector::getInt);
+        checkColumnarArrayValues(
+            expectedNumRowsPerBatch,
+            expectedRows,
+            batch,
+            1,
+            columns,
+            "b",
+            (records, i) -> records.get(i).getField("b"),
+            (columnVector, i) -> columnVector.isNullAt(i) ? null : columnVector.getInt(i));
+        checkColumnarArrayValues(
+            expectedNumRowsPerBatch,
+            expectedRows,
+            batch,
+            2,
+            columns,
+            "z",
+            (records, i) -> records.get(i).getField("z"),
+            (columnVector, i) -> columnVector.isNullAt(i) ? null : columnVector.getInt(i));
+      }
+    }
+
+    int expectedTotalRows = 1;
+
+    // Read the data and verify that the returned Arrow VectorSchemaRoots match expected rows.
+    try (VectorizedTableScanIterable itr =
+        new VectorizedTableScanIterable(scan, batchSize, false)) {
+      int totalRows = 0;
+      int rowIndex = 0;
+      for (ColumnarBatch batch : itr) {
+        List<GenericRecord> expectedRows =
+            rowsWritten.subList(rowIndex, rowIndex + expectedNumRowsPerBatch);
+        rowIndex++;
+        VectorSchemaRoot root = batch.createVectorSchemaRootFromVectors();
+        assertThat(root.getSchema()).isEqualTo(expectedSchema);
+
+        // check all vector types
+        assertThat(root.getVector("a").getClass()).isEqualTo(IntVector.class);
+        assertThat(root.getVector("b").getClass()).isEqualTo(IntVector.class);
+        assertThat(root.getVector("z").getClass()).isEqualTo(NullVector.class);
+
+        checkVectorValues(
+            expectedNumRowsPerBatch,
+            expectedRows,
+            root,
+            columns,
+            "a",
+            (records, i) -> records.get(i).getField("a"),
+            (vector, i) -> ((IntVector) vector).get(i));
+        checkVectorValues(
+            expectedNumRowsPerBatch,
+            expectedRows,
+            root,
+            columns,
+            "b",
+            (records, i) -> records.get(i).getField("b"),
+            (vector, i) -> vector.isNull(i) ? null : ((IntVector) vector).get(i));
+        checkVectorValues(
+            expectedNumRowsPerBatch,
+            expectedRows,
+            root,
+            columns,
+            "z",
+            (records, i) -> records.get(i).getField("z"),
+            (vector, i) -> vector.getObject(i));
+
+        totalRows += root.getRowCount();
+        assertThat(totalRows).isEqualTo(expectedTotalRows);
+      }
+    }
   }
 
   /**
