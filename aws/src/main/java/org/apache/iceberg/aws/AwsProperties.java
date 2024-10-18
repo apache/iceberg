@@ -98,6 +98,11 @@ public class AwsProperties implements Serializable {
    */
   public static final String GLUE_CATALOG_ENDPOINT = "glue.endpoint";
 
+  /** Option to disable including non-current fields in Glue Schema */
+  public static final String GLUE_NON_CURRENT_FIELDS_DISABLED = "glue.non-current-fields-disabled";
+
+  public static final boolean GLUE_NON_CURRENT_FIELDS_DISABLED_DEFAULT = false;
+
   /** Configure an alternative endpoint of the DynamoDB service to access. */
   public static final String DYNAMODB_ENDPOINT = "dynamodb.endpoint";
 
@@ -221,6 +226,7 @@ public class AwsProperties implements Serializable {
   private boolean glueCatalogSkipArchive;
   private boolean glueCatalogSkipNameValidation;
   private boolean glueLakeFormationEnabled;
+  private boolean glueNonCurrentFieldsDisabled;
 
   private String dynamoDbTableName;
   private final String dynamoDbEndpoint;
@@ -247,6 +253,7 @@ public class AwsProperties implements Serializable {
     this.glueCatalogSkipArchive = GLUE_CATALOG_SKIP_ARCHIVE_DEFAULT;
     this.glueCatalogSkipNameValidation = GLUE_CATALOG_SKIP_NAME_VALIDATION_DEFAULT;
     this.glueLakeFormationEnabled = GLUE_LAKEFORMATION_ENABLED_DEFAULT;
+    this.glueNonCurrentFieldsDisabled = GLUE_NON_CURRENT_FIELDS_DISABLED_DEFAULT;
 
     this.dynamoDbEndpoint = null;
     this.dynamoDbTableName = DYNAMODB_TABLE_NAME_DEFAULT;
@@ -283,6 +290,9 @@ public class AwsProperties implements Serializable {
     this.glueLakeFormationEnabled =
         PropertyUtil.propertyAsBoolean(
             properties, GLUE_LAKEFORMATION_ENABLED, GLUE_LAKEFORMATION_ENABLED_DEFAULT);
+    this.glueNonCurrentFieldsDisabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, GLUE_NON_CURRENT_FIELDS_DISABLED, GLUE_NON_CURRENT_FIELDS_DISABLED_DEFAULT);
 
     this.dynamoDbEndpoint = properties.get(DYNAMODB_ENDPOINT);
     this.dynamoDbTableName =
@@ -349,6 +359,14 @@ public class AwsProperties implements Serializable {
 
   public void setGlueLakeFormationEnabled(boolean glueLakeFormationEnabled) {
     this.glueLakeFormationEnabled = glueLakeFormationEnabled;
+  }
+
+  public boolean glueNonCurrentFieldsDisabled() {
+    return glueNonCurrentFieldsDisabled;
+  }
+
+  public void setGlueNonCurrentFieldsDisabled(boolean glueNonCurrentFieldsDisabled) {
+    this.glueNonCurrentFieldsDisabled = glueNonCurrentFieldsDisabled;
   }
 
   public String dynamoDbTableName() {
