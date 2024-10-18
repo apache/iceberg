@@ -22,11 +22,11 @@ import java.util.Map;
 import org.apache.iceberg.actions.MigrateTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.actions.MigrateTableSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -50,15 +50,15 @@ class MigrateTableProcedure extends BaseProcedure {
             new StructField("migrated_files_count", DataTypes.LongType, false, Metadata.empty())
           });
 
-  private MigrateTableProcedure(TableCatalog tableCatalog) {
-    super(tableCatalog);
+  private MigrateTableProcedure(BaseCatalog catalog) {
+    super(catalog);
   }
 
   public static ProcedureBuilder builder() {
     return new BaseProcedure.Builder<MigrateTableProcedure>() {
       @Override
       protected MigrateTableProcedure doBuild() {
-        return new MigrateTableProcedure(tableCatalog());
+        return new MigrateTableProcedure(catalog());
       }
     };
   }

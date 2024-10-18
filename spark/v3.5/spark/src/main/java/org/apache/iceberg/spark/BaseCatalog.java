@@ -30,12 +30,14 @@ import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureCatalog;
 import org.apache.spark.sql.util.CaseInsensitiveStringMap;
 
-abstract class BaseCatalog
+public abstract class BaseCatalog
     implements StagingTableCatalog,
         ProcedureCatalog,
         SupportsNamespaces,
         HasIcebergCatalog,
-        SupportsFunctions {
+        SupportsFunctions,
+        org.apache.spark.sql.connector.catalog.ViewCatalog,
+        SupportsReplaceView {
   private static final String USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS = "use-nullable-query-schema";
   private static final boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
 
@@ -51,7 +53,7 @@ abstract class BaseCatalog
     if (isSystemNamespace(namespace)) {
       ProcedureBuilder builder = SparkProcedures.newBuilder(name);
       if (builder != null) {
-        return builder.withTableCatalog(this).build();
+        return builder.withCatalog(this).build();
       }
     }
 

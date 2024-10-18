@@ -22,9 +22,9 @@ import java.util.Map;
 import org.apache.iceberg.actions.SnapshotTable;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.spark.sql.catalyst.InternalRow;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -48,15 +48,15 @@ class SnapshotTableProcedure extends BaseProcedure {
             new StructField("imported_files_count", DataTypes.LongType, false, Metadata.empty())
           });
 
-  private SnapshotTableProcedure(TableCatalog tableCatalog) {
-    super(tableCatalog);
+  private SnapshotTableProcedure(BaseCatalog catalog) {
+    super(catalog);
   }
 
   public static SparkProcedures.ProcedureBuilder builder() {
     return new BaseProcedure.Builder<SnapshotTableProcedure>() {
       @Override
       protected SnapshotTableProcedure doBuild() {
-        return new SnapshotTableProcedure(tableCatalog());
+        return new SnapshotTableProcedure(catalog());
       }
     };
   }

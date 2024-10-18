@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.analysis
 
+import org.apache.iceberg.spark.SparkSessionCatalog
 import org.apache.spark.sql.connector.catalog.CatalogPlugin
 import org.apache.spark.sql.connector.catalog.Identifier
 import org.apache.spark.sql.connector.catalog.View
@@ -37,7 +38,8 @@ object ViewUtil {
   }
 
   def isViewCatalog(catalog: CatalogPlugin): Boolean = {
-    catalog.isInstanceOf[ViewCatalog]
+    // Spark session catalog doesn't support the views yet.
+    catalog.isInstanceOf[ViewCatalog] && !catalog.isInstanceOf[SparkSessionCatalog[_]]
   }
 
   implicit class IcebergViewHelper(plugin: CatalogPlugin) {
