@@ -22,7 +22,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Random;
-import org.apache.iceberg.TestHelpers.JsonVariant;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -145,9 +144,6 @@ public class RandomUtil {
         BigDecimal bigDecimal = new BigDecimal(unscaled, type.scale());
         return negate(choice) ? bigDecimal.negate() : bigDecimal;
 
-      case VARIANT:
-        return randomVariant();
-
       default:
         throw new IllegalArgumentException(
             "Cannot generate random value for unknown type: " + primitive);
@@ -228,9 +224,5 @@ public class RandomUtil {
     }
 
     return new BigInteger(sb.toString());
-  }
-
-  private static JsonVariant randomVariant() {
-    return JsonVariant.of("{\"name\": \"John\"}");
   }
 }

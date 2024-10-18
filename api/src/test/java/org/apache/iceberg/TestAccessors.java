@@ -22,8 +22,12 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.UUID;
 import org.apache.iceberg.TestHelpers.JsonVariant;
 import org.apache.iceberg.TestHelpers.Row;
@@ -250,8 +254,68 @@ public class TestAccessors {
   }
 
   @Test
-  public void testVariant() {
-    VariantLike variant = JsonVariant.of("{\"name\":\"John\",\"age\":30}");
+  public void testVariant() throws JsonProcessingException {
+    Base64.Encoder encoder = Base64.getEncoder();
+    boolean expectedTrue = true;
+    boolean expectedFalse = false;
+    int expectedInt = 2147483647;
+    long expectedLong = 2147483648L;
+    float expectedFloat = 1.2345f;
+    double expectedDouble = 1.23456;
+    BigDecimal expectedDecimal = new BigDecimal(123456);
+    String expectedString = "abc";
+    String expectedBytes =
+        new String(encoder.encode(expectedString.getBytes()), StandardCharsets.UTF_8);
+    int nestInt = 10;
+
+    String json =
+        "{\"false\":"
+            + expectedFalse
+            + ", \"true\":"
+            + expectedTrue
+            + ", \"string\": \""
+            + expectedString
+            + "\","
+            + "\"int\":"
+            + expectedInt
+            + ","
+            + "\"long\":"
+            + expectedLong
+            + ", \"float\":"
+            + expectedFloat
+            + ","
+            + "\"double\":"
+            + expectedDouble
+            + ", \"bytes\":\""
+            + expectedBytes
+            + "\", \"decimal\":"
+            + expectedDecimal
+            + ","
+            + "\"nest1\": {\"nest2\":"
+            + nestInt
+            + "}"
+            + "}";
+
+    VariantLike variant = JsonVariant.of(json);
     assertAccessorReturns(Types.VariantType.get(), variant);
+
+    assertThat(variant.get(new String[] {"true"}).get(Boolean.class)).isEqualTo(expectedTrue);
+    assertThat(variant.get(new String[] {"false"}).get(Boolean.class)).isEqualTo(expectedFalse);
+    assertThat(variant.get(new String[] {"string"}).get(String.class)).isEqualTo(expectedString);
+    assertThat(variant.get(new String[] {"int"}).get(Integer.class)).isEqualTo(expectedInt);
+    assertThat(variant.get(new String[] {"long"}).get(Long.class)).isEqualTo(expectedLong);
+    assertThat(variant.get(new String[] {"float"}).get(Float.class)).isEqualTo(expectedFloat);
+    assertThat(variant.get(new String[] {"double"}).get(Double.class)).isEqualTo(expectedDouble);
+    assertThat(variant.get(new String[] {"decimal"}).get(BigDecimal.class))
+        .isEqualTo(expectedDecimal);
+    assertThat(
+            StandardCharsets.UTF_8
+                .decode(variant.get(new String[] {"bytes"}).get(ByteBuffer.class))
+                .toString())
+        .isEqualTo(expectedString);
+    assertThat(variant.get(new String[] {"nest1", "nest2"}).get(Integer.class)).isEqualTo(nestInt);
+    assertThat(variant.get(new String[] {"nest1", "invalid"})).isNull();
+    assertThat(new ObjectMapper().readTree(variant.toJson()))
+        .isEqualTo(new ObjectMapper().readTree(json));
   }
 }
