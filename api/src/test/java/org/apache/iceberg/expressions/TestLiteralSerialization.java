@@ -25,10 +25,16 @@ import java.util.UUID;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.CoordinateXY;
+import org.locationtech.jts.geom.CoordinateXYM;
+import org.locationtech.jts.geom.CoordinateXYZM;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class TestLiteralSerialization {
   @Test
   public void testLiterals() throws Exception {
+    GeometryFactory factory = new GeometryFactory();
     Literal[] literals =
         new Literal[] {
           Literal.of(false),
@@ -47,6 +53,12 @@ public class TestLiteralSerialization {
           Literal.of(new byte[] {1, 2, 3}).to(Types.FixedType.ofLength(3)),
           Literal.of(new byte[] {3, 4, 5, 6}).to(Types.BinaryType.get()),
           Literal.of(new BigDecimal("122.50")),
+          Literal.of(factory.createPoint()),
+          Literal.of(factory.createPoint(new CoordinateXY(10, 20))),
+          Literal.of(factory.createPoint(new Coordinate(10, 20))),
+          Literal.of(factory.createPoint(new Coordinate(10, 20, 30))),
+          Literal.of(factory.createPoint(new CoordinateXYM(10, 20, 30))),
+          Literal.of(factory.createPoint(new CoordinateXYZM(10, 20, 30, 40)))
         };
 
     for (Literal<?> lit : literals) {

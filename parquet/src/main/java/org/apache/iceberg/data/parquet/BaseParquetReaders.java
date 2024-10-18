@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.parquet.ParquetGeometryValueReaders;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -347,6 +348,10 @@ public abstract class BaseParquetReaders<T> {
       }
 
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
+
+      if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.GEOMETRY) {
+        return ParquetGeometryValueReaders.buildReader(desc);
+      }
 
       if (primitive.getOriginalType() != null) {
         return primitive
