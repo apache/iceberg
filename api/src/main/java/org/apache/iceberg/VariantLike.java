@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg;
 
-import java.math.BigDecimal;
-
 /**
  * Interface for accessing Variant fields.
  *
@@ -28,25 +26,11 @@ import java.math.BigDecimal;
 public interface VariantLike {
   int size();
 
-  VariantLike getFieldByKey(String key);
+  // To access the value of the root element based on the type of provided javaClass.
+  <T> T get(Class<T> javaClass);
 
-  VariantLike getFieldAtIndex(int index);
-
-  boolean getBoolean();
-
-  int getInt();
-
-  long getLong();
-
-  float getFloat();
-
-  double getDouble();
-
-  BigDecimal getDecimal();
-
-  String getString();
-
-  byte[] getBinary();
+  // To access the sub-element for the provided path.
+  VariantLike get(String[] path);
 
   String toJson();
 }

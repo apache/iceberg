@@ -436,59 +436,43 @@ public class TestHelpers {
     }
 
     @Override
-    public VariantLike getFieldByKey(String key) {
-      JsonNode childNode = node.get(key);
-      return new JsonVariant(childNode);
-    }
-
-    @Override
-    public VariantLike getFieldAtIndex(int index) {
-      JsonNode childNode = node.get(index);
-      return new JsonVariant(childNode);
-    }
-
-    @Override
-    public boolean getBoolean() {
-      return node.asBoolean();
-    }
-
-    @Override
-    public int getInt() {
-      return node.asInt();
-    }
-
-    @Override
-    public long getLong() {
-      return node.asLong();
-    }
-
-    @Override
-    public float getFloat() {
-      return (float) node.asDouble();
-    }
-
-    @Override
-    public double getDouble() {
-      return node.asDouble();
-    }
-
-    @Override
-    public BigDecimal getDecimal() {
-      return new BigDecimal(node.asText());
-    }
-
-    @Override
-    public String getString() {
-      return node.asText();
-    }
-
-    @Override
-    public byte[] getBinary() {
-      try {
-        return node.binaryValue();
-      } catch (IOException e) {
-        return null;
+    public <T> T get(Class<T> javaClass) {
+      if (javaClass.equals(Boolean.class)) {
+        return (T) (Boolean) node.asBoolean();
+      } else if (javaClass.equals(Integer.class)) {
+        return (T) (Integer) node.asInt();
+      } else if (javaClass.equals(Long.class)) {
+        return (T) (Long) node.asLong();
+      } else if (javaClass.equals(Float.class)) {
+        return (T) Float.valueOf((float) node.asDouble());
+      } else if (javaClass.equals(Double.class)) {
+        return (T) (Double) (node.asDouble());
+      } else if (CharSequence.class.isAssignableFrom(javaClass)) {
+        return (T) node.asText();
+      } else if (javaClass.equals(ByteBuffer.class)) {
+        try {
+          return (T) ByteBuffer.wrap(node.binaryValue());
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      } else if (javaClass.equals(BigDecimal.class)) {
+        return (T) node.decimalValue();
       }
+
+      throw new IllegalArgumentException("Unsupported type: " + javaClass);
+    }
+
+    @Override
+    public VariantLike get(String[] path) {
+      JsonNode childNode = node;
+      for (String pathElement : path) {
+        childNode = childNode.get(pathElement);
+        if (childNode == null) {
+          return null;
+        }
+      }
+
+      return new JsonVariant(childNode);
     }
 
     @Override
