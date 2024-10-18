@@ -182,6 +182,18 @@ if (sparkVersions.contains("3.5")) {
   project(":iceberg-spark:spark-runtime-3.5_${scalaVersion}").name = "iceberg-spark-runtime-3.5_${scalaVersion}"
 }
 
+if (sparkVersions.contains("4.0")) {
+  include ":iceberg-spark:spark-4.0_2.13"
+  include ":iceberg-spark:spark-extensions-4.0_2.13"
+  include ":iceberg-spark:spark-runtime-4.0_2.13"
+  project(":iceberg-spark:spark-4.0_2.13").projectDir = file('spark/v4.0/spark')
+  project(":iceberg-spark:spark-4.0_2.13").name = "iceberg-spark-4.0_2.13"
+  project(":iceberg-spark:spark-extensions-4.0_2.13").projectDir = file('spark/v4.0/spark-extensions')
+  project(":iceberg-spark:spark-extensions-4.0_2.13").name = "iceberg-spark-extensions-4.0_2.13"
+  project(":iceberg-spark:spark-runtime-4.0_2.13").projectDir = file('spark/v4.0/spark-runtime')
+  project(":iceberg-spark:spark-runtime-4.0_2.13").name = "iceberg-spark-runtime-4.0_2.13"
+}
+
 // hive 3 depends on hive 2, so always add hive 2 if hive3 is enabled
 if (hiveVersions.contains("2") || hiveVersions.contains("3")) {
   include 'mr'
