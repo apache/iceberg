@@ -386,6 +386,32 @@ class RemovePartitionSpecsUpdate(BaseUpdate):
     spec_ids: List[int] = Field(..., alias='spec-ids')
 
 
+class OverwriteRowsUpdateProperties(BaseModel):
+    """
+    Commit properties that define how the update should be applied to the table.
+    """
+
+    snapshot_summary_properties: Optional[Dict[str, str]] = Field(
+        None,
+        alias='snapshot-summary-properties',
+        description='snapshot summary properties to be set on the new snapshot update.',
+    )
+    branch: Optional[str] = Field(
+        None,
+        description='The branch where the update should be applied. Defaults to the main branch.',
+    )
+    case_sensitive: Optional[bool] = Field(
+        None,
+        alias='case-sensitive',
+        description='Indicates if the operation should be case-sensitive for column names.',
+    )
+    stage_only: Optional[bool] = Field(
+        None,
+        alias='stage-only',
+        description='Indicates if the new snapshot should be staged in the table metadata',
+    )
+
+
 class AssertCreate(BaseModel):
     """
     The table must not already exist; used for create transactions
@@ -1140,6 +1166,73 @@ class AddSchemaUpdate(BaseUpdate):
     )
 
 
+class OverwriteRowsUpdate(BaseModel):
+    """
+    This update operation is used to perform fine-grained metadata row updates to a table. It involves adding new data rows and adding delete files or removing entire files.
+    """
+
+    action: Literal['overwrite-rows']
+    added_files: Optional[List[ContentFile]] = Field(
+        None,
+        alias='added-files',
+        description='List of DataFiles and/or DeleteFiles to add to the table. These files represent new data or DeleteFiles that will be added to the metadata as part of the operation.',
+    )
+    removed_files: Optional[List[DataFile]] = Field(
+        None,
+        alias='removed-files',
+        description='List of DataFiles to remove from the table. These files contain old data that is replaced or deleted as part of the operation.',
+    )
+    delete_filter: Optional[Expression] = Field(
+        None,
+        alias='delete-filter',
+        description='A filter expression used to identify rows to remove from the table. All rows that match the filter will be removed as part of the table update operation',
+    )
+    properties: Optional[OverwriteRowsUpdateProperties] = None
+    validations: Optional[OverwriteRowsUpdateUpdateValidations] = None
+
+
+class OverwriteRowsUpdateUpdateValidations(BaseModel):
+    """
+    The update validation ensures that overwrite row operations are consistent with the current table state. It checks for conflicts with concurrent modifications since the operation began.
+    """
+
+    validate_from_snapshot: Optional[int] = Field(
+        None,
+        alias='validate-from-snapshot',
+        description='Verifies the operation starts from a specific snapshot ID, basing the update on a known table state. This helps detect intervening changes that could affect the update.',
+    )
+    validate_added_data_files_match_overwrite_filter: Optional[bool] = Field(
+        None,
+        alias='validate-added-data-files-match-overwrite-filter',
+        description='Verifies that new files added during the update operation match the specified conflict-detection-filter, ensuring the update applies to the intended data.',
+    )
+    validate_no_conflicting_data_files: Optional[bool] = Field(
+        None,
+        alias='validate-no-conflicting-data-files',
+        description='Checks for new DataFile additions that might conflict with the update operation, preventing unintended data overlap.',
+    )
+    validate_no_conflicting_delete_files: Optional[bool] = Field(
+        None,
+        alias='validate-no-conflicting-delete-files',
+        description="Verifies that no new DeleteFiles have been added since the operation started, ensuring the update doesn't conflict with concurrent deletions.",
+    )
+    conflict_detection_filter: Optional[Expression] = Field(
+        None,
+        alias='conflict-detection-filter',
+        description='An expression to identify potential conflicts, ensuring no conflicting data or delete files have been added during the overwrite operation.',
+    )
+    validate_deleted_files_match_filter: Optional[bool] = Field(
+        None,
+        alias='validate-deleted-files-match-filter',
+        description='Ensures that any DeleteFiles added as part of the operation are consistent with the filter, maintaining data integrity during concurrent operations.',
+    )
+    validate_data_files_exist: Optional[List[str]] = Field(
+        None,
+        alias='validate-data-files-exist',
+        description='Confirms the existence of all DataFiles referenced in the added-files operation, preventing updates to non-existent data.',
+    )
+
+
 class TableUpdate(BaseModel):
     __root__: Union[
         AssignUUIDUpdate,
@@ -1160,6 +1253,7 @@ class TableUpdate(BaseModel):
         SetStatisticsUpdate,
         RemoveStatisticsUpdate,
         RemovePartitionSpecsUpdate,
+        OverwriteRowsUpdate,
     ]
 
 
@@ -1454,6 +1548,7 @@ Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
+OverwriteRowsUpdate.update_forward_refs()
 ScanTasks.update_forward_refs()
 FetchPlanningResult.update_forward_refs()
 PlanTableScanResult.update_forward_refs()

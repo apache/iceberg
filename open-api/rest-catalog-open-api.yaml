@@ -2922,6 +2922,111 @@ components:
           items:
             type: integer
 
+    OverwriteRowsUpdate:
+      description:
+        This update operation is used to perform fine-grained metadata row updates to a table. It
+        involves adding new data rows and adding delete files or removing entire files.
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum:
+            - overwrite-rows
+        added-files:
+          description:
+            List of DataFiles and/or DeleteFiles to add to the table. These files represent new
+            data or DeleteFiles that will be added to the metadata as part of the operation.
+          type: array
+          items:
+            $ref: '#/components/schemas/ContentFile'
+        removed-files:
+          description:
+            List of DataFiles to remove from the table. These files contain old
+            data that is replaced or deleted as part of the operation.
+          type: array
+          items:
+            $ref: '#/components/schemas/DataFile'
+        delete-filter:
+          description:
+            A filter expression used to identify rows to remove from the table. All rows that match
+            the filter will be removed as part of the table update operation
+          $ref: '#/components/schemas/Expression'
+        properties:
+          $ref: '#/components/schemas/OverwriteRowsUpdateProperties'
+        validations:
+          $ref: '#/components/schemas/OverwriteRowsUpdateUpdateValidations'
+
+    OverwriteRowsUpdateProperties:
+      description:
+        Commit properties that define how the update should be applied to the table.
+      type: object
+      properties:
+        snapshot-summary-properties:
+          type: object
+          description:
+            snapshot summary properties to be set on the new snapshot update.
+          additionalProperties:
+            type: string
+        branch:
+          type: string
+          description:
+            The branch where the update should be applied. Defaults to the main branch.
+        case-sensitive:
+          type: boolean
+          description:
+            Indicates if the operation should be case-sensitive for column names.
+        stage-only:
+          type: boolean
+          description:
+            Indicates if the new snapshot should be staged in the table metadata
+
+    OverwriteRowsUpdateUpdateValidations:
+      description:
+        The update validation ensures that overwrite row operations are consistent with the current table state.
+        It checks for conflicts with concurrent modifications since the operation began.
+      type:
+        object
+      properties:
+        validate-from-snapshot:
+          description:
+            Verifies the operation starts from a specific snapshot ID, basing the update
+            on a known table state. This helps detect intervening changes that could affect the update.
+          type: integer
+          format: int64
+        validate-added-data-files-match-overwrite-filter:
+          type: boolean
+          description:
+            Verifies that new files added during the update operation match the specified conflict-detection-filter,
+            ensuring the update applies to the intended data.
+        validate-no-conflicting-data-files:
+          type: boolean
+          description:
+            Checks for new DataFile additions that might conflict with the update operation,
+            preventing unintended data overlap.
+        validate-no-conflicting-delete-files:
+          type: boolean
+          description:
+            Verifies that no new DeleteFiles have been added since the operation started,
+            ensuring the update doesn't conflict with concurrent deletions.
+        conflict-detection-filter:
+          description:
+            An expression to identify potential conflicts, ensuring no conflicting data or delete files
+            have been added during the overwrite operation.
+          $ref: '#/components/schemas/Expression'
+        validate-deleted-files-match-filter:
+          type: boolean
+          description:
+            Ensures that any DeleteFiles added as part of the operation are consistent with the filter,
+            maintaining data integrity during concurrent operations.
+        validate-data-files-exist:
+          type: array
+          description:
+            Confirms the existence of all DataFiles referenced in the added-files operation,
+            preventing updates to non-existent data.
+          items:
+            type: string
+
     TableUpdate:
       anyOf:
         - $ref: '#/components/schemas/AssignUUIDUpdate'
@@ -2942,6 +3047,7 @@ components:
         - $ref: '#/components/schemas/SetStatisticsUpdate'
         - $ref: '#/components/schemas/RemoveStatisticsUpdate'
         - $ref: '#/components/schemas/RemovePartitionSpecsUpdate'
+        - $ref: '#/components/schemas/OverwriteRowsUpdate'
 
     ViewUpdate:
       anyOf:
