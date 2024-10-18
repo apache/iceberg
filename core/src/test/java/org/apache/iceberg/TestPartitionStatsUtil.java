@@ -26,6 +26,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.groups.Tuple;
@@ -370,17 +371,17 @@ public class TestPartitionStatsUtil {
             snapshot2.snapshotId()));
   }
 
-  private static PartitionData partitionData(Types.StructType partitionType, String c2, String c3) {
-    PartitionData partitionData = new PartitionData(partitionType);
-    partitionData.set(0, c2);
-    partitionData.set(1, c3);
-    return partitionData;
+  private static StructLike partitionData(Types.StructType partitionType, String c2, String c3) {
+    GenericRecord record = GenericRecord.create(partitionType);
+    record.set(0, c2);
+    record.set(1, c3);
+    return record;
   }
 
-  private static PartitionData partitionData(Types.StructType partitionType, String c2) {
-    PartitionData partitionData = new PartitionData(partitionType);
-    partitionData.set(0, c2);
-    return partitionData;
+  private static StructLike partitionData(Types.StructType partitionType, String c2) {
+    GenericRecord record = GenericRecord.create(partitionType);
+    record.set(0, c2);
+    return record;
   }
 
   private static List<DataFile> prepareDataFiles(Table table) {
