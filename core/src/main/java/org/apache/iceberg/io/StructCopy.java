@@ -21,8 +21,8 @@ package org.apache.iceberg.io;
 import org.apache.iceberg.StructLike;
 
 /** Copy the StructLike's values into a new one. It does not handle list or map values now. */
-class StructCopy implements StructLike {
-  static StructLike copy(StructLike struct) {
+public class StructCopy implements StructLike {
+  public static StructLike copy(StructLike struct) {
     return struct != null ? new StructCopy(struct) : null;
   }
 

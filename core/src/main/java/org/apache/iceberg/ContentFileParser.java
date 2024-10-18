@@ -45,6 +45,9 @@ class ContentFileParser {
   private static final String SPLIT_OFFSETS = "split-offsets";
   private static final String EQUALITY_IDS = "equality-ids";
   private static final String SORT_ORDER_ID = "sort-order-id";
+  private static final String REFERENCED_DATA_FILE = "referenced-data-file";
+  private static final String CONTENT_OFFSET = "content-offset";
+  private static final String CONTENT_SIZE = "content-size-in-bytes";
 
   private ContentFileParser() {}
 
@@ -90,6 +93,14 @@ class ContentFileParser {
 
     generator.writeNumberField(FILE_SIZE, contentFile.fileSizeInBytes());
 
+    if (contentFile.contentOffset() != null) {
+      generator.writeNumberField(CONTENT_OFFSET, contentFile.contentOffset());
+    }
+
+    if (contentFile.contentSizeInBytes() != null) {
+      generator.writeNumberField(CONTENT_SIZE, contentFile.contentSizeInBytes());
+    }
+
     metricsToJson(contentFile, generator);
 
     if (contentFile.keyMetadata() != null) {
@@ -107,6 +118,13 @@ class ContentFileParser {
 
     if (contentFile.sortOrderId() != null) {
       generator.writeNumberField(SORT_ORDER_ID, contentFile.sortOrderId());
+    }
+
+    if (contentFile instanceof DeleteFile) {
+      DeleteFile deleteFile = (DeleteFile) contentFile;
+      if (deleteFile.referencedDataFile() != null) {
+        generator.writeStringField(REFERENCED_DATA_FILE, deleteFile.referencedDataFile());
+      }
     }
 
     generator.writeEndObject();
@@ -140,11 +158,14 @@ class ContentFileParser {
     }
 
     long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);
+    Long contentOffset = JsonUtil.getLongOrNull(CONTENT_OFFSET, jsonNode);
+    Long contentSizeInBytes = JsonUtil.getLongOrNull(CONTENT_SIZE, jsonNode);
     Metrics metrics = metricsFromJson(jsonNode);
     ByteBuffer keyMetadata = JsonUtil.getByteBufferOrNull(KEY_METADATA, jsonNode);
     List<Long> splitOffsets = JsonUtil.getLongListOrNull(SPLIT_OFFSETS, jsonNode);
     int[] equalityFieldIds = JsonUtil.getIntArrayOrNull(EQUALITY_IDS, jsonNode);
     Integer sortOrderId = JsonUtil.getIntOrNull(SORT_ORDER_ID, jsonNode);
+    String referencedDataFile = JsonUtil.getStringOrNull(REFERENCED_DATA_FILE, jsonNode);
 
     if (fileContent == FileContent.DATA) {
       return new GenericDataFile(
@@ -169,7 +190,10 @@ class ContentFileParser {
           equalityFieldIds,
           sortOrderId,
           splitOffsets,
-          keyMetadata);
+          keyMetadata,
+          referencedDataFile,
+          contentOffset,
+          contentSizeInBytes);
     }
   }
 

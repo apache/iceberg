@@ -274,7 +274,10 @@ class V3Metadata {
         DataFile.KEY_METADATA,
         DataFile.SPLIT_OFFSETS,
         DataFile.EQUALITY_IDS,
-        DataFile.SORT_ORDER_ID);
+        DataFile.SORT_ORDER_ID,
+        DataFile.REFERENCED_DATA_FILE,
+        DataFile.CONTENT_OFFSET,
+        DataFile.CONTENT_SIZE);
   }
 
   static class IndexedManifestEntry<F extends ContentFile<F>>
@@ -448,6 +451,16 @@ class V3Metadata {
           return wrapped.equalityFieldIds();
         case 15:
           return wrapped.sortOrderId();
+        case 16:
+          if (wrapped instanceof DeleteFile) {
+            return ((DeleteFile) wrapped).referencedDataFile();
+          } else {
+            return null;
+          }
+        case 17:
+          return wrapped.contentOffset();
+        case 18:
+          return wrapped.contentSizeInBytes();
       }
       throw new IllegalArgumentException("Unknown field ordinal: " + pos);
     }

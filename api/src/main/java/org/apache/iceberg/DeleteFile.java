@@ -31,4 +31,8 @@ public interface DeleteFile extends ContentFile<DeleteFile> {
   default List<Long> splitOffsets() {
     return null;
   }
+
+  default String referencedDataFile() {
+    return null;
+  }
 }
