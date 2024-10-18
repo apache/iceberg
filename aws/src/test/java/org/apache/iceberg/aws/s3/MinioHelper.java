@@ -22,6 +22,7 @@ import java.net.URI;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.utility.DockerImageName;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -29,16 +30,37 @@ import software.amazon.awssdk.services.s3.S3ClientBuilder;
 public class MinioHelper {
 
   public static MinIOContainer createContainer() {
-    return new MinIOContainer(DockerImageName.parse("minio/minio:latest"));
+    return createContainer(null);
+  }
+
+  public static MinIOContainer createContainer(AwsCredentials credentials) {
+    var container =
+        new MinIOContainer(DockerImageName.parse("minio/minio:latest")) {
+          @Override
+          public void configure() {
+            super.configure();
+
+            // this enables virtual-host-style requests. see
+            // https://github.com/minio/minio/tree/master/docs/config#domain
+            this.withEnv("MINIO_DOMAIN", "localhost");
+          }
+        };
+
+    if (credentials != null) {
+      container.withUserName(credentials.accessKeyId());
+      container.withPassword(credentials.secretAccessKey());
+    }
+
+    return container;
   }
 
   public static S3Client createS3Client(MinIOContainer container) {
-    URI uri = URI.create("http://127.0.0.1:" + container.getFirstMappedPort());
     S3ClientBuilder builder = S3Client.builder();
     builder.credentialsProvider(
         StaticCredentialsProvider.create(
             AwsBasicCredentials.create(container.getUserName(), container.getPassword())));
-    builder.applyMutation(mutator -> mutator.endpointOverride(uri));
+    builder.applyMutation(mutator -> mutator.endpointOverride(URI.create(container.getS3URL())));
+    builder.forcePathStyle(true);
     return builder.build();
   }
 

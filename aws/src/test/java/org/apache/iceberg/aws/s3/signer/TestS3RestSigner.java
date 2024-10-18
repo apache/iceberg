@@ -43,6 +43,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -69,14 +71,19 @@ import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 
+@Testcontainers
 public class TestS3RestSigner {
 
   private static final Region REGION = Region.US_WEST_2;
   private static final String BUCKET = "iceberg-s3-signer-test";
-  private static final MinIOContainer MINIO_CONTAINER = MinioHelper.createContainer();
+
   static final AwsCredentialsProvider CREDENTIALS_PROVIDER =
       StaticCredentialsProvider.create(
-          AwsBasicCredentials.create(MINIO_CONTAINER.getUserName(), MINIO_CONTAINER.getPassword()));
+          AwsBasicCredentials.create("accessKeyId", "secretAccessKey"));
+
+  @Container
+  private static final MinIOContainer MINIO_CONTAINER =
+      MinioHelper.createContainer(CREDENTIALS_PROVIDER.resolveCredentials());
 
   private static Server httpServer;
   private static ValidatingSigner validatingSigner;
@@ -84,6 +91,8 @@ public class TestS3RestSigner {
 
   @BeforeAll
   public static void beforeClass() throws Exception {
+    assertThat(MINIO_CONTAINER.isRunning()).isTrue();
+
     if (null == httpServer) {
       httpServer = initHttpServer();
     }
