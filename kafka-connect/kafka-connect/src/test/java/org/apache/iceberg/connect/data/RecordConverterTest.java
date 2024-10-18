@@ -935,12 +935,15 @@ public class RecordConverterTest extends BaseWriterTest {
     assertThat(rec.getField("li")).isEqualTo(LIST_VAL);
     assertThat(rec.getField("ma")).isEqualTo(MAP_VAL);
 
-    // check by actually writing it
+    // check by actually writing it.
+    // TODO: fix orc write and add test for it.
     for (String format : new String[] {"parquet"}) {
-      IcebergSinkConfig config = mock(IcebergSinkConfig.class);
-      when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
-      when(config.writeProps()).thenReturn(ImmutableMap.of("write.format.default", format));
-      WriteResult result = writeTest(ImmutableList.of(rec), config, UnpartitionedWriter.class);
+      IcebergSinkConfig icebergSinkConfig = mock(IcebergSinkConfig.class);
+      when(icebergSinkConfig.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
+      when(icebergSinkConfig.writeProps())
+          .thenReturn(ImmutableMap.of("write.format.default", format));
+      WriteResult result =
+          writeTest(ImmutableList.of(rec), icebergSinkConfig, UnpartitionedWriter.class);
 
       assertThat(result.dataFiles()).hasSize(1);
       assertThat(result.dataFiles())

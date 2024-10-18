@@ -127,9 +127,6 @@ class RecordConverter {
       case STRING:
         return convertString(value);
       case UUID:
-        if ("orc".equals(config.writeProps().get("write.format.default"))) {
-          return convertUUID(value);
-        }
         return UUIDUtil.convert(convertUUID(value));
       case BINARY:
         return convertBase64Binary(value);
