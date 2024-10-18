@@ -20,6 +20,7 @@ package org.apache.iceberg.data;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -50,7 +51,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.util.CharSequenceMap;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -156,7 +156,7 @@ public class BaseDeleteLoader implements DeleteLoader {
     long estimatedSize = estimatePosDeletesSize(deleteFile);
     if (canCache(estimatedSize)) {
       String cacheKey = deleteFile.path().toString();
-      CharSequenceMap<PositionDeleteIndex> indexes =
+      Map<CharSequence, PositionDeleteIndex> indexes =
           getOrLoad(cacheKey, () -> readPosDeletes(deleteFile), estimatedSize);
       return indexes.getOrDefault(filePath, PositionDeleteIndex.empty());
     } else {
@@ -164,7 +164,7 @@ public class BaseDeleteLoader implements DeleteLoader {
     }
   }
 
-  private CharSequenceMap<PositionDeleteIndex> readPosDeletes(DeleteFile deleteFile) {
+  private Map<CharSequence, PositionDeleteIndex> readPosDeletes(DeleteFile deleteFile) {
     CloseableIterable<Record> deletes = openDeletes(deleteFile, POS_DELETE_SCHEMA);
     return Deletes.toPositionIndexes(deletes, deleteFile);
   }
