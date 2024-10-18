@@ -72,6 +72,9 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
 
   @Override
   public Expression negate() {
+    if (rightTerm() != null) {
+      return new UnboundPredicate<>(op().negate(), term(), rightTerm());
+    }
     return new UnboundPredicate<>(op().negate(), term(), literals);
   }
 
