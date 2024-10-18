@@ -163,6 +163,16 @@ public interface Snapshot extends Serializable {
   String manifestListLocation();
 
   /**
+   * This snapshot's manifest list file info: size, encryption key metadata and location
+   *
+   * @return manifest list file info
+   */
+  default ManifestListFile manifestListFile() {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement manifestListFile method");
+  }
+
+  /**
    * Return the id of the schema used when this snapshot was created, or null if this information is
    * not available.
    *
