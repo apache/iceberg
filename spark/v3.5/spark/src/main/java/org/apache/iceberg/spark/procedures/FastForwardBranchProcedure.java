@@ -18,9 +18,9 @@
  */
 package org.apache.iceberg.spark.procedures;
 
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -49,13 +49,13 @@ public class FastForwardBranchProcedure extends BaseProcedure {
     return new Builder<FastForwardBranchProcedure>() {
       @Override
       protected FastForwardBranchProcedure doBuild() {
-        return new FastForwardBranchProcedure(tableCatalog());
+        return new FastForwardBranchProcedure(catalog());
       }
     };
   }
 
-  private FastForwardBranchProcedure(TableCatalog tableCatalog) {
-    super(tableCatalog);
+  private FastForwardBranchProcedure(BaseCatalog catalog) {
+    super(catalog);
   }
 
   @Override

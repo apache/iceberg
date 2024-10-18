@@ -21,12 +21,12 @@ package org.apache.iceberg.spark.procedures;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.RewriteManifests;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.actions.RewriteManifestsSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -63,13 +63,13 @@ class RewriteManifestsProcedure extends BaseProcedure {
     return new BaseProcedure.Builder<RewriteManifestsProcedure>() {
       @Override
       protected RewriteManifestsProcedure doBuild() {
-        return new RewriteManifestsProcedure(tableCatalog());
+        return new RewriteManifestsProcedure(catalog());
       }
     };
   }
 
-  private RewriteManifestsProcedure(TableCatalog tableCatalog) {
-    super(tableCatalog);
+  private RewriteManifestsProcedure(BaseCatalog catalog) {
+    super(catalog);
   }
 
   @Override
