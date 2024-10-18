@@ -26,7 +26,7 @@ import java.util.Set;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ExpressionParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.JsonUtil;
 
@@ -38,14 +38,17 @@ public class RESTFileScanTaskParser {
   private RESTFileScanTaskParser() {}
 
   public static void toJson(
-      FileScanTask fileScanTask, Set<Integer> deleteFileReferences, JsonGenerator generator)
+      FileScanTask fileScanTask,
+      Set<Integer> deleteFileReferences,
+      PartitionSpec partitionSpec,
+      JsonGenerator generator)
       throws IOException {
     Preconditions.checkArgument(fileScanTask != null, "Invalid file scan task: null");
     Preconditions.checkArgument(generator != null, "Invalid JSON generator: null");
 
     generator.writeStartObject();
     generator.writeFieldName(DATA_FILE);
-    ContentFileParser.toJson(fileScanTask.file(), fileScanTask.spec(), generator);
+    ContentFileParser.unboundContentFileToJson(fileScanTask.file(), partitionSpec, generator);
 
     if (deleteFileReferences != null) {
       generator.writeArrayFieldStart(DELETE_FILE_REFERENCES);
@@ -72,16 +75,17 @@ public class RESTFileScanTaskParser {
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for file scan task: non-object (%s)", jsonNode);
 
-    BaseFile dataFile =
-        (BaseFile) ContentFileParser.unboundContentFileFromJson(jsonNode.get(DATA_FILE));
+    GenericDataFile dataFile =
+        (GenericDataFile) ContentFileParser.unboundContentFileFromJson(jsonNode.get(DATA_FILE));
 
+    DeleteFile[] deleteFiles = null;
     Set<Integer> deleteFileReferences = Sets.newHashSet();
     if (jsonNode.has(DELETE_FILE_REFERENCES)) {
       deleteFileReferences.addAll(JsonUtil.getIntegerList(DELETE_FILE_REFERENCES, jsonNode));
+      ImmutableList.Builder<DeleteFile> builder = ImmutableList.builder();
+      deleteFileReferences.forEach(delIdx -> builder.add(allDeleteFiles.get(delIdx)));
+      deleteFiles = builder.build().toArray(new DeleteFile[0]);
     }
-
-    List<DeleteFile> deleteFilesForTask = Lists.newArrayList();
-    deleteFileReferences.forEach(delIdx -> deleteFilesForTask.add(allDeleteFiles.get(delIdx)));
 
     Expression filter = null;
     if (jsonNode.has(RESIDUAL)) {
@@ -90,6 +94,6 @@ public class RESTFileScanTaskParser {
 
     // TODO at the time of creation we dont have the schemaString, specString, and residual so will
     // need to bind later
-    return new UnboundBaseFileScanTask(dataFile, (BaseFile[]) deleteFilesForTask.toArray(), filter);
+    return new UnboundBaseFileScanTask(dataFile, deleteFiles, filter);
   }
 }

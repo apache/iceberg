@@ -525,7 +525,7 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
       String planningModeValue = response.config().get(REST_SERVER_PLANNING_MODE_KEY);
       RESTPlanningMode planningMode = RESTPlanningMode.fromName(planningModeValue);
       if (planningMode == RESTPlanningMode.REQUIRED
-          || planningMode == RESTPlanningMode.SUPPORTED && restServerPlanningEnabled) {
+          || ((planningMode == RESTPlanningMode.SUPPORTED) && restServerPlanningEnabled)) {
         return new RESTTable(
             ops,
             fullTableName(finalIdentifier),

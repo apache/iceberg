@@ -20,6 +20,7 @@ package org.apache.iceberg.rest.responses;
 
 import static org.apache.iceberg.TestBase.FILE_A;
 import static org.apache.iceberg.TestBase.FILE_A_DELETES;
+import static org.apache.iceberg.TestBase.SCHEMA;
 import static org.apache.iceberg.TestBase.SPEC;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -30,16 +31,17 @@ import java.util.Map;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.PlanTableScanResponseParser;
 import org.apache.iceberg.SchemaParser;
-import org.apache.iceberg.TestBase;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.rest.PlanStatus;
 import org.junit.jupiter.api.Test;
 
 public class TestPlanTableScanResponse {
+  private static final Map<Integer, PartitionSpec> PARTITION_SPECS_BY_ID = Map.of(0, SPEC);
 
   @Test
   public void nullAndEmptyCheck() {
@@ -186,8 +188,8 @@ public class TestPlanTableScanResponse {
     FileScanTask fileScanTask =
         new BaseFileScanTask(
             FILE_A,
-            new DeleteFile[] {TestBase.FILE_A_DELETES},
-            SchemaParser.toJson(TestBase.SCHEMA),
+            new DeleteFile[] {FILE_A_DELETES},
+            SchemaParser.toJson(SCHEMA),
             PartitionSpecParser.toJson(SPEC),
             residualEvaluator);
 
@@ -199,10 +201,7 @@ public class TestPlanTableScanResponse {
             .withDeleteFiles(List.of(FILE_A_DELETES))
             .build();
 
-    // this is needed in order for parsing to happen correctly since service does not send spec
-    response.setPartitionSpecsById(Map.of(0, SPEC));
-
-    String expectedJson =
+    String expectedToJson =
         "{\"plan-status\":\"completed\","
             + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
             + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
@@ -215,7 +214,26 @@ public class TestPlanTableScanResponse {
             + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
             + "}";
 
-    String json = PlanTableScanResponseParser.toJson(response, false);
-    assertThat(json).isEqualTo(expectedJson);
+    String json = PlanTableScanResponseParser.toJson(response, false, PARTITION_SPECS_BY_ID);
+    assertThat(json).isEqualTo(expectedToJson);
+
+    // make an unbound json where you expect to not have partitions for the data file,
+    // delete files as service does not send parition spec
+    String expectedFromJson =
+        "{\"plan-status\":\"completed\","
+            + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
+            + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
+            + "\"partition\":{},\"file-size-in-bytes\":10,\"record-count\":1}],"
+            + "\"file-scan-tasks\":["
+            + "{\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
+            + "\"file-format\":\"PARQUET\",\"partition\":{},"
+            + "\"file-size-in-bytes\":10,\"record-count\":1,\"sort-order-id\":0},"
+            + "\"delete-file-references\":[0],"
+            + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
+            + "}";
+
+    PlanTableScanResponse fromResponse = PlanTableScanResponseParser.fromJson(json);
+    assertThat(PlanTableScanResponseParser.toJson(fromResponse, false, PARTITION_SPECS_BY_ID))
+        .isEqualTo(expectedFromJson);
   }
 }

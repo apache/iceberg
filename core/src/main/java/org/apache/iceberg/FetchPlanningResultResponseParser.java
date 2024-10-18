@@ -41,14 +41,19 @@ public class FetchPlanningResultResponseParser {
   private FetchPlanningResultResponseParser() {}
 
   public static String toJson(FetchPlanningResultResponse response) {
-    return toJson(response, false);
+    // TODO pass specsByID
+    return toJson(response, false, null);
   }
 
-  public static String toJson(FetchPlanningResultResponse response, boolean pretty) {
-    return JsonUtil.generate(gen -> toJson(response, gen), pretty);
+  public static String toJson(
+      FetchPlanningResultResponse response, boolean pretty, Map<Integer, PartitionSpec> specsById) {
+    return JsonUtil.generate(gen -> toJson(response, gen, specsById), pretty);
   }
 
-  public static void toJson(FetchPlanningResultResponse response, JsonGenerator gen)
+  public static void toJson(
+      FetchPlanningResultResponse response,
+      JsonGenerator gen,
+      Map<Integer, PartitionSpec> specsById)
       throws IOException {
     Preconditions.checkArgument(null != response, "Invalid response: planTableScanResponse null");
 
@@ -73,8 +78,7 @@ public class FetchPlanningResultResponseParser {
       for (int i = 0; i < deleteFiles.size(); i++) {
         DeleteFile deleteFile = deleteFiles.get(i);
         deleteFilePathToIndex.put(String.valueOf(deleteFile.path()), i);
-        ContentFileParser.toJson(
-            deleteFiles.get(i), response.partitionSpecsById().get(deleteFile.specId()), gen);
+        ContentFileParser.toJson(deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
       }
       gen.writeEndArray();
     }
@@ -88,7 +92,8 @@ public class FetchPlanningResultResponseParser {
             deleteFileReferences.add(deleteFilePathToIndex.get(taskDelete.path().toString()));
           }
         }
-        RESTFileScanTaskParser.toJson(fileScanTask, deleteFileReferences, gen);
+        PartitionSpec partitionSpec = specsById.get(fileScanTask.file().specId());
+        RESTFileScanTaskParser.toJson(fileScanTask, deleteFileReferences, partitionSpec, gen);
       }
       gen.writeEndArray();
     }

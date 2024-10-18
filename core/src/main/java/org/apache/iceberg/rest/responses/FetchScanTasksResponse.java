@@ -19,10 +19,8 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTResponse;
 
@@ -31,17 +29,12 @@ public class FetchScanTasksResponse implements RESTResponse {
   private List<String> planTasks;
   private List<FileScanTask> fileScanTasks;
   private List<DeleteFile> deleteFiles;
-  private Map<Integer, PartitionSpec> partitionSpecsById;
 
   private FetchScanTasksResponse(
-      List<String> planTasks,
-      List<FileScanTask> fileScanTasks,
-      List<DeleteFile> deleteFiles,
-      Map<Integer, PartitionSpec> partitionSpecsById) {
+      List<String> planTasks, List<FileScanTask> fileScanTasks, List<DeleteFile> deleteFiles) {
     this.planTasks = planTasks;
     this.fileScanTasks = fileScanTasks;
     this.deleteFiles = deleteFiles;
-    this.partitionSpecsById = partitionSpecsById;
   }
 
   public List<String> planTasks() {
@@ -54,14 +47,6 @@ public class FetchScanTasksResponse implements RESTResponse {
 
   public List<DeleteFile> deleteFiles() {
     return deleteFiles;
-  }
-
-  public Map<Integer, PartitionSpec> partitionSpecsById() {
-    return partitionSpecsById;
-  }
-
-  public void setPartitionSpecsById(Map<Integer, PartitionSpec> partitionSpecsById) {
-    this.partitionSpecsById = partitionSpecsById;
   }
 
   @Override
@@ -83,8 +68,6 @@ public class FetchScanTasksResponse implements RESTResponse {
 
     private List<DeleteFile> deleteFiles;
 
-    private Map<Integer, PartitionSpec> partitionSpecsById;
-
     public Builder withPlanTasks(List<String> withPlanTasks) {
       this.planTasks = withPlanTasks;
       return this;
@@ -100,13 +83,8 @@ public class FetchScanTasksResponse implements RESTResponse {
       return this;
     }
 
-    public Builder withPartitionSpecsById(Map<Integer, PartitionSpec> withParitionSpecById) {
-      this.partitionSpecsById = withParitionSpecById;
-      return this;
-    }
-
     public FetchScanTasksResponse build() {
-      return new FetchScanTasksResponse(planTasks, fileScanTasks, deleteFiles, partitionSpecsById);
+      return new FetchScanTasksResponse(planTasks, fileScanTasks, deleteFiles);
     }
   }
 }

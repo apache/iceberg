@@ -20,16 +20,18 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 public class UnboundBaseFileScanTask extends BaseFileScanTask {
-  private BaseFile dataFile;
-  private BaseFile[] deleteFiles;
+  private DataFile unboundDataFile;
+  private DeleteFile[] unboundDeleteFiles;
   private Expression filter;
 
-  public UnboundBaseFileScanTask(BaseFile dataFile, BaseFile[] deleteFiles, Expression filter) {
-    super((DataFile) dataFile, (DeleteFile[]) deleteFiles, null, null, null);
-    this.dataFile = dataFile;
-    this.deleteFiles = deleteFiles;
+  public UnboundBaseFileScanTask(
+      DataFile unboundDataFile, DeleteFile[] unboundDeleteFiles, Expression filter) {
+    super(unboundDataFile, unboundDeleteFiles, null, null, ResidualEvaluator.unpartitioned(filter));
+    this.unboundDataFile = unboundDataFile;
+    this.unboundDeleteFiles = unboundDeleteFiles;
     this.filter = filter;
   }
 
@@ -43,31 +45,80 @@ public class UnboundBaseFileScanTask extends BaseFileScanTask {
     throw new UnsupportedOperationException("spec() is not supported in UnboundBaseFileScanTask");
   }
 
-  public Expression filter() {
-    return filter;
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("unboundDataFile", unboundDataFile)
+        .add("unboundDeleteFiles", unboundDeleteFiles)
+        .add("filter", filter)
+        .toString();
   }
 
-  public FileScanTask bind(Schema schema, PartitionSpec spec, boolean caseSensitive) {
+  public FileScanTask bind(PartitionSpec spec, boolean caseSensitive) {
     // TODO before creating a new task
-    // need to ensure that dataFile is refreshed with correct paritionData using parition spec
+    // need to ensure that dataFile is refreshed with correct partitionData using  spec
     // need to ensure deleteFiles is refreshed with spec info
     // need to ensure residual refreshed with spec.
 
-    String schemaString = SchemaParser.toJson(schema);
-    String specString = PartitionSpecParser.toJson(spec);
-    ResidualEvaluator residualEvaluator = ResidualEvaluator.of(spec, filter, caseSensitive);
-
+    Metrics dataFileMetrics =
+        new Metrics(
+            unboundDataFile.recordCount(),
+            unboundDataFile.columnSizes(),
+            unboundDataFile.valueCounts(),
+            unboundDataFile.nullValueCounts(),
+            unboundDataFile.nanValueCounts());
     PartitionData partitionData = new PartitionData(spec.partitionType());
-    dataFile.setPartitionData(partitionData);
-    for (BaseFile deleteFile : deleteFiles) {
-      deleteFile.setPartitionData(partitionData);
+    GenericDataFile boundDataFile =
+        new GenericDataFile(
+            spec.specId(),
+            (String) unboundDataFile.path(),
+            unboundDataFile.format(),
+            partitionData,
+            unboundDataFile.fileSizeInBytes(),
+            dataFileMetrics,
+            unboundDataFile.keyMetadata(),
+            unboundDataFile.splitOffsets(),
+            unboundDataFile.sortOrderId());
+
+    DeleteFile[] boundDeleteFiles = new DeleteFile[unboundDeleteFiles.length];
+    for (int i = 0; i < unboundDeleteFiles.length; i++) {
+      DeleteFile deleteFile = unboundDeleteFiles[i];
+      Metrics deleteFileMetrics =
+          new Metrics(
+              deleteFile.recordCount(),
+              deleteFile.columnSizes(),
+              deleteFile.valueCounts(),
+              deleteFile.nullValueCounts(),
+              deleteFile.nanValueCounts());
+
+      int[] equalityDeletes = null;
+      if (deleteFile.equalityFieldIds() != null) {
+        equalityDeletes =
+            deleteFile.equalityFieldIds().stream().mapToInt(Integer::intValue).toArray();
+      }
+
+      DeleteFile genericDeleteFile =
+          new GenericDeleteFile(
+              spec.specId(),
+              deleteFile.content(),
+              (String) deleteFile.path(),
+              deleteFile.format(),
+              partitionData,
+              deleteFile.fileSizeInBytes(),
+              deleteFileMetrics,
+              equalityDeletes,
+              deleteFile.sortOrderId(),
+              deleteFile.splitOffsets(),
+              deleteFile.keyMetadata());
+
+      boundDeleteFiles[i] = genericDeleteFile;
     }
 
+    String schemaString = SchemaParser.toJson(spec.schema());
+    String specString = PartitionSpecParser.toJson(spec);
+    ResidualEvaluator boundResidual = ResidualEvaluator.of(spec, filter, caseSensitive);
+
     return new BaseFileScanTask(
-        (DataFile) dataFile,
-        (DeleteFile[]) deleteFiles,
-        schemaString,
-        specString,
-        residualEvaluator);
+        boundDataFile, boundDeleteFiles, schemaString, specString, boundResidual);
   }
 }

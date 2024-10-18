@@ -19,10 +19,9 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.RESTResponse;
 
@@ -32,21 +31,18 @@ public class PlanTableScanResponse implements RESTResponse {
   private List<String> planTasks;
   private List<FileScanTask> fileScanTasks;
   private List<DeleteFile> deleteFiles;
-  private Map<Integer, PartitionSpec> partitionSpecsById;
 
   private PlanTableScanResponse(
       PlanStatus planStatus,
       String planId,
       List<String> planTasks,
       List<FileScanTask> fileScanTasks,
-      List<DeleteFile> deleteFiles,
-      Map<Integer, PartitionSpec> partitionSpecsById) {
+      List<DeleteFile> deleteFiles) {
     this.planStatus = planStatus;
     this.planId = planId;
     this.planTasks = planTasks;
     this.fileScanTasks = fileScanTasks;
     this.deleteFiles = deleteFiles;
-    this.partitionSpecsById = partitionSpecsById;
   }
 
   public PlanStatus planStatus() {
@@ -69,12 +65,15 @@ public class PlanTableScanResponse implements RESTResponse {
     return deleteFiles;
   }
 
-  public Map<Integer, PartitionSpec> partitionSpecsById() {
-    return partitionSpecsById;
-  }
-
-  public void setPartitionSpecsById(Map<Integer, PartitionSpec> partitionSpecsById) {
-    this.partitionSpecsById = partitionSpecsById;
+  @Override
+  public String toString() {
+    return MoreObjects.toStringHelper(this)
+        .add("planStatus", planStatus)
+        .add("planId", planId)
+        .add("planTasks", planTasks)
+        .add("fileScanTasks", fileScanTasks)
+        .add("deleteFiles", deleteFiles)
+        .toString();
   }
 
   @Override
@@ -90,7 +89,6 @@ public class PlanTableScanResponse implements RESTResponse {
     private List<String> planTasks;
     private List<FileScanTask> fileScanTasks;
     private List<DeleteFile> deleteFiles;
-    private Map<Integer, PartitionSpec> partitionSpecsById;
 
     public Builder withPlanStatus(PlanStatus withPlanStatus) {
       this.planStatus = withPlanStatus;
@@ -117,14 +115,8 @@ public class PlanTableScanResponse implements RESTResponse {
       return this;
     }
 
-    public Builder withPartitionSpecsById(Map<Integer, PartitionSpec> withParitionSpecById) {
-      this.partitionSpecsById = withParitionSpecById;
-      return this;
-    }
-
     public PlanTableScanResponse build() {
-      return new PlanTableScanResponse(
-          planStatus, planId, planTasks, fileScanTasks, deleteFiles, partitionSpecsById);
+      return new PlanTableScanResponse(planStatus, planId, planTasks, fileScanTasks, deleteFiles);
     }
   }
 }

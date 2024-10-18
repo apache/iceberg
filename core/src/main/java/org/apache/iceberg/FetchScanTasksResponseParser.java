@@ -39,14 +39,18 @@ public class FetchScanTasksResponseParser {
   private FetchScanTasksResponseParser() {}
 
   public static String toJson(FetchScanTasksResponse response) {
-    return toJson(response, false);
+    // TODO need to pass specByIds
+    return toJson(response, false, null);
   }
 
-  public static String toJson(FetchScanTasksResponse response, boolean pretty) {
-    return JsonUtil.generate(gen -> toJson(response, gen), pretty);
+  public static String toJson(
+      FetchScanTasksResponse response, boolean pretty, Map<Integer, PartitionSpec> specsById) {
+    return JsonUtil.generate(gen -> toJson(response, gen, specsById), pretty);
   }
 
-  public static void toJson(FetchScanTasksResponse response, JsonGenerator gen) throws IOException {
+  public static void toJson(
+      FetchScanTasksResponse response, JsonGenerator gen, Map<Integer, PartitionSpec> specsById)
+      throws IOException {
     Preconditions.checkArgument(null != response, "Invalid response: fetchScanTasksResponse null");
     gen.writeStartObject();
     if (response.planTasks() != null) {
@@ -65,8 +69,7 @@ public class FetchScanTasksResponseParser {
       for (int i = 0; i < deleteFiles.size(); i++) {
         DeleteFile deleteFile = deleteFiles.get(i);
         deleteFilePathToIndex.put(String.valueOf(deleteFile.path()), i);
-        ContentFileParser.toJson(
-            deleteFiles.get(i), response.partitionSpecsById().get(deleteFile.specId()), gen);
+        ContentFileParser.toJson(deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
       }
       gen.writeEndArray();
     }
@@ -80,7 +83,8 @@ public class FetchScanTasksResponseParser {
             deleteFileReferences.add(deleteFilePathToIndex.get(taskDelete.path().toString()));
           }
         }
-        RESTFileScanTaskParser.toJson(fileScanTask, deleteFileReferences, gen);
+        PartitionSpec partitionSpec = specsById.get(fileScanTask.file().specId());
+        RESTFileScanTaskParser.toJson(fileScanTask, deleteFileReferences, partitionSpec, gen);
       }
       gen.writeEndArray();
     }
