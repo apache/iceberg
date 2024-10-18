@@ -40,13 +40,13 @@ import org.apache.iceberg.jdbc.JdbcCatalog;
 import org.apache.iceberg.jdbc.JdbcClientPool;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.RESTSessionCatalog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class SnowflakeCatalog extends BaseMetastoreCatalog
     implements SupportsNamespaces, Configurable<Object> {
   private static final String DEFAULT_CATALOG_NAME = "snowflake_catalog";
-  private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   // Specifies the name of a Snowflake's partner application to connect through JDBC.
   // https://docs.snowflake.com/en/user-guide/jdbc-parameters.html#application
   private static final String JDBC_APPLICATION_PROPERTY = "application";
@@ -241,7 +241,7 @@ public class SnowflakeCatalog extends BaseMetastoreCatalog
 
   @Override
   protected TableOperations newTableOps(TableIdentifier tableIdentifier) {
-    String fileIOImpl = DEFAULT_FILE_IO_IMPL;
+    String fileIOImpl = RESTSessionCatalog.DEFAULT_FILE_IO_IMPL;
     if (catalogProperties.containsKey(CatalogProperties.FILE_IO_IMPL)) {
       fileIOImpl = catalogProperties.get(CatalogProperties.FILE_IO_IMPL);
     }

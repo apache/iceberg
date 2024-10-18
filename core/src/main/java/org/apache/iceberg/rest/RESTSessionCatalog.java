@@ -112,7 +112,6 @@ import org.slf4j.LoggerFactory;
 public class RESTSessionCatalog extends BaseViewSessionCatalog
     implements Configurable<Object>, Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(RESTSessionCatalog.class);
-  private static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
   private static final String REST_METRICS_REPORTING_ENABLED = "rest-metrics-reporting-enabled";
   private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
   // for backwards compatibility with older REST servers where it can be assumed that a particular
@@ -178,6 +177,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private Integer pageSize = null;
   private CloseableGroup closeables = null;
   private Set<Endpoint> endpoints;
+
+  public static final String DEFAULT_FILE_IO_IMPL = "org.apache.iceberg.io.ResolvingFileIO";
 
   // a lazy thread pool for token refresh
   private volatile ScheduledExecutorService refreshExecutor = null;
@@ -994,7 +995,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
     if (null != ioBuilder) {
       return ioBuilder.apply(context, properties);
     } else {
-      String ioImpl = properties.getOrDefault(CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
+      String ioImpl = properties.getOrDefault(
+              CatalogProperties.FILE_IO_IMPL, DEFAULT_FILE_IO_IMPL);
       return CatalogUtil.loadFileIO(ioImpl, properties, conf);
     }
   }
