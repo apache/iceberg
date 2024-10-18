@@ -72,6 +72,7 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -186,7 +187,7 @@ public class RecordConverterTest {
   private static final BigDecimal DEC_VAL = new BigDecimal("12.34");
   private static final String STR_VAL = "foobar";
   private static final UUID UUID_VAL = UUID.randomUUID();
-  private static final ByteBuffer BYTES_VAL = ByteBuffer.wrap(new byte[] {1, 2, 3});
+  private static final byte[] BYTES_VAL = ByteBuffer.wrap(new byte[] {1, 2, 3}).array();
   private static final List<String> LIST_VAL = ImmutableList.of("hello", "world");
   private static final Map<String, String> MAP_VAL = ImmutableMap.of("one", "1", "two", "2");
 
@@ -873,8 +874,8 @@ public class RecordConverterTest {
         .put("s", STR_VAL)
         .put("b", true)
         .put("u", UUID_VAL.toString())
-        .put("f", Base64.getEncoder().encodeToString(BYTES_VAL.array()))
-        .put("bi", Base64.getEncoder().encodeToString(BYTES_VAL.array()))
+        .put("f", Base64.getEncoder().encodeToString(BYTES_VAL))
+        .put("bi", Base64.getEncoder().encodeToString(BYTES_VAL))
         .put("li", LIST_VAL)
         .put("ma", MAP_VAL)
         .build();
@@ -898,8 +899,8 @@ public class RecordConverterTest {
         .put("s", STR_VAL)
         .put("b", true)
         .put("u", UUID_VAL.toString())
-        .put("f", BYTES_VAL.array())
-        .put("bi", BYTES_VAL.array())
+        .put("f", BYTES_VAL)
+        .put("bi", BYTES_VAL)
         .put("li", LIST_VAL)
         .put("ma", MAP_VAL);
   }
@@ -921,7 +922,7 @@ public class RecordConverterTest {
     assertThat(rec.getField("dec")).isEqualTo(DEC_VAL);
     assertThat(rec.getField("s")).isEqualTo(STR_VAL);
     assertThat(rec.getField("b")).isEqualTo(true);
-    assertThat(rec.getField("u")).isEqualTo(UUID_VAL);
+    assertThat(rec.getField("u")).isEqualTo(UUIDUtil.convert(UUID_VAL));
     assertThat(rec.getField("f")).isEqualTo(BYTES_VAL);
     assertThat(rec.getField("bi")).isEqualTo(BYTES_VAL);
     assertThat(rec.getField("li")).isEqualTo(LIST_VAL);
