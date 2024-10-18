@@ -32,14 +32,26 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
   private final String specString;
   private final ResidualEvaluator residuals;
 
-  private transient volatile Schema schema = null;
-  private transient volatile PartitionSpec spec = null;
+  private transient volatile Schema schema;
+  private transient volatile PartitionSpec spec;
 
   BaseContentScanTask(F file, String schemaString, String specString, ResidualEvaluator residuals) {
+    this(file, schemaString, specString, residuals, null, null);
+  }
+
+  BaseContentScanTask(
+      F file,
+      String schemaString,
+      String specString,
+      ResidualEvaluator residuals,
+      Schema schema,
+      PartitionSpec spec) {
     this.file = file;
     this.schemaString = schemaString;
     this.specString = specString;
     this.residuals = residuals;
+    this.schema = schema;
+    this.spec = spec;
   }
 
   protected abstract ThisT self();
