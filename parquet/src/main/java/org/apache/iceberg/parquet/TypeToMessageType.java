@@ -37,6 +37,7 @@ import org.apache.iceberg.types.Types.ListType;
 import org.apache.iceberg.types.Types.MapType;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.types.Types.TimestampNanoType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -56,6 +57,10 @@ public class TypeToMessageType {
       LogicalTypeAnnotation.timestampType(false /* not adjusted to UTC */, TimeUnit.MICROS);
   private static final LogicalTypeAnnotation TIMESTAMPTZ_MICROS =
       LogicalTypeAnnotation.timestampType(true /* adjusted to UTC */, TimeUnit.MICROS);
+  private static final LogicalTypeAnnotation TIMESTAMP_NANOS =
+      LogicalTypeAnnotation.timestampType(false /* not adjusted to UTC */, TimeUnit.NANOS);
+  private static final LogicalTypeAnnotation TIMESTAMPTZ_NANOS =
+      LogicalTypeAnnotation.timestampType(true /* not adjusted to UTC */, TimeUnit.NANOS);
 
   public MessageType convert(Schema schema, String name) {
     Types.MessageTypeBuilder builder = Types.buildMessage();
@@ -140,6 +145,12 @@ public class TypeToMessageType {
           return Types.primitive(INT64, repetition).as(TIMESTAMPTZ_MICROS).id(id).named(name);
         } else {
           return Types.primitive(INT64, repetition).as(TIMESTAMP_MICROS).id(id).named(name);
+        }
+      case TIMESTAMP_NANO:
+        if (((TimestampNanoType) primitive).shouldAdjustToUTC()) {
+          return Types.primitive(INT64, repetition).as(TIMESTAMPTZ_NANOS).id(id).named(name);
+        } else {
+          return Types.primitive(INT64, repetition).as(TIMESTAMP_NANOS).id(id).named(name);
         }
       case STRING:
         return Types.primitive(BINARY, repetition).as(STRING).id(id).named(name);
