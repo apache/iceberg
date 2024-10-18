@@ -44,7 +44,9 @@ public class TestEvent {
               Types.NestedField.required(1, "id", Types.LongType.get()),
               Types.NestedField.required(2, "type", Types.StringType.get()),
               Types.NestedField.required(3, "ts", Types.TimestampType.withZone()),
-              Types.NestedField.required(4, "payload", Types.StringType.get())),
+              Types.NestedField.required(4, "payload", Types.StringType.get()),
+              Types.NestedField.required(5, "uu", Types.UUIDType.get()),
+              Types.NestedField.required(6, "fx", Types.FixedType.ofLength(10))),
           ImmutableSet.of(1));
 
   public static final org.apache.kafka.connect.data.Schema TEST_CONNECT_SCHEMA =
@@ -53,7 +55,9 @@ public class TestEvent {
           .field("type", org.apache.kafka.connect.data.Schema.STRING_SCHEMA)
           .field("ts", Timestamp.SCHEMA)
           .field("payload", org.apache.kafka.connect.data.Schema.STRING_SCHEMA)
-          .field("op", org.apache.kafka.connect.data.Schema.OPTIONAL_STRING_SCHEMA);
+          .field("op", org.apache.kafka.connect.data.Schema.OPTIONAL_STRING_SCHEMA)
+          .field("uu", org.apache.kafka.connect.data.Schema.OPTIONAL_STRING_SCHEMA)
+          .field("fx", org.apache.kafka.connect.data.Schema.OPTIONAL_STRING_SCHEMA);
 
   public static final PartitionSpec TEST_SPEC =
       PartitionSpec.builderFor(TEST_SCHEMA).day("ts").build();
@@ -70,17 +74,22 @@ public class TestEvent {
   private final Instant ts;
   private final String payload;
   private final String op;
+  private final String uu;
+  private final String fx;
 
   public TestEvent(long id, String type, Instant ts, String payload) {
-    this(id, type, ts, payload, null);
+    this(id, type, ts, payload, null, null, null);
   }
 
-  public TestEvent(long id, String type, Instant ts, String payload, String op) {
+  public TestEvent(
+      long id, String type, Instant ts, String payload, String op, String uu, String fx) {
     this.id = id;
     this.type = type;
     this.ts = ts;
     this.payload = payload;
     this.op = op;
+    this.uu = uu;
+    this.fx = fx;
   }
 
   public long id() {
@@ -95,7 +104,9 @@ public class TestEvent {
               .put("type", type)
               .put("ts", Date.from(ts))
               .put("payload", payload)
-              .put("op", op);
+              .put("op", op)
+              .put("uu", uu)
+              .put("fx", fx);
 
       String convertMethod =
           useSchema ? "convertToJsonWithEnvelope" : "convertToJsonWithoutEnvelope";
