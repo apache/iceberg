@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.rest;
 
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 import org.apache.iceberg.UpdateRequirements;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.view.ViewMetadata;
@@ -32,20 +32,20 @@ import org.apache.iceberg.view.ViewOperations;
 class RESTViewOperations implements ViewOperations {
   private final RESTClient client;
   private final String path;
-  private final Supplier<Map<String, String>> headers;
+  private final AuthSession authSession;
   private final Set<Endpoint> endpoints;
   private ViewMetadata current;
 
   RESTViewOperations(
       RESTClient client,
       String path,
-      Supplier<Map<String, String>> headers,
+      AuthSession authSession,
       ViewMetadata current,
       Set<Endpoint> endpoints) {
     Preconditions.checkArgument(null != current, "Invalid view metadata: null");
     this.client = client;
     this.path = path;
-    this.headers = headers;
+    this.authSession = authSession;
     this.current = current;
     this.endpoints = endpoints;
   }
@@ -59,7 +59,12 @@ class RESTViewOperations implements ViewOperations {
   public ViewMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_VIEW);
     return updateCurrentMetadata(
-        client.get(path, LoadViewResponse.class, headers, ErrorHandlers.viewErrorHandler()));
+        client.get(
+            path,
+            LoadViewResponse.class,
+            ImmutableMap.of(),
+            authSession,
+            ErrorHandlers.viewErrorHandler()));
   }
 
   @Override
@@ -74,7 +79,12 @@ class RESTViewOperations implements ViewOperations {
 
     LoadViewResponse response =
         client.post(
-            path, request, LoadViewResponse.class, headers, ErrorHandlers.viewCommitHandler());
+            path,
+            request,
+            LoadViewResponse.class,
+            ImmutableMap.of(),
+            authSession,
+            ErrorHandlers.viewCommitHandler());
 
     updateCurrentMetadata(response);
   }
