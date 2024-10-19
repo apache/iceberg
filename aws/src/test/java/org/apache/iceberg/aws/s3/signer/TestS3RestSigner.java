@@ -138,7 +138,6 @@ public class TestS3RestSigner {
     if (null != httpServer) {
       httpServer.stop();
     }
-
   }
 
   @BeforeEach
