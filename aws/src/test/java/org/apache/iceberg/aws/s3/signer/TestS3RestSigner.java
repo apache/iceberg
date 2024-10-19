@@ -139,10 +139,6 @@ public class TestS3RestSigner {
       httpServer.stop();
     }
 
-    if (MINIO_CONTAINER != null) {
-      MINIO_CONTAINER.stop();
-      MINIO_CONTAINER.close();
-    }
   }
 
   @BeforeEach
