@@ -56,7 +56,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.ParameterizedAvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
-import org.apache.iceberg.spark.data.SparkAvroReader;
+import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkException;
 import org.apache.spark.TaskContext;
@@ -259,7 +259,7 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
     List<InternalRow> rows = Lists.newArrayList();
     try (AvroIterable<InternalRow> reader =
         Avro.read(Files.localInput(testFile))
-            .createReaderFunc(SparkAvroReader::new)
+            .createResolvingReader(SparkPlannedAvroReader::create)
             .project(schema)
             .build()) {
 

@@ -161,10 +161,16 @@ public class SparkPlannedAvroReader implements DatumReader<InternalRow>, Support
         case BOOLEAN:
           return ValueReaders.booleans();
         case INT:
+          if (partner != null && partner.typeId() == Type.TypeID.LONG) {
+            return ValueReaders.intsAsLongs();
+          }
           return ValueReaders.ints();
         case LONG:
           return ValueReaders.longs();
         case FLOAT:
+          if (partner != null && partner.typeId() == Type.TypeID.DOUBLE) {
+            return ValueReaders.floatsAsDoubles();
+          }
           return ValueReaders.floats();
         case DOUBLE:
           return ValueReaders.doubles();

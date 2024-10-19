@@ -37,16 +37,28 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.catalyst.InternalRow;
 
+/**
+ * @deprecated will be removed in 1.8.0; use SparkPlannedAvroReader instead.
+ */
+@Deprecated
 public class SparkAvroReader implements DatumReader<InternalRow>, SupportsRowPosition {
 
   private final Schema readSchema;
   private final ValueReader<InternalRow> reader;
   private Schema fileSchema = null;
 
+  /**
+   * @deprecated will be removed in 1.8.0; use SparkPlannedAvroReader instead.
+   */
+  @Deprecated
   public SparkAvroReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema) {
     this(expectedSchema, readSchema, ImmutableMap.of());
   }
 
+  /**
+   * @deprecated will be removed in 1.8.0; use SparkPlannedAvroReader instead.
+   */
+  @Deprecated
   @SuppressWarnings("unchecked")
   public SparkAvroReader(
       org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> constants) {
