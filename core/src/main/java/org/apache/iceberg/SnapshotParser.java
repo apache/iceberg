@@ -143,8 +143,7 @@ public class SnapshotParser {
       }
       summary = builder.build();
       Preconditions.checkArgument(
-        operation != null, 
-        "Operation must be present in summary if summary exists");
+          operation != null, "Operation must be present in summary if summary exists");
     }
 
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, node);

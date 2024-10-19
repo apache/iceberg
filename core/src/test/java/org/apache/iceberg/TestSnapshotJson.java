@@ -23,18 +23,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.Map;
 
 public class TestSnapshotJson {
   @TempDir private Path temp;
@@ -81,11 +81,14 @@ public class TestSnapshotJson {
     // Assert that the JSON contains the expected summary
     ObjectMapper objectMapper = new ObjectMapper();
     JsonNode jsonNode = objectMapper.readTree(json);
-    Map<String, String> actualSummary = objectMapper.convertValue(jsonNode.get("summary"), new TypeReference<Map<String, String>>() {});
-    Map<String, String> expectedSummary = ImmutableMap.<String, String>builder()
-      .putAll(expected.summary())
-      .put("operation", expected.operation()) // operation is part of the summary
-      .build();
+    Map<String, String> actualSummary =
+        objectMapper.convertValue(
+            jsonNode.get("summary"), new TypeReference<Map<String, String>>() {});
+    Map<String, String> expectedSummary =
+        ImmutableMap.<String, String>builder()
+            .putAll(expected.summary())
+            .put("operation", expected.operation()) // operation is part of the summary
+            .build();
     assertThat(jsonNode.has("summary")).isTrue();
     assertThat(actualSummary).isEqualTo(expectedSummary);
   }
@@ -230,12 +233,10 @@ public class TestSnapshotJson {
                 + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
                 + "  \"schema-id\" : 3\n"
                 + "}",
-                System.currentTimeMillis());
+            System.currentTimeMillis());
 
-    IllegalArgumentException exception = assertThrows(
-        IllegalArgumentException.class, 
-        () -> SnapshotParser.fromJson(json)
-    );
+    IllegalArgumentException exception =
+        assertThrows(IllegalArgumentException.class, () -> SnapshotParser.fromJson(json));
     assertEquals("Operation must be present in summary if summary exists", exception.getMessage());
   }
 
