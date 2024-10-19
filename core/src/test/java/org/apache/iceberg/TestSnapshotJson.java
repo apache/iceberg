@@ -20,8 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -235,9 +234,9 @@ public class TestSnapshotJson {
                 + "}",
             System.currentTimeMillis());
 
-    IllegalArgumentException exception =
-        assertThrows(IllegalArgumentException.class, () -> SnapshotParser.fromJson(json));
-    assertEquals("Operation must be present in summary if summary exists", exception.getMessage());
+    assertThatThrownBy(() -> SnapshotParser.fromJson(json))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Operation must be present in summary if summary exists");
   }
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
