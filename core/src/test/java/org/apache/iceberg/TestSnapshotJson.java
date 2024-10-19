@@ -20,6 +20,8 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.File;
 import java.io.IOException;
@@ -210,6 +212,31 @@ public class TestSnapshotJson {
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
     assertThat(snapshot.schemaId()).isEqualTo(expected.schemaId());
+  }
+
+  @Test
+  public void testJsonConversionSummaryWithoutOperationFails() {
+    // summary field without operation key should fail
+    String json =
+        String.format(
+            "{\n"
+                + "  \"snapshot-id\" : 2,\n"
+                + "  \"parent-snapshot-id\" : 1,\n"
+                + "  \"timestamp-ms\" : %s,\n"
+                + "  \"summary\" : {\n"
+                + "    \"files-added\" : \"4\",\n"
+                + "    \"files-deleted\" : \"100\"\n"
+                + "  },\n"
+                + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
+                + "  \"schema-id\" : 3\n"
+                + "}",
+                System.currentTimeMillis());
+
+    IllegalArgumentException exception = assertThrows(
+        IllegalArgumentException.class, 
+        () -> SnapshotParser.fromJson(json)
+    );
+    assertEquals("Operation must be present in summary if summary exists", exception.getMessage());
   }
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
