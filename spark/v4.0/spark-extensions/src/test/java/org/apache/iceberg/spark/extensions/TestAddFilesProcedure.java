@@ -490,6 +490,7 @@ public class TestAddFilesProcedure extends ExtensionsTestBase {
     createDatePartitionedFileTable("parquet");
 
     createIcebergTable("id Integer, name String, date Date", "PARTITIONED BY (date)");
+    createIcebergTable("id Integer, name String, date Date", "PARTITIONED BY (date)");
 
     List<Object[]> result =
         sql(

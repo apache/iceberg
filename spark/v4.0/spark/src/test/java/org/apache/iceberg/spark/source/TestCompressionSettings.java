@@ -78,7 +78,6 @@ import org.apache.spark.sql.SparkSession;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -144,13 +143,8 @@ public class TestCompressionSettings extends CatalogTestBase {
 
   @BeforeAll
   public static void startSpark() {
+    System.out.println(" est test test test test");
     TestCompressionSettings.spark = SparkSession.builder().master("local[2]").getOrCreate();
-  }
-
-  @BeforeEach
-  public void resetSpecificConfigurations() {
-    spark.conf().unset(COMPRESSION_CODEC);
-    spark.conf().unset(COMPRESSION_LEVEL);
   }
 
   @AfterEach
