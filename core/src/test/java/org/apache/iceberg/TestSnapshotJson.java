@@ -29,11 +29,64 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Map;
 
 public class TestSnapshotJson {
   @TempDir private Path temp;
 
   public TableOperations ops = new LocalTableOperations(temp);
+
+  @Test
+  public void testToJson() throws IOException {
+    int snapshotId = 23;
+    Long parentId = null;
+    String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
+
+    Snapshot expected =
+        new BaseSnapshot(
+            0, snapshotId, parentId, System.currentTimeMillis(), null, null, 1, manifestList);
+    String json = SnapshotParser.toJson(expected);
+
+    // Assert that summary field is not present in the JSON
+    ObjectMapper objectMapper = new ObjectMapper();
+    JsonNode jsonNode = objectMapper.readTree(json);
+    assertThat(jsonNode.has("summary")).isFalse();
+  }
+
+  @Test
+  public void testToJsonWithOperation() throws IOException {
+    long parentId = 1;
+    long id = 2;
+
+    String manifestList = createManifestListWithManifestFiles(id, parentId);
+
+    Snapshot expected =
+        new BaseSnapshot(
+            0,
+            id,
+            parentId,
+            System.currentTimeMillis(),
+            DataOperations.REPLACE,
+            ImmutableMap.of("files-added", "4", "files-deleted", "100"),
+            3,
+            manifestList);
+
+    String json = SnapshotParser.toJson(expected);
+
+    // Assert that the JSON contains the expected summary
+    ObjectMapper objectMapper = new ObjectMapper();
+    JsonNode jsonNode = objectMapper.readTree(json);
+    Map<String, String> actualSummary = objectMapper.convertValue(jsonNode.get("summary"), new TypeReference<Map<String, String>>() {});
+    Map<String, String> expectedSummary = ImmutableMap.<String, String>builder()
+      .putAll(expected.summary())
+      .put("operation", expected.operation()) // operation is part of the summary
+      .build();
+    assertThat(jsonNode.has("summary")).isTrue();
+    assertThat(actualSummary).isEqualTo(expectedSummary);
+  }
 
   @Test
   public void testJsonConversion() throws IOException {
