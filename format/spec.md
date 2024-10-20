@@ -557,7 +557,7 @@ A snapshot consists of the following fields:
 | _required_ | _required_ | **`timestamp-ms`**       | A timestamp when the snapshot was created, used for garbage collection and table inspection |
 | _optional_ | _required_ | **`manifest-list`**      | The location of a manifest list for this snapshot that tracks manifest files with additional metadata |
 | _optional_ |            | **`manifests`**          | A list of manifest file locations. Must be omitted if `manifest-list` is present |
-| _optional_ | _required_ | **`summary`**            | A string map that summarizes the snapshot changes, including `operation` (see below) |
+| _optional_ | _required_ | **`summary`**            | A string map that summarizes the snapshot changes, including `operation` as a _required_ field (see below) |
 | _optional_ | _optional_ | **`schema-id`**          | ID of the table's current schema when the snapshot was created |
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
