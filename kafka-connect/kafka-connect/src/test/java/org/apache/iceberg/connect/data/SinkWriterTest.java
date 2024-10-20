@@ -171,9 +171,11 @@ public class SinkWriterTest {
   @Test
   public void testTopicToTableMapRoute() {
     IcebergSinkConfig config = mock(IcebergSinkConfig.class);
-    when(config.topicToTableMap()).thenReturn(ImmutableMap.of(TOPIC_NAME, TABLE_IDENTIFIER));
+    when(config.topicToTableMap())
+        .thenReturn(ImmutableMap.of(TOPIC_NAME, TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
 
-    Map<String, Object> value = ImmutableMap.of(TOPIC_NAME, TABLE_IDENTIFIER);
+    Map<String, Object> value = ImmutableMap.of(TOPIC_NAME, TABLE_IDENTIFIER.toString());
 
     List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
     assertThat(writerResults.size()).isEqualTo(1);

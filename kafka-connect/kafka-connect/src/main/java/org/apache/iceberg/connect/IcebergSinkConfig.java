@@ -112,7 +112,7 @@ public class IcebergSinkConfig extends AbstractConfig {
     ConfigDef configDef = new ConfigDef();
     configDef.define(
         TOPIC_TO_TABLES_MAPPING_PROP,
-        Type.LIST,
+        ConfigDef.Type.LIST,
         null,
         Importance.LOW,
         "Comma-delimited list of topic to table mappings");
@@ -309,9 +309,9 @@ public class IcebergSinkConfig extends AbstractConfig {
   public Map<String, String> topicToTableMap() {
     Map<String, String> topicToTableMap = Maps.newHashMap();
     for (String topicToTable : getList(TOPIC_TO_TABLES_MAPPING_PROP)) {
-      String[] propsplit = topicToTable.trim().split(":");
-      if (propsplit.length == 2) {
-        topicToTableMap.put(propsplit[0].trim(), propsplit[1].trim());
+      List<String> propsplit = Splitter.on(':').splitToList(topicToTable.trim());
+      if (propsplit.size() == 2) {
+        topicToTableMap.put(propsplit.get(0).trim(), propsplit.get(1).trim());
       }
     }
     LOG.debug("Config: topicToTableMap: {}", topicToTableMap);
