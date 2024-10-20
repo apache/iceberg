@@ -79,6 +79,8 @@ public class IcebergSinkConfig extends AbstractConfig {
       "iceberg.tables.schema-force-optional";
   private static final String TABLES_SCHEMA_CASE_INSENSITIVE_PROP =
       "iceberg.tables.schema-case-insensitive";
+  private static final String TABLES_SCHEMA_FORCE_COLUMNS_TO_LOWERCASE_PROP =
+      "iceberg.tables.schema-force-columns-to-lowercase";
   private static final String CONTROL_TOPIC_PROP = "iceberg.control.topic";
   private static final String COMMIT_INTERVAL_MS_PROP = "iceberg.control.commit.interval-ms";
   private static final int COMMIT_INTERVAL_MS_DEFAULT = 300_000;
@@ -162,6 +164,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         false,
         Importance.MEDIUM,
         "Set to true to look up table columns by case-insensitive name, false for case-sensitive");
+    configDef.define(
+        TABLES_SCHEMA_FORCE_COLUMNS_TO_LOWERCASE_PROP,
+        ConfigDef.Type.BOOLEAN,
+        false,
+        Importance.MEDIUM,
+        "Set to true to force table column names to lowercase, false for preserve case");
     configDef.define(
         TABLES_EVOLVE_SCHEMA_ENABLED_PROP,
         ConfigDef.Type.BOOLEAN,
@@ -333,10 +341,16 @@ public class IcebergSinkConfig extends AbstractConfig {
           Pattern routeRegex = routeRegexStr == null ? null : Pattern.compile(routeRegexStr);
 
           String idColumnsStr = tableConfig.getOrDefault(ID_COLUMNS, tablesDefaultIdColumns());
+          if (schemaForceColumnsToLowercase() && idColumnsStr != null) {
+            idColumnsStr = idColumnsStr.toLowerCase();
+          }
           List<String> idColumns = stringToList(idColumnsStr, ",");
 
           String partitionByStr =
               tableConfig.getOrDefault(PARTITION_BY, tablesDefaultPartitionBy());
+          if (schemaForceColumnsToLowercase() && partitionByStr != null) {
+            partitionByStr = partitionByStr.toLowerCase();
+          }
           List<String> partitionBy = stringToList(partitionByStr, COMMA_NO_PARENS_REGEX);
 
           String commitBranch =
@@ -400,6 +414,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public boolean schemaCaseInsensitive() {
     return getBoolean(TABLES_SCHEMA_CASE_INSENSITIVE_PROP);
+  }
+
+  public boolean schemaForceColumnsToLowercase() {
+    return getBoolean(TABLES_SCHEMA_FORCE_COLUMNS_TO_LOWERCASE_PROP);
   }
 
   public JsonConverter jsonConverter() {
