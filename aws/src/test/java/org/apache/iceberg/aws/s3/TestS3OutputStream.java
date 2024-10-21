@@ -78,7 +78,7 @@ public class TestS3OutputStream {
   private static final String BUCKET = "test-bucket";
   private static final int FIVE_MBS = 5 * 1024 * 1024;
 
-  @Container public static MinIOContainer minio = MinioUtil.createContainer();
+  @Container private static final MinIOContainer minio = MinioUtil.createContainer();
 
   private final S3Client s3 = MinioUtil.createS3Client(minio);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3));

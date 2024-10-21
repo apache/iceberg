@@ -41,7 +41,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Testcontainers
 public class TestS3InputStream {
-  @Container public static MinIOContainer minio = MinioUtil.createContainer();
+  @Container private static final MinIOContainer minio = MinioUtil.createContainer();
 
   private final S3Client s3 = MinioUtil.createS3Client(minio);
   private final Random random = new Random(1);
