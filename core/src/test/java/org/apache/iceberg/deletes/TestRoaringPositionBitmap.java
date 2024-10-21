@@ -70,10 +70,9 @@ public class TestRoaringPositionBitmap {
     assertThat(bitmap.contains(pos2)).isTrue();
     assertThat(bitmap.contains(pos3)).isTrue();
     assertThat(bitmap.contains(pos4)).isTrue();
-
     assertThat(bitmap.cardinality()).isEqualTo(4);
-
     assertThat(bitmap.serializedSizeInBytes()).isGreaterThan(4);
+    assertThat(bitmap.allocatedBitmapCount()).isEqualTo(101 /* max high + 1 */);
   }
 
   @Test
@@ -98,6 +97,27 @@ public class TestRoaringPositionBitmap {
   }
 
   @Test
+  public void testAddRangeAcrossKeys() {
+    RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
+
+    long startInclusive = ((long) 1 << 32) - 5L;
+    long endExclusive = ((long) 1 << 32) + 5L;
+    bitmap.addRange(startInclusive, endExclusive);
+
+    // assert that all positions in the range are added
+    for (long pos = startInclusive; pos < endExclusive; pos++) {
+      assertThat(bitmap.contains(pos)).isTrue();
+    }
+
+    // assert that positions outside the range are not present
+    assertThat(bitmap.contains(0)).isFalse();
+    assertThat(bitmap.contains(endExclusive)).isFalse();
+
+    // assert that the cardinality is correct
+    assertThat(bitmap.cardinality()).isEqualTo(10);
+  }
+
+  @Test
   public void testAddEmptyRange() {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
     bitmap.addRange(10, 10);
@@ -113,6 +133,7 @@ public class TestRoaringPositionBitmap {
     RoaringPositionBitmap bitmap2 = new RoaringPositionBitmap();
     bitmap2.add(30L);
     bitmap2.add(40L);
+    bitmap2.add((long) 2 << 32);
 
     bitmap1.or(bitmap2);
 
@@ -120,11 +141,12 @@ public class TestRoaringPositionBitmap {
     assertThat(bitmap1.contains(20L)).isTrue();
     assertThat(bitmap1.contains(30L)).isTrue();
     assertThat(bitmap1.contains(40L)).isTrue();
-    assertThat(bitmap1.cardinality()).isEqualTo(4);
+    assertThat(bitmap1.contains((long) 2 << 32)).isTrue();
+    assertThat(bitmap1.cardinality()).isEqualTo(5);
 
     assertThat(bitmap2.contains(10L)).isFalse();
     assertThat(bitmap2.contains(20L)).isFalse();
-    assertThat(bitmap2.cardinality()).isEqualTo(2);
+    assertThat(bitmap2.cardinality()).isEqualTo(3);
   }
 
   @Test
@@ -165,6 +187,12 @@ public class TestRoaringPositionBitmap {
     assertThat(bitmap1.contains(30L)).isTrue();
     assertThat(bitmap1.contains(40L)).isTrue();
     assertThat(bitmap1.cardinality()).isEqualTo(4);
+
+    assertThat(bitmap2.contains(10L)).isFalse();
+    assertThat(bitmap2.contains(20L)).isTrue();
+    assertThat(bitmap2.contains(30L)).isFalse();
+    assertThat(bitmap2.contains(40L)).isTrue();
+    assertThat(bitmap2.cardinality()).isEqualTo(2);
   }
 
   @Test
