@@ -43,11 +43,6 @@ public class TestMinioHelper {
   void validateS3ConditionalWrites() {
     S3Client s3Client = MinioHelper.createS3Client(minio);
 
-    /* August 2024: S3 Conditional Writes
-
-        https://aws.amazon.com/about-aws/whats-new/2024/08/amazon-s3-conditional-writes/
-
-    */
     final String bucket = "test-bucket-" + UUID.randomUUID();
 
     CreateBucketResponse createBucketResponse =
