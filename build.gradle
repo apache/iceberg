@@ -118,6 +118,9 @@ allprojects {
   version = projectVersion
   repositories {
     mavenCentral()
+    maven {         
+      url = uri("https://repository.apache.org/content/repositories/orgapachespark-1470/")
+    }
     mavenLocal()
   }
 }
