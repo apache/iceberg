@@ -60,6 +60,7 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
   private boolean caseSensitive;
   private boolean setAsDefault;
+  private PartitionSpec providedPartitionSpec;
   private int lastAssignedPartitionId;
 
   BaseUpdatePartitionSpec(TableOperations ops) {
@@ -175,7 +176,17 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
   }
 
   @Override
+  public BaseUpdatePartitionSpec useSpec(PartitionSpec newSpec) {
+    this.providedPartitionSpec = newSpec;
+    return this;
+  }
+
+  @Override
   public BaseUpdatePartitionSpec addField(String name, Term term) {
+    Preconditions.checkArgument(
+        this.providedPartitionSpec == null,
+        "Cannot add field after explicitly setting partition spec");
+
     PartitionField alreadyAdded = nameToAddedField.get(name);
     Preconditions.checkArgument(
         alreadyAdded == null, "Cannot add duplicate partition field: %s", alreadyAdded);
@@ -242,6 +253,10 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
   @Override
   public BaseUpdatePartitionSpec removeField(String name) {
+    Preconditions.checkArgument(
+        this.providedPartitionSpec == null,
+        "Cannot remove field after explicitly setting partition spec");
+
     PartitionField alreadyAdded = nameToAddedField.get(name);
     Preconditions.checkArgument(
         alreadyAdded == null, "Cannot delete newly added field: %s", alreadyAdded);
@@ -259,6 +274,10 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
   @Override
   public BaseUpdatePartitionSpec removeField(Term term) {
+    Preconditions.checkArgument(
+        this.providedPartitionSpec == null,
+        "Cannot remove field after explicitly setting partition spec");
+
     Pair<Integer, Transform<?, ?>> sourceTransform = resolve(term);
     Pair<Integer, String> key =
         Pair.of(sourceTransform.first(), sourceTransform.second().toString());
@@ -280,6 +299,10 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
   @Override
   public BaseUpdatePartitionSpec renameField(String name, String newName) {
+    Preconditions.checkArgument(
+        this.providedPartitionSpec == null,
+        "Cannot rename field after explicitly setting partition spec");
+
     PartitionField existingField = nameToField.get(newName);
     if (existingField != null && isVoidTransform(existingField)) {
       // rename the old deleted field that is being replaced by the new field
@@ -302,6 +325,10 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
 
   @Override
   public PartitionSpec apply() {
+    if (this.providedPartitionSpec != null) {
+      return this.providedPartitionSpec;
+    }
+
     PartitionSpec.Builder builder = PartitionSpec.builderFor(schema);
 
     for (PartitionField field : spec.fields()) {

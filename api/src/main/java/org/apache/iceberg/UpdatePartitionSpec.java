@@ -133,4 +133,16 @@ public interface UpdatePartitionSpec extends PendingUpdate<PartitionSpec> {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " doesn't implement addNonDefaultSpec()");
   }
+
+  /**
+   * Explicitly providing the partition spec that we would like to use. When a spec has been
+   * provided then modifications should not be done afterwards through this class.
+   *
+   * @param newSpec partition spec to override the builder use during commit
+   * @return this for method chaining names.
+   */
+  default UpdatePartitionSpec useSpec(PartitionSpec newSpec) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement useSpec(PartitionSpec)");
+  }
 }
