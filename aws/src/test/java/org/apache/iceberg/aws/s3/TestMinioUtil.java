@@ -37,11 +37,11 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Testcontainers
 public class TestMinioUtil {
-  @Container private static final MinIOContainer minio = MinioUtil.createContainer();
+  @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
 
   @Test
   void validateS3ConditionalWrites() {
-    S3Client s3Client = MinioUtil.createS3Client(minio);
+    S3Client s3Client = MinioUtil.createS3Client(MINIO);
 
     final String bucket = "test-bucket-" + UUID.randomUUID();
 

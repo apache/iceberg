@@ -78,9 +78,9 @@ public class TestS3OutputStream {
   private static final String BUCKET = "test-bucket";
   private static final int FIVE_MBS = 5 * 1024 * 1024;
 
-  @Container private static final MinIOContainer minio = MinioUtil.createContainer();
+  @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
 
-  private final S3Client s3 = MinioUtil.createS3Client(minio);
+  private final S3Client s3 = MinioUtil.createS3Client(MINIO);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3));
   private final Random random = new Random(1);
   private final Path tmpDir = Files.createTempDirectory("s3fileio-test-");
