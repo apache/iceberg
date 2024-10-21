@@ -200,8 +200,7 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     table.refresh();
 
-    String distributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
-    assertThat(distributionMode).as("Distribution mode must match").isEqualTo("none");
+    assertThat(table.properties().containsKey(TableProperties.WRITE_DISTRIBUTION_MODE)).isFalse();
 
     SortOrder expected =
         SortOrder.builderFor(table.schema())
@@ -210,6 +209,25 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
             .asc(bucket("id", 16))
             .asc("id")
             .build();
+    assertThat(table.sortOrder()).as("Sort order must match").isEqualTo(expected);
+  }
+
+  @TestTemplate
+  public void testSetWriteLocallyOrderedToPartitionedTable() {
+    sql(
+        "CREATE TABLE %s (id bigint NOT NULL, category string) USING iceberg PARTITIONED BY (id)",
+        tableName);
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.sortOrder().isUnsorted()).as("Table should start unsorted").isTrue();
+
+    sql("ALTER TABLE %s WRITE LOCALLY ORDERED BY category DESC", tableName);
+
+    table.refresh();
+
+    assertThat(table.properties().containsKey(TableProperties.WRITE_DISTRIBUTION_MODE)).isFalse();
+
+    SortOrder expected =
+        SortOrder.builderFor(table.schema()).withOrderId(1).desc("category").build();
     assertThat(table.sortOrder()).as("Sort order must match").isEqualTo(expected);
   }
 
@@ -249,6 +267,13 @@ public class TestSetWriteDistributionAndOrdering extends ExtensionsTestBase {
 
     SortOrder expected = SortOrder.builderFor(table.schema()).withOrderId(1).asc("id").build();
     assertThat(table.sortOrder()).as("Sort order must match").isEqualTo(expected);
+
+    sql("ALTER TABLE %s WRITE LOCALLY ORDERED BY id", tableName);
+
+    table.refresh();
+
+    String newDistributionMode = table.properties().get(TableProperties.WRITE_DISTRIBUTION_MODE);
+    assertThat(newDistributionMode).as("Distribution mode must match").isEqualTo(distributionMode);
   }
 
   @TestTemplate
