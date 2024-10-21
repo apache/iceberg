@@ -56,12 +56,12 @@ public class MinioUtil {
   }
 
   public static S3Client createS3Client(MinIOContainer container) {
+    URI uri = URI.create("http://127.0.0.1:" + container.getFirstMappedPort());
     S3ClientBuilder builder = S3Client.builder();
     builder.credentialsProvider(
         StaticCredentialsProvider.create(
             AwsBasicCredentials.create(container.getUserName(), container.getPassword())));
-    builder.applyMutation(mutator -> mutator.endpointOverride(URI.create(container.getS3URL())));
-    builder.forcePathStyle(true);
+    builder.applyMutation(mutator -> mutator.endpointOverride(uri));
     builder.region(Region.US_EAST_1);
     return builder.build();
   }
