@@ -506,7 +506,7 @@ project(':iceberg-aws') {
     testImplementation libs.jaxb.api
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation libs.awaitility
-    testImplementation 'org.eclipse.jetty:jetty-servlet:9.4.56.v20240826'
+    testImplementation libs.jetty.servlet
   }
 
   sourceSets {
