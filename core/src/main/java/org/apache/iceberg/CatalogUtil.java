@@ -520,7 +520,7 @@ public class CatalogUtil {
    * Deletes the oldest metadata files if {@link
    * TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
    *
-   * @param io file IO
+   * @param io FileIO instance to use for deletes
    * @param base table metadata on which previous versions were based
    * @param metadata new table metadata with updated previous versions
    */
