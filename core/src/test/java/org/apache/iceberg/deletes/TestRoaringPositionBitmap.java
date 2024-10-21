@@ -125,7 +125,7 @@ public class TestRoaringPositionBitmap {
   }
 
   @Test
-  public void testOr() {
+  public void testAddAll() {
     RoaringPositionBitmap bitmap1 = new RoaringPositionBitmap();
     bitmap1.add(10L);
     bitmap1.add(20L);
@@ -135,7 +135,7 @@ public class TestRoaringPositionBitmap {
     bitmap2.add(40L);
     bitmap2.add((long) 2 << 32);
 
-    bitmap1.or(bitmap2);
+    bitmap1.addAll(bitmap2);
 
     assertThat(bitmap1.contains(10L)).isTrue();
     assertThat(bitmap1.contains(20L)).isTrue();
@@ -150,14 +150,14 @@ public class TestRoaringPositionBitmap {
   }
 
   @Test
-  public void testOrWithEmptyBitmap() {
+  public void testAddAllWithEmptyBitmap() {
     RoaringPositionBitmap bitmap1 = new RoaringPositionBitmap();
     bitmap1.add(10L);
     bitmap1.add(20L);
 
     RoaringPositionBitmap emptyBitmap = new RoaringPositionBitmap();
 
-    bitmap1.or(emptyBitmap);
+    bitmap1.addAll(emptyBitmap);
 
     assertThat(bitmap1.contains(10L)).isTrue();
     assertThat(bitmap1.contains(20L)).isTrue();
@@ -170,7 +170,7 @@ public class TestRoaringPositionBitmap {
   }
 
   @Test
-  public void testOrWithOverlappingBitmap() {
+  public void testAddAllWithOverlappingBitmap() {
     RoaringPositionBitmap bitmap1 = new RoaringPositionBitmap();
     bitmap1.add(10L);
     bitmap1.add(20L);
@@ -180,7 +180,7 @@ public class TestRoaringPositionBitmap {
     bitmap2.add(20L);
     bitmap2.add(40L);
 
-    bitmap1.or(bitmap2);
+    bitmap1.addAll(bitmap2);
 
     assertThat(bitmap1.contains(10L)).isTrue();
     assertThat(bitmap1.contains(20L)).isTrue();
@@ -196,7 +196,7 @@ public class TestRoaringPositionBitmap {
   }
 
   @Test
-  public void testOrSparseBitmaps() {
+  public void testAddAllSparseBitmaps() {
     RoaringPositionBitmap bitmap1 = new RoaringPositionBitmap();
     bitmap1.add((long) 0 << 32 | 100L); // High = 0, Low = 100
     bitmap1.add((long) 1 << 32 | 200L); // High = 1, Low = 200
@@ -205,7 +205,7 @@ public class TestRoaringPositionBitmap {
     bitmap2.add((long) 2 << 32 | 300L); // High = 2, Low = 300
     bitmap2.add((long) 3 << 32 | 400L); // High = 3, Low = 400
 
-    bitmap1.or(bitmap2);
+    bitmap1.addAll(bitmap2);
 
     assertThat(bitmap1.contains((long) 0 << 32 | 100L)).isTrue();
     assertThat(bitmap1.contains((long) 1 << 32 | 200L)).isTrue();

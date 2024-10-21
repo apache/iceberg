@@ -90,6 +90,18 @@ class RoaringPositionBitmap {
   }
 
   /**
+   * Adds all positions from the other bitmap to this bitmap, modifying this bitmap in place.
+   *
+   * @param that the other bitmap
+   */
+  public void addAll(RoaringPositionBitmap that) {
+    allocateBitmapsIfNeeded(that.bitmaps.length);
+    for (int index = 0; index < that.bitmaps.length; index++) {
+      bitmaps[index].or(that.bitmaps[index]);
+    }
+  }
+
+  /**
    * Checks if the bitmap contains a position.
    *
    * @param pos the row position
@@ -100,18 +112,6 @@ class RoaringPositionBitmap {
     int high = highBytes(pos);
     int low = lowBytes(pos);
     return high < bitmaps.length && bitmaps[high].contains(low);
-  }
-
-  /**
-   * Adds all positions from the other bitmap to this bitmap, modifying this bitmap in place.
-   *
-   * @param that the other bitmap
-   */
-  public void or(RoaringPositionBitmap that) {
-    allocateBitmapsIfNeeded(that.bitmaps.length);
-    for (int index = 0; index < that.bitmaps.length; index++) {
-      bitmaps[index].or(that.bitmaps[index]);
-    }
   }
 
   /**
