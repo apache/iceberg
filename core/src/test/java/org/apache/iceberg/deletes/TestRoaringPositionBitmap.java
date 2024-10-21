@@ -59,7 +59,7 @@ public class TestRoaringPositionBitmap {
     long pos1 = ((long) 0 << 32) | 10L; // high = 0, low = 10
     long pos2 = ((long) 1 << 32) | 20L; // high = 1, low = 20
     long pos3 = ((long) 2 << 32) | 30L; // high = 2, low = 30
-    long pos4 = ((long) 100 << 32) | 40L; // high = 1000, low = 40
+    long pos4 = ((long) 100 << 32) | 40L; // high = 100, low = 40
 
     bitmap.add(pos1);
     bitmap.add(pos2);
@@ -120,8 +120,11 @@ public class TestRoaringPositionBitmap {
     assertThat(bitmap1.contains(20L)).isTrue();
     assertThat(bitmap1.contains(30L)).isTrue();
     assertThat(bitmap1.contains(40L)).isTrue();
-
     assertThat(bitmap1.cardinality()).isEqualTo(4);
+
+    assertThat(bitmap2.contains(10L)).isFalse();
+    assertThat(bitmap2.contains(20L)).isFalse();
+    assertThat(bitmap2.cardinality()).isEqualTo(2);
   }
 
   @Test
@@ -136,8 +139,12 @@ public class TestRoaringPositionBitmap {
 
     assertThat(bitmap1.contains(10L)).isTrue();
     assertThat(bitmap1.contains(20L)).isTrue();
-
     assertThat(bitmap1.cardinality()).isEqualTo(2);
+
+    assertThat(emptyBitmap.contains(10L)).isFalse();
+    assertThat(emptyBitmap.contains(20L)).isFalse();
+    assertThat(emptyBitmap.cardinality()).isEqualTo(0);
+    assertThat(emptyBitmap.isEmpty()).isTrue();
   }
 
   @Test
@@ -157,7 +164,6 @@ public class TestRoaringPositionBitmap {
     assertThat(bitmap1.contains(20L)).isTrue();
     assertThat(bitmap1.contains(30L)).isTrue();
     assertThat(bitmap1.contains(40L)).isTrue();
-
     assertThat(bitmap1.cardinality()).isEqualTo(4);
   }
 
@@ -177,7 +183,6 @@ public class TestRoaringPositionBitmap {
     assertThat(bitmap1.contains((long) 1 << 32 | 200L)).isTrue();
     assertThat(bitmap1.contains((long) 2 << 32 | 300L)).isTrue();
     assertThat(bitmap1.contains((long) 3 << 32 | 400L)).isTrue();
-
     assertThat(bitmap1.cardinality()).isEqualTo(4);
   }
 
@@ -206,7 +211,7 @@ public class TestRoaringPositionBitmap {
     bitmap.add((long) 0 << 32 | 101L); // high = 0, low = 101
     bitmap.add((long) 0 << 32 | 105L); // high = 0, low = 101
     bitmap.add((long) 1 << 32 | 200L); // high = 1, low = 200
-    bitmap.add((long) 100 << 32 | 300L); // high = 1000, low = 300
+    bitmap.add((long) 100 << 32 | 300L); // high = 100, low = 300
 
     assertThat(bitmap.cardinality()).isEqualTo(5);
   }

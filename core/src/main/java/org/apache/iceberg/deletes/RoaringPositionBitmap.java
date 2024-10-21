@@ -41,14 +41,15 @@ import org.roaringbitmap.RoaringBitmap;
  * find a 32-bit bitmap and the least significant 4 bytes are tested for inclusion in the bitmap. If
  * a bitmap is not found for the key, then the position is not set.
  *
- * <p>Note that positions must be greater than or equal to 0 add less than {@link #MAX_POSITION}.
- * This bitmap does not support positions larger than {@link #MAX_POSITION} as the bitmap array
- * length is a signed 32-bit integer that must be greater than or equal to 0.
+ * <p>Positions must range from 0 (inclusive) to {@link #MAX_POSITION} (inclusive). The bitmap
+ * cannot handle positions exceeding {@link #MAX_POSITION} because the array size is a signed 32-bit
+ * integer, which must be non-negative. Allocating an array with size Integer.MAX_VALUE + 1 would
+ * overflow the integer and result in a negative length.
  */
 class RoaringPositionBitmap {
 
   static final long MAX_POSITION = toPosition(Integer.MAX_VALUE - 1, Integer.MIN_VALUE);
-  private static final RoaringBitmap[] EMPTY_BITMAP_ARRAY = new RoaringBitmap[] {};
+  private static final RoaringBitmap[] EMPTY_BITMAP_ARRAY = new RoaringBitmap[0];
   private static final long BITMAP_COUNT_SIZE_BYTES = 8L;
   private static final long BITMAP_KEY_SIZE_BYTES = 4L;
 
@@ -158,6 +159,21 @@ class RoaringPositionBitmap {
     }
   }
 
+  private void allocateBitmapsIfNeeded(int requiredLength) {
+    if (bitmaps.length < requiredLength) {
+      if (bitmaps.length == 0 && requiredLength == 1) {
+        this.bitmaps = new RoaringBitmap[] {new RoaringBitmap()};
+      } else {
+        RoaringBitmap[] newBitmaps = new RoaringBitmap[requiredLength];
+        System.arraycopy(bitmaps, 0, newBitmaps, 0, bitmaps.length);
+        for (int index = bitmaps.length; index < requiredLength; index++) {
+          newBitmaps[index] = new RoaringBitmap();
+        }
+        this.bitmaps = newBitmaps;
+      }
+    }
+  }
+
   /**
    * Returns the number of bytes required to serialize the bitmap.
    *
@@ -197,21 +213,6 @@ class RoaringPositionBitmap {
     }
   }
 
-  private void allocateBitmapsIfNeeded(int requiredLength) {
-    if (bitmaps.length < requiredLength) {
-      if (bitmaps.length == 0 && requiredLength == 1) {
-        this.bitmaps = new RoaringBitmap[] {new RoaringBitmap()};
-      } else {
-        RoaringBitmap[] newBitmaps = new RoaringBitmap[requiredLength];
-        System.arraycopy(bitmaps, 0, newBitmaps, 0, bitmaps.length);
-        for (int index = bitmaps.length; index < requiredLength; index++) {
-          newBitmaps[index] = new RoaringBitmap();
-        }
-        this.bitmaps = newBitmaps;
-      }
-    }
-  }
-
   /**
    * Deserializes a bitmap from a buffer, assuming the portable serialization format.
    *
@@ -224,13 +225,13 @@ class RoaringPositionBitmap {
     // the bitmap array may be sparse with more elements than the number of read bitmaps
     int remainingBitmapCount = readBitmapCount(buffer);
     List<RoaringBitmap> bitmaps = Lists.newArrayListWithExpectedSize(remainingBitmapCount);
-    int lastKey = 0;
+    int lastKey = -1;
 
     while (remainingBitmapCount > 0) {
       int key = readKey(buffer, lastKey);
 
       // fill gaps as the bitmap array may be sparse
-      while (lastKey < key) {
+      while (lastKey < key - 1) {
         bitmaps.add(new RoaringBitmap());
         lastKey++;
       }
@@ -238,7 +239,7 @@ class RoaringPositionBitmap {
       RoaringBitmap bitmap = readBitmap(buffer);
       bitmaps.add(bitmap);
 
-      lastKey++;
+      lastKey = key;
       remainingBitmapCount--;
     }
 
@@ -263,7 +264,8 @@ class RoaringPositionBitmap {
   private static int readKey(ByteBuffer buffer, int lastKey) {
     int key = buffer.getInt();
     Preconditions.checkArgument(key >= 0, "Invalid unsigned key: %s", key);
-    Preconditions.checkArgument(key >= lastKey, "Keys must be sorted in ascending order");
+    Preconditions.checkArgument(key <= Integer.MAX_VALUE - 1, "Key is too large: %s", key);
+    Preconditions.checkArgument(key > lastKey, "Keys must be sorted in ascending order");
     return key;
   }
 
