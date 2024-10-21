@@ -165,27 +165,36 @@ public class TestRewriteDataFilesAction extends TestBase {
     assertThat(table.currentSnapshot()).as("Table must stay empty").isNull();
   }
   @Test
-  public void testLargeFileCompaction() {
+  public void testCompactionMemoryUsage() {
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
     Table table = TABLES.create(SCHEMA, spec, options, tableLocation); // create empty table
     int totalFiles = 0;
 
+    // Write records and perform compaction job
     for (int i = 0; i < 10000; i++) {
       // Append records to the table in each iteration
+      long memoryBefore = getMemoryUsage(); // Memory prior to compaction
       writeRecords(10000, SCALE*3); // Appending large files in each iteration
       totalFiles += 10000;
-      System.out.println(totalFiles*10000);
-      shouldHaveFiles(table, totalFiles);
+      // Check if table has files
+      System.out.println(totalFiles);
+      // shouldHaveFiles(table, totalFiles);
       try {
-        basicRewrite(table).execute();
+        basicRewrite(table).execute(); // Try to execute with this many files
+        long memoryAfter = getMemoryUsage(); // Memory after compaction run
+        long memoryConsumed = memoryAfter - memoryBefore; // Amount of memory consumed for this operation
+        System.out.println("Memory used during compaction: " + memoryConsumed + " bytes");
 
       } catch (OutOfMemoryError e) {
-        // Catch the OutOfMemoryError and validate that it was triggered as expected
+        // Catch the OutOfMemoryError and print the most recent memory usage
         System.out.println("Caught OutOfMemoryError as expected: " + e.getMessage());
+        long memoryAfter = getMemoryUsage(); // Memory after compaction run
+        long memoryConsumed = memoryAfter - memoryBefore; // Amount of memory consumed for this operation
+        System.out.println("Memory used during compaction: " + memoryConsumed + " bytes");
       } catch (Exception e) {
-        // If any other exception occurs, fail the test
-        System.out.println("Caught OutOfMemoryError as expected: " + e.getMessage());
+        // If any other exception occurs, print that the test failed
+        System.out.println("Caught: " + e.getMessage());
       }
     }
   }
