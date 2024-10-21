@@ -24,6 +24,8 @@ import org.apache.comet.parquet.AbstractColumnReader;
 import org.apache.comet.parquet.ColumnReader;
 import org.apache.comet.parquet.TypeUtil;
 import org.apache.comet.parquet.Utils;
+import org.apache.comet.shaded.arrow.c.CometSchemaImporter;
+import org.apache.comet.shaded.arrow.memory.RootAllocator;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Types;
@@ -101,7 +103,9 @@ class CometColumnReader implements VectorizedReader<CometVector> {
       delegate.close();
     }
 
-    delegate = Utils.getColumnReader(sparkType, descriptor, batchSize, false, false);
+    CometSchemaImporter importer = new CometSchemaImporter(new RootAllocator());
+
+    delegate = Utils.getColumnReader(sparkType, descriptor, importer, batchSize, false, false);
     initialized = true;
   }
 
@@ -136,7 +140,6 @@ class CometColumnReader implements VectorizedReader<CometVector> {
    * CometColumnReader#reset} is called.
    */
   public void setPageReader(PageReader pageReader) throws IOException {
-    reset();
     if (!initialized) {
       throw new IllegalStateException("Invalid state: 'reset' should be called first");
     }
