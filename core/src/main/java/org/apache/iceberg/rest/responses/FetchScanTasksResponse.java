@@ -19,22 +19,27 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.rest.RESTResponse;
 
 public class FetchScanTasksResponse implements RESTResponse {
-
   private List<String> planTasks;
   private List<FileScanTask> fileScanTasks;
   private List<DeleteFile> deleteFiles;
+  private Map<Integer, PartitionSpec> specsById;
 
   private FetchScanTasksResponse(
-      List<String> planTasks, List<FileScanTask> fileScanTasks, List<DeleteFile> deleteFiles) {
+      List<String> planTasks,
+      List<FileScanTask> fileScanTasks,
+      List<DeleteFile> deleteFiles,
+      Map<Integer, PartitionSpec> specsById) {
     this.planTasks = planTasks;
     this.fileScanTasks = fileScanTasks;
     this.deleteFiles = deleteFiles;
+    this.specsById = specsById;
   }
 
   public List<String> planTasks() {
@@ -49,24 +54,22 @@ public class FetchScanTasksResponse implements RESTResponse {
     return deleteFiles;
   }
 
+  public Map<Integer, PartitionSpec> specsById() {
+    return specsById;
+  }
+
   @Override
   public void validate() {
-    Preconditions.checkArgument(
-        planTasks != null || fileScanTasks != null,
-        "Invalid response: planTasks and fileScanTask can not both be null");
-    Preconditions.checkArgument(
-        deleteFiles() != null && fileScanTasks() == null,
-        "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
+    // validation logic done in FetchScanTasksResponseParser
   }
 
   public static class Builder {
     public Builder() {}
 
     private List<String> planTasks;
-
     private List<FileScanTask> fileScanTasks;
-
     private List<DeleteFile> deleteFiles;
+    private Map<Integer, PartitionSpec> specsById;
 
     public Builder withPlanTasks(List<String> withPlanTasks) {
       this.planTasks = withPlanTasks;
@@ -83,8 +86,13 @@ public class FetchScanTasksResponse implements RESTResponse {
       return this;
     }
 
+    public Builder withSpecsById(Map<Integer, PartitionSpec> withSpecsById) {
+      this.specsById = withSpecsById;
+      return this;
+    }
+
     public FetchScanTasksResponse build() {
-      return new FetchScanTasksResponse(planTasks, fileScanTasks, deleteFiles);
+      return new FetchScanTasksResponse(planTasks, fileScanTasks, deleteFiles, specsById);
     }
   }
 }

@@ -41,21 +41,30 @@ public class FetchPlanningResultResponseParser {
   private FetchPlanningResultResponseParser() {}
 
   public static String toJson(FetchPlanningResultResponse response) {
-    // TODO pass specsByID
-    return toJson(response, false, null);
+    return toJson(response, false);
   }
 
-  public static String toJson(
-      FetchPlanningResultResponse response, boolean pretty, Map<Integer, PartitionSpec> specsById) {
-    return JsonUtil.generate(gen -> toJson(response, gen, specsById), pretty);
+  public static String toJson(FetchPlanningResultResponse response, boolean pretty) {
+    return JsonUtil.generate(gen -> toJson(response, gen), pretty);
   }
 
-  public static void toJson(
-      FetchPlanningResultResponse response,
-      JsonGenerator gen,
-      Map<Integer, PartitionSpec> specsById)
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public static void toJson(FetchPlanningResultResponse response, JsonGenerator gen)
       throws IOException {
-    Preconditions.checkArgument(null != response, "Invalid response: planTableScanResponse null");
+    Preconditions.checkArgument(
+        null != response, "Invalid response: fetchPanningResultResponse null");
+
+    if (response.planStatus() != PlanStatus.COMPLETED
+        && (response.planTasks() != null || response.fileScanTasks() != null)) {
+      throw new IllegalArgumentException(
+          "Invalid response: tasks can only be returned in a 'completed' status");
+    }
+
+    if ((response.deleteFiles() != null && !response.deleteFiles().isEmpty())
+        && (response.fileScanTasks() == null || response.fileScanTasks().isEmpty())) {
+      throw new IllegalArgumentException(
+          "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
+    }
 
     gen.writeStartObject();
     if (response.planStatus() != null) {
@@ -78,7 +87,8 @@ public class FetchPlanningResultResponseParser {
       for (int i = 0; i < deleteFiles.size(); i++) {
         DeleteFile deleteFile = deleteFiles.get(i);
         deleteFilePathToIndex.put(String.valueOf(deleteFile.path()), i);
-        ContentFileParser.toJson(deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
+        ContentFileParser.unboundContentFileToJson(
+            deleteFiles.get(i), response.specsById().get(deleteFile.specId()), gen);
       }
       gen.writeEndArray();
     }
@@ -92,7 +102,7 @@ public class FetchPlanningResultResponseParser {
             deleteFileReferences.add(deleteFilePathToIndex.get(taskDelete.path().toString()));
           }
         }
-        PartitionSpec partitionSpec = specsById.get(fileScanTask.file().specId());
+        PartitionSpec partitionSpec = response.specsById().get(fileScanTask.file().specId());
         RESTFileScanTaskParser.toJson(fileScanTask, deleteFileReferences, partitionSpec, gen);
       }
       gen.writeEndArray();
@@ -102,14 +112,15 @@ public class FetchPlanningResultResponseParser {
   }
 
   public static FetchPlanningResultResponse fromJson(String json) {
-    Preconditions.checkArgument(json != null, "Cannot parse plan table response from null");
+    Preconditions.checkArgument(json != null, "Invalid response: fetchPanningResultResponse null");
     return JsonUtil.parse(json, FetchPlanningResultResponseParser::fromJson);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static FetchPlanningResultResponse fromJson(JsonNode json) {
     Preconditions.checkArgument(
         json != null && !json.isEmpty(),
-        "Cannot parse planTableScan response from empty or null object");
+        "Invalid response: fetchPanningResultResponse null or empty");
 
     PlanStatus planStatus = null;
     if (json.has(PLAN_STATUS)) {
@@ -143,6 +154,17 @@ public class FetchPlanningResultResponseParser {
         fileScanTaskBuilder.add(fileScanTask);
       }
       fileScanTasks = fileScanTaskBuilder.build();
+    }
+
+    if (planStatus != PlanStatus.COMPLETED && (planTasks != null || fileScanTasks != null)) {
+      throw new IllegalArgumentException(
+          "Invalid response: tasks can only be returned in a 'completed' status");
+    }
+
+    if ((allDeleteFiles != null && !allDeleteFiles.isEmpty())
+        && (fileScanTasks == null || fileScanTasks.isEmpty())) {
+      throw new IllegalArgumentException(
+          "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
     }
 
     return new FetchPlanningResultResponse.Builder()

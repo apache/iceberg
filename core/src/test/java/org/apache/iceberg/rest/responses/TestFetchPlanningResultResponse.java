@@ -30,149 +30,108 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FetchPlanningResultResponseParser;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpecParser;
-import org.apache.iceberg.PlanTableScanResponseParser;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.rest.PlanStatus;
 import org.junit.jupiter.api.Test;
 
-public class TestPlanTableScanResponse {
+public class TestFetchPlanningResultResponse {
+
   @Test
   public void nullAndEmptyCheck() {
-    assertThatThrownBy(() -> PlanTableScanResponseParser.toJson(null))
+    assertThatThrownBy(() -> FetchPlanningResultResponseParser.toJson(null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: planTableScanResponse null");
+        .hasMessage("Invalid response: fetchPanningResultResponse null");
 
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson((JsonNode) null))
+    assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson((JsonNode) null))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: planTableScanResponse null");
+        .hasMessage("Invalid response: fetchPanningResultResponse null or empty");
   }
 
   @Test
   public void roundTripSerdeWithEmptyObject() {
-    PlanTableScanResponse response = new PlanTableScanResponse.Builder().build();
-
-    assertThatThrownBy(() -> PlanTableScanResponseParser.toJson(response))
+    assertThatThrownBy(
+            () ->
+                FetchPlanningResultResponseParser.toJson(
+                    new FetchPlanningResultResponse.Builder().build()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: status can not be null");
+        .hasMessage("Invalid status: null");
 
     String emptyJson = "{ }";
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(emptyJson))
+    assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson(emptyJson))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse planTableScan response from empty or null object");
+        .hasMessage("Invalid response: fetchPanningResultResponse null or empty");
   }
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatus() {
     String invalidStatusJson = "{\"plan-status\": \"someStatus\"}";
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidStatusJson))
+    assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson(invalidStatusJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid status name: someStatus");
   }
 
   @Test
-  public void roundTripSerdeWithInvalidPlanStatusSubmittedWithoutPlanId() {
+  public void roundTripSerdeWithValidSubmittedStatus() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
-    PlanTableScanResponse response =
-        new PlanTableScanResponse.Builder().withPlanStatus(planStatus).build();
+    FetchPlanningResultResponse response =
+        new FetchPlanningResultResponse.Builder().withPlanStatus(planStatus).build();
 
-    assertThatThrownBy(() -> PlanTableScanResponseParser.toJson(response))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: planId to be non-null when status is 'submitted");
+    String expectedJson = "{\"plan-status\":\"submitted\"}";
+    String json = FetchPlanningResultResponseParser.toJson(response);
+    assertThat(json).isEqualTo(expectedJson);
 
-    String invalidJson = "{\"plan-status\":\"submitted\"}";
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidJson))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: planId to be non-null when status is 'submitted");
-  }
-
-  @Test
-  public void roundTripSerdeWithInvalidPlanStatusCancelled() {
-    PlanStatus planStatus = PlanStatus.fromName("cancelled");
-    PlanTableScanResponse response =
-        new PlanTableScanResponse.Builder().withPlanStatus(planStatus).build();
-
-    assertThatThrownBy(() -> PlanTableScanResponseParser.toJson(response))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: 'cancelled' is not a valid status for planTableScan");
-
-    String invalidJson = "{\"plan-status\":\"cancelled\"}";
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidJson))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: 'cancelled' is not a valid status for planTableScan");
+    FetchPlanningResultResponse fromResponse = FetchPlanningResultResponseParser.fromJson(json);
+    assertThat(FetchPlanningResultResponseParser.toJson(fromResponse)).isEqualTo(expectedJson);
   }
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithTasksPresent() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
-    PlanTableScanResponse response =
-        new PlanTableScanResponse.Builder()
+    FetchPlanningResultResponse response =
+        new FetchPlanningResultResponse.Builder()
             .withPlanStatus(planStatus)
-            .withPlanId("somePlanId")
             .withPlanTasks(List.of("task1", "task2"))
             .build();
 
-    assertThatThrownBy(() -> PlanTableScanResponseParser.toJson(response))
+    assertThatThrownBy(() -> FetchPlanningResultResponseParser.toJson(response))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: tasks can only be returned in a 'completed' status");
 
     String invalidJson =
-        "{\"plan-status\":\"submitted\","
-            + "\"plan-id\":\"somePlanId\","
-            + "\"plan-tasks\":[\"task1\",\"task2\"]}";
+        "{\"plan-status\":\"submitted\"," + "\"plan-tasks\":[\"task1\",\"task2\"]}";
 
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidJson))
+    assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson(invalidJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: tasks can only be returned in a 'completed' status");
-  }
-
-  @Test
-  public void roundTripSerdeWithInvalidPlanIdWithIncorrectStatus() {
-    PlanStatus planStatus = PlanStatus.fromName("failed");
-    PlanTableScanResponse response =
-        new PlanTableScanResponse.Builder()
-            .withPlanStatus(planStatus)
-            .withPlanId("somePlanId")
-            .build();
-
-    assertThatThrownBy(() -> PlanTableScanResponseParser.toJson(response))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: plan-id can only be returned in a 'submitted' status");
-
-    String invalidJson = "{\"plan-status\":\"failed\"," + "\"plan-id\":\"somePlanId\"}";
-
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidJson))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: plan-id can only be returned in a 'submitted' status");
   }
 
   @Test
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
-    PlanTableScanResponse response =
-        new PlanTableScanResponse.Builder()
+    FetchPlanningResultResponse response =
+        new FetchPlanningResultResponse.Builder()
             .withPlanStatus(planStatus)
-            .withPlanId("somePlanId")
             .withDeleteFiles(List.of(FILE_A_DELETES))
             .build();
 
-    assertThatThrownBy(() -> PlanTableScanResponseParser.toJson(response))
+    assertThatThrownBy(() -> FetchPlanningResultResponseParser.toJson(response))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
 
     String invalidJson =
         "{\"plan-status\":\"submitted\","
-            + "\"plan-id\":\"somePlanId\","
             + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
             + "\"file-path\":\"/path/to/data-a-deletes.parquet\",\"file-format\":\"PARQUET\","
             + "\"partition\":{\"1000\":0},\"file-size-in-bytes\":10,\"record-count\":1}]"
             + "}";
 
-    assertThatThrownBy(() -> PlanTableScanResponseParser.fromJson(invalidJson))
+    assertThatThrownBy(() -> FetchPlanningResultResponseParser.fromJson(invalidJson))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
@@ -191,12 +150,12 @@ public class TestPlanTableScanResponse {
             residualEvaluator);
 
     PlanStatus planStatus = PlanStatus.fromName("completed");
-    PlanTableScanResponse response =
-        new PlanTableScanResponse.Builder()
+    FetchPlanningResultResponse response =
+        new FetchPlanningResultResponse.Builder()
             .withPlanStatus(planStatus)
             .withFileScanTasks(List.of(fileScanTask))
             .withDeleteFiles(List.of(FILE_A_DELETES))
-            // assume you have set this already
+            // assume this has been set
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
 
@@ -213,7 +172,7 @@ public class TestPlanTableScanResponse {
             + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
             + "}";
 
-    String json = PlanTableScanResponseParser.toJson(response, false);
+    String json = FetchPlanningResultResponseParser.toJson(response, false);
     assertThat(json).isEqualTo(expectedToJson);
 
     // make an unbound json where you expect to not have partitions for the data file,
@@ -231,12 +190,11 @@ public class TestPlanTableScanResponse {
             + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
             + "}";
 
-    PlanTableScanResponse fromResponse = PlanTableScanResponseParser.fromJson(json);
+    FetchPlanningResultResponse fromResponse = FetchPlanningResultResponseParser.fromJson(json);
     // Need to make a new response with partitionSpec set
-    PlanTableScanResponse copyResponse =
-        new PlanTableScanResponse.Builder()
+    FetchPlanningResultResponse copyResponse =
+        new FetchPlanningResultResponse.Builder()
             .withPlanStatus(fromResponse.planStatus())
-            .withPlanId(fromResponse.planId())
             .withPlanTasks(fromResponse.planTasks())
             .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())
@@ -245,6 +203,7 @@ public class TestPlanTableScanResponse {
 
     // can't do an equality comparison on PlanTableScanRequest because we don't implement
     // equals/hashcode
-    assertThat(PlanTableScanResponseParser.toJson(copyResponse, false)).isEqualTo(expectedFromJson);
+    assertThat(FetchPlanningResultResponseParser.toJson(copyResponse, false))
+        .isEqualTo(expectedFromJson);
   }
 }

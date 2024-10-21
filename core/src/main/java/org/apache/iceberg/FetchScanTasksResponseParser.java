@@ -40,18 +40,28 @@ public class FetchScanTasksResponseParser {
 
   public static String toJson(FetchScanTasksResponse response) {
     // TODO need to pass specByIds
-    return toJson(response, false, null);
+    return toJson(response, false);
   }
 
-  public static String toJson(
-      FetchScanTasksResponse response, boolean pretty, Map<Integer, PartitionSpec> specsById) {
-    return JsonUtil.generate(gen -> toJson(response, gen, specsById), pretty);
+  public static String toJson(FetchScanTasksResponse response, boolean pretty) {
+    return JsonUtil.generate(gen -> toJson(response, gen), pretty);
   }
 
-  public static void toJson(
-      FetchScanTasksResponse response, JsonGenerator gen, Map<Integer, PartitionSpec> specsById)
-      throws IOException {
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public static void toJson(FetchScanTasksResponse response, JsonGenerator gen) throws IOException {
     Preconditions.checkArgument(null != response, "Invalid response: fetchScanTasksResponse null");
+
+    if (response.planTasks() == null && response.fileScanTasks() == null) {
+      throw new IllegalArgumentException(
+          "Invalid response: planTasks and fileScanTask can not both be null");
+    }
+
+    if ((response.deleteFiles() != null && !response.deleteFiles().isEmpty())
+        && (response.fileScanTasks() == null || response.fileScanTasks().isEmpty())) {
+      throw new IllegalArgumentException(
+          "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
+    }
+
     gen.writeStartObject();
     if (response.planTasks() != null) {
       gen.writeArrayFieldStart(PLAN_TASKS);
@@ -69,7 +79,8 @@ public class FetchScanTasksResponseParser {
       for (int i = 0; i < deleteFiles.size(); i++) {
         DeleteFile deleteFile = deleteFiles.get(i);
         deleteFilePathToIndex.put(String.valueOf(deleteFile.path()), i);
-        ContentFileParser.toJson(deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
+        ContentFileParser.unboundContentFileToJson(
+            deleteFiles.get(i), response.specsById().get(deleteFile.specId()), gen);
       }
       gen.writeEndArray();
     }
@@ -83,7 +94,7 @@ public class FetchScanTasksResponseParser {
             deleteFileReferences.add(deleteFilePathToIndex.get(taskDelete.path().toString()));
           }
         }
-        PartitionSpec partitionSpec = specsById.get(fileScanTask.file().specId());
+        PartitionSpec partitionSpec = response.specsById().get(fileScanTask.file().specId());
         RESTFileScanTaskParser.toJson(fileScanTask, deleteFileReferences, partitionSpec, gen);
       }
       gen.writeEndArray();
@@ -97,10 +108,10 @@ public class FetchScanTasksResponseParser {
     return JsonUtil.parse(json, FetchScanTasksResponseParser::fromJson);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static FetchScanTasksResponse fromJson(JsonNode json) {
     Preconditions.checkArgument(
-        json != null && !json.isEmpty(),
-        "Cannot parse fetchScanTasks response from empty or null object");
+        json != null && !json.isEmpty(), "Invalid response: fetchScanTasksResponse null");
 
     List<String> planTasks = JsonUtil.getStringListOrNull(PLAN_TASKS, json);
 
@@ -127,6 +138,17 @@ public class FetchScanTasksResponseParser {
         fileScanTaskBuilder.add(fileScanTask);
       }
       fileScanTasks = fileScanTaskBuilder.build();
+    }
+
+    if (planTasks == null && fileScanTasks == null) {
+      throw new IllegalArgumentException(
+          "Invalid response: planTasks and fileScanTask can not both be null");
+    }
+
+    if ((allDeleteFiles != null && !allDeleteFiles.isEmpty())
+        && (fileScanTasks == null || fileScanTasks.isEmpty())) {
+      throw new IllegalArgumentException(
+          "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
     }
 
     return new FetchScanTasksResponse.Builder()

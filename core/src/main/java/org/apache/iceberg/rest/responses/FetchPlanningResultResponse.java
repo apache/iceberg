@@ -19,8 +19,10 @@
 package org.apache.iceberg.rest.responses;
 
 import java.util.List;
+import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.RESTResponse;
@@ -33,16 +35,20 @@ public class FetchPlanningResultResponse implements RESTResponse {
   private List<FileScanTask> fileScanTasks;
 
   private List<DeleteFile> deleteFiles;
+  private Map<Integer, PartitionSpec> specsById;
 
   private FetchPlanningResultResponse(
       PlanStatus planStatus,
       List<String> planTasks,
       List<FileScanTask> fileScanTasks,
-      List<DeleteFile> deleteFiles) {
+      List<DeleteFile> deleteFiles,
+      Map<Integer, PartitionSpec> specsById) {
     this.planStatus = planStatus;
     this.planTasks = planTasks;
     this.fileScanTasks = fileScanTasks;
     this.deleteFiles = deleteFiles;
+    this.specsById = specsById;
+    validate();
   }
 
   public PlanStatus planStatus() {
@@ -61,15 +67,13 @@ public class FetchPlanningResultResponse implements RESTResponse {
     return deleteFiles;
   }
 
+  public Map<Integer, PartitionSpec> specsById() {
+    return specsById;
+  }
+
   @Override
   public void validate() {
-    Preconditions.checkArgument(planStatus() != null, "Invalid status: null: ", planStatus());
-    Preconditions.checkArgument(
-        planStatus() != PlanStatus.COMPLETED && (planTasks() != null || fileScanTasks() != null),
-        "Invalid response: tasks can only be returned in a 'completed' status");
-    Preconditions.checkArgument(
-        deleteFiles() != null && fileScanTasks() == null,
-        "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
+    Preconditions.checkArgument(planStatus() != null, "Invalid status: null");
   }
 
   public static class Builder {
@@ -82,6 +86,7 @@ public class FetchPlanningResultResponse implements RESTResponse {
     private List<FileScanTask> fileScanTasks;
 
     private List<DeleteFile> deleteFiles;
+    private Map<Integer, PartitionSpec> specsById;
 
     public Builder withPlanStatus(PlanStatus withPlanStatus) {
       this.planStatus = withPlanStatus;
@@ -103,8 +108,14 @@ public class FetchPlanningResultResponse implements RESTResponse {
       return this;
     }
 
+    public Builder withSpecsById(Map<Integer, PartitionSpec> withSpecsById) {
+      this.specsById = withSpecsById;
+      return this;
+    }
+
     public FetchPlanningResultResponse build() {
-      return new FetchPlanningResultResponse(planStatus, planTasks, fileScanTasks, deleteFiles);
+      return new FetchPlanningResultResponse(
+          planStatus, planTasks, fileScanTasks, deleteFiles, specsById);
     }
   }
 }

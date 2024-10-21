@@ -42,19 +42,15 @@ public class PlanTableScanResponseParser {
   private PlanTableScanResponseParser() {}
 
   public static String toJson(PlanTableScanResponse response) {
-    // TODO need to pass specsById in here
-    return toJson(response, false, null);
+    return toJson(response, false);
   }
 
-  public static String toJson(
-      PlanTableScanResponse response, boolean pretty, Map<Integer, PartitionSpec> specsById) {
-    return JsonUtil.generate(gen -> toJson(response, gen, specsById), pretty);
+  public static String toJson(PlanTableScanResponse response, boolean pretty) {
+    return JsonUtil.generate(gen -> toJson(response, gen), pretty);
   }
 
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  public static void toJson(
-      PlanTableScanResponse response, JsonGenerator gen, Map<Integer, PartitionSpec> specsById)
-      throws IOException {
+  public static void toJson(PlanTableScanResponse response, JsonGenerator gen) throws IOException {
     Preconditions.checkArgument(null != response, "Invalid response: planTableScanResponse null");
     Preconditions.checkArgument(
         response.planStatus() != null, "Invalid response: status can not be null");
@@ -109,7 +105,7 @@ public class PlanTableScanResponseParser {
         DeleteFile deleteFile = deleteFiles.get(i);
         deleteFilePathToIndex.put(String.valueOf(deleteFile.path()), i);
         ContentFileParser.unboundContentFileToJson(
-            deleteFiles.get(i), specsById.get(deleteFile.specId()), gen);
+            deleteFiles.get(i), response.specsById().get(deleteFile.specId()), gen);
       }
       gen.writeEndArray();
     }
@@ -123,7 +119,7 @@ public class PlanTableScanResponseParser {
             deleteFileReferences.add(deleteFilePathToIndex.get(taskDelete.path().toString()));
           }
         }
-        PartitionSpec partitionSpec = specsById.get(fileScanTask.file().specId());
+        PartitionSpec partitionSpec = response.specsById().get(fileScanTask.file().specId());
         RESTFileScanTaskParser.toJson(fileScanTask, deleteFileReferences, partitionSpec, gen);
       }
       gen.writeEndArray();
@@ -199,7 +195,8 @@ public class PlanTableScanResponseParser {
           "Invalid response: plan-id can only be returned in a 'submitted' status");
     }
 
-    if (allDeleteFiles != null && (fileScanTasks == null || fileScanTasks.isEmpty())) {
+    if ((allDeleteFiles != null && !allDeleteFiles.isEmpty())
+        && (fileScanTasks == null || fileScanTasks.isEmpty())) {
       throw new IllegalArgumentException(
           "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
     }

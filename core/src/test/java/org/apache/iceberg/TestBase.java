@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.iceberg.avro.AvroSchemaUtil;
@@ -62,6 +63,8 @@ public class TestBase {
   // Partition spec used to create tables
   public static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).bucket("data", BUCKETS_NUMBER).build();
+
+  public static final Map<Integer, PartitionSpec> PARTITION_SPECS_BY_ID = Map.of(0, SPEC);
 
   public static final DataFile FILE_A =
       DataFiles.builder(SPEC)
