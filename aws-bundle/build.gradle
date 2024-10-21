@@ -19,7 +19,7 @@
 
 project(":iceberg-aws-bundle") {
 
-  apply plugin: 'io.github.goooler.shadow'
+  apply plugin: 'com.gradleup.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 

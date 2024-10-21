@@ -467,6 +467,14 @@ class AssertViewUUID(BaseModel):
     uuid: str
 
 
+class StorageCredential(BaseModel):
+    prefix: str = Field(
+        ...,
+        description='Indicates a storage location prefix where the credential is relevant. Clients should choose the most specific prefix (by selecting the longest prefix) if several credentials of the same type are available.',
+    )
+    config: Dict[str, str]
+
+
 class PlanStatus(BaseModel):
     __root__: Literal['completed', 'submitted', 'cancelled', 'failed'] = Field(
         ..., description='Status of a server-side planning operation'
@@ -1190,10 +1198,15 @@ class LoadTableResult(BaseModel):
 
     The following configurations should be respected when working with tables stored in AWS S3
      - `client.region`: region to configure client for making requests to AWS
-     - `s3.access-key-id`: id for for credentials that provide access to the data in S3
+     - `s3.access-key-id`: id for credentials that provide access to the data in S3
      - `s3.secret-access-key`: secret for credentials that provide access to data in S3
      - `s3.session-token`: if present, this value should be used for as the session token
      - `s3.remote-signing-enabled`: if `true` remote signing should be performed as described in the `s3-signer-open-api.yaml` specification
+
+    ## Storage Credentials
+
+    Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
+    Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
 
     """
 
@@ -1204,6 +1217,9 @@ class LoadTableResult(BaseModel):
     )
     metadata: TableMetadata
     config: Optional[Dict[str, str]] = None
+    storage_credentials: Optional[List[StorageCredential]] = Field(
+        None, alias='storage-credentials'
+    )
 
 
 class ScanTasks(BaseModel):
@@ -1311,11 +1327,19 @@ class LoadViewResult(BaseModel):
 
     - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled
 
+    ## Storage Credentials
+
+    Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
+    Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
+
     """
 
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: ViewMetadata
     config: Optional[Dict[str, str]] = None
+    storage_credentials: Optional[List[StorageCredential]] = Field(
+        None, alias='storage-credentials'
+    )
 
 
 class ReportMetricsRequest(BaseModel):

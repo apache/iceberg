@@ -35,8 +35,11 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import java.io.IOException;
 import java.math.RoundingMode;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -505,7 +508,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
             ops.metadataFileLocation(
                 FileFormat.AVRO.addExtension(
                     String.format(
-                        "snap-%d-%d-%s", snapshotId(), attempt.incrementAndGet(), commitUUID))));
+                        Locale.ROOT,
+                        "snap-%d-%d-%s",
+                        snapshotId(),
+                        attempt.incrementAndGet(),
+                        commitUUID))));
   }
 
   protected EncryptedOutputFile newManifestOutputFile() {
@@ -562,17 +569,17 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return true;
   }
 
-  protected List<ManifestFile> writeDataManifests(List<DataFile> files, PartitionSpec spec) {
+  protected List<ManifestFile> writeDataManifests(Collection<DataFile> files, PartitionSpec spec) {
     return writeDataManifests(files, null /* inherit data seq */, spec);
   }
 
   protected List<ManifestFile> writeDataManifests(
-      List<DataFile> files, Long dataSeq, PartitionSpec spec) {
+      Collection<DataFile> files, Long dataSeq, PartitionSpec spec) {
     return writeManifests(files, group -> writeDataFileGroup(group, dataSeq, spec));
   }
 
   private List<ManifestFile> writeDataFileGroup(
-      List<DataFile> files, Long dataSeq, PartitionSpec spec) {
+      Collection<DataFile> files, Long dataSeq, PartitionSpec spec) {
     RollingManifestWriter<DataFile> writer = newRollingManifestWriter(spec);
 
     try (RollingManifestWriter<DataFile> closableWriter = writer) {
@@ -589,20 +596,22 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   protected List<ManifestFile> writeDeleteManifests(
-      List<DeleteFileHolder> files, PartitionSpec spec) {
+      Collection<DeleteFile> files, PartitionSpec spec) {
     return writeManifests(files, group -> writeDeleteFileGroup(group, spec));
   }
 
   private List<ManifestFile> writeDeleteFileGroup(
-      List<DeleteFileHolder> files, PartitionSpec spec) {
+      Collection<DeleteFile> files, PartitionSpec spec) {
     RollingManifestWriter<DeleteFile> writer = newRollingDeleteManifestWriter(spec);
 
     try (RollingManifestWriter<DeleteFile> closableWriter = writer) {
-      for (DeleteFileHolder file : files) {
+      for (DeleteFile file : files) {
+        Preconditions.checkArgument(
+            file instanceof PendingDeleteFile, "Invalid delete file: must be PendingDeleteFile");
         if (file.dataSequenceNumber() != null) {
-          closableWriter.add(file.deleteFile(), file.dataSequenceNumber());
+          closableWriter.add(file, file.dataSequenceNumber());
         } else {
-          closableWriter.add(file.deleteFile());
+          closableWriter.add(file);
         }
       }
     } catch (IOException e) {
@@ -613,7 +622,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   }
 
   private static <F> List<ManifestFile> writeManifests(
-      List<F> files, Function<List<F>, List<ManifestFile>> writeFunc) {
+      Collection<F> files, Function<List<F>, List<ManifestFile>> writeFunc) {
     int parallelism = manifestWriterCount(ThreadPools.WORKER_THREAD_POOL_SIZE, files.size());
     List<List<F>> groups = divide(files, parallelism);
     Queue<ManifestFile> manifests = Queues.newConcurrentLinkedQueue();
@@ -625,7 +634,8 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     return ImmutableList.copyOf(manifests);
   }
 
-  private static <T> List<List<T>> divide(List<T> list, int groupCount) {
+  private static <T> List<List<T>> divide(Collection<T> collection, int groupCount) {
+    List<T> list = Lists.newArrayList(collection);
     int groupSize = IntMath.divide(list.size(), groupCount, RoundingMode.CEILING);
     return Lists.partition(list, groupSize);
   }
@@ -745,7 +755,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     }
   }
 
-  protected static class DeleteFileHolder {
+  protected static class PendingDeleteFile implements DeleteFile {
     private final DeleteFile deleteFile;
     private final Long dataSequenceNumber;
 
@@ -755,7 +765,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
      * @param deleteFile delete file
      * @param dataSequenceNumber data sequence number to apply
      */
-    DeleteFileHolder(DeleteFile deleteFile, long dataSequenceNumber) {
+    PendingDeleteFile(DeleteFile deleteFile, long dataSequenceNumber) {
       this.deleteFile = deleteFile;
       this.dataSequenceNumber = dataSequenceNumber;
     }
@@ -765,17 +775,147 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
      *
      * @param deleteFile delete file
      */
-    DeleteFileHolder(DeleteFile deleteFile) {
+    PendingDeleteFile(DeleteFile deleteFile) {
       this.deleteFile = deleteFile;
       this.dataSequenceNumber = null;
     }
 
-    public DeleteFile deleteFile() {
-      return deleteFile;
+    private PendingDeleteFile wrap(DeleteFile file) {
+      if (null != dataSequenceNumber) {
+        return new PendingDeleteFile(file, dataSequenceNumber);
+      }
+
+      return new PendingDeleteFile(file);
     }
 
+    @Override
     public Long dataSequenceNumber() {
       return dataSequenceNumber;
+    }
+
+    @Override
+    public Long fileSequenceNumber() {
+      return deleteFile.fileSequenceNumber();
+    }
+
+    @Override
+    public DeleteFile copy() {
+      return wrap(deleteFile.copy());
+    }
+
+    @Override
+    public DeleteFile copyWithoutStats() {
+      return wrap(deleteFile.copyWithoutStats());
+    }
+
+    @Override
+    public DeleteFile copyWithStats(Set<Integer> requestedColumnIds) {
+      return wrap(deleteFile.copyWithStats(requestedColumnIds));
+    }
+
+    @Override
+    public DeleteFile copy(boolean withStats) {
+      return wrap(deleteFile.copy(withStats));
+    }
+
+    @Override
+    public String manifestLocation() {
+      return deleteFile.manifestLocation();
+    }
+
+    @Override
+    public Long pos() {
+      return deleteFile.pos();
+    }
+
+    @Override
+    public int specId() {
+      return deleteFile.specId();
+    }
+
+    @Override
+    public FileContent content() {
+      return deleteFile.content();
+    }
+
+    @Override
+    public CharSequence path() {
+      return deleteFile.path();
+    }
+
+    @Override
+    public String location() {
+      return deleteFile.location();
+    }
+
+    @Override
+    public FileFormat format() {
+      return deleteFile.format();
+    }
+
+    @Override
+    public StructLike partition() {
+      return deleteFile.partition();
+    }
+
+    @Override
+    public long recordCount() {
+      return deleteFile.recordCount();
+    }
+
+    @Override
+    public long fileSizeInBytes() {
+      return deleteFile.fileSizeInBytes();
+    }
+
+    @Override
+    public Map<Integer, Long> columnSizes() {
+      return deleteFile.columnSizes();
+    }
+
+    @Override
+    public Map<Integer, Long> valueCounts() {
+      return deleteFile.valueCounts();
+    }
+
+    @Override
+    public Map<Integer, Long> nullValueCounts() {
+      return deleteFile.nullValueCounts();
+    }
+
+    @Override
+    public Map<Integer, Long> nanValueCounts() {
+      return deleteFile.nanValueCounts();
+    }
+
+    @Override
+    public Map<Integer, ByteBuffer> lowerBounds() {
+      return deleteFile.lowerBounds();
+    }
+
+    @Override
+    public Map<Integer, ByteBuffer> upperBounds() {
+      return deleteFile.upperBounds();
+    }
+
+    @Override
+    public ByteBuffer keyMetadata() {
+      return deleteFile.keyMetadata();
+    }
+
+    @Override
+    public List<Long> splitOffsets() {
+      return deleteFile.splitOffsets();
+    }
+
+    @Override
+    public List<Integer> equalityFieldIds() {
+      return deleteFile.equalityFieldIds();
+    }
+
+    @Override
+    public Integer sortOrderId() {
+      return deleteFile.sortOrderId();
     }
   }
 }

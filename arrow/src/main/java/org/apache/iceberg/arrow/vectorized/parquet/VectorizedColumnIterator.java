@@ -214,6 +214,10 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     }
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
+   */
+  @Deprecated
   public class FixedWidthTypeBinaryBatchReader extends BatchReader {
     @Override
     protected int nextBatchOf(
@@ -278,6 +282,10 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     return new VarWidthTypeBatchReader();
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 1.8.0.
+   */
+  @Deprecated
   public FixedWidthTypeBinaryBatchReader fixedWidthTypeBinaryBatchReader() {
     return new FixedWidthTypeBinaryBatchReader();
   }

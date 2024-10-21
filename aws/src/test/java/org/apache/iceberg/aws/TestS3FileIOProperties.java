@@ -36,6 +36,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.signer.Signer;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -239,7 +240,7 @@ public class TestS3FileIOProperties {
   }
 
   @Test
-  public void s3RemoteSigningEnabledWithUserAgent() {
+  public void s3RemoteSigningEnabledWithUserAgentAndRetryPolicy() {
     String uri = "http://localhost:12345";
     Map<String, String> properties =
         ImmutableMap.of(
@@ -249,6 +250,7 @@ public class TestS3FileIOProperties {
 
     s3Properties.applySignerConfiguration(builder);
     s3Properties.applyUserAgentConfigurations(builder);
+    s3Properties.applyRetryConfigurations(builder);
 
     Optional<String> userAgent =
         builder.overrideConfiguration().advancedOption(SdkAdvancedClientOption.USER_AGENT_PREFIX);
@@ -260,6 +262,9 @@ public class TestS3FileIOProperties {
     S3V4RestSignerClient signerClient = (S3V4RestSignerClient) signer.get();
     assertThat(signerClient.baseSignerUri()).isEqualTo(uri);
     assertThat(signerClient.properties()).isEqualTo(properties);
+
+    Optional<RetryPolicy> retryPolicy = builder.overrideConfiguration().retryPolicy();
+    assertThat(retryPolicy).isPresent().get().isInstanceOf(RetryPolicy.class);
   }
 
   @Test

@@ -72,6 +72,9 @@ public class TestS3FileIOProperties {
     assertThat(S3FileIOProperties.DUALSTACK_ENABLED_DEFAULT)
         .isEqualTo(s3FileIOProperties.isDualStackEnabled());
 
+    assertThat(S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED_DEFAULT)
+        .isEqualTo(s3FileIOProperties.isCrossRegionAccessEnabled());
+
     assertThat(S3FileIOProperties.PATH_STYLE_ACCESS_DEFAULT)
         .isEqualTo(s3FileIOProperties.isPathStyleAccess());
 
@@ -154,6 +157,11 @@ public class TestS3FileIOProperties {
         .containsEntry(
             S3FileIOProperties.DUALSTACK_ENABLED,
             String.valueOf(s3FileIOProperties.isDualStackEnabled()));
+
+    assertThat(map)
+        .containsEntry(
+            S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED,
+            String.valueOf(s3FileIOProperties.isCrossRegionAccessEnabled()));
 
     assertThat(map)
         .containsEntry(
@@ -382,6 +390,7 @@ public class TestS3FileIOProperties {
     map.put(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true");
     map.put(S3FileIOProperties.ACCELERATION_ENABLED, "true");
     map.put(S3FileIOProperties.DUALSTACK_ENABLED, "true");
+    map.put(S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED, "true");
     map.put(
         S3FileIOProperties.MULTIPART_SIZE,
         String.valueOf(S3FileIOProperties.MULTIPART_SIZE_DEFAULT));
@@ -427,6 +436,7 @@ public class TestS3FileIOProperties {
   public void testApplyS3ServiceConfigurations() {
     Map<String, String> properties = Maps.newHashMap();
     properties.put(S3FileIOProperties.DUALSTACK_ENABLED, "true");
+    properties.put(S3FileIOProperties.CROSS_REGION_ACCESS_ENABLED, "true");
     properties.put(S3FileIOProperties.PATH_STYLE_ACCESS, "true");
     properties.put(S3FileIOProperties.USE_ARN_REGION_ENABLED, "true");
     // acceleration enabled has to be set to false if path style is true
@@ -438,6 +448,7 @@ public class TestS3FileIOProperties {
         ArgumentCaptor.forClass(S3Configuration.class);
 
     Mockito.doReturn(mockA).when(mockA).dualstackEnabled(Mockito.anyBoolean());
+    Mockito.doReturn(mockA).when(mockA).crossRegionAccessEnabled(Mockito.anyBoolean());
     Mockito.doReturn(mockA).when(mockA).serviceConfiguration(Mockito.any(S3Configuration.class));
 
     s3FileIOProperties.applyServiceConfigurations(mockA);

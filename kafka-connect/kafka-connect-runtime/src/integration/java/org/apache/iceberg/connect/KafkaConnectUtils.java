@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.hc.client5.http.classic.HttpClient;
@@ -66,7 +67,9 @@ public class KafkaConnectUtils {
   public static void startConnector(Config config) {
     try {
       HttpPost request =
-          new HttpPost(String.format("http://localhost:%d/connectors", TestContext.CONNECT_PORT));
+          new HttpPost(
+              String.format(
+                  Locale.ROOT, "http://localhost:%d/connectors", TestContext.CONNECT_PORT));
       String body = TestContext.MAPPER.writeValueAsString(config);
       request.setHeader("Content-Type", "application/json");
       request.setEntity(new StringEntity(body));
@@ -80,7 +83,10 @@ public class KafkaConnectUtils {
     HttpGet request =
         new HttpGet(
             String.format(
-                "http://localhost:%d/connectors/%s/status", TestContext.CONNECT_PORT, name));
+                Locale.ROOT,
+                "http://localhost:%d/connectors/%s/status",
+                TestContext.CONNECT_PORT,
+                name));
     Awaitility.await()
         .atMost(60, TimeUnit.SECONDS)
         .until(
@@ -106,7 +112,11 @@ public class KafkaConnectUtils {
     try {
       HttpDelete request =
           new HttpDelete(
-              String.format("http://localhost:%d/connectors/%s", TestContext.CONNECT_PORT, name));
+              String.format(
+                  Locale.ROOT,
+                  "http://localhost:%d/connectors/%s",
+                  TestContext.CONNECT_PORT,
+                  name));
       HTTP.execute(request, response -> null);
     } catch (IOException e) {
       throw new RuntimeException(e);

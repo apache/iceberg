@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.apache.iceberg.flink.TestFixtures.DATABASE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
@@ -29,6 +30,7 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.flink.HadoopCatalogExtension;
 import org.apache.iceberg.flink.MiniFlinkClusterExtension;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.TestFixtures;
@@ -36,12 +38,31 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Branch {
+public class TestIcebergSinkV2Branch extends TestFlinkIcebergSinkV2Base {
+  @RegisterExtension
+  static final HadoopCatalogExtension CATALOG_EXTENSION =
+          new HadoopCatalogExtension(DATABASE, TestFixtures.TABLE);
 
   @Parameter(index = 0)
   private String branch;
+
+  @Override
+  protected int getParallelism() {
+    return 1;
+  }
+
+  @Override
+  protected boolean isPartitioned() {
+    return false;
+  }
+
+  @Override
+  protected String getWriteDistributionMode() {
+    return null;
+  }
 
   @Parameters(name = "branch = {0}")
   public static Object[][] parameters() {
