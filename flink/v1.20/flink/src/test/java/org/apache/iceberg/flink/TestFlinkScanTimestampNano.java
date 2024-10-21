@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
@@ -41,7 +40,6 @@ import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.source.FlinkInputFormat;
 import org.apache.iceberg.flink.source.FlinkSource;
-import org.apache.iceberg.flink.source.TestFlinkSource;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -81,22 +79,24 @@ public class TestFlinkScanTimestampNano {
 
   private Table createV3Table() {
     return CATALOG_EXTENSION
-                    .catalog()
-                    .createTable(
-                            TestFixtures.TABLE_IDENTIFIER,
-                            TS_SCHEMA,
-                            PartitionSpec.unpartitioned(),
-                            ImmutableMap.of(
-                                    TableProperties.DEFAULT_FILE_FORMAT,
-                                    format.name(),
-                                    TableProperties.FORMAT_VERSION,
-                                    "3"));
-
+        .catalog()
+        .createTable(
+            TestFixtures.TABLE_IDENTIFIER,
+            TS_SCHEMA,
+            PartitionSpec.unpartitioned(),
+            ImmutableMap.of(
+                TableProperties.DEFAULT_FILE_FORMAT,
+                format.name(),
+                TableProperties.FORMAT_VERSION,
+                "3"));
   }
+
   @TestTemplate
   public void testScanUseTimestampNano() throws Exception {
     // ORC doesnt support nano precision
-    assumeThat(format != FileFormat.ORC).as("nano precision is not supported").isTrue();
+    assumeThat(format != FileFormat.ORC)
+        .as("nano precision is not supported with ORC file format")
+        .isTrue();
     Table table = createV3Table();
     List<Record> expectedRecords = RandomGenericData.generate(TS_SCHEMA, 2, 0L);
     new GenericAppenderHelper(table, format, temporaryDirectory).appendToTable(expectedRecords);
