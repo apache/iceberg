@@ -185,7 +185,7 @@ A **`map`** is a collection of key-value pairs with a key type and a value type.
 ### Semi-structured Types
 
 A **`variant`** is a type to represent semi-structured data. A variant value can store a value of any other type, including `null`, any primitive, struct, list or map value. The variant encoding is defined the [Apache Parquet Project](https://github.com/apache/parquet-format/blob/4f208158dba80ff4bff4afaa4441d7270103dff6/VariantEncoding.md). Variant type is added in [v3](#version-3).
-Limitation: map value with only string-type keys is supported in variant.
+Limitation: map values must have string-type keys to be stored in a variant; otherwise, they are not supported.
 
 #### Primitive Types
 
@@ -541,7 +541,7 @@ A data or delete file is associated with a sort order by the sort order's id wit
 
 Note:
 
-1. `variant` columns are not valid for sorting.
+1. The ability to sort `variant` columns and the specific sort order is determined by the engines.
 
 ### Manifests
 
