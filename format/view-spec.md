@@ -102,9 +102,7 @@ A view version can have more than one representation. All representations for a 
 * Engines must share the same default catalog names, ensuring that partially specified SQL identifiers with catalog omitted are resolved to the same fully specified SQL identifier across all engines.
 * Engines must share the same default namespaces, ensuring that SQL identifiers without catalog and namespace are resolved to the same fully specified SQL identifier across all engines.
 
-
 View versions are immutable. Once a version is created, it cannot be changed. This means that representations for a version cannot be changed. If a view definition changes (or new representations are to be added), a new version must be created.
-
 
 Each representation is an object with at least one common field, `type`, that is one of the following:
 * `sql`: a SQL SELECT statement that defines the view
