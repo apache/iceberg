@@ -28,7 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Collectors;
-import org.apache.iceberg.aws.s3.MinioHelper;
+import org.apache.iceberg.aws.s3.MinioUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
@@ -83,7 +83,7 @@ public class TestS3RestSigner {
 
   @Container
   private static final MinIOContainer MINIO_CONTAINER =
-      MinioHelper.createContainer(CREDENTIALS_PROVIDER.resolveCredentials());
+      MinioUtil.createContainer(CREDENTIALS_PROVIDER.resolveCredentials());
 
   private static Server httpServer;
   private static ValidatingSigner validatingSigner;

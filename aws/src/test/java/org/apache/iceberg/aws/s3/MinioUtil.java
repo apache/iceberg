@@ -28,7 +28,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
-public class MinioHelper {
+public class MinioUtil {
 
   public static MinIOContainer createContainer() {
     return createContainer(null);
@@ -66,5 +66,5 @@ public class MinioHelper {
     return builder.build();
   }
 
-  private MinioHelper() {}
+  private MinioUtil() {}
 }

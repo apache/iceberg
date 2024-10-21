@@ -36,12 +36,12 @@ import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Testcontainers
-public class TestMinioHelper {
-  @Container public static MinIOContainer minio = MinioHelper.createContainer();
+public class TestMinioUtil {
+  @Container public static MinIOContainer minio = MinioUtil.createContainer();
 
   @Test
   void validateS3ConditionalWrites() {
-    S3Client s3Client = MinioHelper.createS3Client(minio);
+    S3Client s3Client = MinioUtil.createS3Client(minio);
 
     final String bucket = "test-bucket-" + UUID.randomUUID();
 
