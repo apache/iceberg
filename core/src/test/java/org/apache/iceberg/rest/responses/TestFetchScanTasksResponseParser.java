@@ -30,7 +30,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FetchScanTasksResponseParser;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.SchemaParser;
@@ -38,7 +37,7 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.junit.jupiter.api.Test;
 
-public class TestFetchScanTasksResponse {
+public class TestFetchScanTasksResponseParser {
 
   @Test
   public void nullAndEmptyCheck() {
@@ -54,9 +53,9 @@ public class TestFetchScanTasksResponse {
   @Test
   public void roundTripSerdeWithEmptyObject() {
     assertThatThrownBy(
-            () -> FetchScanTasksResponseParser.toJson(new FetchScanTasksResponse.Builder().build()))
+            () -> FetchScanTasksResponseParser.toJson(FetchScanTasksResponse.builder().build()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Invalid response: planTasks and fileScanTask can not both be null");
+        .hasMessage("Invalid response: planTasks and fileScanTask cannot both be null");
 
     String emptyJson = "{ }";
     assertThatThrownBy(() -> FetchScanTasksResponseParser.fromJson(emptyJson))
@@ -66,11 +65,10 @@ public class TestFetchScanTasksResponse {
 
   @Test
   public void roundTripSerdeWithPlanTasks() {
-    FetchScanTasksResponse response =
-        new FetchScanTasksResponse.Builder().withPlanTasks(List.of("task1", "task2")).build();
-
     String expectedJson = "{\"plan-tasks\":[\"task1\",\"task2\"]}";
-    String json = FetchScanTasksResponseParser.toJson(response);
+    String json =
+        FetchScanTasksResponseParser.toJson(
+            FetchScanTasksResponse.builder().withPlanTasks(List.of("task1", "task2")).build());
     assertThat(json).isEqualTo(expectedJson);
 
     FetchScanTasksResponse fromResponse = FetchScanTasksResponseParser.fromJson(json);
@@ -82,13 +80,12 @@ public class TestFetchScanTasksResponse {
 
   @Test
   public void roundTripSerdeWithDeleteFilesNoFileScanTasksPresent() {
-    FetchScanTasksResponse response =
-        new FetchScanTasksResponse.Builder()
-            .withPlanTasks(List.of("task1", "task2"))
-            .withDeleteFiles(List.of(FILE_A_DELETES))
-            .build();
-
-    assertThatThrownBy(() -> FetchScanTasksResponseParser.toJson(response))
+    assertThatThrownBy(
+            () ->
+                FetchScanTasksResponse.builder()
+                    .withPlanTasks(List.of("task1", "task2"))
+                    .withDeleteFiles(List.of(FILE_A_DELETES))
+                    .build())
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage(
             "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
@@ -119,7 +116,7 @@ public class TestFetchScanTasksResponse {
             residualEvaluator);
 
     FetchScanTasksResponse response =
-        new FetchScanTasksResponse.Builder()
+        FetchScanTasksResponse.builder()
             .withFileScanTasks(List.of(fileScanTask))
             .withDeleteFiles(List.of(FILE_A_DELETES))
             // assume you have set this already
@@ -160,7 +157,7 @@ public class TestFetchScanTasksResponse {
     FetchScanTasksResponse fromResponse = FetchScanTasksResponseParser.fromJson(json);
     // Need to make a new response with partitionSpec set
     FetchScanTasksResponse copyResponse =
-        new FetchScanTasksResponse.Builder()
+        FetchScanTasksResponse.builder()
             .withPlanTasks(fromResponse.planTasks())
             .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())

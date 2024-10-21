@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTResponse;
 
 public class FetchScanTasksResponse implements RESTResponse {
@@ -40,6 +41,7 @@ public class FetchScanTasksResponse implements RESTResponse {
     this.fileScanTasks = fileScanTasks;
     this.deleteFiles = deleteFiles;
     this.specsById = specsById;
+    validate();
   }
 
   public List<String> planTasks() {
@@ -58,13 +60,25 @@ public class FetchScanTasksResponse implements RESTResponse {
     return specsById;
   }
 
+  public static Builder builder() {
+    return new Builder();
+  }
+
   @Override
   public void validate() {
-    // validation logic done in FetchScanTasksResponseParser
+    if (fileScanTasks() == null || fileScanTasks.isEmpty()) {
+      Preconditions.checkArgument(
+          (deleteFiles() == null || deleteFiles().isEmpty()),
+          "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
+    }
+
+    Preconditions.checkArgument(
+        planTasks() != null || fileScanTasks() != null,
+        "Invalid response: planTasks and fileScanTask cannot both be null");
   }
 
   public static class Builder {
-    public Builder() {}
+    private Builder() {}
 
     private List<String> planTasks;
     private List<FileScanTask> fileScanTasks;

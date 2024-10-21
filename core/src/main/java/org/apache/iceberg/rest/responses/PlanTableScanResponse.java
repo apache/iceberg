@@ -24,6 +24,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.RESTResponse;
 
@@ -48,6 +49,7 @@ public class PlanTableScanResponse implements RESTResponse {
     this.fileScanTasks = fileScanTasks;
     this.deleteFiles = deleteFiles;
     this.specsById = specsById;
+    validate();
   }
 
   public PlanStatus planStatus() {
@@ -79,20 +81,38 @@ public class PlanTableScanResponse implements RESTResponse {
     return MoreObjects.toStringHelper(this)
         .add("planStatus", planStatus)
         .add("planId", planId)
-        .add("planTasks", planTasks)
-        .add("fileScanTasks", fileScanTasks)
-        .add("deleteFiles", deleteFiles)
-        .add("specsById", specsById)
         .toString();
   }
 
   @Override
   public void validate() {
-    // validation logic to be performed in PlanTableScanResponseParser
+    Preconditions.checkArgument(
+        planStatus() != null, "Invalid response: plan status must be defined");
+    Preconditions.checkArgument(
+        planStatus() != PlanStatus.SUBMITTED || planId() != null,
+        "Invalid response: plan id should be defined when status is 'submitted'");
+    Preconditions.checkArgument(
+        planStatus() != PlanStatus.CANCELLED,
+        "Invalid response: 'cancelled' is not a valid status for planTableScan");
+    Preconditions.checkArgument(
+        planStatus() == PlanStatus.COMPLETED || (planTasks() == null && fileScanTasks() == null),
+        "Invalid response: tasks can only be returned in a 'completed' status");
+    Preconditions.checkArgument(
+        planStatus() == PlanStatus.SUBMITTED || planId() == null,
+        "Invalid response: plan id can only be returned in a 'submitted' status");
+    if (fileScanTasks() == null || fileScanTasks.isEmpty()) {
+      Preconditions.checkArgument(
+          (deleteFiles() == null || deleteFiles().isEmpty()),
+          "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
+    }
+  }
+
+  public static Builder builder() {
+    return new Builder();
   }
 
   public static class Builder {
-    public Builder() {}
+    private Builder() {}
 
     private PlanStatus planStatus;
     private String planId;

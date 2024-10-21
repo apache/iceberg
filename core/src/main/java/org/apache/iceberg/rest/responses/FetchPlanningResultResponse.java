@@ -71,13 +71,25 @@ public class FetchPlanningResultResponse implements RESTResponse {
     return specsById;
   }
 
+  public static Builder builder() {
+    return new Builder();
+  }
+
   @Override
   public void validate() {
     Preconditions.checkArgument(planStatus() != null, "Invalid status: null");
+    Preconditions.checkArgument(
+        planStatus() == PlanStatus.COMPLETED || (planTasks() == null && fileScanTasks() == null),
+        "Invalid response: tasks can only be returned in a 'completed' status");
+    if (fileScanTasks() == null || fileScanTasks.isEmpty()) {
+      Preconditions.checkArgument(
+          (deleteFiles() == null || deleteFiles().isEmpty()),
+          "Invalid response: deleteFiles should only be returned with fileScanTasks that reference them");
+    }
   }
 
   public static class Builder {
-    public Builder() {}
+    private Builder() {}
 
     private PlanStatus planStatus;
 
