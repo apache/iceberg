@@ -36,16 +36,11 @@ public class MinioUtil {
 
   public static MinIOContainer createContainer(AwsCredentials credentials) {
     var container =
-        new MinIOContainer(DockerImageName.parse("minio/minio:latest")) {
-          @Override
-          public void configure() {
-            super.configure();
+        new MinIOContainer(DockerImageName.parse("minio/minio:latest"));
 
-            // this enables virtual-host-style requests. see
-            // https://github.com/minio/minio/tree/master/docs/config#domain
-            this.withEnv("MINIO_DOMAIN", "localhost");
-          }
-        };
+    // this enables virtual-host-style requests. see
+    // https://github.com/minio/minio/tree/master/docs/config#domain
+    container.withEnv("MINIO_DOMAIN", "localhost");
 
     if (credentials != null) {
       container.withUserName(credentials.accessKeyId());
