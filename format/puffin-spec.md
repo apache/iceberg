@@ -126,12 +126,12 @@ The blob metadata for this blob may include following properties:
 #### `delete-vector-v1` blob type
 
 A serialized delete vector (bitmap) that represents the positions of rows in a
-file that are deleted.  A set bit at position P indicates that the row at
+file that are deleted. A set bit at position P indicates that the row at
 position P is deleted.
 
 The vector supports positive 64-bit positions (the most significant bit must be
 0), but is optimized for cases where most positions fit in 32 bits by using a
-collection of 32-bit Roaring bitmaps.  64-bit positions are divided into a
+collection of 32-bit Roaring bitmaps. 64-bit positions are divided into a
 32-bit "key" using the most significant 4 bytes and a 32-bit sub-position using
 the least significant 4 bytes. For each key in the set of positions, a 32-bit
 Roaring bitmap is maintained to store a set of 32-bit sub-positions for that
@@ -143,10 +143,10 @@ sub-position) are tested for inclusion in the bitmap. If a bitmap is not found
 for the key, then it is not set.
 
 The serialized blob contains:
-* The length of the vector and magic bytes stored as 4 bytes, big-endian
+* Combined length of the vector and magic bytes stored as 4 bytes, big-endian
 * A 4-byte magic sequence, `D1 D3 39 64`
 * The vector, serialized as described below
-* A CRC-32 checksum of the serialized vector as 4 bytes, big-endian
+* A CRC-32 checksum of the magic bytes and serialized vector as 4 bytes, big-endian
 
 The position vector is serialized using the Roaring bitmap
 ["portable" format][roaring-bitmap-portable-serialization]. This representation
@@ -161,11 +161,14 @@ Note that the length and CRC fields are stored using big-endian, but the
 Roaring bitmap format uses little-endian values. Big endian values were chosen
 for compatibility with existing deletion vectors.
 
-The blob metadata must include the following properties:
+The blob's `properties` must:
 
-* `referenced-data-file`: location of the data file the delete vector applies
-  to; must be equal to the data file's `location` in table metadata
-* `cardinality`: number of deleted rows (set positions) in the delete vector
+* Include `referenced-data-file`, the location of the data file the delete
+  vector applies to; must be equal to the data file's `location` in table
+  metadata
+* Include `cardinality`, the number of deleted rows (set positions) in the
+  delete vector
+* Omit `compression-codec`; `delete-vector-v1` is not compressed
 
 
 [roaring-bitmap-portable-serialization]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#extension-for-64-bit-implementations
