@@ -38,6 +38,7 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
@@ -101,10 +102,14 @@ public class RecordConverterTest extends BaseWriterTest {
 
   @Parameters(name = "format = {0}")
   protected static Object[][] parameters() {
-    return new Object[][] {{"parquet"}, {"orc"}, {"avro"}};
+    return new Object[][] {
+      {FileFormat.PARQUET.name().toLowerCase(Locale.ROOT)},
+      {FileFormat.ORC.name().toLowerCase(Locale.ROOT)},
+      {FileFormat.AVRO.name().toLowerCase(Locale.ROOT)},
+    };
   }
 
-  @Parameter() protected String format;
+  @Parameter protected String format;
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -224,6 +229,7 @@ public class RecordConverterTest extends BaseWriterTest {
   public void before() {
     super.before();
     ImmutableMap<String, String> mp = ImmutableMap.of("write.format.default", format);
+    System.out.println(format);
     when(table.schema()).thenReturn(SCHEMA);
     this.config = mock(IcebergSinkConfig.class);
     when(config.jsonConverter()).thenReturn(JSON_CONVERTER);
@@ -951,11 +957,11 @@ public class RecordConverterTest extends BaseWriterTest {
     IcebergSinkConfig icebergSinkConfig = mock(IcebergSinkConfig.class);
     when(icebergSinkConfig.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
     when(icebergSinkConfig.writeProps())
-        .thenReturn(ImmutableMap.of("write.format.default", format));
+        .thenReturn(ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format));
     WriteResult result =
         writeTest(ImmutableList.of(rec), icebergSinkConfig, UnpartitionedWriter.class);
 
-    if (format.equals("parquet")) {
+    if (format.equals(FileFormat.PARQUET.name().toLowerCase(Locale.ROOT))) {
       assertThat(rec.getField("u")).isEqualTo(UUIDUtil.convert(UUID_VAL));
     } else {
       assertThat(rec.getField("u")).isEqualTo(UUID_VAL);
