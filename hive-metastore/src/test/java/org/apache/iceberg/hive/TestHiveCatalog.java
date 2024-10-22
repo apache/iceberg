@@ -1194,4 +1194,46 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
 
     assertThat(database.getLocationUri()).isEqualTo("s3://bucket/database.db");
   }
+
+  @Test
+  public void testListNamespacesWithEmptyNamespace() {
+
+    assertThat(catalog.listNamespaces(Namespace.empty()))
+        .as("Empty namespace should return two namespaces default, hivedb")
+        .containsExactly(Namespace.of("default"), Namespace.of(DB_NAME));
+
+    Namespace namespaceWithOneLevel = Namespace.of("parent");
+    catalog.createNamespace(namespaceWithOneLevel);
+
+    assertThat(catalog.listNamespaces(Namespace.empty()))
+        .as("Empty namespace should return three namespaces default, hivedb, parent")
+        .containsExactly(Namespace.of("default"), Namespace.of(DB_NAME), namespaceWithOneLevel);
+
+    assertThat(catalog.listNamespaces(namespaceWithOneLevel))
+        .as("Namespace with one level will return zero namespace.")
+        .hasSize(0);
+    catalog.dropNamespace(namespaceWithOneLevel);
+
+    assertThat(catalog.listNamespaces(Namespace.of("")))
+        .as("Namespace with empty string should return zero namespace.")
+        .hasSize(0);
+  }
+
+  @Test
+  public void createAndDropEmptyNamespace() {
+    assertThat(catalog.namespaceExists(Namespace.empty())).isFalse();
+
+    assertThatThrownBy(() -> catalog.createNamespace(Namespace.empty()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Cannot support empty or multi part namespace in Hive Metastore");
+
+    assertThat(catalog.dropNamespace(Namespace.empty())).isFalse();
+  }
+
+  @Test
+  public void loadNamespaceMetadataWithEmptyNamespace() {
+    assertThatThrownBy(() -> catalog.loadNamespaceMetadata(Namespace.empty()))
+        .isInstanceOf(NoSuchNamespaceException.class)
+        .hasMessageContaining("Namespace does not exist");
+  }
 }
