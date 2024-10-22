@@ -32,7 +32,7 @@ import org.junit.jupiter.api.extension.RegisterExtension;
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestColumnStatsWatermarkExtractorNano extends TestColumnStatsWatermarkExtractorBase {
 
-  public static Schema SCHEMA =
+  public static final Schema SCHEMA =
       new Schema(
           required(1, "timestamp_column", Types.TimestampNanoType.withoutZone()),
           required(2, "timestamptz_column", Types.TimestampNanoType.withZone()),

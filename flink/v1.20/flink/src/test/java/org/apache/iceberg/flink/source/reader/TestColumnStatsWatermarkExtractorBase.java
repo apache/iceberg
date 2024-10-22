@@ -51,9 +51,10 @@ import org.junit.jupiter.api.io.TempDir;
 public abstract class TestColumnStatsWatermarkExtractorBase {
   public abstract Schema getSchema();
 
-  private final GenericAppenderFactory APPENDER_FACTORY = new GenericAppenderFactory(getSchema());
+  private final GenericAppenderFactory genericAppenderFactory =
+      new GenericAppenderFactory(getSchema());
 
-  private final List<List<Record>> TEST_RECORDS =
+  private final List<List<Record>> testRecords =
       ImmutableList.of(
           RandomGenericData.generate(getSchema(), 3, 2L),
           RandomGenericData.generate(getSchema(), 3, 19L));
@@ -68,8 +69,8 @@ public abstract class TestColumnStatsWatermarkExtractorBase {
 
   @BeforeEach
   public void updateMinValue() {
-    for (int i = 0; i < TEST_RECORDS.size(); ++i) {
-      for (Record r : TEST_RECORDS.get(i)) {
+    for (int i = 0; i < testRecords.size(); ++i) {
+      for (Record r : testRecords.get(i)) {
         Map<String, Long> minValues = MIN_VALUES.get(i);
 
         LocalDateTime localDateTime = (LocalDateTime) r.get(0);
@@ -117,7 +118,7 @@ public abstract class TestColumnStatsWatermarkExtractorBase {
     IcebergSourceSplit combinedSplit =
         IcebergSourceSplit.fromCombinedScanTask(
             ReaderUtil.createCombinedScanTask(
-                TEST_RECORDS, temporaryFolder, FileFormat.PARQUET, APPENDER_FACTORY));
+                testRecords, temporaryFolder, FileFormat.PARQUET, genericAppenderFactory));
 
     ColumnStatsWatermarkExtractor extractor =
         new ColumnStatsWatermarkExtractor(getSchema(), columnName, null);
@@ -154,9 +155,9 @@ public abstract class TestColumnStatsWatermarkExtractorBase {
   private IcebergSourceSplit split(int id) throws IOException {
     return IcebergSourceSplit.fromCombinedScanTask(
         ReaderUtil.createCombinedScanTask(
-            ImmutableList.of(TEST_RECORDS.get(id)),
+            ImmutableList.of(testRecords.get(id)),
             temporaryFolder,
             FileFormat.PARQUET,
-            APPENDER_FACTORY));
+            genericAppenderFactory));
   }
 }
