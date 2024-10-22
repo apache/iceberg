@@ -88,7 +88,7 @@ public class FlinkConfigOptions {
   public static final ConfigOption<Boolean> TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE =
       ConfigOptions.key("table.exec.iceberg.use-flip27-source")
           .booleanType()
-          .defaultValue(false)
+          .defaultValue(true)
           .withDescription("Use the FLIP-27 based Iceberg source implementation.");
 
   public static final ConfigOption<SplitAssignerType> TABLE_EXEC_SPLIT_ASSIGNER_TYPE =
