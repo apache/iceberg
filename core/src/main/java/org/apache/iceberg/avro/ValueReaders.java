@@ -194,11 +194,11 @@ public class ValueReaders {
    * @param idToConstant a map of field ID to constants values
    * @return a read plan that is a list of (position, reader) pairs
    */
-  static List<Pair<Integer, ValueReader<?>>> buildReadPlan(
+  public static List<Pair<Integer, ValueReader<?>>> buildReadPlan(
       Types.StructType expected,
       Schema record,
       List<ValueReader<?>> fieldReaders,
-      Map<Integer, Object> idToConstant) {
+      Map<Integer, ?> idToConstant) {
     Map<Integer, Integer> idToPos = idToPos(expected);
 
     List<Pair<Integer, ValueReader<?>>> readPlan = Lists.newArrayList();
