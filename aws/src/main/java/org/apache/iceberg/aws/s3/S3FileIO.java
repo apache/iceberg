@@ -297,7 +297,14 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
 
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
-    S3URI s3uri = new S3URI(prefix, s3FileIOProperties.bucketToAccessPointMapping());
+    S3URI temps3Uri = new S3URI(prefix, s3FileIOProperties.bucketToAccessPointMapping());
+    if (temps3Uri.useS3DirectoryBucket()
+        && s3FileIOProperties.isS3DirectoryBucketListPrefixAsDirectory()) {
+      temps3Uri = temps3Uri.toDirectoryPath();
+    }
+
+    final S3URI s3uri = temps3Uri;
+
     ListObjectsV2Request request =
         ListObjectsV2Request.builder().bucket(s3uri.bucket()).prefix(s3uri.key()).build();
 

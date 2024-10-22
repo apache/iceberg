@@ -428,6 +428,24 @@ public class S3FileIOProperties implements Serializable {
 
   public static final long S3_RETRY_MAX_WAIT_MS_DEFAULT = 20_000; // 20 seconds
 
+  /**
+   * Controls whether to list prefixes as directories for S3 Directory buckets Defaults value is
+   * true, where it will add the "/"
+   *
+   * <p>Example: s3://bucket/prefix will be shown as s3://bucket/prefix/
+   *
+   * <p>For more details see delimiter section in:
+   * https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html#API_ListObjectsV2_RequestSyntax
+   * If set to false will throw an error when the "/" is not provided for directory bucket Turn off
+   * this feature if you are using S3FileIO.listPrefix for listing bucket prefixes that are not
+   * directories. This would ensure correctness and fail the operation based on S3 requirement when
+   * listing against a non-directory prefix in a directory bucket.
+   */
+  public static final String S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY =
+      "s3.directory-bucket.list-prefix-as-directory";
+
+  public static final boolean S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT = true;
+
   private String sseType;
   private String sseKey;
   private String sseMd5;
@@ -462,6 +480,8 @@ public class S3FileIOProperties implements Serializable {
   private int s3RetryNumRetries;
   private long s3RetryMinWaitMs;
   private long s3RetryMaxWaitMs;
+
+  private boolean s3DirectoryBucketListPrefixAsDirectory;
   private final Map<String, String> allProperties;
 
   public S3FileIOProperties() {
@@ -498,6 +518,8 @@ public class S3FileIOProperties implements Serializable {
     this.s3RetryNumRetries = S3_RETRY_NUM_RETRIES_DEFAULT;
     this.s3RetryMinWaitMs = S3_RETRY_MIN_WAIT_MS_DEFAULT;
     this.s3RetryMaxWaitMs = S3_RETRY_MAX_WAIT_MS_DEFAULT;
+    this.s3DirectoryBucketListPrefixAsDirectory =
+        S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT;
     this.allProperties = Maps.newHashMap();
 
     ValidationException.check(
@@ -605,6 +627,11 @@ public class S3FileIOProperties implements Serializable {
         PropertyUtil.propertyAsLong(properties, S3_RETRY_MIN_WAIT_MS, S3_RETRY_MIN_WAIT_MS_DEFAULT);
     this.s3RetryMaxWaitMs =
         PropertyUtil.propertyAsLong(properties, S3_RETRY_MAX_WAIT_MS, S3_RETRY_MAX_WAIT_MS_DEFAULT);
+    this.s3DirectoryBucketListPrefixAsDirectory =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY,
+            S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT);
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -835,6 +862,15 @@ public class S3FileIOProperties implements Serializable {
 
   public long s3RetryTotalWaitMs() {
     return (long) s3RetryNumRetries() * s3RetryMaxWaitMs();
+  }
+
+  public boolean isS3DirectoryBucketListPrefixAsDirectory() {
+    return s3DirectoryBucketListPrefixAsDirectory;
+  }
+
+  public void setS3DirectoryBucketListPrefixAsDirectory(
+      boolean s3DirectoryBucketListPrefixAsDirectory) {
+    this.s3DirectoryBucketListPrefixAsDirectory = s3DirectoryBucketListPrefixAsDirectory;
   }
 
   private boolean keyIdAccessKeyBothConfigured() {

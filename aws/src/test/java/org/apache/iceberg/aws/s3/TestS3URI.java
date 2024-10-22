@@ -28,6 +28,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.junit.jupiter.api.Test;
 
 public class TestS3URI {
+  private static final String S3_DIRECTORY_BUCKET = "directory-bucket-usw2-az1--x-s3";
 
   @Test
   public void testLocationParsing() {
@@ -95,5 +96,34 @@ public class TestS3URI {
     assertThat(uri1.bucket()).isEqualTo("access-point");
     assertThat(uri1.key()).isEqualTo("path/to/file");
     assertThat(uri1.toString()).isEqualTo(p1);
+  }
+
+  @Test
+  public void testS3DirectoryBucketState() {
+    String directoryBucket = String.format("s3://%s/path/to/file", S3_DIRECTORY_BUCKET);
+    String generalPurposeBucket = "s3://bucket/path/to/file";
+
+    assertS3DirectoryBucketState(directoryBucket, true);
+    assertS3DirectoryBucketState(generalPurposeBucket, false);
+  }
+
+  public void assertS3DirectoryBucketState(final String bucket, final boolean expected) {
+    S3URI uri = new S3URI(bucket);
+    assertThat(uri.useS3DirectoryBucket()).isEqualTo(expected);
+  }
+
+  @Test
+  public void testToDirectoryBucketState() {
+    String directoryBucket = String.format("s3://%s/path/to/file", S3_DIRECTORY_BUCKET);
+    String directoryBucketWithDelimiter =
+        String.format("s3://%s/path/to/file/", S3_DIRECTORY_BUCKET);
+
+    assertDirectoryBucketState(directoryBucket, directoryBucket + "/");
+    assertDirectoryBucketState(directoryBucket, directoryBucketWithDelimiter);
+  }
+
+  public void assertDirectoryBucketState(final String bucket, final String expected) {
+    S3URI uri = new S3URI(bucket);
+    assertThat(uri.toDirectoryPath().toString()).isEqualTo(expected);
   }
 }

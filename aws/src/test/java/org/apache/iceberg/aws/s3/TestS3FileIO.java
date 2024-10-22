@@ -20,6 +20,8 @@ package org.apache.iceberg.aws.s3;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.AdditionalAnswers.delegatesTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -34,10 +36,17 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.BaseTable;
@@ -58,6 +67,7 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.BulkDeletionFailureException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.FileIOParser;
+import org.apache.iceberg.io.FileInfo;
 import org.apache.iceberg.io.IOUtil;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
@@ -76,6 +86,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.mockito.Mockito;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
@@ -86,7 +97,11 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.S3Error;
+import software.amazon.awssdk.services.s3.model.S3Object;
+import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 
 @ExtendWith(S3MockExtension.class)
 public class TestS3FileIO {
@@ -101,6 +116,9 @@ public class TestS3FileIO {
   private final int batchDeletionSize = 5;
   private S3FileIO s3FileIO;
 
+  private static final String S3_GENERAL_PURPOSE_BUCKET = "bucket";
+  private static final String S3_DIRECTORY_BUCKET = "directory-bucket-usw2-az1--x-s3";
+
   private final Map<String, String> properties =
       ImmutableMap.of(
           "s3.write.tags.tagKey1",
@@ -112,7 +130,7 @@ public class TestS3FileIO {
   public void before() {
     s3FileIO = new S3FileIO(() -> s3mock);
     s3FileIO.initialize(properties);
-    createBucket("bucket");
+    createBucket(S3_GENERAL_PURPOSE_BUCKET);
     for (int i = 1; i <= numBucketsForBatchDeletion; i++) {
       createBucket(batchDeletionBucketPrefix + i);
     }
@@ -255,6 +273,89 @@ public class TestS3FileIO {
 
     long totalFiles = scaleSizes.stream().mapToLong(Integer::longValue).sum();
     assertThat(Streams.stream(s3FileIO.listPrefix(prefix)).count()).isEqualTo(totalFiles);
+  }
+
+  /**
+   * Tests that we correctly insert the backslash for s3 express buckets. Currently the Adobe S3
+   * Mock doesn't cater for express buckets eg. When you call createBucket with s3 express
+   * configurations it still just returns a general bucket TODO Update to use S3Mock when it behaves
+   * as expected.
+   */
+  @Test
+  public void testPrefixListWithExpressAddSlash() {
+    assertPrefixIsAddedCorrectly("path/to/list", properties);
+
+    Map<String, String> newProperties =
+        ImmutableMap.of(
+            "s3.write.tags.tagKey1",
+            "TagValue1",
+            "s3.delete.batch-size",
+            Integer.toString(batchDeletionSize),
+            "s3.directory-bucket.list-prefix-as-directory",
+            "true");
+    assertPrefixIsAddedCorrectly("path/to/list/", newProperties);
+  }
+
+  public void assertPrefixIsAddedCorrectly(String suffix, Map<String, String> props) {
+    String prefix = String.format("s3://%s/%s", S3_DIRECTORY_BUCKET, suffix);
+
+    S3Client localMockedClient = mock(S3Client.class);
+
+    List<S3Object> s3Objects =
+        Arrays.asList(
+            S3Object.builder()
+                .key("path/to/list/file1.txt")
+                .size(1024L)
+                .lastModified(Instant.now())
+                .build(),
+            S3Object.builder()
+                .key("path/to/list/file2.txt")
+                .size(2048L)
+                .lastModified(Instant.now().minusSeconds(60))
+                .build());
+
+    ListObjectsV2Response response = ListObjectsV2Response.builder().contents(s3Objects).build();
+
+    ListObjectsV2Iterable mockedResponse = mock(ListObjectsV2Iterable.class);
+
+    Mockito.when(mockedResponse.stream()).thenReturn(Stream.of(response));
+
+    Mockito.when(
+            localMockedClient.listObjectsV2Paginator(
+                ListObjectsV2Request.builder()
+                    .prefix("path/to/list/")
+                    .bucket(S3_DIRECTORY_BUCKET)
+                    .build()))
+        .thenReturn(mockedResponse);
+
+    // Initialize S3FileIO with the mocked client
+    S3FileIO localS3FileIo = new S3FileIO(() -> localMockedClient);
+    localS3FileIo.initialize(props);
+
+    // Perform the listing
+    List<FileInfo> fileInfoList =
+        StreamSupport.stream(
+                Spliterators.spliteratorUnknownSize(
+                    localS3FileIo.listPrefix(prefix).iterator(), Spliterator.ORDERED),
+                false)
+            .collect(Collectors.toList());
+
+    // Assert that the returned FileInfo instances match the expected values
+    assertEquals(2, fileInfoList.size());
+    assertTrue(
+        fileInfoList.stream()
+            .anyMatch(
+                fi ->
+                    fi.location().endsWith("file1.txt")
+                        && fi.size() == 1024
+                        && fi.createdAtMillis() > Instant.now().minusSeconds(120).toEpochMilli()));
+    assertTrue(
+        fileInfoList.stream()
+            .anyMatch(
+                fi ->
+                    fi.location().endsWith("file2.txt")
+                        && fi.size() == 2048
+                        && fi.createdAtMillis() < Instant.now().minusSeconds(30).toEpochMilli()));
   }
 
   /**
