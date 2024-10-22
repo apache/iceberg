@@ -464,6 +464,9 @@ public class TestHelpers {
 
     @Override
     public VariantLike get(String[] path) {
+      Preconditions.checkState(
+          path != null && path.length > 0, "path must contain at least one element");
+
       JsonNode childNode = node;
       for (String pathElement : path) {
         childNode = childNode.get(pathElement);
