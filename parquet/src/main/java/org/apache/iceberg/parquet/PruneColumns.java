@@ -90,7 +90,7 @@ class PruneColumns extends TypeWithSchemaVisitor<Type> {
       Type field = fields.get(i);
       Integer fieldId = getId(originalField);
       if (fieldId != null && selectedIds.contains(fieldId)) {
-        filteredFields.add(originalField);
+        filteredFields.add((field != null) ? field : originalField);
       } else if (field != null) {
         filteredFields.add(originalField);
         hasChange = true;
