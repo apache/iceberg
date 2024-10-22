@@ -18,19 +18,49 @@
  */
 package org.apache.iceberg;
 
-/**
- * Interface for accessing Variant fields.
- *
- * <p>This interface supports accessing data in top-level fields, not in nested fields.
- */
+import org.apache.iceberg.types.Type;
+
+/** Interface for accessing Variant fields. */
 public interface VariantLike {
   int size();
 
-  // To access the value of the root element based on the type of provided javaClass.
+  /**
+   * Retrieves the value of the current variant element based on the provided `javaClass` type. The
+   * `javaClass` parameter should be the `javaClass` field value of an Iceberg data type TypeID
+   * {@link Type#typeId()}, such as `Boolean.class`.
+   *
+   * <p>If the current variant element holds a primitive value that can be extracted or promoted to
+   * match the specified `javaClass`, the method will return that value. The method errors out if
+   * the value is an object or fails to cast to the desired type.
+   *
+   * @param javaClass the Java class type to extract the value from the current variant element.
+   * @return the extracted value if successful, or if the value cannot be extracted or promoted.
+   */
   <T> T get(Class<T> javaClass);
 
-  // To access the sub-element for the provided path.
+  /**
+   * Retrieves the sub-element from the current variant based on the provided path. The path is an
+   * array of strings that represents the hierarchical path to access the sub-element within the
+   * variant, such as ["a", "b"], for the path `a.b`.
+   *
+   * <p>If the sub-element exists for the specified path, it will return the corresponding
+   * VariantLike` element. Otherwise, if the path is invalid or the sub-element is not found, this
+   * method will return `null`. Empty array and null are invalid inputs.
+   *
+   * @param path an array of strings representing the hierarchical path to the sub-element.
+   * @return the sub-element at the specified path as a `VariantLike`, or `null` if not found.
+   */
   VariantLike get(String[] path);
 
+  /**
+   * Returns the JSON representation of the current variant.
+   *
+   * <p>If the variant element is an object, this method serializes it into a JSON string. For
+   * primitive types such as boolean, int, long, float, double, and string, it returns the exact
+   * value in its serialized form. For any other types, the value is serialized as a double-quoted
+   * string.
+   *
+   * @return a JSON string representing the current variant.
+   */
   String toJson();
 }
