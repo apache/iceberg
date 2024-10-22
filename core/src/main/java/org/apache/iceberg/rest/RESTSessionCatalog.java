@@ -43,7 +43,6 @@ import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.RESTPlanningMode;
 import org.apache.iceberg.RESTTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SortOrder;
@@ -119,8 +118,8 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
   private static final String REST_SNAPSHOT_LOADING_MODE = "snapshot-loading-mode";
   // for backwards compatibility with older REST servers where it can be assumed that a particular
   // server supports view endpoints but doesn't send the "endpoints" field in the ConfigResponse
-  private static final String REST_SERVER_PLANNING_ENABLED = "rest-server-planning-enabled";
-  private static final String REST_SERVER_PLANNING_MODE_KEY = "planning-mode";
+  public static final String REST_SERVER_PLANNING_ENABLED = "rest-server-planning-enabled";
+  private static final String REST_TABLE_SCAN_PLANNING_PROPERTY = "table.rest-scan-planning";
 
   static final String VIEW_ENDPOINTS_SUPPORTED = "view-endpoints-supported";
   public static final String REST_PAGE_SIZE = "rest-page-size";
@@ -521,11 +520,10 @@ public class RESTSessionCatalog extends BaseViewSessionCatalog
 
     trackFileIO(ops);
 
-    if (response.config().containsKey(REST_SERVER_PLANNING_MODE_KEY)) {
-      String planningModeValue = response.config().get(REST_SERVER_PLANNING_MODE_KEY);
-      RESTPlanningMode planningMode = RESTPlanningMode.fromName(planningModeValue);
-      if (planningMode == RESTPlanningMode.REQUIRED
-          || ((planningMode == RESTPlanningMode.SUPPORTED) && restServerPlanningEnabled)) {
+    if (ops.current().properties().containsKey(REST_TABLE_SCAN_PLANNING_PROPERTY)) {
+      boolean tableSupportsRemotePlanning =
+          ops.current().propertyAsBoolean(REST_TABLE_SCAN_PLANNING_PROPERTY, false);
+      if (tableSupportsRemotePlanning && restServerPlanningEnabled) {
         return new RESTTable(
             ops,
             fullTableName(finalIdentifier),

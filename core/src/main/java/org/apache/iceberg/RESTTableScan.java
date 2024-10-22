@@ -24,6 +24,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.RESTClient;
@@ -32,6 +33,7 @@ import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
 import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ParallelIterable;
 
 public class RESTTableScan extends DataTableScan {
   private final RESTClient client;
@@ -130,13 +132,7 @@ public class RESTTableScan extends DataTableScan {
     PlanStatus planStatus = response.planStatus();
     switch (planStatus) {
       case COMPLETED:
-        return new ScanTasksIterable(
-            response.planTasks(),
-            response.fileScanTasks(),
-            client,
-            resourcePaths,
-            tableIdentifier,
-            headers);
+        return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
       case SUBMITTED:
         return fetchPlanningResult(response.planId());
       case FAILED:
@@ -163,13 +159,7 @@ public class RESTTableScan extends DataTableScan {
       PlanStatus planStatus = response.planStatus();
       switch (planStatus) {
         case COMPLETED:
-          return new ScanTasksIterable(
-              response.planTasks(),
-              response.fileScanTasks(),
-              client,
-              resourcePaths,
-              tableIdentifier,
-              headers);
+          return getScanTasksIterable(response.planTasks(), response.fileScanTasks());
         case SUBMITTED:
           try {
             Thread.sleep(FETCH_PLANNING_SLEEP_DURATION_MS);
@@ -192,5 +182,31 @@ public class RESTTableScan extends DataTableScan {
       }
     }
     return null;
+  }
+
+  public CloseableIterable<FileScanTask> getScanTasksIterable(
+      List<String> planTasks, List<FileScanTask> fileScanTasks) {
+    List<ScanTasksIterable> iterableOfScanTaskIterables = Lists.newArrayList();
+    if (fileScanTasks != null) {
+      // add this to the list for below if planTasks will also be present
+      ScanTasksIterable scanTasksIterable =
+          new ScanTasksIterable(
+              fileScanTasks, client, resourcePaths, tableIdentifier, headers, planExecutor());
+      iterableOfScanTaskIterables.add(scanTasksIterable);
+    }
+    if (planTasks != null) {
+      // Use parallel iterable since planTasks are present
+      for (String planTask : planTasks) {
+        ScanTasksIterable iterable =
+            new ScanTasksIterable(
+                planTask, client, resourcePaths, tableIdentifier, headers, planExecutor());
+        iterableOfScanTaskIterables.add(iterable);
+      }
+      return new ParallelIterable<>(iterableOfScanTaskIterables, planExecutor());
+      // another idea is to keep concating to the original parallel iterable???
+    }
+    // use a single scanTasks iterable since no need to parallelize since no planTasks
+    return new ScanTasksIterable(
+        fileScanTasks, client, resourcePaths, tableIdentifier, headers, planExecutor());
   }
 }

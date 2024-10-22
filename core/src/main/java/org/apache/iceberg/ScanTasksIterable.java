@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.CloseableIterable;
@@ -31,34 +32,55 @@ import org.apache.iceberg.rest.RESTClient;
 import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
 import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
+import org.apache.iceberg.util.ParallelIterable;
 
 public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
   private final RESTClient client;
   private final ResourcePaths resourcePaths;
   private final TableIdentifier tableIdentifier;
   private final Supplier<Map<String, String>> headers;
-  private final List<String> planTasks;
+  private final String
+      planTask; // parallelizing on this where a planTask produces a list of file scan tasks, as
+  // well more planTasks
   private final List<FileScanTask> fileScanTasks;
+  private ExecutorService executorService;
 
   public ScanTasksIterable(
-      List<String> planTasks,
+      String planTask,
+      RESTClient client,
+      ResourcePaths resourcePaths,
+      TableIdentifier tableIdentifier,
+      Supplier<Map<String, String>> headers,
+      ExecutorService executorService) {
+    this.planTask = planTask;
+    this.fileScanTasks = null;
+    this.client = client;
+    this.resourcePaths = resourcePaths;
+    this.tableIdentifier = tableIdentifier;
+    this.headers = headers;
+    this.executorService = executorService;
+  }
+
+  public ScanTasksIterable(
       List<FileScanTask> fileScanTasks,
       RESTClient client,
       ResourcePaths resourcePaths,
       TableIdentifier tableIdentifier,
-      Supplier<Map<String, String>> headers) {
-    this.planTasks = planTasks;
+      Supplier<Map<String, String>> headers,
+      ExecutorService executorService) {
+    this.planTask = null;
     this.fileScanTasks = fileScanTasks;
     this.client = client;
     this.resourcePaths = resourcePaths;
     this.tableIdentifier = tableIdentifier;
     this.headers = headers;
+    this.executorService = executorService;
   }
 
   @Override
   public CloseableIterator<FileScanTask> iterator() {
     return new ScanTasksIterator(
-        planTasks, fileScanTasks, client, resourcePaths, tableIdentifier, headers);
+        planTask, fileScanTasks, client, resourcePaths, tableIdentifier, headers, executorService);
   }
 
   @Override
@@ -69,22 +91,25 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     private final ResourcePaths resourcePaths;
     private final TableIdentifier tableIdentifier;
     private final Supplier<Map<String, String>> headers;
-    private List<String> planTasks;
+    private String planTask;
     private List<FileScanTask> fileScanTasks;
+    private ExecutorService executorService;
 
     ScanTasksIterator(
-        List<String> planTasks,
+        String planTask,
         List<FileScanTask> fileScanTasks,
         RESTClient client,
         ResourcePaths resourcePaths,
         TableIdentifier tableIdentifier,
-        Supplier<Map<String, String>> headers) {
+        Supplier<Map<String, String>> headers,
+        ExecutorService executorService) {
       this.client = client;
       this.resourcePaths = resourcePaths;
       this.tableIdentifier = tableIdentifier;
       this.headers = headers;
-      this.planTasks = planTasks != null ? planTasks : Lists.newArrayList();
+      this.planTask = planTask;
       this.fileScanTasks = fileScanTasks != null ? fileScanTasks : Lists.newArrayList();
+      this.executorService = executorService;
     }
 
     @Override
@@ -95,12 +120,13 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       }
       // Out of file scan tasks, so need to now fetch more from each planTask
       // Service can send back more planTasks which acts as pagination
-      if (!planTasks.isEmpty()) {
-        fetchScanTasks(planTasks.remove(0));
-        // Make another hasNext() call, as more planTasks and fileScanTasks have been fetched
+      if (planTask != null) {
+        fetchScanTasks(planTask);
+        planTask = null;
+        // Make another hasNext() call, as more fileScanTasks have been fetched
         return hasNext();
       }
-      // we have no file scan tasks left to consume, and planTasks are exhausted
+      // we have no file scan tasks left to consume
       // so means we are finished
       return false;
     }
@@ -110,8 +136,8 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       return fileScanTasks.remove(0);
     }
 
-    private void fetchScanTasks(String planTask) {
-      FetchScanTasksRequest fetchScanTasksRequest = new FetchScanTasksRequest(planTask);
+    private void fetchScanTasks(String withPlanTask) {
+      FetchScanTasksRequest fetchScanTasksRequest = new FetchScanTasksRequest(withPlanTask);
       FetchScanTasksResponse response =
           client.post(
               resourcePaths.fetchScanTasks(tableIdentifier),
@@ -120,7 +146,21 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
               headers,
               ErrorHandlers.defaultErrorHandler());
       fileScanTasks.addAll(response.fileScanTasks());
-      planTasks.addAll(response.planTasks());
+      // TODO need to confirm recursive call here
+      if (response.planTasks() != null) {
+        getScanTasksIterable(response.planTasks());
+      }
+    }
+
+    public CloseableIterable<FileScanTask> getScanTasksIterable(List<String> planTasks) {
+      List<ScanTasksIterable> iterableOfScanTaskIterables = Lists.newArrayList();
+      for (String withPlanTask : planTasks) {
+        ScanTasksIterable iterable =
+            new ScanTasksIterable(
+                withPlanTask, client, resourcePaths, tableIdentifier, headers, executorService);
+        iterableOfScanTaskIterables.add(iterable);
+      }
+      return new ParallelIterable<>(iterableOfScanTaskIterables, executorService);
     }
 
     @Override
