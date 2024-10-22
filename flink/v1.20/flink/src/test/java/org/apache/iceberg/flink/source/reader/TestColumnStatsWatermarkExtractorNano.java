@@ -30,18 +30,18 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestColumnStatsWatermarkExtractor extends TestColumnStatsWatermarkExtractorBase {
+public class TestColumnStatsWatermarkExtractorNano extends TestColumnStatsWatermarkExtractorBase {
 
   public static Schema SCHEMA =
       new Schema(
-          required(1, "timestamp_column", Types.TimestampType.withoutZone()),
-          required(2, "timestamptz_column", Types.TimestampType.withZone()),
+          required(1, "timestamp_column", Types.TimestampNanoType.withoutZone()),
+          required(2, "timestamptz_column", Types.TimestampNanoType.withZone()),
           required(3, "long_column", Types.LongType.get()),
           required(4, "string_column", Types.StringType.get()));
 
   @RegisterExtension
   private static final HadoopTableExtension SOURCE_TABLE_EXTENSION =
-      new HadoopTableExtension(DATABASE, TestFixtures.TABLE, SCHEMA, false);
+      new HadoopTableExtension(DATABASE, TestFixtures.TABLE, SCHEMA, true);
 
   @Override
   public Schema getSchema() {
