@@ -24,9 +24,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -37,12 +34,9 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericAppenderFactory;
-import org.apache.iceberg.data.RandomGenericData;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.flink.source.split.IcebergSourceSplit;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -51,39 +45,17 @@ import org.junit.jupiter.api.io.TempDir;
 public abstract class TestColumnStatsWatermarkExtractorBase {
   public abstract Schema getSchema();
 
+  public abstract List<List<Record>> getTestRecords();
+
+  public abstract List<Map<String, Long>> getMinValues();
+
   private final GenericAppenderFactory genericAppenderFactory =
       new GenericAppenderFactory(getSchema());
-
-  private final List<List<Record>> testRecords =
-      ImmutableList.of(
-          RandomGenericData.generate(getSchema(), 3, 2L),
-          RandomGenericData.generate(getSchema(), 3, 19L));
-
-  protected static final List<Map<String, Long>> MIN_VALUES =
-      ImmutableList.of(Maps.newHashMapWithExpectedSize(3), Maps.newHashMapWithExpectedSize(3));
 
   @TempDir protected Path temporaryFolder;
 
   @Parameter(index = 0)
   private String columnName;
-
-  @BeforeEach
-  public void updateMinValue() {
-    for (int i = 0; i < testRecords.size(); ++i) {
-      for (Record r : testRecords.get(i)) {
-        Map<String, Long> minValues = MIN_VALUES.get(i);
-
-        LocalDateTime localDateTime = (LocalDateTime) r.get(0);
-        minValues.merge(
-            "timestamp_column", localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli(), Math::min);
-
-        OffsetDateTime offsetDateTime = (OffsetDateTime) r.get(1);
-        minValues.merge("timestamptz_column", offsetDateTime.toInstant().toEpochMilli(), Math::min);
-
-        minValues.merge("long_column", (Long) r.get(2), Math::min);
-      }
-    }
-  }
 
   @Parameters(name = "columnName = {0}")
   public static Collection<Object[]> data() {
@@ -99,7 +71,7 @@ public abstract class TestColumnStatsWatermarkExtractorBase {
         new ColumnStatsWatermarkExtractor(getSchema(), columnName, TimeUnit.MILLISECONDS);
 
     assertThat(extractor.extractWatermark(split(0)))
-        .isEqualTo(MIN_VALUES.get(0).get(columnName).longValue());
+        .isEqualTo(getMinValues().get(0).get(columnName).longValue());
   }
 
   @TestTemplate
@@ -109,7 +81,7 @@ public abstract class TestColumnStatsWatermarkExtractorBase {
         new ColumnStatsWatermarkExtractor(getSchema(), columnName, TimeUnit.MICROSECONDS);
 
     assertThat(extractor.extractWatermark(split(0)))
-        .isEqualTo(MIN_VALUES.get(0).get(columnName) / 1000L);
+        .isEqualTo(getMinValues().get(0).get(columnName) / 1000L);
   }
 
   @TestTemplate
@@ -118,17 +90,18 @@ public abstract class TestColumnStatsWatermarkExtractorBase {
     IcebergSourceSplit combinedSplit =
         IcebergSourceSplit.fromCombinedScanTask(
             ReaderUtil.createCombinedScanTask(
-                testRecords, temporaryFolder, FileFormat.PARQUET, genericAppenderFactory));
+                getTestRecords(), temporaryFolder, FileFormat.PARQUET, genericAppenderFactory));
 
     ColumnStatsWatermarkExtractor extractor =
         new ColumnStatsWatermarkExtractor(getSchema(), columnName, null);
 
     assertThat(extractor.extractWatermark(split(0)))
-        .isEqualTo(MIN_VALUES.get(0).get(columnName).longValue());
+        .isEqualTo(getMinValues().get(0).get(columnName).longValue());
     assertThat(extractor.extractWatermark(split(1)))
-        .isEqualTo(MIN_VALUES.get(1).get(columnName).longValue());
+        .isEqualTo(getMinValues().get(1).get(columnName).longValue());
     assertThat(extractor.extractWatermark(combinedSplit))
-        .isEqualTo(Math.min(MIN_VALUES.get(0).get(columnName), MIN_VALUES.get(1).get(columnName)));
+        .isEqualTo(
+            Math.min(getMinValues().get(0).get(columnName), getMinValues().get(1).get(columnName)));
   }
 
   @TestTemplate
@@ -155,7 +128,7 @@ public abstract class TestColumnStatsWatermarkExtractorBase {
   private IcebergSourceSplit split(int id) throws IOException {
     return IcebergSourceSplit.fromCombinedScanTask(
         ReaderUtil.createCombinedScanTask(
-            ImmutableList.of(testRecords.get(id)),
+            ImmutableList.of(getTestRecords().get(id)),
             temporaryFolder,
             FileFormat.PARQUET,
             genericAppenderFactory));
