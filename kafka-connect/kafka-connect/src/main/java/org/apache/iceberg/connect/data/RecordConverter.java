@@ -127,7 +127,10 @@ class RecordConverter {
       case STRING:
         return convertString(value);
       case UUID:
-        return UUIDUtil.convert(convertUUID(value));
+        if ("parquet".equals(config.writeProps().get("write.format.default"))) {
+          return UUIDUtil.convert(convertUUID(value));
+        }
+        return convertUUID(value);
       case BINARY:
         return convertBase64Binary(value);
       case FIXED:
