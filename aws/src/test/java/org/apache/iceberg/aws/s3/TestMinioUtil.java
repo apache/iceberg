@@ -51,7 +51,7 @@ public class TestMinioUtil {
 
     String key = "test-key-" + UUID.randomUUID().toString();
     for (int i = 0; i < 5; i++) {
-      final String payload = "test-payload-" + i;
+      String payload = "test-payload-" + i;
       PutObjectRequest request =
           PutObjectRequest.builder().bucket(bucket).key(key).ifNoneMatch("*").build();
       RequestBody body = RequestBody.fromString(payload);
