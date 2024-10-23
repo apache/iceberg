@@ -43,7 +43,7 @@ public class TestMinioUtil {
   void validateS3ConditionalWrites() {
     S3Client s3Client = MinioUtil.createS3Client(MINIO);
 
-    final String bucket = "test-bucket-" + UUID.randomUUID();
+   String bucket = "test-bucket-" + UUID.randomUUID();
 
     CreateBucketResponse createBucketResponse =
         s3Client.createBucket(CreateBucketRequest.builder().bucket(bucket).build());
