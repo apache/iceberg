@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -92,7 +93,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromView() throws NoSuchTableException {
     insertRows(10);
-    String viewName = "simpleView";
+    String viewName = viewName("simpleView");
     String sql = String.format("SELECT id FROM %s", tableName);
 
     ViewCatalog viewCatalog = viewCatalog();
@@ -118,7 +119,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromTrinoView() throws NoSuchTableException {
     insertRows(10);
-    String viewName = "trinoView";
+    String viewName = viewName("trinoView");
     String sql = String.format("SELECT id FROM %s", tableName);
 
     ViewCatalog viewCatalog = viewCatalog();
@@ -143,8 +144,8 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromMultipleViews() throws NoSuchTableException {
     insertRows(6);
-    String viewName = "firstView";
-    String secondView = "secondView";
+    String viewName = viewName("firstView");
+    String secondView = viewName("secondView");
     String viewSQL = String.format("SELECT id FROM %s WHERE id <= 3", tableName);
     String secondViewSQL = String.format("SELECT id FROM %s WHERE id > 3", tableName);
 
@@ -176,7 +177,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromViewUsingNonExistingTable() throws NoSuchTableException {
     insertRows(10);
-    String viewName = "viewWithNonExistingTable";
+    String viewName = viewName("viewWithNonExistingTable");
 
     ViewCatalog viewCatalog = viewCatalog();
     Schema schema = new Schema(Types.NestedField.required(1, "id", Types.LongType.get()));
@@ -200,7 +201,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromViewUsingNonExistingTableColumn() throws NoSuchTableException {
     insertRows(10);
-    String viewName = "viewWithNonExistingColumn";
+    String viewName = viewName("viewWithNonExistingColumn");
 
     ViewCatalog viewCatalog = viewCatalog();
     Schema schema = new Schema(Types.NestedField.required(1, "non_existing", Types.LongType.get()));
@@ -222,7 +223,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromViewUsingInvalidSQL() throws NoSuchTableException {
     insertRows(10);
-    String viewName = "viewWithInvalidSQL";
+    String viewName = viewName("viewWithInvalidSQL");
 
     ViewCatalog viewCatalog = viewCatalog();
     Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
@@ -244,7 +245,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromViewWithStaleSchema() throws NoSuchTableException {
     insertRows(10);
-    String viewName = "staleView";
+    String viewName = viewName("staleView");
     String sql = String.format("SELECT id, data FROM %s", tableName);
 
     ViewCatalog viewCatalog = viewCatalog();
@@ -270,7 +271,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromViewHiddenByTempView() throws NoSuchTableException {
     insertRows(10);
-    String viewName = "viewHiddenByTempView";
+    String viewName = viewName("viewHiddenByTempView");
 
     ViewCatalog viewCatalog = viewCatalog();
     Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
@@ -297,7 +298,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromViewWithGlobalTempView() throws NoSuchTableException {
     insertRows(10);
-    String viewName = "viewWithGlobalTempView";
+    String viewName = viewName("viewWithGlobalTempView");
     String sql = String.format("SELECT id FROM %s WHERE id > 5", tableName);
 
     ViewCatalog viewCatalog = viewCatalog();
@@ -327,8 +328,8 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromViewReferencingAnotherView() throws NoSuchTableException {
     insertRows(10);
-    String firstView = "viewBeingReferencedInAnotherView";
-    String viewReferencingOtherView = "viewReferencingOtherView";
+    String firstView = viewName("viewBeingReferencedInAnotherView");
+    String viewReferencingOtherView = viewName("viewReferencingOtherView");
     String firstSQL = String.format("SELECT id FROM %s WHERE id <= 5", tableName);
     String secondSQL = String.format("SELECT id FROM %s WHERE id > 4", firstView);
 
@@ -358,8 +359,8 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromViewReferencingTempView() throws NoSuchTableException {
     insertRows(10);
-    String tempView = "tempViewBeingReferencedInAnotherView";
-    String viewReferencingTempView = "viewReferencingTempView";
+    String tempView = viewName("tempViewBeingReferencedInAnotherView");
+    String viewReferencingTempView = viewName("viewReferencingTempView");
     String sql = String.format("SELECT id FROM %s", tempView);
 
     ViewCatalog viewCatalog = viewCatalog();
@@ -394,8 +395,8 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromViewReferencingAnotherViewHiddenByTempView() throws NoSuchTableException {
     insertRows(10);
-    String innerViewName = "inner_view";
-    String outerViewName = "outer_view";
+    String innerViewName = viewName("inner_view");
+    String outerViewName = viewName("outer_view");
     String innerViewSQL = String.format("SELECT * FROM %s WHERE id > 5", tableName);
     String outerViewSQL = String.format("SELECT id FROM %s", innerViewName);
 
@@ -442,8 +443,8 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromViewReferencingGlobalTempView() throws NoSuchTableException {
     insertRows(10);
-    String globalTempView = "globalTempViewBeingReferenced";
-    String viewReferencingTempView = "viewReferencingGlobalTempView";
+    String globalTempView = viewName("globalTempViewBeingReferenced");
+    String viewReferencingTempView = viewName("viewReferencingGlobalTempView");
 
     ViewCatalog viewCatalog = viewCatalog();
     Schema schema = tableCatalog().loadTable(TableIdentifier.of(NAMESPACE, tableName)).schema();
@@ -481,7 +482,7 @@ public class TestViews extends SparkExtensionsTestBase {
   public void readFromViewReferencingTempFunction() throws NoSuchTableException {
     insertRows(10);
     String viewName = viewName("viewReferencingTempFunction");
-    String functionName = "test_avg";
+    String functionName = viewName("test_avg");
     String sql = String.format("SELECT %s(id) FROM %s", functionName, tableName);
     sql(
         "CREATE TEMPORARY FUNCTION %s AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage'",
@@ -512,7 +513,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void readFromViewWithCTE() throws NoSuchTableException {
     insertRows(10);
-    String viewName = "viewWithCTE";
+    String viewName = viewName("viewWithCTE");
     String sql =
         String.format(
             "WITH max_by_data AS (SELECT max(id) as max FROM %s) "
@@ -534,7 +535,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void rewriteFunctionIdentifier() {
-    String viewName = "rewriteFunctionIdentifier";
+    String viewName = viewName("rewriteFunctionIdentifier");
     String sql = "SELECT iceberg_version() AS version";
 
     assertThatThrownBy(() -> sql(sql))
@@ -560,7 +561,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void builtinFunctionIdentifierNotRewritten() {
-    String viewName = "builtinFunctionIdentifierNotRewritten";
+    String viewName = viewName("builtinFunctionIdentifierNotRewritten");
     String sql = "SELECT trim('  abc   ') AS result";
 
     ViewCatalog viewCatalog = viewCatalog();
@@ -579,7 +580,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void rewriteFunctionIdentifierWithNamespace() {
-    String viewName = "rewriteFunctionIdentifierWithNamespace";
+    String viewName = viewName("rewriteFunctionIdentifierWithNamespace");
     String sql = "SELECT system.bucket(100, 'a') AS bucket_result, 'a' AS value";
 
     ViewCatalog viewCatalog = viewCatalog();
@@ -606,7 +607,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void fullFunctionIdentifier() {
-    String viewName = "fullFunctionIdentifier";
+    String viewName = viewName("fullFunctionIdentifier");
     String sql =
         String.format(
             "SELECT %s.system.bucket(100, 'a') AS bucket_result, 'a' AS value", catalogName);
@@ -630,7 +631,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void fullFunctionIdentifierNotRewrittenLoadFailure() {
-    String viewName = "fullFunctionIdentifierNotRewrittenLoadFailure";
+    String viewName = viewName("fullFunctionIdentifierNotRewrittenLoadFailure");
     String sql = "SELECT spark_catalog.system.bucket(100, 'a') AS bucket_result, 'a' AS value";
 
     // avoid namespace failures
@@ -822,7 +823,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void dropView() {
-    String viewName = "viewToBeDropped";
+    String viewName = viewName("viewToBeDropped");
     String sql = String.format("SELECT id FROM %s", tableName);
 
     ViewCatalog viewCatalog = viewCatalog();
@@ -851,7 +852,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void dropViewIfExists() {
-    String viewName = "viewToBeDropped";
+    String viewName = viewName("viewToBeDropped");
     String sql = String.format("SELECT id FROM %s", tableName);
 
     ViewCatalog viewCatalog = viewCatalog();
@@ -876,7 +877,7 @@ public class TestViews extends SparkExtensionsTestBase {
   /** The purpose of this test is mainly to make sure that normal view deletion isn't messed up */
   @Test
   public void dropGlobalTempView() {
-    String globalTempView = "globalViewToBeDropped";
+    String globalTempView = viewName("globalViewToBeDropped");
     sql("CREATE GLOBAL TEMPORARY VIEW %s AS SELECT id FROM %s", globalTempView, tableName);
     assertThat(v1SessionCatalog().getGlobalTempView(globalTempView).isDefined()).isTrue();
 
@@ -887,7 +888,7 @@ public class TestViews extends SparkExtensionsTestBase {
   /** The purpose of this test is mainly to make sure that normal view deletion isn't messed up */
   @Test
   public void dropTempView() {
-    String tempView = "tempViewToBeDropped";
+    String tempView = viewName("tempViewToBeDropped");
     sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s", tempView, tableName);
     assertThat(v1SessionCatalog().getTempView(tempView).isDefined()).isTrue();
 
@@ -898,7 +899,7 @@ public class TestViews extends SparkExtensionsTestBase {
   /** The purpose of this test is mainly to make sure that normal view deletion isn't messed up */
   @Test
   public void dropV1View() {
-    String v1View = "v1ViewToBeDropped";
+    String v1View = viewName("v1ViewToBeDropped");
     sql("USE spark_catalog");
     sql("CREATE NAMESPACE IF NOT EXISTS %s", NAMESPACE);
     sql("CREATE TABLE %s (id INT, data STRING)", tableName);
@@ -929,7 +930,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void createViewIfNotExists() {
-    String viewName = "viewThatAlreadyExists";
+    String viewName = viewName("viewThatAlreadyExists");
     sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName);
 
     assertThatThrownBy(() -> sql("CREATE VIEW %s AS SELECT id FROM %s", viewName, tableName))
@@ -970,8 +971,8 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void createViewReferencingTempView() throws NoSuchTableException {
     insertRows(10);
-    String tempView = "temporaryViewBeingReferencedInAnotherView";
-    String viewReferencingTempView = "viewReferencingTemporaryView";
+    String tempView = viewName("temporaryViewBeingReferencedInAnotherView");
+    String viewReferencingTempView = viewName("viewReferencingTemporaryView");
 
     sql("CREATE TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5", tempView, tableName);
 
@@ -989,8 +990,8 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void createViewReferencingGlobalTempView() throws NoSuchTableException {
     insertRows(10);
-    String globalTempView = "globalTemporaryViewBeingReferenced";
-    String viewReferencingTempView = "viewReferencingGlobalTemporaryView";
+    String globalTempView = viewName("globalTemporaryViewBeingReferenced");
+    String viewReferencingTempView = viewName("viewReferencingGlobalTemporaryView");
 
     sql(
         "CREATE GLOBAL TEMPORARY VIEW %s AS SELECT id FROM %s WHERE id <= 5",
@@ -1013,7 +1014,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void createViewReferencingTempFunction() {
     String viewName = viewName("viewReferencingTemporaryFunction");
-    String functionName = "test_avg_func";
+    String functionName = viewName("test_avg_func");
 
     sql(
         "CREATE TEMPORARY FUNCTION %s AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage'",
@@ -1032,7 +1033,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void createViewReferencingQualifiedTempFunction() {
     String viewName = viewName("viewReferencingTemporaryFunction");
-    String functionName = "test_avg_func_qualified";
+    String functionName = viewName("test_avg_func_qualified");
 
     sql(
         "CREATE TEMPORARY FUNCTION %s AS 'org.apache.hadoop.hive.ql.udf.generic.GenericUDAFAverage'",
@@ -1070,7 +1071,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void createViewWithMismatchedColumnCounts() {
-    String viewName = "viewWithMismatchedColumnCounts";
+    String viewName = viewName("viewWithMismatchedColumnCounts");
 
     assertThatThrownBy(
             () -> sql("CREATE VIEW %s (id, data) AS SELECT id FROM %s", viewName, tableName))
@@ -1094,7 +1095,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void createViewWithColumnAliases() throws NoSuchTableException {
     insertRows(6);
-    String viewName = "viewWithColumnAliases";
+    String viewName = viewName("viewWithColumnAliases");
 
     sql(
         "CREATE VIEW %s (new_id COMMENT 'ID', new_data COMMENT 'DATA') AS SELECT id, data FROM %s WHERE id <= 3",
@@ -1141,7 +1142,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void createViewWithDuplicateQueryColumnNames() throws NoSuchTableException {
     insertRows(3);
-    String viewName = "viewWithDuplicateQueryColumnNames";
+    String viewName = viewName("viewWithDuplicateQueryColumnNames");
     String sql = String.format("SELECT id, id FROM %s WHERE id <= 3", tableName);
 
     // not specifying column aliases in the view should fail
@@ -1159,7 +1160,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void createViewWithCTE() throws NoSuchTableException {
     insertRows(10);
-    String viewName = "simpleViewWithCTE";
+    String viewName = viewName("simpleViewWithCTE");
     String sql =
         String.format(
             "WITH max_by_data AS (SELECT max(id) as max FROM %s) "
@@ -1174,8 +1175,8 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void createViewWithConflictingNamesForCTEAndTempView() throws NoSuchTableException {
     insertRows(10);
-    String viewName = "viewWithConflictingNamesForCTEAndTempView";
-    String cteName = "cteName";
+    String viewName = viewName("viewWithConflictingNamesForCTEAndTempView");
+    String cteName = viewName("cteName");
     String sql =
         String.format(
             "WITH %s AS (SELECT max(id) as max FROM %s) "
@@ -1192,8 +1193,8 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void createViewWithCTEReferencingTempView() {
-    String viewName = "viewWithCTEReferencingTempView";
-    String tempViewInCTE = "tempViewInCTE";
+    String viewName = viewName("viewWithCTEReferencingTempView");
+    String tempViewInCTE = viewName("tempViewInCTE");
     String sql =
         String.format(
             "WITH max_by_data AS (SELECT max(id) as max FROM %s) "
@@ -1212,8 +1213,8 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void createViewWithCTEReferencingTempFunction() {
-    String viewName = "viewWithCTEReferencingTempFunction";
-    String functionName = "avg_function_in_cte";
+    String viewName = viewName("viewWithCTEReferencingTempFunction");
+    String functionName = viewName("avg_function_in_cte");
     String sql =
         String.format(
             "WITH avg_data AS (SELECT %s(id) as avg FROM %s) "
@@ -1246,8 +1247,8 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void createViewWithSubqueryExpressionUsingTempView() {
-    String viewName = "viewWithSubqueryExpression";
-    String tempView = "simpleTempView";
+    String viewName = viewName("viewWithSubqueryExpression");
+    String tempView = viewName("simpleTempView");
     String sql =
         String.format("SELECT * FROM %s WHERE id = (SELECT id FROM %s)", tableName, tempView);
 
@@ -1263,8 +1264,8 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void createViewWithSubqueryExpressionUsingGlobalTempView() {
-    String viewName = "simpleViewWithSubqueryExpression";
-    String globalTempView = "simpleGlobalTempView";
+    String viewName = viewName("simpleViewWithSubqueryExpression");
+    String globalTempView = viewName("simpleGlobalTempView");
     String sql =
         String.format(
             "SELECT * FROM %s WHERE id = (SELECT id FROM global_temp.%s)",
@@ -1285,7 +1286,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void createViewWithSubqueryExpressionUsingTempFunction() {
     String viewName = viewName("viewWithSubqueryExpression");
-    String functionName = "avg_function_in_subquery";
+    String functionName = viewName("avg_function_in_subquery");
     String sql =
         String.format(
             "SELECT * FROM %s WHERE id < (SELECT %s(id) FROM %s)",
@@ -1355,7 +1356,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void describeView() {
-    String viewName = "describeView";
+    String viewName = viewName("describeView");
 
     sql("CREATE VIEW %s AS SELECT id, data FROM %s WHERE id <= 3", viewName, tableName);
     assertThat(sql("DESCRIBE %s", viewName))
@@ -1364,7 +1365,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void describeExtendedView() {
-    String viewName = "describeExtendedView";
+    String viewName = viewName("describeExtendedView");
     String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
 
     sql(
@@ -1389,7 +1390,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void showViewProperties() {
-    String viewName = "showViewProps";
+    String viewName = viewName("showViewProps");
 
     sql(
         "CREATE VIEW %s TBLPROPERTIES ('key1'='val1', 'key2'='val2') AS SELECT id, data FROM %s WHERE id <= 3",
@@ -1400,7 +1401,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void showViewPropertiesByKey() {
-    String viewName = "showViewPropsByKey";
+    String viewName = viewName("showViewPropsByKey");
 
     sql("CREATE VIEW %s AS SELECT id, data FROM %s WHERE id <= 3", viewName, tableName);
     assertThat(sql("SHOW TBLPROPERTIES %s", viewName)).contains(row("provider", "iceberg"));
@@ -1421,39 +1422,43 @@ public class TestViews extends SparkExtensionsTestBase {
   public void showViews() throws NoSuchTableException {
     insertRows(6);
     String sql = String.format("SELECT * from %s", tableName);
-    sql("CREATE VIEW v1 AS %s", sql);
-    sql("CREATE VIEW prefixV2 AS %s", sql);
-    sql("CREATE VIEW prefixV3 AS %s", sql);
-    sql("CREATE GLOBAL TEMPORARY VIEW globalViewForListing AS %s", sql);
-    sql("CREATE TEMPORARY VIEW tempViewForListing AS %s", sql);
+    String v1 = viewName("v1");
+    String prefixV2 = viewName("prefixV2");
+    String prefixV3 = viewName("prefixV3");
+    String globalViewForListing = viewName("globalViewForListing");
+    String tempViewForListing = viewName("tempViewForListing");
+    sql("CREATE VIEW %s AS %s", v1, sql);
+    sql("CREATE VIEW %s AS %s", prefixV2, sql);
+    sql("CREATE VIEW %s AS %s", prefixV3, sql);
+    sql("CREATE GLOBAL TEMPORARY VIEW %s AS %s", globalViewForListing, sql);
+    sql("CREATE TEMPORARY VIEW %s AS %s", tempViewForListing, sql);
 
     // spark stores temp views case-insensitive by default
-    Object[] tempView = row("", "tempviewforlisting", true);
+    Object[] tempView = row("", tempViewForListing.toLowerCase(Locale.ROOT), true);
     assertThat(sql("SHOW VIEWS"))
         .contains(
-            row(NAMESPACE.toString(), "prefixV2", false),
-            row(NAMESPACE.toString(), "prefixV3", false),
-            row(NAMESPACE.toString(), "v1", false),
+            row(NAMESPACE.toString(), prefixV2, false),
+            row(NAMESPACE.toString(), prefixV3, false),
+            row(NAMESPACE.toString(), v1, false),
             tempView);
 
     assertThat(sql("SHOW VIEWS IN %s", catalogName))
         .contains(
-            row(NAMESPACE.toString(), "prefixV2", false),
-            row(NAMESPACE.toString(), "prefixV3", false),
-            row(NAMESPACE.toString(), "v1", false),
+            row(NAMESPACE.toString(), prefixV2, false),
+            row(NAMESPACE.toString(), prefixV3, false),
+            row(NAMESPACE.toString(), v1, false),
             tempView);
 
     assertThat(sql("SHOW VIEWS IN %s.%s", catalogName, NAMESPACE))
         .contains(
-            row(NAMESPACE.toString(), "prefixV2", false),
-            row(NAMESPACE.toString(), "prefixV3", false),
-            row(NAMESPACE.toString(), "v1", false),
+            row(NAMESPACE.toString(), prefixV2, false),
+            row(NAMESPACE.toString(), prefixV3, false),
+            row(NAMESPACE.toString(), v1, false),
             tempView);
 
     assertThat(sql("SHOW VIEWS LIKE 'pref*'"))
         .contains(
-            row(NAMESPACE.toString(), "prefixV2", false),
-            row(NAMESPACE.toString(), "prefixV3", false));
+            row(NAMESPACE.toString(), prefixV2, false), row(NAMESPACE.toString(), prefixV3, false));
 
     assertThat(sql("SHOW VIEWS LIKE 'non-existing'")).isEmpty();
 
@@ -1462,7 +1467,7 @@ public class TestViews extends SparkExtensionsTestBase {
     assertThat(sql("SHOW VIEWS IN global_temp"))
         .contains(
             // spark stores temp views case-insensitive by default
-            row("global_temp", "globalviewforlisting", true), tempView);
+            row("global_temp", globalViewForListing.toLowerCase(Locale.ROOT), true), tempView);
 
     sql("USE spark_catalog");
     assertThat(sql("SHOW VIEWS")).contains(tempView);
@@ -1503,7 +1508,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void showCreateSimpleView() {
-    String viewName = "showCreateSimpleView";
+    String viewName = viewName("showCreateSimpleView");
     String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
 
     sql("CREATE VIEW %s AS %s", viewName, sql);
@@ -1524,7 +1529,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void showCreateComplexView() {
-    String viewName = "showCreateComplexView";
+    String viewName = viewName("showCreateComplexView");
     String sql = String.format("SELECT id, data FROM %s WHERE id <= 3", tableName);
 
     sql(
@@ -1551,7 +1556,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void alterViewSetProperties() {
-    String viewName = "viewWithSetProperties";
+    String viewName = viewName("viewWithSetProperties");
 
     sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
 
@@ -1573,7 +1578,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void alterViewSetReservedProperties() {
-    String viewName = "viewWithSetReservedProperties";
+    String viewName = viewName("viewWithSetReservedProperties");
 
     sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
 
@@ -1604,7 +1609,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void alterViewUnsetProperties() {
-    String viewName = "viewWithUnsetProperties";
+    String viewName = viewName("viewWithUnsetProperties");
     sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
 
     ViewCatalog viewCatalog = viewCatalog();
@@ -1625,7 +1630,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void alterViewUnsetUnknownProperty() {
-    String viewName = "viewWithUnsetUnknownProp";
+    String viewName = viewName("viewWithUnsetUnknownProp");
     sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
 
     assertThatThrownBy(() -> sql("ALTER VIEW %s UNSET TBLPROPERTIES ('unknown-key')", viewName))
@@ -1639,7 +1644,7 @@ public class TestViews extends SparkExtensionsTestBase {
 
   @Test
   public void alterViewUnsetReservedProperties() {
-    String viewName = "viewWithUnsetReservedProperties";
+    String viewName = viewName("viewWithUnsetReservedProperties");
 
     sql("CREATE VIEW %s AS SELECT id FROM %s WHERE id <= 3", viewName, tableName);
 
@@ -1722,7 +1727,7 @@ public class TestViews extends SparkExtensionsTestBase {
   @Test
   public void alterViewIsNotSupported() throws NoSuchTableException {
     insertRows(6);
-    String viewName = "alteredView";
+    String viewName = viewName("alteredView");
 
     sql("CREATE VIEW %s AS SELECT id, data FROM %s WHERE id <= 3", viewName, tableName);
 
