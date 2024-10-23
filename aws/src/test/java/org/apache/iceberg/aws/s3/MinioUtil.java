@@ -52,7 +52,7 @@ public class MinioUtil {
   }
 
   public static S3Client createS3Client(MinIOContainer container) {
-    URI uri = URI.create("http://127.0.0.1:" + container.getFirstMappedPort());
+    URI uri = URI.create(container.getS3URL());
     S3ClientBuilder builder = S3Client.builder();
     builder.credentialsProvider(
         StaticCredentialsProvider.create(
