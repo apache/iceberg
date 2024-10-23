@@ -108,7 +108,6 @@ public class TestS3FileIO {
   @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
 
   private final SerializableSupplier<S3Client> s3 = () -> MinioUtil.createS3Client(MINIO);
-      (SerializableSupplier<S3Client>) () -> MinioUtil.createS3Client(MINIO);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3.get()));
   private final Random random = new Random(1);
   private final int numBucketsForBatchDeletion = 3;
