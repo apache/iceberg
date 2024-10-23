@@ -669,6 +669,13 @@ Users can use catalog properties to override the defaults. For example, to confi
 --conf spark.sql.catalog.my_catalog.http-client.apache.max-connections=5
 ```
 
+**Note that for workloads with exceptionally high throughput against tables that S3 where you will likely to increase Retries, you will also like to increase the number of connections for the HTTP client**
+
+```shell
+spark.sql.catalog.my_catalog.http-client.apache.max-connections=200
+```
+
+
 ## Run Iceberg on AWS
 
 ### Amazon Athena
@@ -717,12 +724,20 @@ install_dependencies () {
 install_dependencies $LIB_PATH $ICEBERG_MAVEN_URL $ICEBERG_VERSION "${ICEBERG_PACKAGES[@]}"
 ```
 
+For versions after 7.1.0 there is an specific config that can be used to enable data prefecth optimization. You just need to add the following property on your Spark config.
+
+```shell
+spark.sql.iceberg.data-prefetch.enabled=true
+```
+
+More info on this [blog](https://aws.amazon.com/blogs/big-data/amazon-emr-7-1-runtime-for-apache-spark-and-iceberg-can-run-spark-workloads-2-7-times-faster-than-apache-spark-3-5-1-and-iceberg-1-5-2/).
+
+
 ### AWS Glue
 
 [AWS Glue](https://aws.amazon.com/glue/) provides a serverless data integration service
 that could be used to perform read, write and update tasks against Iceberg tables.
 More details could be found [here](https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-format-iceberg.html).
-
 
 ### AWS EKS
 
@@ -739,3 +754,9 @@ to run fully managed Apache Flink applications. You can include Iceberg in your 
 
 ### Amazon Data Firehose
 You can use [Firehose](https://docs.aws.amazon.com/firehose/latest/dev/apache-iceberg-destination.html) to directly deliver streaming data to Apache Iceberg Tables in Amazon S3. With this feature, you can route records from a single stream into different Apache Iceberg Tables, and automatically apply insert, update, and delete operations to records in the Apache Iceberg Tables. This feature requires using the AWS Glue Data Catalog.
+
+### Amazon MSK
+
+You can use [MSK](https://docs.aws.amazon.com/msk/latest/developerguide/msk-connect.html) to deliver streaming data to Apache Iceberg Tables in Amazon S3 using [Kafka Connect](https://iceberg.apache.org/docs/nightly/kafka-connect/). With this feature, you can route records from a Kafka topic into different Apache Iceberg Tables, and automatically apply insert, update, and delete operations to records in the Apache Iceberg Tables using an existing Kafka cluster running on Amazon MSK. 
+
+
