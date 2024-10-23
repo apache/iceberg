@@ -26,7 +26,9 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.BaseTransaction;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableScan;
 import org.apache.iceberg.Transaction;
 import org.apache.iceberg.Transactions;
 import org.apache.iceberg.catalog.Catalog;
@@ -47,6 +49,7 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.RESTException;
 import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Splitter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -54,6 +57,8 @@ import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.CreateViewRequest;
+import org.apache.iceberg.rest.requests.FetchScanTasksRequest;
+import org.apache.iceberg.rest.requests.PlanTableScanRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
@@ -62,12 +67,15 @@ import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.iceberg.rest.responses.FetchPlanningResultResponse;
+import org.apache.iceberg.rest.responses.FetchScanTasksResponse;
 import org.apache.iceberg.rest.responses.GetNamespaceResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.OAuthTokenResponse;
+import org.apache.iceberg.rest.responses.PlanTableScanResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PropertyUtil;
@@ -138,6 +146,21 @@ public class RESTCatalogAdapter implements RESTClient {
         CreateTableRequest.class,
         LoadTableResponse.class),
     LOAD_TABLE(HTTPMethod.GET, ResourcePaths.V1_TABLE, null, LoadTableResponse.class),
+    PLAN_TABLE_SCAN(
+        HTTPMethod.POST,
+        "/v1/{prefix}/namespaces/{namespace}/tables/{table}/plan",
+        PlanTableScanRequest.class,
+        PlanTableScanResponse.class),
+    FETCH_PLANNING_RESULT(
+        HTTPMethod.GET,
+        "/v1/{prefix}/namespaces/{namespace}/tables/{table}/plan/{plan-id}",
+        null,
+        FetchPlanningResultResponse.class),
+    FETCH_SCAN_TASKS(
+        HTTPMethod.POST,
+        "/v1/{prefix}/namespaces/{namespace}/tables/{table}/tasks",
+        FetchScanTasksRequest.class,
+        FetchScanTasksResponse.class),
     REGISTER_TABLE(
         HTTPMethod.POST,
         ResourcePaths.V1_TABLE_REGISTER,
@@ -496,6 +519,36 @@ public class RESTCatalogAdapter implements RESTClient {
             return null;
           }
           break;
+        }
+
+      case PLAN_TABLE_SCAN:
+        {
+          TableIdentifier ident = tableIdentFromPathVars(vars);
+          PlanTableScanRequest request = castRequest(PlanTableScanRequest.class, body);
+          TableScan tableScan = catalog.loadTable(ident).newScan();
+          if (request.snapshotId() != null) {
+            tableScan.useSnapshot(request.snapshotId());
+          }
+          if (request.select() != null) {
+            tableScan.select(request.select());
+          }
+          if (request.filter() != null) {
+            tableScan.filter(request.filter());
+          }
+          if (request.statsFields() != null) {
+            tableScan.includeColumnStats(request.statsFields());
+          }
+          tableScan.caseSensitive(request.caseSensitive());
+
+          List<FileScanTask> fileScanTasks = Lists.newArrayList();
+          CloseableIterable<FileScanTask> returnedTasks = tableScan.planFiles();
+          returnedTasks.forEach(task -> fileScanTasks.add(task));
+          return castResponse(
+              responseType,
+              new PlanTableScanResponse.Builder()
+                  .withPlanStatus(PlanStatus.fromName("completed"))
+                  .withFileScanTasks(fileScanTasks)
+                  .build());
         }
 
       default:

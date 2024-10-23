@@ -86,10 +86,15 @@ public class RESTTableScan extends DataTableScan {
   public CloseableIterable<FileScanTask> planFiles() {
     List<String> selectedColumns =
         schema().columns().stream().map(Types.NestedField::name).collect(Collectors.toList());
-    List<String> statsFields =
-        columnsToKeepStats().stream()
-            .map(columnId -> schema().findColumnName(columnId))
-            .collect(Collectors.toList());
+
+    List<String> statsFields = null;
+    if (columnsToKeepStats() != null) {
+      statsFields =
+          columnsToKeepStats().stream()
+              .map(columnId -> schema().findColumnName(columnId))
+              .collect(Collectors.toList());
+    }
+
     Long startSnapshotId = context().fromSnapshotId();
     Long endSnapshotId = context().toSnapshotId();
     Long snapshotId = snapshotId();
