@@ -49,7 +49,7 @@ public class TestMinioUtil {
         s3Client.createBucket(CreateBucketRequest.builder().bucket(bucket).build());
     assertThat(createBucketResponse.sdkHttpResponse().isSuccessful()).isTrue();
 
-    final String key = "test-key-" + UUID.randomUUID().toString();
+   String key = "test-key-" + UUID.randomUUID().toString();
     for (int i = 0; i < 5; i++) {
       final String payload = "test-payload-" + i;
       PutObjectRequest request =
