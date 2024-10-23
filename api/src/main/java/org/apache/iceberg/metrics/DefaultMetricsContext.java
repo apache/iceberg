@@ -23,6 +23,11 @@ import java.util.concurrent.TimeUnit;
 /** A default {@link MetricsContext} implementation that uses native Java counters/timers. */
 public class DefaultMetricsContext implements MetricsContext {
   private static final int DEFAULT_HISTOGRAM_RESERVOIR_SIZE = 10_000;
+  private static final DefaultMetricsContext INSTANCE = new DefaultMetricsContext();
+
+  public static DefaultMetricsContext instance() {
+    return INSTANCE;
+  }
 
   /**
    * @deprecated will be removed in 2.0.0, use {@link org.apache.iceberg.metrics.Counter} instead.

@@ -36,7 +36,9 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.Configurable;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.SupportsBulkOperations;
+import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -491,6 +493,52 @@ public class CatalogUtil {
     reporter.initialize(properties);
 
     return reporter;
+  }
+
+  /**
+   * Load a custom {@link MetricsContext} implementation.
+   *
+   * <p>The implementation must have a no-arg constructor.
+   *
+   * @param properties catalog properties which contains class name of a custom {@link
+   *     MetricsContext} implementation
+   * @return An initialized {@link MetricsContext}.
+   * @throws IllegalArgumentException if class path not found or right constructor not found or the
+   *     loaded class cannot be cast to the given interface type
+   */
+  public static MetricsContext loadMetricsContext(Map<String, String> properties) {
+    String impl = properties.get(CatalogProperties.METRICS_CONTEXT_IMPL);
+    if (impl == null) {
+      return DefaultMetricsContext.instance();
+    }
+
+    LOG.info("Loading custom MetricsContext implementation: {}", impl);
+    DynConstructors.Ctor<MetricsContext> ctor;
+    try {
+      ctor =
+              DynConstructors.builder(MetricsContext.class)
+                      .loader(CatalogUtil.class.getClassLoader())
+                      .impl(impl)
+                      .buildChecked();
+    } catch (NoSuchMethodException e) {
+      throw new IllegalArgumentException(
+              String.format("Cannot initialize MetricsContext, missing no-arg constructor: %s", impl),
+              e);
+    }
+
+    MetricsContext metricsContext;
+    try {
+      metricsContext = ctor.newInstance();
+    } catch (ClassCastException e) {
+      throw new IllegalArgumentException(
+              String.format(
+                      "Cannot initialize MetricsContext, %s does not implement MetricsContext.", impl),
+              e);
+    }
+
+    metricsContext.initialize(properties);
+
+    return metricsContext;
   }
 
   public static String fullTableName(String catalogName, TableIdentifier identifier) {
