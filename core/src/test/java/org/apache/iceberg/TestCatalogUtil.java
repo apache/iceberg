@@ -32,6 +32,8 @@ import org.apache.iceberg.hadoop.HadoopFileIO;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.metrics.DefaultMetricsContext;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsReport;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -223,6 +225,48 @@ public class TestCatalogUtil {
                         TestFileIONotImpl.class.getName())))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("does not implement MetricsReporter");
+  }
+
+  @Test
+  public void loadCustomMetricsContext_defaultImpl() {
+    Map<String, String> properties = Maps.newHashMap();
+    MetricsContext metricsContext = CatalogUtil.loadMetricsContext(properties);
+    assertThat(metricsContext).isInstanceOf(DefaultMetricsContext.class);
+  }
+
+  @Test
+  public void loadCustomMetricsContext_customImpl() {
+    Map<String, String> properties = Maps.newHashMap();
+    properties.put("key", "val");
+    properties.put(
+            CatalogProperties.METRICS_CONTEXT_IMPL, TestMetricsContextDefault.class.getName());
+
+    MetricsContext metricsContext = CatalogUtil.loadMetricsContext(properties);
+    assertThat(metricsContext).isInstanceOf(TestMetricsContextDefault.class);
+  }
+
+  @Test
+  public void loadCustomMetricsContext_badArg() {
+    assertThatThrownBy(
+            () ->
+                    CatalogUtil.loadMetricsContext(
+                            ImmutableMap.of(
+                                    CatalogProperties.METRICS_CONTEXT_IMPL,
+                                    java.lang.System.class.getName())))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("missing no-arg constructor");
+  }
+
+  @Test
+  public void loadCustomMetricsContext_badClass() {
+    assertThatThrownBy(
+            () ->
+                    CatalogUtil.loadMetricsContext(
+                            ImmutableMap.of(
+                                    CatalogProperties.METRICS_CONTEXT_IMPL,
+                                    TestFileIONotImpl.class.getName())))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("does not implement MetricsContext");
   }
 
   @Test
@@ -479,5 +523,8 @@ public class TestCatalogUtil {
 
     @Override
     public void report(MetricsReport report) {}
+  }
+
+  public static class TestMetricsContextDefault implements MetricsContext {
   }
 }
