@@ -193,7 +193,15 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
           Map<Integer, PartitionSpec> specs = Maps.newHashMapWithExpectedSize(specAsJsonMap.size());
           specAsJsonMap.forEach(
               (specId, specAsJson) -> {
-                specs.put(specId, PartitionSpecParser.fromJson(schema(), specAsJson));
+                int schemaId = PartitionSpecParser.fromJson(specAsJson).schemaId();
+                // In some unit tests, there may be situations that
+                // metadata location is not passed in.
+                // In this case, schemas cannot be read and latest schema is used by default.
+                Schema schema =
+                    schemaId != -1 && metadataFileLocation != null
+                        ? schemas().get(schemaId)
+                        : schema();
+                specs.put(specId, PartitionSpecParser.fromJson(schema, specAsJson));
               });
           this.lazySpecs = specs;
         } else if (lazySpecs == null) {

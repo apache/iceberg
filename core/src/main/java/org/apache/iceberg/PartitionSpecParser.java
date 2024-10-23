@@ -19,6 +19,7 @@
 package org.apache.iceberg;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -33,6 +34,7 @@ public class PartitionSpecParser {
   private PartitionSpecParser() {}
 
   private static final String SPEC_ID = "spec-id";
+  private static final String SCHEMA_ID = "schema-id";
   private static final String FIELDS = "fields";
   private static final String SOURCE_ID = "source-id";
   private static final String FIELD_ID = "field-id";
@@ -54,6 +56,7 @@ public class PartitionSpecParser {
   public static void toJson(UnboundPartitionSpec spec, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
     generator.writeNumberField(SPEC_ID, spec.specId());
+    generator.writeNumberField(SCHEMA_ID, spec.schemaId());
     generator.writeFieldName(FIELDS);
     toJsonFields(spec, generator);
     generator.writeEndObject();
@@ -75,8 +78,20 @@ public class PartitionSpecParser {
     Preconditions.checkArgument(json.isObject(), "Cannot parse spec from non-object: %s", json);
     int specId = JsonUtil.getInt(SPEC_ID, json);
     UnboundPartitionSpec.Builder builder = UnboundPartitionSpec.builder().withSpecId(specId);
+    Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, json);
+    if (schemaId != null) {
+      builder.withSchemaId(schemaId);
+    }
     buildFromJsonFields(builder, JsonUtil.get(FIELDS, json));
     return builder.build();
+  }
+
+  public static UnboundPartitionSpec fromJson(String json) {
+    try {
+      return fromJson(JsonUtil.mapper().readValue(json, JsonNode.class));
+    } catch (JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private static final Cache<Pair<Types.StructType, String>, PartitionSpec> SPEC_CACHE =

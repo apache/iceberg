@@ -1145,6 +1145,10 @@ acceptedBreaks:
       new: "method org.apache.iceberg.BaseMetastoreOperations.CommitStatus org.apache.iceberg.BaseMetastoreTableOperations::checkCommitStatus(java.lang.String,\
         \ org.apache.iceberg.TableMetadata)"
       justification: "Removing deprecated code"
+    - code: "java.method.numberOfParametersChanged"
+      old: "method void org.apache.iceberg.UnboundPartitionSpec::<init>(int, java.util.List<org.apache.iceberg.UnboundPartitionSpec.UnboundPartitionField>)"
+      new: "method void org.apache.iceberg.UnboundPartitionSpec::<init>(int, int, java.util.List<org.apache.iceberg.UnboundPartitionSpec.UnboundPartitionField>)"
+      justification: "Add schema id in UnboundPartitionSpec"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

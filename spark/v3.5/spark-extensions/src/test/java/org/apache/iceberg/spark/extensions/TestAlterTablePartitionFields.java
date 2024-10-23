@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -27,6 +28,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.spark.sql.connector.catalog.CatalogManager;
@@ -533,23 +535,38 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
   public void testDropColumnOfOldPartitionFieldV1() {
     // default table created in v1 format
     sql(
-        "CREATE TABLE %s (id bigint NOT NULL, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts) TBLPROPERTIES('format-version' = '1')",
+        "CREATE TABLE %s (id bigint NOT NULL, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts)"
+            + "TBLPROPERTIES ('format-version' = '1')",
         tableName);
 
-    sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, TIMESTAMP '2024-10-23', DATE '2024-10-23')", tableName);
 
-    sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName);
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)", tableName);
+    sql("INSERT INTO TABLE %s VALUES (1, TIMESTAMP '2024-10-23', DATE '2024-10-23')", tableName);
+
+    assertThatThrownBy(
+        () -> sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName),
+        "should throw validationError",
+        ValidationException.class);
   }
 
   @TestTemplate
   public void testDropColumnOfOldPartitionFieldV2() {
+
     sql(
-        "CREATE TABLE %s (id bigint NOT NULL, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts) TBLPROPERTIES('format-version' = '2')",
+        "CREATE TABLE %s (id bigint NOT NULL, ts timestamp, day_of_ts date) USING iceberg PARTITIONED BY (day_of_ts)",
         tableName);
+    sql("ALTER TABLE %s SET TBLPROPERTIES ('format-version' = '2');", tableName);
+
+    sql("INSERT INTO TABLE %s VALUES (1, TIMESTAMP '2024-10-23', DATE '2024-10-23')", tableName);
 
     sql("ALTER TABLE %s REPLACE PARTITION FIELD day_of_ts WITH days(ts)", tableName);
+    sql("INSERT INTO TABLE %s VALUES (2, TIMESTAMP '2024-10-23', DATE '2024-10-23')", tableName);
 
     sql("ALTER TABLE %s DROP COLUMN day_of_ts", tableName);
+    sql("INSERT INTO TABLE %s VALUES (3, TIMESTAMP '2024-10-23')", tableName);
+
+    assertThat(sql("SELECT * FROM %s", tableName)).as("rows should be equals").hasSize(3);
   }
 
   private void assertPartitioningEquals(SparkTable table, int len, String transform) {

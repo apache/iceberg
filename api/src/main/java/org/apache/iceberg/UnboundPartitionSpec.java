@@ -27,15 +27,21 @@ import org.apache.iceberg.types.Type;
 public class UnboundPartitionSpec {
 
   private final int specId;
+  private final int schmeId;
   private final List<UnboundPartitionField> fields;
 
-  public UnboundPartitionSpec(int specId, List<UnboundPartitionField> fields) {
+  public UnboundPartitionSpec(int specId, int schmeId, List<UnboundPartitionField> fields) {
     this.specId = specId;
     this.fields = fields;
+    this.schmeId = schmeId;
   }
 
   public int specId() {
     return specId;
+  }
+
+  public int schemaId() {
+    return schmeId;
   }
 
   public List<UnboundPartitionField> fields() {
@@ -78,6 +84,7 @@ public class UnboundPartitionSpec {
   static class Builder {
     private final List<UnboundPartitionField> fields;
     private int specId = 0;
+    private int schemaId = -1;
 
     private Builder() {
       this.fields = Lists.newArrayList();
@@ -85,6 +92,11 @@ public class UnboundPartitionSpec {
 
     Builder withSpecId(int newSpecId) {
       this.specId = newSpecId;
+      return this;
+    }
+
+    Builder withSchemaId(int newSchemaId) {
+      this.schemaId = newSchemaId;
       return this;
     }
 
@@ -99,7 +111,7 @@ public class UnboundPartitionSpec {
     }
 
     UnboundPartitionSpec build() {
-      return new UnboundPartitionSpec(specId, fields);
+      return new UnboundPartitionSpec(specId, schemaId, fields);
     }
   }
 
