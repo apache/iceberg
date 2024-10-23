@@ -58,8 +58,10 @@ public class TestParquetSchemaUtil {
           optional(113, "bytes", Types.BinaryType.get()),
           required(114, "dec_9_0", Types.DecimalType.of(9, 0)),
           required(115, "dec_11_2", Types.DecimalType.of(11, 2)),
-          required(116, "dec_38_10", Types.DecimalType.of(38, 10)) // spark's maximum precision
-          );
+          required(116, "dec_38_10", Types.DecimalType.of(38, 10)), // spark's maximum precision
+          optional(117, "geom", Types.GeometryType.get()),
+          required(
+              117, "geom2", Types.GeometryType.of("test_crs", Types.GeometryType.Edges.SPHERICAL)));
 
   @Test
   public void testAssignIdsByNameMapping() {

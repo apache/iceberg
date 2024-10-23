@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.parquet;
 
-import java.util.stream.Stream;
-import org.apache.iceberg.FieldMetrics;
-import org.apache.iceberg.GeometryFieldMetrics;
 import org.apache.iceberg.util.GeometryUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
@@ -37,15 +34,12 @@ public class ParquetGeometryValueWriters {
 
   private static class GeometryWriter extends ParquetValueWriters.PrimitiveWriter<Geometry> {
 
-    private final GeometryFieldMetrics.Builder metricsBuilder;
     private final WKBWriter[] wkbWriters = {
       new WKBWriter(2, false), new WKBWriter(3, false), new WKBWriter(4, false)
     };
 
     GeometryWriter(ColumnDescriptor desc) {
       super(desc);
-      int id = desc.getPrimitiveType().getId().intValue();
-      metricsBuilder = new GeometryFieldMetrics.Builder(id);
     }
 
     @Override
@@ -53,12 +47,6 @@ public class ParquetGeometryValueWriters {
       int numDimensions = GeometryUtil.getOutputDimension(geom);
       byte[] wkb = wkbWriters[numDimensions - 2].write(geom);
       column.writeBinary(rl, Binary.fromReusedByteArray(wkb));
-      metricsBuilder.add(geom);
-    }
-
-    @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return Stream.of(metricsBuilder.build());
     }
   }
 }

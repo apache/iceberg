@@ -242,6 +242,24 @@ class MessageTypeToType extends ParquetTypeVisitor<Type> {
     public Optional<Type> visit(LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
       return Optional.of(Types.BinaryType.get());
     }
+
+    @Override
+    public Optional<Type> visit(LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
+      String crs = geometryType.getCrs();
+      Types.GeometryType.Edges edges;
+      switch (geometryType.getEdges()) {
+        case PLANAR:
+          edges = Types.GeometryType.Edges.PLANAR;
+          break;
+        case SPHERICAL:
+          edges = Types.GeometryType.Edges.SPHERICAL;
+          break;
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported geometry edges: " + geometryType.getEdges());
+      }
+      return Optional.of(Types.GeometryType.of(crs, edges));
+    }
   }
 
   private void addAlias(String name, int fieldId) {

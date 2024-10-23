@@ -50,7 +50,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final Map<String, String> metadata;
   private final ParquetProperties props;
   private final CodecFactory.BytesCompressor compressor;
-  private final Schema tableSchema;
   private final MessageType parquetSchema;
   private final ParquetValueWriter<T> model;
   private final MetricsConfig metricsConfig;
@@ -89,7 +88,6 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.metadata = ImmutableMap.copyOf(metadata);
     this.compressor =
         new ParquetCodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
-    this.tableSchema = schema;
     this.parquetSchema = ParquetSchemaUtil.convert(schema, "table");
     this.model = (ParquetValueWriter<T>) createWriterFunc.apply(parquetSchema);
     this.metricsConfig = metricsConfig;
@@ -143,8 +141,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   public Metrics metrics() {
     Preconditions.checkState(closed, "Cannot return metrics for unclosed writer");
     if (writer != null) {
-      return ParquetUtil.footerMetrics(
-          tableSchema, writer.getFooter(), model.metrics(), metricsConfig);
+      return ParquetUtil.footerMetrics(writer.getFooter(), model.metrics(), metricsConfig);
     }
     return EMPTY_METRICS;
   }

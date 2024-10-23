@@ -55,7 +55,10 @@ import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.EncodingStats;
 import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.PageReader;
+import org.apache.parquet.column.statistics.BinaryStatistics;
 import org.apache.parquet.column.statistics.Statistics;
+import org.apache.parquet.column.statistics.geometry.BoundingBox;
+import org.apache.parquet.column.statistics.geometry.GeometryStatistics;
 import org.apache.parquet.hadoop.ParquetFileReader;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -64,7 +67,10 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.CoordinateXYZM;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class ParquetUtil {
   // not meant to be instantiated
@@ -86,29 +92,12 @@ public class ParquetUtil {
   }
 
   public static Metrics footerMetrics(
-      Schema tableSchema,
-      ParquetMetadata metadata,
-      Stream<FieldMetrics<?>> fieldMetrics,
-      MetricsConfig metricsConfig) {
-    return footerMetrics(tableSchema, metadata, fieldMetrics, metricsConfig, null);
-  }
-
-  public static Metrics footerMetrics(
       ParquetMetadata metadata, Stream<FieldMetrics<?>> fieldMetrics, MetricsConfig metricsConfig) {
     return footerMetrics(metadata, fieldMetrics, metricsConfig, null);
   }
 
-  public static Metrics footerMetrics(
-      ParquetMetadata metadata,
-      Stream<FieldMetrics<?>> fieldMetrics,
-      MetricsConfig metricsConfig,
-      NameMapping nameMapping) {
-    return footerMetrics(null, metadata, fieldMetrics, metricsConfig, nameMapping);
-  }
-
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static Metrics footerMetrics(
-      Schema tableSchema,
       ParquetMetadata metadata,
       Stream<FieldMetrics<?>> fieldMetrics,
       MetricsConfig metricsConfig,
@@ -125,9 +114,7 @@ public class ParquetUtil {
 
     // ignore metrics for fields we failed to determine reliable IDs
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
-    // When tableSchema is not known, we'll derive fileSchema from parquet schema
-    Schema fileSchema =
-        tableSchema != null ? tableSchema : ParquetSchemaUtil.convert(parquetTypeWithIds);
+    Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
 
     Map<Integer, FieldMetrics<?>> fieldMetricsMap =
         fieldMetrics.collect(Collectors.toMap(FieldMetrics::id, Function.identity()));
@@ -137,15 +124,13 @@ public class ParquetUtil {
       rowCount += block.getRowCount();
       for (ColumnChunkMetaData column : block.getColumns()) {
 
-        org.apache.parquet.schema.Type columnType =
-            parquetTypeWithIds.getType(column.getPath().toArray());
-        if (columnType == null || columnType.getId() == null) {
+        Integer fieldId = fileSchema.aliasToId(column.getPath().toDotString());
+        if (fieldId == null) {
           // fileSchema may contain a subset of columns present in the file
           // as we prune columns we could not assign ids
           continue;
         }
 
-        Integer fieldId = columnType.getId().intValue();
         MetricsMode metricsMode = MetricsUtil.metricsMode(fileSchema, metricsConfig, fieldId);
         if (metricsMode == MetricsModes.None.get()) {
           continue;
@@ -158,36 +143,26 @@ public class ParquetUtil {
         if (stats != null && !stats.isEmpty()) {
           increment(nullValueCounts, fieldId, stats.getNumNulls());
 
-          Type icebergFieldType = fileSchema.findField(fieldId).type();
-
           // when there are metrics gathered by Iceberg for a column, we should use those instead
-          // of the ones from Parquet.
-          //
-          // NOTE: There is one exception for geometry columns: to maintain backward compatibility,
-          // we still keep parquet stats for physical columns of geometry columns (usually min/max
-          // of binary columns).
-          // Statistics for geometry values collected by geometry value writers were stored in the
-          // newly added geom_lower_bound/geom_upper_bound properties in the manifest.
-          // TODO: we need to switch to the new parquet-java library with geometry support
-          if (metricsMode != MetricsModes.Counts.get()
-              && (!fieldMetricsMap.containsKey(fieldId)
-                  || icebergFieldType.typeId() == Type.TypeID.GEOMETRY)) {
+          // of the ones from Parquet
+          if (metricsMode != MetricsModes.Counts.get() && !fieldMetricsMap.containsKey(fieldId)) {
             Types.NestedField field = fileSchema.findField(fieldId);
             if (field != null && stats.hasNonNullValue() && shouldStoreBounds(column, fileSchema)) {
-              Type fieldType = field.type();
-              // Interpret parquet values for geometry columns as the physical type of the geometry
-              // column
-              if (fieldType.typeId() == Type.TypeID.GEOMETRY) {
-                fieldType = Types.BinaryType.get();
+              if (field.type().typeId() == Type.TypeID.GEOMETRY) {
+                BinaryStatistics binaryStats = (BinaryStatistics) stats;
+                GeometryStatistics geometryStats = binaryStats.getGeometryStatistics();
+                BoundingBox boundingBox = geometryStats.getBoundingBox();
+                updateGeometryBounds(lowerBounds, upperBounds, fieldId, boundingBox);
+              } else {
+                Literal<?> min =
+                    ParquetConversions.fromParquetPrimitive(
+                        field.type(), column.getPrimitiveType(), stats.genericGetMin());
+                updateMin(lowerBounds, fieldId, field.type(), min, metricsMode);
+                Literal<?> max =
+                    ParquetConversions.fromParquetPrimitive(
+                        field.type(), column.getPrimitiveType(), stats.genericGetMax());
+                updateMax(upperBounds, fieldId, field.type(), max, metricsMode);
               }
-              Literal<?> min =
-                  ParquetConversions.fromParquetPrimitive(
-                      fieldType, column.getPrimitiveType(), stats.genericGetMin());
-              updateMin(lowerBounds, fieldId, fieldType, min, metricsMode);
-              Literal<?> max =
-                  ParquetConversions.fromParquetPrimitive(
-                      fieldType, column.getPrimitiveType(), stats.genericGetMax());
-              updateMax(upperBounds, fieldId, fieldType, max, metricsMode);
             }
           }
         } else {
@@ -241,9 +216,6 @@ public class ParquetUtil {
                 } else if (metrics.upperBound() instanceof Double) {
                   lowerBounds.put(fieldId, Literal.of((Double) metrics.lowerBound()));
                   upperBounds.put(fieldId, Literal.of((Double) metrics.upperBound()));
-                } else if (metrics.upperBound() instanceof Geometry) {
-                  lowerBounds.put(fieldId, Literal.of((Geometry) metrics.lowerBound()));
-                  upperBounds.put(fieldId, Literal.of((Geometry) metrics.upperBound()));
                 } else {
                   throw new UnsupportedOperationException(
                       "Expected only float or double column metrics");
@@ -380,11 +352,68 @@ public class ParquetUtil {
     }
   }
 
+  @SuppressWarnings("unchecked")
+  private static void updateGeometryBounds(
+      Map<Integer, Literal<?>> lowerBounds,
+      Map<Integer, Literal<?>> upperBounds,
+      int id,
+      BoundingBox bbox) {
+    GeometryFactory factory = new GeometryFactory();
+    Literal<Geometry> currentMin = (Literal<Geometry>) lowerBounds.get(id);
+    Literal<Geometry> currentMax = (Literal<Geometry>) upperBounds.get(id);
+    if (currentMin == null) {
+      Geometry min =
+          factory.createPoint(
+              new CoordinateXYZM(bbox.getXMin(), bbox.getYMin(), bbox.getZMin(), bbox.getMMin()));
+      lowerBounds.put(id, Literal.of(min));
+    } else {
+      Coordinate currentMinCoord = currentMin.value().getCoordinate();
+      double xMin = currentMinCoord.getX();
+      double yMin = currentMinCoord.getY();
+      double zMin = currentMinCoord.getZ();
+      double mMin = currentMinCoord.getM();
+      xMin = Math.min(bbox.getXMin(), xMin);
+      yMin = Math.min(bbox.getYMin(), yMin);
+      if (bbox.getZMin() <= bbox.getZMax()) {
+        zMin = Math.min(bbox.getZMin(), zMin);
+      }
+      if (bbox.getMMin() <= bbox.getMMax()) {
+        mMin = Math.min(bbox.getMMin(), mMin);
+      }
+      Geometry newMin = factory.createPoint(new CoordinateXYZM(xMin, yMin, zMin, mMin));
+      lowerBounds.put(id, Literal.of(newMin));
+    }
+
+    if (currentMax == null) {
+      Geometry max =
+          factory.createPoint(
+              new CoordinateXYZM(bbox.getXMax(), bbox.getYMax(), bbox.getZMax(), bbox.getMMax()));
+      upperBounds.put(id, Literal.of(max));
+    } else {
+      Coordinate currentMaxCoord = currentMax.value().getCoordinate();
+      double xMax = currentMaxCoord.getX();
+      double yMax = currentMaxCoord.getY();
+      double zMax = currentMaxCoord.getZ();
+      double mMax = currentMaxCoord.getM();
+      xMax = Math.max(bbox.getXMax(), xMax);
+      yMax = Math.max(bbox.getYMax(), yMax);
+      if (bbox.getZMin() <= bbox.getZMax()) {
+        zMax = Math.max(bbox.getZMax(), zMax);
+      }
+      if (bbox.getMMin() <= bbox.getMMax()) {
+        mMax = Math.max(bbox.getMMax(), mMax);
+      }
+      Geometry newMax = factory.createPoint(new CoordinateXYZM(xMax, yMax, zMax, mMax));
+      upperBounds.put(id, Literal.of(newMax));
+    }
+  }
+
   private static Map<Integer, ByteBuffer> toBufferMap(Schema schema, Map<Integer, Literal<?>> map) {
     Map<Integer, ByteBuffer> bufferMap = Maps.newHashMap();
     for (Map.Entry<Integer, Literal<?>> entry : map.entrySet()) {
-      Type fieldType = schema.findType(entry.getKey());
-      bufferMap.put(entry.getKey(), Conversions.toByteBuffer(fieldType, entry.getValue().value()));
+      bufferMap.put(
+          entry.getKey(),
+          Conversions.toByteBuffer(schema.findType(entry.getKey()), entry.getValue().value()));
     }
     return bufferMap;
   }

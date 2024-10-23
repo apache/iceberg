@@ -149,7 +149,7 @@ public class TypeToMessageType {
         return Types.primitive(BINARY, repetition).id(id).named(name);
       case GEOMETRY:
         // TODO: the parquet-java POC code will need to be updated according to the latest spec
-        // changes.
+        //  changes.
         GeometryType geometryType = ((GeometryType) primitive);
         return Types.primitive(BINARY, repetition)
             .as(
