@@ -107,7 +107,7 @@ import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 public class TestS3FileIO {
   @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
 
-  public final SerializableSupplier<S3Client> s3 =
+  private final SerializableSupplier<S3Client> s3 = () -> MinioUtil.createS3Client(MINIO);
       (SerializableSupplier<S3Client>) () -> MinioUtil.createS3Client(MINIO);
   private final S3Client s3mock = mock(S3Client.class, delegatesTo(s3.get()));
   private final Random random = new Random(1);
