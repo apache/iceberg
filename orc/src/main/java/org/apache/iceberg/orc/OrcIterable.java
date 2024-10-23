@@ -26,6 +26,7 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
@@ -82,17 +83,18 @@ class OrcIterable<T> extends CloseableGroup implements CloseableIterable<T> {
   public CloseableIterator<T> iterator() {
     Reader orcFileReader = ORC.newFileReader(file, config);
     addCloseable(orcFileReader);
+    boolean convertTimestampTZ = config.getBoolean(ConfigProperties.ORC_CONVERT_TIMESTAMPTZ, false);
 
     TypeDescription fileSchema = orcFileReader.getSchema();
     final TypeDescription readOrcSchema;
     if (ORCSchemaUtil.hasIds(fileSchema)) {
-      readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, fileSchema);
+      readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, fileSchema, convertTimestampTZ);
     } else {
       if (nameMapping == null) {
         nameMapping = MappingUtil.create(schema);
       }
       TypeDescription typeWithIds = ORCSchemaUtil.applyNameMapping(fileSchema, nameMapping);
-      readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, typeWithIds);
+      readOrcSchema = ORCSchemaUtil.buildOrcProjection(schema, typeWithIds, convertTimestampTZ);
     }
 
     SearchArgument sarg = null;
