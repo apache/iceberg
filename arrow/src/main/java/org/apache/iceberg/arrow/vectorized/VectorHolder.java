@@ -19,6 +19,7 @@
 package org.apache.iceberg.arrow.vectorized;
 
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.NullVector;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
@@ -128,7 +129,7 @@ public class VectorHolder {
   }
 
   public boolean isDummy() {
-    return vector == null;
+    return vector == null || vector instanceof NullVector;
   }
 
   /**
@@ -140,12 +141,21 @@ public class VectorHolder {
     private final int numRows;
 
     public ConstantVectorHolder(int numRows) {
+      super(new NullVector("_dummy_", numRows), null, new NullabilityHolder(numRows));
+      nullabilityHolder().setNulls(0, numRows);
       this.numRows = numRows;
       this.constantValue = null;
     }
 
     public ConstantVectorHolder(Types.NestedField icebergField, int numRows, T constantValue) {
-      super(icebergField);
+      super(
+          (null == constantValue) ? new NullVector(icebergField.name(), numRows) : null,
+          icebergField,
+          new NullabilityHolder(numRows));
+      if (null == constantValue) {
+        nullabilityHolder().setNulls(0, numRows);
+      }
+
       this.numRows = numRows;
       this.constantValue = constantValue;
     }
