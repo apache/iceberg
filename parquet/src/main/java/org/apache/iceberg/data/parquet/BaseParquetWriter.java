@@ -27,15 +27,12 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.ParquetGeometryValueWriters;
-import org.apache.iceberg.parquet.ParquetSchemaUtil;
+import org.apache.iceberg.parquet.ParquetTypeVisitor;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
-import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
@@ -46,25 +43,15 @@ import org.apache.parquet.schema.Type;
 
 public abstract class BaseParquetWriter<T> {
 
-  protected ParquetValueWriter<T> createWriter(MessageType type) {
-    // Convert the Parquet file schema to a Iceberg schema, then create the writer.
-    // Actually the conversion to Iceberg schema is not necessary, but we still do it to reuse the
-    // logic in WriteBuilder.
-    Schema tableSchema = ParquetSchemaUtil.convert(type);
-    return createWriter(tableSchema, type);
-  }
-
   @SuppressWarnings("unchecked")
-  protected ParquetValueWriter<T> createWriter(Schema tableSchema, MessageType fileSchema) {
-    return (ParquetValueWriter<T>)
-        TypeWithSchemaVisitor.visit(
-            tableSchema.asStruct(), fileSchema, new WriteBuilder(fileSchema));
+  protected ParquetValueWriter<T> createWriter(MessageType type) {
+    return (ParquetValueWriter<T>) ParquetTypeVisitor.visit(type, new WriteBuilder(type));
   }
 
   protected abstract ParquetValueWriters.StructWriter<T> createStructWriter(
       List<ParquetValueWriter<?>> writers);
 
-  private class WriteBuilder extends TypeWithSchemaVisitor<ParquetValueWriter<?>> {
+  private class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
     private final MessageType type;
 
     private WriteBuilder(MessageType type) {
@@ -73,14 +60,14 @@ public abstract class BaseParquetWriter<T> {
 
     @Override
     public ParquetValueWriter<?> message(
-        Types.StructType iStruct, MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
+        MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
 
-      return struct(iStruct, message.asGroupType(), fieldWriters);
+      return struct(message.asGroupType(), fieldWriters);
     }
 
     @Override
     public ParquetValueWriter<?> struct(
-        Types.StructType iStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
+        GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
       List<ParquetValueWriter<?>> writers = Lists.newArrayListWithExpectedSize(fieldWriters.size());
       for (int i = 0; i < fields.size(); i += 1) {
@@ -93,8 +80,7 @@ public abstract class BaseParquetWriter<T> {
     }
 
     @Override
-    public ParquetValueWriter<?> list(
-        Types.ListType iList, GroupType array, ParquetValueWriter<?> elementWriter) {
+    public ParquetValueWriter<?> list(GroupType array, ParquetValueWriter<?> elementWriter) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -110,10 +96,7 @@ public abstract class BaseParquetWriter<T> {
 
     @Override
     public ParquetValueWriter<?> map(
-        Types.MapType iMap,
-        GroupType map,
-        ParquetValueWriter<?> keyWriter,
-        ParquetValueWriter<?> valueWriter) {
+        GroupType map, ParquetValueWriter<?> keyWriter, ParquetValueWriter<?> valueWriter) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
 
@@ -133,18 +116,7 @@ public abstract class BaseParquetWriter<T> {
     }
 
     @Override
-    public ParquetValueWriter<?> primitive(
-        org.apache.iceberg.types.Type.PrimitiveType iPrimitive, PrimitiveType primitive) {
-      if (iPrimitive != null
-          && iPrimitive.typeId() == org.apache.iceberg.types.Type.TypeID.GEOMETRY) {
-        ColumnDescriptor desc = type.getColumnDescription(currentPath());
-        return ParquetGeometryValueWriters.buildWriter(desc);
-      } else {
-        return primitive(primitive);
-      }
-    }
-
-    private ParquetValueWriter<?> primitive(PrimitiveType primitive) {
+    public ParquetValueWriter<?> primitive(PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
       LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
       if (logicalType != null) {
@@ -267,6 +239,12 @@ public abstract class BaseParquetWriter<T> {
     public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
         LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonType) {
       return Optional.of(ParquetValueWriters.byteBuffers(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueWriters.PrimitiveWriter<?>> visit(
+        LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryType) {
+      return Optional.of(ParquetGeometryValueWriters.buildWriter(desc));
     }
   }
 

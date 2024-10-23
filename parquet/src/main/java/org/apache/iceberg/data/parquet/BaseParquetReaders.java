@@ -216,6 +216,18 @@ public abstract class BaseParquetReaders<T> {
         LogicalTypeAnnotation.BsonLogicalTypeAnnotation bsonLogicalType) {
       return Optional.of(new ParquetValueReaders.BytesReader(desc));
     }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(
+        LogicalTypeAnnotation.UUIDLogicalTypeAnnotation uuidLogicalType) {
+      return Optional.of(new FixedReader(desc));
+    }
+
+    @Override
+    public Optional<ParquetValueReader<?>> visit(
+        LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryLogicalType) {
+      return Optional.of(ParquetGeometryValueReaders.buildReader(desc));
+    }
   }
 
   private class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
@@ -349,11 +361,7 @@ public abstract class BaseParquetReaders<T> {
 
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
-      if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.GEOMETRY) {
-        return ParquetGeometryValueReaders.buildReader(desc);
-      }
-
-      if (primitive.getOriginalType() != null) {
+      if (primitive.getLogicalTypeAnnotation() != null) {
         return primitive
             .getLogicalTypeAnnotation()
             .accept(new LogicalTypeAnnotationParquetValueReaderVisitor(desc, expected, primitive))

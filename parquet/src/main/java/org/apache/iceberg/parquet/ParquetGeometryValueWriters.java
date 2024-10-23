@@ -32,17 +32,17 @@ public class ParquetGeometryValueWriters {
   private ParquetGeometryValueWriters() {}
 
   public static ParquetValueWriters.PrimitiveWriter<Geometry> buildWriter(ColumnDescriptor desc) {
-    return new GeometryWKBWriter(desc);
+    return new GeometryWriter(desc);
   }
 
-  private static class GeometryWKBWriter extends ParquetValueWriters.PrimitiveWriter<Geometry> {
+  private static class GeometryWriter extends ParquetValueWriters.PrimitiveWriter<Geometry> {
 
     private final GeometryFieldMetrics.Builder metricsBuilder;
     private final WKBWriter[] wkbWriters = {
       new WKBWriter(2, false), new WKBWriter(3, false), new WKBWriter(4, false)
     };
 
-    GeometryWKBWriter(ColumnDescriptor desc) {
+    GeometryWriter(ColumnDescriptor desc) {
       super(desc);
       int id = desc.getPrimitiveType().getId().intValue();
       metricsBuilder = new GeometryFieldMetrics.Builder(id);
