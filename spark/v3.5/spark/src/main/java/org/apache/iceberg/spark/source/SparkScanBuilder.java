@@ -70,6 +70,7 @@ import org.apache.spark.sql.connector.read.Scan;
 import org.apache.spark.sql.connector.read.ScanBuilder;
 import org.apache.spark.sql.connector.read.Statistics;
 import org.apache.spark.sql.connector.read.SupportsPushDownAggregates;
+import org.apache.spark.sql.connector.read.SupportsPushDownLimit;
 import org.apache.spark.sql.connector.read.SupportsPushDownRequiredColumns;
 import org.apache.spark.sql.connector.read.SupportsPushDownV2Filters;
 import org.apache.spark.sql.connector.read.SupportsReportStatistics;
@@ -84,7 +85,8 @@ public class SparkScanBuilder
         SupportsPushDownAggregates,
         SupportsPushDownV2Filters,
         SupportsPushDownRequiredColumns,
-        SupportsReportStatistics {
+        SupportsReportStatistics,
+        SupportsPushDownLimit {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkScanBuilder.class);
   private static final Predicate[] NO_PREDICATES = new Predicate[0];
@@ -102,6 +104,7 @@ public class SparkScanBuilder
   private boolean caseSensitive;
   private List<Expression> filterExpressions = null;
   private Predicate[] pushedPredicates = NO_PREDICATES;
+  private Integer pushedLimit;
 
   SparkScanBuilder(
       SparkSession spark,
@@ -323,6 +326,18 @@ public class SparkScanBuilder
   }
 
   @Override
+  public boolean pushLimit(int limit) {
+    // If the limit is 0, Spark converts it to an empty table scan,
+    // and this section will not be reached.
+    if (readConf.limitPushDownEnabled() && limit > 0) {
+      pushedLimit = limit;
+      return true;
+    }
+
+    return false;
+  }
+
+  @Override
   public void pruneColumns(StructType requestedSchema) {
     StructType requestedProjection =
         new StructType(
@@ -405,14 +420,35 @@ public class SparkScanBuilder
 
   private Scan buildBatchScan() {
     Schema expectedSchema = schemaWithMetadataColumns();
+    org.apache.iceberg.Scan scan =
+        buildIcebergBatchScan(false /* not include Column Stats */, expectedSchema);
+    if (pushedLimit != null && pushedLimit > 0 && hasDeletes(scan)) {
+      LOG.info("Skipping limit pushdown: detected row level deletes");
+      pushedLimit = null;
+    }
     return new SparkBatchQueryScan(
         spark,
         table,
-        buildIcebergBatchScan(false /* not include Column Stats */, expectedSchema),
+        scan,
         readConf,
         expectedSchema,
         filterExpressions,
-        metricsReporter::scanReport);
+        metricsReporter::scanReport,
+        pushedLimit);
+  }
+
+  private boolean hasDeletes(org.apache.iceberg.Scan scan) {
+    try (CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles()) {
+      for (FileScanTask task : fileScanTasks) {
+        if (!task.deletes().isEmpty()) {
+          return true;
+        }
+      }
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to plan files for scan", e);
+    }
+
+    return false;
   }
 
   private org.apache.iceberg.Scan buildIcebergBatchScan(boolean withStats, Schema expectedSchema) {
@@ -646,7 +682,8 @@ public class SparkScanBuilder
           readConf,
           schemaWithMetadataColumns(),
           filterExpressions,
-          metricsReporter::scanReport);
+          metricsReporter::scanReport,
+          pushedLimit);
     }
 
     // remember the current snapshot ID for commit validation
@@ -676,7 +713,8 @@ public class SparkScanBuilder
         adjustedReadConf,
         expectedSchema,
         filterExpressions,
-        metricsReporter::scanReport);
+        metricsReporter::scanReport,
+        pushedLimit);
   }
 
   public Scan buildCopyOnWriteScan() {

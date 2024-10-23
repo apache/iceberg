@@ -147,54 +147,60 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     }
     if (vectorizedColumnIterator.hasNext()) {
       if (dictEncoded) {
-        vectorizedColumnIterator.dictionaryBatchReader().nextBatch(vec, -1, nullabilityHolder);
+        vectorizedColumnIterator
+            .dictionaryBatchReader()
+            .nextBatch(numValsToRead, vec, -1, nullabilityHolder);
       } else {
         switch (readType) {
           case VARBINARY:
           case VARCHAR:
             vectorizedColumnIterator
                 .varWidthTypeBatchReader()
-                .nextBatch(vec, -1, nullabilityHolder);
+                .nextBatch(numValsToRead, vec, -1, nullabilityHolder);
             break;
           case BOOLEAN:
-            vectorizedColumnIterator.booleanBatchReader().nextBatch(vec, -1, nullabilityHolder);
+            vectorizedColumnIterator
+                .booleanBatchReader()
+                .nextBatch(numValsToRead, vec, -1, nullabilityHolder);
             break;
           case INT:
           case INT_BACKED_DECIMAL:
             vectorizedColumnIterator
                 .integerBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(numValsToRead, vec, typeWidth, nullabilityHolder);
             break;
           case LONG:
           case LONG_BACKED_DECIMAL:
-            vectorizedColumnIterator.longBatchReader().nextBatch(vec, typeWidth, nullabilityHolder);
+            vectorizedColumnIterator
+                .longBatchReader()
+                .nextBatch(numValsToRead, vec, typeWidth, nullabilityHolder);
             break;
           case FLOAT:
             vectorizedColumnIterator
                 .floatBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(numValsToRead, vec, typeWidth, nullabilityHolder);
             break;
           case DOUBLE:
             vectorizedColumnIterator
                 .doubleBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(numValsToRead, vec, typeWidth, nullabilityHolder);
             break;
           case TIMESTAMP_MILLIS:
             vectorizedColumnIterator
                 .timestampMillisBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(numValsToRead, vec, typeWidth, nullabilityHolder);
             break;
           case TIMESTAMP_INT96:
             vectorizedColumnIterator
                 .timestampInt96BatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(numValsToRead, vec, typeWidth, nullabilityHolder);
             break;
           case UUID:
           case FIXED_WIDTH_BINARY:
           case FIXED_LENGTH_DECIMAL:
             vectorizedColumnIterator
                 .fixedSizeBinaryBatchReader()
-                .nextBatch(vec, typeWidth, nullabilityHolder);
+                .nextBatch(numValsToRead, vec, typeWidth, nullabilityHolder);
             break;
         }
       }

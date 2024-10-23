@@ -107,6 +107,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private final List<Expression> filterExpressions;
   private final String branch;
   private final Supplier<ScanReport> scanReportSupplier;
+  private Integer pushedLimit;
 
   // lazy variables
   private StructType readSchema;
@@ -132,6 +133,18 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.scanReportSupplier = scanReportSupplier;
   }
 
+  SparkScan(
+      SparkSession spark,
+      Table table,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters,
+      Supplier<ScanReport> scanReportSupplier,
+      Integer pushedLimit) {
+    this(spark, table, readConf, expectedSchema, filters, scanReportSupplier);
+    this.pushedLimit = pushedLimit;
+  }
+
   protected Table table() {
     return table;
   }
@@ -152,6 +165,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return filterExpressions;
   }
 
+  protected Integer pushedLimit() {
+    return pushedLimit;
+  }
+
   protected Types.StructType groupingKeyType() {
     return Types.StructType.of();
   }
@@ -161,7 +178,14 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   @Override
   public Batch toBatch() {
     return new SparkBatch(
-        sparkContext, table, readConf, groupingKeyType(), taskGroups(), expectedSchema, hashCode());
+        sparkContext,
+        table,
+        readConf,
+        groupingKeyType(),
+        taskGroups(),
+        expectedSchema,
+        hashCode(),
+        pushedLimit);
   }
 
   @Override

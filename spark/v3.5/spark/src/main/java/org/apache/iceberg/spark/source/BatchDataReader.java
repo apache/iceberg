@@ -28,6 +28,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.spark.OrcBatchReadConf;
+import org.apache.iceberg.spark.ParquetBatchReadConf;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.iceberg.util.SnapshotUtil;
@@ -45,14 +47,18 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
 
   private final long numSplits;
 
-  BatchDataReader(SparkInputPartition partition, int batchSize) {
+  BatchDataReader(
+      SparkInputPartition partition,
+      ParquetBatchReadConf parquetBatchReadConf,
+      OrcBatchReadConf orcBatchReadConf) {
     this(
         partition.table(),
         partition.taskGroup(),
         SnapshotUtil.schemaFor(partition.table(), partition.branch()),
         partition.expectedSchema(),
         partition.isCaseSensitive(),
-        batchSize);
+        parquetBatchReadConf,
+        orcBatchReadConf);
   }
 
   BatchDataReader(
@@ -61,8 +67,9 @@ class BatchDataReader extends BaseBatchReader<FileScanTask>
       Schema tableSchema,
       Schema expectedSchema,
       boolean caseSensitive,
-      int size) {
-    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive, size);
+      ParquetBatchReadConf parquetConf,
+      OrcBatchReadConf orcConf) {
+    super(table, taskGroup, tableSchema, expectedSchema, caseSensitive, parquetConf, orcConf);
 
     numSplits = taskGroup.tasks().size();
     LOG.debug("Reading {} file split(s) for table {}", numSplits, table.name());
