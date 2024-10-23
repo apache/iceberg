@@ -99,31 +99,44 @@ public class TestS3URI {
   }
 
   @Test
-  public void testS3DirectoryBucketState() {
-    String directoryBucket = String.format("s3://%s/path/to/file", S3_DIRECTORY_BUCKET);
-    String generalPurposeBucket = "s3://bucket/path/to/file";
-
-    assertS3DirectoryBucketState(directoryBucket, true);
-    assertS3DirectoryBucketState(generalPurposeBucket, false);
-  }
-
-  public void assertS3DirectoryBucketState(final String bucket, final boolean expected) {
-    S3URI uri = new S3URI(bucket);
-    assertThat(uri.useS3DirectoryBucket()).isEqualTo(expected);
+  public void testS3URIUseS3DirectoryBucket() {
+    assertThat(
+            new S3URI(String.format("s3://%s/path/to/file", S3_DIRECTORY_BUCKET))
+                .useS3DirectoryBucket())
+        .isTrue();
+    assertThat(new S3URI("s3://bucket/path/to/file").useS3DirectoryBucket()).isFalse();
+    assertThat(
+            new S3URI("s3://bucket/path/to/file", ImmutableMap.of("bucket", S3_DIRECTORY_BUCKET))
+                .useS3DirectoryBucket())
+        .isTrue();
+    assertThat(
+            new S3URI("s3://bucket/path/to/file", ImmutableMap.of("bucket", "bucket2"))
+                .useS3DirectoryBucket())
+        .isFalse();
   }
 
   @Test
-  public void testToDirectoryBucketState() {
-    String directoryBucket = String.format("s3://%s/path/to/file", S3_DIRECTORY_BUCKET);
-    String directoryBucketWithDelimiter =
-        String.format("s3://%s/path/to/file/", S3_DIRECTORY_BUCKET);
-
-    assertDirectoryBucketState(directoryBucket, directoryBucket + "/");
-    assertDirectoryBucketState(directoryBucket, directoryBucketWithDelimiter);
-  }
-
-  public void assertDirectoryBucketState(final String bucket, final String expected) {
-    S3URI uri = new S3URI(bucket);
-    assertThat(uri.toDirectoryPath().toString()).isEqualTo(expected);
+  public void testS3URIToDirectoryPath() {
+    assertThat(new S3URI("s3://bucket/path/to/file").toDirectoryPath().location())
+        .isEqualTo("s3://bucket/path/to/file/");
+    assertThat(new S3URI("s3://bucket/path/to/file/").toDirectoryPath().location())
+        .isEqualTo("s3://bucket/path/to/file/");
+    assertThat(new S3URI("s3a://bucket/path/to/file").toDirectoryPath().location())
+        .isEqualTo("s3a://bucket/path/to/file/");
+    assertThat(
+            new S3URI(String.format("s3://%s/path/to/file", S3_DIRECTORY_BUCKET))
+                .toDirectoryPath()
+                .location())
+        .isEqualTo(String.format("s3://%s/path/to/file/", S3_DIRECTORY_BUCKET));
+    assertThat(
+            new S3URI("s3://bucket/path/to/file", ImmutableMap.of("bucket", S3_DIRECTORY_BUCKET))
+                .toDirectoryPath()
+                .location())
+        .isEqualTo(String.format("s3://%s/path/to/file/", S3_DIRECTORY_BUCKET));
+    assertThat(
+            new S3URI("s3://bucket/path/to/file", ImmutableMap.of("bucket", "bucket2"))
+                .toDirectoryPath()
+                .location())
+        .isEqualTo("s3://bucket2/path/to/file/");
   }
 }
