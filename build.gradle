@@ -838,39 +838,6 @@ project(':iceberg-arrow') {
   }
 }
 
-project(':iceberg-pig') {
-  test {
-    useJUnitPlatform()
-  }
-
-  dependencies {
-    implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    api project(':iceberg-api')
-    implementation project(':iceberg-common')
-    implementation project(':iceberg-core')
-    implementation project(':iceberg-parquet')
-
-    implementation(libs.parquet.avro) {
-      exclude group: 'org.apache.avro', module: 'avro'
-      // already shaded by Parquet
-      exclude group: 'it.unimi.dsi'
-      exclude group: 'org.codehaus.jackson'
-    }
-
-    compileOnly(libs.pig) {
-      exclude group: "junit", module: "junit"
-    }
-    compileOnly(libs.hadoop2.mapreduce.client.core)
-    compileOnly(libs.hadoop2.client) {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-
-    testImplementation(libs.hadoop2.minicluster) {
-      exclude group: 'org.apache.avro', module: 'avro'
-    }
-  }
-}
-
 project(':iceberg-nessie') {
   test {
     useJUnitPlatform()
