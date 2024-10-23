@@ -108,7 +108,7 @@ public class TestS3FileIOIntegration {
     content = new String(contentBytes, StandardCharsets.UTF_8);
     kmsKeyArn = kms.createKey().keyMetadata().arn();
 
-    if (!S3URI.useS3DirectoryBucket(bucketName)) {
+    if (!S3URI.isS3DirectoryBucket(bucketName)) {
       s3.putBucketVersioning(
           PutBucketVersioningRequest.builder()
               .bucket(bucketName)
@@ -124,7 +124,7 @@ public class TestS3FileIOIntegration {
 
   @AfterAll
   public static void afterClass() {
-    if (S3URI.useS3DirectoryBucket(bucketName)) {
+    if (S3URI.isS3DirectoryBucket(bucketName)) {
       S3FileIO s3FileIO = new S3FileIO(clientFactory::s3);
       AwsIntegTestUtil.cleanS3DirectoryBucket(s3FileIO.client(), bucketName, prefix);
     } else {
@@ -637,21 +637,21 @@ public class TestS3FileIOIntegration {
 
   /** S3 Express doesn't support access points */
   private void requireAccessPointSupport() {
-    Assumptions.assumeThat(S3URI.useS3DirectoryBucket(bucketName)).isFalse();
+    Assumptions.assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
   }
 
   /** S3 Express doesn’t support KMS/custom encryption */
   private void requireKMSEncryptionSupport() {
-    Assumptions.assumeThat(S3URI.useS3DirectoryBucket(bucketName)).isFalse();
+    Assumptions.assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
   }
 
   /** S3 Express doesn't support versioning */
   private void requireVersioningSupport() {
-    Assumptions.assumeThat(S3URI.useS3DirectoryBucket(bucketName)).isFalse();
+    Assumptions.assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
   }
 
   /** File ACLs aren’t supported by S3 Express */
   private void requireACLSupport() {
-    Assumptions.assumeThat(S3URI.useS3DirectoryBucket(bucketName)).isFalse();
+    Assumptions.assumeThat(S3URI.isS3DirectoryBucket(bucketName)).isFalse();
   }
 }

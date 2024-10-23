@@ -438,9 +438,9 @@ public class S3FileIOProperties implements Serializable {
    * https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html#API_ListObjectsV2_RequestSyntax
    *
    * <p>If set to false, this will throw an error when the "/" is not provided for directory bucket.
-   * Turn off this feature if you are using S3FileIO.listPrefix for listing bucket prefixes that are not
-   * directories. This would ensure correctness and fail the operation based on S3 requirement when
-   * listing against a non-directory prefix in a directory bucket.
+   * Turn off this feature if you are using S3FileIO.listPrefix for listing bucket prefixes that are
+   * not directories. This would ensure correctness and fail the operation based on S3 requirement
+   * when listing against a non-directory prefix in a directory bucket.
    */
   public static final String S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY =
       "s3.directory-bucket.list-prefix-as-directory";

@@ -135,16 +135,17 @@ class S3URI {
   }
 
   public boolean useS3DirectoryBucket() {
-    return useS3DirectoryBucket(this.bucket);
+    return isS3DirectoryBucket(this.bucket);
   }
 
   /**
-   * Check for a bucket name matching -does not look at endpoint.
+   * Check if the bucket name indicates the bucket is a directory bucket. This method does not check
+   * against the S3 service.
    *
    * @param bucket bucket to probe.
-   * @return true if the suffix is present
+   * @return true if the bucket name indicates the bucket is a directory bucket
    */
-  public static boolean useS3DirectoryBucket(final String bucket) {
+  public static boolean isS3DirectoryBucket(final String bucket) {
     return bucket.endsWith(S3_DIRECTORY_BUCKET_SUFFIX);
   }
 }
