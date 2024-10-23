@@ -228,7 +228,7 @@ public class TestCatalogUtil {
   }
 
   @Test
-  public void loadCustomMetricsContext_defaultImpl() {
+  public void loadMetricsContext_defaultImpl() {
     Map<String, String> properties = Maps.newHashMap();
     MetricsContext metricsContext = CatalogUtil.loadMetricsContext(properties);
     assertThat(metricsContext).isInstanceOf(DefaultMetricsContext.class);
