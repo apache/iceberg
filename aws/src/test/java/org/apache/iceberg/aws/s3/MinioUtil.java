@@ -30,6 +30,8 @@ import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 public class MinioUtil {
 
+  private MinioUtil() {}
+
   public static MinIOContainer createContainer() {
     return createContainer(null);
   }
@@ -59,6 +61,4 @@ public class MinioUtil {
     builder.region(Region.US_EAST_1);
     return builder.build();
   }
-
-  private MinioUtil() {}
 }
