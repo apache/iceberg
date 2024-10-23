@@ -43,13 +43,13 @@ public class TestMinioUtil {
   void validateS3ConditionalWrites() {
     S3Client s3Client = MinioUtil.createS3Client(MINIO);
 
-   String bucket = "test-bucket-" + UUID.randomUUID();
+    String bucket = "test-bucket-" + UUID.randomUUID();
 
     CreateBucketResponse createBucketResponse =
         s3Client.createBucket(CreateBucketRequest.builder().bucket(bucket).build());
     assertThat(createBucketResponse.sdkHttpResponse().isSuccessful()).isTrue();
 
-   String key = "test-key-" + UUID.randomUUID().toString();
+    String key = "test-key-" + UUID.randomUUID().toString();
     for (int i = 0; i < 5; i++) {
       final String payload = "test-payload-" + i;
       PutObjectRequest request =
