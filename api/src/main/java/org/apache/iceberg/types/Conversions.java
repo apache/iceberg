@@ -32,12 +32,20 @@ import java.util.UUID;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.util.UUIDUtil;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.CoordinateXY;
+import org.locationtech.jts.geom.CoordinateXYM;
+import org.locationtech.jts.geom.CoordinateXYZM;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Point;
 
 public class Conversions {
 
   private Conversions() {}
 
   private static final String HIVE_NULL = "__HIVE_DEFAULT_PARTITION__";
+
+  private static final GeometryFactory FACTORY = new GeometryFactory();
 
   public static Object fromPartitionString(Type type, String asString) {
     if (asString == null || HIVE_NULL.equals(asString)) {
@@ -117,6 +125,18 @@ public class Conversions {
         return (ByteBuffer) value;
       case DECIMAL:
         return ByteBuffer.wrap(((BigDecimal) value).unscaledValue().toByteArray());
+      case GEOMETRY:
+        if (value instanceof Point) {
+          Coordinate coordinate = ((Point) value).getCoordinate();
+          return ByteBuffer.allocate(32)
+              .order(ByteOrder.LITTLE_ENDIAN)
+              .putDouble(0, coordinate.getX())
+              .putDouble(8, coordinate.getY())
+              .putDouble(16, coordinate.getZ())
+              .putDouble(24, coordinate.getM());
+        } else {
+          throw new IllegalArgumentException("Only point geometry can be converted to byte buffer");
+        }
       default:
         throw new UnsupportedOperationException("Cannot serialize type: " + typeId);
     }
@@ -177,8 +197,31 @@ public class Conversions {
         byte[] unscaledBytes = new byte[buffer.remaining()];
         tmp.get(unscaledBytes);
         return new BigDecimal(new BigInteger(unscaledBytes), decimal.scale());
+      case GEOMETRY:
+        Coordinate coordinate = getCoordinate(tmp);
+        return FACTORY.createPoint(coordinate);
       default:
         throw new UnsupportedOperationException("Cannot deserialize type: " + type);
     }
+  }
+
+  private static Coordinate getCoordinate(ByteBuffer tmp) {
+    double coordX = tmp.getDouble(0);
+    double coordY = tmp.getDouble(8);
+    double coordZ = tmp.getDouble(16);
+    double coordM = tmp.getDouble(24);
+    boolean hasZ = !Double.isNaN(coordZ);
+    boolean hasM = !Double.isNaN(coordM);
+    Coordinate coordinate;
+    if (hasZ && hasM) {
+      coordinate = new CoordinateXYZM(coordX, coordY, coordZ, coordM);
+    } else if (hasZ) {
+      coordinate = new Coordinate(coordX, coordY, coordZ);
+    } else if (hasM) {
+      coordinate = new CoordinateXYM(coordX, coordY, coordM);
+    } else {
+      coordinate = new CoordinateXY(coordX, coordY);
+    }
+    return coordinate;
   }
 }

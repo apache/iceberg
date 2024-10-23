@@ -63,6 +63,7 @@ jakarta-servlet-api = "6.1.0"
 jaxb-api = "2.3.1"
 jaxb-runtime = "2.3.9"
 jetty = "11.0.24"
+jts-core = "1.20.0"
 junit = "5.11.1"
 junit-platform = "1.11.2"
 kafka = "3.8.0"
@@ -160,6 +161,7 @@ jackson214-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref =  
 jackson215-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson215" }
 jaxb-api = { module = "javax.xml.bind:jaxb-api", version.ref = "jaxb-api" }
 jaxb-runtime = { module = "org.glassfish.jaxb:jaxb-runtime", version.ref = "jaxb-runtime" }
+jts-core = { module = "org.locationtech.jts:jts-core", version.ref = "jts-core" }
 kafka-clients = { module = "org.apache.kafka:kafka-clients", version.ref = "kafka" }
 kafka-connect-api = { module = "org.apache.kafka:connect-api", version.ref = "kafka" }
 kafka-connect-json = { module = "org.apache.kafka:connect-json", version.ref = "kafka" }

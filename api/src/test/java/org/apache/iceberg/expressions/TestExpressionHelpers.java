@@ -41,6 +41,10 @@ import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.predicate;
 import static org.apache.iceberg.expressions.Expressions.ref;
 import static org.apache.iceberg.expressions.Expressions.rewriteNot;
+import static org.apache.iceberg.expressions.Expressions.stCovers;
+import static org.apache.iceberg.expressions.Expressions.stDisjoint;
+import static org.apache.iceberg.expressions.Expressions.stIntersects;
+import static org.apache.iceberg.expressions.Expressions.stNotCovers;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.expressions.Expressions.truncate;
 import static org.apache.iceberg.expressions.Expressions.year;
@@ -53,6 +57,9 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.Test;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class TestExpressionHelpers {
   private final UnboundPredicate<?> pred = lessThan("x", 7);
@@ -96,7 +103,10 @@ public class TestExpressionHelpers {
     StructType struct =
         StructType.of(
             NestedField.optional(1, "a", Types.IntegerType.get()),
-            NestedField.optional(2, "s", Types.StringType.get()));
+            NestedField.optional(2, "s", Types.StringType.get()),
+            NestedField.optional(3, "g", Types.GeometryType.get()));
+    GeometryFactory factory = new GeometryFactory();
+    Geometry queryWindow = factory.toGeometry(new Envelope(0, 1, 0, 1));
     Expression[][] expressions =
         new Expression[][] {
           // (rewritten pred, original pred) pairs
@@ -126,7 +136,11 @@ public class TestExpressionHelpers {
           {or(equal("a", 5), isNull("a")), not(and(notEqual("a", 5), notNull("a")))},
           {or(equal("a", 5), notNull("a")), or(equal("a", 5), not(isNull("a")))},
           {startsWith("s", "hello"), not(notStartsWith("s", "hello"))},
-          {notStartsWith("s", "world"), not(startsWith("s", "world"))}
+          {notStartsWith("s", "world"), not(startsWith("s", "world"))},
+          {stIntersects("g", queryWindow), not(stDisjoint("g", queryWindow))},
+          {stCovers("g", queryWindow), not(stNotCovers("g", queryWindow))},
+          {stDisjoint("g", queryWindow), not(stIntersects("g", queryWindow))},
+          {stNotCovers("g", queryWindow), not(stCovers("g", queryWindow))}
         };
 
     for (Expression[] pair : expressions) {

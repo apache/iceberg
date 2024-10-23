@@ -46,5 +46,19 @@ public class TestTypes {
     assertThatExceptionOfType(IllegalArgumentException.class)
         .isThrownBy(() -> Types.fromPrimitiveString("Unknown"))
         .withMessageContaining("Unknown");
+
+    assertThat(Types.fromPrimitiveString("geometry")).isEqualTo(Types.GeometryType.get());
+    assertThat(Types.fromPrimitiveString("geometry()")).isEqualTo(Types.GeometryType.get());
+    assertThat(Types.fromPrimitiveString("geometry(test:crs)"))
+        .isEqualTo(Types.GeometryType.of("test:crs"));
+    assertThat(Types.fromPrimitiveString("geometry(test:crs, spherical)"))
+        .isEqualTo(Types.GeometryType.of("test:crs", Types.GeometryType.Edges.SPHERICAL));
+    assertThat(Types.fromPrimitiveString("geometry(test:crs, planar)"))
+        .isEqualTo(Types.GeometryType.of("test:crs", Types.GeometryType.Edges.PLANAR));
+
+    assertThatExceptionOfType(IllegalArgumentException.class)
+        .isThrownBy(() -> Types.fromPrimitiveString("geometry(test:crs, BadEdgeName)"))
+        .withMessageContaining("Invalid edges name")
+        .withMessageContaining("BadEdgeName");
   }
 }
