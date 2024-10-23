@@ -305,7 +305,7 @@ public class TestRoaringPositionBitmap {
         position(1 /* bitmap */, 2 /* container */, 1L),
         position(1 /* bitmap */, 2 /* container */, CONTAINER_OFFSET - 1));
 
-    assertThat(bitmap.runOptimize()).as("Bitmap must be RLE encoded").isTrue();
+    assertThat(bitmap.compress()).as("Bitmap must be RLE encoded").isTrue();
 
     RoaringPositionBitmap bitmapCopy = roundTripSerialize(bitmap);
 
@@ -357,6 +357,13 @@ public class TestRoaringPositionBitmap {
         .hasMessageContaining(
             "Bitmap supports positions that are >= 0 and <= %s",
             RoaringPositionBitmap.MAX_POSITION);
+  }
+
+  @TestTemplate
+  public void testInvalidSerializationByteOrder() {
+    assertThatThrownBy(() -> RoaringPositionBitmap.deserialize(ByteBuffer.allocate(4)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("serialization requires little-endian byte order");
   }
 
   @TestTemplate
@@ -499,7 +506,7 @@ public class TestRoaringPositionBitmap {
     positions.forEach(position -> assertThat(bitmapCopy1.contains(position)).isTrue());
     bitmapCopy1.forEach(position -> assertThat(positions.contains(position)).isTrue());
 
-    bitmap.runOptimize();
+    bitmap.compress();
 
     RoaringPositionBitmap bitmapCopy2 = roundTripSerialize(bitmap);
     assertThat(bitmapCopy2.cardinality()).isEqualTo(positions.size());

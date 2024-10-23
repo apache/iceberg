@@ -32,20 +32,20 @@ import org.roaringbitmap.RoaringBitmap;
 /**
  * A bitmap that supports positive 64-bit positions, but is optimized for cases where most positions
  * fit in 32 bits by using an array of 32-bit Roaring bitmaps. The bitmap array is grown as needed
- * to accommodate the largest value.
+ * to accommodate the largest position.
  *
  * <p>Incoming 64-bit positions are divided into a 32-bit "key" using the most significant 4 bytes
- * and a 32-bit position using the least significant 4 bytes. For each key in the set of positions,
- * a 32-bit Roaring bitmap is maintained to store a set of 32-bit positions for that key.
+ * and a 32-bit "value" using the least significant 4 bytes. For each key in the set of positions, a
+ * 32-bit Roaring bitmap is maintained to store a set of 32-bit values for that key.
  *
  * <p>To test whether a certain position is set, its most significant 4 bytes (the key) are used to
  * find a 32-bit bitmap and the least significant 4 bytes are tested for inclusion in the bitmap. If
  * a bitmap is not found for the key, then the position is not set.
  *
  * <p>Positions must range from 0 (inclusive) to {@link #MAX_POSITION} (inclusive). The bitmap
- * cannot handle positions exceeding {@link #MAX_POSITION} because the array size is a signed 32-bit
- * integer, which must be non-negative. Allocating an array with size Integer.MAX_VALUE + 1 would
- * overflow the integer and result in a negative length.
+ * cannot handle positions exceeding {@link #MAX_POSITION} because the bitmap array size is a signed
+ * 32-bit integer, which must be non-negative. Allocating an array with size Integer.MAX_VALUE + 1
+ * would trigger an overflow and result in a negative length.
  */
 class RoaringPositionBitmap {
 
@@ -71,10 +71,10 @@ class RoaringPositionBitmap {
    */
   public void add(long pos) {
     validatePosition(pos);
-    int high = highBytes(pos);
-    int low = lowBytes(pos);
-    allocateBitmapsIfNeeded(high + 1 /* required number of bitmaps */);
-    bitmaps[high].add(low);
+    int key = key(pos);
+    int value = value(pos);
+    allocateBitmapsIfNeeded(key + 1 /* required number of bitmaps */);
+    bitmaps[key].add(value);
   }
 
   /**
@@ -96,8 +96,8 @@ class RoaringPositionBitmap {
    */
   public void addAll(RoaringPositionBitmap that) {
     allocateBitmapsIfNeeded(that.bitmaps.length);
-    for (int index = 0; index < that.bitmaps.length; index++) {
-      bitmaps[index].or(that.bitmaps[index]);
+    for (int key = 0; key < that.bitmaps.length; key++) {
+      bitmaps[key].or(that.bitmaps[key]);
     }
   }
 
@@ -109,9 +109,9 @@ class RoaringPositionBitmap {
    */
   public boolean contains(long pos) {
     validatePosition(pos);
-    int high = highBytes(pos);
-    int low = lowBytes(pos);
-    return high < bitmaps.length && bitmaps[high].contains(low);
+    int key = key(pos);
+    int value = value(pos);
+    return key < bitmaps.length && bitmaps[key].contains(value);
   }
 
   /**
@@ -137,11 +137,11 @@ class RoaringPositionBitmap {
   }
 
   /**
-   * Run-length compresses the bitmap if it is more space efficient.
+   * Compresses the bitmap wherever it is more space efficient.
    *
    * @return whether the bitmap was compressed
    */
-  public boolean runOptimize() {
+  public boolean compress() {
     boolean changed = false;
     for (RoaringBitmap bitmap : bitmaps) {
       changed |= bitmap.runOptimize();
@@ -155,8 +155,8 @@ class RoaringPositionBitmap {
    * @param consumer a consumer for positions
    */
   public void forEach(LongConsumer consumer) {
-    for (int index = 0; index < bitmaps.length; index++) {
-      forEach(bitmaps[index], index, consumer);
+    for (int key = 0; key < bitmaps.length; key++) {
+      forEach(bitmaps[key], key, consumer);
     }
   }
 
@@ -172,8 +172,8 @@ class RoaringPositionBitmap {
       } else {
         RoaringBitmap[] newBitmaps = new RoaringBitmap[requiredLength];
         System.arraycopy(bitmaps, 0, newBitmaps, 0, bitmaps.length);
-        for (int index = bitmaps.length; index < requiredLength; index++) {
-          newBitmaps[index] = new RoaringBitmap();
+        for (int key = bitmaps.length; key < requiredLength; key++) {
+          newBitmaps[key] = new RoaringBitmap();
         }
         this.bitmaps = newBitmaps;
       }
@@ -213,9 +213,9 @@ class RoaringPositionBitmap {
   public void serialize(ByteBuffer buffer) {
     validateByteOrder(buffer);
     buffer.putLong(bitmaps.length);
-    for (int index = 0; index < bitmaps.length; index++) {
-      buffer.putInt(index);
-      bitmaps[index].serialize(buffer);
+    for (int key = 0; key < bitmaps.length; key++) {
+      buffer.putInt(key);
+      bitmaps[key].serialize(buffer);
     }
   }
 
@@ -286,25 +286,25 @@ class RoaringPositionBitmap {
     }
   }
 
-  // extracts high 32 bits from a 64-bit position
-  private static int highBytes(long pos) {
+  // extracts high 32 bits from a 64-bit position (i.e. key)
+  private static int key(long pos) {
     return (int) (pos >> 32);
   }
 
-  // extracts low 32 bits from a 64-bit position
-  private static int lowBytes(long pos) {
+  // extracts low 32 bits from a 64-bit position (i.e. value)
+  private static int value(long pos) {
     return (int) pos;
   }
 
-  // combines high and low 32-bit values into a 64-bit position
-  // the low value must be bit-masked to avoid sign extension
-  private static long toPosition(int high, int low) {
-    return (((long) high) << 32) | (((long) low) & 0xFFFFFFFFL);
+  // combines 32-bit key and value into a 64-bit position
+  // the value must be bit-masked to avoid sign extension
+  private static long toPosition(int key, int value) {
+    return (((long) key) << 32) | (((long) value) & 0xFFFFFFFFL);
   }
 
-  // iterates over 64-bit positions, reconstructing them from high and low 32-bit values
-  private static void forEach(RoaringBitmap bitmap, int high, LongConsumer consumer) {
-    bitmap.forEach((int low) -> consumer.accept(toPosition(high, low)));
+  // iterates over 64-bit positions, reconstructing them from 32-bit keys and values
+  private static void forEach(RoaringBitmap bitmap, int key, LongConsumer consumer) {
+    bitmap.forEach((int value) -> consumer.accept(toPosition(key, value)));
   }
 
   private static void validatePosition(long pos) {

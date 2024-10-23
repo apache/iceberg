@@ -51,6 +51,7 @@ import org.roaringbitmap.longlong.Roaring64Bitmap;
 @Timeout(time = 5, timeUnit = TimeUnit.MINUTES)
 public class RoaringPositionBitmapBenchmark {
 
+  private static final Random RANDOM = new Random();
   private static final int TOTAL_POSITIONS = 5_000_000;
   private static final long STEP = 5L;
 
@@ -152,11 +153,9 @@ public class RoaringPositionBitmapBenchmark {
   }
 
   private static void shuffle(long[] array) {
-    Random rand = new Random();
-
     for (int index = array.length - 1; index > 0; index--) {
       // swap with an element at a random index between 0 and index
-      int thatIndex = rand.nextInt(index + 1);
+      int thatIndex = RANDOM.nextInt(index + 1);
       long temp = array[index];
       array[index] = array[thatIndex];
       array[thatIndex] = temp;
