@@ -57,10 +57,12 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import scala.Option;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestViews extends ExtensionsTestBase {
-  private static final Namespace NAMESPACE = Namespace.of("default");
+  private static final Namespace NAMESPACE = Namespace.of("view_ns");
+  private static final String SPARK_CATALOG = "spark_catalog";
   private final String tableName = "table";
 
   @BeforeEach
@@ -69,13 +71,14 @@ public class TestViews extends ExtensionsTestBase {
     spark.conf().set("spark.sql.defaultCatalog", catalogName);
     sql("USE %s", catalogName);
     sql("CREATE NAMESPACE IF NOT EXISTS %s", NAMESPACE);
-    sql("CREATE TABLE %s (id INT, data STRING)", tableName);
+    sql("CREATE TABLE %s.%s (id INT, data STRING)", NAMESPACE, tableName);
+    sql("USE %s.%s", catalogName, NAMESPACE);
   }
 
   @AfterEach
   public void removeTable() {
     sql("USE %s", catalogName);
-    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS %s.%s", NAMESPACE, tableName);
   }
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
@@ -636,7 +639,7 @@ public class TestViews extends ExtensionsTestBase {
     // avoid namespace failures
     sql("USE spark_catalog");
     sql("CREATE NAMESPACE IF NOT EXISTS system");
-    sql("USE %s", catalogName);
+    sql("USE %s.%s", catalogName, NAMESPACE);
 
     Schema schema =
         new Schema(
@@ -754,10 +757,11 @@ public class TestViews extends ExtensionsTestBase {
         .withSchema(schema(sql))
         .create();
 
-    assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO spark_catalog.%s", viewName, renamedView))
+    assertThatThrownBy(
+            () -> sql("ALTER VIEW %s RENAME TO %s.%s", viewName, SPARK_CATALOG, renamedView))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
-            "Cannot move view between catalogs: from=spark_with_views and to=spark_catalog");
+            "Cannot move view between catalogs: from=%s and to=%s", catalogName, SPARK_CATALOG);
   }
 
   @TestTemplate
@@ -794,7 +798,7 @@ public class TestViews extends ExtensionsTestBase {
     assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO %s", viewName, target))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
-            String.format("Cannot create view default.%s because it already exists", target));
+            "Cannot create view %s.%s because it already exists", NAMESPACE, target);
   }
 
   @TestTemplate
@@ -817,7 +821,7 @@ public class TestViews extends ExtensionsTestBase {
     assertThatThrownBy(() -> sql("ALTER VIEW %s RENAME TO %s", viewName, target))
         .isInstanceOf(AnalysisException.class)
         .hasMessageContaining(
-            String.format("Cannot create view default.%s because it already exists", target));
+            "Cannot create view %s.%s because it already exists", NAMESPACE, target);
   }
 
   @TestTemplate
@@ -898,25 +902,28 @@ public class TestViews extends ExtensionsTestBase {
   /** The purpose of this test is mainly to make sure that normal view deletion isn't messed up */
   @TestTemplate
   public void dropV1View() {
-    String v1View = viewName("v1ViewToBeDropped");
-    sql("USE spark_catalog");
-    sql("CREATE NAMESPACE IF NOT EXISTS %s", NAMESPACE);
-    sql("CREATE TABLE %s (id INT, data STRING)", tableName);
-    sql("CREATE VIEW %s AS SELECT id FROM %s", v1View, tableName);
-    sql("USE %s", catalogName);
+    String viewName = viewName("v1ViewToBeDropped");
+    String v1View = String.format("%s.%s.%s", SPARK_CATALOG, NAMESPACE, viewName);
+    String v1Table = String.format("%s.%s.%s", SPARK_CATALOG, NAMESPACE, tableName);
+    sql("CREATE NAMESPACE IF NOT EXISTS %s.%s", SPARK_CATALOG, NAMESPACE);
+    sql("CREATE TABLE %s (id INT, data STRING)", v1Table);
+    sql("CREATE VIEW %s AS SELECT id FROM %s", v1View, v1Table);
     assertThat(
             v1SessionCatalog()
-                .tableExists(new org.apache.spark.sql.catalyst.TableIdentifier(v1View)))
+                .tableExists(
+                    new org.apache.spark.sql.catalyst.TableIdentifier(
+                        viewName, Option.apply(NAMESPACE.toString()))))
         .isTrue();
 
-    sql("DROP VIEW spark_catalog.%s.%s", NAMESPACE, v1View);
+    sql("DROP VIEW %s", v1View);
     assertThat(
             v1SessionCatalog()
-                .tableExists(new org.apache.spark.sql.catalyst.TableIdentifier(v1View)))
+                .tableExists(
+                    new org.apache.spark.sql.catalyst.TableIdentifier(
+                        viewName, Option.apply(NAMESPACE.toString()))))
         .isFalse();
 
-    sql("USE spark_catalog");
-    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql("DROP TABLE IF EXISTS %s", v1Table);
   }
 
   private SessionCatalog v1SessionCatalog() {
@@ -1902,13 +1909,14 @@ public class TestViews extends ExtensionsTestBase {
 
     sql("CREATE VIEW %s AS SELECT * FROM %s", viewOne, tableName);
     // viewTwo points to viewOne
-    sql("USE spark_catalog");
-    sql("CREATE VIEW %s AS SELECT * FROM %s.%s.%s", viewTwo, catalogName, NAMESPACE, viewOne);
+    sql("CREATE NAMESPACE IF NOT EXISTS %s.%s", SPARK_CATALOG, NAMESPACE);
+    sql(
+        "CREATE VIEW %s.%s.%s AS SELECT * FROM %s.%s.%s",
+        SPARK_CATALOG, NAMESPACE, viewTwo, catalogName, NAMESPACE, viewOne);
 
-    sql("USE %s", catalogName);
     // viewOne points to viewTwo points to viewOne, creating a recursive cycle
     String view1 = String.format("%s.%s.%s", catalogName, NAMESPACE, viewOne);
-    String view2 = String.format("%s.%s.%s", "spark_catalog", NAMESPACE, viewTwo);
+    String view2 = String.format("%s.%s.%s", SPARK_CATALOG, NAMESPACE, viewTwo);
     String cycle = String.format("%s -> %s -> %s", view1, view2, view1);
     assertThatThrownBy(() -> sql("CREATE OR REPLACE VIEW %s AS SELECT * FROM %s", viewOne, view2))
         .isInstanceOf(AnalysisException.class)
