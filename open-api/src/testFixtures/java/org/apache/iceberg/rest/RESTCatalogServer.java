@@ -74,7 +74,6 @@ public class RESTCatalogServer {
     // Translate environment variables to catalog properties
     Map<String, String> catalogProperties = Maps.newHashMap(config);
     catalogProperties.putAll(RCKUtils.environmentCatalogConfig());
-    catalogProperties.putAll(Maps.fromProperties(System.getProperties()));
 
     // Fallback to a JDBCCatalog impl if one is not set
     catalogProperties.putIfAbsent(CatalogProperties.CATALOG_IMPL, JdbcCatalog.class.getName());
