@@ -59,8 +59,7 @@ public class TestMinioUtil {
         PutObjectResponse response = s3Client.putObject(request, body);
         assertThat(response.sdkHttpResponse().isSuccessful()).isTrue();
       } else {
-        assertThatThrownBy(
-                () -> s3Client.putObject(request, body))
+        assertThatThrownBy(() -> s3Client.putObject(request, body))
             .isInstanceOf(S3Exception.class)
             .hasMessageContaining("Service: S3, Status Code: 412")
             .hasMessageContaining("At least one of the pre-conditions you specified did not hold");
