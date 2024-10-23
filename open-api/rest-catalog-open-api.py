@@ -824,7 +824,7 @@ class PrimitiveTypeValue(BaseModel):
 
 
 class FileFormat(BaseModel):
-    __root__: Literal['avro', 'orc', 'parquet']
+    __root__: Literal['avro', 'orc', 'parquet', 'puffin']
 
 
 class ContentFile(BaseModel):
@@ -854,6 +854,16 @@ class ContentFile(BaseModel):
 
 class PositionDeleteFile(ContentFile):
     content: Literal['position-deletes']
+    content_offset: Optional[int] = Field(
+        None,
+        alias='content-offset',
+        description='Offset within the delete file of delete content',
+    )
+    content_size_in_bytes: Optional[int] = Field(
+        None,
+        alias='content-size-in-bytes',
+        description='Length, in bytes, of the delete content; required if content-offset is present',
+    )
 
 
 class EqualityDeleteFile(ContentFile):
