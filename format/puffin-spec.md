@@ -123,7 +123,7 @@ The blob metadata for this blob may include following properties:
 
 - `ndv`: estimate of number of distinct values, derived from the sketch.
 
-#### `delete-vector-v1` blob type
+#### `deletion-vector-v1` blob type
 
 A serialized delete vector (bitmap) that represents the positions of rows in a
 file that are deleted. A set bit at position P indicates that the row at
