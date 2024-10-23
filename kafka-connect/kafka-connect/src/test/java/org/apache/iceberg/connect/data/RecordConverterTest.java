@@ -228,8 +228,7 @@ public class RecordConverterTest extends BaseWriterTest {
   @BeforeEach
   public void before() {
     super.before();
-    ImmutableMap<String, String> mp = ImmutableMap.of("write.format.default", format);
-    System.out.println(format);
+    ImmutableMap<String, String> mp = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format);
     when(table.schema()).thenReturn(SCHEMA);
     this.config = mock(IcebergSinkConfig.class);
     when(config.jsonConverter()).thenReturn(JSON_CONVERTER);
