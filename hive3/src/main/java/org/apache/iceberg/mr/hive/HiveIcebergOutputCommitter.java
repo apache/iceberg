@@ -49,6 +49,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
+import org.apache.iceberg.mr.mapreduce.Utils;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -116,7 +117,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .executeWith(tableExecutor)
           .run(
               output -> {
-                Table table = HiveIcebergStorageHandler.table(context.getJobConf(), output);
+                Table table = Utils.table(context.getJobConf(), output);
                 if (table != null) {
                   HiveIcebergRecordWriter writer = writers.get(output);
                   DataFile[] closedFiles;
@@ -206,7 +207,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .executeWith(tableExecutor)
           .run(
               output -> {
-                Table table = HiveIcebergStorageHandler.table(jobConf, output);
+                Table table = Utils.table(jobConf, output);
                 if (table != null) {
                   String catalogName = HiveIcebergStorageHandler.catalogName(jobConf, output);
                   jobLocations.add(
@@ -262,7 +263,7 @@ public class HiveIcebergOutputCommitter extends OutputCommitter {
           .run(
               output -> {
                 LOG.info("Cleaning table {} with job id {}", output, jobContext.getJobID());
-                Table table = HiveIcebergStorageHandler.table(jobConf, output);
+                Table table = Utils.table(jobConf, output);
                 jobLocations.add(
                     generateJobLocation(table.location(), jobConf, jobContext.getJobID()));
                 Collection<DataFile> dataFiles =

@@ -39,7 +39,6 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -181,43 +180,18 @@ public class TestCatalogs {
         .isEqualTo(PartitionSpecParser.toJson(SPEC));
     assertThat(table.properties()).containsEntry("dummy", "test");
 
-    assertThatThrownBy(() -> Catalogs.dropTable(conf, new Properties()))
+    Properties dropProperties = new Properties();
+    dropProperties.put(InputFormatConfig.CATALOG_NAME, defaultCatalogName);
+    assertThatThrownBy(() -> Catalogs.dropTable(conf, dropProperties))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("Table identifier not set");
 
-    Properties dropProperties = new Properties();
     dropProperties.put("name", identifier.toString());
-    dropProperties.put(InputFormatConfig.CATALOG_NAME, defaultCatalogName);
     Catalogs.dropTable(conf, dropProperties);
 
     assertThatThrownBy(() -> Catalogs.loadTable(conf, dropProperties))
         .isInstanceOf(NoSuchTableException.class)
         .hasMessage("Table does not exist: test.table");
-  }
-
-  @Test
-  public void testLoadCatalogDefault() {
-    String catalogName = "barCatalog";
-    Optional<Catalog> defaultCatalog = Catalogs.loadCatalog(conf, catalogName);
-    assertThat(defaultCatalog).isPresent();
-    assertThat(defaultCatalog.get()).isInstanceOf(HiveCatalog.class);
-    Properties properties = new Properties();
-    properties.put(InputFormatConfig.CATALOG_NAME, catalogName);
-    assertThat(Catalogs.hiveCatalog(conf, properties)).isTrue();
-  }
-
-  @Test
-  public void testLoadCatalogHive() {
-    String catalogName = "barCatalog";
-    conf.set(
-        InputFormatConfig.catalogPropertyConfigKey(catalogName, CatalogUtil.ICEBERG_CATALOG_TYPE),
-        CatalogUtil.ICEBERG_CATALOG_TYPE_HIVE);
-    Optional<Catalog> hiveCatalog = Catalogs.loadCatalog(conf, catalogName);
-    assertThat(hiveCatalog).isPresent();
-    assertThat(hiveCatalog.get()).isInstanceOf(HiveCatalog.class);
-    Properties properties = new Properties();
-    properties.put(InputFormatConfig.CATALOG_NAME, catalogName);
-    assertThat(Catalogs.hiveCatalog(conf, properties)).isTrue();
   }
 
   @Test
