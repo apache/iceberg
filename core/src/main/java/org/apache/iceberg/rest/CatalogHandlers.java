@@ -311,6 +311,13 @@ public class CatalogHandlers {
     }
   }
 
+  public static void tableExists(Catalog catalog, TableIdentifier ident) {
+    boolean exists = catalog.tableExists(ident);
+    if (!exists) {
+      throw new NoSuchTableException("Table does not exist: %s", ident);
+    }
+  }
+
   public static LoadTableResponse loadTable(Catalog catalog, TableIdentifier ident) {
     Table table = catalog.loadTable(ident);
 

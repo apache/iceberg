@@ -340,11 +340,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             any());
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            any(),
             eq(catalogHeaders),
             any());
   }
@@ -387,11 +387,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // use the catalog token for all interactions
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            any(),
             eq(catalogHeaders),
             any());
   }
@@ -442,11 +442,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     // use the catalog token for all interactions
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            any(),
             eq(catalogHeaders),
             any());
   }
@@ -500,14 +500,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(OAuthTokenResponse.class),
             eq(catalogHeaders),
             any());
-    // use the context token for table load
+    // use the context token for table existence check
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            any(),
             eq(contextHeaders),
             any());
   }
@@ -573,14 +573,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(OAuthTokenResponse.class),
             eq(catalogHeaders),
             any());
-    // use the context token for table load
+    // use the context token for table existence check
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            any(),
             eq(contextHeaders),
             any());
   }
@@ -648,14 +648,14 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(OAuthTokenResponse.class),
             eq(catalogHeaders),
             any());
-    // use the context token for table load
+    // use the context token for table existence check
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            any(),
             eq(contextHeaders),
             any());
   }
@@ -839,11 +839,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
     }
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            any(),
             eq(expectedHeaders),
             any());
     if (!optionalOAuthParams.isEmpty()) {
@@ -1606,18 +1606,18 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       eq(catalogHeaders),
                       any());
 
-              // use the refreshed context token for table load
+              // use the refreshed context token for table existence check
               Map<String, String> refreshedCatalogHeader =
                   ImmutableMap.of(
                       "Authorization",
                       "Bearer token-exchange-token:sub=client-credentials-token:sub=catalog");
               Mockito.verify(adapter)
                   .execute(
-                      eq(HTTPMethod.GET),
+                      eq(HTTPMethod.HEAD),
                       eq("v1/namespaces/ns/tables/table"),
                       any(),
                       any(),
-                      eq(LoadTableResponse.class),
+                      any(),
                       eq(refreshedCatalogHeader),
                       any());
             });
@@ -1784,11 +1784,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            any(),
             eq(ImmutableMap.of("Authorization", "Bearer token-exchange-token:sub=" + token)),
             any());
   }
@@ -1826,11 +1826,11 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
 
     Mockito.verify(adapter)
         .execute(
-            eq(HTTPMethod.GET),
+            eq(HTTPMethod.HEAD),
             eq("v1/namespaces/ns/tables/table"),
             any(),
             any(),
-            eq(LoadTableResponse.class),
+            any(),
             eq(OAuth2Util.authHeaders(token)),
             any());
   }
@@ -1961,18 +1961,18 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                       eq(basicHeaders),
                       any());
 
-              // use the refreshed context token for table load
+              // use the refreshed context token for table existence check
               Map<String, String> refreshedCatalogHeader =
                   ImmutableMap.of(
                       "Authorization",
                       "Bearer token-exchange-token:sub=client-credentials-token:sub=catalog");
               Mockito.verify(adapter)
                   .execute(
-                      eq(HTTPMethod.GET),
+                      eq(HTTPMethod.HEAD),
                       eq("v1/namespaces/ns/tables/table"),
                       any(),
                       any(),
-                      eq(LoadTableResponse.class),
+                      any(),
                       eq(refreshedCatalogHeader),
                       any());
             });
