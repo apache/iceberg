@@ -21,6 +21,8 @@ package org.apache.iceberg.aws;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
+import org.apache.iceberg.aws.s3.VendedCredentialsProvider;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -29,6 +31,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
@@ -110,5 +113,31 @@ public class AwsClientPropertiesTest {
     assertThat(credentialsProvider.resolveCredentials().secretAccessKey())
         .as("The secret access key should be the same as the one set by tag SECRET_ACCESS_KEY")
         .isEqualTo("secret");
+  }
+
+  @Test
+  public void refreshCredentialsEndpoint() {
+    AwsClientProperties awsClientProperties =
+        new AwsClientProperties(
+            ImmutableMap.of(
+                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+                "http://localhost:1234/v1/credentials"));
+
+    assertThat(awsClientProperties.credentialsProvider("key", "secret", "token"))
+        .isInstanceOf(VendedCredentialsProvider.class);
+  }
+
+  @Test
+  public void refreshCredentialsEndpointSetButRefreshDisabled() {
+    AwsClientProperties awsClientProperties =
+        new AwsClientProperties(
+            ImmutableMap.of(
+                AwsClientProperties.REFRESH_CREDENTIALS_ENABLED,
+                "false",
+                AwsClientProperties.REFRESH_CREDENTIALS_ENDPOINT,
+                "http://localhost:1234/v1/credentials"));
+
+    assertThat(awsClientProperties.credentialsProvider("key", "secret", "token"))
+        .isInstanceOf(StaticCredentialsProvider.class);
   }
 }
