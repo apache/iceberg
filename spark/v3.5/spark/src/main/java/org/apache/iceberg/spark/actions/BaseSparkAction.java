@@ -252,8 +252,14 @@ abstract class BaseSparkAction<ThisT> {
             fileInfo -> {
               String path = fileInfo.getPath();
               String type = fileInfo.getType();
-              deleteFunc.accept(path);
-              summary.deletedFile(path, type);
+              if (fileInfo instanceof RichFileInfo) {
+                long sizeInBytes = ((RichFileInfo) fileInfo).getSizeInBytes();
+                deleteFunc.accept(path);
+                summary.deletedFile(path, type, sizeInBytes);
+              } else {
+                deleteFunc.accept(path);
+                summary.deletedFile(path, type, 0); // Size unknown
+              }
             });
 
     return summary;
@@ -298,6 +304,7 @@ abstract class BaseSparkAction<ThisT> {
     private final AtomicLong manifestListsCount = new AtomicLong(0L);
     private final AtomicLong statisticsFilesCount = new AtomicLong(0L);
     private final AtomicLong otherFilesCount = new AtomicLong(0L);
+    private final AtomicLong totalSizeInBytes = new AtomicLong(0L);
 
     public void deletedFiles(String type, int numFiles) {
       if (FileContent.DATA.name().equalsIgnoreCase(type)) {
@@ -326,7 +333,8 @@ abstract class BaseSparkAction<ThisT> {
       }
     }
 
-    public void deletedFile(String path, String type) {
+    public void deletedFile(String path, String type, long fileSizeInBytes) {
+      totalSizeInBytes.addAndGet(fileSizeInBytes);
       if (FileContent.DATA.name().equalsIgnoreCase(type)) {
         dataFilesCount.incrementAndGet();
         LOG.trace("Deleted data file: {}", path);
@@ -388,6 +396,10 @@ abstract class BaseSparkAction<ThisT> {
       return otherFilesCount.get();
     }
 
+    public long totalSizeInBytes() {
+      return totalSizeInBytes.get();
+    }
+
     public long totalFilesCount() {
       return dataFilesCount()
           + positionDeleteFilesCount()
@@ -417,11 +429,15 @@ abstract class BaseSparkAction<ThisT> {
       Map<Integer, PartitionSpec> specs = table.getValue().specs();
       List<String> proj = ImmutableList.of(DataFile.FILE_PATH.name(), DataFile.CONTENT.name());
 
+      List<String> richProj =
+          ImmutableList.of(
+              DataFile.FILE_PATH.name(), DataFile.CONTENT.name(), DataFile.FILE_SIZE.name());
+
       switch (content) {
         case DATA:
           return CloseableIterator.transform(
-              ManifestFiles.read(manifest, io, specs).select(proj).iterator(),
-              ReadManifest::toFileInfo);
+              ManifestFiles.read(manifest, io, specs).select(richProj).iterator(),
+              ReadManifest::toRichFileInfo);
         case DELETES:
           return CloseableIterator.transform(
               ManifestFiles.readDeleteManifest(manifest, io, specs).select(proj).iterator(),
@@ -433,6 +449,11 @@ abstract class BaseSparkAction<ThisT> {
 
     static FileInfo toFileInfo(ContentFile<?> file) {
       return new FileInfo(file.path().toString(), file.content().toString());
+    }
+
+    static FileInfo toRichFileInfo(ContentFile<?> file) {
+      return new RichFileInfo(
+          file.path().toString(), file.content().toString(), file.fileSizeInBytes());
     }
   }
 }

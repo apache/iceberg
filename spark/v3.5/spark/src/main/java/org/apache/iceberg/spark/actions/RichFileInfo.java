@@ -16,30 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.actions;
+package org.apache.iceberg.spark.actions;
 
-import org.immutables.value.Value;
+public class RichFileInfo extends FileInfo {
+  private long sizeInBytes;
 
-@Value.Enclosing
-@SuppressWarnings("ImmutablesStyle")
-@Value.Style(
-    typeImmutableEnclosing = "ImmutableExpireSnapshots",
-    visibilityString = "PUBLIC",
-    builderVisibilityString = "PUBLIC")
-interface BaseExpireSnapshots extends ExpireSnapshots {
+  public RichFileInfo(String path, String type, long sizeInBytes) {
+    super(path, type); // Call constructor of superclass FileInfo
+    this.sizeInBytes = sizeInBytes;
+  }
+  // Getter and setter for sizeInBytes
+  public long getSizeInBytes() {
+    return sizeInBytes;
+  }
 
-  @Value.Immutable
-  interface Result extends ExpireSnapshots.Result {
-    @Override
-    @Value.Default
-    default long deletedStatisticsFilesCount() {
-      return ExpireSnapshots.Result.super.deletedStatisticsFilesCount();
-    }
-
-    @Override
-    @Value.Default
-    default long deletedFilesSizeInBytes() {
-      return ExpireSnapshots.Result.super.deletedFilesSizeInBytes();
-    }
+  public void setSizeInBytes(long sizeInBytes) {
+    this.sizeInBytes = sizeInBytes;
   }
 }
