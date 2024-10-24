@@ -138,11 +138,9 @@ public class RoaringPositionBitmapBenchmark {
 
   private static long[] generateOrderedPositions() {
     long[] positions = new long[TOTAL_POSITIONS];
-
     for (int index = 0; index < TOTAL_POSITIONS; index++) {
       positions[index] = index * STEP;
     }
-
     return positions;
   }
 

@@ -85,10 +85,10 @@ public class TestRoaringPositionBitmap {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
 
     // construct positions that differ in their high 32-bit parts (i.e. keys)
-    long pos1 = ((long) 0 << 32) | 10L; // high = 0, low = 10
-    long pos2 = ((long) 1 << 32) | 20L; // high = 1, low = 20
-    long pos3 = ((long) 2 << 32) | 30L; // high = 2, low = 30
-    long pos4 = ((long) 100 << 32) | 40L; // high = 100, low = 40
+    long pos1 = ((long) 0 << 32) | 10L; // key = 0, low = 10
+    long pos2 = ((long) 1 << 32) | 20L; // key = 1, low = 20
+    long pos3 = ((long) 2 << 32) | 30L; // key = 2, low = 30
+    long pos4 = ((long) 100 << 32) | 40L; // key = 100, low = 40
 
     bitmap.add(pos1);
     bitmap.add(pos2);
@@ -101,7 +101,7 @@ public class TestRoaringPositionBitmap {
     assertThat(bitmap.contains(pos4)).isTrue();
     assertThat(bitmap.cardinality()).isEqualTo(4);
     assertThat(bitmap.serializedSizeInBytes()).isGreaterThan(4);
-    assertThat(bitmap.allocatedBitmapCount()).isEqualTo(101 /* max high + 1 */);
+    assertThat(bitmap.allocatedBitmapCount()).isEqualTo(101 /* max key + 1 */);
   }
 
   @TestTemplate
@@ -227,12 +227,12 @@ public class TestRoaringPositionBitmap {
   @TestTemplate
   public void testAddAllSparseBitmaps() {
     RoaringPositionBitmap bitmap1 = new RoaringPositionBitmap();
-    bitmap1.add((long) 0 << 32 | 100L); // High = 0, Low = 100
-    bitmap1.add((long) 1 << 32 | 200L); // High = 1, Low = 200
+    bitmap1.add((long) 0 << 32 | 100L); // key = 0, low = 100
+    bitmap1.add((long) 1 << 32 | 200L); // key = 1, low = 200
 
     RoaringPositionBitmap bitmap2 = new RoaringPositionBitmap();
-    bitmap2.add((long) 2 << 32 | 300L); // High = 2, Low = 300
-    bitmap2.add((long) 3 << 32 | 400L); // High = 3, Low = 400
+    bitmap2.add((long) 2 << 32 | 300L); // key = 2, low = 300
+    bitmap2.add((long) 3 << 32 | 400L); // key = 3, low = 400
 
     bitmap1.addAll(bitmap2);
 
@@ -264,11 +264,11 @@ public class TestRoaringPositionBitmap {
   public void testCardinalitySparseBitmaps() {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
 
-    bitmap.add((long) 0 << 32 | 100L); // high = 0, low = 100
-    bitmap.add((long) 0 << 32 | 101L); // high = 0, low = 101
-    bitmap.add((long) 0 << 32 | 105L); // high = 0, low = 101
-    bitmap.add((long) 1 << 32 | 200L); // high = 1, low = 200
-    bitmap.add((long) 100 << 32 | 300L); // high = 100, low = 300
+    bitmap.add((long) 0 << 32 | 100L); // key = 0, low = 100
+    bitmap.add((long) 0 << 32 | 101L); // key = 0, low = 101
+    bitmap.add((long) 0 << 32 | 105L); // key = 0, low = 101
+    bitmap.add((long) 1 << 32 | 200L); // key = 1, low = 200
+    bitmap.add((long) 100 << 32 | 300L); // key = 100, low = 300
 
     assertThat(bitmap.cardinality()).isEqualTo(5);
   }

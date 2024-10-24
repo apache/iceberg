@@ -35,8 +35,8 @@ import org.roaringbitmap.RoaringBitmap;
  * to accommodate the largest position.
  *
  * <p>Incoming 64-bit positions are divided into a 32-bit "key" using the most significant 4 bytes
- * and a 32-bit "value" using the least significant 4 bytes. For each key in the set of positions, a
- * 32-bit Roaring bitmap is maintained to store a set of 32-bit values for that key.
+ * and a 32-bit position using the least significant 4 bytes. For each key in the set of positions,
+ * a 32-bit Roaring bitmap is maintained to store a set of 32-bit position for that key.
  *
  * <p>To test whether a certain position is set, its most significant 4 bytes (the key) are used to
  * find a 32-bit bitmap and the least significant 4 bytes are tested for inclusion in the bitmap. If
@@ -72,9 +72,9 @@ class RoaringPositionBitmap {
   public void add(long pos) {
     validatePosition(pos);
     int key = key(pos);
-    int value = value(pos);
+    int pos32Bits = pos32Bits(pos);
     allocateBitmapsIfNeeded(key + 1 /* required number of bitmaps */);
-    bitmaps[key].add(value);
+    bitmaps[key].add(pos32Bits);
   }
 
   /**
@@ -110,8 +110,8 @@ class RoaringPositionBitmap {
   public boolean contains(long pos) {
     validatePosition(pos);
     int key = key(pos);
-    int value = value(pos);
-    return key < bitmaps.length && bitmaps[key].contains(value);
+    int pos32Bits = pos32Bits(pos);
+    return key < bitmaps.length && bitmaps[key].contains(pos32Bits);
   }
 
   /**
@@ -291,20 +291,20 @@ class RoaringPositionBitmap {
     return (int) (pos >> 32);
   }
 
-  // extracts low 32 bits from a 64-bit position (i.e. value)
-  private static int value(long pos) {
+  // extracts low 32 bits from a 64-bit position
+  private static int pos32Bits(long pos) {
     return (int) pos;
   }
 
-  // combines 32-bit key and value into a 64-bit position
-  // the value must be bit-masked to avoid sign extension
-  private static long toPosition(int key, int value) {
-    return (((long) key) << 32) | (((long) value) & 0xFFFFFFFFL);
+  // combines high and low 32 bits into a 64-bit position
+  // the low 32 bits must be bit-masked to avoid sign extension
+  private static long toPosition(int key, int pos32Bits) {
+    return (((long) key) << 32) | (((long) pos32Bits) & 0xFFFFFFFFL);
   }
 
-  // iterates over 64-bit positions, reconstructing them from 32-bit keys and values
+  // iterates over 64-bit positions, reconstructing them from 32-bit keys and positions
   private static void forEach(RoaringBitmap bitmap, int key, LongConsumer consumer) {
-    bitmap.forEach((int value) -> consumer.accept(toPosition(key, value)));
+    bitmap.forEach((int pos32Bits) -> consumer.accept(toPosition(key, pos32Bits)));
   }
 
   private static void validatePosition(long pos) {
