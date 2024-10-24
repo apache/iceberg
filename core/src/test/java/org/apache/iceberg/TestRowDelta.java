@@ -29,7 +29,9 @@ import static org.apache.iceberg.SnapshotSummary.TOTAL_POS_DELETES_PROP;
 import static org.apache.iceberg.util.SnapshotUtil.latestSnapshot;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +42,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -570,7 +573,10 @@ public class TestRowDelta extends V2TableTestBase {
 
   @TestTemplate
   public void testDeleteDataFileWithDeleteFile() {
-    commit(table, table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES), branch);
+    commit(
+        table,
+        table.newRowDelta().addRows(FILE_A).addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES),
+        branch);
 
     long deltaSnapshotId = latestSnapshot(table, branch).snapshotId();
     assertThat(latestSnapshot(table, branch).sequenceNumber()).isEqualTo(1);
@@ -595,18 +601,18 @@ public class TestRowDelta extends V2TableTestBase {
     assertThat(deleteSnap.deleteManifests(table.io())).hasSize(1);
     validateDeleteManifest(
         deleteSnap.deleteManifests(table.io()).get(0),
-        dataSeqs(1L),
-        fileSeqs(1L),
-        ids(deltaSnapshotId),
-        files(FILE_A_DELETES),
-        statuses(Status.ADDED));
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(deltaSnapshotId, deltaSnapshotId),
+        files(FILE_A_DELETES, FILE_B_DELETES),
+        statuses(Status.ADDED, Status.ADDED));
 
     // the manifest that removed FILE_A will be dropped next commit, causing the min sequence number
     // of all data files
     // to be 2, the largest known sequence number. this will cause FILE_A_DELETES to be removed
     // because it is too old
     // to apply to any data files.
-    commit(table, table.newDelete().deleteFile("no-such-file"), branch);
+    commit(table, table.newRowDelta().removeDeletes(FILE_B_DELETES), branch);
 
     Snapshot nextSnap = latestSnapshot(table, branch);
     assertThat(nextSnap.sequenceNumber()).isEqualTo(3);
@@ -616,11 +622,11 @@ public class TestRowDelta extends V2TableTestBase {
     assertThat(nextSnap.deleteManifests(table.io())).hasSize(1);
     validateDeleteManifest(
         nextSnap.deleteManifests(table.io()).get(0),
-        dataSeqs(1L),
-        fileSeqs(1L),
-        ids(nextSnap.snapshotId()),
-        files(FILE_A_DELETES),
-        statuses(Status.DELETED));
+        dataSeqs(1L, 1L),
+        fileSeqs(1L, 1L),
+        ids(nextSnap.snapshotId(), nextSnap.snapshotId()),
+        files(FILE_A_DELETES, FILE_B_DELETES),
+        statuses(Status.DELETED, Status.DELETED));
   }
 
   @TestTemplate
@@ -1457,6 +1463,58 @@ public class TestRowDelta extends V2TableTestBase {
   }
 
   @TestTemplate
+  public void testRewrittenDeleteFilesReadFromManifest() throws IOException {
+    DataFile dataFile = newDataFile("data_bucket=0");
+    DeleteFile deleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta baseRowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
+    Snapshot baseSnapshot = commit(table, baseRowDelta, branch);
+    assertThat(baseSnapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    List<ManifestFile> deleteManifests = baseSnapshot.deleteManifests(table.io());
+    try (ManifestReader<DeleteFile> deleteReader =
+        ManifestFiles.readDeleteManifest(deleteManifests.get(0), table.io(), table.specs())) {
+      deleteFile = deleteReader.iterator().next();
+    }
+
+    assertThat(deleteFile.manifestLocation()).isEqualTo(deleteManifests.get(0).path());
+    DeleteFile newDeleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .removeDeletes(deleteFile)
+            .addDeletes(newDeleteFile)
+            .validateFromSnapshot(baseSnapshot.snapshotId());
+    Snapshot snapshot = commit(table, rowDelta, branch);
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.DELETE);
+
+    List<ManifestFile> dataManifests = snapshot.dataManifests(table.io());
+    assertThat(dataManifests).hasSize(1);
+    validateManifest(
+        dataManifests.get(0),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(baseSnapshot.snapshotId()),
+        files(dataFile),
+        statuses(Status.ADDED));
+
+    deleteManifests = snapshot.deleteManifests(table.io());
+    assertThat(deleteManifests).hasSize(2);
+    validateDeleteManifest(
+        deleteManifests.get(0),
+        dataSeqs(2L),
+        fileSeqs(2L),
+        ids(snapshot.snapshotId()),
+        files(newDeleteFile),
+        statuses(Status.ADDED));
+    validateDeleteManifest(
+        deleteManifests.get(1),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(snapshot.snapshotId()),
+        files(deleteFile),
+        statuses(Status.DELETED));
+  }
+
+  @TestTemplate
   public void testConcurrentDeletesRewriteSameDeleteFile() {
     DataFile dataFile = newDataFile("data_bucket=0");
     DeleteFile deleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
@@ -1517,6 +1575,69 @@ public class TestRowDelta extends V2TableTestBase {
         ids(snapshot1.snapshotId()),
         files(newDeleteFile1),
         statuses(Status.ADDED));
+  }
+
+  @TestTemplate
+  public void testConcurrentManifestRewriteWithDeleteFileRemoval() throws IOException {
+    // Manifest rewrite isn't supported on branches currently
+    assumeThat(branch).isEqualTo("main");
+
+    DataFile dataFile = newDataFile("data_bucket=0");
+    DeleteFile deleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta rowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
+    Snapshot first = commit(table, rowDelta, branch);
+
+    DeleteFile secondDeleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    Snapshot secondRowDelta =
+        commit(table, table.newRowDelta().addRows(dataFile).addDeletes(secondDeleteFile), branch);
+    List<ManifestFile> secondRowDeltaDeleteManifests = secondRowDelta.deleteManifests(table.io());
+    assertThat(secondRowDeltaDeleteManifests).hasSize(2);
+
+    // Read the manifest entries before the manifest rewrite is committed
+    List<ManifestEntry<DeleteFile>> readEntries = Lists.newArrayList();
+    for (ManifestFile manifest : secondRowDeltaDeleteManifests) {
+      try (ManifestReader<DeleteFile> deleteManifestReader =
+          ManifestFiles.readDeleteManifest(manifest, table.io(), table.specs())) {
+        deleteManifestReader.entries().forEach(readEntries::add);
+      }
+    }
+
+    RowDelta removeDeletes =
+        table
+            .newRowDelta()
+            .removeDeletes(readEntries.get(0).file())
+            .removeDeletes(readEntries.get(1).file())
+            .validateFromSnapshot(secondRowDelta.snapshotId());
+
+    RewriteManifests rewriteManifests =
+        table
+            .rewriteManifests()
+            .addManifest(
+                writeManifest(
+                    "new_delete_manifest.avro",
+                    // Specify data sequence number so that the delete files don't get aged out
+                    // first
+                    manifestEntry(
+                        ManifestEntry.Status.EXISTING, first.snapshotId(), 3L, 0L, deleteFile),
+                    manifestEntry(
+                        ManifestEntry.Status.EXISTING,
+                        secondRowDelta.snapshotId(),
+                        3L,
+                        0L,
+                        secondDeleteFile)))
+            .deleteManifest(secondRowDeltaDeleteManifests.get(0))
+            .deleteManifest(secondRowDeltaDeleteManifests.get(1));
+    commit(table, rewriteManifests, branch);
+
+    Snapshot remove = commit(table, removeDeletes, branch);
+    List<ManifestFile> deleteManifests = remove.deleteManifests(table.io());
+    validateDeleteManifest(
+        deleteManifests.get(0),
+        dataSeqs(3L, 3L),
+        fileSeqs(0L, 0L),
+        ids(remove.snapshotId(), remove.snapshotId()),
+        files(deleteFile, secondDeleteFile),
+        statuses(Status.DELETED, Status.DELETED));
   }
 
   @TestTemplate
