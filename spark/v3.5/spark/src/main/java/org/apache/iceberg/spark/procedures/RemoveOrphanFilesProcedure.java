@@ -27,13 +27,13 @@ import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.iceberg.spark.actions.DeleteOrphanFilesSparkAction;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.spark.procedures.SparkProcedures.ProcedureBuilder;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -75,12 +75,12 @@ public class RemoveOrphanFilesProcedure extends BaseProcedure {
     return new BaseProcedure.Builder<RemoveOrphanFilesProcedure>() {
       @Override
       protected RemoveOrphanFilesProcedure doBuild() {
-        return new RemoveOrphanFilesProcedure(tableCatalog());
+        return new RemoveOrphanFilesProcedure(catalog());
       }
     };
   }
 
-  private RemoveOrphanFilesProcedure(TableCatalog catalog) {
+  private RemoveOrphanFilesProcedure(BaseCatalog catalog) {
     super(catalog);
   }
 

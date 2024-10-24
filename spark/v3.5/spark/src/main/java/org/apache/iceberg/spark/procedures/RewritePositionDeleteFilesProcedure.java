@@ -24,9 +24,9 @@ import org.apache.iceberg.actions.RewritePositionDeleteFiles;
 import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.connector.catalog.Identifier;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.ProcedureParameter;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
@@ -65,13 +65,13 @@ public class RewritePositionDeleteFilesProcedure extends BaseProcedure {
     return new Builder<RewritePositionDeleteFilesProcedure>() {
       @Override
       protected RewritePositionDeleteFilesProcedure doBuild() {
-        return new RewritePositionDeleteFilesProcedure(tableCatalog());
+        return new RewritePositionDeleteFilesProcedure(catalog());
       }
     };
   }
 
-  private RewritePositionDeleteFilesProcedure(TableCatalog tableCatalog) {
-    super(tableCatalog);
+  private RewritePositionDeleteFilesProcedure(BaseCatalog catalog) {
+    super(catalog);
   }
 
   @Override
