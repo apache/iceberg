@@ -60,7 +60,6 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
-import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ImmutableCommitReport;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
 import org.apache.iceberg.metrics.MetricsContext;
@@ -126,9 +125,9 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
-    this.metricsContext = CatalogUtil.loadMetricsContext(base.properties());
     this.strictCleanup = ops.requireStrictCleanup();
     this.base = ops.current();
+    this.metricsContext = CatalogUtil.loadMetricsContext(this.base.properties());
     this.manifestsWithMetadata =
         Caffeine.newBuilder()
             .build(
