@@ -19,6 +19,7 @@
 package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Collection;
 import java.util.Map;
@@ -63,6 +64,16 @@ public class TestStructLikeMap {
       assertThat(entry.getValue()).isEqualTo("1-aaa");
       break;
     }
+
+    Map.Entry<StructLike, String> entryToRemove = entrySet.iterator().next();
+    assertThatThrownBy(() -> entrySet.remove(entryToRemove))
+        .isInstanceOf(UnsupportedOperationException.class);
+
+    assertThatThrownBy(() -> keySet.remove(record1))
+        .isInstanceOf(UnsupportedOperationException.class);
+
+    assertThatThrownBy(() -> values.remove("1-aaa"))
+        .isInstanceOf(UnsupportedOperationException.class);
   }
 
   @Test
