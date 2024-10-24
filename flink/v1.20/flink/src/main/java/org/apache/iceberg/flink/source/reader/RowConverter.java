@@ -20,43 +20,30 @@ package org.apache.iceberg.flink.source.reader;
 
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.conversion.DataStructureConverter;
 import org.apache.flink.table.data.conversion.DataStructureConverters;
-import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
-import org.jetbrains.annotations.NotNull;
 
 public class RowConverter implements RowDataConverter<Row> {
     private final DataStructureConverter<Object, Object> converter;
     private final TypeInformation<Row> outputTypeInfo;
 
-    private RowConverter(RowType rowType) {
+    private RowConverter(RowType rowType, TypeInformation<Row> rowTypeInfo) {
         this.converter = DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(rowType));
-        this.outputTypeInfo = getTypeInfo(rowType);
+        this.outputTypeInfo = rowTypeInfo;
     }
 
     public static RowConverter fromIcebergSchema(
             org.apache.iceberg.Schema icebergSchema) {
         RowType rowType = FlinkSchemaUtil.convert(icebergSchema);
-        return new RowConverter(rowType);
-    }
-
-    private static @NotNull RowTypeInfo getTypeInfo(RowType rowType) {
-        int fieldCount = rowType.getFieldCount();
-        TypeInformation<?>[] fieldTypes = new TypeInformation<?>[fieldCount];
-        String[] fieldNames = new String[fieldCount];
-
-        for (int i = 0; i < fieldCount; i++) {
-            LogicalType logicalType = rowType.getTypeAt(i);
-            fieldTypes[i] = TypeInformation.of(logicalType.getDefaultConversion());
-            fieldNames[i] = rowType.getFieldNames().get(i);
-        }
-
-        return new RowTypeInfo(fieldTypes, fieldNames);
+        TableSchema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema);
+        RowTypeInfo rowTypeInfo = new RowTypeInfo(tableSchema.getFieldTypes(), tableSchema.getFieldNames());
+        return new RowConverter(rowType, rowTypeInfo);
     }
 
     @Override
