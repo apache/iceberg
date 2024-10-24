@@ -44,6 +44,7 @@ import software.amazon.awssdk.auth.signer.internal.SignerConstant;
 public class TestRESTSigV4Signer {
   private static ClientAndServer mockServer;
   private static HTTPClient client;
+  private static RESTSigV4Signer authSession;
 
   @BeforeAll
   public static void beforeClass() {
@@ -65,6 +66,9 @@ public class TestRESTSigV4Signer {
             .uri("http://localhost:" + mockServer.getLocalPort())
             .withHeader(HttpHeaders.AUTHORIZATION, "Bearer existing_token")
             .build();
+
+    authSession = new RESTSigV4Signer();
+    authSession.initialize(properties);
   }
 
   @AfterAll
@@ -99,7 +103,7 @@ public class TestRESTSigV4Signer {
         .respond(HttpResponse.response().withStatusCode(HttpStatus.SC_OK).withBody("{}"));
 
     ConfigResponse response =
-        client.get("v1/config", ConfigResponse.class, ImmutableMap.of(), e -> {});
+        client.get("v1/config", ConfigResponse.class, ImmutableMap.of(), authSession, e -> {});
 
     mockServer.verify(request, VerificationTimes.exactly(1));
     assertThat(response).isNotNull();
@@ -139,7 +143,12 @@ public class TestRESTSigV4Signer {
 
     OAuthTokenResponse response =
         client.postForm(
-            "v1/oauth/token", formData, OAuthTokenResponse.class, ImmutableMap.of(), e -> {});
+            "v1/oauth/token",
+            formData,
+            OAuthTokenResponse.class,
+            ImmutableMap.of(),
+            authSession,
+            e -> {});
 
     mockServer.verify(request, VerificationTimes.exactly(1));
     assertThat(response).isNotNull();

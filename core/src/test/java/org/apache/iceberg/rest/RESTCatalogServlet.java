@@ -40,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.io.CharStreams;
 import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
 import org.apache.iceberg.rest.RESTCatalogAdapter.Route;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.util.Pair;
 import org.slf4j.Logger;
@@ -104,6 +105,7 @@ public class RESTCatalogServlet extends HttpServlet {
               context.body(),
               context.route().responseClass(),
               context.headers(),
+              AuthSession.EMPTY,
               handle(response));
 
       if (responseBody != null) {

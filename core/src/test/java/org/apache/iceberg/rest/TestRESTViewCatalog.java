@@ -39,6 +39,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.rest.RESTCatalogAdapter.HTTPMethod;
+import org.apache.iceberg.rest.auth.AuthSession;
 import org.apache.iceberg.rest.responses.ConfigResponse;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
@@ -83,11 +84,20 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
               Object body,
               Class<T> responseType,
               Map<String, String> headers,
+              AuthSession authSession,
               Consumer<ErrorResponse> errorHandler) {
+            assertThat(headers).containsEntry("CustomHeader", "ABC");
             Object request = roundTripSerialize(body, "request");
             T response =
                 super.execute(
-                    method, path, queryParams, request, responseType, headers, errorHandler);
+                    method,
+                    path,
+                    queryParams,
+                    request,
+                    responseType,
+                    headers,
+                    authSession,
+                    errorHandler);
             T responseAfterSerialization = roundTripSerialize(response, "response");
             return responseAfterSerialization;
           }
@@ -117,7 +127,12 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     restCatalog.initialize(
         "prod",
         ImmutableMap.of(
-            CatalogProperties.URI, httpServer.getURI().toString(), "credential", "catalog:12345"));
+            CatalogProperties.URI,
+            httpServer.getURI().toString(),
+            "credential",
+            "catalog:12345",
+            "header.CustomHeader",
+            "ABC"));
   }
 
   @SuppressWarnings("unchecked")
@@ -160,7 +175,9 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
-    catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10", "header.CustomHeader", "ABC"));
 
     String namespaceName = "newdb";
     String viewName = "newview";
@@ -188,7 +205,8 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             any(),
             any(),
             eq(ConfigResponse.class),
-            any(),
+            eq(ImmutableMap.of("CustomHeader", "ABC")),
+            any(AuthSession.class),
             any());
 
     Mockito.verify(adapter, times(numberOfItems))
@@ -198,7 +216,8 @@ public class TestRESTViewCatalog extends ViewCatalogTests<RESTCatalog> {
             any(),
             any(),
             eq(LoadViewResponse.class),
-            any(),
+            eq(ImmutableMap.of("CustomHeader", "ABC")),
+            any(AuthSession.class),
             any());
 
     // verify initial request with empty pageToken
