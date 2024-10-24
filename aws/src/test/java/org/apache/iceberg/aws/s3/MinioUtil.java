@@ -59,6 +59,7 @@ public class MinioUtil {
             AwsBasicCredentials.create(container.getUserName(), container.getPassword())));
     builder.applyMutation(mutator -> mutator.endpointOverride(uri));
     builder.region(Region.US_EAST_1);
+    builder.forcePathStyle(true); // OSX won't resolve subdomains
     return builder.build();
   }
 }
