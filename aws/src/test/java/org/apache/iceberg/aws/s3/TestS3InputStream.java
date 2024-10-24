@@ -21,7 +21,6 @@ package org.apache.iceberg.aws.s3;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.adobe.testing.s3mock.junit5.S3MockExtension;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
@@ -30,8 +29,9 @@ import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.RegisterExtension;
+import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
@@ -39,12 +39,11 @@ import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-@ExtendWith(S3MockExtension.class)
+@Testcontainers
 public class TestS3InputStream {
-  @RegisterExtension
-  public static final S3MockExtension S3_MOCK = S3MockExtension.builder().silent().build();
+  @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
 
-  private final S3Client s3 = S3_MOCK.createS3ClientV2();
+  private final S3Client s3 = MinioUtil.createS3Client(MINIO);
   private final Random random = new Random(1);
 
   @BeforeEach
