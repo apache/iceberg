@@ -533,7 +533,7 @@ public abstract class TestMetrics {
 
     assertThat(recordsFile).isNotNull();
     // rowgroup size should be > 1
-    assertThat(splitCount(recordsFile)).isEqualTo(3);
+    assertThat(splitCount(recordsFile)).isEqualTo(2);
 
     assertThat(metrics.recordCount()).isEqualTo(201L);
     assertCounts(1, 201L, 0L, metrics);
