@@ -75,7 +75,7 @@ public class TestSnapshotJson {
     Map<String, String> expectedSummary =
         ImmutableMap.<String, String>builder()
             .putAll(expected.summary())
-            .put("operation", expected.operation()) // operation is part of the summary
+            .put("operation", expected.operation()) // operation should be part of the summary
             .build();
 
     String json = SnapshotParser.toJson(expected);
@@ -85,7 +85,7 @@ public class TestSnapshotJson {
     // Assert that the summary node exists
     assertThat(jsonNode.get("summary")).isNotNull();
 
-    // Assert that the JSON contains the expected summary
+    // Assert that the "summary" field in the JSON matches the expected summary map
     Map<String, String> actualSummary =
         objectMapper.convertValue(
             jsonNode.get("summary"), new TypeReference<Map<String, String>>() {});
@@ -218,7 +218,6 @@ public class TestSnapshotJson {
 
   @Test
   public void testJsonConversionSummaryWithoutOperationFails() {
-    // summary field without operation key should fail
     String json =
         String.format(
             "{\n"
