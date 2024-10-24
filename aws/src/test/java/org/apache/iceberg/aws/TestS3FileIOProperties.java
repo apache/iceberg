@@ -312,4 +312,12 @@ public class TestS3FileIOProperties {
     s3Properties.applyS3AccessGrantsConfigurations(builder);
     assertThat(builder.plugins().size()).isEqualTo(0);
   }
+
+  @Test
+  public void testIsTreatS3DirectoryBucketListPrefixAsDirectoryEnabled() {
+    Map<String, String> map = Maps.newHashMap();
+    map.put(S3FileIOProperties.S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY, "false");
+    S3FileIOProperties properties = new S3FileIOProperties(map);
+    assertThat(properties.isS3DirectoryBucketListPrefixAsDirectory()).isEqualTo(false);
+  }
 }
