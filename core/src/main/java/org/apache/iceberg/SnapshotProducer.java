@@ -38,6 +38,7 @@ import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -63,6 +64,7 @@ import org.apache.iceberg.metrics.CommitMetricsResult;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ImmutableCommitReport;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -121,9 +123,11 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private ExecutorService workerPool = ThreadPools.getWorkerPool();
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
+  private final MetricsContext metricsContext;
 
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
+    this.metricsContext = CatalogUtil.loadMetricsContext(base.properties());
     this.strictCleanup = ops.requireStrictCleanup();
     this.base = ops.current();
     this.manifestsWithMetadata =
@@ -161,7 +165,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected CommitMetrics commitMetrics() {
     if (commitMetrics == null) {
-      this.commitMetrics = CommitMetrics.of(new DefaultMetricsContext());
+      this.commitMetrics = CommitMetrics.of(metricsContext);
     }
 
     return commitMetrics;

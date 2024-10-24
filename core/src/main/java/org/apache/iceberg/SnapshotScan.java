@@ -27,6 +27,7 @@ import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ImmutableScanReport;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
@@ -55,9 +56,11 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotScan.class);
 
   private ScanMetrics scanMetrics;
+  private final MetricsContext metricsContext;
 
   protected SnapshotScan(Table table, Schema schema, TableScanContext context) {
     super(table, schema, context);
+    this.metricsContext = CatalogUtil.loadMetricsContext(table.properties());
   }
 
   protected Long snapshotId() {
@@ -73,7 +76,7 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
 
   protected ScanMetrics scanMetrics() {
     if (scanMetrics == null) {
-      this.scanMetrics = ScanMetrics.of(new DefaultMetricsContext());
+      this.scanMetrics = ScanMetrics.of(metricsContext);
     }
 
     return scanMetrics;
