@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.apache.avro.io.Decoder;
@@ -67,6 +68,10 @@ public class FlinkValueReaders {
 
   static ValueReader<TimestampData> timestampMicros() {
     return TimestampMicrosReader.INSTANCE;
+  }
+
+  static ValueReader<TimestampData> timestampNanos() {
+    return TimestampNanosReader.INSTANCE;
   }
 
   static ValueReader<DecimalData> decimal(
@@ -178,6 +183,16 @@ public class FlinkValueReaders {
         mills -= 1;
       }
       return TimestampData.fromEpochMillis(mills, nanos);
+    }
+  }
+
+  private static class TimestampNanosReader implements ValueReader<TimestampData> {
+    private static final TimestampNanosReader INSTANCE = new TimestampNanosReader();
+
+    @Override
+    public TimestampData read(Decoder decoder, Object reuse) throws IOException {
+      long nanos = decoder.readLong();
+      return TimestampData.fromInstant(Instant.ofEpochSecond(0, nanos));
     }
   }
 

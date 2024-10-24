@@ -92,6 +92,12 @@ public class RowDataConverter {
         } else {
           return TimestampData.fromLocalDateTime((LocalDateTime) object);
         }
+      case TIMESTAMP_NANO:
+        if (((Types.TimestampNanoType) type).shouldAdjustToUTC()) {
+          return TimestampData.fromInstant(((OffsetDateTime) object).toInstant());
+        } else {
+          return TimestampData.fromLocalDateTime((LocalDateTime) object);
+        }
       case STRING:
         return StringData.fromString((String) object);
       case UUID:
