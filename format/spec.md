@@ -1007,7 +1007,7 @@ There are three types of row-level deletes:
 * Position delete files identify deleted rows by file location and row position (**deprecated**)
 * Equality delete files identify deleted rows by the value of one or more columns
 
-Deletion vectors are a binary representation of deletes for a single data file that is more efficient at execution time than position delete files. Unlike equality or position delete files, there can be at most one deletion vector for a given data file in a table. Writers must ensure that there is at most one deletion vector per data file and must merge new deletes with existing vectors or position delete files.
+Deletion vectors are a binary representation of deletes for a single data file that is more efficient at execution time than position delete files. Unlike equality or position delete files, there can be at most one deletion vector for a given data file in a snapshot. Writers must ensure that there is at most one deletion vector per data file and must merge new deletes with existing vectors or position delete files.
 
 Row-level delete files (both equality and position delete files) are valid Iceberg data files: files must use valid Iceberg formats, schemas, and column projection. It is recommended that these delete files are written using the table's default file format.
 
@@ -1028,7 +1028,7 @@ To test whether a certain position is set, its most significant 4 bytes (the key
 
 Delete manifests track deletion vectors individually by the containing file location (`file_path`), starting offset of the DV magic bytes (`content_offset`), and total length of the deletion vector blob (`content_size_in_bytes`). Multiple deletion vectors can be stored in the same file. There are no restrictions on the data files that can be referenced by deletion vectors in the same Puffin file.
 
-At most one deletion vector is allowed per data file in a table. If a DV is written for a data file, it must replace all previously written position delete files so that when a DV is present, readers can safely ignore matching position delete files.
+At most one deletion vector is allowed per data file in a snapshot. If a DV is written for a data file, it must replace all previously written position delete files so that when a DV is present, readers can safely ignore matching position delete files.
 
 
 [puffin-spec]: https://iceberg.apache.org/puffin-spec/
