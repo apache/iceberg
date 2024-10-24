@@ -49,7 +49,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final long targetRowGroupSize;
   private final Map<String, String> metadata;
   private final ParquetProperties props;
-  private final CodecFactory.BytesCompressor compressor;
+  private final CodecFactory.BytesInputCompressor compressor;
   private final MessageType parquetSchema;
   private final ParquetValueWriter<T> model;
   private final MetricsConfig metricsConfig;
