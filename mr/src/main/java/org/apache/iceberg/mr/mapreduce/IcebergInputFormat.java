@@ -166,9 +166,7 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       Table serializableTable = SerializableTable.copyOf(table);
       tasksIterable.forEach(
           task -> {
-            if (applyResidual
-                && (model == InputFormatConfig.InMemoryDataModel.HIVE
-                    || model == InputFormatConfig.InMemoryDataModel.PIG)) {
+            if (applyResidual && (model == InputFormatConfig.InMemoryDataModel.HIVE)) {
               // TODO: We do not support residual evaluation for HIVE and PIG in memory data model
               // yet
               checkResiduals(task);
@@ -347,9 +345,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
     @SuppressWarnings("unchecked")
     private CloseableIterable<T> open(FileScanTask currentTask, Schema readSchema) {
       switch (inMemoryDataModel) {
-        case PIG:
-          // TODO: Support Pig and Hive object models for IcebergInputFormat
-          throw new UnsupportedOperationException("Pig and Hive object models are not supported.");
         case HIVE:
           return openTask(currentTask, readSchema);
         case GENERIC:
@@ -390,7 +385,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       }
 
       switch (inMemoryDataModel) {
-        case PIG:
         case HIVE:
           // TODO implement value readers for Pig and Hive
           throw new UnsupportedOperationException(
@@ -413,8 +407,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       CloseableIterable<T> parquetIterator = null;
 
       switch (inMemoryDataModel) {
-        case PIG:
-          throw new UnsupportedOperationException("Parquet support not yet supported for Pig");
         case HIVE:
           if (HiveVersion.min(HiveVersion.HIVE_3)) {
             parquetIterator =
@@ -459,9 +451,6 @@ public class IcebergInputFormat<T> extends InputFormat<Void, T> {
       CloseableIterable<T> orcIterator = null;
       // ORC does not support reuse containers yet
       switch (inMemoryDataModel) {
-        case PIG:
-          // TODO: implement value readers for Pig
-          throw new UnsupportedOperationException("ORC support not yet supported for Pig");
         case HIVE:
           if (HiveVersion.min(HiveVersion.HIVE_3)) {
             orcIterator =
