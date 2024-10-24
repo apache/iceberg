@@ -18,7 +18,9 @@
  */
 package org.apache.iceberg;
 
+import java.util.stream.Collectors;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.util.Pair;
 
 /**
  * A {@link Table} implementation that exposes its valid files as rows.
@@ -65,6 +67,15 @@ public class AllFilesTable extends BaseFilesTable {
     @Override
     protected CloseableIterable<ManifestFile> manifests() {
       return reachableManifests(snapshot -> snapshot.allManifests(table().io()));
+    }
+
+    @Override
+    protected CloseableIterable<Pair<Snapshot, ManifestFile>> snapshotManifestPairs() {
+      return reachableSnapshotManifestPairs(
+          snapshot ->
+              snapshot.allManifests(table().io()).stream()
+                  .map(manifestFile -> Pair.of(snapshot, manifestFile))
+                  .collect(Collectors.toSet()));
     }
   }
 }

@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
@@ -43,6 +44,7 @@ public class TestMetadataTableFilters extends TestBase {
           MetadataTableType.ALL_DELETE_FILES,
           MetadataTableType.ALL_FILES,
           MetadataTableType.ALL_ENTRIES);
+  private static final Boolean[] PARTITION_NOT_AVAILABLE = {};
 
   @Parameter(index = 1)
   private MetadataTableType type;
@@ -121,27 +123,134 @@ public class TestMetadataTableFilters extends TestBase {
     }
   }
 
-  private int expectedScanTaskCount(int partitions) {
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  private int expectedScanTaskCount(
+      Boolean[] firstSelectedDataPartitions,
+      Boolean[] firstSelectedDeletePartitions,
+      Boolean[] secondSelectedDataPartitions,
+      Boolean[] secondSelectedDeletePartitions,
+      int secondDeleteFileCount) {
+    int firstDeleteFileCount = firstSelectedDeletePartitions.length;
+    int totalScanTasks = 0;
+    int totalQualifiedPartitions = 0;
     switch (type) {
       case FILES:
       case ENTRIES:
         if (formatVersion == 1) {
-          return partitions;
+          return countTrue(firstSelectedDataPartitions) + countTrue(secondSelectedDataPartitions);
         } else {
-          return partitions * 2; // Delete File and Data File per partition
+          return (countTrue(firstSelectedDataPartitions) + countTrue(secondSelectedDataPartitions))
+              * 2; // Delete File and Data File per partition
         }
       case DATA_FILES:
       case DELETE_FILES:
-        return partitions;
+        return countTrue(firstSelectedDataPartitions) + countTrue(secondSelectedDataPartitions);
       case ALL_DATA_FILES:
+        if (formatVersion == 1) {
+          for (int i = 0; i < firstSelectedDataPartitions.length; ++i) {
+            if (firstSelectedDataPartitions[i]) {
+              totalScanTasks += firstSelectedDataPartitions.length - i;
+              ++totalQualifiedPartitions;
+            }
+          }
+          for (int i = 0; i < secondSelectedDataPartitions.length; ++i) {
+            if (secondSelectedDataPartitions[i]) {
+              totalScanTasks += secondSelectedDataPartitions.length - i;
+              ++totalQualifiedPartitions;
+            }
+          }
+        } else {
+          for (int i = 0; i < firstSelectedDataPartitions.length; ++i) {
+            if (firstSelectedDataPartitions[i]) {
+              totalScanTasks += firstSelectedDataPartitions.length + firstDeleteFileCount - i;
+              ++totalQualifiedPartitions;
+            }
+          }
+          for (int i = 0; i < secondSelectedDataPartitions.length; ++i) {
+            if (secondSelectedDataPartitions[i]) {
+              totalScanTasks += secondSelectedDataPartitions.length + secondDeleteFileCount - i;
+              ++totalQualifiedPartitions;
+            }
+          }
+        }
+        return totalScanTasks + totalQualifiedPartitions;
       case ALL_DELETE_FILES:
-        return partitions * 2; // ScanTask for Data Manifest in DELETED and ADDED states
+        for (int i = 0; i < firstSelectedDeletePartitions.length; ++i) {
+          if (firstSelectedDeletePartitions[i]) {
+            totalScanTasks += firstSelectedDeletePartitions.length - i;
+            ++totalQualifiedPartitions;
+          }
+        }
+        for (int i = 0; i < secondSelectedDeletePartitions.length; ++i) {
+          if (secondSelectedDeletePartitions[i]) {
+            totalScanTasks += secondSelectedDeletePartitions.length - i;
+            ++totalQualifiedPartitions;
+          }
+        }
+        return totalScanTasks + totalQualifiedPartitions;
       case ALL_FILES:
       case ALL_ENTRIES:
         if (formatVersion == 1) {
-          return partitions * 2; // ScanTask for Data Manifest in DELETED and ADDED states
+          for (int i = 0; i < firstSelectedDataPartitions.length; ++i) {
+            if (firstSelectedDataPartitions[i]) {
+              totalScanTasks += firstSelectedDataPartitions.length - i;
+              ++totalQualifiedPartitions;
+            }
+          }
+          for (int i = 0; i < secondSelectedDataPartitions.length; ++i) {
+            if (secondSelectedDataPartitions[i]) {
+              totalScanTasks += secondSelectedDataPartitions.length - i;
+              ++totalQualifiedPartitions;
+            }
+          }
         } else {
-          return partitions * 4; // ScanTask for Delete and Data File in DELETED and ADDED states
+          for (int i = 0; i < firstSelectedDataPartitions.length; ++i) {
+            if (firstSelectedDataPartitions[i]) {
+              totalScanTasks += firstSelectedDataPartitions.length + firstDeleteFileCount - i;
+              ++totalQualifiedPartitions;
+            }
+          }
+          for (int i = 0; i < secondSelectedDataPartitions.length; ++i) {
+            if (secondSelectedDataPartitions[i]) {
+              totalScanTasks += secondSelectedDataPartitions.length + secondDeleteFileCount - i;
+              ++totalQualifiedPartitions;
+            }
+          }
+          // Only V2 has DELETE FILES
+          for (int i = 0; i < firstSelectedDeletePartitions.length; ++i) {
+            if (firstSelectedDeletePartitions[i]) {
+              totalScanTasks += firstSelectedDeletePartitions.length - i;
+              ++totalQualifiedPartitions;
+            }
+          }
+          for (int i = 0; i < secondSelectedDeletePartitions.length; ++i) {
+            if (secondSelectedDeletePartitions[i]) {
+              totalScanTasks += secondSelectedDeletePartitions.length - i;
+              ++totalQualifiedPartitions;
+            }
+          }
+        }
+        return totalScanTasks + totalQualifiedPartitions;
+      default:
+        throw new IllegalArgumentException("Unsupported metadata table type:" + type);
+    }
+  }
+
+  private int expectedCombinedScanTaskCount(int partitions) {
+    switch (type) {
+      case FILES:
+      case ENTRIES:
+      case DATA_FILES:
+      case DELETE_FILES:
+      case ALL_DELETE_FILES:
+        return partitions;
+      case ALL_DATA_FILES:
+      case ALL_FILES:
+      case ALL_ENTRIES:
+        if (formatVersion == 1) {
+          return partitions;
+        } else {
+          return partitions * 2;
         }
       default:
         throw new IllegalArgumentException("Unsupported metadata table type:" + type);
@@ -196,7 +305,14 @@ public class TestMetadataTableFilters extends TestBase {
     TableScan scan = metadataTable.newScan().select(partitionColumn("data_bucket"));
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
-    assertThat(tasks).hasSize(expectedScanTaskCount(4));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {true, true, true, true},
+                new Boolean[] {true, true, true, true},
+                PARTITION_NOT_AVAILABLE,
+                PARTITION_NOT_AVAILABLE,
+                0));
     validateFileScanTasks(tasks, 0);
     validateFileScanTasks(tasks, 1);
     validateFileScanTasks(tasks, 2);
@@ -212,7 +328,14 @@ public class TestMetadataTableFilters extends TestBase {
     TableScan scan = metadataTable.newScan().filter(and);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
-    assertThat(tasks).hasSize(expectedScanTaskCount(1));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {true, false, false, false},
+                new Boolean[] {true, false, false, false},
+                PARTITION_NOT_AVAILABLE,
+                PARTITION_NOT_AVAILABLE,
+                0));
     validateFileScanTasks(tasks, 0);
   }
 
@@ -223,7 +346,14 @@ public class TestMetadataTableFilters extends TestBase {
     Expression lt = Expressions.lessThan(partitionColumn("data_bucket"), 2);
     TableScan scan = metadataTable.newScan().filter(lt);
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
-    assertThat(tasks).hasSize(expectedScanTaskCount(2));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {true, false, false, true},
+                new Boolean[] {true, true, false, false},
+                PARTITION_NOT_AVAILABLE,
+                PARTITION_NOT_AVAILABLE,
+                0));
     validateFileScanTasks(tasks, 0);
     validateFileScanTasks(tasks, 1);
   }
@@ -238,7 +368,14 @@ public class TestMetadataTableFilters extends TestBase {
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
-    assertThat(tasks).hasSize(expectedScanTaskCount(4));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {true, true, true, true},
+                new Boolean[] {true, true, true, true},
+                PARTITION_NOT_AVAILABLE,
+                PARTITION_NOT_AVAILABLE,
+                0));
     validateFileScanTasks(tasks, 0);
     validateFileScanTasks(tasks, 1);
     validateFileScanTasks(tasks, 2);
@@ -253,7 +390,14 @@ public class TestMetadataTableFilters extends TestBase {
     TableScan scan = metadataTable.newScan().filter(not);
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
-    assertThat(tasks).hasSize(expectedScanTaskCount(2));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {false, true, true, false},
+                new Boolean[] {false, false, true, true},
+                PARTITION_NOT_AVAILABLE,
+                PARTITION_NOT_AVAILABLE,
+                0));
     validateFileScanTasks(tasks, 2);
     validateFileScanTasks(tasks, 3);
   }
@@ -266,7 +410,14 @@ public class TestMetadataTableFilters extends TestBase {
     TableScan scan = metadataTable.newScan().filter(set);
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
-    assertThat(tasks).hasSize(expectedScanTaskCount(2));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {false, true, true, false},
+                new Boolean[] {false, false, true, true},
+                PARTITION_NOT_AVAILABLE,
+                PARTITION_NOT_AVAILABLE,
+                0)); // 7 in v1; 15 in v2
 
     validateFileScanTasks(tasks, 2);
     validateFileScanTasks(tasks, 3);
@@ -279,7 +430,14 @@ public class TestMetadataTableFilters extends TestBase {
     TableScan scan = metadataTable.newScan().filter(unary);
 
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
-    assertThat(tasks).hasSize(expectedScanTaskCount(4));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {true, true, true, true},
+                new Boolean[] {true, true, true, true},
+                PARTITION_NOT_AVAILABLE,
+                PARTITION_NOT_AVAILABLE,
+                0));
 
     validateFileScanTasks(tasks, 0);
     validateFileScanTasks(tasks, 1);
@@ -296,7 +454,7 @@ public class TestMetadataTableFilters extends TestBase {
 
     TableScan scan = metadataTable.newScan().filter(and);
     CloseableIterable<CombinedScanTask> tasks = scan.planTasks();
-    assertThat(tasks).hasSize(1);
+    assertThat(tasks).hasSize(expectedCombinedScanTaskCount(1));
     validateCombinedScanTasks(tasks, 0);
   }
 
@@ -352,7 +510,14 @@ public class TestMetadataTableFilters extends TestBase {
     CloseableIterable<FileScanTask> tasks = scan.planFiles();
 
     // All 4 original data files written by old spec, plus one data file written by new spec
-    assertThat(tasks).hasSize(expectedScanTaskCount(5));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {true, true, true, true},
+                new Boolean[] {true, true, true, true},
+                new Boolean[] {true, false},
+                new Boolean[] {true, false},
+                0));
 
     filter =
         Expressions.and(Expressions.equal(partitionColumn("data_bucket"), 0), dummyExpression());
@@ -361,7 +526,14 @@ public class TestMetadataTableFilters extends TestBase {
 
     // 1 original data file written by old spec (V1 filters out new specs which don't have this
     // value)
-    assertThat(tasks).hasSize(expectedScanTaskCount(1));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {true, false, false, false},
+                new Boolean[] {true, false, false, false},
+                new Boolean[] {false, false},
+                new Boolean[] {false, false},
+                0));
   }
 
   @TestTemplate
@@ -435,7 +607,14 @@ public class TestMetadataTableFilters extends TestBase {
 
     // All 4 original data/delete files written by old spec, plus one new data file/delete file
     // written by new spec
-    assertThat(tasks).hasSize(expectedScanTaskCount(5));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {true, true, true, true},
+                new Boolean[] {true, true, true, true},
+                new Boolean[] {true, false},
+                new Boolean[] {true, false},
+                2));
 
     filter =
         Expressions.and(Expressions.equal(partitionColumn("data_bucket"), 0), dummyExpression());
@@ -444,7 +623,14 @@ public class TestMetadataTableFilters extends TestBase {
 
     // 1 original data/delete files written by old spec, plus both of new data file/delete file
     // written by new spec
-    assertThat(tasks).hasSize(expectedScanTaskCount(3));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {true, false, false, false},
+                new Boolean[] {true, false, false, false},
+                new Boolean[] {true, true},
+                new Boolean[] {true, true},
+                2));
   }
 
   @TestTemplate
@@ -502,7 +688,14 @@ public class TestMetadataTableFilters extends TestBase {
 
     // All 4 original data/delete files written by old spec, plus one new data file written by new
     // spec
-    assertThat(tasks).hasSize(expectedScanTaskCount(5));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {true, true, true, true},
+                new Boolean[] {false, false, false, false},
+                new Boolean[] {true, false},
+                new Boolean[] {false, false},
+                0));
 
     filter =
         Expressions.and(Expressions.equal(partitionColumn("data_bucket"), 0), dummyExpression());
@@ -510,7 +703,14 @@ public class TestMetadataTableFilters extends TestBase {
     tasks = scan.planFiles();
 
     // 1 original data file written by old spec, plus 1 new data file written by new spec
-    assertThat(tasks).hasSize(expectedScanTaskCount(2));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {true, false, false, false},
+                new Boolean[] {false, false, false, false},
+                new Boolean[] {true, false},
+                new Boolean[] {false, false},
+                0));
   }
 
   @TestTemplate
@@ -584,7 +784,14 @@ public class TestMetadataTableFilters extends TestBase {
 
     // All 4 original data/delete files written by old spec, plus one new data file/delete file
     // written by new spec
-    assertThat(tasks).hasSize(expectedScanTaskCount(5));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {true, true, true, true},
+                new Boolean[] {true, true, true, true},
+                new Boolean[] {true, false},
+                new Boolean[] {true, false},
+                2));
 
     filter =
         Expressions.and(Expressions.equal(partitionColumn("data_bucket"), 0), dummyExpression());
@@ -593,7 +800,14 @@ public class TestMetadataTableFilters extends TestBase {
 
     // 1 original data/delete files written by old spec, plus 1 of new data file/delete file written
     // by new spec
-    assertThat(tasks).hasSize(expectedScanTaskCount(2));
+    assertThat(tasks)
+        .hasSize(
+            expectedScanTaskCount(
+                new Boolean[] {true, false, false, false},
+                new Boolean[] {true, false, false, false},
+                new Boolean[] {true, false},
+                new Boolean[] {true, false},
+                2));
   }
 
   private void validateFileScanTasks(CloseableIterable<FileScanTask> fileScanTasks, int partValue) {
@@ -630,5 +844,9 @@ public class TestMetadataTableFilters extends TestBase {
       throw new IllegalArgumentException(
           "Unexpected task type: " + task.getClass().getCanonicalName());
     }
+  }
+
+  private int countTrue(Boolean[] booleans) {
+    return Math.toIntExact(Stream.of(booleans).filter(Boolean.TRUE::equals).count());
   }
 }
