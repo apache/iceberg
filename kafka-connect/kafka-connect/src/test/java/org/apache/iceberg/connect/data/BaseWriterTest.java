@@ -29,8 +29,10 @@ import org.apache.iceberg.LocationProviders;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.connect.IcebergSinkConfig;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.data.avro.IcebergDecoder;
 import org.apache.iceberg.encryption.PlaintextEncryptionManager;
 import org.apache.iceberg.inmemory.InMemoryFileIO;
 import org.apache.iceberg.io.TaskWriter;
@@ -39,6 +41,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.types.Types;
+import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.BeforeEach;
 
 public class BaseWriterTest {
@@ -73,7 +76,7 @@ public class BaseWriterTest {
 
   protected WriteResult writeTest(
       List<Record> rows, IcebergSinkConfig config, Class<?> expectedWriterClass) {
-    try (TaskWriter<Record> writer = RecordUtils.createTableWriter(table, "name", config)) {
+    try (TaskWriter<Record> writer = RecordUtils.createTableWriter(table, "name", config, "topic=test_topic/partition=test_partition/offset=test_offset_0")) {
       assertThat(writer.getClass()).isEqualTo(expectedWriterClass);
 
       rows.forEach(
