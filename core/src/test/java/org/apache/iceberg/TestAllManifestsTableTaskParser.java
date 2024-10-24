@@ -122,7 +122,7 @@ public class TestAllManifestsTableTaskParser {
         + "{\"id\":12,\"name\":\"lower_bound\",\"required\":false,\"type\":\"string\"},"
         + "{\"id\":13,\"name\":\"upper_bound\",\"required\":false,\"type\":\"string\"}]},\"element-required\":true}},"
         + "{\"id\":18,\"name\":\"reference_snapshot_id\",\"required\":true,\"type\":\"long\"}]},"
-        + "\"partition-specs\":[{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
+        + "\"partition-specs\":[{\"spec-id\":0,\"schema-id\":0,\"fields\":[{\"name\":\"data_bucket\","
         + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]}],"
         + "\"manifest-list-Location\":\"/path/manifest-list-file.avro\","
         + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1},"

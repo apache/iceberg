@@ -387,8 +387,9 @@ public class TableMetadataParser {
       ImmutableList.Builder<PartitionSpec> builder = ImmutableList.builder();
       for (JsonNode spec : specArray) {
         UnboundPartitionSpec unboundSpec = PartitionSpecParser.fromJson(spec);
-        if (unboundSpec.specId() == defaultSpecId) {
-          builder.add(unboundSpec.bind(schema));
+        int schemaId = unboundSpec.schemaId();
+        if (schemaId != -1) {
+          builder.add(unboundSpec.bind(schemas.get(schemaId)));
         } else {
           builder.add(unboundSpec.bindUnchecked(schema));
         }

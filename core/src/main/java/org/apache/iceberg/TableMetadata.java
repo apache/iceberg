@@ -1052,12 +1052,6 @@ public class TableMetadata implements Serializable {
       Preconditions.checkArgument(
           schema != null, "Cannot set current schema to unknown schema: %s", schemaId);
 
-      // rebuild all the partition specs and sort orders for the new current schema
-      this.specs =
-          Lists.newArrayList(Iterables.transform(specs, spec -> updateSpecSchema(schema, spec)));
-      specsById.clear();
-      specsById.putAll(PartitionUtil.indexSpecs(specs));
-
       this.sortOrders =
           Lists.newArrayList(
               Iterables.transform(sortOrders, order -> updateSortOrderSchema(schema, order)));
@@ -1536,6 +1530,17 @@ public class TableMetadata implements Serializable {
       changes.add(new MetadataUpdate.AddSchema(newSchema, lastColumnId));
 
       this.lastAddedSchemaId = newSchemaId;
+
+      PartitionSpec currentSpec = specsById.get(defaultSpecId);
+      if (currentSpec != null) {
+        PartitionSpec newCurrentSpec = updateSpecSchema(newSchema, currentSpec);
+        specsById.put(defaultSpecId, newCurrentSpec);
+        for (int i = 0; i < specs.size(); i++) {
+          if (specs.get(i).specId() == defaultSpecId) {
+            specs.set(i, newCurrentSpec);
+          }
+        }
+      }
 
       return newSchemaId;
     }

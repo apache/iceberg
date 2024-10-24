@@ -64,6 +64,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.JsonUtil;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -80,6 +81,8 @@ public class TestTableMetadata {
           Types.NestedField.required(2, "y", Types.LongType.get(), "comment"),
           Types.NestedField.required(3, "z", Types.LongType.get()));
 
+  private static final List<Schema> TEST_SCHEMAS = Lists.newArrayList();
+
   private static final long SEQ_NO = 34;
   private static final int LAST_ASSIGNED_COLUMN_ID = 3;
 
@@ -95,6 +98,15 @@ public class TestTableMetadata {
   @TempDir private Path temp;
 
   public TableOperations ops = new LocalTableOperations(temp);
+
+  @BeforeAll
+  public static void constructSchemas() {
+    TEST_SCHEMAS.clear();
+    for (int i = 0; i < 8; i++) {
+      TEST_SCHEMAS.add(new Schema(i, ImmutableList.of()));
+    }
+    TEST_SCHEMAS.set(7, TEST_SCHEMA);
+  }
 
   @Test
   @SuppressWarnings("MethodLength")
@@ -158,6 +170,8 @@ public class TestTableMetadata {
                 .path("/some/partition/stats/file.parquet")
                 .fileSizeInBytes(42L)
                 .build());
+    List<Schema> schemas = Lists.newArrayList(TEST_SCHEMAS);
+    schemas.set(6, schema);
 
     TableMetadata expected =
         new TableMetadata(
@@ -169,7 +183,7 @@ public class TestTableMetadata {
             System.currentTimeMillis(),
             3,
             7,
-            ImmutableList.of(TEST_SCHEMA, schema),
+            schemas,
             5,
             ImmutableList.of(SPEC_5),
             SPEC_5.lastAssignedFieldId(),
@@ -555,7 +569,7 @@ public class TestTableMetadata {
             System.currentTimeMillis(),
             3,
             7,
-            ImmutableList.of(TEST_SCHEMA),
+            TEST_SCHEMAS,
             5,
             ImmutableList.of(SPEC_5),
             SPEC_5.lastAssignedFieldId(),
@@ -1470,7 +1484,7 @@ public class TestTableMetadata {
 
   @ParameterizedTest
   @MethodSource("upgradeFormatVersionProvider")
-  public void testReplaceMetadataThroughTableProperty(int baseFormatVersion, int newFormatVersion) {
+  void testReplaceMetadataThroughTableProperty(int baseFormatVersion, int newFormatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =
@@ -1499,7 +1513,7 @@ public class TestTableMetadata {
 
   @ParameterizedTest
   @MethodSource("upgradeFormatVersionProvider")
-  public void testUpgradeMetadataThroughTableProperty(int baseFormatVersion, int newFormatVersion) {
+  void testUpgradeMetadataThroughTableProperty(int baseFormatVersion, int newFormatVersion) {
     Schema schema = new Schema(Types.NestedField.required(10, "x", Types.StringType.get()));
 
     TableMetadata meta =

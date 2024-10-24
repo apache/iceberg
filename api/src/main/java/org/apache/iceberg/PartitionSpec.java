@@ -101,7 +101,8 @@ public class PartitionSpec implements Serializable {
   }
 
   public UnboundPartitionSpec toUnbound() {
-    UnboundPartitionSpec.Builder builder = UnboundPartitionSpec.builder().withSpecId(specId);
+    UnboundPartitionSpec.Builder builder =
+        UnboundPartitionSpec.builder().withSpecId(specId).withSchemaId(schema.schemaId());
 
     for (PartitionField field : fields) {
       builder.addField(
@@ -630,21 +631,19 @@ public class PartitionSpec implements Serializable {
       // In the case of a Version 1 partition-spec field gets deleted,
       // it is replaced with a void transform, see:
       // https://iceberg.apache.org/spec/#partition-transforms
-      // We don't care about the source type since a VoidTransform is always compatible and skip the
-      // checks
-      if (!transform.equals(Transforms.alwaysNull())) {
-        ValidationException.check(
-            sourceType != null, "Cannot find source column for partition field: %s", field);
-        ValidationException.check(
-            sourceType.isPrimitiveType(),
-            "Cannot partition by non-primitive source field: %s",
-            sourceType);
-        ValidationException.check(
-            transform.canTransform(sourceType),
-            "Invalid source type %s for transform: %s",
-            sourceType,
-            transform);
-      }
+      // We don't care about the source type, but we should check partition field could
+      // be found in schema
+      ValidationException.check(
+          sourceType != null, "Cannot find source column for partition field: %s", field);
+      ValidationException.check(
+          sourceType.isPrimitiveType(),
+          "Cannot partition by non-primitive source field: %s",
+          sourceType);
+      ValidationException.check(
+          transform.canTransform(sourceType),
+          "Invalid source type %s for transform: %s",
+          sourceType,
+          transform);
     }
   }
 

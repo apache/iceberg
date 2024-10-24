@@ -100,7 +100,7 @@ public class TestFilesTableTaskParser {
         + "{\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
         + "\"file-io\":{\"io-impl\":\"org.apache.iceberg.hadoop.HadoopFileIO\","
         + "\"properties\":{\"k1\":\"v1\",\"k2\":\"v2\"}},"
-        + "\"partition-specs\":[{\"spec-id\":0,\"fields\":[{"
+        + "\"partition-specs\":[{\"spec-id\":0,\"schema-id\":0,\"fields\":[{"
         + "\"name\":\"data_bucket\",\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]}],"
         + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1},"
         + "\"manifest-file\":{\"path\":\"/path/input.m0.avro\","

@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
 import java.util.List;
+import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -37,6 +38,7 @@ public class TestPartitionSpecParser extends TestBase {
     String expected =
         "{\n"
             + "  \"spec-id\" : 0,\n"
+            + "  \"schema-id\" : 0,\n"
             + "  \"fields\" : [ {\n"
             + "    \"name\" : \"data_bucket\",\n"
             + "    \"transform\" : \"bucket[16]\",\n"
@@ -54,6 +56,7 @@ public class TestPartitionSpecParser extends TestBase {
     expected =
         "{\n"
             + "  \"spec-id\" : 1,\n"
+            + "  \"schema-id\" : 0,\n"
             + "  \"fields\" : [ {\n"
             + "    \"name\" : \"id_bucket\",\n"
             + "    \"transform\" : \"bucket[8]\",\n"
@@ -74,6 +77,7 @@ public class TestPartitionSpecParser extends TestBase {
     String specString =
         "{\n"
             + "  \"spec-id\" : 1,\n"
+            + "  \"schema-id\" : 0,\n"
             + "  \"fields\" : [ {\n"
             + "    \"name\" : \"id_bucket\",\n"
             + "    \"transform\" : \"bucket[8]\",\n"
@@ -100,6 +104,7 @@ public class TestPartitionSpecParser extends TestBase {
     String specString =
         "{\n"
             + "  \"spec-id\" : 1,\n"
+            + "  \"schema-id\" : 0,\n"
             + "  \"fields\" : [ {\n"
             + "    \"name\" : \"id_bucket\",\n"
             + "    \"transform\" : \"bucket[8]\",\n"
@@ -120,10 +125,78 @@ public class TestPartitionSpecParser extends TestBase {
   }
 
   @TestTemplate
-  public void testTransforms() {
-    for (PartitionSpec spec : PartitionSpecTestBase.SPECS) {
-      assertThat(roundTripJSON(spec)).isEqualTo(spec);
-    }
+  public void testFromJsonWithoutSchemaId() {
+    String specString =
+        "{\n"
+            + "  \"spec-id\" : 1,\n"
+            + "  \"fields\" : [ {\n"
+            + "    \"name\" : \"id_bucket\",\n"
+            + "    \"transform\" : \"bucket[8]\",\n"
+            + "    \"source-id\" : 1,\n"
+            + "    \"field-id\" : 1001\n"
+            + "  }, {\n"
+            + "    \"name\" : \"data_bucket\",\n"
+            + "    \"transform\" : \"bucket[16]\",\n"
+            + "    \"source-id\" : 2,\n"
+            + "    \"field-id\" : 1000\n"
+            + "  } ]\n"
+            + "}";
+
+    PartitionSpec spec = PartitionSpecParser.fromJson(table.schema(), specString);
+
+    assertThat(spec.fields().size()).isEqualTo(2);
+    // should be the field ids in the JSON
+    assertThat(spec.fields().get(0).fieldId()).isEqualTo(1001);
+    assertThat(spec.fields().get(1).fieldId()).isEqualTo(1000);
+  }
+
+  @TestTemplate
+  public void testForUpdateSchema() {
+    String expected =
+        "{\n"
+            + "  \"spec-id\" : 0,\n"
+            + "  \"schema-id\" : 0,\n"
+            + "  \"fields\" : [ {\n"
+            + "    \"name\" : \"data_bucket\",\n"
+            + "    \"transform\" : \"bucket[16]\",\n"
+            + "    \"source-id\" : 2,\n"
+            + "    \"field-id\" : 1000\n"
+            + "  } ]\n"
+            + "}";
+    assertThat(PartitionSpecParser.toJson(table.spec(), true)).isEqualTo(expected);
+
+    PartitionSpec spec =
+        PartitionSpec.builderFor(table.schema()).bucket("id", 8).bucket("data", 16).build();
+
+    table.ops().commit(table.ops().current(), table.ops().current().updatePartitionSpec(spec));
+    Schema newSchema =
+        new Schema(
+            Types.NestedField.required(1, "id", Types.IntegerType.get()),
+            Types.NestedField.required(2, "data_renamed", Types.StringType.get()));
+
+    table
+        .ops()
+        .commit(
+            table.ops().current(),
+            table.ops().current().updateSchema(newSchema, table.schema().highestFieldId()));
+
+    expected =
+        "{\n"
+            + "  \"spec-id\" : 1,\n"
+            + "  \"schema-id\" : 1,\n"
+            + "  \"fields\" : [ {\n"
+            + "    \"name\" : \"id_bucket\",\n"
+            + "    \"transform\" : \"bucket[8]\",\n"
+            + "    \"source-id\" : 1,\n"
+            + "    \"field-id\" : 1000\n"
+            + "  }, {\n"
+            + "    \"name\" : \"data_bucket\",\n"
+            + "    \"transform\" : \"bucket[16]\",\n"
+            + "    \"source-id\" : 2,\n"
+            + "    \"field-id\" : 1001\n"
+            + "  } ]\n"
+            + "}";
+    assertThat(PartitionSpecParser.toJson(table.spec(), true)).isEqualTo(expected);
   }
 
   private static PartitionSpec roundTripJSON(PartitionSpec spec) {

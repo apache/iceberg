@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
@@ -422,9 +423,22 @@ public class TestPartitioning {
   }
 
   @Test
-  public void testDeletingPartitionField() {
+  public void testDeletingPartitionFieldV1() {
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", SCHEMA, BY_DATA_SPEC, V1_FORMAT_VERSION);
+
+    table.updateSpec().removeField("data").commit();
+
+    assertThatThrownBy(
+        () -> table.updateSchema().deleteColumn("data").commit(),
+        "should throw validationError",
+        ValidationException.class);
+  }
+
+  @Test
+  public void testDeletingPartitionFieldV2() {
+    TestTables.TestTable table =
+        TestTables.create(tableDir, "test", SCHEMA, BY_DATA_SPEC, V2_FORMAT_VERSION);
 
     table.updateSpec().removeField("data").commit();
 
@@ -435,8 +449,7 @@ public class TestPartitioning {
     PartitionSpec spec =
         PartitionSpec.builderFor(SCHEMA)
             .withSpecId(2)
-            .alwaysNull("data", "data")
-            .identity("id")
+            .add(1, 1001, "id", Transforms.identity())
             .build();
 
     assertThat(table.spec()).isEqualTo(spec);
