@@ -131,6 +131,7 @@ subprojects {
           '-Xep:ObjectsHashCodeUnnecessaryVarargs:ERROR',
           '-Xep:OrphanedFormatString:ERROR',
           '-Xep:Overrides:ERROR',
+          '-Xep:PatternMatchingInstanceof:ERROR',
           // Triggers false-positives whenever relocated @VisibleForTesting is used
           '-Xep:PreferCommonAnnotations:OFF',
           // specific to Palantir
