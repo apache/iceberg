@@ -1295,10 +1295,11 @@ Note that default values are serialized using the JSON single-value serializatio
 
 Partition specs are serialized as a JSON object with the following fields:
 
-|Field|JSON representation|Example|
-|--- |--- |--- |
-|**`spec-id`**|`JSON int`|`0`|
-|**`fields`**|`JSON list: [`<br />&nbsp;&nbsp;`<partition field JSON>,`<br />&nbsp;&nbsp;`...`<br />`]`|`[ {`<br />&nbsp;&nbsp;`"source-id": 4,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "ts_day",`<br />&nbsp;&nbsp;`"transform": "day"`<br />`}, {`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1001,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`} ]`|
+| Field           |JSON representation| Example                                                                                                                                                                                                                                                                                                                                      |
+|-----------------|--- |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **`spec-id`**   |`JSON int`| `0`                                                                                                                                                                                                                                                                                                                                          |
+| **`schema-id`** |`JSON int`| `-1`                                                                                                                                                                                                                                                                                                                                         |
+| **`fields`**    |`JSON list: [`<br />&nbsp;&nbsp;`<partition field JSON>,`<br />&nbsp;&nbsp;`...`<br />`]`| `[ {`<br />&nbsp;&nbsp;`"source-id": 4,`<br />&nbsp;&nbsp;`"field-id": 1000,`<br />&nbsp;&nbsp;`"name": "ts_day",`<br />&nbsp;&nbsp;`"transform": "day"`<br />`}, {`<br />&nbsp;&nbsp;`"source-id": 1,`<br />&nbsp;&nbsp;`"field-id": 1001,`<br />&nbsp;&nbsp;`"name": "id_bucket",`<br />&nbsp;&nbsp;`"transform": "bucket[16]"`<br />`} ]` |
 
 Each partition field in `fields` is stored as a JSON object with the following properties.
 
