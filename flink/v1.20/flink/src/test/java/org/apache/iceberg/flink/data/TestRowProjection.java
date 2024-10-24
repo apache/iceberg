@@ -64,7 +64,7 @@ public class TestRowProjection {
     Iterable<RowData> records =
         Avro.read(Files.localInput(file))
             .project(readSchema)
-            .createReaderFunc(FlinkAvroReader::new)
+            .createResolvingReader(FlinkPlannedAvroReader::create)
             .build();
 
     return Iterables.getOnlyElement(records);

@@ -91,7 +91,7 @@ public class TestFlinkAvroReaderWriter extends DataTest {
     try (CloseableIterable<RowData> reader =
         Avro.read(Files.localInput(recordsFile))
             .project(schema)
-            .createReaderFunc(FlinkAvroReader::new)
+            .createResolvingReader(FlinkPlannedAvroReader::create)
             .build()) {
       Iterator<Record> expected = expectedRecords.iterator();
       Iterator<RowData> rows = reader.iterator();
