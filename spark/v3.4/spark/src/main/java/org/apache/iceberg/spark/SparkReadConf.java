@@ -351,4 +351,12 @@ public class SparkReadConf {
         .defaultValue(SparkSQLProperties.EXECUTOR_CACHE_LOCALITY_ENABLED_DEFAULT)
         .parse();
   }
+
+  public ParquetReaderType parquetReaderType() {
+    return confParser
+        .enumConf(ParquetReaderType::valueOf)
+        .sessionConf(SparkSQLProperties.PARQUET_READER_TYPE)
+        .defaultValue(SparkSQLProperties.PARQUET_READER_TYPE_DEFAULT)
+        .parse();
+  }
 }
