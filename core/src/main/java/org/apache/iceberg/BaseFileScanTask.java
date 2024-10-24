@@ -23,6 +23,7 @@ import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.util.ContentFileUtil;
 
 public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile>
     implements FileScanTask {
@@ -79,7 +80,7 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     if (deletesSizeBytes == 0L && deletes.length > 0) {
       long size = 0L;
       for (DeleteFile deleteFile : deletes) {
-        size += deleteFile.fileSizeInBytes();
+        size += ContentFileUtil.contentSizeInBytes(deleteFile);
       }
       this.deletesSizeBytes = size;
     }
@@ -182,7 +183,7 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
       if (deletesSizeBytes == 0L && fileScanTask.filesCount() > 1) {
         long size = 0L;
         for (DeleteFile deleteFile : fileScanTask.deletes()) {
-          size += deleteFile.fileSizeInBytes();
+          size += ContentFileUtil.contentSizeInBytes(deleteFile);
         }
         this.deletesSizeBytes = size;
       }

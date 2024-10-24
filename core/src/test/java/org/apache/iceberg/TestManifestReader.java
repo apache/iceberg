@@ -32,6 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.assertj.core.api.recursive.comparison.RecursiveComparisonConfiguration;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -130,7 +131,7 @@ public class TestManifestReader extends TestBase {
       long expectedPos = 0L;
       for (DataFile file : reader) {
         assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
-        assertThat(((BaseFile) file).get(17))
+        assertThat(((BaseFile) file).get(20))
             .as("Position from field index should match")
             .isEqualTo(expectedPos);
         expectedPos += 1;
@@ -150,7 +151,9 @@ public class TestManifestReader extends TestBase {
 
   @TestTemplate
   public void testDeleteFilePositions() throws IOException {
-    assumeThat(formatVersion).as("Delete files only work for format version 2").isEqualTo(2);
+    assumeThat(formatVersion)
+        .as("Delete files require format version 2 and above")
+        .isGreaterThanOrEqualTo(2);
     ManifestFile manifest =
         writeDeleteManifest(formatVersion, 1000L, FILE_A_DELETES, FILE_B_DELETES);
     try (ManifestReader<DeleteFile> reader =
@@ -158,7 +161,7 @@ public class TestManifestReader extends TestBase {
       long expectedPos = 0L;
       for (DeleteFile file : reader) {
         assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
-        assertThat(((BaseFile) file).get(17))
+        assertThat(((BaseFile) file).get(20))
             .as("Position from field index should match")
             .isEqualTo(expectedPos);
         expectedPos += 1;
@@ -177,6 +180,32 @@ public class TestManifestReader extends TestBase {
         ManifestFiles.readDeleteManifest(manifest, FILE_IO, null)) {
       for (DeleteFile file : reader) {
         assertThat(file.manifestLocation()).isEqualTo(manifest.path());
+      }
+    }
+  }
+
+  @TestTemplate
+  public void testDVs() throws IOException {
+    assumeThat(formatVersion)
+        .as("DVs require format version 3 or higher")
+        .isGreaterThanOrEqualTo(3);
+    int specId = table.spec().specId();
+    DeleteFile dv1 = newDV(specId, "data_bucket=0", FILE_A.location());
+    DeleteFile dv2 = newDV(specId, "data_bucket=2", FILE_B.location());
+    ManifestFile manifest = writeDeleteManifest(formatVersion, 1000L, dv1, dv2);
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, table.specs())) {
+      for (DeleteFile dv : reader) {
+        assertThat(ContentFileUtil.isDV(dv)).isTrue();
+        if (dv.location().equals(dv1.location())) {
+          assertThat(dv.referencedDataFile()).isEqualTo(FILE_A.location());
+          assertThat(dv.contentOffset()).isEqualTo(dv1.contentOffset());
+          assertThat(dv.contentSizeInBytes()).isEqualTo(dv1.contentSizeInBytes());
+        } else {
+          assertThat(dv.referencedDataFile()).isEqualTo(FILE_B.location());
+          assertThat(dv.contentOffset()).isEqualTo(dv2.contentOffset());
+          assertThat(dv.contentSizeInBytes()).isEqualTo(dv2.contentSizeInBytes());
+        }
       }
     }
   }

@@ -31,4 +31,26 @@ public interface DeleteFile extends ContentFile<DeleteFile> {
   default List<Long> splitOffsets() {
     return null;
   }
+
+  /**
+   * Returns the referenced data file location if the delete file is a DV, null otherwise.
+   *
+   * <p>This method always returns a non-null value for delete vectors. The referenced data file is
+   * unknown for equality deletes and partition-scoped position delete files. If a position delete
+   * file references a particular data file, its referenced data file location can be reconstructed
+   * from its bounds.
+   */
+  default String referencedDataFile() {
+    return null;
+  }
+
+  /** Returns the offset in the file where the content starts. */
+  default Long contentOffset() {
+    return null;
+  }
+
+  /** Returns the length of referenced content stored in the file. */
+  default Long contentSizeInBytes() {
+    return null;
+  }
 }

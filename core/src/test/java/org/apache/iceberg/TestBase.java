@@ -665,6 +665,20 @@ public class TestBase {
         .build();
   }
 
+  protected DeleteFile newDV(int specId, String partitionPath, String dataFile) {
+    PartitionSpec spec = table.specs().get(specId);
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".puffin")
+        .withFileSizeInBytes(50)
+        .withPartitionPath(partitionPath)
+        .withRecordCount(3)
+        .withReferencedDataFile(dataFile)
+        .withContentOffset(4)
+        .withContentSizeInBytes(18)
+        .build();
+  }
+
   protected <T> PositionDelete<T> positionDelete(CharSequence path, long pos) {
     return positionDelete(path, pos, null /* no row */);
   }

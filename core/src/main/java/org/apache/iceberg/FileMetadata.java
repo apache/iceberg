@@ -59,6 +59,9 @@ public class FileMetadata {
     private ByteBuffer keyMetadata = null;
     private Integer sortOrderId = null;
     private List<Long> splitOffsets = null;
+    private String referencedDataFile = null;
+    private Long contentOffset = null;
+    private Long contentSizeInBytes = null;
 
     Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -220,6 +223,25 @@ public class FileMetadata {
       return this;
     }
 
+    public Builder withReferencedDataFile(CharSequence newReferencedDataFile) {
+      if (newReferencedDataFile != null) {
+        this.referencedDataFile = newReferencedDataFile.toString();
+      } else {
+        this.referencedDataFile = null;
+      }
+      return this;
+    }
+
+    public Builder withContentOffset(long newContentOffset) {
+      this.contentOffset = newContentOffset;
+      return this;
+    }
+
+    public Builder withContentSizeInBytes(long newContentSizeInBytes) {
+      this.contentSizeInBytes = newContentSizeInBytes;
+      return this;
+    }
+
     public DeleteFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -229,6 +251,16 @@ public class FileMetadata {
       Preconditions.checkArgument(format != null, "File format is required");
       Preconditions.checkArgument(fileSizeInBytes >= 0, "File size is required");
       Preconditions.checkArgument(recordCount >= 0, "Record count is required");
+
+      if (format == FileFormat.PUFFIN) {
+        Preconditions.checkArgument(referencedDataFile != null, "Data file ref is required for DV");
+        Preconditions.checkArgument(contentOffset != null, "Content offset is required for DV");
+        Preconditions.checkArgument(contentSizeInBytes != null, "Content size is required for DV");
+      } else {
+        Preconditions.checkArgument(referencedDataFile == null, "Data file ref is only for DV");
+        Preconditions.checkArgument(contentOffset == null, "Content offset is only for DV");
+        Preconditions.checkArgument(contentSizeInBytes == null, "Content size is only for DV");
+      }
 
       switch (content) {
         case POSITION_DELETES:
@@ -262,7 +294,10 @@ public class FileMetadata {
           equalityFieldIds,
           sortOrderId,
           splitOffsets,
-          keyMetadata);
+          keyMetadata,
+          referencedDataFile,
+          contentOffset,
+          contentSizeInBytes);
     }
   }
 }

@@ -19,6 +19,7 @@
 package org.apache.iceberg.puffin;
 
 import java.util.Map;
+import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -29,6 +30,10 @@ public final class Puffin {
 
   public static WriteBuilder write(OutputFile outputFile) {
     return new WriteBuilder(outputFile);
+  }
+
+  public static WriteBuilder write(EncryptedOutputFile outputFile) {
+    return new WriteBuilder(outputFile.encryptingOutputFile());
   }
 
   /** A builder for {@link PuffinWriter}. */

@@ -55,6 +55,7 @@ public class TestRewriteFiles extends TestBase {
 
   @TestTemplate
   public void testEmptyTable() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     assertThat(listManifestFiles()).isEmpty();
 
     TableMetadata base = readMetadata();
@@ -87,6 +88,7 @@ public class TestRewriteFiles extends TestBase {
 
   @TestTemplate
   public void testAddOnly() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     assertThat(listManifestFiles()).isEmpty();
 
     assertThatThrownBy(
@@ -130,6 +132,7 @@ public class TestRewriteFiles extends TestBase {
 
   @TestTemplate
   public void testDeleteOnly() {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
     assertThat(listManifestFiles()).isEmpty();
 
     assertThatThrownBy(
