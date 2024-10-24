@@ -19,7 +19,6 @@
 package org.apache.iceberg.connect.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -43,19 +42,13 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.Parameter;
-import org.apache.iceberg.ParameterizedTestExtension;
-import org.apache.iceberg.Parameters;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.connect.IcebergSinkConfig;
-import org.apache.iceberg.connect.TableSinkConfig;
 import org.apache.iceberg.connect.data.SchemaUpdate.AddColumn;
 import org.apache.iceberg.connect.data.SchemaUpdate.UpdateType;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.io.UnpartitionedWriter;
-import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.mapping.MappedField;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.mapping.NameMappingParser;
@@ -94,22 +87,9 @@ import org.apache.kafka.connect.storage.ConverterConfig;
 import org.apache.kafka.connect.storage.ConverterType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.TestTemplate;
-import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.Test;
 
-@ExtendWith(ParameterizedTestExtension.class)
-public class RecordConverterTest extends BaseWriterTest {
-
-  @Parameters(name = "format = {0}")
-  protected static Object[][] parameters() {
-    return new Object[][] {
-      {FileFormat.PARQUET.name().toLowerCase(Locale.ROOT)},
-      {FileFormat.ORC.name().toLowerCase(Locale.ROOT)},
-      {FileFormat.AVRO.name().toLowerCase(Locale.ROOT)},
-    };
-  }
-
-  @Parameter protected String format;
+public class RecordConverterTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -227,15 +207,11 @@ public class RecordConverterTest extends BaseWriterTest {
 
   @BeforeEach
   public void before() {
-    super.before();
-    ImmutableMap<String, String> mp = ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format);
-    when(table.schema()).thenReturn(SCHEMA);
     this.config = mock(IcebergSinkConfig.class);
     when(config.jsonConverter()).thenReturn(JSON_CONVERTER);
-    when(config.writeProps()).thenReturn(mp);
   }
 
-  @TestTemplate
+  @Test
   public void testMapConvert() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SCHEMA);
@@ -246,7 +222,26 @@ public class RecordConverterTest extends BaseWriterTest {
     assertRecordValues(record);
   }
 
-  @TestTemplate
+  @Test
+  public void testUUIDConversionWithParquet() {
+    Table table = mock(Table.class);
+    when(table.schema())
+        .thenReturn(new org.apache.iceberg.Schema(NestedField.required(1, "uuid", UUIDType.get())));
+    when(config.writeProps())
+        .thenReturn(
+            ImmutableMap.of(
+                TableProperties.DEFAULT_FILE_FORMAT,
+                FileFormat.PARQUET.name().toLowerCase(Locale.ROOT)));
+
+    RecordConverter converter = new RecordConverter(table, config);
+    Map<String, Object> data =
+        ImmutableMap.<String, Object>builder().put("uuid", UUID_VAL.toString()).build();
+
+    Record record = converter.convert(data);
+    assertThat(record.getField("uuid")).isEqualTo(UUIDUtil.convert(UUID_VAL));
+  }
+
+  @Test
   public void testNestedMapConvert() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(NESTED_SCHEMA);
@@ -257,7 +252,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertNestedRecordValues(record);
   }
 
-  @TestTemplate
+  @Test
   @SuppressWarnings("unchecked")
   public void testMapToString() throws Exception {
     Table table = mock(Table.class);
@@ -272,7 +267,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertThat(map).hasSize(MAPPED_CNT);
   }
 
-  @TestTemplate
+  @Test
   public void testMapValueInListConvert() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(STRUCT_IN_LIST_SCHEMA);
@@ -286,7 +281,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertNestedRecordValues(elementVal);
   }
 
-  @TestTemplate
+  @Test
   public void testMapValueInMapConvert() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(STRUCT_IN_MAP_SCHEMA);
@@ -301,7 +296,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertNestedRecordValues(mapVal);
   }
 
-  @TestTemplate
+  @Test
   public void testStructConvert() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SCHEMA);
@@ -312,7 +307,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertRecordValues(record);
   }
 
-  @TestTemplate
+  @Test
   public void testNestedStructConvert() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(NESTED_SCHEMA);
@@ -323,7 +318,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertNestedRecordValues(record);
   }
 
-  @TestTemplate
+  @Test
   @SuppressWarnings("unchecked")
   public void testStructToString() throws Exception {
     Table table = mock(Table.class);
@@ -338,7 +333,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertThat(map).hasSize(MAPPED_CNT);
   }
 
-  @TestTemplate
+  @Test
   public void testStructValueInListConvert() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(STRUCT_IN_LIST_SCHEMA);
@@ -354,7 +349,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertNestedRecordValues(elementVal);
   }
 
-  @TestTemplate
+  @Test
   public void testStructValueInMapConvert() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(STRUCT_IN_MAP_SCHEMA);
@@ -371,7 +366,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertNestedRecordValues(mapVal);
   }
 
-  @TestTemplate
+  @Test
   public void testNameMapping() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SIMPLE_SCHEMA);
@@ -389,7 +384,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertThat(record.getField("ii")).isEqualTo(123);
   }
 
-  @TestTemplate
+  @Test
   public void testCaseSensitivity() {
     for (boolean caseInsensitive : new boolean[] {true, false}) {
       Table table = mock(Table.class);
@@ -417,7 +412,7 @@ public class RecordConverterTest extends BaseWriterTest {
     }
   }
 
-  @TestTemplate
+  @Test
   public void testIntConversion() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SIMPLE_SCHEMA);
@@ -434,7 +429,7 @@ public class RecordConverterTest extends BaseWriterTest {
             });
   }
 
-  @TestTemplate
+  @Test
   public void testLongConversion() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SIMPLE_SCHEMA);
@@ -451,7 +446,7 @@ public class RecordConverterTest extends BaseWriterTest {
             });
   }
 
-  @TestTemplate
+  @Test
   public void testFloatConversion() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SIMPLE_SCHEMA);
@@ -468,7 +463,7 @@ public class RecordConverterTest extends BaseWriterTest {
             });
   }
 
-  @TestTemplate
+  @Test
   public void testDoubleConversion() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SIMPLE_SCHEMA);
@@ -485,7 +480,7 @@ public class RecordConverterTest extends BaseWriterTest {
             });
   }
 
-  @TestTemplate
+  @Test
   public void testDecimalConversion() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SIMPLE_SCHEMA);
@@ -511,7 +506,7 @@ public class RecordConverterTest extends BaseWriterTest {
             });
   }
 
-  @TestTemplate
+  @Test
   public void testDateConversion() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SIMPLE_SCHEMA);
@@ -533,7 +528,7 @@ public class RecordConverterTest extends BaseWriterTest {
         });
   }
 
-  @TestTemplate
+  @Test
   public void testTimeConversion() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(SIMPLE_SCHEMA);
@@ -555,7 +550,7 @@ public class RecordConverterTest extends BaseWriterTest {
         });
   }
 
-  @TestTemplate
+  @Test
   public void testTimestampWithZoneConversion() {
     OffsetDateTime expected = OffsetDateTime.parse("2023-05-18T11:22:33Z");
     long expectedMillis = expected.toInstant().toEpochMilli();
@@ -574,7 +569,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertTimestampConvert(expected, additionalInput, TimestampType.withZone());
   }
 
-  @TestTemplate
+  @Test
   public void testTimestampWithoutZoneConversion() {
     LocalDateTime expected = LocalDateTime.parse("2023-05-18T11:22:33");
     long expectedMillis = expected.atZone(ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -626,7 +621,7 @@ public class RecordConverterTest extends BaseWriterTest {
         });
   }
 
-  @TestTemplate
+  @Test
   public void testMissingColumnDetectionMap() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(ID_SCHEMA);
@@ -650,7 +645,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertThat(newColMap).doesNotContainKey("null");
   }
 
-  @TestTemplate
+  @Test
   public void testMissingColumnDetectionMapNested() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(ID_SCHEMA);
@@ -671,7 +666,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertTypesAddedFromMap(col -> addedType.field(col).type());
   }
 
-  @TestTemplate
+  @Test
   public void testMissingColumnDetectionMapListValue() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(STRUCT_IN_LIST_BASIC_SCHEMA);
@@ -713,7 +708,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertThat(fn.apply("ma")).isInstanceOf(StructType.class);
   }
 
-  @TestTemplate
+  @Test
   public void testMissingColumnDetectionStruct() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(ID_SCHEMA);
@@ -732,7 +727,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertTypesAddedFromStruct(col -> newColMap.get(col).type());
   }
 
-  @TestTemplate
+  @Test
   public void testMissingColumnDetectionStructNested() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(ID_SCHEMA);
@@ -753,7 +748,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertTypesAddedFromStruct(col -> addedType.field(col).type());
   }
 
-  @TestTemplate
+  @Test
   public void testMissingColumnDetectionStructListValue() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(STRUCT_IN_LIST_BASIC_SCHEMA);
@@ -778,7 +773,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertTypesAddedFromStruct(col -> nestedElementType.field(col).type());
   }
 
-  @TestTemplate
+  @Test
   public void testMissingColumnDetectionStructMapValue() {
     Table table = mock(Table.class);
     when(table.schema()).thenReturn(STRUCT_IN_MAP_BASIC_SCHEMA);
@@ -822,7 +817,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertThat(fn.apply("ma")).isInstanceOf(MapType.class);
   }
 
-  @TestTemplate
+  @Test
   public void testEvolveTypeDetectionStruct() {
     org.apache.iceberg.Schema tableSchema =
         new org.apache.iceberg.Schema(
@@ -850,7 +845,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertThat(updateMap.get("ff").type()).isInstanceOf(DoubleType.class);
   }
 
-  @TestTemplate
+  @Test
   public void testEvolveTypeDetectionStructNested() {
     org.apache.iceberg.Schema structColSchema =
         new org.apache.iceberg.Schema(
@@ -886,7 +881,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertThat(updateMap.get("st.ff").type()).isInstanceOf(DoubleType.class);
   }
 
-  private Map<String, Object> createMapData() {
+  public static Map<String, Object> createMapData() {
     return ImmutableMap.<String, Object>builder()
         .put("i", 1)
         .put("l", 2L)
@@ -952,22 +947,7 @@ public class RecordConverterTest extends BaseWriterTest {
     assertThat(rec.getField("bi")).isEqualTo(BYTES_VAL);
     assertThat(rec.getField("li")).isEqualTo(LIST_VAL);
     assertThat(rec.getField("ma")).isEqualTo(MAP_VAL);
-
-    IcebergSinkConfig icebergSinkConfig = mock(IcebergSinkConfig.class);
-    when(icebergSinkConfig.tableConfig(any())).thenReturn(mock(TableSinkConfig.class));
-    when(icebergSinkConfig.writeProps())
-        .thenReturn(ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format));
-    WriteResult result =
-        writeTest(ImmutableList.of(rec), icebergSinkConfig, UnpartitionedWriter.class);
-
-    if (format.equals(FileFormat.PARQUET.name().toLowerCase(Locale.ROOT))) {
-      assertThat(rec.getField("u")).isEqualTo(UUIDUtil.convert(UUID_VAL));
-    } else {
-      assertThat(rec.getField("u")).isEqualTo(UUID_VAL);
-    }
-    assertThat(result.dataFiles()).hasSize(1);
-    assertThat(result.dataFiles()).allMatch(file -> file.format() == FileFormat.fromString(format));
-    assertThat(result.deleteFiles()).hasSize(0);
+    assertThat(rec.getField("u")).isEqualTo(UUID_VAL);
   }
 
   private void assertNestedRecordValues(Record record) {
