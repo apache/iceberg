@@ -73,7 +73,8 @@ public class OperatorTestBase {
 
   static final long EVENT_TIME = 10L;
   static final long EVENT_TIME_2 = 11L;
-  protected static final String DUMMY_NAME = "dummy";
+  protected static final String DUMMY_TASK_NAME = "dummyTask";
+  protected static final String DUMMY_TABLE_NAME = "dummyTable";
 
   @RegisterExtension
   protected static final MiniClusterExtension MINI_CLUSTER_EXTENSION =
@@ -91,7 +92,7 @@ public class OperatorTestBase {
       new HadoopCatalogExtension(TestFixtures.DATABASE, TestFixtures.TABLE);
 
   @BeforeEach
-  void before() throws IOException {
+  void before() {
     LOCK_FACTORY.open();
     MetricsReporterFactoryForTests.reset();
   }

@@ -52,7 +52,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 
 /** Creates the table maintenance graph. */
 public class TableMaintenance {
-  static final String SOURCE_OPERATOR_NAME = "Monitor source";
+  static final String SOURCE_OPERATOR_NAME_PREFIX = "Monitor source for ";
   static final String TRIGGER_MANAGER_OPERATOR_NAME = "Trigger manager";
   static final String WATERMARK_ASSIGNER_OPERATOR_NAME = "Watermark Assigner";
   static final String FILTER_OPERATOR_NAME_PREFIX = "Filter ";
@@ -217,8 +217,11 @@ public class TableMaintenance {
       }
 
       try (TableLoader loader = tableLoader.clone()) {
+        loader.open();
+        String tableName = loader.loadTable().name();
         DataStream<Trigger> triggers =
-            DataStreamUtils.reinterpretAsKeyedStream(changeStream(loader), unused -> true)
+            DataStreamUtils.reinterpretAsKeyedStream(
+                    changeStream(tableName, loader), unused -> true)
                 .process(
                     new TriggerManager(
                         loader,
@@ -240,18 +243,25 @@ public class TableMaintenance {
         // Add the specific tasks
         DataStream<TaskResult> unioned = null;
         for (int i = 0; i < taskBuilders.size(); ++i) {
-          int finalIndex = i;
+          int taskIndex = i;
           DataStream<Trigger> filtered =
               triggers
-                  .filter(t -> t.taskId() != null && t.taskId() == finalIndex)
-                  .name(FILTER_OPERATOR_NAME_PREFIX + i)
+                  .filter(t -> t.taskId() != null && t.taskId() == taskIndex)
+                  .name(FILTER_OPERATOR_NAME_PREFIX + taskIndex)
                   .forceNonParallel()
-                  .uid(FILTER_OPERATOR_NAME_PREFIX + i + "-" + uidSuffix)
+                  .uid(FILTER_OPERATOR_NAME_PREFIX + taskIndex + "-" + uidSuffix)
                   .slotSharingGroup(slotSharingGroup);
-          MaintenanceTaskBuilder<?> builder = taskBuilders.get(i);
+          MaintenanceTaskBuilder<?> builder = taskBuilders.get(taskIndex);
           DataStream<TaskResult> result =
               builder.append(
-                  filtered, i, taskNames.get(i), loader, uidSuffix, slotSharingGroup, parallelism);
+                  filtered,
+                  taskIndex,
+                  taskNames.get(taskIndex),
+                  tableName,
+                  loader,
+                  uidSuffix,
+                  slotSharingGroup,
+                  parallelism);
           if (unioned == null) {
             unioned = result;
           } else {
@@ -264,31 +274,33 @@ public class TableMaintenance {
             .transform(
                 LOCK_REMOVER_OPERATOR_NAME,
                 TypeInformation.of(Void.class),
-                new LockRemover(lockFactory, taskNames))
+                new LockRemover(tableName, lockFactory, taskNames))
             .forceNonParallel()
             .uid("lock-remover-" + uidSuffix)
             .slotSharingGroup(slotSharingGroup);
       }
     }
 
-    private DataStream<TableChange> changeStream(TableLoader loader) {
+    private DataStream<TableChange> changeStream(String tableName, TableLoader loader) {
       if (inputStream == null) {
         // Create a monitor source to provide the TableChange stream
         MonitorSource source =
             new MonitorSource(
                 loader, RateLimiterStrategy.perSecond(1.0 / rateLimit.getSeconds()), maxReadBack);
-        return env.fromSource(source, WatermarkStrategy.noWatermarks(), SOURCE_OPERATOR_NAME)
-            .uid(SOURCE_OPERATOR_NAME + uidSuffix)
+        return env.fromSource(
+                source, WatermarkStrategy.noWatermarks(), SOURCE_OPERATOR_NAME_PREFIX + tableName)
+            .uid(SOURCE_OPERATOR_NAME_PREFIX + uidSuffix)
             .slotSharingGroup(slotSharingGroup)
             .forceNonParallel();
       } else {
         return inputStream.global();
       }
     }
-  }
 
-  private static String nameFor(MaintenanceTaskBuilder<?> streamBuilder, int taskId) {
-    return String.format("%s [%d]", streamBuilder.getClass().getSimpleName(), taskId);
+    private static String nameFor(MaintenanceTaskBuilder<?> streamBuilder, int taskIndex) {
+      return String.format(
+          "%s [%s]", streamBuilder.getClass().getSimpleName(), String.valueOf(taskIndex));
+    }
   }
 
   @Internal

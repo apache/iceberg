@@ -31,7 +31,8 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 @SuppressWarnings("unchecked")
 public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>> {
   private int index;
-  private String name;
+  private String taskName;
+  private String tableName;
   private TableLoader tableLoader;
   private String uidSuffix = null;
   private String slotSharingGroup = null;
@@ -160,8 +161,12 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
     return index;
   }
 
-  protected String name() {
-    return name;
+  protected String taskName() {
+    return taskName;
+  }
+
+  protected String tableName() {
+    return tableName;
   }
 
   protected TableLoader tableLoader() {
@@ -190,21 +195,23 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
 
   DataStream<TaskResult> append(
       DataStream<Trigger> sourceStream,
-      int defaultTaskIndex,
-      String defaultTaskName,
+      int taskIndex,
+      String taskName,
+      String tableName,
       TableLoader newTableLoader,
-      String mainUidSuffix,
-      String mainSlotSharingGroup,
+      String defaultUidSuffix,
+      String defaultSlotSharingGroup,
       int mainParallelism) {
-    Preconditions.checkNotNull(defaultTaskName, "Task name should not be null");
+    Preconditions.checkNotNull(taskName, "Task name should not be null");
     Preconditions.checkNotNull(newTableLoader, "TableLoader should not be null");
 
-    this.index = defaultTaskIndex;
-    this.name = defaultTaskName;
+    this.index = taskIndex;
+    this.taskName = taskName;
+    this.tableName = tableName;
     this.tableLoader = newTableLoader;
 
     if (uidSuffix == null) {
-      uidSuffix = name + "_" + index + "_" + mainUidSuffix;
+      uidSuffix = this.taskName + "_" + index + "_" + defaultUidSuffix;
     }
 
     if (parallelism == null) {
@@ -212,7 +219,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
     }
 
     if (slotSharingGroup == null) {
-      slotSharingGroup = mainSlotSharingGroup;
+      slotSharingGroup = defaultSlotSharingGroup;
     }
 
     return append(sourceStream);

@@ -20,11 +20,10 @@ package org.apache.iceberg.flink.maintenance.api;
 
 import static org.apache.iceberg.flink.SimpleDataUtil.createRowData;
 import static org.apache.iceberg.flink.maintenance.api.TableMaintenance.LOCK_REMOVER_OPERATOR_NAME;
-import static org.apache.iceberg.flink.maintenance.api.TableMaintenance.SOURCE_OPERATOR_NAME;
+import static org.apache.iceberg.flink.maintenance.api.TableMaintenance.SOURCE_OPERATOR_NAME_PREFIX;
 import static org.apache.iceberg.flink.maintenance.api.TableMaintenance.TRIGGER_MANAGER_OPERATOR_NAME;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.CONCURRENT_RUN_THROTTLED;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.FAILED_TASK_COUNTER;
-import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.GROUP_VALUE_DEFAULT;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.NOTHING_TO_TRIGGER;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.RATE_LIMITER_TRIGGERED;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.SUCCEEDED_TASK_COUNTER;
@@ -188,37 +187,58 @@ class TestTableMaintenance extends OperatorTestBase {
         .until(
             () ->
                 MetricsReporterFactoryForTests.counter(
-                        LOCK_REMOVER_OPERATOR_NAME + "." + TASKS[0] + "." + SUCCEEDED_TASK_COUNTER)
+                        ImmutableList.of(
+                            LOCK_REMOVER_OPERATOR_NAME,
+                            table.name(),
+                            TASKS[0],
+                            "0",
+                            SUCCEEDED_TASK_COUNTER))
                     .equals(2L));
 
     MetricsReporterFactoryForTests.assertCounters(
-        new ImmutableMap.Builder<String, Long>()
-            .put(LOCK_REMOVER_OPERATOR_NAME + "." + TASKS[0] + "." + SUCCEEDED_TASK_COUNTER, 2L)
-            .put(LOCK_REMOVER_OPERATOR_NAME + "." + TASKS[0] + "." + FAILED_TASK_COUNTER, 0L)
-            .put(TRIGGER_MANAGER_OPERATOR_NAME + "." + TASKS[0] + "." + TRIGGERED, 2L)
-            .put(LOCK_REMOVER_OPERATOR_NAME + "." + TASKS[1] + "." + SUCCEEDED_TASK_COUNTER, 0L)
-            .put(LOCK_REMOVER_OPERATOR_NAME + "." + TASKS[1] + "." + FAILED_TASK_COUNTER, 1L)
-            .put(TRIGGER_MANAGER_OPERATOR_NAME + "." + TASKS[1] + "." + TRIGGERED, 1L)
+        new ImmutableMap.Builder<List<String>, Long>()
             .put(
-                TRIGGER_MANAGER_OPERATOR_NAME
-                    + "."
-                    + GROUP_VALUE_DEFAULT
-                    + "."
-                    + NOTHING_TO_TRIGGER,
+                ImmutableList.of(
+                    LOCK_REMOVER_OPERATOR_NAME,
+                    table.name(),
+                    TASKS[0],
+                    "0",
+                    SUCCEEDED_TASK_COUNTER),
+                2L)
+            .put(
+                ImmutableList.of(
+                    LOCK_REMOVER_OPERATOR_NAME, table.name(), TASKS[0], "0", FAILED_TASK_COUNTER),
+                0L)
+            .put(
+                ImmutableList.of(
+                    TRIGGER_MANAGER_OPERATOR_NAME, table.name(), TASKS[0], "0", TRIGGERED),
+                2L)
+            .put(
+                ImmutableList.of(
+                    LOCK_REMOVER_OPERATOR_NAME,
+                    table.name(),
+                    TASKS[1],
+                    "1",
+                    SUCCEEDED_TASK_COUNTER),
+                0L)
+            .put(
+                ImmutableList.of(
+                    LOCK_REMOVER_OPERATOR_NAME, table.name(), TASKS[1], "1", FAILED_TASK_COUNTER),
+                1L)
+            .put(
+                ImmutableList.of(
+                    TRIGGER_MANAGER_OPERATOR_NAME, table.name(), TASKS[1], "1", TRIGGERED),
+                1L)
+            .put(
+                ImmutableList.of(TRIGGER_MANAGER_OPERATOR_NAME, table.name(), NOTHING_TO_TRIGGER),
                 -1L)
             .put(
-                TRIGGER_MANAGER_OPERATOR_NAME
-                    + "."
-                    + GROUP_VALUE_DEFAULT
-                    + "."
-                    + CONCURRENT_RUN_THROTTLED,
+                ImmutableList.of(
+                    TRIGGER_MANAGER_OPERATOR_NAME, table.name(), CONCURRENT_RUN_THROTTLED),
                 -1L)
             .put(
-                TRIGGER_MANAGER_OPERATOR_NAME
-                    + "."
-                    + GROUP_VALUE_DEFAULT
-                    + "."
-                    + RATE_LIMITER_TRIGGERED,
+                ImmutableList.of(
+                    TRIGGER_MANAGER_OPERATOR_NAME, table.name(), RATE_LIMITER_TRIGGERED),
                 -1L)
             .build());
   }
@@ -382,7 +402,7 @@ class TestTableMaintenance extends OperatorTestBase {
 
     // Some checks to make sure this is the transformation we are looking for
     assertThat(result).isInstanceOf(SourceTransformation.class);
-    assertThat(result.getName()).isEqualTo(SOURCE_OPERATOR_NAME);
+    assertThat(result.getName()).startsWith(SOURCE_OPERATOR_NAME_PREFIX);
 
     return result;
   }
@@ -405,7 +425,7 @@ class TestTableMaintenance extends OperatorTestBase {
       return trigger
           .map(new DummyMaintenanceTask(success))
           .name(name)
-          .uid(uidSuffix() + "-test-mapper-" + name)
+          .uid(uidSuffix() + "-test-mapper-" + name + "-" + id)
           .slotSharingGroup(slotSharingGroup())
           .forceNonParallel();
     }

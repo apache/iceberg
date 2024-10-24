@@ -25,6 +25,7 @@ import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetr
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
@@ -69,14 +70,16 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
         .append(
             infra.triggerStream(),
             0,
-            DUMMY_NAME,
+            DUMMY_TASK_NAME,
+            DUMMY_TABLE_NAME,
             tableLoader(),
             "OTHER",
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             1)
         .sinkTo(infra.sink());
 
-    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink(), () -> checkDeleteFinished(3L));
+    runAndWaitForSuccess(
+        infra.env(), infra.source(), infra.sink(), () -> checkDeleteFinished(table.name(), 3L));
 
     table.refresh();
     assertThat(Sets.newHashSet(table.snapshots())).hasSize(1);
@@ -99,7 +102,8 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
         .append(
             infra.triggerStream(),
             0,
-            DUMMY_NAME,
+            DUMMY_TASK_NAME,
+            DUMMY_TABLE_NAME,
             tableLoader(),
             UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
@@ -131,16 +135,22 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
     // Check the metrics. There are no expired snapshots or data files because ExpireSnapshots has
     // no max age of number of snapshots set, so no files are removed.
     MetricsReporterFactoryForTests.assertCounters(
-        new ImmutableMap.Builder<String, Long>()
+        new ImmutableMap.Builder<List<String>, Long>()
             .put(
-                DELETE_FILES_OPERATOR_NAME + "[0]." + DUMMY_NAME + "." + DELETE_FILE_FAILED_COUNTER,
+                ImmutableList.of(
+                    DELETE_FILES_OPERATOR_NAME + "[0]",
+                    table.name(),
+                    DUMMY_TASK_NAME,
+                    "0",
+                    DELETE_FILE_FAILED_COUNTER),
                 0L)
             .put(
-                DELETE_FILES_OPERATOR_NAME
-                    + "[0]."
-                    + DUMMY_NAME
-                    + "."
-                    + DELETE_FILE_SUCCEEDED_COUNTER,
+                ImmutableList.of(
+                    DELETE_FILES_OPERATOR_NAME + "[0]",
+                    table.name(),
+                    DUMMY_TASK_NAME,
+                    "0",
+                    DELETE_FILE_SUCCEEDED_COUNTER),
                 0L)
             .build());
   }
@@ -153,7 +163,8 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
         .append(
             infra.triggerStream(),
             0,
-            DUMMY_NAME,
+            DUMMY_TASK_NAME,
+            DUMMY_TABLE_NAME,
             tableLoader(),
             UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
@@ -170,7 +181,8 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
         .append(
             infra.triggerStream(),
             0,
-            DUMMY_NAME,
+            DUMMY_TASK_NAME,
+            DUMMY_TABLE_NAME,
             tableLoader(),
             UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
@@ -193,45 +205,50 @@ class TestExpireSnapshots extends MaintenanceTaskTestBase {
         .append(
             infra.triggerStream(),
             0,
-            DUMMY_NAME,
+            DUMMY_TASK_NAME,
+            DUMMY_TABLE_NAME,
             tableLoader(),
             UID_SUFFIX,
             StreamGraphGenerator.DEFAULT_SLOT_SHARING_GROUP,
             1)
         .sinkTo(infra.sink());
 
-    runAndWaitForSuccess(infra.env(), infra.source(), infra.sink(), () -> checkDeleteFinished(1L));
+    runAndWaitForSuccess(
+        infra.env(), infra.source(), infra.sink(), () -> checkDeleteFinished(table.name(), 1L));
 
     // Check the metrics
     Awaitility.await()
         .untilAsserted(
             () ->
                 MetricsReporterFactoryForTests.assertCounters(
-                    new ImmutableMap.Builder<String, Long>()
+                    new ImmutableMap.Builder<List<String>, Long>()
                         .put(
-                            DELETE_FILES_OPERATOR_NAME
-                                + "[0]."
-                                + DUMMY_NAME
-                                + "."
-                                + DELETE_FILE_FAILED_COUNTER,
+                            ImmutableList.of(
+                                DELETE_FILES_OPERATOR_NAME + "[0]",
+                                table.name(),
+                                DUMMY_TASK_NAME,
+                                "0",
+                                DELETE_FILE_FAILED_COUNTER),
                             0L)
                         .put(
-                            DELETE_FILES_OPERATOR_NAME
-                                + "[0]."
-                                + DUMMY_NAME
-                                + "."
-                                + DELETE_FILE_SUCCEEDED_COUNTER,
+                            ImmutableList.of(
+                                DELETE_FILES_OPERATOR_NAME + "[0]",
+                                table.name(),
+                                DUMMY_TASK_NAME,
+                                "0",
+                                DELETE_FILE_SUCCEEDED_COUNTER),
                             1L)
                         .build()));
   }
 
-  private static boolean checkDeleteFinished(Long expectedDeleteNum) {
+  private static boolean checkDeleteFinished(String tableName, Long expectedDeleteNum) {
     return expectedDeleteNum.equals(
         MetricsReporterFactoryForTests.counter(
-            DELETE_FILES_OPERATOR_NAME
-                + "[0]."
-                + DUMMY_NAME
-                + "."
-                + DELETE_FILE_SUCCEEDED_COUNTER));
+            ImmutableList.of(
+                DELETE_FILES_OPERATOR_NAME + "[0]",
+                tableName,
+                DUMMY_TASK_NAME,
+                "0",
+                DELETE_FILE_SUCCEEDED_COUNTER)));
   }
 }

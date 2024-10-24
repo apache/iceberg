@@ -19,8 +19,10 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 public class TableMaintenanceMetrics {
-  public static final String GROUP_KEY = "maintenanceTask";
-  public static final String GROUP_VALUE_DEFAULT = "maintenanceTask";
+  public static final String GROUP_KEY = "maintenance";
+  public static final String TASK_NAME_KEY = "taskName";
+  public static final String TASK_INDEX_KEY = "taskIndex";
+  public static final String TABLE_NAME_KEY = "tableName";
 
   // TriggerManager metrics
   public static final String RATE_LIMITER_TRIGGERED = "rateLimiterTriggered";

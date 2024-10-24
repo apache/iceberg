@@ -40,7 +40,8 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
     implements OneInputStreamOperator<String, Void> {
   private static final Logger LOG = LoggerFactory.getLogger(DeleteFilesProcessor.class);
 
-  private final String name;
+  private final String taskIndex;
+  private final String taskName;
   private final SupportsBulkOperations io;
   private final String tableName;
   private final Set<String> filesToDelete = Sets.newHashSet();
@@ -49,8 +50,8 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
   private transient Counter failedCounter;
   private transient Counter succeededCounter;
 
-  public DeleteFilesProcessor(String name, Table table, int batchSize) {
-    Preconditions.checkNotNull(name, "Name should no be null");
+  public DeleteFilesProcessor(int taskIndex, String taskName, Table table, int batchSize) {
+    Preconditions.checkNotNull(taskName, "Task name should no be null");
     Preconditions.checkNotNull(table, "Table should no be null");
 
     FileIO fileIO = table.io();
@@ -59,7 +60,8 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
         "%s doesn't support bulk delete",
         fileIO.getClass().getSimpleName());
 
-    this.name = name;
+    this.taskIndex = String.valueOf(taskIndex);
+    this.taskName = taskName;
     this.io = (SupportsBulkOperations) fileIO;
     this.tableName = table.name();
     this.batchSize = batchSize;
@@ -70,12 +72,18 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
     this.failedCounter =
         getRuntimeContext()
             .getMetricGroup()
-            .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
+            .addGroup(TableMaintenanceMetrics.GROUP_KEY)
+            .addGroup(TableMaintenanceMetrics.TABLE_NAME_KEY, tableName)
+            .addGroup(TableMaintenanceMetrics.TASK_NAME_KEY, taskName)
+            .addGroup(TableMaintenanceMetrics.TASK_INDEX_KEY, taskIndex)
             .counter(TableMaintenanceMetrics.DELETE_FILE_FAILED_COUNTER);
     this.succeededCounter =
         getRuntimeContext()
             .getMetricGroup()
-            .addGroup(TableMaintenanceMetrics.GROUP_KEY, name)
+            .addGroup(TableMaintenanceMetrics.GROUP_KEY)
+            .addGroup(TableMaintenanceMetrics.TABLE_NAME_KEY, tableName)
+            .addGroup(TableMaintenanceMetrics.TASK_NAME_KEY, taskName)
+            .addGroup(TableMaintenanceMetrics.TASK_INDEX_KEY, taskIndex)
             .counter(TableMaintenanceMetrics.DELETE_FILE_SUCCEEDED_COUNTER);
   }
 

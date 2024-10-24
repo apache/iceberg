@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.maintenance.operator;
 
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.CONCURRENT_RUN_THROTTLED;
-import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.GROUP_VALUE_DEFAULT;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.NOTHING_TO_TRIGGER;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.RATE_LIMITER_TRIGGERED;
 import static org.apache.iceberg.flink.maintenance.operator.TableMaintenanceMetrics.TRIGGERED;
@@ -36,9 +35,11 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
 import org.apache.flink.streaming.util.KeyedOneInputStreamOperatorTestHarness;
 import org.apache.flink.streaming.util.OneInputStreamOperatorTestHarness;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.maintenance.api.Trigger;
 import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.awaitility.Awaitility;
@@ -54,12 +55,14 @@ class TestTriggerManager extends OperatorTestBase {
   private long processingTime = 0L;
   private TriggerLockFactory.Lock lock;
   private TriggerLockFactory.Lock recoveringLock;
+  private String tableName;
 
   @BeforeEach
   void before() {
-    createTable();
+    Table table = createTable();
     this.lock = LOCK_FACTORY.createLock();
     this.recoveringLock = LOCK_FACTORY.createRecoveryLock();
+    this.tableName = table.name();
   }
 
   @Test
@@ -421,7 +424,7 @@ class TestTriggerManager extends OperatorTestBase {
         .dataStream()
         .keyBy(unused -> true)
         .process(manager)
-        .name(DUMMY_NAME)
+        .name(DUMMY_TASK_NAME)
         .forceNonParallel()
         .sinkTo(sink);
 
@@ -437,7 +440,7 @@ class TestTriggerManager extends OperatorTestBase {
               () -> {
                 Long notingCounter =
                     MetricsReporterFactoryForTests.counter(
-                        DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + NOTHING_TO_TRIGGER);
+                        ImmutableList.of(DUMMY_TASK_NAME, tableName, NOTHING_TO_TRIGGER));
                 return notingCounter != null && notingCounter.equals(1L);
               });
 
@@ -446,7 +449,8 @@ class TestTriggerManager extends OperatorTestBase {
       // Wait until we receive the trigger
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
       assertThat(
-              MetricsReporterFactoryForTests.counter(DUMMY_NAME + "." + TASKS[0] + "." + TRIGGERED))
+              MetricsReporterFactoryForTests.counter(
+                  ImmutableList.of(DUMMY_TASK_NAME, tableName, TASKS[0], "0", TRIGGERED)))
           .isEqualTo(1L);
       lock.unlock();
 
@@ -458,20 +462,22 @@ class TestTriggerManager extends OperatorTestBase {
       assertThat(sink.poll(Duration.ofSeconds(5))).isNotNull();
       lock.unlock();
       assertThat(
-              MetricsReporterFactoryForTests.counter(DUMMY_NAME + "." + TASKS[0] + "." + TRIGGERED))
+              MetricsReporterFactoryForTests.counter(
+                  ImmutableList.of(DUMMY_TASK_NAME, tableName, TASKS[0], "0", TRIGGERED)))
           .isEqualTo(2L);
       assertThat(
-              MetricsReporterFactoryForTests.counter(DUMMY_NAME + "." + TASKS[1] + "." + TRIGGERED))
+              MetricsReporterFactoryForTests.counter(
+                  ImmutableList.of(DUMMY_TASK_NAME, tableName, TASKS[1], "1", TRIGGERED)))
           .isEqualTo(1L);
 
       // Final check all the counters
       MetricsReporterFactoryForTests.assertCounters(
-          new ImmutableMap.Builder<String, Long>()
-              .put(DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + RATE_LIMITER_TRIGGERED, -1L)
-              .put(DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + CONCURRENT_RUN_THROTTLED, -1L)
-              .put(DUMMY_NAME + "." + TASKS[0] + "." + TRIGGERED, 2L)
-              .put(DUMMY_NAME + "." + TASKS[1] + "." + TRIGGERED, 1L)
-              .put(DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + NOTHING_TO_TRIGGER, 1L)
+          new ImmutableMap.Builder<List<String>, Long>()
+              .put(ImmutableList.of(DUMMY_TASK_NAME, tableName, RATE_LIMITER_TRIGGERED), -1L)
+              .put(ImmutableList.of(DUMMY_TASK_NAME, tableName, CONCURRENT_RUN_THROTTLED), -1L)
+              .put(ImmutableList.of(DUMMY_TASK_NAME, tableName, TASKS[0], "0", TRIGGERED), 2L)
+              .put(ImmutableList.of(DUMMY_TASK_NAME, tableName, TASKS[1], "1", TRIGGERED), 1L)
+              .put(ImmutableList.of(DUMMY_TASK_NAME, tableName, NOTHING_TO_TRIGGER), 1L)
               .build());
     } finally {
       closeJobClient(jobClient);
@@ -493,7 +499,7 @@ class TestTriggerManager extends OperatorTestBase {
         .dataStream()
         .keyBy(unused -> true)
         .process(manager)
-        .name(DUMMY_NAME)
+        .name(DUMMY_TASK_NAME)
         .forceNonParallel()
         .sinkTo(sink);
 
@@ -514,7 +520,7 @@ class TestTriggerManager extends OperatorTestBase {
           .until(
               () ->
                   MetricsReporterFactoryForTests.counter(
-                          DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + RATE_LIMITER_TRIGGERED)
+                          ImmutableList.of(DUMMY_TASK_NAME, tableName, RATE_LIMITER_TRIGGERED))
                       .equals(1L));
 
       // Final check all the counters
@@ -539,7 +545,7 @@ class TestTriggerManager extends OperatorTestBase {
         .dataStream()
         .keyBy(unused -> true)
         .process(manager)
-        .name(DUMMY_NAME)
+        .name(DUMMY_TASK_NAME)
         .forceNonParallel()
         .sinkTo(sink);
 
@@ -557,7 +563,7 @@ class TestTriggerManager extends OperatorTestBase {
           .until(
               () ->
                   MetricsReporterFactoryForTests.counter(
-                          DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + CONCURRENT_RUN_THROTTLED)
+                          ImmutableList.of(DUMMY_TASK_NAME, tableName, CONCURRENT_RUN_THROTTLED))
                       .equals(1L));
 
       // Final check all the counters
@@ -577,15 +583,15 @@ class TestTriggerManager extends OperatorTestBase {
 
   private void assertCounters(long rateLimiterTrigger, long concurrentRunTrigger) {
     MetricsReporterFactoryForTests.assertCounters(
-        new ImmutableMap.Builder<String, Long>()
+        new ImmutableMap.Builder<List<String>, Long>()
             .put(
-                DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + RATE_LIMITER_TRIGGERED,
+                ImmutableList.of(DUMMY_TASK_NAME, tableName, RATE_LIMITER_TRIGGERED),
                 rateLimiterTrigger)
             .put(
-                DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + CONCURRENT_RUN_THROTTLED,
+                ImmutableList.of(DUMMY_TASK_NAME, tableName, CONCURRENT_RUN_THROTTLED),
                 concurrentRunTrigger)
-            .put(DUMMY_NAME + "." + TASKS[0] + "." + TRIGGERED, 1L)
-            .put(DUMMY_NAME + "." + GROUP_VALUE_DEFAULT + "." + NOTHING_TO_TRIGGER, 0L)
+            .put(ImmutableList.of(DUMMY_TASK_NAME, tableName, TASKS[0], "0", TRIGGERED), 1L)
+            .put(ImmutableList.of(DUMMY_TASK_NAME, tableName, NOTHING_TO_TRIGGER), 0L)
             .build());
   }
 

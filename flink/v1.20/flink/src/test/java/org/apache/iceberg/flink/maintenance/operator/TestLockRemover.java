@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.List;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.sink2.Committer;
@@ -46,6 +47,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.util.Collector;
 import org.apache.iceberg.flink.maintenance.api.TaskResult;
 import org.apache.iceberg.flink.maintenance.api.TriggerLockFactory;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.awaitility.Awaitility;
@@ -74,9 +76,9 @@ class TestLockRemover extends OperatorTestBase {
     source
         .dataStream()
         .transform(
-            DUMMY_NAME,
+            DUMMY_TASK_NAME,
             TypeInformation.of(Void.class),
-            new LockRemover(new TestingLockFactory(), Lists.newArrayList(TASKS)))
+            new LockRemover(DUMMY_TABLE_NAME, new TestingLockFactory(), Lists.newArrayList(TASKS)))
         .setParallelism(1);
 
     JobClient jobClient = null;
@@ -131,9 +133,9 @@ class TestLockRemover extends OperatorTestBase {
     source
         .dataStream()
         .transform(
-            DUMMY_NAME,
+            DUMMY_TASK_NAME,
             TypeInformation.of(Void.class),
-            new LockRemover(new TestingLockFactory(), Lists.newArrayList(TASKS)))
+            new LockRemover(DUMMY_TABLE_NAME, new TestingLockFactory(), Lists.newArrayList(TASKS)))
         .setParallelism(1);
 
     JobClient jobClient = null;
@@ -152,31 +154,57 @@ class TestLockRemover extends OperatorTestBase {
           .until(
               () ->
                   MetricsReporterFactoryForTests.counter(
-                          DUMMY_NAME + "." + TASKS[1] + "." + SUCCEEDED_TASK_COUNTER)
+                          ImmutableList.of(
+                              DUMMY_TASK_NAME,
+                              DUMMY_TABLE_NAME,
+                              TASKS[1],
+                              "1",
+                              SUCCEEDED_TASK_COUNTER))
                       .equals(3L));
 
       // Final check all the counters
       MetricsReporterFactoryForTests.assertCounters(
-          new ImmutableMap.Builder<String, Long>()
-              .put(DUMMY_NAME + "." + TASKS[0] + "." + SUCCEEDED_TASK_COUNTER, 2L)
-              .put(DUMMY_NAME + "." + TASKS[0] + "." + FAILED_TASK_COUNTER, 1L)
-              .put(DUMMY_NAME + "." + TASKS[1] + "." + SUCCEEDED_TASK_COUNTER, 3L)
-              .put(DUMMY_NAME + "." + TASKS[1] + "." + FAILED_TASK_COUNTER, 0L)
-              .put(DUMMY_NAME + "." + TASKS[2] + "." + SUCCEEDED_TASK_COUNTER, 0L)
-              .put(DUMMY_NAME + "." + TASKS[2] + "." + FAILED_TASK_COUNTER, 0L)
+          new ImmutableMap.Builder<List<String>, Long>()
+              .put(
+                  ImmutableList.of(
+                      DUMMY_TASK_NAME, DUMMY_TABLE_NAME, TASKS[0], "0", SUCCEEDED_TASK_COUNTER),
+                  2L)
+              .put(
+                  ImmutableList.of(
+                      DUMMY_TASK_NAME, DUMMY_TABLE_NAME, TASKS[0], "0", FAILED_TASK_COUNTER),
+                  1L)
+              .put(
+                  ImmutableList.of(
+                      DUMMY_TASK_NAME, DUMMY_TABLE_NAME, TASKS[1], "1", SUCCEEDED_TASK_COUNTER),
+                  3L)
+              .put(
+                  ImmutableList.of(
+                      DUMMY_TASK_NAME, DUMMY_TABLE_NAME, TASKS[1], "1", FAILED_TASK_COUNTER),
+                  0L)
+              .put(
+                  ImmutableList.of(
+                      DUMMY_TASK_NAME, DUMMY_TABLE_NAME, TASKS[2], "2", SUCCEEDED_TASK_COUNTER),
+                  0L)
+              .put(
+                  ImmutableList.of(
+                      DUMMY_TASK_NAME, DUMMY_TABLE_NAME, TASKS[2], "2", FAILED_TASK_COUNTER),
+                  0L)
               .build());
 
       assertThat(
               MetricsReporterFactoryForTests.gauge(
-                  DUMMY_NAME + "." + TASKS[0] + "." + LAST_RUN_DURATION_MS))
+                  ImmutableList.of(
+                      DUMMY_TASK_NAME, DUMMY_TABLE_NAME, TASKS[0], "0", LAST_RUN_DURATION_MS)))
           .isPositive();
       assertThat(
               MetricsReporterFactoryForTests.gauge(
-                  DUMMY_NAME + "." + TASKS[1] + "." + LAST_RUN_DURATION_MS))
+                  ImmutableList.of(
+                      DUMMY_TASK_NAME, DUMMY_TABLE_NAME, TASKS[1], "1", LAST_RUN_DURATION_MS)))
           .isGreaterThan(time);
       assertThat(
               MetricsReporterFactoryForTests.gauge(
-                  DUMMY_NAME + "." + TASKS[2] + "." + LAST_RUN_DURATION_MS))
+                  ImmutableList.of(
+                      DUMMY_TASK_NAME, DUMMY_TABLE_NAME, TASKS[2], "2", LAST_RUN_DURATION_MS)))
           .isZero();
     } finally {
       closeJobClient(jobClient);
@@ -200,9 +228,10 @@ class TestLockRemover extends OperatorTestBase {
         .dataStream()
         .union(source2.dataStream())
         .transform(
-            DUMMY_NAME,
+            DUMMY_TASK_NAME,
             TypeInformation.of(Void.class),
-            new LockRemover(new TestingLockFactory(), Lists.newArrayList(TASKS[0])))
+            new LockRemover(
+                DUMMY_TABLE_NAME, new TestingLockFactory(), Lists.newArrayList(TASKS[0])))
         .setParallelism(1);
 
     JobClient jobClient = null;
@@ -220,7 +249,12 @@ class TestLockRemover extends OperatorTestBase {
           .until(
               () ->
                   MetricsReporterFactoryForTests.counter(
-                          DUMMY_NAME + "." + TASKS[0] + "." + SUCCEEDED_TASK_COUNTER)
+                          ImmutableList.of(
+                              DUMMY_TASK_NAME,
+                              DUMMY_TABLE_NAME,
+                              TASKS[0],
+                              "0",
+                              SUCCEEDED_TASK_COUNTER))
                       .equals(2L));
 
       // We did not remove the recovery lock, as no watermark received from the other source
@@ -242,20 +276,21 @@ class TestLockRemover extends OperatorTestBase {
 
   private void processAndCheck(
       ManualSource<TaskResult> source, TaskResult input, String counterPrefix) {
+    List<String> counterKey =
+        ImmutableList.of(
+            (counterPrefix != null ? counterPrefix : "") + DUMMY_TASK_NAME,
+            DUMMY_TABLE_NAME,
+            TASKS[input.taskIndex()],
+            String.valueOf(input.taskIndex()),
+            input.success() ? SUCCEEDED_TASK_COUNTER : FAILED_TASK_COUNTER);
+    Long counterValue = MetricsReporterFactoryForTests.counter(counterKey);
+    Long expected = counterValue != null ? counterValue + 1 : 1L;
+
     source.sendRecord(input);
     source.sendWatermark(input.startEpoch());
 
-    String counterName =
-        (counterPrefix != null ? counterPrefix : "")
-            .concat(
-                input.success()
-                    ? DUMMY_NAME + "." + TASKS[input.taskIndex()] + "." + SUCCEEDED_TASK_COUNTER
-                    : DUMMY_NAME + "." + TASKS[input.taskIndex()] + "." + FAILED_TASK_COUNTER);
-    Long counterValue = MetricsReporterFactoryForTests.counter(counterName);
-    Long expected = counterValue != null ? counterValue + 1 : 1L;
-
     Awaitility.await()
-        .until(() -> expected.equals(MetricsReporterFactoryForTests.counter(counterName)));
+        .until(() -> expected.equals(MetricsReporterFactoryForTests.counter(counterKey)));
   }
 
   private static class TestingLockFactory implements TriggerLockFactory {
@@ -389,9 +424,10 @@ class TestLockRemover extends OperatorTestBase {
                 }
               })
           .transform(
-              DUMMY_NAME,
+              DUMMY_TASK_NAME,
               TypeInformation.of(Void.class),
-              new LockRemover(new TestingLockFactory(), Lists.newArrayList(TASKS[0])));
+              new LockRemover(
+                  DUMMY_TABLE_NAME, new TestingLockFactory(), Lists.newArrayList(TASKS[0])));
     }
   }
 }
