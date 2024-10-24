@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -38,10 +39,24 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class MetricsReporterFactoryForTests implements MetricReporterFactory {
   private static final TestMetricsReporter INSTANCE = new TestMetricsReporter();
-  private static final Pattern FULL_METRIC_NAME =
+  private static final Pattern TASK_METRIC_NAME =
       Pattern.compile(
           "\\.taskmanager\\.[^.]+\\.[^.]+\\.([^.]+)\\.\\d+\\."
               + TableMaintenanceMetrics.GROUP_KEY
+              + "\\."
+              + TableMaintenanceMetrics.TABLE_NAME_KEY
+              + "\\.([^.]+)\\."
+              + TableMaintenanceMetrics.TASK_NAME_KEY
+              + "\\.([^.]+)\\."
+              + TableMaintenanceMetrics.TASK_INDEX_KEY
+              + "\\.([^.]+)\\.([^.]+)");
+
+  private static final Pattern MAIN_METRIC_NAME =
+      Pattern.compile(
+          "\\.taskmanager\\.[^.]+\\.[^.]+\\.([^.]+)\\.\\d+\\."
+              + TableMaintenanceMetrics.GROUP_KEY
+              + "\\."
+              + TableMaintenanceMetrics.TABLE_NAME_KEY
               + "\\.([^.]+)\\.([^.]+)");
 
   private static Map<String, Counter> counters = Maps.newConcurrentMap();
@@ -72,20 +87,26 @@ public class MetricsReporterFactoryForTests implements MetricReporterFactory {
     gauges = Maps.newConcurrentMap();
   }
 
-  public static Long counter(String name) {
-    return counterValues().get(name);
+  public static Long counter(List<String> parts) {
+    return counterValues().get(longName(parts));
   }
 
-  public static Long gauge(String name) {
-    return gaugeValues().get(name);
+  public static Long gauge(List<String> parts) {
+    return gaugeValues().get(longName(parts));
   }
 
-  public static void assertGauges(Map<String, Long> expected) {
-    assertThat(filter(gaugeValues(), expected)).isEqualTo(filter(expected, expected));
+  public static void assertGauges(Map<List<String>, Long> expected) {
+    Map<String, Long> transformed =
+        expected.entrySet().stream()
+            .collect(Collectors.toMap(k -> longName(k.getKey()), Map.Entry::getValue));
+    assertThat(filter(gaugeValues(), transformed)).isEqualTo(filter(transformed, transformed));
   }
 
-  public static void assertCounters(Map<String, Long> expected) {
-    assertThat(filter(counterValues(), expected)).isEqualTo(filter(expected, expected));
+  public static void assertCounters(Map<List<String>, Long> expected) {
+    Map<String, Long> transformed =
+        expected.entrySet().stream()
+            .collect(Collectors.toMap(k -> longName(k.getKey()), Map.Entry::getValue));
+    assertThat(filter(counterValues(), transformed)).isEqualTo(filter(transformed, transformed));
   }
 
   private static Map<String, Long> gaugeValues() {
@@ -113,12 +134,30 @@ public class MetricsReporterFactoryForTests implements MetricReporterFactory {
   }
 
   private static String longName(String fullName) {
-    Matcher matcher = FULL_METRIC_NAME.matcher(fullName);
-    if (!matcher.matches()) {
-      throw new RuntimeException(String.format("Can't parse simplified metrics name %s", fullName));
+    Matcher mainMatcher = MAIN_METRIC_NAME.matcher(fullName);
+    Matcher taskMatcher = TASK_METRIC_NAME.matcher(fullName);
+
+    if (taskMatcher.matches()) {
+      return taskMatcher.group(1)
+          + "."
+          + taskMatcher.group(2)
+          + "."
+          + taskMatcher.group(3)
+          + "."
+          + taskMatcher.group(4)
+          + "."
+          + taskMatcher.group(5);
     }
 
-    return matcher.group(1) + "." + matcher.group(2) + "." + matcher.group(3);
+    if (mainMatcher.matches()) {
+      return mainMatcher.group(1) + "." + mainMatcher.group(2) + "." + mainMatcher.group(3);
+    }
+
+    throw new RuntimeException(String.format("Can't parse simplified metrics name %s", fullName));
+  }
+
+  private static String longName(List<String> parts) {
+    return parts.stream().map(s -> s.replaceAll("\\.", "_")).collect(Collectors.joining("."));
   }
 
   private static class TestMetricsReporter implements MetricReporter {
