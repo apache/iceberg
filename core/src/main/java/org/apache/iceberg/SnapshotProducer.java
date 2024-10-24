@@ -60,9 +60,9 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.metrics.CommitMetrics;
 import org.apache.iceberg.metrics.CommitMetricsResult;
-import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ImmutableCommitReport;
 import org.apache.iceberg.metrics.LoggingMetricsReporter;
+import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.Timer.Timed;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -115,11 +115,13 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private ExecutorService workerPool = ThreadPools.getWorkerPool();
   private String targetBranch = SnapshotRef.MAIN_BRANCH;
   private CommitMetrics commitMetrics;
+  private final MetricsContext metricsContext;
 
   protected SnapshotProducer(TableOperations ops) {
     this.ops = ops;
     this.strictCleanup = ops.requireStrictCleanup();
     this.base = ops.current();
+    this.metricsContext = CatalogUtil.loadMetricsContext(this.base.properties());
     this.manifestsWithMetadata =
         Caffeine.newBuilder()
             .build(
@@ -155,7 +157,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
 
   protected CommitMetrics commitMetrics() {
     if (commitMetrics == null) {
-      this.commitMetrics = CommitMetrics.of(new DefaultMetricsContext());
+      this.commitMetrics = CommitMetrics.of(metricsContext);
     }
 
     return commitMetrics;
