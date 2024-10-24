@@ -475,6 +475,12 @@ class StorageCredential(BaseModel):
     config: Dict[str, str]
 
 
+class LoadCredentialsResponse(BaseModel):
+    storage_credentials: List[StorageCredential] = Field(
+        ..., alias='storage-credentials'
+    )
+
+
 class PlanStatus(BaseModel):
     __root__: Literal['completed', 'submitted', 'cancelled', 'failed'] = Field(
         ..., description='Status of a server-side planning operation'
