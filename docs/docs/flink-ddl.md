@@ -200,10 +200,25 @@ For more details, refer to the [Flink `CREATE TABLE` documentation](https://nigh
 
 ### `ALTER TABLE`
 
-Iceberg only support altering table properties:
+Table properties:
 
 ```sql
 ALTER TABLE `hive_catalog`.`default`.`sample` SET ('write.format.default'='avro');
+```
+
+Since Flink 1.17 Iceberg supports column DDL:
+* add column
+* modify column
+* drop column
+* rename column
+* add primary key
+
+```sql
+ALTER TABLE `hive_catalog`.`default`.`sample` ADD (col1 INTEGER);
+ALTER TABLE `hive_catalog`.`default`.`sample` MODIFY (col1 BIGINT);
+ALTER TABLE `hive_catalog`.`default`.`sample` DROP (col1);
+ALTER TABLE `hive_catalog`.`default`.`sample` RENAME col1 TO col2;
+ALTER TABLE `hive_catalog`.`default`.`sample` ADD (PRIMARY KEY (col1) NOT ENFORCED);
 ```
 
 ### `ALTER TABLE .. RENAME TO`
