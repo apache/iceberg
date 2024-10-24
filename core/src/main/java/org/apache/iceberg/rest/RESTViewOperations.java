@@ -19,7 +19,6 @@
 package org.apache.iceberg.rest;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.UpdateRequirements;
@@ -58,8 +57,10 @@ class RESTViewOperations implements ViewOperations {
   @Override
   public ViewMetadata refresh() {
     Endpoint.check(endpoints, Endpoint.V1_LOAD_VIEW);
-    return updateCurrentMetadata(
-        client.get(path, LoadViewResponse.class, headers, ErrorHandlers.viewErrorHandler()));
+    LoadViewResponse response =
+            client.get(path, LoadViewResponse.class, headers, ErrorHandlers.viewErrorHandler());
+    this.current = response.metadata();
+    return this.current;
   }
 
   @Override
@@ -76,14 +77,6 @@ class RESTViewOperations implements ViewOperations {
         client.post(
             path, request, LoadViewResponse.class, headers, ErrorHandlers.viewCommitHandler());
 
-    updateCurrentMetadata(response);
-  }
-
-  private ViewMetadata updateCurrentMetadata(LoadViewResponse response) {
-    if (!Objects.equals(current.metadataFileLocation(), response.metadataLocation())) {
-      this.current = response.metadata();
-    }
-
-    return current;
+    this.current = response.metadata();
   }
 }
