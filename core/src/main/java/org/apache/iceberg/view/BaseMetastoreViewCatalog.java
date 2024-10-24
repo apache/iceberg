@@ -21,6 +21,7 @@ package org.apache.iceberg.view;
 import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.BaseMetastoreCatalog;
+import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Transaction;
@@ -33,6 +34,7 @@ import org.apache.iceberg.exceptions.NoSuchViewException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.PropertyUtil;
 
 public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog implements ViewCatalog {
   protected abstract ViewOperations newViewOps(TableIdentifier identifier);
@@ -79,6 +81,8 @@ public abstract class BaseMetastoreViewCatalog extends BaseMetastoreCatalog impl
       Preconditions.checkArgument(
           isValidIdentifier(identifier), "Invalid view identifier: %s", identifier);
       this.identifier = identifier;
+      this.properties.putAll(
+          PropertyUtil.propertiesWithPrefix(properties(), CatalogProperties.VIEW_DEFAULT_PREFIX));
     }
 
     @Override

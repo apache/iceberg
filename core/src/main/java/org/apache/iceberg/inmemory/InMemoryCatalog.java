@@ -68,6 +68,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   private final ConcurrentMap<TableIdentifier, String> views;
   private FileIO io;
   private String catalogName;
+  private Map<String, String> catalogProperties;
   private String warehouseLocation;
   private CloseableGroup closeableGroup;
 
@@ -85,6 +86,7 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
   @Override
   public void initialize(String name, Map<String, String> properties) {
     this.catalogName = name != null ? name : InMemoryCatalog.class.getSimpleName();
+    this.catalogProperties = ImmutableMap.copyOf(properties);
 
     String warehouse = properties.getOrDefault(CatalogProperties.WAREHOUSE_LOCATION, "");
     this.warehouseLocation = warehouse.replaceAll("/*$", "");
@@ -92,6 +94,11 @@ public class InMemoryCatalog extends BaseMetastoreViewCatalog
     this.closeableGroup = new CloseableGroup();
     closeableGroup.addCloseable(metricsReporter());
     closeableGroup.setSuppressCloseFailure(true);
+  }
+
+  @Override
+  protected Map<String, String> properties() {
+    return catalogProperties == null ? ImmutableMap.of() : catalogProperties;
   }
 
   @Override
