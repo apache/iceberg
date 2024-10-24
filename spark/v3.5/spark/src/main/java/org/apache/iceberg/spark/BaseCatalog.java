@@ -35,7 +35,9 @@ abstract class BaseCatalog
         ProcedureCatalog,
         SupportsNamespaces,
         HasIcebergCatalog,
-        SupportsFunctions {
+        SupportsFunctions,
+        org.apache.spark.sql.connector.catalog.ViewCatalog,
+        SupportsReplaceView {
   private static final String USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS = "use-nullable-query-schema";
   private static final boolean USE_NULLABLE_QUERY_SCHEMA_CTAS_RTAS_DEFAULT = true;
 
