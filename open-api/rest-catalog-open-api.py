@@ -386,6 +386,63 @@ class RemovePartitionSpecsUpdate(BaseUpdate):
     spec_ids: List[int] = Field(..., alias='spec-ids')
 
 
+class ValidateDataFilesExist(BaseModel):
+    """
+    Ensure that all of the data file paths exist in the table state, to prevent updates to non-existent-data.
+    """
+
+    type: Literal['validate-files-exist']
+    data_file_paths: Optional[List[str]] = Field(None, alias='data-file-paths')
+
+
+class ValidateNoNewDeletesForDataFiles(BaseModel):
+    """
+    Ensure that no new delete files that must be applied to the added-data-files have been added to the table
+    """
+
+    type: Literal['validate-no-new-deletes-for-data-files']
+
+
+class ValidateNoNewMatchingDataFiles(BaseModel):
+    """
+    Ensure that no new DataFiles have been added that match with the conflict-detection-filter. to prevent uninteded data overlap, and applies to operations after set starting snapshot.
+    """
+
+    type: Literal['validate-no-new-matching-data-files']
+
+
+class ValidateNoNewMatchingDeleteFiles(BaseModel):
+    """
+    Ensure that no new DeleteFiles have been added that match with the conflict-detection-filter. to prevent unintended data overlap, and applies to operations after set starting snapshot.
+    """
+
+    type: Literal['validate-no-new-matching-delete-files']
+
+
+class ValidateAddedDataFilesMatchOverwriteFilter(BaseModel):
+    """
+    Ensure that the added-data-files match the conflict-detection-filter.
+    """
+
+    type: Literal['validate-added-data-files-match-overwrite-filter']
+
+
+class ValidateAddedDeletedFilesMatchFilter(BaseModel):
+    """
+    Ensure that the added-delete-files match the conflict-detection-filter.
+    """
+
+    type: Literal['validate-added-deleted-files-match-filter']
+
+
+class ValidateAppendOnly(BaseModel):
+    """
+    Ensures that the operation only includes added-data-files
+    """
+
+    type: Literal['validate-append-only']
+
+
 class AssertCreate(BaseModel):
     """
     The table must not already exist; used for create transactions
@@ -910,6 +967,18 @@ class SetPartitionStatisticsUpdate(BaseUpdate):
     )
 
 
+class SnapshotValidations(BaseModel):
+    __root__: Union[
+        ValidateDataFilesExist,
+        ValidateNoNewDeletesForDataFiles,
+        ValidateNoNewMatchingDataFiles,
+        ValidateNoNewMatchingDeleteFiles,
+        ValidateAddedDataFilesMatchOverwriteFilter,
+        ValidateAddedDeletedFilesMatchFilter,
+        ValidateAppendOnly,
+    ] = Field(..., discriminator='type')
+
+
 class TableRequirement(BaseModel):
     __root__: Union[
         AssertCreate,
@@ -1146,6 +1215,115 @@ class AddSchemaUpdate(BaseUpdate):
     )
 
 
+class ProduceOverwriteRowsSnapshotUpdate(BaseModel):
+    """
+    This update operation is used to perform fine-grained metadata row updates to a table. It involves adding new data rows and adding delete files or removing entire files.
+    """
+
+    action: Literal['overwrite-rows']
+    added_data_files: Optional[List[DataFile]] = Field(
+        None,
+        alias='added-data-files',
+        description='List of DataFiles to add to the table. These files represent new data that will be added to the metadata as part of the operation.',
+    )
+    added_delete_files: Optional[List[DeleteFile]] = Field(
+        None,
+        alias='added-delete-files',
+        description='List of DeleteFiles to add to the table. These files represent new delete files that will be added to the metadata as part of the operation.',
+    )
+    removed_data_files: Optional[List[DataFile]] = Field(
+        None,
+        alias='removed-data-files',
+        description='List of DataFiles to remove from the table. These files contain old data that is replaced or deleted as part of the operation.',
+    )
+    delete_filter: Optional[Expression] = Field(
+        None,
+        alias='delete-filter',
+        description='A filter expression used to identify rows to remove from the table. All rows that match the filter will be removed as part of the table update operation',
+    )
+    commit_properties: Optional[CommitProperties] = Field(
+        None, alias='commit-properties'
+    )
+    snapshot_validations: Optional[List[SnapshotValidations]] = Field(
+        None, alias='snapshot-validations'
+    )
+
+
+class ProduceOptimizeFilesSnapshotUpdate(BaseModel):
+    """
+    This update operation is used for optimizing table storage by compacting or rewriting files. It replaces old files with optimized ones without changing the logical data.
+    """
+
+    action: Literal['produce-optimize-files-snapshot']
+    added_data_files: Optional[List[DataFile]] = Field(
+        None,
+        alias='added-data-files',
+        description='List of DataFiles to add to the table. These files represent new data that will be added to the metadata as part of the operation.',
+    )
+    added_delete_files: Optional[List[DeleteFile]] = Field(
+        None,
+        alias='added-delete-files',
+        description='List of DeleteFiles to add to the table. These files represent new delete files that will be added to the metadata as part of the operation.',
+    )
+    removed_data_files: Optional[List[DataFile]] = Field(
+        None,
+        alias='removed-data-files',
+        description='List of DataFiles to remove from the table. These files contain old data that is replaced or deleted as part of the operation.',
+    )
+    removed_delete_files: Optional[List[DeleteFile]] = Field(
+        None,
+        alias='removed-delete-files',
+        description='List of DeleteFiles to remove from the table. These files contain old data that is replaced or deleted as part of the operation.',
+    )
+    commit_properties: Optional[CommitProperties] = Field(
+        None, alias='commit-properties'
+    )
+    snapshot_validations: Optional[List[SnapshotValidations]] = Field(
+        None, alias='snapshot-validations'
+    )
+
+
+class CommitProperties(BaseModel):
+    """
+    Commit properties that define how the update should be applied to the table.
+    """
+
+    snapshot_summary_properties: Optional[Dict[str, str]] = Field(
+        None,
+        alias='snapshot-summary-properties',
+        description='snapshot summary properties to be set on the new snapshot update.',
+    )
+    branch: Optional[str] = Field(
+        None,
+        description='The branch where the update should be applied. Defaults to the main branch.',
+    )
+    case_sensitive: Optional[bool] = Field(
+        None,
+        alias='case-sensitive',
+        description='Indicates if the operation should be case-sensitive for column names.',
+    )
+    stage_only: Optional[bool] = Field(
+        None,
+        alias='stage-only',
+        description='Indicates if the new snapshot should be staged in the table metadata',
+    )
+    data_sequence_number: Optional[int] = Field(
+        None,
+        alias='data-sequence-number',
+        description="The sequence number associated with the files, ensuring it aligns with the table's version history.",
+    )
+    conflict_detection_filter: Optional[Expression] = Field(
+        None,
+        alias='conflict-detection-filter',
+        description='An expression to identify potential conflicts, ensuring no conflicting data or delete files have been added during the overwrite operation.',
+    )
+    starting_snapshot_id: Optional[int] = Field(
+        None,
+        alias='starting-snapshot-id',
+        description='The snapshot ID used for any reads during the validation, this helps detect intervening changes that could affect the update.',
+    )
+
+
 class TableUpdate(BaseModel):
     __root__: Union[
         AssignUUIDUpdate,
@@ -1166,6 +1344,7 @@ class TableUpdate(BaseModel):
         SetStatisticsUpdate,
         RemoveStatisticsUpdate,
         RemovePartitionSpecsUpdate,
+        ProduceOverwriteRowsSnapshotUpdate,
     ]
 
 
@@ -1460,6 +1639,8 @@ Expression.update_forward_refs()
 TableMetadata.update_forward_refs()
 ViewMetadata.update_forward_refs()
 AddSchemaUpdate.update_forward_refs()
+ProduceOverwriteRowsSnapshotUpdate.update_forward_refs()
+ProduceOptimizeFilesSnapshotUpdate.update_forward_refs()
 ScanTasks.update_forward_refs()
 FetchPlanningResult.update_forward_refs()
 PlanTableScanResult.update_forward_refs()
