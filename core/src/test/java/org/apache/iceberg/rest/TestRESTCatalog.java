@@ -2683,6 +2683,38 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
         .isTrue();
   }
 
+  @Test
+  public void testRESTTableScan() throws IOException {
+    RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
+    RESTCatalog catalog =
+        new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
+    catalog.initialize(
+        "test",
+        ImmutableMap.of(
+            RESTSessionCatalog.REST_SERVER_PLANNING_ENABLED,
+            "true",
+            CatalogProperties.FILE_IO_IMPL,
+            "org.apache.iceberg.inmemory.InMemoryFileIO"));
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(TABLE.namespace());
+    }
+    // TODO i think we need REST table to be returned in the createTable path as well
+    catalog
+        .buildTable(TABLE, SCHEMA)
+        .withProperty("table.rest-scan-planning", "true")
+        .withPartitionSpec(SPEC)
+        .create();
+
+    Table restTable = catalog.loadTable(TABLE);
+
+    restTable.newAppend().appendFile(FILE_A).commit();
+    try (CloseableIterable<FileScanTask> tasks = restTable.newScan().planFiles()) {
+      assertThat(tasks.iterator().hasNext()).as("Should contain one file").isTrue();
+    }
+    assertFiles(restTable, FILE_A);
+  }
+
   private RESTCatalog catalog(RESTCatalogAdapter adapter) {
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
