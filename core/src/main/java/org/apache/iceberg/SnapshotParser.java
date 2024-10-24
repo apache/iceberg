@@ -62,7 +62,6 @@ public class SnapshotParser {
 
     // if there is an operation, write the summary map
     if (snapshot.operation() != null) {
-      // this means if snapshot have operation, it must be in the summary map
       generator.writeObjectFieldStart(SUMMARY);
       generator.writeStringField(OPERATION, snapshot.operation());
       if (snapshot.summary() != null) {
@@ -76,7 +75,6 @@ public class SnapshotParser {
       }
       generator.writeEndObject();
     }
-    // what happens if snapshot does NOT have operation, but has summary?
 
     String manifestList = snapshot.manifestListLocation();
     if (manifestList != null) {
