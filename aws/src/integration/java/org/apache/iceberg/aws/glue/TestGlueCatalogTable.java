@@ -754,4 +754,73 @@ public class TestGlueCatalogTable extends GlueTestBase {
         .containsEntry(S3FileIOProperties.S3_TAG_ICEBERG_TABLE, tableName)
         .containsEntry(S3FileIOProperties.S3_TAG_ICEBERG_NAMESPACE, namespace);
   }
+
+  @Test
+  public void testDisableNonCurrentFields() {
+    AwsProperties properties = new AwsProperties();
+    properties.setGlueNonCurrentFieldsDisabled(true);
+    glueCatalog.initialize(
+        CATALOG_NAME,
+        TEST_BUCKET_PATH,
+        properties,
+        new S3FileIOProperties(),
+        GLUE,
+        LockManagers.defaultLockManager(),
+        ImmutableMap.of());
+    String namespace = getRandomName();
+
+    NAMESPACES.add(namespace);
+    glueCatalog.createNamespace(Namespace.of(namespace));
+    String tableName = getRandomName();
+    glueCatalog.createTable(TableIdentifier.of(namespace, tableName), schema, partitionSpec);
+    Table table = glueCatalog.loadTable(TableIdentifier.of(namespace, tableName));
+    table
+        .updateSchema()
+        .addColumn(
+            "c2",
+            Types.StructType.of(Types.NestedField.required(3, "z", Types.IntegerType.get())),
+            "c2")
+        .addColumn("c3", Types.StringType.get())
+        .addColumn("c4", Types.StringType.get())
+        .commit();
+    table.updateSpec().addField(truncate("c1", 8)).commit();
+    table.updateSchema().deleteColumn("c3").renameColumn("c4", "c5").commit();
+
+    GetTableResponse response =
+        GLUE.getTable(GetTableRequest.builder().databaseName(namespace).name(tableName).build());
+    List<Column> actualColumns = response.table().storageDescriptor().columns();
+
+    List<Column> expectedColumns =
+        ImmutableList.of(
+            Column.builder()
+                .name("c1")
+                .type("string")
+                .comment("c1")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "1",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "false",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"))
+                .build(),
+            Column.builder()
+                .name("c2")
+                .type("struct<z:int>")
+                .comment("c2")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "2",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"))
+                .build(),
+            Column.builder()
+                .name("c5")
+                .type("string")
+                .parameters(
+                    ImmutableMap.of(
+                        IcebergToGlueConverter.ICEBERG_FIELD_ID, "5",
+                        IcebergToGlueConverter.ICEBERG_FIELD_OPTIONAL, "true",
+                        IcebergToGlueConverter.ICEBERG_FIELD_CURRENT, "true"))
+                .build());
+    assertThat(actualColumns).isEqualTo(expectedColumns);
+  }
 }
