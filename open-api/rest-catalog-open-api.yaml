@@ -4141,6 +4141,7 @@ components:
         - avro
         - orc
         - parquet
+        - puffin
 
     ContentFile:
       discriminator:
@@ -4250,6 +4251,14 @@ components:
         content:
           type: string
           enum: [ "position-deletes" ]
+        content-offset:
+          type: integer
+          format: int64
+          description: Offset within the delete file of delete content
+        content-size-in-bytes:
+          type: integer
+          format: int64
+          description: Length, in bytes, of the delete content; required if content-offset is present
 
     EqualityDeleteFile:
       allOf:
