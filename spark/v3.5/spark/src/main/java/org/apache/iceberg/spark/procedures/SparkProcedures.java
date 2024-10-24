@@ -22,7 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.spark.sql.connector.catalog.TableCatalog;
+import org.apache.iceberg.spark.BaseCatalog;
 import org.apache.spark.sql.connector.iceberg.catalog.Procedure;
 
 public class SparkProcedures {
@@ -56,11 +56,12 @@ public class SparkProcedures {
     mapBuilder.put("create_changelog_view", CreateChangelogViewProcedure::builder);
     mapBuilder.put("rewrite_position_delete_files", RewritePositionDeleteFilesProcedure::builder);
     mapBuilder.put("fast_forward", FastForwardBranchProcedure::builder);
+    mapBuilder.put("add_view_dialect", AddViewDialectProcedure::builder);
     return mapBuilder.build();
   }
 
   public interface ProcedureBuilder {
-    ProcedureBuilder withTableCatalog(TableCatalog tableCatalog);
+    ProcedureBuilder withCatalog(BaseCatalog catalog);
 
     Procedure build();
   }

@@ -31,8 +31,10 @@ import org.apache.spark.sql.catalyst.analysis.NamespaceAlreadyExistsException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchFunctionException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.analysis.NoSuchViewException;
 import org.apache.spark.sql.catalyst.analysis.NonEmptyNamespaceException;
 import org.apache.spark.sql.catalyst.analysis.TableAlreadyExistsException;
+import org.apache.spark.sql.catalyst.analysis.ViewAlreadyExistsException;
 import org.apache.spark.sql.connector.catalog.CatalogExtension;
 import org.apache.spark.sql.connector.catalog.CatalogPlugin;
 import org.apache.spark.sql.connector.catalog.FunctionCatalog;
@@ -44,6 +46,8 @@ import org.apache.spark.sql.connector.catalog.SupportsNamespaces;
 import org.apache.spark.sql.connector.catalog.Table;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
 import org.apache.spark.sql.connector.catalog.TableChange;
+import org.apache.spark.sql.connector.catalog.View;
+import org.apache.spark.sql.connector.catalog.ViewChange;
 import org.apache.spark.sql.connector.catalog.functions.UnboundFunction;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.types.StructType;
@@ -396,5 +400,62 @@ public class SparkSessionCatalog<T extends TableCatalog & FunctionCatalog & Supp
     } catch (NoSuchFunctionException e) {
       return getSessionCatalog().loadFunction(ident);
     }
+  }
+
+  @Override
+  public View replaceView(
+      Identifier ident,
+      String sql,
+      String currentCatalog,
+      String[] currentNamespace,
+      StructType schema,
+      String[] queryColumnNames,
+      String[] columnAliases,
+      String[] columnComments,
+      Map<String, String> properties)
+      throws NoSuchViewException, NoSuchNamespaceException {
+    throw new UnsupportedOperationException("SessionCatalog doesn't support views");
+  }
+
+  @Override
+  public Identifier[] listViews(String... namespace) throws NoSuchNamespaceException {
+    throw new UnsupportedOperationException("SessionCatalog doesn't support views");
+  }
+
+  @Override
+  public View loadView(Identifier ident) throws NoSuchViewException {
+    throw new UnsupportedOperationException("SessionCatalog doesn't support views");
+  }
+
+  @Override
+  public View createView(
+      Identifier ident,
+      String sql,
+      String currentCatalog,
+      String[] currentNamespace,
+      StructType schema,
+      String[] queryColumnNames,
+      String[] columnAliases,
+      String[] columnComments,
+      Map<String, String> properties)
+      throws ViewAlreadyExistsException, NoSuchNamespaceException {
+    throw new UnsupportedOperationException("SessionCatalog doesn't support views");
+  }
+
+  @Override
+  public View alterView(Identifier ident, ViewChange... changes)
+      throws NoSuchViewException, IllegalArgumentException {
+    throw new UnsupportedOperationException("SessionCatalog doesn't support views");
+  }
+
+  @Override
+  public boolean dropView(Identifier ident) {
+    throw new UnsupportedOperationException("SessionCatalog doesn't support views");
+  }
+
+  @Override
+  public void renameView(Identifier oldIdent, Identifier newIdent)
+      throws NoSuchViewException, ViewAlreadyExistsException {
+    throw new UnsupportedOperationException("SessionCatalog doesn't support views");
   }
 }
