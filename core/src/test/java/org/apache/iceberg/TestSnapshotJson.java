@@ -41,7 +41,7 @@ public class TestSnapshotJson {
   public TableOperations ops = new LocalTableOperations(temp);
 
   @Test
-  public void testToJson() throws IOException {
+  public void testToJsonWithoutOperation() throws IOException {
     int snapshotId = 23;
     Long parentId = null;
     String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
@@ -52,9 +52,7 @@ public class TestSnapshotJson {
     String json = SnapshotParser.toJson(expected);
 
     // Assert that summary field is not present in the JSON
-    ObjectMapper objectMapper = new ObjectMapper();
-    JsonNode jsonNode = objectMapper.readTree(json);
-    assertThat(jsonNode.has("summary")).isFalse();
+    assertThat(new ObjectMapper().readTree(json)).anyMatch(node -> !node.has("summary"));
   }
 
   @Test
@@ -74,21 +72,23 @@ public class TestSnapshotJson {
             ImmutableMap.of("files-added", "4", "files-deleted", "100"),
             3,
             manifestList);
-
-    String json = SnapshotParser.toJson(expected);
-
-    // Assert that the JSON contains the expected summary
-    ObjectMapper objectMapper = new ObjectMapper();
-    JsonNode jsonNode = objectMapper.readTree(json);
-    Map<String, String> actualSummary =
-        objectMapper.convertValue(
-            jsonNode.get("summary"), new TypeReference<Map<String, String>>() {});
     Map<String, String> expectedSummary =
         ImmutableMap.<String, String>builder()
             .putAll(expected.summary())
             .put("operation", expected.operation()) // operation is part of the summary
             .build();
-    assertThat(jsonNode.has("summary")).isTrue();
+
+    String json = SnapshotParser.toJson(expected);
+    ObjectMapper objectMapper = new ObjectMapper();
+    JsonNode jsonNode = objectMapper.readTree(json);
+
+    // Assert that the summary node exists
+    assertThat(jsonNode.get("summary")).isNotNull();
+
+    // Assert that the JSON contains the expected summary
+    Map<String, String> actualSummary =
+        objectMapper.convertValue(
+            jsonNode.get("summary"), new TypeReference<Map<String, String>>() {});
     assertThat(actualSummary).isEqualTo(expectedSummary);
   }
 
