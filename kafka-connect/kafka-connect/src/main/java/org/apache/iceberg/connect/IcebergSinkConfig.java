@@ -68,6 +68,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String TABLES_PROP = "iceberg.tables";
   private static final String TABLES_DYNAMIC_PROP = "iceberg.tables.dynamic-enabled";
   private static final String TABLES_ROUTE_FIELD_PROP = "iceberg.tables.route-field";
+  private static final String TABLES_ROUTE_PATTERN_PROP = "iceberg.tables.route-pattern";
   private static final String TABLES_DEFAULT_COMMIT_BRANCH = "iceberg.tables.default-commit-branch";
   private static final String TABLES_DEFAULT_ID_COLUMNS = "iceberg.tables.default-id-columns";
   private static final String TABLES_DEFAULT_PARTITION_BY = "iceberg.tables.default-partition-by";
@@ -126,6 +127,12 @@ public class IcebergSinkConfig extends AbstractConfig {
         null,
         Importance.MEDIUM,
         "Source record field for routing records to tables");
+    configDef.define(
+        TABLES_ROUTE_PATTERN_PROP,
+        ConfigDef.Type.STRING,
+        null,
+        Importance.MEDIUM,
+        "String pattern for routing records to tables");
     configDef.define(
         TABLES_DEFAULT_COMMIT_BRANCH,
         ConfigDef.Type.STRING,
@@ -252,8 +259,10 @@ public class IcebergSinkConfig extends AbstractConfig {
     if (tables() != null) {
       checkState(!dynamicTablesEnabled(), "Cannot specify both static and dynamic table names");
     } else if (dynamicTablesEnabled()) {
+      boolean cond = tablesRouteField() != null ^ tablesRoutePattern() != null;
       checkState(
-          tablesRouteField() != null, "Must specify a route field if using dynamic table names");
+          cond,
+          "Must specify exactly one of route field or route pattern if using dynamic table names");
     } else {
       throw new ConfigException("Must specify table name(s)");
     }
@@ -308,6 +317,10 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public String tablesRouteField() {
     return getString(TABLES_ROUTE_FIELD_PROP);
+  }
+
+  public String tablesRoutePattern() {
+    return getString(TABLES_ROUTE_PATTERN_PROP);
   }
 
   public String tablesDefaultCommitBranch() {
