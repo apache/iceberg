@@ -102,7 +102,7 @@ public class TestFileScanTaskParser {
         + "\"schema\":{\"type\":\"struct\",\"schema-id\":0,\"fields\":["
         + "{\"id\":3,\"name\":\"id\",\"required\":true,\"type\":\"int\"},"
         + "{\"id\":4,\"name\":\"data\",\"required\":true,\"type\":\"string\"}]},"
-        + "\"spec\":{\"spec-id\":0,\"fields\":[{\"name\":\"data_bucket\","
+        + "\"spec\":{\"spec-id\":0,\"schema-id\":0,\"fields\":[{\"name\":\"data_bucket\","
         + "\"transform\":\"bucket[16]\",\"source-id\":4,\"field-id\":1000}]},"
         + "\"data-file\":{\"spec-id\":0,\"content\":\"DATA\",\"file-path\":\"/path/to/data-a.parquet\","
         + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":0},"
