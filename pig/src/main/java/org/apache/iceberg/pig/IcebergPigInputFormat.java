@@ -56,6 +56,10 @@ import org.apache.pig.impl.util.ObjectSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * @deprecated will be removed in 1.8.0
+ */
+@Deprecated
 public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergPigInputFormat.class);
 
@@ -68,6 +72,7 @@ public class IcebergPigInputFormat<T> extends InputFormat<Void, T> {
   private List<InputSplit> splits;
 
   IcebergPigInputFormat(Table table, String signature) {
+    LOG.warn("Iceberg Pig is deprecated and will be removed in Iceberg 1.8.0");
     this.table = table;
     this.signature = signature;
   }

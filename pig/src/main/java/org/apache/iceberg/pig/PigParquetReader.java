@@ -60,9 +60,20 @@ import org.apache.pig.data.DataBag;
 import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.Tuple;
 import org.apache.pig.data.TupleFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+/**
+ * @deprecated will be removed in 1.8.0
+ */
+@Deprecated
 public class PigParquetReader {
-  private PigParquetReader() {}
+
+  private static final Logger LOG = LoggerFactory.getLogger(PigParquetReader.class);
+
+  private PigParquetReader() {
+    LOG.warn("Iceberg Pig is deprecated and will be removed in Iceberg 1.8.0");
+  }
 
   @SuppressWarnings("unchecked")
   public static ParquetValueReader<Tuple> buildReader(
