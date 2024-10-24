@@ -37,9 +37,11 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.connect.IcebergSinkConfig;
@@ -72,6 +74,7 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.types.Types.TimeType;
 import org.apache.iceberg.types.Types.TimestampType;
 import org.apache.iceberg.types.Types.UUIDType;
+import org.apache.iceberg.util.UUIDUtil;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -85,8 +88,6 @@ import org.apache.kafka.connect.storage.ConverterType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 public class RecordConverterTest {
 
@@ -219,6 +220,25 @@ public class RecordConverterTest {
     Map<String, Object> data = createMapData();
     Record record = converter.convert(data);
     assertRecordValues(record);
+  }
+
+  @Test
+  public void testUUIDConversionWithParquet() {
+    Table table = mock(Table.class);
+    when(table.schema())
+        .thenReturn(new org.apache.iceberg.Schema(NestedField.required(1, "uuid", UUIDType.get())));
+    when(config.writeProps())
+        .thenReturn(
+            ImmutableMap.of(
+                TableProperties.DEFAULT_FILE_FORMAT,
+                FileFormat.PARQUET.name().toLowerCase(Locale.ROOT)));
+
+    RecordConverter converter = new RecordConverter(table, config);
+    Map<String, Object> data =
+        ImmutableMap.<String, Object>builder().put("uuid", UUID_VAL.toString()).build();
+
+    Record record = converter.convert(data);
+    assertThat(record.getField("uuid")).isEqualTo(UUIDUtil.convert(UUID_VAL));
   }
 
   @Test
@@ -364,29 +384,31 @@ public class RecordConverterTest {
     assertThat(record.getField("ii")).isEqualTo(123);
   }
 
-  @ParameterizedTest
-  @ValueSource(booleans = {false, true})
-  public void testCaseSensitivity(boolean caseInsensitive) {
-    Table table = mock(Table.class);
-    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+  @Test
+  public void testCaseSensitivity() {
+    for (boolean caseInsensitive : new boolean[] {true, false}) {
+      Table table = mock(Table.class);
+      when(table.schema()).thenReturn(SIMPLE_SCHEMA);
 
-    when(config.schemaCaseInsensitive()).thenReturn(caseInsensitive);
+      when(config.schemaCaseInsensitive()).thenReturn(caseInsensitive);
 
-    RecordConverter converter = new RecordConverter(table, config);
+      RecordConverter converter = new RecordConverter(table, config);
 
-    Map<String, Object> mapData = ImmutableMap.of("II", 123);
-    Record record1 = converter.convert(mapData);
+      Map<String, Object> mapData = ImmutableMap.of("II", 123);
+      Record record1 = converter.convert(mapData);
 
-    Struct structData =
-        new Struct(SchemaBuilder.struct().field("II", Schema.INT32_SCHEMA).build()).put("II", 123);
-    Record record2 = converter.convert(structData);
+      Struct structData =
+          new Struct(SchemaBuilder.struct().field("II", Schema.INT32_SCHEMA).build())
+              .put("II", 123);
+      Record record2 = converter.convert(structData);
 
-    if (caseInsensitive) {
-      assertThat(record1.getField("ii")).isEqualTo(123);
-      assertThat(record2.getField("ii")).isEqualTo(123);
-    } else {
-      assertThat(record1.getField("ii")).isEqualTo(null);
-      assertThat(record2.getField("ii")).isEqualTo(null);
+      if (caseInsensitive) {
+        assertThat(record1.getField("ii")).isEqualTo(123);
+        assertThat(record2.getField("ii")).isEqualTo(123);
+      } else {
+        assertThat(record1.getField("ii")).isEqualTo(null);
+        assertThat(record2.getField("ii")).isEqualTo(null);
+      }
     }
   }
 
@@ -859,7 +881,7 @@ public class RecordConverterTest {
     assertThat(updateMap.get("st.ff").type()).isInstanceOf(DoubleType.class);
   }
 
-  private Map<String, Object> createMapData() {
+  public static Map<String, Object> createMapData() {
     return ImmutableMap.<String, Object>builder()
         .put("i", 1)
         .put("l", 2L)
@@ -898,8 +920,8 @@ public class RecordConverterTest {
         .put("s", STR_VAL)
         .put("b", true)
         .put("u", UUID_VAL.toString())
-        .put("f", BYTES_VAL.array())
-        .put("bi", BYTES_VAL.array())
+        .put("f", BYTES_VAL)
+        .put("bi", BYTES_VAL)
         .put("li", LIST_VAL)
         .put("ma", MAP_VAL);
   }
@@ -921,11 +943,11 @@ public class RecordConverterTest {
     assertThat(rec.getField("dec")).isEqualTo(DEC_VAL);
     assertThat(rec.getField("s")).isEqualTo(STR_VAL);
     assertThat(rec.getField("b")).isEqualTo(true);
-    assertThat(rec.getField("u")).isEqualTo(UUID_VAL);
-    assertThat(rec.getField("f")).isEqualTo(BYTES_VAL);
+    assertThat(rec.getField("f")).isEqualTo(BYTES_VAL.array());
     assertThat(rec.getField("bi")).isEqualTo(BYTES_VAL);
     assertThat(rec.getField("li")).isEqualTo(LIST_VAL);
     assertThat(rec.getField("ma")).isEqualTo(MAP_VAL);
+    assertThat(rec.getField("u")).isEqualTo(UUID_VAL);
   }
 
   private void assertNestedRecordValues(Record record) {
