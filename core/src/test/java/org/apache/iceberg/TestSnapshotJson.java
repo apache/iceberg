@@ -236,7 +236,7 @@ public class TestSnapshotJson {
 
     assertThatThrownBy(() -> SnapshotParser.fromJson(json))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Operation must be present in summary if summary exists");
+        .hasMessage("Cannot parse missing string: operation");
   }
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)

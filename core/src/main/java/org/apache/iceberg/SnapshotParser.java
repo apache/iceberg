@@ -131,19 +131,16 @@ public class SnapshotParser {
           "Cannot parse summary from non-object value: %s",
           sNode);
 
+      operation = JsonUtil.getString(OPERATION, sNode);
       ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
       Iterator<String> fields = sNode.fieldNames();
       while (fields.hasNext()) {
         String field = fields.next();
-        if (field.equals(OPERATION)) {
-          operation = JsonUtil.getString(OPERATION, sNode);
-        } else {
+        if (!field.equals(OPERATION)) {
           builder.put(field, JsonUtil.getString(field, sNode));
         }
       }
       summary = builder.build();
-      Preconditions.checkArgument(
-          operation != null, "Operation must be present in summary if summary exists");
     }
 
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, node);
