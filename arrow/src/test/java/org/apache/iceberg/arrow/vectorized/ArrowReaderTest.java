@@ -69,6 +69,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
@@ -79,10 +80,12 @@ import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.GeometryUtil;
 import org.apache.iceberg.util.UUIDUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -124,7 +127,9 @@ public class ArrowReaderTest {
           "uuid",
           "uuid_nullable",
           "decimal",
-          "decimal_nullable");
+          "decimal_nullable",
+          "geometry",
+          "geometry_nullable");
   @TempDir private File tempDir;
 
   private HadoopTables tables;
@@ -633,6 +638,26 @@ public class ArrowReaderTest {
         "decimal_nullable",
         (records, i) -> records.get(i).getField("decimal_nullable"),
         (array, i) -> array.getDecimal(i, 9, 2));
+
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("geometry"),
+        columnSet,
+        "geometry",
+        (records, i) -> records.get(i).getField("geometry"),
+        (array, i) -> GeometryUtil.fromWKB(array.getBinary(i)));
+
+    checkColumnarArrayValues(
+        expectedNumRows,
+        expectedRows,
+        batch,
+        columnNameToIndex.get("geometry_nullable"),
+        columnSet,
+        "geometry_nullable",
+        (records, i) -> records.get(i).getField("geometry_nullable"),
+        (array, i) -> GeometryUtil.fromWKB(array.getBinary(i)));
   }
 
   private static void checkColumnarArrayValues(
@@ -698,11 +723,18 @@ public class ArrowReaderTest {
             Types.NestedField.required(24, "uuid", Types.UUIDType.get()),
             Types.NestedField.optional(25, "uuid_nullable", Types.UUIDType.get()),
             Types.NestedField.required(26, "decimal", Types.DecimalType.of(9, 2)),
-            Types.NestedField.optional(27, "decimal_nullable", Types.DecimalType.of(9, 2)));
+            Types.NestedField.optional(27, "decimal_nullable", Types.DecimalType.of(9, 2)),
+            Types.NestedField.required(28, "geometry", Types.GeometryType.get()),
+            Types.NestedField.optional(
+                29,
+                "geometry_nullable",
+                Types.GeometryType.of("test_crs", Types.GeometryType.Edges.SPHERICAL)));
 
     PartitionSpec spec = PartitionSpec.builderFor(schema).month("timestamp").build();
 
-    Table table = tables.create(schema, spec, tableLocation);
+    Table table =
+        tables.create(
+            schema, spec, ImmutableMap.of(TableProperties.FORMAT_VERSION, "3"), tableLocation);
 
     OverwriteFiles overwrite = table.newOverwrite();
     for (int i = 1; i <= 12; i++) {
@@ -782,7 +814,12 @@ public class ArrowReaderTest {
                 null),
             new Field("decimal", new FieldType(false, new ArrowType.Decimal(9, 2), null), null),
             new Field(
-                "decimal_nullable", new FieldType(true, new ArrowType.Decimal(9, 2), null), null));
+                "decimal_nullable", new FieldType(true, new ArrowType.Decimal(9, 2), null), null),
+            new Field("geometry", new FieldType(false, MinorType.VARBINARY.getType(), null), null),
+            new Field(
+                "geometry_nullable",
+                new FieldType(true, MinorType.VARBINARY.getType(), null),
+                null));
     List<Field> filteredFields =
         allFields.stream()
             .filter(f -> columnSet.contains(f.getName()))
@@ -826,6 +863,8 @@ public class ArrowReaderTest {
       rec.setField("uuid_nullable", uuid);
       rec.setField("decimal", new BigDecimal("14.0" + i % 10));
       rec.setField("decimal_nullable", new BigDecimal("14.0" + i % 10));
+      rec.setField("geometry", GeometryUtil.fromWKT("POINT (" + i + " 1)"));
+      rec.setField("geometry_nullable", GeometryUtil.fromWKT("POINT (" + i + " 1)"));
       records.add(rec);
     }
     return records;
@@ -865,6 +904,8 @@ public class ArrowReaderTest {
       rec.setField("uuid_nullable", uuid);
       rec.setField("decimal", new BigDecimal("14.20"));
       rec.setField("decimal_nullable", new BigDecimal("14.20"));
+      rec.setField("geometry", GeometryUtil.fromWKT("POINT (30 10)"));
+      rec.setField("geometry_nullable", GeometryUtil.fromWKT("POINT (30 10)"));
       records.add(rec);
     }
     return records;
@@ -945,6 +986,8 @@ public class ArrowReaderTest {
     assertEqualsForField(root, columnSet, "int_promotion", IntVector.class);
     assertEqualsForField(root, columnSet, "decimal", DecimalVector.class);
     assertEqualsForField(root, columnSet, "decimal_nullable", DecimalVector.class);
+    assertEqualsForField(root, columnSet, "geometry", VarBinaryVector.class);
+    assertEqualsForField(root, columnSet, "geometry_nullable", VarBinaryVector.class);
   }
 
   private void assertEqualsForField(
@@ -1185,6 +1228,24 @@ public class ArrowReaderTest {
         "decimal_nullable",
         (records, i) -> records.get(i).getField("decimal_nullable"),
         (vector, i) -> ((DecimalVector) vector).getObject(i));
+
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "geometry",
+        (records, i) -> records.get(i).getField("geometry"),
+        (vector, i) -> GeometryUtil.fromWKB(((VarBinaryVector) vector).get(i)));
+
+    checkVectorValues(
+        expectedNumRows,
+        expectedRows,
+        root,
+        columnSet,
+        "geometry_nullable",
+        (records, i) -> records.get(i).getField("geometry_nullable"),
+        (vector, i) -> GeometryUtil.fromWKB(((VarBinaryVector) vector).get(i)));
   }
 
   private static void checkVectorValues(

@@ -66,6 +66,7 @@ public class ArrowSchemaUtil {
 
     switch (field.type().typeId()) {
       case BINARY:
+      case GEOMETRY:
         arrowType = ArrowType.Binary.INSTANCE;
         break;
       case FIXED:
