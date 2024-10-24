@@ -438,16 +438,6 @@ project(':iceberg-aliyun') {
     testImplementation platform(libs.jackson.bom)
     testImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation libs.spring.web
-    testImplementation(libs.spring.boot.starter.jetty) {
-      exclude module: 'logback-classic'
-      exclude group: 'org.eclipse.jetty.websocket', module: 'javax-websocket-server-impl'
-      exclude group: 'org.eclipse.jetty.websocket', module: 'websocket-server'
-    }
-    testImplementation(libs.spring.boot.starter.web) {
-      exclude module: 'logback-classic'
-      exclude module: 'spring-boot-starter-logging'
-    }
   }
 }
 
