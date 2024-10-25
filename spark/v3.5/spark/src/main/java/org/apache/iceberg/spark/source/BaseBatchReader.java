@@ -139,11 +139,12 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
     // vectorization reader. Before removing _pos, we need to make sure _pos is not explicitly
     // selected in the query.
     if (deleteFilter != null) {
-      if (deleteFilter.hasPosDeletes() && expectedSchema().findType("_pos") == null) {
+      if (deleteFilter.hasPosDeletes()
+          && expectedSchema().findType(MetadataColumns.ROW_POSITION.name()) == null) {
         List<String> columnNameWithoutPos =
             deleteFilter.requiredSchema().columns().stream()
                 .map(Types.NestedField::name)
-                .filter(name -> !name.equals("_pos"))
+                .filter(name -> !name.equals(MetadataColumns.ROW_POSITION.name()))
                 .collect(Collectors.toList());
         return deleteFilter.requiredSchema().select(columnNameWithoutPos);
       } else {
