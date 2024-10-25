@@ -84,7 +84,6 @@ public class TestSnapshotJson {
 
     assertThat(jsonNode.get("summary")).isNotNull();
 
-    // Assert that the "summary" field in the JSON matches the expected summary map
     Map<String, String> actualSummary =
         objectMapper.convertValue(
             jsonNode.get("summary"), new TypeReference<Map<String, String>>() {});
