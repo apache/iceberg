@@ -51,7 +51,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect') {
     testImplementation libs.hadoop3.client
     testRuntimeOnly project(':iceberg-parquet')
     testRuntimeOnly project(':iceberg-orc')
-    testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
   }
 
   test {

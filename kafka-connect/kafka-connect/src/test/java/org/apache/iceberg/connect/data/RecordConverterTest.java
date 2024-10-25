@@ -88,6 +88,8 @@ import org.apache.kafka.connect.storage.ConverterType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class RecordConverterTest {
 
@@ -384,31 +386,29 @@ public class RecordConverterTest {
     assertThat(record.getField("ii")).isEqualTo(123);
   }
 
-  @Test
-  public void testCaseSensitivity() {
-    for (boolean caseInsensitive : new boolean[] {true, false}) {
-      Table table = mock(Table.class);
-      when(table.schema()).thenReturn(SIMPLE_SCHEMA);
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  public void testCaseSensitivity(boolean caseInsensitive) {
+    Table table = mock(Table.class);
+    when(table.schema()).thenReturn(SIMPLE_SCHEMA);
 
-      when(config.schemaCaseInsensitive()).thenReturn(caseInsensitive);
+    when(config.schemaCaseInsensitive()).thenReturn(caseInsensitive);
 
-      RecordConverter converter = new RecordConverter(table, config);
+    RecordConverter converter = new RecordConverter(table, config);
 
-      Map<String, Object> mapData = ImmutableMap.of("II", 123);
-      Record record1 = converter.convert(mapData);
+    Map<String, Object> mapData = ImmutableMap.of("II", 123);
+    Record record1 = converter.convert(mapData);
 
-      Struct structData =
-          new Struct(SchemaBuilder.struct().field("II", Schema.INT32_SCHEMA).build())
-              .put("II", 123);
-      Record record2 = converter.convert(structData);
+    Struct structData =
+        new Struct(SchemaBuilder.struct().field("II", Schema.INT32_SCHEMA).build()).put("II", 123);
+    Record record2 = converter.convert(structData);
 
-      if (caseInsensitive) {
-        assertThat(record1.getField("ii")).isEqualTo(123);
-        assertThat(record2.getField("ii")).isEqualTo(123);
-      } else {
-        assertThat(record1.getField("ii")).isEqualTo(null);
-        assertThat(record2.getField("ii")).isEqualTo(null);
-      }
+    if (caseInsensitive) {
+      assertThat(record1.getField("ii")).isEqualTo(123);
+      assertThat(record2.getField("ii")).isEqualTo(123);
+    } else {
+      assertThat(record1.getField("ii")).isEqualTo(null);
+      assertThat(record2.getField("ii")).isEqualTo(null);
     }
   }
 
