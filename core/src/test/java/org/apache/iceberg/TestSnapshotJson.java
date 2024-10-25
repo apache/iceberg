@@ -82,7 +82,6 @@ public class TestSnapshotJson {
     ObjectMapper objectMapper = new ObjectMapper();
     JsonNode jsonNode = objectMapper.readTree(json);
 
-    // Assert that the summary node exists
     assertThat(jsonNode.get("summary")).isNotNull();
 
     // Assert that the "summary" field in the JSON matches the expected summary map
