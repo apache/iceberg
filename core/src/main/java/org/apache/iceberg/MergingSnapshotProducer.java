@@ -80,7 +80,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final ManifestFilterManager<DeleteFile> deleteFilterManager;
 
   // update data
-  private final Map<PartitionSpec, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
+  private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
   private Long newDataFilesDataSequenceNumber;
   private final Map<Integer, DeleteFileSet> newDeleteFilesBySpec = Maps.newHashMap();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
@@ -138,18 +138,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   protected PartitionSpec dataSpec() {
-    Set<PartitionSpec> specs = dataSpecs();
+    Set<Integer> specIds = newDataFilesBySpec.keySet();
     Preconditions.checkState(
-        specs.size() == 1,
+        !specIds.isEmpty(), "Cannot determine partition specs: no data files have been added");
+    Preconditions.checkState(
+        specIds.size() == 1,
         "Cannot return a single partition spec: data files with different partition specs have been added");
-    return specs.iterator().next();
-  }
-
-  protected Set<PartitionSpec> dataSpecs() {
-    Set<PartitionSpec> specs = newDataFilesBySpec.keySet();
-    Preconditions.checkState(
-        !specs.isEmpty(), "Cannot determine partition specs: no data files have been added");
-    return ImmutableSet.copyOf(specs);
+    return spec(Iterables.getOnlyElement(specIds));
   }
 
   protected Expression rowFilter() {
@@ -237,7 +232,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         file.location());
 
     DataFileSet dataFiles =
-        newDataFilesBySpec.computeIfAbsent(spec, ignored -> DataFileSet.create());
+        newDataFilesBySpec.computeIfAbsent(spec.specId(), ignored -> DataFileSet.create());
     if (dataFiles.add(file)) {
       addedFilesSummary.addedFile(spec, file);
       hasNewDataFiles = true;
@@ -971,9 +966,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
     if (cachedNewDataManifests.isEmpty()) {
       newDataFilesBySpec.forEach(
-          (dataSpec, dataFiles) -> {
+          (specId, dataFiles) -> {
             List<ManifestFile> newDataManifests =
-                writeDataManifests(dataFiles, newDataFilesDataSequenceNumber, dataSpec);
+                writeDataManifests(dataFiles, newDataFilesDataSequenceNumber, spec(specId));
             cachedNewDataManifests.addAll(newDataManifests);
           });
       this.hasNewDataFiles = false;
