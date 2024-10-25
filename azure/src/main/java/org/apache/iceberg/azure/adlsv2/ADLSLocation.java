@@ -64,8 +64,7 @@ class ADLSLocation {
     }
 
     String uriPath = matcher.group(2);
-    uriPath = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
-    this.path = uriPath.split("\\?", -1)[0].split("#", -1)[0];
+    this.path = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
   }
 
   /** Returns Azure storage account. */
