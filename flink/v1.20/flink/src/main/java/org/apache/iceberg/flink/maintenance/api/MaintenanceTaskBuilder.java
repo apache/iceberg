@@ -196,18 +196,18 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
   DataStream<TaskResult> append(
       DataStream<Trigger> sourceStream,
       int taskIndex,
-      String taskName,
-      String tableName,
+      String newTaskName,
+      String newTableName,
       TableLoader newTableLoader,
       String defaultUidSuffix,
       String defaultSlotSharingGroup,
-      int mainParallelism) {
-    Preconditions.checkNotNull(taskName, "Task name should not be null");
+      int defaultParallelism) {
+    Preconditions.checkNotNull(newTaskName, "Task name should not be null");
     Preconditions.checkNotNull(newTableLoader, "TableLoader should not be null");
 
     this.index = taskIndex;
-    this.taskName = taskName;
-    this.tableName = tableName;
+    this.taskName = newTaskName;
+    this.tableName = newTableName;
     this.tableLoader = newTableLoader;
 
     if (uidSuffix == null) {
@@ -215,7 +215,7 @@ public abstract class MaintenanceTaskBuilder<T extends MaintenanceTaskBuilder<?>
     }
 
     if (parallelism == null) {
-      parallelism = mainParallelism;
+      parallelism = defaultParallelism;
     }
 
     if (slotSharingGroup == null) {
