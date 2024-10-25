@@ -25,7 +25,6 @@ import org.apache.iceberg.events.Listeners;
 import org.apache.iceberg.events.ScanEvent;
 import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterable;
-import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ImmutableScanReport;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.ScanMetrics;

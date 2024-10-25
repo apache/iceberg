@@ -239,7 +239,7 @@ public class TestCatalogUtil {
     Map<String, String> properties = Maps.newHashMap();
     properties.put("key", "val");
     properties.put(
-            CatalogProperties.METRICS_CONTEXT_IMPL, TestMetricsContextDefault.class.getName());
+        CatalogProperties.METRICS_CONTEXT_IMPL, TestMetricsContextDefault.class.getName());
 
     MetricsContext metricsContext = CatalogUtil.loadMetricsContext(properties);
     assertThat(metricsContext).isInstanceOf(TestMetricsContextDefault.class);
@@ -249,24 +249,22 @@ public class TestCatalogUtil {
   public void loadCustomMetricsContext_badArg() {
     assertThatThrownBy(
             () ->
-                    CatalogUtil.loadMetricsContext(
-                            ImmutableMap.of(
-                                    CatalogProperties.METRICS_CONTEXT_IMPL,
-                                    java.lang.System.class.getName())))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("missing no-arg constructor");
+                CatalogUtil.loadMetricsContext(
+                    ImmutableMap.of(
+                        CatalogProperties.METRICS_CONTEXT_IMPL, java.lang.System.class.getName())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("missing no-arg constructor");
   }
 
   @Test
   public void loadCustomMetricsContext_badClass() {
     assertThatThrownBy(
             () ->
-                    CatalogUtil.loadMetricsContext(
-                            ImmutableMap.of(
-                                    CatalogProperties.METRICS_CONTEXT_IMPL,
-                                    TestFileIONotImpl.class.getName())))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("does not implement MetricsContext");
+                CatalogUtil.loadMetricsContext(
+                    ImmutableMap.of(
+                        CatalogProperties.METRICS_CONTEXT_IMPL, TestFileIONotImpl.class.getName())))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not implement MetricsContext");
   }
 
   @Test
@@ -525,6 +523,5 @@ public class TestCatalogUtil {
     public void report(MetricsReport report) {}
   }
 
-  public static class TestMetricsContextDefault implements MetricsContext {
-  }
+  public static class TestMetricsContextDefault implements MetricsContext {}
 }

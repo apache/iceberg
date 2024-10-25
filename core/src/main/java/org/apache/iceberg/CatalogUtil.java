@@ -516,14 +516,14 @@ public class CatalogUtil {
     DynConstructors.Ctor<MetricsContext> ctor;
     try {
       ctor =
-              DynConstructors.builder(MetricsContext.class)
-                      .loader(CatalogUtil.class.getClassLoader())
-                      .impl(impl)
-                      .buildChecked();
+          DynConstructors.builder(MetricsContext.class)
+              .loader(CatalogUtil.class.getClassLoader())
+              .impl(impl)
+              .buildChecked();
     } catch (NoSuchMethodException e) {
       throw new IllegalArgumentException(
-              String.format("Cannot initialize MetricsContext, missing no-arg constructor: %s", impl),
-              e);
+          String.format("Cannot initialize MetricsContext, missing no-arg constructor: %s", impl),
+          e);
     }
 
     MetricsContext metricsContext;
@@ -531,9 +531,9 @@ public class CatalogUtil {
       metricsContext = ctor.newInstance();
     } catch (ClassCastException e) {
       throw new IllegalArgumentException(
-              String.format(
-                      "Cannot initialize MetricsContext, %s does not implement MetricsContext.", impl),
-              e);
+          String.format(
+              "Cannot initialize MetricsContext, %s does not implement MetricsContext.", impl),
+          e);
     }
 
     metricsContext.initialize(properties);
