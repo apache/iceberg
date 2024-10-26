@@ -65,8 +65,8 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static final String WRITE_PROP_PREFIX = "iceberg.tables.write-props.";
 
   private static final String CATALOG_NAME_PROP = "iceberg.catalog";
-  private static final String TOPIC_TO_TABLES_MAPPING_PROP =
-      "iceberg.tables.topic-to-table-mapping";
+  private static final String TOPIC_TO_TABLE_MAP_PROP =
+      "iceberg.tables.topic-to-table-map";
   private static final String TABLES_PROP = "iceberg.tables";
   private static final String TABLES_DYNAMIC_PROP = "iceberg.tables.dynamic-enabled";
   private static final String TABLES_ROUTE_FIELD_PROP = "iceberg.tables.route-field";
@@ -111,7 +111,7 @@ public class IcebergSinkConfig extends AbstractConfig {
   private static ConfigDef newConfigDef() {
     ConfigDef configDef = new ConfigDef();
     configDef.define(
-        TOPIC_TO_TABLES_MAPPING_PROP,
+        TOPIC_TO_TABLE_MAP_PROP,
         ConfigDef.Type.LIST,
         null,
         Importance.LOW,
@@ -308,7 +308,7 @@ public class IcebergSinkConfig extends AbstractConfig {
 
   public Map<String, String> topicToTableMap() {
     Map<String, String> topicToTableMap = Maps.newHashMap();
-    for (String topicToTable : getList(TOPIC_TO_TABLES_MAPPING_PROP)) {
+    for (String topicToTable : getList(TOPIC_TO_TABLE_MAP_PROP)) {
       List<String> propsplit = Splitter.on(':').splitToList(topicToTable.trim());
       if (propsplit.size() == 2) {
         topicToTableMap.put(propsplit.get(0).trim(), propsplit.get(1).trim());
