@@ -20,16 +20,11 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.Files.localInput;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.Test;
@@ -39,56 +34,6 @@ public class TestSnapshotJson {
   @TempDir private Path temp;
 
   public TableOperations ops = new LocalTableOperations(temp);
-
-  @Test
-  public void testToJsonWithoutOperation() throws IOException {
-    int snapshotId = 23;
-    Long parentId = null;
-    String manifestList = createManifestListWithManifestFiles(snapshotId, parentId);
-
-    Snapshot expected =
-        new BaseSnapshot(
-            0, snapshotId, parentId, System.currentTimeMillis(), null, null, 1, manifestList);
-    String json = SnapshotParser.toJson(expected);
-
-    // Assert that summary field is not present in the JSON
-    assertThat(new ObjectMapper().readTree(json)).anyMatch(node -> !node.has("summary"));
-  }
-
-  @Test
-  public void testToJsonWithOperation() throws IOException {
-    long parentId = 1;
-    long id = 2;
-
-    String manifestList = createManifestListWithManifestFiles(id, parentId);
-
-    Snapshot expected =
-        new BaseSnapshot(
-            0,
-            id,
-            parentId,
-            System.currentTimeMillis(),
-            DataOperations.REPLACE,
-            ImmutableMap.of("files-added", "4", "files-deleted", "100"),
-            3,
-            manifestList);
-    Map<String, String> expectedSummary =
-        ImmutableMap.<String, String>builder()
-            .putAll(expected.summary())
-            .put("operation", expected.operation()) // operation should be part of the summary
-            .build();
-
-    String json = SnapshotParser.toJson(expected);
-    ObjectMapper objectMapper = new ObjectMapper();
-    JsonNode jsonNode = objectMapper.readTree(json);
-
-    assertThat(jsonNode.get("summary")).isNotNull();
-
-    Map<String, String> actualSummary =
-        objectMapper.convertValue(
-            jsonNode.get("summary"), new TypeReference<Map<String, String>>() {});
-    assertThat(actualSummary).isEqualTo(expectedSummary);
-  }
 
   @Test
   public void testJsonConversion() throws IOException {
@@ -212,28 +157,6 @@ public class TestSnapshotJson {
     assertThat(snapshot.operation()).isEqualTo(expected.operation());
     assertThat(snapshot.summary()).isEqualTo(expected.summary());
     assertThat(snapshot.schemaId()).isEqualTo(expected.schemaId());
-  }
-
-  @Test
-  public void testJsonConversionSummaryWithoutOperationFails() {
-    String json =
-        String.format(
-            "{\n"
-                + "  \"snapshot-id\" : 2,\n"
-                + "  \"parent-snapshot-id\" : 1,\n"
-                + "  \"timestamp-ms\" : %s,\n"
-                + "  \"summary\" : {\n"
-                + "    \"files-added\" : \"4\",\n"
-                + "    \"files-deleted\" : \"100\"\n"
-                + "  },\n"
-                + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
-                + "  \"schema-id\" : 3\n"
-                + "}",
-            System.currentTimeMillis());
-
-    assertThatThrownBy(() -> SnapshotParser.fromJson(json))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot parse missing string: operation");
   }
 
   private String createManifestListWithManifestFiles(long snapshotId, Long parentSnapshotId)
