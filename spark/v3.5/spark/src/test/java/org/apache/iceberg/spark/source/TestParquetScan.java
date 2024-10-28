@@ -31,6 +31,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
@@ -42,14 +43,17 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.data.ParameterizedAvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
+import org.apache.iceberg.spark.geo.testing.GeometryUDT;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -69,6 +73,7 @@ public class TestParquetScan extends ParameterizedAvroDataTest {
 
   @BeforeAll
   public static void startSpark() {
+    GeometryUDT.register();
     TestParquetScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
   }
 
@@ -142,11 +147,30 @@ public class TestParquetScan extends ParameterizedAvroDataTest {
     assertThat(rows).hasSize(100);
   }
 
+  @TestTemplate
+  public void testGeometry() throws IOException {
+    Types.StructType schema =
+        Types.StructType.of(
+            required(100, "id", Types.LongType.get()),
+            required(118, "geom", Types.GeometryType.get()),
+            optional(
+                119,
+                "geog",
+                Types.GeometryType.of("test_crs", Types.GeometryType.Edges.SPHERICAL)));
+    writeAndValidate(TypeUtil.assignIncreasingFreshIds(new Schema(schema.fields())));
+  }
+
   private Table createTable(Schema schema) throws IOException {
     File parent = temp.resolve("parquet").toFile();
     File location = new File(parent, "test");
     HadoopTables tables = new HadoopTables(CONF);
-    return tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
+    Map<String, String> properties = ImmutableMap.of(TableProperties.FORMAT_VERSION, "3");
+    return tables.create(
+        schema,
+        PartitionSpec.unpartitioned(),
+        SortOrder.unsorted(),
+        properties,
+        location.toString());
   }
 
   private void writeRecords(Table table, List<GenericData.Record> records) throws IOException {

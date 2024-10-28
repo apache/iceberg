@@ -59,6 +59,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DeleteFileSet;
+import org.apache.iceberg.util.GeometryUtil;
 import org.apache.orc.storage.serde2.io.DateWritable;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -78,6 +79,7 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.locationtech.jts.geom.Geometry;
 import scala.collection.Seq;
 
 public class TestHelpers {
@@ -238,6 +240,16 @@ public class TestHelpers {
         Map<String, ?> asMap =
             mapAsJavaMapConverter((scala.collection.Map<String, ?>) actual).asJava();
         assertEqualsSafe(type.asNestedType().asMapType(), (Map<String, ?>) expected, asMap);
+        break;
+      case GEOMETRY:
+        Geometry expectedGeom;
+        if (expected instanceof ByteBuffer) {
+          expectedGeom = GeometryUtil.fromWKB(((ByteBuffer) expected).array());
+        } else {
+          expectedGeom = (Geometry) expected;
+        }
+        Geometry actualGeom = (Geometry) actual;
+        assertThat(actualGeom).as("Geometries should be equal").isEqualTo(expectedGeom);
         break;
       case TIME:
       default:
