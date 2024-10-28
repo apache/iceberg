@@ -29,6 +29,10 @@ public class RandomUtil {
 
   private RandomUtil() {}
 
+  public static String generateString(int length, Random random) {
+    return randomString(length, random);
+  }
+
   private static boolean negate(int num) {
     return num % 2 == 1;
   }
@@ -200,7 +204,10 @@ public class RandomUtil {
       "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.!?";
 
   private static String randomString(Random random) {
-    int length = random.nextInt(50);
+    return randomString(random.nextInt(50), random);
+  }
+
+  private static String randomString(int length, Random random) {
     byte[] buffer = new byte[length];
 
     for (int i = 0; i < length; i += 1) {
