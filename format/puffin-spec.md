@@ -159,7 +159,7 @@ consists of:
 
 Note that the length and CRC fields are stored using big-endian, but the
 Roaring bitmap format uses little-endian values. Big endian values were chosen
-for compatibility with existing deletion vectors.
+for compatibility with existing deletion vectors in Delta tables.
 
 The blob's `properties` must:
 
@@ -168,7 +168,11 @@ The blob's `properties` must:
   metadata
 * Include `cardinality`, the number of deleted rows (set positions) in the
   delete vector
-* Omit `compression-codec`; `delete-vector-v1` is not compressed
+* Omit `compression-codec`; `deletion-vector-v1` is not compressed
+
+Snapshot ID and sequence number are not known at the time the Puffin file is
+created. `snapshot-id` and `sequence-number` must be set to -1 in blob metadata
+for Puffin v1.
 
 
 [roaring-bitmap-portable-serialization]: https://github.com/RoaringBitmap/RoaringFormatSpec?tab=readme-ov-file#extension-for-64-bit-implementations
