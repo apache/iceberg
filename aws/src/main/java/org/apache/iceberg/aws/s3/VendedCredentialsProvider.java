@@ -20,10 +20,8 @@ package org.apache.iceberg.aws.s3;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.ErrorHandlers;
@@ -103,11 +101,10 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
             .collect(Collectors.toList());
 
     Preconditions.checkState(!s3Credentials.isEmpty(), "Invalid S3 Credentials: empty");
+    Preconditions.checkState(
+        s3Credentials.size() == 1, "Invalid S3 Credentials: only one S3 credential should exist");
 
-    Optional<Credential> credentialWithPrefix =
-        s3Credentials.stream().max(Comparator.comparingInt(c -> c.prefix().length()));
-
-    Credential s3Credential = credentialWithPrefix.orElseGet(() -> s3Credentials.get(0));
+    Credential s3Credential = s3Credentials.get(0);
     checkCredential(s3Credential, S3FileIOProperties.ACCESS_KEY_ID);
     checkCredential(s3Credential, S3FileIOProperties.SECRET_ACCESS_KEY);
     checkCredential(s3Credential, S3FileIOProperties.SESSION_TOKEN);

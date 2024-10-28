@@ -85,7 +85,7 @@ public class TestVendedCredentialsProvider {
   }
 
   @Test
-  public void noS3CredentialsInResponse() {
+  public void noS3Credentials() {
     HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
 
     HttpResponse mockResponse =
@@ -234,7 +234,6 @@ public class TestVendedCredentialsProvider {
       // resolving credentials multiple times should hit the credentials endpoint again
       AwsCredentials refreshedCredentials = provider.resolveCredentials();
       assertThat(refreshedCredentials).isNotSameAs(awsCredentials);
-      // TODO
       verifyCredentials(refreshedCredentials, credential);
     }
 
@@ -242,11 +241,11 @@ public class TestVendedCredentialsProvider {
   }
 
   @Test
-  public void credentialWithLongestPrefixIsUsed() {
+  public void multipleS3Credentials() {
     HttpRequest mockRequest = request("/v1/credentials").withMethod(HttpMethod.GET.name());
     Credential credentialOne =
         ImmutableCredential.builder()
-            .prefix("s3")
+            .prefix("gcs")
             .config(
                 ImmutableMap.of(
                     S3FileIOProperties.ACCESS_KEY_ID,
@@ -297,8 +296,9 @@ public class TestVendedCredentialsProvider {
 
     try (VendedCredentialsProvider provider =
         VendedCredentialsProvider.create(ImmutableMap.of(VendedCredentialsProvider.URI, URI))) {
-      AwsCredentials awsCredentials = provider.resolveCredentials();
-      verifyCredentials(awsCredentials, credentialTwo);
+      assertThatThrownBy(provider::resolveCredentials)
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage("Invalid S3 Credentials: only one S3 credential should exist");
     }
   }
 
