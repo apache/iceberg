@@ -808,4 +808,28 @@ public class ParquetValueReaders {
       return NullReader.NULL_COLUMN;
     }
   }
+
+  public abstract static class DelegateValueReader<T, D> implements ParquetValueReader<T> {
+    @SuppressWarnings("checkstyle:VisibilityModifier")
+    protected final ParquetValueReader<D> delegate;
+
+    protected DelegateValueReader(ParquetValueReader<D> delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override
+    public void setPageSource(PageReadStore pageStore, long rowPosition) {
+      delegate.setPageSource(pageStore, rowPosition);
+    }
+
+    @Override
+    public TripleIterator<?> column() {
+      return delegate.column();
+    }
+
+    @Override
+    public List<TripleIterator<?>> columns() {
+      return delegate.columns();
+    }
+  }
 }

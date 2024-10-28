@@ -40,7 +40,6 @@ import org.apache.iceberg.parquet.ParquetValueReaders.RepeatedReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueReaders.StructReader;
 import org.apache.iceberg.parquet.ParquetValueReaders.UnboxedReader;
-import org.apache.iceberg.parquet.TripleIterator;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -51,7 +50,6 @@ import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
@@ -237,16 +235,14 @@ public class SparkParquetReaders {
           ParquetValueReaders.option(valueType, valueD, valueReader));
     }
 
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     @Override
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public ParquetValueReader<?> primitive(
         org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
       if (expected != null && expected.typeId() == TypeID.GEOMETRY) {
-        ParquetValueReader<Geometry> geomValueReader =
-            ParquetGeometryValueReaders.buildReader(desc);
-        return new SparkGeometryReader(geomValueReader);
+        return new SparkGeometryReader(desc);
       }
 
       if (primitive.getOriginalType() != null) {
@@ -441,33 +437,16 @@ public class SparkParquetReaders {
     }
   }
 
-  private static class SparkGeometryReader implements ParquetValueReader<Object> {
-
-    private final ParquetValueReader<Geometry> reader;
-
-    SparkGeometryReader(ParquetValueReader<Geometry> reader) {
-      this.reader = reader;
+  private static class SparkGeometryReader
+      extends ParquetValueReaders.DelegateValueReader<Object, Geometry> {
+    SparkGeometryReader(ColumnDescriptor desc) {
+      super(ParquetGeometryValueReaders.buildReader(desc));
     }
 
     @Override
     public Object read(Object reuse) {
-      Geometry geom = reader.read(null);
+      Geometry geom = delegate.read(null);
       return GeospatialLibraryAccessor.fromJTS(geom);
-    }
-
-    @Override
-    public TripleIterator<?> column() {
-      return reader.column();
-    }
-
-    @Override
-    public List<TripleIterator<?>> columns() {
-      return reader.columns();
-    }
-
-    @Override
-    public void setPageSource(PageReadStore pageStore, long rowPosition) {
-      reader.setPageSource(pageStore, rowPosition);
     }
   }
 

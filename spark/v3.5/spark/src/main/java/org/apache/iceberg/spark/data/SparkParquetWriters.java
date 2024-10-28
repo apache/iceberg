@@ -26,8 +26,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Stream;
-import org.apache.iceberg.FieldMetrics;
 import org.apache.iceberg.parquet.ParquetGeometryValueWriters;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueWriter;
@@ -35,7 +33,6 @@ import org.apache.iceberg.parquet.ParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueWriters.PrimitiveWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedKeyValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters.RepeatedWriter;
-import org.apache.iceberg.parquet.TripleWriter;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.geo.GeospatialLibraryAccessor;
@@ -43,7 +40,6 @@ import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.DecimalUtil;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
-import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
@@ -253,8 +249,7 @@ public class SparkParquetWriters {
       @Override
       public Optional<ParquetValueWriter<?>> visit(
           LogicalTypeAnnotation.GeometryLogicalTypeAnnotation geometryLogicalType) {
-        PrimitiveWriter<Geometry> geomValueWriter = ParquetGeometryValueWriters.buildWriter(desc);
-        return Optional.of(new SparkGeometryWriter(geomValueWriter));
+        return Optional.of(new SparkGeometryWriter(desc));
       }
     }
 
@@ -454,32 +449,16 @@ public class SparkParquetWriters {
     }
   }
 
-  private static class SparkGeometryWriter implements ParquetValueWriter<Object> {
-    private final PrimitiveWriter<Geometry> writer;
-
-    private SparkGeometryWriter(PrimitiveWriter<Geometry> writer) {
-      this.writer = writer;
+  private static class SparkGeometryWriter
+      extends ParquetValueWriters.DelegateParquetValueWriter<Object, Geometry> {
+    private SparkGeometryWriter(ColumnDescriptor desc) {
+      super(ParquetGeometryValueWriters.buildWriter(desc));
     }
 
     @Override
     public void write(int repetitionLevel, Object data) {
       Geometry geom = GeospatialLibraryAccessor.toJTS(data);
-      writer.write(repetitionLevel, geom);
-    }
-
-    @Override
-    public List<TripleWriter<?>> columns() {
-      return writer.columns();
-    }
-
-    @Override
-    public void setColumnStore(ColumnWriteStore columnStore) {
-      writer.setColumnStore(columnStore);
-    }
-
-    @Override
-    public Stream<FieldMetrics<?>> metrics() {
-      return writer.metrics();
+      delegate.write(repetitionLevel, geom);
     }
   }
 
