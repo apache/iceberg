@@ -210,7 +210,7 @@ public class OAuth2RefreshCredentialsHandlerTest {
   }
 
   @Test
-  public void tokenWithLongestPrefixIsUsed() {
+  public void multipleGcsCredentials() {
     HttpRequest mockRequest =
         HttpRequest.request("/v1/credentials").withMethod(HttpMethod.GET.name());
 
@@ -257,11 +257,8 @@ public class OAuth2RefreshCredentialsHandlerTest {
         OAuth2RefreshCredentialsHandler.create(
             ImmutableMap.of(GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT, URI));
 
-    AccessToken accessToken = handler.refreshAccessToken();
-    assertThat(accessToken.getTokenValue())
-        .isEqualTo(credentialTwo.config().get(GCPProperties.GCS_OAUTH2_TOKEN));
-    assertThat(accessToken.getExpirationTime().toInstant().toEpochMilli())
-        .isEqualTo(
-            Long.parseLong(credentialTwo.config().get(GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT)));
+    assertThatThrownBy(handler::refreshAccessToken)
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage("Invalid GCS Credentials: only one GCS credential should exist");
   }
 }

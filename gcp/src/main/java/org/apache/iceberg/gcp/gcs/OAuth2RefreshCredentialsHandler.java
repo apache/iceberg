@@ -21,11 +21,9 @@ package org.apache.iceberg.gcp.gcs;
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.iceberg.gcp.GCPProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -69,12 +67,11 @@ public class OAuth2RefreshCredentialsHandler
             .collect(Collectors.toList());
 
     Preconditions.checkState(!gcsCredentials.isEmpty(), "Invalid GCS Credentials: empty");
+    Preconditions.checkState(
+        gcsCredentials.size() == 1,
+        "Invalid GCS Credentials: only one GCS credential should exist");
 
-    Optional<Credential> credentialWithPrefix =
-        gcsCredentials.stream().max(Comparator.comparingInt(c -> c.prefix().length()));
-
-    Credential gcsCredential = credentialWithPrefix.orElseGet(() -> gcsCredentials.get(0));
-
+    Credential gcsCredential = gcsCredentials.get(0);
     checkCredential(gcsCredential, GCPProperties.GCS_OAUTH2_TOKEN);
     checkCredential(gcsCredential, GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT);
     String token = gcsCredential.config().get(GCPProperties.GCS_OAUTH2_TOKEN);
