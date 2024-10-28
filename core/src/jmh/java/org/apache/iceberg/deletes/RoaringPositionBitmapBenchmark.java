@@ -69,7 +69,7 @@ public class RoaringPositionBitmapBenchmark {
   public void addOrderedPositionsIcebergBitmap(Blackhole blackhole) {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
     for (long position : orderedPositions) {
-      bitmap.add(position);
+      bitmap.set(position);
     }
     blackhole.consume(bitmap);
   }
@@ -89,7 +89,7 @@ public class RoaringPositionBitmapBenchmark {
   public void addShuffledPositionsIcebergBitmap(Blackhole blackhole) {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
     for (long position : shuffledPositions) {
-      bitmap.add(position);
+      bitmap.set(position);
     }
     blackhole.consume(bitmap);
   }
@@ -110,7 +110,7 @@ public class RoaringPositionBitmapBenchmark {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
 
     for (long position : shuffledPositions) {
-      bitmap.add(position);
+      bitmap.set(position);
     }
 
     for (long position = 0; position <= TOTAL_POSITIONS * STEP; position++) {

@@ -30,22 +30,23 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.roaringbitmap.RoaringBitmap;
 
 /**
- * A bitmap that supports positive 64-bit positions, but is optimized for cases where most positions
- * fit in 32 bits by using an array of 32-bit Roaring bitmaps. The bitmap array is grown as needed
- * to accommodate the largest position.
+ * A bitmap that supports positive 64-bit positions (the most significant bit must be 0), but is
+ * optimized for cases where most positions fit in 32 bits by using an array of 32-bit Roaring
+ * bitmaps. The internal bitmap array is grown as needed to accommodate the largest position.
  *
  * <p>Incoming 64-bit positions are divided into a 32-bit "key" using the most significant 4 bytes
  * and a 32-bit position using the least significant 4 bytes. For each key in the set of positions,
- * a 32-bit Roaring bitmap is maintained to store a set of 32-bit position for that key.
+ * a 32-bit Roaring bitmap is maintained to store a set of 32-bit positions for that key.
  *
  * <p>To test whether a certain position is set, its most significant 4 bytes (the key) are used to
  * find a 32-bit bitmap and the least significant 4 bytes are tested for inclusion in the bitmap. If
  * a bitmap is not found for the key, then the position is not set.
  *
- * <p>Positions must range from 0 (inclusive) to {@link #MAX_POSITION} (inclusive). The bitmap
- * cannot handle positions exceeding {@link #MAX_POSITION} because the bitmap array size is a signed
- * 32-bit integer, which must be non-negative. Allocating an array with size Integer.MAX_VALUE + 1
- * would trigger an overflow and result in a negative length.
+ * <p>Positions must range from 0 (inclusive) to {@link #MAX_POSITION} (inclusive). This class
+ * cannot handle positions with the key equal to Integer.MAX_VALUE because the length of the
+ * internal bitmap array is a signed 32-bit integer, which must be greater than or equal to 0.
+ * Supporting Integer.MAX_VALUE as a key would require allocating a bitmap array with size
+ * Integer.MAX_VALUE + 1, triggering an integer overflow.
  */
 class RoaringPositionBitmap {
 
@@ -65,36 +66,36 @@ class RoaringPositionBitmap {
   }
 
   /**
-   * Adds a position to the bitmap.
+   * Sets a position in the bitmap.
    *
-   * @param pos the row position
+   * @param pos the position
    */
-  public void add(long pos) {
+  public void set(long pos) {
     validatePosition(pos);
-    int key = key(pos);
-    int pos32Bits = pos32Bits(pos);
-    allocateBitmapsIfNeeded(key + 1 /* required number of bitmaps */);
+    int key = extractKey(pos);
+    int pos32Bits = extract32Bits(pos);
+    allocateBitmapsIfNeeded(key + 1 /* required bitmap array length is key + 1 */);
     bitmaps[key].add(pos32Bits);
   }
 
   /**
-   * Adds a range of positions to the bitmap.
+   * Sets a range of positions in the bitmap.
    *
    * @param posStartInclusive the start position of the range (inclusive)
    * @param posEndExclusive the end position of the range (exclusive)
    */
-  public void addRange(long posStartInclusive, long posEndExclusive) {
+  public void setRange(long posStartInclusive, long posEndExclusive) {
     for (long pos = posStartInclusive; pos < posEndExclusive; pos++) {
-      add(pos);
+      set(pos);
     }
   }
 
   /**
-   * Adds all positions from the other bitmap to this bitmap, modifying this bitmap in place.
+   * Sets all positions from the other bitmap in this bitmap, modifying this bitmap in place.
    *
    * @param that the other bitmap
    */
-  public void addAll(RoaringPositionBitmap that) {
+  public void setAll(RoaringPositionBitmap that) {
     allocateBitmapsIfNeeded(that.bitmaps.length);
     for (int key = 0; key < that.bitmaps.length; key++) {
       bitmaps[key].or(that.bitmaps[key]);
@@ -102,20 +103,20 @@ class RoaringPositionBitmap {
   }
 
   /**
-   * Checks if the bitmap contains a position.
+   * Checks if a position is set in the bitmap.
    *
-   * @param pos the row position
-   * @return true if the position is in this bitmap, false otherwise
+   * @param pos the position
+   * @return true if the position is set in this bitmap, false otherwise
    */
   public boolean contains(long pos) {
     validatePosition(pos);
-    int key = key(pos);
-    int pos32Bits = pos32Bits(pos);
+    int key = extractKey(pos);
+    int pos32Bits = extract32Bits(pos);
     return key < bitmaps.length && bitmaps[key].contains(pos32Bits);
   }
 
   /**
-   * Indicates whether the bitmap is empty.
+   * Indicates whether the bitmap has any positions set.
    *
    * @return true if the bitmap is empty, false otherwise
    */
@@ -124,7 +125,7 @@ class RoaringPositionBitmap {
   }
 
   /**
-   * Returns the number of positions in the bitmap.
+   * Returns the number of set positions in the bitmap.
    *
    * @return the number of set positions
    */
@@ -137,11 +138,11 @@ class RoaringPositionBitmap {
   }
 
   /**
-   * Compresses the bitmap wherever it is more space efficient.
+   * Applies run-length encoding wherever it is more space efficient.
    *
-   * @return whether the bitmap was compressed
+   * @return whether the bitmap was changed
    */
-  public boolean compress() {
+  public boolean runLengthEncode() {
     boolean changed = false;
     for (RoaringBitmap bitmap : bitmaps) {
       changed |= bitmap.runOptimize();
@@ -156,7 +157,7 @@ class RoaringPositionBitmap {
    */
   public void forEach(LongConsumer consumer) {
     for (int key = 0; key < bitmaps.length; key++) {
-      forEach(bitmaps[key], key, consumer);
+      forEach(key, bitmaps[key], consumer);
     }
   }
 
@@ -287,12 +288,12 @@ class RoaringPositionBitmap {
   }
 
   // extracts high 32 bits from a 64-bit position (i.e. key)
-  private static int key(long pos) {
+  private static int extractKey(long pos) {
     return (int) (pos >> 32);
   }
 
   // extracts low 32 bits from a 64-bit position
-  private static int pos32Bits(long pos) {
+  private static int extract32Bits(long pos) {
     return (int) pos;
   }
 
@@ -302,8 +303,8 @@ class RoaringPositionBitmap {
     return (((long) key) << 32) | (((long) pos32Bits) & 0xFFFFFFFFL);
   }
 
-  // iterates over 64-bit positions, reconstructing them from 32-bit keys and positions
-  private static void forEach(RoaringBitmap bitmap, int key, LongConsumer consumer) {
+  // iterates over 64-bit positions, reconstructing them from keys and 32-bit positions
+  private static void forEach(int key, RoaringBitmap bitmap, LongConsumer consumer) {
     bitmap.forEach((int pos32Bits) -> consumer.accept(toPosition(key, pos32Bits)));
   }
 

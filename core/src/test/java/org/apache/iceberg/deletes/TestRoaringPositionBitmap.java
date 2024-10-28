@@ -70,13 +70,13 @@ public class TestRoaringPositionBitmap {
   public void testAdd() {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
 
-    bitmap.add(10L);
+    bitmap.set(10L);
     assertThat(bitmap.contains(10L)).isTrue();
 
-    bitmap.add(0L);
+    bitmap.set(0L);
     assertThat(bitmap.contains(0L)).isTrue();
 
-    bitmap.add(10L);
+    bitmap.set(10L);
     assertThat(bitmap.contains(10L)).isTrue();
   }
 
@@ -90,10 +90,10 @@ public class TestRoaringPositionBitmap {
     long pos3 = ((long) 2 << 32) | 30L; // key = 2, low = 30
     long pos4 = ((long) 100 << 32) | 40L; // key = 100, low = 40
 
-    bitmap.add(pos1);
-    bitmap.add(pos2);
-    bitmap.add(pos3);
-    bitmap.add(pos4);
+    bitmap.set(pos1);
+    bitmap.set(pos2);
+    bitmap.set(pos3);
+    bitmap.set(pos4);
 
     assertThat(bitmap.contains(pos1)).isTrue();
     assertThat(bitmap.contains(pos2)).isTrue();
@@ -110,7 +110,7 @@ public class TestRoaringPositionBitmap {
 
     long posStartInclusive = 10L;
     long posEndExclusive = 20L;
-    bitmap.addRange(posStartInclusive, posEndExclusive);
+    bitmap.setRange(posStartInclusive, posEndExclusive);
 
     // assert that all positions in the range [10, 20) are added
     for (long pos = posStartInclusive; pos < posEndExclusive; pos++) {
@@ -131,7 +131,7 @@ public class TestRoaringPositionBitmap {
 
     long posStartInclusive = ((long) 1 << 32) - 5L;
     long posEndExclusive = ((long) 1 << 32) + 5L;
-    bitmap.addRange(posStartInclusive, posEndExclusive);
+    bitmap.setRange(posStartInclusive, posEndExclusive);
 
     // assert that all positions in the range are added
     for (long pos = posStartInclusive; pos < posEndExclusive; pos++) {
@@ -149,22 +149,22 @@ public class TestRoaringPositionBitmap {
   @TestTemplate
   public void testAddEmptyRange() {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
-    bitmap.addRange(10, 10);
+    bitmap.setRange(10, 10);
     assertThat(bitmap.isEmpty()).isTrue();
   }
 
   @TestTemplate
   public void testAddAll() {
     RoaringPositionBitmap bitmap1 = new RoaringPositionBitmap();
-    bitmap1.add(10L);
-    bitmap1.add(20L);
+    bitmap1.set(10L);
+    bitmap1.set(20L);
 
     RoaringPositionBitmap bitmap2 = new RoaringPositionBitmap();
-    bitmap2.add(30L);
-    bitmap2.add(40L);
-    bitmap2.add((long) 2 << 32);
+    bitmap2.set(30L);
+    bitmap2.set(40L);
+    bitmap2.set((long) 2 << 32);
 
-    bitmap1.addAll(bitmap2);
+    bitmap1.setAll(bitmap2);
 
     assertThat(bitmap1.contains(10L)).isTrue();
     assertThat(bitmap1.contains(20L)).isTrue();
@@ -181,12 +181,12 @@ public class TestRoaringPositionBitmap {
   @TestTemplate
   public void testAddAllWithEmptyBitmap() {
     RoaringPositionBitmap bitmap1 = new RoaringPositionBitmap();
-    bitmap1.add(10L);
-    bitmap1.add(20L);
+    bitmap1.set(10L);
+    bitmap1.set(20L);
 
     RoaringPositionBitmap emptyBitmap = new RoaringPositionBitmap();
 
-    bitmap1.addAll(emptyBitmap);
+    bitmap1.setAll(emptyBitmap);
 
     assertThat(bitmap1.contains(10L)).isTrue();
     assertThat(bitmap1.contains(20L)).isTrue();
@@ -201,15 +201,15 @@ public class TestRoaringPositionBitmap {
   @TestTemplate
   public void testAddAllWithOverlappingBitmap() {
     RoaringPositionBitmap bitmap1 = new RoaringPositionBitmap();
-    bitmap1.add(10L);
-    bitmap1.add(20L);
-    bitmap1.add(30L);
+    bitmap1.set(10L);
+    bitmap1.set(20L);
+    bitmap1.set(30L);
 
     RoaringPositionBitmap bitmap2 = new RoaringPositionBitmap();
-    bitmap2.add(20L);
-    bitmap2.add(40L);
+    bitmap2.set(20L);
+    bitmap2.set(40L);
 
-    bitmap1.addAll(bitmap2);
+    bitmap1.setAll(bitmap2);
 
     assertThat(bitmap1.contains(10L)).isTrue();
     assertThat(bitmap1.contains(20L)).isTrue();
@@ -227,14 +227,14 @@ public class TestRoaringPositionBitmap {
   @TestTemplate
   public void testAddAllSparseBitmaps() {
     RoaringPositionBitmap bitmap1 = new RoaringPositionBitmap();
-    bitmap1.add((long) 0 << 32 | 100L); // key = 0, low = 100
-    bitmap1.add((long) 1 << 32 | 200L); // key = 1, low = 200
+    bitmap1.set((long) 0 << 32 | 100L); // key = 0, low = 100
+    bitmap1.set((long) 1 << 32 | 200L); // key = 1, low = 200
 
     RoaringPositionBitmap bitmap2 = new RoaringPositionBitmap();
-    bitmap2.add((long) 2 << 32 | 300L); // key = 2, low = 300
-    bitmap2.add((long) 3 << 32 | 400L); // key = 3, low = 400
+    bitmap2.set((long) 2 << 32 | 300L); // key = 2, low = 300
+    bitmap2.set((long) 3 << 32 | 400L); // key = 3, low = 400
 
-    bitmap1.addAll(bitmap2);
+    bitmap1.setAll(bitmap2);
 
     assertThat(bitmap1.contains((long) 0 << 32 | 100L)).isTrue();
     assertThat(bitmap1.contains((long) 1 << 32 | 200L)).isTrue();
@@ -249,13 +249,13 @@ public class TestRoaringPositionBitmap {
 
     assertThat(bitmap.cardinality()).isEqualTo(0);
 
-    bitmap.add(10L);
-    bitmap.add(20L);
-    bitmap.add(30L);
+    bitmap.set(10L);
+    bitmap.set(20L);
+    bitmap.set(30L);
 
     assertThat(bitmap.cardinality()).isEqualTo(3);
 
-    bitmap.add(10L); // already exists
+    bitmap.set(10L); // already exists
 
     assertThat(bitmap.cardinality()).isEqualTo(3);
   }
@@ -264,11 +264,11 @@ public class TestRoaringPositionBitmap {
   public void testCardinalitySparseBitmaps() {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
 
-    bitmap.add((long) 0 << 32 | 100L); // key = 0, low = 100
-    bitmap.add((long) 0 << 32 | 101L); // key = 0, low = 101
-    bitmap.add((long) 0 << 32 | 105L); // key = 0, low = 101
-    bitmap.add((long) 1 << 32 | 200L); // key = 1, low = 200
-    bitmap.add((long) 100 << 32 | 300L); // key = 100, low = 300
+    bitmap.set((long) 0 << 32 | 100L); // key = 0, low = 100
+    bitmap.set((long) 0 << 32 | 101L); // key = 0, low = 101
+    bitmap.set((long) 0 << 32 | 105L); // key = 0, low = 101
+    bitmap.set((long) 1 << 32 | 200L); // key = 1, low = 200
+    bitmap.set((long) 100 << 32 | 300L); // key = 100, low = 300
 
     assertThat(bitmap.cardinality()).isEqualTo(5);
   }
@@ -278,34 +278,34 @@ public class TestRoaringPositionBitmap {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
 
     // bitmap 0, container 0 (array)
-    bitmap.add(position(0 /* bitmap */, 0 /* container */, 5L));
-    bitmap.add(position(0 /* bitmap */, 0 /* container */, 7L));
+    bitmap.set(position(0 /* bitmap */, 0 /* container */, 5L));
+    bitmap.set(position(0 /* bitmap */, 0 /* container */, 7L));
 
     // bitmap 0, container 1 (array that can be compressed)
-    bitmap.addRange(
+    bitmap.setRange(
         position(0 /* bitmap */, 1 /* container */, 1L),
         position(0 /* bitmap */, 1 /* container */, 1000L));
 
     // bitmap 1, container 2 (bitset)
-    bitmap.addRange(
+    bitmap.setRange(
         position(0 /* bitmap */, 2 /* container */, 1L),
         position(0 /* bitmap */, 2 /* container */, CONTAINER_OFFSET - 1L));
 
     // bitmap 1, container 0 (array)
-    bitmap.add(position(1 /* bitmap */, 0 /* container */, 10L));
-    bitmap.add(position(1 /* bitmap */, 0 /* container */, 20L));
+    bitmap.set(position(1 /* bitmap */, 0 /* container */, 10L));
+    bitmap.set(position(1 /* bitmap */, 0 /* container */, 20L));
 
     // bitmap 1, container 1 (array that can be compressed)
-    bitmap.addRange(
+    bitmap.setRange(
         position(1 /* bitmap */, 1 /* container */, 10L),
         position(1 /* bitmap */, 1 /* container */, 500L));
 
     // bitmap 1, container 2 (bitset)
-    bitmap.addRange(
+    bitmap.setRange(
         position(1 /* bitmap */, 2 /* container */, 1L),
         position(1 /* bitmap */, 2 /* container */, CONTAINER_OFFSET - 1));
 
-    assertThat(bitmap.compress()).as("Bitmap must be RLE encoded").isTrue();
+    assertThat(bitmap.runLengthEncode()).as("Bitmap must be RLE encoded").isTrue();
 
     RoaringPositionBitmap bitmapCopy = roundTripSerialize(bitmap);
 
@@ -334,7 +334,7 @@ public class TestRoaringPositionBitmap {
   public void testUnsupportedPositions() {
     RoaringPositionBitmap bitmap = new RoaringPositionBitmap();
 
-    assertThatThrownBy(() -> bitmap.add(-1L))
+    assertThatThrownBy(() -> bitmap.set(-1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Bitmap supports positions that are >= 0 and <= %s",
@@ -346,7 +346,7 @@ public class TestRoaringPositionBitmap {
             "Bitmap supports positions that are >= 0 and <= %s",
             RoaringPositionBitmap.MAX_POSITION);
 
-    assertThatThrownBy(() -> bitmap.add(RoaringPositionBitmap.MAX_POSITION + 1L))
+    assertThatThrownBy(() -> bitmap.set(RoaringPositionBitmap.MAX_POSITION + 1L))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining(
             "Bitmap supports positions that are >= 0 and <= %s",
@@ -399,7 +399,7 @@ public class TestRoaringPositionBitmap {
     Set<Long> positions = bitmapAndPositions.second();
 
     Pair<RoaringPositionBitmap, Set<Long>> pair1 = generateDenseBitmap(9);
-    bitmap.addAll(pair1.first());
+    bitmap.setAll(pair1.first());
     positions.addAll(pair1.second());
 
     Pair<RoaringPositionBitmap, Set<Long>> pair2 =
@@ -407,11 +407,11 @@ public class TestRoaringPositionBitmap {
             0 /* min position */,
             (long) 3 << 32 /* max position must not need more than 3 bitmaps */,
             25_000 /* cardinality */);
-    bitmap.addAll(pair2.first());
+    bitmap.setAll(pair2.first());
     positions.addAll(pair2.second());
 
     Pair<RoaringPositionBitmap, Set<Long>> pair3 = generateDenseBitmap(3);
-    bitmap.addAll(pair3.first());
+    bitmap.setAll(pair3.first());
     positions.addAll(pair3.second());
 
     Pair<RoaringPositionBitmap, Set<Long>> pair4 =
@@ -419,7 +419,7 @@ public class TestRoaringPositionBitmap {
             0 /* min position */,
             (long) 1 << 32 /* max position must not need more than 1 bitmap */,
             5_000 /* cardinality */);
-    bitmap.addAll(pair4.first());
+    bitmap.setAll(pair4.first());
     positions.addAll(pair4.second());
 
     assertEqual(bitmap, positions);
@@ -435,7 +435,7 @@ public class TestRoaringPositionBitmap {
     while (positions.size() < size) {
       long position = nextLong(random, minInclusive, maxExclusive);
       positions.add(position);
-      bitmap.add(position);
+      bitmap.set(position);
     }
 
     return Pair.of(bitmap, positions);
@@ -450,7 +450,7 @@ public class TestRoaringPositionBitmap {
     while (bitmap.allocatedBitmapCount() <= requiredBitmapCount) {
       long maxRunPosition = currentPosition + nextLong(random, 1000, 2 * CONTAINER_SIZE);
       for (long position = currentPosition; position <= maxRunPosition; position++) {
-        bitmap.add(position);
+        bitmap.set(position);
         positions.add(position);
       }
       long shift = nextLong(random, (long) (0.1 * BITMAP_SIZE), (long) (0.25 * BITMAP_SIZE));
@@ -497,20 +497,19 @@ public class TestRoaringPositionBitmap {
   }
 
   private static void assertEqual(RoaringPositionBitmap bitmap, Set<Long> positions) {
+    assertEqualContent(bitmap, positions);
+
+    RoaringPositionBitmap bitmapCopy1 = roundTripSerialize(bitmap);
+    assertEqualContent(bitmapCopy1, positions);
+
+    bitmap.runLengthEncode();
+    RoaringPositionBitmap bitmapCopy2 = roundTripSerialize(bitmap);
+    assertEqualContent(bitmapCopy2, positions);
+  }
+
+  private static void assertEqualContent(RoaringPositionBitmap bitmap, Set<Long> positions) {
     assertThat(bitmap.cardinality()).isEqualTo(positions.size());
     positions.forEach(position -> assertThat(bitmap.contains(position)).isTrue());
     bitmap.forEach(position -> assertThat(positions.contains(position)).isTrue());
-
-    RoaringPositionBitmap bitmapCopy1 = roundTripSerialize(bitmap);
-    assertThat(bitmapCopy1.cardinality()).isEqualTo(positions.size());
-    positions.forEach(position -> assertThat(bitmapCopy1.contains(position)).isTrue());
-    bitmapCopy1.forEach(position -> assertThat(positions.contains(position)).isTrue());
-
-    bitmap.compress();
-
-    RoaringPositionBitmap bitmapCopy2 = roundTripSerialize(bitmap);
-    assertThat(bitmapCopy2.cardinality()).isEqualTo(positions.size());
-    positions.forEach(position -> assertThat(bitmapCopy2.contains(position)).isTrue());
-    bitmapCopy2.forEach(position -> assertThat(positions.contains(position)).isTrue());
   }
 }
