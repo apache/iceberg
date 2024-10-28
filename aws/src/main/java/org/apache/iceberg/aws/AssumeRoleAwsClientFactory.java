@@ -20,6 +20,7 @@ package org.apache.iceberg.aws;
 
 import java.util.Map;
 import java.util.UUID;
+import org.apache.iceberg.aws.kms.KmsClientProperties;
 import org.apache.iceberg.aws.s3.S3FileIOProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import software.amazon.awssdk.awscore.client.builder.AwsClientBuilder;
@@ -38,6 +39,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
   private HttpClientProperties httpClientProperties;
   private S3FileIOProperties s3FileIOProperties;
   private String roleSessionName;
+  private KmsClientProperties kmsClientProperties;
 
   @Override
   public S3Client s3() {
@@ -64,6 +66,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     return KmsClient.builder()
         .applyMutation(this::applyAssumeRoleConfigurations)
         .applyMutation(httpClientProperties::applyHttpClientConfigurations)
+        .applyMutation(kmsClientProperties::applyRetryConfigurations)
         .build();
   }
 
@@ -124,6 +127,10 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
 
   protected S3FileIOProperties s3FileIOProperties() {
     return s3FileIOProperties;
+  }
+
+  protected KmsClientProperties kmsClientProperties() {
+    return kmsClientProperties;
   }
 
   private StsClient sts() {
