@@ -34,7 +34,7 @@ public class AliyunOSSMockExtension implements AliyunOSSExtension {
 
   private final Map<String, Object> properties;
 
-  private AliyunOSSMockApp ossMockApp;
+  private AliyunOSSMock ossMock;
 
   private AliyunOSSMockExtension(Map<String, Object> properties) {
     this.properties = properties;
@@ -51,12 +51,16 @@ public class AliyunOSSMockExtension implements AliyunOSSExtension {
 
   @Override
   public void start() {
-    ossMockApp = AliyunOSSMockApp.start(properties);
+    try {
+      ossMock = AliyunOSSMock.start(properties);
+    } catch (Exception e) {
+      throw new RuntimeException("Can't start OSS Mock");
+    }
   }
 
   @Override
   public void stop() {
-    ossMockApp.stop();
+    ossMock.stop();
   }
 
   @Override
@@ -65,12 +69,12 @@ public class AliyunOSSMockExtension implements AliyunOSSExtension {
         String.format(
             "http://localhost:%s",
             properties.getOrDefault(
-                AliyunOSSMockApp.PROP_HTTP_PORT, AliyunOSSMockApp.PORT_HTTP_PORT_DEFAULT));
+                AliyunOSSMock.PROP_HTTP_PORT, AliyunOSSMock.PORT_HTTP_PORT_DEFAULT));
     return new OSSClientBuilder().build(endpoint, "foo", "bar");
   }
 
   private File rootDir() {
-    Object rootDir = properties.get(AliyunOSSMockApp.PROP_ROOT_DIR);
+    Object rootDir = properties.get(AliyunOSSMock.PROP_ROOT_DIR);
     Preconditions.checkNotNull(rootDir, "Root directory cannot be null");
     return new File(rootDir.toString());
   }
@@ -103,20 +107,15 @@ public class AliyunOSSMockExtension implements AliyunOSSExtension {
   public static class Builder {
     private final Map<String, Object> props = Maps.newHashMap();
 
-    public Builder silent() {
-      props.put(AliyunOSSMockApp.PROP_SILENT, true);
-      return this;
-    }
-
     public AliyunOSSExtension build() {
-      String rootDir = (String) props.get(AliyunOSSMockApp.PROP_ROOT_DIR);
+      String rootDir = (String) props.get(AliyunOSSMock.PROP_ROOT_DIR);
       if (Strings.isNullOrEmpty(rootDir)) {
         File dir =
             new File(
                 System.getProperty("java.io.tmpdir"),
                 "oss-mock-file-store-" + System.currentTimeMillis());
         rootDir = dir.getAbsolutePath();
-        props.put(AliyunOSSMockApp.PROP_ROOT_DIR, rootDir);
+        props.put(AliyunOSSMock.PROP_ROOT_DIR, rootDir);
       }
       File root = new File(rootDir);
       root.deleteOnExit();

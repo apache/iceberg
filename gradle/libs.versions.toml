@@ -84,8 +84,6 @@ snowflake-jdbc = "3.19.1"
 spark-hive33 = "3.3.4"
 spark-hive34 = "3.4.4"
 spark-hive35 = "3.5.2"
-spring-boot = "2.7.18"
-spring-web = "5.3.39"
 sqlite-jdbc = "3.47.0.0"
 testcontainers = "1.20.3"
 tez010 = "0.10.4"
@@ -219,9 +217,6 @@ nessie-jaxrs-testextension = { module = "org.projectnessie.nessie:nessie-jaxrs-t
 nessie-versioned-storage-inmemory-tests = { module = "org.projectnessie.nessie:nessie-versioned-storage-inmemory-tests", version.ref = "nessie" }
 nessie-versioned-storage-testextension = { module = "org.projectnessie.nessie:nessie-versioned-storage-testextension", version.ref = "nessie" }
 orc-tools = { module = "org.apache.orc:orc-tools", version.ref = "orc" }
-spring-boot-starter-jetty = { module = "org.springframework.boot:spring-boot-starter-jetty", version.ref = "spring-boot" }
-spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web", version.ref = "spring-boot" }
-spring-web = { module = "org.springframework:spring-web", version.ref = "spring-web" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 testcontainers-junit-jupiter = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers" }
