@@ -27,10 +27,13 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
+import org.apache.iceberg.rest.RESTUtil;
+import org.apache.iceberg.rest.ResourcePaths;
 import org.apache.iceberg.rest.auth.OAuth2Properties;
 import org.apache.iceberg.rest.auth.OAuth2Util;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.responses.LoadCredentialsResponse;
+import org.apache.iceberg.rest.responses.OAuthTokenResponse;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -83,12 +86,27 @@ public class VendedCredentialsProvider implements AwsCredentialsProvider, SdkAut
   }
 
   private LoadCredentialsResponse fetchCredentials() {
+    String initToken = properties.get(OAuth2Properties.TOKEN);
+    String credential = properties.get(OAuth2Properties.CREDENTIAL);
+    Map<String, String> authHeaders = RESTUtil.merge(properties, OAuth2Util.authHeaders(initToken));
+    if (credential != null && !credential.isEmpty()) {
+      OAuthTokenResponse authResponse =
+          OAuth2Util.fetchToken(
+              httpClient(),
+              authHeaders,
+              credential,
+              properties.getOrDefault(OAuth2Properties.SCOPE, OAuth2Properties.CATALOG_SCOPE),
+              properties.getOrDefault(OAuth2Properties.OAUTH2_SERVER_URI, ResourcePaths.tokens()),
+              OAuth2Util.buildOptionalParam(properties));
+      authHeaders = RESTUtil.merge(authHeaders, OAuth2Util.authHeaders(authResponse.token()));
+    }
+
     return httpClient()
         .get(
             properties.get(URI),
             null,
             LoadCredentialsResponse.class,
-            OAuth2Util.authHeaders(properties.get(OAuth2Properties.TOKEN)),
+            authHeaders,
             ErrorHandlers.defaultErrorHandler());
   }
 
