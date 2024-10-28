@@ -72,9 +72,9 @@ class RoaringPositionBitmap {
    */
   public void set(long pos) {
     validatePosition(pos);
-    int key = extractKey(pos);
-    int pos32Bits = extract32Bits(pos);
-    allocateBitmapsIfNeeded(key + 1 /* required bitmap array length is key + 1 */);
+    int key = key(pos);
+    int pos32Bits = pos32Bits(pos);
+    allocateBitmapsIfNeeded(key + 1 /* required bitmap array length */);
     bitmaps[key].add(pos32Bits);
   }
 
@@ -110,8 +110,8 @@ class RoaringPositionBitmap {
    */
   public boolean contains(long pos) {
     validatePosition(pos);
-    int key = extractKey(pos);
-    int pos32Bits = extract32Bits(pos);
+    int key = key(pos);
+    int pos32Bits = pos32Bits(pos);
     return key < bitmaps.length && bitmaps[key].contains(pos32Bits);
   }
 
@@ -288,12 +288,12 @@ class RoaringPositionBitmap {
   }
 
   // extracts high 32 bits from a 64-bit position (i.e. key)
-  private static int extractKey(long pos) {
+  private static int key(long pos) {
     return (int) (pos >> 32);
   }
 
-  // extracts low 32 bits from a 64-bit position
-  private static int extract32Bits(long pos) {
+  // extracts low 32 bits from a 64-bit position (i.e. 32-bit position)
+  private static int pos32Bits(long pos) {
     return (int) pos;
   }
 
