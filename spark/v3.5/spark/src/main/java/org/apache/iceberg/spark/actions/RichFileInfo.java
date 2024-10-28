@@ -25,6 +25,7 @@ public class RichFileInfo extends FileInfo {
     super(path, type); // Call constructor of superclass FileInfo
     this.sizeInBytes = sizeInBytes;
   }
+
   // Getter and setter for sizeInBytes
   public long getSizeInBytes() {
     return sizeInBytes;

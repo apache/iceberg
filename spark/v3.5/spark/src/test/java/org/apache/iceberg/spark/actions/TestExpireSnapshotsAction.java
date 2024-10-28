@@ -1356,7 +1356,7 @@ public class TestExpireSnapshotsAction extends TestBase {
     long t2 = rightAfterSnapshot();
 
     ExpireSnapshots.Result resultsPre =
-            SparkActions.get().expireSnapshots(table).expireOlderThan(t1).execute();
+        SparkActions.get().expireSnapshots(table).expireOlderThan(t1).execute();
     checkExpirationResults(0L, 0L, 0L, 0L, 1L, resultsPre);
 
     ExpireSnapshots.Result results =
