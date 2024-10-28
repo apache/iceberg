@@ -45,7 +45,6 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.TestTables;
 import org.apache.iceberg.actions.ExpireSnapshots;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expressions;
@@ -132,12 +131,6 @@ public class TestExpireSnapshotsAction extends TestBase {
     this.tableLocation = tableDir.toURI().toString();
     this.table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
     spark.conf().set("spark.sql.shuffle.partitions", SHUFFLE_PARTITIONS);
-  }
-
-  private void setupNonBulkIoTable() throws Exception {
-    this.tableDir = temp.resolve("junit").toFile();
-    this.tableLocation = tableDir.toURI().toString();
-    this.table = TestTables.create(tableDir, "test", SCHEMA, SPEC, 2);
   }
 
   private Long rightAfterSnapshot() {
@@ -1347,7 +1340,6 @@ public class TestExpireSnapshotsAction extends TestBase {
 
   @Test
   public void testDeletedFileSize() throws Exception {
-    setupNonBulkIoTable();
     table.newAppend().appendFile(FILE_A).commit();
     long t1 = rightAfterSnapshot();
     table.newAppend().appendFile(FILE_B).commit();

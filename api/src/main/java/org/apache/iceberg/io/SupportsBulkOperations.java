@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.io;
 
+import java.util.ArrayList;
+import java.util.Collection;
+
 public interface SupportsBulkOperations extends FileIO {
   /**
    * Delete the files at the given paths.
@@ -26,4 +29,15 @@ public interface SupportsBulkOperations extends FileIO {
    * @throws BulkDeletionFailureException in case of failure to delete at least 1 file
    */
   void deleteFiles(Iterable<String> pathsToDelete) throws BulkDeletionFailureException;
+
+  default void deleteFilesWithSummary(Iterable<FileInfoSummary> pathsToDelete)
+      throws BulkDeletionFailureException {
+    Collection<String> paths = new ArrayList<>();
+
+    for (FileInfoSummary fileInfo : pathsToDelete) {
+      paths.add(fileInfo.location());
+    }
+
+    deleteFiles(paths);
+  }
 }

@@ -27,11 +27,7 @@ public class RichFileInfo extends FileInfo {
   }
 
   // Getter and setter for sizeInBytes
-  public long getSizeInBytes() {
+  public long sizeInBytes() {
     return sizeInBytes;
-  }
-
-  public void setSizeInBytes(long sizeInBytes) {
-    this.sizeInBytes = sizeInBytes;
   }
 }

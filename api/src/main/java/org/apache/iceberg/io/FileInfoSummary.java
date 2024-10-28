@@ -18,29 +18,20 @@
  */
 package org.apache.iceberg.io;
 
-import java.util.Locale;
+public class FileInfoSummary {
+  private final String location;
+  private final long size;
 
-public class BulkDeletionFailureException extends RuntimeException {
-  private final int numberFailedObjects;
-  private final long sizeOfFailedObjects;
-
-  public BulkDeletionFailureException(int numberFailedObjects) {
-    super(String.format(Locale.ROOT, "Failed to delete %d files", numberFailedObjects));
-    this.numberFailedObjects = numberFailedObjects;
-    sizeOfFailedObjects = 0;
+  public FileInfoSummary(String location, long size) {
+    this.location = location;
+    this.size = size;
   }
 
-  public BulkDeletionFailureException(int numberFailedObjects, long sizeOfFailedObjects) {
-    super(String.format(Locale.ROOT, "Failed to delete %d files", numberFailedObjects));
-    this.numberFailedObjects = numberFailedObjects;
-    this.sizeOfFailedObjects = sizeOfFailedObjects;
+  public String location() {
+    return location;
   }
 
-  public int numberFailedObjects() {
-    return numberFailedObjects;
-  }
-
-  public long sizeOfFailedObjects() {
-    return sizeOfFailedObjects;
+  public long size() {
+    return size;
   }
 }
