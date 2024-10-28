@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.geo.GeospatialLibraryAccessor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.ArrayType;
@@ -155,6 +156,13 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
           ((DecimalType) atomic).precision(), ((DecimalType) atomic).scale());
     } else if (atomic instanceof BinaryType) {
       return Types.BinaryType.get();
+    } else {
+      if (GeospatialLibraryAccessor.isGeospatialLibraryAvailable()) {
+        DataType geometryType = GeospatialLibraryAccessor.getGeometryType();
+        if (atomic.sameType(geometryType)) {
+          return Types.GeometryType.get();
+        }
+      }
     }
 
     throw new UnsupportedOperationException("Not a supported type: " + atomic.catalogString());

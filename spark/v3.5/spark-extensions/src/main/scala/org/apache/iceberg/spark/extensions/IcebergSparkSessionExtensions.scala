@@ -19,12 +19,14 @@
 
 package org.apache.iceberg.spark.extensions
 
+import org.apache.iceberg.spark.geo.GeospatialLibraryAccessor
 import org.apache.spark.sql.SparkSessionExtensions
 import org.apache.spark.sql.catalyst.analysis.CheckViews
 import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
 import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
 import org.apache.spark.sql.catalyst.analysis.ResolveViews
 import org.apache.spark.sql.catalyst.optimizer.ReplaceStaticInvoke
+import org.apache.spark.sql.catalyst.optimizer.SpatialPredicatePushDown
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
 
@@ -42,6 +44,14 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
     // optimizer extensions
     extensions.injectOptimizerRule { _ => ReplaceStaticInvoke }
+
+    // spatial predicate push-down optimization rule for geometry columns
+    if (GeospatialLibraryAccessor.isGeospatialLibraryAvailable) {
+      extensions.injectCheckRule(spark => {
+        spark.experimental.extraOptimizations ++= Seq(SpatialPredicatePushDown)
+        _ => ()
+      })
+    }
 
     // planner extensions
     extensions.injectPlannerStrategy { spark => ExtendedDataSourceV2Strategy(spark) }

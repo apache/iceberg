@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.geo.GeospatialLibraryAccessor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
@@ -124,6 +125,8 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         return DecimalType$.MODULE$.apply(decimal.precision(), decimal.scale());
+      case GEOMETRY:
+        return GeospatialLibraryAccessor.getGeometryType();
       default:
         throw new UnsupportedOperationException(
             "Cannot convert unknown type to Spark: " + primitive);

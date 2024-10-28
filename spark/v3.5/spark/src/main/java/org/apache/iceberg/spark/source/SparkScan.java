@@ -21,6 +21,7 @@ package org.apache.iceberg.spark.source;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.iceberg.BlobMetadata;
@@ -31,11 +32,14 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.StatisticsFile;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -94,7 +98,7 @@ import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class SparkScan implements Scan, SupportsReportStatistics {
+public abstract class SparkScan implements Scan, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkScan.class);
   private static final String NDV_KEY = "ndv";
 
@@ -132,12 +136,55 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.scanReportSupplier = scanReportSupplier;
   }
 
+  public SparkScan withExpressions(List<Expression> newFilters) {
+    List<Expression> newFilterExpressions = Lists.newArrayList(this.filterExpressions());
+    Schema schema = this.table().schema();
+    boolean hasChanged = false;
+    Set<String> filterExprSet =
+        Sets.newHashSet(newFilterExpressions.stream().map(Object::toString).iterator());
+    for (Expression expr : newFilters) {
+      if (filterExprSet.contains(expr.toString())) {
+        continue;
+      }
+      try {
+        Binder.bind(schema.asStruct(), expr, caseSensitive);
+        newFilterExpressions.add(expr);
+        filterExprSet.add(expr.toString());
+        hasChanged = true;
+      } catch (ValidationException e) {
+        LOG.info(
+            "Failed to bind expression to table schema, skipping push down for this expression: {}. {}",
+            expr,
+            e.getMessage());
+      }
+    }
+    if (hasChanged) {
+      return withExpressionsInternal(newFilterExpressions);
+    } else {
+      return this;
+    }
+  }
+
+  public abstract SparkScan withExpressionsInternal(List<Expression> newFilterExpressions);
+
+  protected SparkSession sparkSession() {
+    return spark;
+  }
+
   protected Table table() {
     return table;
   }
 
+  protected SparkReadConf readConf() {
+    return readConf;
+  }
+
   protected String branch() {
     return branch;
+  }
+
+  protected Supplier<ScanReport> scanReportSupplier() {
+    return scanReportSupplier;
   }
 
   protected boolean caseSensitive() {

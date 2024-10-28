@@ -24,8 +24,10 @@ import java.util.function.Supplier;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap.Builder;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.geo.GeospatialLibraryAccessor;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.TypeUtil;
@@ -224,19 +226,27 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
     return primitive;
   }
 
-  private static final ImmutableMap<TypeID, Set<Class<? extends DataType>>> TYPES =
-      ImmutableMap.<TypeID, Set<Class<? extends DataType>>>builder()
-          .put(TypeID.BOOLEAN, ImmutableSet.of(BooleanType$.class))
-          .put(TypeID.INTEGER, ImmutableSet.of(IntegerType$.class))
-          .put(TypeID.LONG, ImmutableSet.of(LongType$.class))
-          .put(TypeID.FLOAT, ImmutableSet.of(FloatType$.class))
-          .put(TypeID.DOUBLE, ImmutableSet.of(DoubleType$.class))
-          .put(TypeID.DATE, ImmutableSet.of(DateType$.class))
-          .put(TypeID.TIMESTAMP, ImmutableSet.of(TimestampType$.class, TimestampNTZType$.class))
-          .put(TypeID.DECIMAL, ImmutableSet.of(DecimalType.class))
-          .put(TypeID.UUID, ImmutableSet.of(StringType$.class))
-          .put(TypeID.STRING, ImmutableSet.of(StringType$.class))
-          .put(TypeID.FIXED, ImmutableSet.of(BinaryType$.class))
-          .put(TypeID.BINARY, ImmutableSet.of(BinaryType$.class))
-          .buildOrThrow();
+  private static final ImmutableMap<TypeID, Set<Class<? extends DataType>>> TYPES = buildTypes();
+
+  private static ImmutableMap<TypeID, Set<Class<? extends DataType>>> buildTypes() {
+    Builder<TypeID, Set<Class<? extends DataType>>> builder =
+        ImmutableMap.<TypeID, Set<Class<? extends DataType>>>builder()
+            .put(TypeID.BOOLEAN, ImmutableSet.of(BooleanType$.class))
+            .put(TypeID.INTEGER, ImmutableSet.of(IntegerType$.class))
+            .put(TypeID.LONG, ImmutableSet.of(LongType$.class))
+            .put(TypeID.FLOAT, ImmutableSet.of(FloatType$.class))
+            .put(TypeID.DOUBLE, ImmutableSet.of(DoubleType$.class))
+            .put(TypeID.DATE, ImmutableSet.of(DateType$.class))
+            .put(TypeID.TIMESTAMP, ImmutableSet.of(TimestampType$.class, TimestampNTZType$.class))
+            .put(TypeID.DECIMAL, ImmutableSet.of(DecimalType.class))
+            .put(TypeID.UUID, ImmutableSet.of(StringType$.class))
+            .put(TypeID.STRING, ImmutableSet.of(StringType$.class))
+            .put(TypeID.FIXED, ImmutableSet.of(BinaryType$.class))
+            .put(TypeID.BINARY, ImmutableSet.of(BinaryType$.class));
+    if (GeospatialLibraryAccessor.isGeospatialLibraryAvailable()) {
+      DataType geometryType = GeospatialLibraryAccessor.getGeometryType();
+      builder.put(TypeID.GEOMETRY, ImmutableSet.of(geometryType.getClass()));
+    }
+    return builder.buildOrThrow();
+  }
 }

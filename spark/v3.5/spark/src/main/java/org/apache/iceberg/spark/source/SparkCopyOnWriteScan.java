@@ -82,6 +82,22 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
     }
   }
 
+  public SparkScan withExpressionsInternal(List<Expression> newFilterExpressions) {
+    BatchScan newScan = (BatchScan) scan();
+    for (Expression expr : newFilterExpressions) {
+      newScan = newScan.filter(expr);
+    }
+    return new SparkCopyOnWriteScan(
+        this.sparkSession(),
+        this.table(),
+        newScan,
+        this.snapshot,
+        this.readConf(),
+        this.expectedSchema(),
+        newFilterExpressions,
+        scanReportSupplier());
+  }
+
   Long snapshotId() {
     return snapshot != null ? snapshot.snapshotId() : null;
   }

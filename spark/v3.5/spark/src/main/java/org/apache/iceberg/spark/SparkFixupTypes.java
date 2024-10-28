@@ -56,6 +56,11 @@ class SparkFixupTypes extends FixupTypes {
           return true;
         }
         break;
+      case GEOMETRY:
+        if (source.typeId() == Type.TypeID.GEOMETRY) {
+          return true;
+        }
+        break;
       default:
     }
     return false;

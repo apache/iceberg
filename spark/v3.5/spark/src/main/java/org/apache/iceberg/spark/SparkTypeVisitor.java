@@ -20,6 +20,7 @@ package org.apache.iceberg.spark;
 
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.spark.geo.GeospatialLibraryAccessor;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.MapType;
@@ -47,6 +48,11 @@ class SparkTypeVisitor<T> {
 
     } else if (type instanceof ArrayType) {
       return visitor.array((ArrayType) type, visit(((ArrayType) type).elementType(), visitor));
+
+    } else if (GeospatialLibraryAccessor.isGeospatialLibraryAvailable()
+        && GeospatialLibraryAccessor.getGeometryType().sameType(type)) {
+      // Iceberg defines geometry type as a primitive type
+      return visitor.atomic(type);
 
     } else if (type instanceof UserDefinedType) {
       throw new UnsupportedOperationException("User-defined types are not supported");

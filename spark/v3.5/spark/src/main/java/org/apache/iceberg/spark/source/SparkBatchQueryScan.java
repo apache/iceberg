@@ -87,6 +87,21 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     this.runtimeFilterExpressions = Lists.newArrayList();
   }
 
+  public SparkScan withExpressionsInternal(List<Expression> newFilterExpressions) {
+    Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> newScan = this.scan();
+    for (Expression expr : newFilterExpressions) {
+      newScan = (Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>>) newScan.filter(expr);
+    }
+    return new SparkBatchQueryScan(
+        this.sparkSession(),
+        this.table(),
+        newScan,
+        this.readConf(),
+        this.expectedSchema(),
+        newFilterExpressions,
+        scanReportSupplier());
+  }
+
   Long snapshotId() {
     return snapshotId;
   }

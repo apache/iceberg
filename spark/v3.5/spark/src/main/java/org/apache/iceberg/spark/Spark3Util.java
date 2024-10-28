@@ -665,6 +665,22 @@ public class Spark3Util {
           return sqlString(pred.term()) + " IN (" + sqlString(pred.literals()) + ")";
         case NOT_IN:
           return sqlString(pred.term()) + " NOT IN (" + sqlString(pred.literals()) + ")";
+        case ST_COVERS:
+          return "st_covers(" + sqlString(pred.term()) + ", " + sqlString(pred.literals()) + ")";
+        case ST_INTERSECTS:
+          return "st_intersects("
+              + sqlString(pred.term())
+              + ", "
+              + sqlString(pred.literals())
+              + ")";
+        case ST_DISJOINT:
+          return "st_disjoint(" + sqlString(pred.term()) + ", " + sqlString(pred.literals()) + ")";
+        case ST_NOT_COVERS:
+          return "st_not_covers("
+              + sqlString(pred.term())
+              + ", "
+              + sqlString(pred.literals())
+              + ")";
         default:
           throw new UnsupportedOperationException("Cannot convert predicate to SQL: " + pred);
       }
