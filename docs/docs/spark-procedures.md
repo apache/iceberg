@@ -403,8 +403,12 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
 | `delete-file-threshold` | 2147483647 | Minimum number of deletes that needs to be associated with a data file for it to be considered for rewriting |
-| `output-spec-id` | current partition spec id | Desired partition spec ID to be used for rewriting data files. This allows data files to be rewritten with one of existing partition specs. |
-| `remove-dangling-deletes` | false | Remove dangling position and equality deletes after rewriting. A delete file is considered dangling if it does not apply to any live data files. Enabling this will generate an additional snapshot of the delete type. |
+| `output-spec-id` | current partition spec id | Desired partition spec ID to be used for rewriting data files. This allows data files to be rewritten with any existing partition spec. |
+| `remove-dangling-deletes` | false | Remove dangling position and equality deletes after rewriting. A delete file is considered dangling if it does not apply to any live data files. Enabling this will generate an additional snapshot. |
+
+!!! info
+    Dangling delete files are removed based solely on data sequence numbers. This action does not apply to global 
+    equality deletes or invalid equality deletes if their delete conditions do not match any data files.
 
 ##### Options for sort strategy
 
