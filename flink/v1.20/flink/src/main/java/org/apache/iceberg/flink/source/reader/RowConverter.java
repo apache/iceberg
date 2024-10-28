@@ -30,29 +30,29 @@ import org.apache.flink.types.Row;
 import org.apache.iceberg.flink.FlinkSchemaUtil;
 
 public class RowConverter implements RowDataConverter<Row> {
-    private final DataStructureConverter<Object, Object> converter;
-    private final TypeInformation<Row> outputTypeInfo;
+  private final DataStructureConverter<Object, Object> converter;
+  private final TypeInformation<Row> outputTypeInfo;
 
-    private RowConverter(RowType rowType, TypeInformation<Row> rowTypeInfo) {
-        this.converter = DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(rowType));
-        this.outputTypeInfo = rowTypeInfo;
-    }
+  private RowConverter(RowType rowType, TypeInformation<Row> rowTypeInfo) {
+    this.converter = DataStructureConverters.getConverter(TypeConversions.fromLogicalToDataType(rowType));
+    this.outputTypeInfo = rowTypeInfo;
+  }
 
-    public static RowConverter fromIcebergSchema(
-            org.apache.iceberg.Schema icebergSchema) {
-        RowType rowType = FlinkSchemaUtil.convert(icebergSchema);
-        TableSchema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema);
-        RowTypeInfo rowTypeInfo = new RowTypeInfo(tableSchema.getFieldTypes(), tableSchema.getFieldNames());
-        return new RowConverter(rowType, rowTypeInfo);
-    }
+  public static RowConverter fromIcebergSchema(
+      org.apache.iceberg.Schema icebergSchema) {
+    RowType rowType = FlinkSchemaUtil.convert(icebergSchema);
+    TableSchema tableSchema = FlinkSchemaUtil.toSchema(icebergSchema);
+    RowTypeInfo rowTypeInfo = new RowTypeInfo(tableSchema.getFieldTypes(), tableSchema.getFieldNames());
+    return new RowConverter(rowType, rowTypeInfo);
+  }
 
-    @Override
-    public Row apply(RowData rowData) {
-        return (Row) converter.toExternal(rowData);
-    }
+  @Override
+  public Row apply(RowData rowData) {
+    return (Row) converter.toExternal(rowData);
+  }
 
-    @Override
-    public TypeInformation<Row> getProducedType() {
-        return outputTypeInfo;
-    }
+  @Override
+  public TypeInformation<Row> getProducedType() {
+    return outputTypeInfo;
+  }
 }
