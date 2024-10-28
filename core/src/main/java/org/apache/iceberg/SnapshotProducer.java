@@ -80,6 +80,12 @@ import org.apache.iceberg.util.ThreadPools;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Keeps common functionality to create a new snapshot.
+ *
+ * <p>The number of attempted commits is controlled by {@link TableProperties#COMMIT_NUM_RETRIES}
+ * and {@link TableProperties#COMMIT_NUM_RETRIES_DEFAULT} properties.
+ */
 @SuppressWarnings("UnnecessaryAnonymousClass")
 abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
   private static final Logger LOG = LoggerFactory.getLogger(SnapshotProducer.class);
