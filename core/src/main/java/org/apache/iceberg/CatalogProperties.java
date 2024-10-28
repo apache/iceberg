@@ -79,13 +79,12 @@ public class CatalogProperties {
   public static final boolean IO_MANIFEST_CACHE_ENABLED_DEFAULT = false;
 
   /**
-   * Controls if client-side purging of files is enabled.
-   *
-   * <p>When set to false, the client will not
+   * Controls whether engines using a REST Catalog should delegate the drop table purge requests to the Catalog.
+   * Defaults to false, allowing the engine to use its own implementation for purging.
    */
-  public static final String IO_CLIENT_SIDE_PURGE_ENABLED = "io.client-side.purge-enabled";
+  public static final String REST_SERVER_SIDE_PURGE = "rest.server-side-purge";
 
-  public static final boolean IO_CLIENT_SIDE_PURGE_ENABLED_DEFAULT = true;
+  public static final boolean REST_SERVER_SIDE_PURGE_DEFAULT = false;
 
   /**
    * Controls the maximum duration for which an entry stays in the manifest cache.
