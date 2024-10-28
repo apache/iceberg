@@ -27,6 +27,7 @@ import org.apache.iceberg.expressions.ExpressionUtil;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.metrics.DefaultMetricsContext;
 import org.apache.iceberg.metrics.ImmutableScanReport;
+import org.apache.iceberg.metrics.MetricsReporter;
 import org.apache.iceberg.metrics.ScanMetrics;
 import org.apache.iceberg.metrics.ScanMetricsResult;
 import org.apache.iceberg.metrics.ScanReport;
@@ -154,7 +155,17 @@ public abstract class SnapshotScan<ThisT, T extends ScanTask, G extends ScanTask
                   .scanMetrics(ScanMetricsResult.fromScanMetrics(scanMetrics()))
                   .metadata(metadata)
                   .build();
-          context().metricsReporter().report(scanReport);
+          MetricsReporter metricsReporter = context().metricsReporter();
+          if (metricsReporter != null) {
+            try {
+              metricsReporter.report(scanReport);
+            } catch (Exception e) {
+              LOG.warn(
+                  "MetricsReporter threw an exception. metricsReporter={}",
+                  metricsReporter.getClass().getName(),
+                  e);
+            }
+          }
         });
   }
 
