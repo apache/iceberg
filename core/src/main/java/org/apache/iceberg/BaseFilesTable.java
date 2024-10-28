@@ -166,7 +166,6 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       if (readableMetricsField == null) {
         return CloseableIterable.transform(files(projection), file -> (StructLike) file);
       } else {
-
         Schema actualProjection = projectionForReadableMetrics(projection, readableMetricsField);
         return CloseableIterable.transform(
             files(actualProjection), f -> withReadableMetrics(f, readableMetricsField));
@@ -181,15 +180,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     }
 
     private CloseableIterable<? extends ContentFile<?>> files(Schema fileProjection) {
-      switch (manifest.content()) {
-        case DATA:
-          return ManifestFiles.read(manifest, io, specsById).project(fileProjection);
-        case DELETES:
-          return ManifestFiles.readDeleteManifest(manifest, io, specsById).project(fileProjection);
-        default:
-          throw new IllegalArgumentException(
-              "Unsupported manifest content type:" + manifest.content());
-      }
+      return ManifestFiles.open(manifest, io, specsById).project(fileProjection);
     }
 
     /**
