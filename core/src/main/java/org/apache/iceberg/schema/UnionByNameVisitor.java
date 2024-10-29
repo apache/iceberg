@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.schema;
 
+import static org.apache.iceberg.types.Type.TypeID.INTEGER;
+import static org.apache.iceberg.types.Type.TypeID.LONG;
+
 import java.util.List;
 import java.util.stream.IntStream;
 import org.apache.iceberg.Schema;
@@ -164,7 +167,8 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
 
     boolean needsOptionalUpdate = field.isOptional() && existingField.isRequired();
     boolean needsTypeUpdate =
-        field.type().isPrimitiveType() && !field.type().equals(existingField.type());
+        (field.type().isPrimitiveType() && !field.type().equals(existingField.type()))
+            && !ignorableUpdate(field, existingField);
     boolean needsDocUpdate = field.doc() != null && !field.doc().equals(existingField.doc());
 
     if (needsOptionalUpdate) {
@@ -178,6 +182,14 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     if (needsDocUpdate) {
       api.updateColumnDoc(fullName, field.doc());
     }
+  }
+
+  private boolean ignorableUpdate(Types.NestedField field, Types.NestedField existingField) {
+    switch (existingField.type().typeId()) {
+      case LONG:
+        return field.type().typeId() == INTEGER;
+    }
+    return false;
   }
 
   private static class PartnerIdByNameAccessors implements PartnerAccessors<Integer> {

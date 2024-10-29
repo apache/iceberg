@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.source;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
@@ -242,6 +243,42 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
             row(2L, "b", null),
             row(3L, "c", 120000.34F),
             row(4L, "d", 140000.56F)),
+        sql("select * from %s order by id", tableName));
+  }
+
+  @TestTemplate
+  public void testMergeSchemaIgnoreDowncast() throws Exception {
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+
+    Dataset<Row> bigintDF =
+        jsonToDF(
+            "id bigint, data string",
+            "{ \"id\": 1, \"data\": \"a\" }",
+            "{ \"id\": 2, \"data\": \"b\" }");
+
+    bigintDF.writeTo(tableName).append();
+
+    assertEquals(
+        "Should have initial rows with bigint column",
+        ImmutableList.of(row(1L, "a"), row(2L, "b")),
+        sql("select * from %s order by id", tableName));
+
+    Dataset<Row> intDF =
+        jsonToDF(
+            "id int, data string",
+            "{ \"id\": 3, \"data\": \"c\" }",
+            "{ \"id\": 4, \"data\": \"d\" }");
+
+    // should not throw 'java.lang.IllegalArgumentException: Cannot change column type: id: long ->
+    // int'
+    assertThatCode(() -> intDF.writeTo(tableName).option("merge-schema", "true").append())
+        .doesNotThrowAnyException();
+
+    assertEquals(
+        "Should include new rows with unchanged bigint column type",
+        ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"), row(4L, "d")),
         sql("select * from %s order by id", tableName));
   }
 }
