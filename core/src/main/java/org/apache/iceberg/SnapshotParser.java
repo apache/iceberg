@@ -31,8 +31,11 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SnapshotParser {
+  private static final Logger LOG = LoggerFactory.getLogger(SnapshotParser.class);
 
   private SnapshotParser() {}
 
@@ -140,6 +143,14 @@ public class SnapshotParser {
         }
       }
       summary = builder.build();
+    }
+
+    // When the operation is not found, default to OVERWRITE
+    if (operation == null) {
+      LOG.warn(
+          "Encountered invalid summary for snapshot {}: operation is missing, defaulting to overwrite",
+          snapshotId);
+      operation = DataOperations.OVERWRITE;
     }
 
     Integer schemaId = JsonUtil.getIntOrNull(SCHEMA_ID, node);

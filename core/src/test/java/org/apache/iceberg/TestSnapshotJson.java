@@ -49,7 +49,7 @@ public class TestSnapshotJson {
 
     assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
     assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
-    assertThat(snapshot.operation()).isNull();
+    assertThat(snapshot.operation()).isEqualTo("overwrite");
     assertThat(snapshot.summary()).isNull();
     assertThat(snapshot.schemaId()).isEqualTo(1);
   }
@@ -68,7 +68,7 @@ public class TestSnapshotJson {
 
     assertThat(snapshot.snapshotId()).isEqualTo(expected.snapshotId());
     assertThat(snapshot.allManifests(ops.io())).isEqualTo(expected.allManifests(ops.io()));
-    assertThat(snapshot.operation()).isNull();
+    assertThat(snapshot.operation()).isEqualTo("overwrite");
     assertThat(snapshot.summary()).isNull();
     assertThat(snapshot.schemaId()).isNull();
   }
@@ -175,5 +175,42 @@ public class TestSnapshotJson {
     }
 
     return localInput(manifestList).location();
+  }
+
+  @Test
+  public void testJsonConversionSummaryWithoutOperation() {
+    long currentMs = System.currentTimeMillis();
+    String json =
+        String.format(
+            "{\n"
+                + "  \"snapshot-id\" : 2,\n"
+                + "  \"parent-snapshot-id\" : 1,\n"
+                + "  \"timestamp-ms\" : %s,\n"
+                + "  \"summary\" : {\n"
+                + "    \"files-added\" : \"4\",\n"
+                + "    \"files-deleted\" : \"100\"\n"
+                + "  },\n"
+                + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
+                + "  \"schema-id\" : 3\n"
+                + "}",
+            currentMs);
+
+    Snapshot snap = SnapshotParser.fromJson(json);
+    String expected =
+        String.format(
+            "{\n"
+                + "  \"snapshot-id\" : 2,\n"
+                + "  \"parent-snapshot-id\" : 1,\n"
+                + "  \"timestamp-ms\" : %s,\n"
+                + "  \"summary\" : {\n"
+                + "    \"operation\" : \"overwrite\",\n"
+                + "    \"files-added\" : \"4\",\n"
+                + "    \"files-deleted\" : \"100\"\n"
+                + "  },\n"
+                + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
+                + "  \"schema-id\" : 3\n"
+                + "}",
+            currentMs);
+    assertThat(SnapshotParser.toJson(snap)).isEqualTo(expected);
   }
 }
