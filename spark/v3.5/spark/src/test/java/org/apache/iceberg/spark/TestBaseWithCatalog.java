@@ -67,11 +67,11 @@ public abstract class TestBaseWithCatalog extends TestBase {
     }
   }
 
-  private static final Map<String, String> config;
+  private static final Map<String, String> CONFIG;
 
   static {
     try {
-      config =
+      CONFIG =
           Map.of(
               RESTCatalogServer.REST_PORT, String.valueOf(MetaStoreUtils.findFreePort()),
               CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath(),
@@ -87,7 +87,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   @RegisterExtension
-  private static RESTServerExtension restServerExtension = new RESTServerExtension(config);
+  private static RESTServerExtension restServerExtension = new RESTServerExtension(CONFIG);
 
   protected static RESTCatalog restCatalog;
 
@@ -103,7 +103,10 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   @BeforeAll
-  public static void setUpAll() {
+  public static void setUpAll() throws IOException {
+    if (!warehouse.delete()) {
+      warehouse = File.createTempFile("warehouse", null);
+    }
     assertThat(warehouse.delete()).isTrue();
     initRESTCatalog();
   }
@@ -119,7 +122,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   private static void initRESTCatalog() {
-    restCatalog = RCKUtils.initCatalogClient(config);
+    restCatalog = RCKUtils.initCatalogClient(CONFIG);
   }
 
   private static void stopRESTCatalog() throws Exception {
