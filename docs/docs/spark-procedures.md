@@ -587,7 +587,7 @@ See [`migrate`](#migrate) to replace an existing table with an Iceberg table.
 | `parallelism` |    | int | Number of threads to use for file reading (defaults to 1) |
 
 !!! warning
-    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147). We will fix it in next release.
+    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147) that is scheduled to be fixed in the next release.
 
 #### Output
 
