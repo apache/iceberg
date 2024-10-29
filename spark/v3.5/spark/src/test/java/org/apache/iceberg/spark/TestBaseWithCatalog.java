@@ -26,6 +26,7 @@ import static org.apache.iceberg.CatalogUtil.ICEBERG_CATALOG_TYPE_REST;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -45,17 +46,49 @@ import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.rest.RCKUtils;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.rest.RESTCatalogServer;
+import org.apache.iceberg.rest.RESTServerExtension;
 import org.apache.iceberg.util.PropertyUtil;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 
-@ExtendWith(ParameterizedTestExtension.class)
+@ExtendWith({ParameterizedTestExtension.class, RESTServerExtension.class})
 public abstract class TestBaseWithCatalog extends TestBase {
-  protected static File warehouse = null;
-  protected static RESTCatalogServer restServer;
+  protected static File warehouse;
+
+  static {
+    try {
+      warehouse = File.createTempFile("warehouse", null);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private static final Map<String, String> config;
+
+  static {
+    try {
+      config =
+          Map.of(
+              RESTCatalogServer.REST_PORT, String.valueOf(MetaStoreUtils.findFreePort()),
+              CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath(),
+              // In-memory sqlite database by default is private to the connection that created it.
+              // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
+              // JdbcCatalog, then different jdbc connections could provide different views of table
+              // status even belonging to the same catalog. Reference:
+              // https://www.sqlite.org/inmemorydb.html
+              CatalogProperties.CLIENT_POOL_SIZE, "1");
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  @RegisterExtension
+  private static RESTServerExtension restServerExtension = new RESTServerExtension(config);
+
   protected static RESTCatalog restCatalog;
 
   @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}")
@@ -70,10 +103,9 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   @BeforeAll
-  public static void setUpAll() throws Exception {
-    TestBaseWithCatalog.warehouse = File.createTempFile("warehouse", null);
+  public static void setUpAll() {
     assertThat(warehouse.delete()).isTrue();
-    startRESTServer();
+    initRESTCatalog();
   }
 
   @AfterAll
@@ -83,31 +115,16 @@ public abstract class TestBaseWithCatalog extends TestBase {
       FileSystem fs = warehousePath.getFileSystem(hiveConf);
       assertThat(fs.delete(warehousePath, true)).as("Failed to delete " + warehousePath).isTrue();
     }
-    stopRESTServer();
+    stopRESTCatalog();
   }
 
-  private static void startRESTServer() throws Exception {
-    Map<String, String> config =
-        Map.of(
-            RESTCatalogServer.REST_PORT, String.valueOf(MetaStoreUtils.findFreePort()),
-            CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath(),
-            // In-memory sqlite database by default is private to the connection that created it.
-            // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
-            // JdbcCatalog, then different jdbc connections could provide different views of table
-            // status even belonging to the same catalog. Reference:
-            // https://www.sqlite.org/inmemorydb.html
-            CatalogProperties.CLIENT_POOL_SIZE, "1");
-    restServer = new RESTCatalogServer(config);
-    restServer.start(false);
+  private static void initRESTCatalog() {
     restCatalog = RCKUtils.initCatalogClient(config);
   }
 
-  private static void stopRESTServer() throws Exception {
+  private static void stopRESTCatalog() throws Exception {
     if (restCatalog != null) {
       restCatalog.close();
-    }
-    if (restServer != null) {
-      restServer.stop();
     }
   }
 

@@ -18,18 +18,29 @@
  */
 package org.apache.iceberg.rest;
 
+import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.extension.AfterAllCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
 public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback {
   private RESTCatalogServer localServer;
+  private final Map<String, String> config;
+
+  public RESTServerExtension() {
+    config = Maps.newHashMap();
+  }
+
+  public RESTServerExtension(Map<String, String> config) {
+    this.config = config;
+  }
 
   @Override
   public void beforeAll(ExtensionContext extensionContext) throws Exception {
     if (Boolean.parseBoolean(
         extensionContext.getConfigurationParameter(RCKUtils.RCK_LOCAL).orElse("true"))) {
-      this.localServer = new RESTCatalogServer();
+      this.localServer = new RESTCatalogServer(config);
       this.localServer.start(false);
     }
   }
