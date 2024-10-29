@@ -586,6 +586,9 @@ See [`migrate`](#migrate) to replace an existing table with an Iceberg table.
 | `properties`  | ️   | map<string, string> | Properties to add to the newly created table |
 | `parallelism` |    | int | Number of threads to use for file reading (defaults to 1) |
 
+!!! warning
+    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147). We will fix it in next release.
+
 #### Output
 
 | Output Name | Type | Description |
@@ -628,6 +631,9 @@ By default, the original table is retained with the name `table_BACKUP_`.
 | `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 | `backup_table_name` |  | string | Name of the table that will be retained as backup (defaults to `table_BACKUP_`) |
 | `parallelism` |   | int | Number of threads to use for file reading (defaults to 1) |
+
+!!! warning
+    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147). We will fix it in next release.
 
 #### Output
 
@@ -674,6 +680,9 @@ will then treat these files as if they are part of the set of files  owned by Ic
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
 Warning : Files added by this method can be physically deleted by Iceberg operations
+
+!!! warning
+    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147). We will fix it in next release.
 
 #### Output
 
