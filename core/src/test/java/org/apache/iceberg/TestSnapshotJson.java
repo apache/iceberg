@@ -179,6 +179,10 @@ public class TestSnapshotJson {
 
   @Test
   public void testJsonConversionSummaryWithoutOperation() {
+    // This behavior is out of spec, but we don't want to fail on it.
+    // Instead, the operation will be set to overwrite, to ensure that it will produce
+    // correct metadata when it is written
+
     long currentMs = System.currentTimeMillis();
     String json =
         String.format(
