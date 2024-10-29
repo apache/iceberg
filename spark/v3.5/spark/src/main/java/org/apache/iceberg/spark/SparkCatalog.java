@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.spark;
 
-import static org.apache.iceberg.CatalogProperties.REST_SERVER_SIDE_PURGE;
-import static org.apache.iceberg.CatalogProperties.REST_SERVER_SIDE_PURGE_DEFAULT;
+import static org.apache.iceberg.CatalogProperties.REST_CATALOG_PURGE;
+import static org.apache.iceberg.CatalogProperties.REST_CATALOG_PURGE_DEFAULT;
 import static org.apache.iceberg.TableProperties.GC_ENABLED;
 import static org.apache.iceberg.TableProperties.GC_ENABLED_DEFAULT;
 
@@ -764,8 +764,7 @@ public class SparkCatalog extends BaseCatalog
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
 
     this.restServerPurgeEnabled =
-        PropertyUtil.propertyAsBoolean(
-            options, REST_SERVER_SIDE_PURGE, REST_SERVER_SIDE_PURGE_DEFAULT);
+        PropertyUtil.propertyAsBoolean(options, REST_CATALOG_PURGE, REST_CATALOG_PURGE_DEFAULT);
 
     // An expiration interval of 0ms effectively disables caching.
     // Do not wrap with CachingCatalog.
