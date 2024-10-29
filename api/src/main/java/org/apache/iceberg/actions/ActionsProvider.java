@@ -70,4 +70,22 @@ public interface ActionsProvider {
     throw new UnsupportedOperationException(
         this.getClass().getName() + " does not implement rewritePositionDeletes");
   }
+
+  /** Instantiates an action to compute table stats. */
+  default ComputeTableStats computeTableStats(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement computeTableStats");
+  }
+
+  /** Instantiates an action to rewrite all absolute paths in table metadata. */
+  default RewriteTablePath rewriteTablePath(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement rewriteTablePath");
+  }
+
+  /** Instantiates an action to remove dangling delete files from current snapshot. */
+  default RemoveDanglingDeleteFiles removeDanglingDeleteFiles(Table table) {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " does not implement removeDanglingDeleteFiles");
+  }
 }

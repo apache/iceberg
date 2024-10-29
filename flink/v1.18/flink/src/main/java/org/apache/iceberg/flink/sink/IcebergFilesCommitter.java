@@ -63,7 +63,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 class IcebergFilesCommitter extends AbstractStreamOperator<Void>
-    implements OneInputStreamOperator<WriteResult, Void>, BoundedOneInput {
+    implements OneInputStreamOperator<FlinkWriteResult, Void>, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
   private static final long INITIAL_CHECKPOINT_ID = -1L;
@@ -96,7 +96,7 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
   // The completed files cache for current checkpoint. Once the snapshot barrier received, it will
   // be flushed to the 'dataFilesPerCheckpoint'.
-  private final List<WriteResult> writeResultsOfCurrentCkpt = Lists.newArrayList();
+  private final Map<Long, List<WriteResult>> writeResultsSinceLastSnapshot = Maps.newHashMap();
   private final String branch;
 
   // It will have an unique identifier for one job.
@@ -212,7 +212,8 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
 
     // Update the checkpoint state.
     long startNano = System.nanoTime();
-    dataFilesPerCheckpoint.put(checkpointId, writeToManifest(checkpointId));
+    writeToManifestUptoLatestCheckpoint(checkpointId);
+
     // Reset the snapshot state to the latest state.
     checkpointsState.clear();
     checkpointsState.add(dataFilesPerCheckpoint);
@@ -220,8 +221,6 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
     jobIdState.clear();
     jobIdState.add(flinkJobId);
 
-    // Clear the local buffer for current checkpoint.
-    writeResultsOfCurrentCkpt.clear();
     committerMetrics.checkpointDuration(
         TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
   }
@@ -426,30 +425,45 @@ class IcebergFilesCommitter extends AbstractStreamOperator<Void>
   }
 
   @Override
-  public void processElement(StreamRecord<WriteResult> element) {
-    this.writeResultsOfCurrentCkpt.add(element.getValue());
+  public void processElement(StreamRecord<FlinkWriteResult> element) {
+    FlinkWriteResult flinkWriteResult = element.getValue();
+    List<WriteResult> writeResults =
+        writeResultsSinceLastSnapshot.computeIfAbsent(
+            flinkWriteResult.checkpointId(), k -> Lists.newArrayList());
+    writeResults.add(flinkWriteResult.writeResult());
   }
 
   @Override
   public void endInput() throws IOException {
     // Flush the buffered data files into 'dataFilesPerCheckpoint' firstly.
-    long currentCheckpointId = Long.MAX_VALUE;
-    dataFilesPerCheckpoint.put(currentCheckpointId, writeToManifest(currentCheckpointId));
-    writeResultsOfCurrentCkpt.clear();
-
+    long currentCheckpointId = IcebergStreamWriter.END_INPUT_CHECKPOINT_ID;
+    writeToManifestUptoLatestCheckpoint(currentCheckpointId);
     commitUpToCheckpoint(dataFilesPerCheckpoint, flinkJobId, operatorUniqueId, currentCheckpointId);
+  }
+
+  private void writeToManifestUptoLatestCheckpoint(long checkpointId) throws IOException {
+    if (!writeResultsSinceLastSnapshot.containsKey(checkpointId)) {
+      dataFilesPerCheckpoint.put(checkpointId, EMPTY_MANIFEST_DATA);
+    }
+
+    for (Map.Entry<Long, List<WriteResult>> writeResultsOfCheckpoint :
+        writeResultsSinceLastSnapshot.entrySet()) {
+      dataFilesPerCheckpoint.put(
+          writeResultsOfCheckpoint.getKey(),
+          writeToManifest(writeResultsOfCheckpoint.getKey(), writeResultsOfCheckpoint.getValue()));
+    }
+
+    // Clear the local buffer for current checkpoint.
+    writeResultsSinceLastSnapshot.clear();
   }
 
   /**
    * Write all the complete data files to a newly created manifest file and return the manifest's
    * avro serialized bytes.
    */
-  private byte[] writeToManifest(long checkpointId) throws IOException {
-    if (writeResultsOfCurrentCkpt.isEmpty()) {
-      return EMPTY_MANIFEST_DATA;
-    }
-
-    WriteResult result = WriteResult.builder().addAll(writeResultsOfCurrentCkpt).build();
+  private byte[] writeToManifest(long checkpointId, List<WriteResult> writeResults)
+      throws IOException {
+    WriteResult result = WriteResult.builder().addAll(writeResults).build();
     DeltaManifests deltaManifests =
         FlinkManifestUtil.writeCompletedFiles(
             result, () -> manifestOutputFileFactory.create(checkpointId), spec);

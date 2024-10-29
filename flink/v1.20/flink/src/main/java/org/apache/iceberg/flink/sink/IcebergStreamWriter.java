@@ -29,10 +29,11 @@ import org.apache.iceberg.io.TaskWriter;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
-class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
-    implements OneInputStreamOperator<T, WriteResult>, BoundedOneInput {
+class IcebergStreamWriter<T> extends AbstractStreamOperator<FlinkWriteResult>
+    implements OneInputStreamOperator<T, FlinkWriteResult>, BoundedOneInput {
 
   private static final long serialVersionUID = 1L;
+  static final long END_INPUT_CHECKPOINT_ID = Long.MAX_VALUE;
 
   private final String fullTableName;
   private final TaskWriterFactory<T> taskWriterFactory;
@@ -63,7 +64,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
 
   @Override
   public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
-    flush();
+    flush(checkpointId);
     this.writer = taskWriterFactory.create();
   }
 
@@ -89,20 +90,20 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     // Note that if the task is not closed after calling endInput, checkpoint may be triggered again
     // causing files to be sent repeatedly, the writer is marked as null after the last file is sent
     // to guard against duplicated writes.
-    flush();
+    flush(END_INPUT_CHECKPOINT_ID);
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("table_name", fullTableName)
-        .add("subtask_id", subTaskId)
-        .add("attempt_id", attemptId)
+        .add("tableName", fullTableName)
+        .add("subTaskId", subTaskId)
+        .add("attemptId", attemptId)
         .toString();
   }
 
   /** close all open files and emit files to downstream committer operator */
-  private void flush() throws IOException {
+  private void flush(long checkpointId) throws IOException {
     if (writer == null) {
       return;
     }
@@ -110,7 +111,7 @@ class IcebergStreamWriter<T> extends AbstractStreamOperator<WriteResult>
     long startNano = System.nanoTime();
     WriteResult result = writer.complete();
     writerMetrics.updateFlushResult(result);
-    output.collect(new StreamRecord<>(result));
+    output.collect(new StreamRecord<>(new FlinkWriteResult(checkpointId, result)));
     writerMetrics.flushDuration(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNano));
 
     // Set writer to null to prevent duplicate flushes in the corner case of

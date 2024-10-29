@@ -1409,4 +1409,151 @@ public class TestRowDelta extends V2TableTestBase {
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Found new conflicting delete files");
   }
+
+  @TestTemplate
+  public void testRewrittenDeleteFiles() {
+    DataFile dataFile = newDataFile("data_bucket=0");
+    DeleteFile deleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta baseRowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
+    Snapshot baseSnapshot = commit(table, baseRowDelta, branch);
+    assertThat(baseSnapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+
+    DeleteFile newDeleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta rowDelta =
+        table
+            .newRowDelta()
+            .removeDeletes(deleteFile)
+            .addDeletes(newDeleteFile)
+            .validateFromSnapshot(baseSnapshot.snapshotId());
+    Snapshot snapshot = commit(table, rowDelta, branch);
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.DELETE);
+
+    List<ManifestFile> dataManifests = snapshot.dataManifests(table.io());
+    assertThat(dataManifests).hasSize(1);
+    validateManifest(
+        dataManifests.get(0),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(baseSnapshot.snapshotId()),
+        files(dataFile),
+        statuses(Status.ADDED));
+
+    List<ManifestFile> deleteManifests = snapshot.deleteManifests(table.io());
+    assertThat(deleteManifests).hasSize(2);
+    validateDeleteManifest(
+        deleteManifests.get(0),
+        dataSeqs(2L),
+        fileSeqs(2L),
+        ids(snapshot.snapshotId()),
+        files(newDeleteFile),
+        statuses(Status.ADDED));
+    validateDeleteManifest(
+        deleteManifests.get(1),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(snapshot.snapshotId()),
+        files(deleteFile),
+        statuses(Status.DELETED));
+  }
+
+  @TestTemplate
+  public void testConcurrentDeletesRewriteSameDeleteFile() {
+    DataFile dataFile = newDataFile("data_bucket=0");
+    DeleteFile deleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta baseRowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
+    Snapshot baseSnapshot = commit(table, baseRowDelta, branch);
+    assertThat(baseSnapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+
+    // commit the first DELETE operation that replaces `deleteFile`
+    DeleteFile newDeleteFile1 = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta delete1 =
+        table
+            .newRowDelta()
+            .addDeletes(newDeleteFile1)
+            .removeDeletes(deleteFile)
+            .validateFromSnapshot(baseSnapshot.snapshotId())
+            .validateNoConflictingDataFiles();
+    Snapshot snapshot1 = commit(table, delete1, branch);
+    assertThat(snapshot1.operation()).isEqualTo(DataOperations.DELETE);
+    assertThat(snapshot1.sequenceNumber()).isEqualTo(2L);
+
+    // commit the second DELETE operation that replaces `deleteFile`
+    DeleteFile newDeleteFile2 = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta delete2 =
+        table
+            .newRowDelta()
+            .addDeletes(newDeleteFile2)
+            .removeDeletes(deleteFile)
+            .validateFromSnapshot(baseSnapshot.snapshotId())
+            .validateNoConflictingDataFiles();
+    Snapshot snapshot2 = commit(table, delete2, branch);
+    assertThat(snapshot2.operation()).isEqualTo(DataOperations.DELETE);
+    assertThat(snapshot2.sequenceNumber()).isEqualTo(3L);
+
+    List<ManifestFile> dataManifests = snapshot2.dataManifests(table.io());
+    assertThat(dataManifests).hasSize(1);
+    validateManifest(
+        dataManifests.get(0),
+        dataSeqs(1L),
+        fileSeqs(1L),
+        ids(baseSnapshot.snapshotId()),
+        files(dataFile),
+        statuses(Status.ADDED));
+
+    // verify both new delete files have been added
+    List<ManifestFile> deleteManifests = snapshot2.deleteManifests(table.io());
+    assertThat(deleteManifests).hasSize(2);
+    validateDeleteManifest(
+        deleteManifests.get(0),
+        dataSeqs(3L),
+        fileSeqs(3L),
+        ids(snapshot2.snapshotId()),
+        files(newDeleteFile2),
+        statuses(Status.ADDED));
+    validateDeleteManifest(
+        deleteManifests.get(1),
+        dataSeqs(2L),
+        fileSeqs(2L),
+        ids(snapshot1.snapshotId()),
+        files(newDeleteFile1),
+        statuses(Status.ADDED));
+  }
+
+  @TestTemplate
+  public void testConcurrentMergeRewriteSameDeleteFile() {
+    DataFile dataFile = newDataFile("data_bucket=0");
+    DeleteFile deleteFile = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta baseRowDelta = table.newRowDelta().addRows(dataFile).addDeletes(deleteFile);
+    Snapshot baseSnapshot = commit(table, baseRowDelta, branch);
+    assertThat(baseSnapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+
+    // commit a DELETE operation that replaces `deleteFile`
+    DeleteFile newDeleteFile1 = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta delete =
+        table
+            .newRowDelta()
+            .addDeletes(newDeleteFile1)
+            .removeDeletes(deleteFile)
+            .validateFromSnapshot(baseSnapshot.snapshotId())
+            .validateNoConflictingDataFiles();
+    commit(table, delete, branch);
+
+    // attempt to commit a MERGE operation that replaces `deleteFile`
+    DataFile newDataFile2 = newDataFile("data_bucket=0");
+    DeleteFile newDeleteFile2 = newDeleteFile(dataFile.specId(), "data_bucket=0");
+    RowDelta merge =
+        table
+            .newRowDelta()
+            .addRows(newDataFile2)
+            .addDeletes(newDeleteFile2)
+            .removeDeletes(deleteFile)
+            .validateFromSnapshot(baseSnapshot.snapshotId())
+            .validateNoConflictingDataFiles()
+            .validateNoConflictingDeleteFiles();
+
+    // MERGE must fail as DELETE could have deleted more positions
+    assertThatThrownBy(() -> commit(table, merge, branch))
+        .isInstanceOf(ValidationException.class)
+        .hasMessageStartingWith("Found new conflicting delete files that can apply");
+  }
 }

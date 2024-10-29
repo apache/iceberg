@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import java.io.ObjectStreamException;
+import java.time.temporal.ChronoUnit;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
@@ -31,38 +32,19 @@ class Years<T> extends TimeTransform<T> {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
+  protected ChronoUnit granularity() {
+    return ChronoUnit.YEARS;
+  }
+
+  @Override
   protected Transform<T, Integer> toEnum(Type type) {
-    switch (type.typeId()) {
-      case DATE:
-        return (Transform<T, Integer>) Dates.YEAR;
-      case TIMESTAMP:
-        return (Transform<T, Integer>) Timestamps.YEAR;
-      default:
-        throw new IllegalArgumentException("Unsupported type: " + type);
-    }
+    return (Transform<T, Integer>)
+        fromSourceType(type, Dates.YEAR, Timestamps.MICROS_TO_YEAR, Timestamps.NANOS_TO_YEAR);
   }
 
   @Override
   public Type getResultType(Type sourceType) {
     return Types.IntegerType.get();
-  }
-
-  @Override
-  public boolean satisfiesOrderOf(Transform<?, ?> other) {
-    if (this == other) {
-      return true;
-    }
-
-    if (other instanceof Timestamps) {
-      return Timestamps.YEAR.satisfiesOrderOf(other);
-    } else if (other instanceof Dates) {
-      return Dates.YEAR.satisfiesOrderOf(other);
-    } else if (other instanceof Years) {
-      return true;
-    }
-
-    return false;
   }
 
   @Override

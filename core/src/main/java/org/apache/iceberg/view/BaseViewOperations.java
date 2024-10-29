@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.view;
 
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -157,7 +158,8 @@ public abstract class BaseViewOperations extends BaseMetastoreOperations impleme
                 ViewProperties.METADATA_COMPRESSION, ViewProperties.METADATA_COMPRESSION_DEFAULT);
     String fileExtension = TableMetadataParser.getFileExtension(codecName);
     return metadataFileLocation(
-        metadata, String.format("%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
+        metadata,
+        String.format(Locale.ROOT, "%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
   }
 
   private String metadataFileLocation(ViewMetadata metadata, String filename) {

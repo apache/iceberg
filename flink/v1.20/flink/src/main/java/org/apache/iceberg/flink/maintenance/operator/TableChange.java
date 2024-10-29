@@ -29,19 +29,29 @@ import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 /** Event describing changes in an Iceberg table */
 @Internal
 class TableChange {
-  private int dataFileNum;
-  private int deleteFileNum;
-  private long dataFileSize;
-  private long deleteFileSize;
-  private int commitNum;
+  private int dataFileCount;
+  private long dataFileSizeInBytes;
+  private int posDeleteFileCount;
+  private long posDeleteRecordCount;
+  private int eqDeleteFileCount;
+  private long eqDeleteRecordCount;
+  private int commitCount;
 
   TableChange(
-      int dataFileNum, int deleteFileNum, long dataFileSize, long deleteFileSize, int commitNum) {
-    this.dataFileNum = dataFileNum;
-    this.deleteFileNum = deleteFileNum;
-    this.dataFileSize = dataFileSize;
-    this.deleteFileSize = deleteFileSize;
-    this.commitNum = commitNum;
+      int dataFileCount,
+      long dataFileSizeInBytes,
+      int posDeleteFileCount,
+      long posDeleteRecordCount,
+      int eqDeleteFileCount,
+      long eqDeleteRecordCount,
+      int commitCount) {
+    this.dataFileCount = dataFileCount;
+    this.dataFileSizeInBytes = dataFileSizeInBytes;
+    this.posDeleteFileCount = posDeleteFileCount;
+    this.posDeleteRecordCount = posDeleteRecordCount;
+    this.eqDeleteFileCount = eqDeleteFileCount;
+    this.eqDeleteRecordCount = eqDeleteRecordCount;
+    this.commitCount = commitCount;
   }
 
   TableChange(Snapshot snapshot, FileIO io) {
@@ -50,63 +60,96 @@ class TableChange {
 
     dataFiles.forEach(
         dataFile -> {
-          this.dataFileNum++;
-          this.dataFileSize += dataFile.fileSizeInBytes();
+          this.dataFileCount++;
+          this.dataFileSizeInBytes += dataFile.fileSizeInBytes();
         });
 
     deleteFiles.forEach(
         deleteFile -> {
-          this.deleteFileNum++;
-          this.deleteFileSize += deleteFile.fileSizeInBytes();
+          switch (deleteFile.content()) {
+            case POSITION_DELETES:
+              this.posDeleteFileCount++;
+              this.posDeleteRecordCount += deleteFile.recordCount();
+              break;
+            case EQUALITY_DELETES:
+              this.eqDeleteFileCount++;
+              this.eqDeleteRecordCount += deleteFile.recordCount();
+              break;
+            default:
+              throw new IllegalArgumentException("Unexpected delete file content: " + deleteFile);
+          }
         });
 
-    this.commitNum = 1;
+    this.commitCount = 1;
   }
 
   static TableChange empty() {
-    return new TableChange(0, 0, 0L, 0L, 0);
+    return new TableChange(0, 0L, 0, 0L, 0, 0L, 0);
   }
 
-  int dataFileNum() {
-    return dataFileNum;
+  static Builder builder() {
+    return new Builder();
   }
 
-  int deleteFileNum() {
-    return deleteFileNum;
+  int dataFileCount() {
+    return dataFileCount;
   }
 
-  long dataFileSize() {
-    return dataFileSize;
+  long dataFileSizeInBytes() {
+    return dataFileSizeInBytes;
   }
 
-  long deleteFileSize() {
-    return deleteFileSize;
+  int posDeleteFileCount() {
+    return posDeleteFileCount;
   }
 
-  public int commitNum() {
-    return commitNum;
+  long posDeleteRecordCount() {
+    return posDeleteRecordCount;
+  }
+
+  int eqDeleteFileCount() {
+    return eqDeleteFileCount;
+  }
+
+  long eqDeleteRecordCount() {
+    return eqDeleteRecordCount;
+  }
+
+  public int commitCount() {
+    return commitCount;
   }
 
   public void merge(TableChange other) {
-    this.dataFileNum += other.dataFileNum;
-    this.deleteFileNum += other.deleteFileNum;
-    this.dataFileSize += other.dataFileSize;
-    this.deleteFileSize += other.deleteFileSize;
-    this.commitNum += other.commitNum;
+    this.dataFileCount += other.dataFileCount;
+    this.dataFileSizeInBytes += other.dataFileSizeInBytes;
+    this.posDeleteFileCount += other.posDeleteFileCount;
+    this.posDeleteRecordCount += other.posDeleteRecordCount;
+    this.eqDeleteFileCount += other.eqDeleteFileCount;
+    this.eqDeleteRecordCount += other.eqDeleteRecordCount;
+    this.commitCount += other.commitCount;
   }
 
   TableChange copy() {
-    return new TableChange(dataFileNum, deleteFileNum, dataFileSize, deleteFileSize, commitNum);
+    return new TableChange(
+        dataFileCount,
+        dataFileSizeInBytes,
+        posDeleteFileCount,
+        posDeleteRecordCount,
+        eqDeleteFileCount,
+        eqDeleteRecordCount,
+        commitCount);
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("dataFileNum", dataFileNum)
-        .add("deleteFileNum", deleteFileNum)
-        .add("dataFileSize", dataFileSize)
-        .add("deleteFileSize", deleteFileSize)
-        .add("commitNum", commitNum)
+        .add("dataFileCount", dataFileCount)
+        .add("dataFileSizeInBytes", dataFileSizeInBytes)
+        .add("posDeleteFileCount", posDeleteFileCount)
+        .add("posDeleteRecordCount", posDeleteRecordCount)
+        .add("eqDeleteFileCount", eqDeleteFileCount)
+        .add("eqDeleteRecordCount", eqDeleteRecordCount)
+        .add("commitCount", commitCount)
         .toString();
   }
 
@@ -119,15 +162,82 @@ class TableChange {
     }
 
     TableChange that = (TableChange) other;
-    return dataFileNum == that.dataFileNum
-        && deleteFileNum == that.deleteFileNum
-        && dataFileSize == that.dataFileSize
-        && deleteFileSize == that.deleteFileSize
-        && commitNum == that.commitNum;
+    return dataFileCount == that.dataFileCount
+        && dataFileSizeInBytes == that.dataFileSizeInBytes
+        && posDeleteFileCount == that.posDeleteFileCount
+        && posDeleteRecordCount == that.posDeleteRecordCount
+        && eqDeleteFileCount == that.eqDeleteFileCount
+        && eqDeleteRecordCount == that.eqDeleteRecordCount
+        && commitCount == that.commitCount;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(dataFileNum, deleteFileNum, dataFileSize, deleteFileSize, commitNum);
+    return Objects.hash(
+        dataFileCount,
+        dataFileSizeInBytes,
+        posDeleteFileCount,
+        posDeleteRecordCount,
+        eqDeleteFileCount,
+        eqDeleteRecordCount,
+        commitCount);
+  }
+
+  static class Builder {
+    private int dataFileCount = 0;
+    private long dataFileSizeInBytes = 0L;
+    private int posDeleteFileCount = 0;
+    private long posDeleteRecordCount = 0L;
+    private int eqDeleteFileCount = 0;
+    private long eqDeleteRecordCount = 0L;
+    private int commitCount = 0;
+
+    private Builder() {}
+
+    public Builder dataFileCount(int newDataFileCount) {
+      this.dataFileCount = newDataFileCount;
+      return this;
+    }
+
+    public Builder dataFileSizeInBytes(long newDataFileSizeInBytes) {
+      this.dataFileSizeInBytes = newDataFileSizeInBytes;
+      return this;
+    }
+
+    public Builder posDeleteFileCount(int newPosDeleteFileCount) {
+      this.posDeleteFileCount = newPosDeleteFileCount;
+      return this;
+    }
+
+    public Builder posDeleteRecordCount(long newPosDeleteRecordCount) {
+      this.posDeleteRecordCount = newPosDeleteRecordCount;
+      return this;
+    }
+
+    public Builder eqDeleteFileCount(int newEqDeleteFileCount) {
+      this.eqDeleteFileCount = newEqDeleteFileCount;
+      return this;
+    }
+
+    public Builder eqDeleteRecordCount(long newEqDeleteRecordCount) {
+      this.eqDeleteRecordCount = newEqDeleteRecordCount;
+      return this;
+    }
+
+    public Builder commitCount(int newCommitCount) {
+      this.commitCount = newCommitCount;
+      return this;
+    }
+
+    public TableChange build() {
+      return new TableChange(
+          dataFileCount,
+          dataFileSizeInBytes,
+          posDeleteFileCount,
+          posDeleteRecordCount,
+          eqDeleteFileCount,
+          eqDeleteRecordCount,
+          commitCount);
+    }
   }
 }

@@ -21,7 +21,6 @@ package org.apache.iceberg.aws.s3;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.adobe.testing.s3mock.junit5.S3MockExtension;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
@@ -30,8 +29,9 @@ import org.apache.iceberg.io.RangeReadable;
 import org.apache.iceberg.io.SeekableInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.extension.RegisterExtension;
+import org.testcontainers.containers.MinIOContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.BucketAlreadyExistsException;
@@ -39,12 +39,11 @@ import software.amazon.awssdk.services.s3.model.BucketAlreadyOwnedByYouException
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-@ExtendWith(S3MockExtension.class)
+@Testcontainers
 public class TestS3InputStream {
-  @RegisterExtension
-  public static final S3MockExtension S3_MOCK = S3MockExtension.builder().silent().build();
+  @Container private static final MinIOContainer MINIO = MinioUtil.createContainer();
 
-  private final S3Client s3 = S3_MOCK.createS3ClientV2();
+  private final S3Client s3 = MinioUtil.createS3Client(MINIO);
   private final Random random = new Random(1);
 
   @BeforeEach
@@ -54,16 +53,22 @@ public class TestS3InputStream {
 
   @Test
   public void testRead() throws Exception {
+    testRead(s3);
+  }
+
+  S3InputStream newInputStream(S3Client s3Client, S3URI uri) {
+    return new S3InputStream(s3Client, uri);
+  }
+
+  protected void testRead(S3Client s3Client) throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/read.dat");
     int dataSize = 1024 * 1024 * 10;
     byte[] data = randomData(dataSize);
 
     writeS3Data(uri, data);
 
-    try (SeekableInputStream in = new S3InputStream(s3, uri)) {
+    try (SeekableInputStream in = newInputStream(s3Client, uri)) {
       int readSize = 1024;
-      byte[] actual = new byte[readSize];
-
       readAndCheck(in, in.getPos(), readSize, data, false);
       readAndCheck(in, in.getPos(), readSize, data, true);
 
@@ -111,6 +116,10 @@ public class TestS3InputStream {
 
   @Test
   public void testRangeRead() throws Exception {
+    testRangeRead(s3);
+  }
+
+  protected void testRangeRead(S3Client s3Client) throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/range-read.dat");
     int dataSize = 1024 * 1024 * 10;
     byte[] expected = randomData(dataSize);
@@ -122,7 +131,7 @@ public class TestS3InputStream {
 
     writeS3Data(uri, expected);
 
-    try (RangeReadable in = new S3InputStream(s3, uri)) {
+    try (RangeReadable in = newInputStream(s3Client, uri)) {
       // first 1k
       position = 0;
       offset = 0;
@@ -154,7 +163,7 @@ public class TestS3InputStream {
   @Test
   public void testClose() throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/closed.dat");
-    SeekableInputStream closed = new S3InputStream(s3, uri);
+    SeekableInputStream closed = newInputStream(s3, uri);
     closed.close();
     assertThatThrownBy(() -> closed.seek(0))
         .isInstanceOf(IllegalStateException.class)
@@ -163,12 +172,16 @@ public class TestS3InputStream {
 
   @Test
   public void testSeek() throws Exception {
+    testSeek(s3);
+  }
+
+  protected void testSeek(S3Client s3Client) throws Exception {
     S3URI uri = new S3URI("s3://bucket/path/to/seek.dat");
     byte[] expected = randomData(1024 * 1024);
 
     writeS3Data(uri, expected);
 
-    try (SeekableInputStream in = new S3InputStream(s3, uri)) {
+    try (SeekableInputStream in = newInputStream(s3Client, uri)) {
       in.seek(expected.length / 2);
       byte[] actual = new byte[expected.length / 2];
       IOUtil.readFully(in, actual, 0, expected.length / 2);
@@ -199,5 +212,9 @@ public class TestS3InputStream {
     } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException e) {
       // don't do anything
     }
+  }
+
+  protected S3Client s3Client() {
+    return s3;
   }
 }

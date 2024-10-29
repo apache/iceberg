@@ -18,8 +18,11 @@
  */
 package org.apache.iceberg.rest.responses;
 
+import java.util.List;
 import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.rest.RESTResponse;
+import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.view.ViewMetadata;
 import org.immutables.value.Value;
 
@@ -30,6 +33,11 @@ public interface LoadViewResponse extends RESTResponse {
   ViewMetadata metadata();
 
   Map<String, String> config();
+
+  @Value.Default
+  default List<Credential> credentials() {
+    return ImmutableList.of();
+  }
 
   @Override
   default void validate() {

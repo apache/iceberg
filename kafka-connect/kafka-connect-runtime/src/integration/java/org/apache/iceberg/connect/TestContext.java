@@ -20,6 +20,7 @@ package org.apache.iceberg.connect;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.CatalogProperties;
@@ -37,7 +38,8 @@ import org.testcontainers.containers.wait.strategy.Wait;
 
 public class TestContext {
 
-  public static final TestContext INSTANCE = new TestContext();
+  private static volatile TestContext instance;
+
   public static final ObjectMapper MAPPER = new ObjectMapper();
   public static final int CONNECT_PORT = 8083;
 
@@ -48,9 +50,17 @@ public class TestContext {
   private static final String AWS_SECRET_KEY = "minioadmin";
   private static final String AWS_REGION = "us-east-1";
 
+  public static synchronized TestContext instance() {
+    if (instance == null) {
+      instance = new TestContext();
+    }
+    return instance;
+  }
+
   private TestContext() {
     ComposeContainer container =
         new ComposeContainer(new File("./docker/docker-compose.yml"))
+            .withStartupTimeout(Duration.ofMinutes(2))
             .waitingFor("connect", Wait.forHttp("/connectors"));
     container.start();
   }

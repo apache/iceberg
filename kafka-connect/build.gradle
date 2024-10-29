@@ -70,9 +70,9 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
       // force upgrades for dependencies with known vulnerabilities...
       resolutionStrategy {
         force 'org.codehaus.jettison:jettison:1.5.4'
-        force 'org.xerial.snappy:snappy-java:1.1.10.6'
-        force 'org.apache.commons:commons-compress:1.27.0'
-        force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.2.0'
+        force 'org.xerial.snappy:snappy-java:1.1.10.7'
+        force 'org.apache.commons:commons-compress:1.27.1'
+        force 'org.apache.hadoop.thirdparty:hadoop-shaded-guava:1.3.0'
       }
     }
   }
@@ -115,6 +115,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     implementation platform(libs.awssdk.bom)
     implementation 'software.amazon.awssdk:apache-client'
     implementation 'software.amazon.awssdk:auth'
+    implementation "software.amazon.awssdk:http-auth-aws-crt"
     implementation 'software.amazon.awssdk:iam'
     implementation 'software.amazon.awssdk:sso'
     implementation 'software.amazon.awssdk:s3'
@@ -197,7 +198,8 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
           from configurations.runtimeClasspath
         }
         into('doc/') {
-          from "$rootDir/LICENSE"
+          from "$projectDir/LICENSE"
+          from "$projectDir/NOTICE"
         }
         into('assets/') {
           from "${processResources.destinationDir}/iceberg.png"
@@ -211,13 +213,19 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
           from configurations.hive
         }
         into('doc/') {
-          from "$rootDir/LICENSE"
+          from "$projectDir/LICENSE"
+          from "$projectDir/NOTICE"
         }
         into('assets/') {
           from "${processResources.destinationDir}/iceberg.png"
         }
       }
     }
+  }
+
+  // there are no Maven artifacts so disable publishing tasks...
+  project.afterEvaluate {
+    project.tasks.matching { it.group == 'publishing' }.each {it.enabled = false}
   }
 
   tasks.jar.enabled = false

@@ -20,13 +20,17 @@ package org.apache.iceberg.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -34,10 +38,16 @@ import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.data.BaseDeleteLoader;
+import org.apache.iceberg.data.DeleteLoader;
 import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.deletes.PositionDelete;
+import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -718,5 +728,106 @@ public abstract class TestPartitioningWriters<T> extends WriterTestBase<T> {
     // verify correctness
     List<T> expectedRows = ImmutableList.of(toRow(11, "aaa"), toRow(12, "aaa"));
     assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
+  }
+
+  @TestTemplate
+  public void testRewriteOfPreviousDeletes() throws IOException {
+    assumeThat(format()).isIn(FileFormat.PARQUET, FileFormat.ORC);
+
+    FileWriterFactory<T> writerFactory = newWriterFactory(table.schema());
+
+    // add the first data file
+    List<T> rows1 = ImmutableList.of(toRow(1, "aaa"), toRow(2, "aaa"), toRow(11, "aaa"));
+    DataFile dataFile1 = writeData(writerFactory, fileFactory, rows1, table.spec(), null);
+    table.newFastAppend().appendFile(dataFile1).commit();
+
+    // add the second data file
+    List<T> rows2 = ImmutableList.of(toRow(3, "aaa"), toRow(4, "aaa"), toRow(12, "aaa"));
+    DataFile dataFile2 = writeData(writerFactory, fileFactory, rows2, table.spec(), null);
+    table.newFastAppend().appendFile(dataFile2).commit();
+
+    PartitionSpec spec = table.spec();
+
+    // init the first delete writer without access to previous deletes
+    FanoutPositionOnlyDeleteWriter<T> writer1 =
+        new FanoutPositionOnlyDeleteWriter<>(
+            writerFactory, fileFactory, table.io(), TARGET_FILE_SIZE, DeleteGranularity.FILE);
+
+    // write initial deletes for both data files
+    writer1.write(positionDelete(dataFile1.path(), 1L), spec, null);
+    writer1.write(positionDelete(dataFile2.path(), 1L), spec, null);
+    writer1.close();
+
+    // verify the writer result
+    DeleteWriteResult result1 = writer1.result();
+    assertThat(result1.deleteFiles()).hasSize(2);
+    assertThat(result1.referencedDataFiles()).hasSize(2);
+    assertThat(result1.referencesDataFiles()).isTrue();
+    assertThat(result1.rewrittenDeleteFiles()).isEmpty();
+
+    // commit the initial deletes
+    RowDelta rowDelta1 = table.newRowDelta();
+    result1.deleteFiles().forEach(rowDelta1::addDeletes);
+    rowDelta1.commit();
+
+    // verify correctness of the first delete operation
+    List<T> expectedRows1 =
+        ImmutableList.of(toRow(1, "aaa"), toRow(3, "aaa"), toRow(11, "aaa"), toRow(12, "aaa"));
+    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows1));
+
+    // populate previous delete mapping
+    Map<String, DeleteFile> previousDeletes = Maps.newHashMap();
+    for (DeleteFile deleteFile : result1.deleteFiles()) {
+      String dataLocation = ContentFileUtil.referencedDataFile(deleteFile).toString();
+      previousDeletes.put(dataLocation, deleteFile);
+    }
+
+    // init the second delete writer with access to previous deletes
+    FanoutPositionOnlyDeleteWriter<T> writer2 =
+        new FanoutPositionOnlyDeleteWriter<>(
+            writerFactory,
+            fileFactory,
+            table.io(),
+            TARGET_FILE_SIZE,
+            DeleteGranularity.FILE,
+            new PreviousDeleteLoader(table, previousDeletes));
+
+    // write more deletes for both data files
+    writer2.write(positionDelete(dataFile1.path(), 0L), spec, null);
+    writer2.write(positionDelete(dataFile2.path(), 0L), spec, null);
+    writer2.close();
+
+    // verify the writer result
+    DeleteWriteResult result2 = writer2.result();
+    assertThat(result2.deleteFiles()).hasSize(2);
+    assertThat(result2.referencedDataFiles()).hasSize(2);
+    assertThat(result2.referencesDataFiles()).isTrue();
+    assertThat(result2.rewrittenDeleteFiles()).hasSize(2);
+
+    // add new and remove rewritten delete files
+    RowDelta rowDelta2 = table.newRowDelta();
+    result2.deleteFiles().forEach(rowDelta2::addDeletes);
+    result2.rewrittenDeleteFiles().forEach(rowDelta2::removeDeletes);
+    rowDelta2.commit();
+
+    // verify correctness of the second delete operation
+    List<T> expectedRows2 = ImmutableList.of(toRow(11, "aaa"), toRow(12, "aaa"));
+    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows2));
+  }
+
+  private static class PreviousDeleteLoader implements Function<CharSequence, PositionDeleteIndex> {
+    private final Map<String, DeleteFile> deleteFiles;
+    private final DeleteLoader deleteLoader;
+
+    PreviousDeleteLoader(Table table, Map<String, DeleteFile> deleteFiles) {
+      this.deleteFiles = deleteFiles;
+      this.deleteLoader = new BaseDeleteLoader(deleteFile -> table.io().newInputFile(deleteFile));
+    }
+
+    @Override
+    public PositionDeleteIndex apply(CharSequence path) {
+      DeleteFile deleteFile = deleteFiles.get(path);
+      return deleteLoader.loadPositionDeletes(ImmutableList.of(deleteFile), path);
+    }
   }
 }

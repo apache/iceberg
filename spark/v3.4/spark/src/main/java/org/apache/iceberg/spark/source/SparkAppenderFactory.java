@@ -49,6 +49,10 @@ import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.unsafe.types.UTF8String;
 
+/**
+ * @deprecated since 1.7.0, will be removed in 1.8.0; use {@link SparkFileWriterFactory} instead.
+ */
+@Deprecated
 class SparkAppenderFactory implements FileAppenderFactory<InternalRow> {
   private final Map<String, String> properties;
   private final Schema writeSchema;

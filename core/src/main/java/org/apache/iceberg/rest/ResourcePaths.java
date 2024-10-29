@@ -26,6 +26,20 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 public class ResourcePaths {
   private static final Joiner SLASH = Joiner.on("/").skipNulls();
   private static final String PREFIX = "prefix";
+  public static final String V1_NAMESPACES = "/v1/{prefix}/namespaces";
+  public static final String V1_NAMESPACE = "/v1/{prefix}/namespaces/{namespace}";
+  public static final String V1_NAMESPACE_PROPERTIES =
+      "/v1/{prefix}/namespaces/{namespace}/properties";
+  public static final String V1_TABLES = "/v1/{prefix}/namespaces/{namespace}/tables";
+  public static final String V1_TABLE = "/v1/{prefix}/namespaces/{namespace}/tables/{table}";
+  public static final String V1_TABLE_REGISTER = "/v1/{prefix}/namespaces/{namespace}/register";
+  public static final String V1_TABLE_METRICS =
+      "/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics";
+  public static final String V1_TABLE_RENAME = "/v1/{prefix}/tables/rename";
+  public static final String V1_TRANSACTIONS_COMMIT = "/v1/{prefix}/transactions/commit";
+  public static final String V1_VIEWS = "/v1/{prefix}/namespaces/{namespace}/views";
+  public static final String V1_VIEW = "/v1/{prefix}/namespaces/{namespace}/views/{view}";
+  public static final String V1_VIEW_RENAME = "/v1/{prefix}/views/rename";
 
   public static ResourcePaths forCatalogProperties(Map<String, String> properties) {
     return new ResourcePaths(properties.get(PREFIX));

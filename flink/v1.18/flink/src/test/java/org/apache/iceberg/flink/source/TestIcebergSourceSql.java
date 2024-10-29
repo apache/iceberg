@@ -40,6 +40,7 @@ import org.apache.iceberg.flink.TestHelpers;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /** Use the IcebergSource (FLIP-27) */
@@ -49,11 +50,17 @@ public class TestIcebergSourceSql extends TestSqlBase {
           required(1, "t1", Types.TimestampType.withoutZone()),
           required(2, "t2", Types.LongType.get()));
 
+  @BeforeEach
   @Override
   public void before() throws IOException {
     TableEnvironment tableEnvironment = getTableEnv();
     Configuration tableConf = tableEnvironment.getConfig().getConfiguration();
-    tableConf.setBoolean(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE.key(), true);
+    tableConf.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_USE_FLIP27_SOURCE, true);
+    // Disable inferring parallelism to avoid interfering watermark tests
+    // that check split assignment is ordered by the watermark column.
+    // The tests assumes default parallelism of 1 with single reader task
+    // in order to check the order of read records.
+    tableConf.set(FlinkConfigOptions.TABLE_EXEC_ICEBERG_INFER_SOURCE_PARALLELISM, false);
 
     tableEnvironment.getConfig().set("table.exec.resource.default-parallelism", "1");
     SqlHelpers.sql(

@@ -72,7 +72,9 @@ public class SystemConfigs {
           8,
           Integer::parseUnsignedInt);
 
-  /** @deprecated will be removed in 2.0.0; use name mapping instead */
+  /**
+   * @deprecated will be removed in 2.0.0; use name mapping instead
+   */
   @Deprecated
   public static final ConfigEntry<Boolean> NETFLIX_UNSAFE_PARQUET_ID_FALLBACK_ENABLED =
       new ConfigEntry<>(

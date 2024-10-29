@@ -54,11 +54,11 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.relocated.com.google.common.collect.Streams;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.orc.storage.serde2.io.DateWritable;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -110,6 +110,21 @@ public class TestHelpers {
       for (int i = 0; i < fields.size(); i += 1) {
         Type fieldType = fields.get(i).type();
         Object expectedValue = rec.get(i);
+        Object actualValue = row.isNullAt(i) ? null : row.get(i, convert(fieldType));
+        assertEqualsUnsafe(fieldType, expectedValue, actualValue);
+      }
+    }
+  }
+
+  public static void assertEqualsBatchWithRows(
+      Types.StructType struct, Iterator<Row> expected, ColumnarBatch batch) {
+    for (int rowId = 0; rowId < batch.numRows(); rowId++) {
+      List<Types.NestedField> fields = struct.fields();
+      InternalRow row = batch.getRow(rowId);
+      Row expectedRow = expected.next();
+      for (int i = 0; i < fields.size(); i += 1) {
+        Type fieldType = fields.get(i).type();
+        Object expectedValue = expectedRow.get(i);
         Object actualValue = row.isNullAt(i) ? null : row.get(i, convert(fieldType));
         assertEqualsUnsafe(fieldType, expectedValue, actualValue);
       }
@@ -787,7 +802,7 @@ public class TestHelpers {
   }
 
   public static Set<DeleteFile> deleteFiles(Table table) {
-    Set<DeleteFile> deleteFiles = Sets.newHashSet();
+    DeleteFileSet deleteFiles = DeleteFileSet.create();
 
     for (FileScanTask task : table.newScan().planFiles()) {
       deleteFiles.addAll(task.deletes());

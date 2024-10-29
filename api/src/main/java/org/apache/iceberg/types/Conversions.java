@@ -97,6 +97,7 @@ public class Conversions {
       case LONG:
       case TIME:
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
         return ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(0, (long) value);
       case FLOAT:
         return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putFloat(0, (float) value);
@@ -146,6 +147,7 @@ public class Conversions {
       case LONG:
       case TIME:
       case TIMESTAMP:
+      case TIMESTAMP_NANO:
         if (tmp.remaining() < 8) {
           // type was later promoted to long
           return (long) tmp.getInt();

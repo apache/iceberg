@@ -40,6 +40,7 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.actions.FileRewriter;
 import org.apache.iceberg.actions.ImmutableRewriteDataFiles;
+import org.apache.iceberg.actions.ImmutableRewriteDataFiles.Result.Builder;
 import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
@@ -53,6 +54,7 @@ import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTest
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Queues;
@@ -82,7 +84,8 @@ public class RewriteDataFilesSparkAction
           TARGET_FILE_SIZE_BYTES,
           USE_STARTING_SEQUENCE_NUMBER,
           REWRITE_JOB_ORDER,
-          OUTPUT_SPEC_ID);
+          OUTPUT_SPEC_ID,
+          REMOVE_DANGLING_DELETES);
 
   private static final RewriteDataFilesSparkAction.Result EMPTY_RESULT =
       ImmutableRewriteDataFiles.Result.builder().rewriteResults(ImmutableList.of()).build();
@@ -93,6 +96,7 @@ public class RewriteDataFilesSparkAction
   private int maxConcurrentFileGroupRewrites;
   private int maxCommits;
   private boolean partialProgressEnabled;
+  private boolean removeDanglingDeletes;
   private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
   private FileRewriter<FileScanTask, DataFile> rewriter = null;
@@ -173,11 +177,17 @@ public class RewriteDataFilesSparkAction
 
     Stream<RewriteFileGroup> groupStream = toGroupStream(ctx, fileGroupsByPartition);
 
-    if (partialProgressEnabled) {
-      return doExecuteWithPartialProgress(ctx, groupStream, commitManager(startingSnapshotId));
-    } else {
-      return doExecute(ctx, groupStream, commitManager(startingSnapshotId));
+    Builder resultBuilder =
+        partialProgressEnabled
+            ? doExecuteWithPartialProgress(ctx, groupStream, commitManager(startingSnapshotId))
+            : doExecute(ctx, groupStream, commitManager(startingSnapshotId));
+    if (removeDanglingDeletes) {
+      RemoveDanglingDeletesSparkAction action =
+          new RemoveDanglingDeletesSparkAction(spark(), table);
+      int removedCount = Iterables.size(action.execute().removedDeleteFiles());
+      resultBuilder.removedDeleteFilesCount(removedCount);
     }
+    return resultBuilder.build();
   }
 
   StructLikeMap<List<List<FileScanTask>>> planFileGroups(long startingSnapshotId) {
@@ -261,7 +271,7 @@ public class RewriteDataFilesSparkAction
     return new RewriteDataFilesCommitManager(table, startingSnapshotId, useStartingSequenceNumber);
   }
 
-  private Result doExecute(
+  private Builder doExecute(
       RewriteExecutionContext ctx,
       Stream<RewriteFileGroup> groupStream,
       RewriteDataFilesCommitManager commitManager) {
@@ -323,10 +333,10 @@ public class RewriteDataFilesSparkAction
 
     List<FileGroupRewriteResult> rewriteResults =
         rewrittenGroups.stream().map(RewriteFileGroup::asResult).collect(Collectors.toList());
-    return ImmutableRewriteDataFiles.Result.builder().rewriteResults(rewriteResults).build();
+    return ImmutableRewriteDataFiles.Result.builder().rewriteResults(rewriteResults);
   }
 
-  private Result doExecuteWithPartialProgress(
+  private Builder doExecuteWithPartialProgress(
       RewriteExecutionContext ctx,
       Stream<RewriteFileGroup> groupStream,
       RewriteDataFilesCommitManager commitManager) {
@@ -372,8 +382,7 @@ public class RewriteDataFilesSparkAction
         commitResults.stream().map(RewriteFileGroup::asResult).collect(Collectors.toList());
     return ImmutableRewriteDataFiles.Result.builder()
         .rewriteResults(rewriteResults)
-        .rewriteFailures(rewriteFailures)
-        .build();
+        .rewriteFailures(rewriteFailures);
   }
 
   Stream<RewriteFileGroup> toGroupStream(
@@ -434,6 +443,10 @@ public class RewriteDataFilesSparkAction
     useStartingSequenceNumber =
         PropertyUtil.propertyAsBoolean(
             options(), USE_STARTING_SEQUENCE_NUMBER, USE_STARTING_SEQUENCE_NUMBER_DEFAULT);
+
+    removeDanglingDeletes =
+        PropertyUtil.propertyAsBoolean(
+            options(), REMOVE_DANGLING_DELETES, REMOVE_DANGLING_DELETES_DEFAULT);
 
     rewriteJobOrder =
         RewriteJobOrder.fromName(

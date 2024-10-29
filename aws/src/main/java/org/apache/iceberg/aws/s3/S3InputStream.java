@@ -18,9 +18,16 @@
  */
 package org.apache.iceberg.aws.s3;
 
+import dev.failsafe.Failsafe;
+import dev.failsafe.FailsafeException;
+import dev.failsafe.RetryPolicy;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.Arrays;
+import java.util.List;
+import javax.net.ssl.SSLException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIOMetricsContext;
 import org.apache.iceberg.io.IOUtil;
@@ -29,8 +36,10 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.metrics.Counter;
 import org.apache.iceberg.metrics.MetricsContext;
 import org.apache.iceberg.metrics.MetricsContext.Unit;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +51,9 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 class S3InputStream extends SeekableInputStream implements RangeReadable {
   private static final Logger LOG = LoggerFactory.getLogger(S3InputStream.class);
+
+  private static final List<Class<? extends Throwable>> RETRYABLE_EXCEPTIONS =
+      ImmutableList.of(SSLException.class, SocketTimeoutException.class, SocketException.class);
 
   private final StackTraceElement[] createStack;
   private final S3Client s3;
@@ -57,6 +69,22 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   private final Counter readOperations;
 
   private int skipSize = 1024 * 1024;
+  private RetryPolicy<Object> retryPolicy =
+      RetryPolicy.builder()
+          .handle(RETRYABLE_EXCEPTIONS)
+          .onRetry(
+              e -> {
+                LOG.warn(
+                    "Retrying read from S3, reopening stream (attempt {})", e.getAttemptCount());
+                resetForRetry();
+              })
+          .onFailure(
+              e ->
+                  LOG.error(
+                      "Failed to read from S3 input stream after exhausting all retries",
+                      e.getException()))
+          .withMaxRetries(3)
+          .build();
 
   S3InputStream(S3Client s3, S3URI location) {
     this(s3, location, new S3FileIOProperties(), MetricsContext.nullMetrics());
@@ -92,13 +120,21 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   public int read() throws IOException {
     Preconditions.checkState(!closed, "Cannot read: already closed");
     positionStream();
+    try {
+      int bytesRead = Failsafe.with(retryPolicy).get(() -> stream.read());
+      pos += 1;
+      next += 1;
+      readBytes.increment();
+      readOperations.increment();
 
-    pos += 1;
-    next += 1;
-    readBytes.increment();
-    readOperations.increment();
+      return bytesRead;
+    } catch (FailsafeException ex) {
+      if (ex.getCause() instanceof IOException) {
+        throw (IOException) ex.getCause();
+      }
 
-    return stream.read();
+      throw ex;
+    }
   }
 
   @Override
@@ -106,13 +142,21 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     Preconditions.checkState(!closed, "Cannot read: already closed");
     positionStream();
 
-    int bytesRead = stream.read(b, off, len);
-    pos += bytesRead;
-    next += bytesRead;
-    readBytes.increment(bytesRead);
-    readOperations.increment();
+    try {
+      int bytesRead = Failsafe.with(retryPolicy).get(() -> stream.read(b, off, len));
+      pos += bytesRead;
+      next += bytesRead;
+      readBytes.increment(bytesRead);
+      readOperations.increment();
 
-    return bytesRead;
+      return bytesRead;
+    } catch (FailsafeException ex) {
+      if (ex.getCause() instanceof IOException) {
+        throw (IOException) ex.getCause();
+      }
+
+      throw ex;
+    }
   }
 
   @Override
@@ -146,7 +190,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   public void close() throws IOException {
     super.close();
     closed = true;
-    closeStream();
+    closeStream(false);
   }
 
   private void positionStream() throws IOException {
@@ -178,6 +222,10 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
   }
 
   private void openStream() throws IOException {
+    openStream(false);
+  }
+
+  private void openStream(boolean closeQuietly) throws IOException {
     GetObjectRequest.Builder requestBuilder =
         GetObjectRequest.builder()
             .bucket(location.bucket())
@@ -186,7 +234,7 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
 
     S3RequestUtil.configureEncryption(s3FileIOProperties, requestBuilder);
 
-    closeStream();
+    closeStream(closeQuietly);
 
     try {
       stream = s3.getObject(requestBuilder.build(), ResponseTransformer.toInputStream());
@@ -195,7 +243,12 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
     }
   }
 
-  private void closeStream() throws IOException {
+  @VisibleForTesting
+  void resetForRetry() throws IOException {
+    openStream(true);
+  }
+
+  private void closeStream(boolean closeQuietly) throws IOException {
     if (stream != null) {
       // if we aren't at the end of the stream, and the stream is abortable, then
       // call abort() so we don't read the remaining data with the Apache HTTP client
@@ -203,6 +256,12 @@ class S3InputStream extends SeekableInputStream implements RangeReadable {
       try {
         stream.close();
       } catch (IOException e) {
+        if (closeQuietly) {
+          stream = null;
+          LOG.warn("An error occurred while closing the stream", e);
+          return;
+        }
+
         // the Apache HTTP client will throw a ConnectionClosedException
         // when closing an aborted stream, which is expected
         if (!e.getClass().getSimpleName().equals("ConnectionClosedException")) {

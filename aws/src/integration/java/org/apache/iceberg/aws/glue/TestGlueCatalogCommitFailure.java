@@ -531,7 +531,8 @@ public class TestGlueCatalogCommitFailure extends GlueTestBase {
                         new File(S3TestUtil.getKeyFromUri(metadata.metadataFileLocation()))
                             .getParent())
                     .build())
-            .contents().stream()
+            .contents()
+            .stream()
             .filter(s3Object -> s3Object.key().endsWith("metadata.json"))
             .count();
   }

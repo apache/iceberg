@@ -28,6 +28,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.apache.avro.generic.GenericData.Record;
+import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.Parameter;
@@ -56,7 +58,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.ParameterizedAvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
-import org.apache.iceberg.spark.data.SparkAvroReader;
+import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkException;
 import org.apache.spark.TaskContext;
@@ -259,7 +261,7 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
     List<InternalRow> rows = Lists.newArrayList();
     try (AvroIterable<InternalRow> reader =
         Avro.read(Files.localInput(testFile))
-            .createReaderFunc(SparkAvroReader::new)
+            .createResolvingReader(SparkPlannedAvroReader::create)
             .project(schema)
             .build()) {
 
@@ -419,5 +421,13 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
 
     assertThat(snapshotBeforeFailingWrite).isEqualTo(snapshotAfterFailingWrite);
     assertThat(resultBeforeFailingWrite).isEqualTo(resultAfterFailingWrite);
+
+    while (location.exists()) {
+      try {
+        FileUtils.deleteDirectory(location);
+      } catch (NoSuchFileException e) {
+        // ignore NoSuchFileException when a file is already deleted
+      }
+    }
   }
 }

@@ -30,13 +30,13 @@ Versions 1 and 2 of the Iceberg spec are complete and adopted by the community.
 
 The format version number is incremented when new features are added that will break forward-compatibility---that is, when older readers would not read newer table features correctly. Tables may continue to be written with an older version of the spec to ensure compatibility by not using features that are not yet implemented by processing engines.
 
-#### Version 1: Analytic Data Tables
+### Version 1: Analytic Data Tables
 
 Version 1 of the Iceberg spec defines how to manage large analytic tables using immutable file formats: Parquet, Avro, and ORC.
 
 All version 1 data and metadata files are valid after upgrading a table to version 2. [Appendix E](#version-2) documents how to default version 2 fields when reading version 1 metadata.
 
-#### Version 2: Row-level Deletes
+### Version 2: Row-level Deletes
 
 Version 2 of the Iceberg spec adds row-level updates and deletes for analytic tables with immutable files.
 
@@ -44,6 +44,14 @@ The primary change in version 2 adds delete files to encode rows that are delete
 
 In addition to row-level deletes, version 2 makes some requirements stricter for writers. The full set of changes are listed in [Appendix E](#version-2).
 
+### Version 3: Extended Types and Capabilities
+
+Version 3 of the Iceberg spec extends data types and existing metadata structures to add new capabilities:
+
+* New data types: nanosecond timestamp(tz), unknown
+* Default value support for columns
+* Multi-argument transforms for partitioning and sorting
+* Row Lineage tracking
 
 ## Goals
 
@@ -67,7 +75,7 @@ Data files in snapshots are tracked by one or more manifest files that contain a
 
 The manifests that make up a snapshot are stored in a manifest list file. Each manifest list stores metadata about manifests, including partition stats and data file counts. These stats are used to avoid reading manifests that are not required for an operation.
 
-#### Optimistic Concurrency
+### Optimistic Concurrency
 
 An atomic swap of one table metadata file for another provides the basis for serializable isolation. Readers use the snapshot that was current when they load the table metadata and are not affected by changes until they refresh and pick up a new metadata location.
 
@@ -77,7 +85,7 @@ If the snapshot on which an update is based is no longer current, the writer mus
 
 The conditions required by a write to successfully commit determines the isolation level. Writers can select what to validate and can make different isolation guarantees.
 
-#### Sequence Numbers
+### Sequence Numbers
 
 The relative age of data and delete files relies on a sequence number that is assigned to every successful commit. When a snapshot is created for a commit, it is optimistically assigned the next sequence number, and it is written into the snapshot's metadata. If the commit fails and must be retried, the sequence number is reassigned and written into new snapshot metadata.
 
@@ -86,7 +94,7 @@ All manifests, data files, and delete files created for a snapshot inherit the s
 Inheriting the sequence number from manifest metadata allows writing a new manifest once and reusing it in commit retries. To change a sequence number for a retry, only the manifest list must be rewritten -- which would be rewritten anyway with the latest set of manifests.
 
 
-#### Row-level Deletes
+### Row-level Deletes
 
 Row-level deletes are stored in delete files.
 
@@ -98,7 +106,7 @@ There are two ways to encode a row-level delete:
 Like data files, delete files are tracked by partition. In general, a delete file must be applied to older data files with the same partition; see [Scan Planning](#scan-planning) for details. Column metrics can be used to determine whether a delete file's rows overlap the contents of a data file or a scan range.
 
 
-#### File System Operations
+### File System Operations
 
 Iceberg only requires that file systems support the following operations:
 
@@ -127,7 +135,7 @@ Tables do not require rename, except for tables that use atomic rename to implem
 
 #### Writer requirements
 
-Some tables in this spec have columns that specify requirements for v1 and v2 tables. These requirements are intended for writers when adding metadata files (including manifests files and manifest lists) to a table with the given version.
+Some tables in this spec have columns that specify requirements for tables by version. These requirements are intended for writers when adding metadata files (including manifests files and manifest lists) to a table with the given version.
 
 | Requirement | Write behavior |
 |-------------|----------------|
@@ -135,10 +143,10 @@ Some tables in this spec have columns that specify requirements for v1 and v2 ta
 | _optional_  | The field can be written or omitted |
 | _required_  | The field must be written |
 
-Readers should be more permissive because v1 metadata files are allowed in v2 tables so that tables can be upgraded to v2 without rewriting the metadata tree. For manifest list and manifest files, this table shows the expected v2 read behavior:
+Readers should be more permissive because v1 metadata files are allowed in v2 tables (or later) so that tables can be upgraded to without rewriting the metadata tree. For manifest list and manifest files, this table shows the expected read behavior for later versions:
 
-| v1         | v2         | v2 read behavior |
-|------------|------------|------------------|
+| v1         | v2         | v2+ read behavior |
+|------------|------------|-------------------|
 |            | _optional_ | Read the field as _optional_ |
 |            | _required_ | Read the field as _optional_; it may be missing in v1 files |
 | _optional_ |            | Ignore the field |
@@ -148,11 +156,13 @@ Readers should be more permissive because v1 metadata files are allowed in v2 ta
 | _required_ | _optional_ | Read the field as _optional_ |
 | _required_ | _required_ | Fill in a default or throw an exception if the field is missing |
 
-Readers may be more strict for metadata JSON files because the JSON files are not reused and will always match the table version. Required v2 fields that were not present in v1 or optional in v1 may be handled as required fields. For example, a v2 table that is missing `last-sequence-number` can throw an exception.
+Readers may be more strict for metadata JSON files because the JSON files are not reused and will always match the table version. Required fields that were not present in or were optional in prior versions may be handled as required fields. For example, a v2 table that is missing `last-sequence-number` can throw an exception.
 
-##### Writing data files
+#### Writing data files
 
 All columns must be written to data files even if they introduce redundancy with metadata stored in manifest files (e.g. columns with identity partition transforms). Writing all columns provides a backup in case of corruption or bugs in the metadata layer.
+
+Writers are not allowed to commit files with a partition spec that contains a field with an unknown transform.
 
 ### Schemas and Data Types
 
@@ -174,17 +184,18 @@ Supported primitive types are defined in the table below. Primitive types added 
 
 | Added by version | Primitive type     | Description                                                              | Requirements                                     |
 |------------------|--------------------|--------------------------------------------------------------------------|--------------------------------------------------|
+| [v3](#version-3) | **`unknown`**      | Default / null column type used when a more specific type is not known   | Must be optional with `null` defaults; not stored in data files |
 |                  | **`boolean`**      | True or false                                                            |                                                  |
 |                  | **`int`**          | 32-bit signed integers                                                   | Can promote to `long`                            |
 |                  | **`long`**         | 64-bit signed integers                                                   |                                                  |
 |                  | **`float`**        | [32-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point | Can promote to double                            |
 |                  | **`double`**       | [64-bit IEEE 754](https://en.wikipedia.org/wiki/IEEE_754) floating point |                                                  |
-|                  | **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed [1], precision must be 38 or less |
+|                  | **`decimal(P,S)`** | Fixed-point decimal; precision P, scale S                                | Scale is fixed, precision must be 38 or less     |
 |                  | **`date`**         | Calendar date without timezone or time                                   |                                                  |
-|                  | **`time`**         | Time of day without date, timezone                                       | Microsecond precision [2]                        |
-|                  | **`timestamp`**    | Timestamp, microsecond precision, without timezone                       | [2]                                              |
+|                  | **`time`**         | Time of day, microsecond precision, without date, timezone               |                                                  |
+|                  | **`timestamp`**    | Timestamp, microsecond precision, without timezone                       | [1]                                              |
 |                  | **`timestamptz`**  | Timestamp, microsecond precision, with timezone                          | [2]                                              |
-| [v3](#version-3) | **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [2]                                              |
+| [v3](#version-3) | **`timestamp_ns`** | Timestamp, nanosecond precision, without timezone                        | [1]                                              |
 | [v3](#version-3) | **`timestamptz_ns`** | Timestamp, nanosecond precision, with timezone                         | [2]                                              |
 |                  | **`string`**       | Arbitrary-length character sequences                                     | Encoded with UTF-8 [3]                           |
 |                  | **`uuid`**         | Universally unique identifiers                                           | Should use 16-byte fixed                         |
@@ -193,10 +204,8 @@ Supported primitive types are defined in the table below. Primitive types added 
 
 Notes:
 
-1. Decimal scale is fixed and cannot be changed by schema evolution. Precision can only be widened.
-2. `time`, `timestamp`, and `timestamptz` values are represented with _microsecond precision_. `timestamp_ns` and `timstamptz_ns` values are represented with _nanosecond precision_.
-    - Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
-    - Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
+1. Timestamp values _without time zone_ represent a date and time of day regardless of zone: the time value is independent of zone adjustments (`2017-11-16 17:10:34` is always retrieved as `2017-11-16 17:10:34`).
+2. Timestamp values _with time zone_ represent a point in time: values are stored as UTC and do not retain a source time zone (`2017-11-16 17:10:34 PST` is stored/retrieved as `2017-11-17 01:10:34 UTC` and these values are considered identical).
 3. Character strings must be stored as UTF-8 encoded byte arrays.
 
 For details on how to serialize a schema to JSON, see Appendix C.
@@ -213,6 +222,8 @@ The `initial-default` is set only when a field is added to an existing schema. T
 
 The `initial-default` and `write-default` produce SQL default value behavior, without rewriting data files. SQL default value behavior when a field is added handles all existing rows as though the rows were written with the new field's default value. Default value changes may only affect future records and all known fields are written into data files. Omitting a known field when writing a data file is never allowed. The write default for a field must be written if a field is not supplied to a write. If the write default for a required field is not set, the writer must fail.
 
+All columns of `unknown` type must default to null. Non-null values for `initial-default` or `write-default` are invalid.
+
 Default values are attributes of fields in schemas and serialized with fields in the JSON format. See [Appendix C](#appendix-c-json-serialization).
 
 
@@ -222,11 +233,32 @@ Schemas may be evolved by type promotion or adding, deleting, renaming, or reord
 
 Evolution applies changes to the table's current schema to produce a new schema that is identified by a unique schema ID, is added to the table's list of schemas, and is set as the table's current schema.
 
-Valid type promotions are:
+Valid primitive type promotions are:
 
-* `int` to `long`
-* `float` to `double`
-* `decimal(P, S)` to `decimal(P', S)` if `P' > P` -- widen the precision of decimal types.
+| Primitive type   | v1, v2 valid type promotions | v3+ valid type promotions    | Requirements |
+|------------------|------------------------------|------------------------------|--------------|
+| `unknown`        |                              | _any type_                   | |
+| `int`            | `long`                       | `long`                       | |
+| `date`           |                              | `timestamp`, `timestamp_ns`  | Promotion to `timestamptz` or `timestamptz_ns` is **not** allowed; values outside the promoted type's range must result in a runtime failure |
+| `float`          | `double`                     | `double`                     | |
+| `decimal(P, S)`  | `decimal(P', S)` if `P' > P` | `decimal(P', S)` if `P' > P` | Widen precision only |
+
+Iceberg's Avro manifest format does not store the type of lower and upper bounds, and type promotion does not rewrite existing bounds. For example, when a `float` is promoted to `double`, existing data file bounds are encoded as 4 little-endian bytes rather than 8 little-endian bytes for `double`. To correctly decode the value, the original type at the time the file was written must be inferred according to the following table:
+
+| Current type     | Length of bounds | Inferred type at write time |
+|------------------|------------------|-----------------------------|
+| `long`           | 4 bytes          | `int`                       |
+| `long`           | 8 bytes          | `long`                      |
+| `double`         | 4 bytes          | `float`                     |
+| `double`         | 8 bytes          | `double`                    |
+| `timestamp`      | 4 bytes          | `date`                      |
+| `timestamp`      | 8 bytes          | `timestamp`                 |
+| `timestamp_ns`   | 4 bytes          | `date`                      |
+| `timestamp_ns`   | 8 bytes          | `timestamp_ns`              |
+| `decimal(P, S)`  | _any_            | `decimal(P', S)`; `P' <= P` |
+
+Type promotion is not allowed for a field that is referenced by `source-id` or `source-ids` of a partition field if the partition transform would produce a different value after promoting the type. For example, `bucket[N]` produces different hash values for `34` and `"34"` (2017239379 != -427558391) but the same value for `34` and `34L`; when an `int` field is the source for a bucket partition field, it may be promoted to `long` but not to `string`. This may happen for the following type promotion cases:
+* `date` to `timestamp` or `timestamp_ns`
 
 Any struct, including a top-level schema, can evolve through deleting fields, adding new fields, renaming existing fields, reordering existing fields, or promoting a primitive using the valid type promotions. Adding a new field assigns a new ID for that field and for any nested fields. Renaming an existing field must change the name, but not the field ID. Deleting a field removes it from the current schema. Field deletion cannot be rolled back unless the field was nullable or if the current snapshot has not changed.
 
@@ -243,7 +275,7 @@ Struct evolution requires the following rules for default values:
 * If a field value is missing from a struct's `write-default`, the field's `write-default` must be used for the field
 
 
-#### Column Projection
+##### Column Projection
 
 Columns in Iceberg data files are selected by field id. The table schema's column names and order may change after a data file is written, and projection must be done using field ids.
 
@@ -290,16 +322,101 @@ Iceberg tables must not use field ids greater than 2147483447 (`Integer.MAX_VALU
 
 The set of metadata columns is:
 
-| Field id, name              | Type          | Description |
-|-----------------------------|---------------|-------------|
-| **`2147483646  _file`**     | `string`      | Path of the file in which a row is stored |
-| **`2147483645  _pos`**      | `long`        | Ordinal position of a row in the source data file |
-| **`2147483644  _deleted`**  | `boolean`     | Whether the row has been deleted |
-| **`2147483643  _spec_id`**  | `int`         | Spec ID used to track the file containing a row |
-| **`2147483642  _partition`** | `struct`     | Partition to which a row belongs |
-| **`2147483546  file_path`** | `string`      | Path of a file, used in position-based delete files |
-| **`2147483545  pos`**       | `long`        | Ordinal position of a row, used in position-based delete files |
-| **`2147483544  row`**       | `struct<...>` | Deleted row values, used in position-based delete files |
+| Field id, name                   | Type          | Description                                                                                            |
+|----------------------------------|---------------|--------------------------------------------------------------------------------------------------------|
+| **`2147483646  _file`**          | `string`      | Path of the file in which a row is stored                                                              |
+| **`2147483645  _pos`**           | `long`        | Ordinal position of a row in the source data file, starting at `0`                                     |
+| **`2147483644  _deleted`**       | `boolean`     | Whether the row has been deleted                                                                       |
+| **`2147483643  _spec_id`**       | `int`         | Spec ID used to track the file containing a row                                                        |
+| **`2147483642  _partition`**     | `struct`      | Partition to which a row belongs                                                                       |
+| **`2147483546  file_path`**      | `string`      | Path of a file, used in position-based delete files                                                    |
+| **`2147483545  pos`**            | `long`        | Ordinal position of a row, used in position-based delete files                                         |
+| **`2147483544  row`**            | `struct<...>` | Deleted row values, used in position-based delete files                                                |
+| **`2147483543  _row_id`**        | `long`        | A unique long assigned when row-lineage is enabled, see [Row Lineage](#row-lineage)                    |
+| **`2147483542  _last_updated_sequence_number`**   | `long`        | The sequence number which last updated this row when row-lineage is enabled [Row Lineage](#row-lineage) |
+
+#### Row Lineage
+
+In v3 and later, an Iceberg table can track row lineage fields for all newly created rows.  Row lineage is enabled by setting the field `row-lineage` to true in the table's metadata. When enabled, engines must maintain the `next-row-id` table field and the following row-level fields when writing data files:
+
+* `_row_id` a unique long identifier for every row within the table. The value is assigned via inheritance when a row is first added to the table and the existing value is explicitly written when the row is copied into a new file.
+* `_last_updated_sequence_number` the sequence number of the commit that last updated a row. The value is inherited when a row is first added or modified and the existing value is explicitly written when the row is written to a different data file but not modified.
+
+These fields are assigned and updated by inheritance because the commit sequence number and starting row ID are not assigned until the snapshot is successfully committed. Inheritance is used to allow writing data and manifest files before values are known so that it is not necessary to rewrite data and manifest files when an optimistic commit is retried.
+
+When row lineage is enabled, new snapshots cannot include [Equality Deletes](#equality-delete-files). Row lineage is incompatible with equality deletes because lineage values must be maintained, but equality deletes are used to avoid reading existing data before writing changes.
+
+
+##### Row lineage assignment
+
+Row lineage fields are written when row lineage is enabled. When not enabled, row lineage fields (`_row_id` and `_last_updated_sequence_number`) must not be written to data files. The rest of this section applies when row lineage is enabled.
+
+When a row is added or modified, the `_last_updated_sequence_number` field is set to `null` so that it is inherited when reading. Similarly, the `_row_id` field for an added row is set to `null` and assigned when reading.
+
+A data file with only new rows for the table may omit the `_last_updated_sequence_number` and `_row_id`. If the columns are missing, readers should treat both columns as if they exist and are set to null for all rows.
+
+On read, if `_last_updated_sequence_number` is `null` it is assigned the `sequence_number` of the data file's manifest entry. The data sequence number of a data file is documented in [Sequence Number Inheritance](#sequence-number-inheritance).
+
+When `null`, a row's `_row_id` field is assigned to the `first_row_id` from its containing data file plus the row position in that data file (`_pos`). A data file's `first_row_id` field is assigned using inheritance and is documented in [First Row ID Inheritance](#first-row-id-inheritance). A manifest's `first_row_id` is assigned when writing the manifest list for a snapshot and is documented in [First Row ID Assignment](#first-row-id-assignment). A snapshot's `first-row-id` is set to the table's `next-row-id` and is documented in [Snapshot Row IDs](#snapshot-row-ids).
+
+Values for `_row_id` and `_last_updated_sequence_number` are either read from the data file or assigned at read time. As a result on read, rows in a table always have non-null values for these fields when lineage is enabled.
+
+When an existing row is moved to a different data file for any reason, writers are required to write `_row_id` and `_last_updated_sequence_number` according to the following rules:
+
+1. The row's existing non-null `_row_id` must be copied into the new data file
+2. If the write has modified the row, the `_last_updated_sequence_number` field must be set to `null` (so that the modification's sequence number replaces the current value)
+3. If the write has not modified the row, the existing non-null `_last_updated_sequence_number` value must be copied to the new data file
+
+
+##### Row lineage example
+
+This example demonstrates how `_row_id` and `_last_updated_sequence_number` are assigned for a snapshot when row lineage is enabled. This starts with a table with row lineage enabled and a `next-row-id` of 1000.
+
+Writing a new append snapshot would create snapshot metadata with `first-row-id` assigned to the table's `next-row-id`:
+
+```json
+{
+  "operation": "append",
+  "first-row-id": 1000,
+  ...
+}
+```
+
+The snapshot's manifest list would contain existing manifests, plus new manifests with an assigned `first_row_id` based on the `added_rows_count` of previously listed added manifests:
+
+| `manifest_path` | `added_rows_count` | `existing_rows_count` | `first_row_id`     |
+|-----------------|--------------------|-----------------------|--------------------|
+| ...             | ...                | ...                   | ...                |
+| existing        | 75                 | 0                     | 925                |
+| added1          | 100                | 25                    | 1000               |
+| added2          | 0                  | 100                   | 1100               |
+| added3          | 125                | 25                    | 1100               |
+
+The first added file, `added1`, is assigned the same `first_row_id` as the snapshot and the following manifests are assigned `first_row_id` based on the number of rows added by the previously listed manifests. The second file, `added2`, does not change the `first_row_id` of the next manifest because it contains no added data files.
+
+Within `added1`, the first added manifest, each data file's `first_row_id` follows a similar pattern:
+
+| `status` | `file_path` | `record_count` | `first_row_id` |
+|----------|-------------|----------------|----------------|
+| EXISTING | data1       | 25             | 800            |
+| ADDED    | data2       | 50             | null (1000)    |
+| ADDED    | data3       | 50             | null (1050)    |
+
+The `first_row_id` of the EXISTING file `data1` was already assigned, so the file metadata was copied into manifest `added1`.
+
+Files `data2` and `data3` are written with `null` for `first_row_id` and are assigned `first_row_id` at read time based on the manifest's `first_row_id` and the `record_count` of previously listed ADDED files in this manifest: (1,000 + 0) and (1,000 + 50).
+
+When the new snapshot is committed, the table's `next-row-id` must also be updated (even if the new snapshot is not in the main branch). Because 225 rows were added (`added1`: 100 + `added2`: 0 + `added3`: 125), the new value is 1,000 + 225 = 1,225:
+
+
+##### Enabling Row Lineage for Non-empty Tables
+
+Any snapshot without the field `first-row-id` does not have any lineage information and values for `_row_id` and `_last_updated_sequence_number` cannot be assigned accurately.  
+
+All files that were added before `row-lineage` was enabled should propagate null for all of the `row-lineage` related
+fields. The values for `_row_id` and `_last_updated_sequence_number` should always return null and when these rows are copied, 
+null should be explicitly written. After this point, rows are treated as if they were just created 
+and assigned `row_id` and `_last_updated_sequence_number` as if they were new rows.
 
 
 ### Partitioning
@@ -317,7 +434,9 @@ The source columns, selected by ids, must be a primitive type and cannot be cont
 
 Partition specs capture the transform from table data to partition values. This is used to transform predicates to partition predicates, in addition to transforming data values. Deriving partition predicates from column predicates on the table data is used to separate the logical queries from physical storage: the partitioning can change and the correct partition filters are always derived from column predicates. This simplifies queries because users don’t have to supply both logical predicates and partition predicates. For more information, see Scan Planning below.
 
-Two partition specs are considered equivalent with each other if they have the same number of fields and for each corresponding field, the fields have the same source column ID, transform definition and partition name. Writers must not create a new parition spec if there already exists a compatible partition spec defined in the table.
+Partition fields that use an unknown transform can be read by ignoring the partition field for the purpose of filtering data files during scan planning. In v1 and v2, readers should ignore fields with unknown transforms while reading; this behavior is required in v3. Writers are not allowed to commit data using a partition spec that contains a field with an unknown transform.
+
+Two partition specs are considered equivalent with each other if they have the same number of fields and for each corresponding field, the fields have the same source column IDs, transform definition and partition name. Writers must not create a new parition spec if there already exists a compatible partition spec defined in the table.
 
 Partition field IDs must be reused if an existing partition spec contains an equivalent field.
 
@@ -444,29 +563,29 @@ The schema of a manifest file is a struct called `manifest_entry` with the follo
 
 `data_file` is a struct with the following fields:
 
-| v1         | v2         | Field id, name                    | Type                         | Description |
-| ---------- | ---------- |-----------------------------------|------------------------------|-------------|
-|            | _required_ | **`134  content`**                | `int` with meaning: `0: DATA`, `1: POSITION DELETES`, `2: EQUALITY DELETES` | Type of content stored by the data file: data, equality deletes, or position deletes (all v1 files are data files) |
-| _required_ | _required_ | **`100  file_path`**              | `string`                     | Full URI for the file with FS scheme |
-| _required_ | _required_ | **`101  file_format`**            | `string`                     | String file format name, avro, orc or parquet |
-| _required_ | _required_ | **`102  partition`**              | `struct<...>`                | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids |
-| _required_ | _required_ | **`103  record_count`**           | `long`                       | Number of records in this file |
-| _required_ | _required_ | **`104  file_size_in_bytes`**     | `long`                       | Total file size in bytes |
-| _required_ |            | ~~**`105 block_size_in_bytes`**~~ | `long`                       | **Deprecated. Always write a default in v1. Do not write in v2.** |
-| _optional_ |            | ~~**`106  file_ordinal`**~~       | `int`                        | **Deprecated. Do not write.** |
-| _optional_ |            | ~~**`107  sort_columns`**~~       | `list<112: int>`             | **Deprecated. Do not write.** |
-| _optional_ | _optional_ | **`108  column_sizes`**           | `map<117: int, 118: long>`   | Map from column id to the total size on disk of all regions that store the column. Does not include bytes necessary to read other columns, like footers. Leave null for row-oriented formats (Avro) |
-| _optional_ | _optional_ | **`109  value_counts`**           | `map<119: int, 120: long>`   | Map from column id to number of values in the column (including null and NaN values) |
-| _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`   | Map from column id to number of null values in the column |
-| _optional_ | _optional_ | **`137  nan_value_counts`**       | `map<138: int, 139: long>`   | Map from column id to number of NaN values in the column |
-| _optional_ | _optional_ | **`111  distinct_counts`**        | `map<123: int, 124: long>`   | Map from column id to number of distinct values in the column; distinct counts must be derived using values in the file by counting or using sketches, but not using methods like merging existing distinct counts |
-| _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>` | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2] |
-| _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>` | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2] |
-| _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                     | Implementation-specific key metadata for encryption |
-| _optional_ | _optional_ | **`132  split_offsets`**          | `list<133: long>`            | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending |
-|            | _optional_ | **`135  equality_ids`**           | `list<136: int>`             | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file |
-| _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                        | ID representing sort order for this file [3]. |
-
+| v1         | v2         | v3         | Field id, name                    | Type                                                                        | Description                                                                                                                                                                                                        |
+| ---------- |------------|------------|-----------------------------------|-----------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|            | _required_ | _required_ | **`134  content`**                | `int` with meaning: `0: DATA`, `1: POSITION DELETES`, `2: EQUALITY DELETES` | Type of content stored by the data file: data, equality deletes, or position deletes (all v1 files are data files)                                                                                                 |
+| _required_ | _required_ | _required_ | **`100  file_path`**              | `string`                                                                    | Full URI for the file with FS scheme                                                                                                                                                                               |
+| _required_ | _required_ | _required_ | **`101  file_format`**            | `string`                                                                    | String file format name, avro, orc or parquet                                                                                                                                                                      |
+| _required_ | _required_ | _required_ | **`102  partition`**              | `struct<...>`                                                               | Partition data tuple, schema based on the partition spec output using partition field ids for the struct field ids                                                                                                 |
+| _required_ | _required_ | _required_ | **`103  record_count`**           | `long`                                                                      | Number of records in this file                                                                                                                                                                                     |
+| _required_ | _required_ | _required_ | **`104  file_size_in_bytes`**     | `long`                                                                      | Total file size in bytes                                                                                                                                                                                           |
+| _required_ |            |            | ~~**`105 block_size_in_bytes`**~~ | `long`                                                                      | **Deprecated. Always write a default in v1. Do not write in v2 or v3.**                                                                                                                                            |
+| _optional_ |            |            | ~~**`106  file_ordinal`**~~       | `int`                                                                       | **Deprecated. Do not write.**                                                                                                                                                                                      |
+| _optional_ |            |            | ~~**`107  sort_columns`**~~       | `list<112: int>`                                                            | **Deprecated. Do not write.**                                                                                                                                                                                      |
+| _optional_ | _optional_ | _optional_ | **`108  column_sizes`**           | `map<117: int, 118: long>`                                                  | Map from column id to the total size on disk of all regions that store the column. Does not include bytes necessary to read other columns, like footers. Leave null for row-oriented formats (Avro)                |
+| _optional_ | _optional_ | _optional_ | **`109  value_counts`**           | `map<119: int, 120: long>`                                                  | Map from column id to number of values in the column (including null and NaN values)                                                                                                                               |
+| _optional_ | _optional_ | _optional_ | **`110  null_value_counts`**      | `map<121: int, 122: long>`                                                  | Map from column id to number of null values in the column                                                                                                                                                          |
+| _optional_ | _optional_ | _optional_ | **`137  nan_value_counts`**       | `map<138: int, 139: long>`                                                  | Map from column id to number of NaN values in the column                                                                                                                                                           |
+| _optional_ | _optional_ | _optional_ | **`111  distinct_counts`**        | `map<123: int, 124: long>`                                                  | Map from column id to number of distinct values in the column; distinct counts must be derived using values in the file by counting or using sketches, but not using methods like merging existing distinct counts |
+| _optional_ | _optional_ | _optional_ | **`125  lower_bounds`**           | `map<126: int, 127: binary>`                                                | Map from column id to lower bound in the column serialized as binary [1]. Each value must be less than or equal to all non-null, non-NaN values in the column for the file [2]                                     |
+| _optional_ | _optional_ | _optional_ | **`128  upper_bounds`**           | `map<129: int, 130: binary>`                                                | Map from column id to upper bound in the column serialized as binary [1]. Each value must be greater than or equal to all non-null, non-Nan values in the column for the file [2]                                  |
+| _optional_ | _optional_ | _optional_ | **`131  key_metadata`**           | `binary`                                                                    | Implementation-specific key metadata for encryption                                                                                                                                                                |
+| _optional_ | _optional_ | _optional_ | **`132  split_offsets`**          | `list<133: long>`                                                           | Split offsets for the data file. For example, all row group offsets in a Parquet file. Must be sorted ascending                                                                                                    |
+|            | _optional_ | _optional_ | **`135  equality_ids`**           | `list<136: int>`                                                            | Field ids used to determine row equality in equality delete files. Required when `content=2` and should be null otherwise. Fields with ids listed in this column must be present in the delete file                |
+| _optional_ | _optional_ | _optional_ | **`140  sort_order_id`**          | `int`                                                                       | ID representing sort order for this file [3].                                                                                                                                                                      |
+|            |            | _optional_ | **`142  first_row_id`**           | `long`                                                                      | The `_row_id` for the first row in the data file. See [First Row ID Inheritance](#first-row-id-inheritance)                                                                                                                 |
 Notes:
 
 1. Single-value serialization for lower and upper bounds is detailed in Appendix D.
@@ -510,21 +629,31 @@ Inheriting sequence numbers through the metadata tree allows writing a new manif
 
 When reading v1 manifests with no sequence number column, sequence numbers for all files must default to 0.
 
+#### First Row ID Inheritance
+
+Row ID inheritance is used when row lineage is enabled. When not enabled, a data file's `first_row_id` must always be set to `null`. The rest of this section applies when row lineage is enabled.
+
+When adding a new data file, its `first_row_id` field is set to `null` because it is not assigned until the snapshot is successfully committed.
+
+When reading, the `first_row_id` is assigned by replacing `null` with the manifest's `first_row_id` plus the sum of `record_count` for all added data files that preceded the file in the manifest.
+
+The `first_row_id` is only inherited for added data files. The inherited value must be written into the data file metadata for existing and deleted entries. The value of `first_row_id` for delete files is always `null`.
 
 ### Snapshots
 
 A snapshot consists of the following fields:
 
-| v1         | v2         | Field                    | Description |
-| ---------- | ---------- | ------------------------ | ----------- |
-| _required_ | _required_ | **`snapshot-id`**        | A unique long ID |
-| _optional_ | _optional_ | **`parent-snapshot-id`** | The snapshot ID of the snapshot's parent. Omitted for any snapshot with no parent |
-|            | _required_ | **`sequence-number`**    | A monotonically increasing long that tracks the order of changes to a table |
-| _required_ | _required_ | **`timestamp-ms`**       | A timestamp when the snapshot was created, used for garbage collection and table inspection |
-| _optional_ | _required_ | **`manifest-list`**      | The location of a manifest list for this snapshot that tracks manifest files with additional metadata |
-| _optional_ |            | **`manifests`**          | A list of manifest file locations. Must be omitted if `manifest-list` is present |
-| _optional_ | _required_ | **`summary`**            | A string map that summarizes the snapshot changes, including `operation` (see below) |
-| _optional_ | _optional_ | **`schema-id`**          | ID of the table's current schema when the snapshot was created |
+| v1         | v2         | v3         | Field                        | Description                                                                                                                        |
+| ---------- | ---------- |------------|------------------------------|------------------------------------------------------------------------------------------------------------------------------------|
+| _required_ | _required_ | _required_ | **`snapshot-id`**            | A unique long ID                                                                                                                   |
+| _optional_ | _optional_ | _optional_ | **`parent-snapshot-id`**     | The snapshot ID of the snapshot's parent. Omitted for any snapshot with no parent                                                  |
+|            | _required_ | _required_ | **`sequence-number`**        | A monotonically increasing long that tracks the order of changes to a table                                                        |
+| _required_ | _required_ | _required_ | **`timestamp-ms`**           | A timestamp when the snapshot was created, used for garbage collection and table inspection                                        |
+| _optional_ | _required_ | _required_ | **`manifest-list`**          | The location of a manifest list for this snapshot that tracks manifest files with additional metadata                              |
+| _optional_ |            |            | **`manifests`**              | A list of manifest file locations. Must be omitted if `manifest-list` is present                                                   |
+| _optional_ | _required_ | _required_ | **`summary`**                | A string map that summarizes the snapshot changes, including `operation` (see below)                                               |
+| _optional_ | _optional_ | _optional_ | **`schema-id`**              | ID of the table's current schema when the snapshot was created                                                                     |
+|            |            | _optional_ | **`first-row-id`**           | The first `_row_id` assigned to the first row in the first data file in the first manifest, see [Row Lineage](#row-lineage) |
 
 The snapshot summary's `operation` field is used by some operations, like snapshot expiration, to skip processing certain snapshots. Possible `operation` values are:
 
@@ -544,7 +673,16 @@ Manifests for a snapshot are tracked by a manifest list.
 Valid snapshots are stored as a list in table metadata. For serialization, see Appendix C.
 
 
-#### Manifest Lists
+#### Snapshot Row IDs
+
+When row lineage is not enabled, `first-row-id` must be omitted. The rest of this section applies when row lineage is enabled.
+
+A snapshot's `first-row-id` is assigned to the table's current `next-row-id` on each commit attempt. If a commit is retried, the `first-row-id` must be reassigned. If a commit contains no new rows, `first-row-id` should be omitted.
+
+The snapshot's `first-row-id` is the starting `first_row_id` assigned to manifests in the snapshot's manifest list.
+
+
+### Manifest Lists
 
 Snapshots are embedded in table metadata, but the list of manifests for a snapshot are stored in a separate manifest list file.
 
@@ -556,23 +694,24 @@ A manifest list is a valid Iceberg data file: files must use valid Iceberg forma
 
 Manifest list files store `manifest_file`, a struct with the following fields:
 
-| v1         | v2         | Field id, name                 | Type                                        | Description |
-| ---------- | ---------- |--------------------------------|---------------------------------------------|-------------|
-| _required_ | _required_ | **`500 manifest_path`**        | `string`                                    | Location of the manifest file |
-| _required_ | _required_ | **`501 manifest_length`**      | `long`                                      | Length of the manifest file in bytes |
-| _required_ | _required_ | **`502 partition_spec_id`**    | `int`                                       | ID of a partition spec used to write the manifest; must be listed in table metadata `partition-specs` |
-|            | _required_ | **`517 content`**              | `int` with meaning: `0: data`, `1: deletes` | The type of files tracked by the manifest, either data or delete files; 0 for all v1 manifests |
-|            | _required_ | **`515 sequence_number`**      | `long`                                      | The sequence number when the manifest was added to the table; use 0 when reading v1 manifest lists |
-|            | _required_ | **`516 min_sequence_number`**  | `long`                                      | The minimum data sequence number of all live data or delete files in the manifest; use 0 when reading v1 manifest lists |
-| _required_ | _required_ | **`503 added_snapshot_id`**    | `long`                                      | ID of the snapshot where the  manifest file was added |
-| _optional_ | _required_ | **`504 added_files_count`**    | `int`                                       | Number of entries in the manifest that have status `ADDED` (1), when `null` this is assumed to be non-zero |
-| _optional_ | _required_ | **`505 existing_files_count`** | `int`                                       | Number of entries in the manifest that have status `EXISTING` (0), when `null` this is assumed to be non-zero |
-| _optional_ | _required_ | **`506 deleted_files_count`**  | `int`                                       | Number of entries in the manifest that have status `DELETED` (2), when `null` this is assumed to be non-zero |
-| _optional_ | _required_ | **`512 added_rows_count`**     | `long`                                      | Number of rows in all of files in the manifest that have status `ADDED`, when `null` this is assumed to be non-zero |
-| _optional_ | _required_ | **`513 existing_rows_count`**  | `long`                                      | Number of rows in all of files in the manifest that have status `EXISTING`, when `null` this is assumed to be non-zero |
-| _optional_ | _required_ | **`514 deleted_rows_count`**   | `long`                                      | Number of rows in all of files in the manifest that have status `DELETED`, when `null` this is assumed to be non-zero |
-| _optional_ | _optional_ | **`507 partitions`**           | `list<508: field_summary>` (see below)      | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
-| _optional_ | _optional_ | **`519 key_metadata`**         | `binary`                                    | Implementation-specific key metadata for encryption |
+| v1         | v2         | v3         | Field id, name                   | Type                                        | Description                                                                                                                                          |
+| ---------- | ---------- |------------|----------------------------------|---------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| _required_ | _required_ | _required_ | **`500 manifest_path`**          | `string`                                    | Location of the manifest file                                                                                                                        |
+| _required_ | _required_ | _required_ | **`501 manifest_length`**        | `long`                                      | Length of the manifest file in bytes                                                                                                                 |
+| _required_ | _required_ | _required_ | **`502 partition_spec_id`**      | `int`                                       | ID of a partition spec used to write the manifest; must be listed in table metadata `partition-specs`                                                |
+|            | _required_ | _required_ | **`517 content`**                | `int` with meaning: `0: data`, `1: deletes` | The type of files tracked by the manifest, either data or delete files; 0 for all v1 manifests                                                       |
+|            | _required_ | _required_ | **`515 sequence_number`**        | `long`                                      | The sequence number when the manifest was added to the table; use 0 when reading v1 manifest lists                                                   |
+|            | _required_ | _required_ | **`516 min_sequence_number`**    | `long`                                      | The minimum data sequence number of all live data or delete files in the manifest; use 0 when reading v1 manifest lists                              |
+| _required_ | _required_ | _required_ | **`503 added_snapshot_id`**      | `long`                                      | ID of the snapshot where the  manifest file was added                                                                                                |
+| _optional_ | _required_ | _required_ | **`504 added_files_count`**      | `int`                                       | Number of entries in the manifest that have status `ADDED` (1), when `null` this is assumed to be non-zero                                           |
+| _optional_ | _required_ | _required_ | **`505 existing_files_count`**   | `int`                                       | Number of entries in the manifest that have status `EXISTING` (0), when `null` this is assumed to be non-zero                                        |
+| _optional_ | _required_ | _required_ | **`506 deleted_files_count`**    | `int`                                       | Number of entries in the manifest that have status `DELETED` (2), when `null` this is assumed to be non-zero                                         |
+| _optional_ | _required_ | _required_ | **`512 added_rows_count`**       | `long`                                      | Number of rows in all of files in the manifest that have status `ADDED`, when `null` this is assumed to be non-zero                                  |
+| _optional_ | _required_ | _required_ | **`513 existing_rows_count`**    | `long`                                      | Number of rows in all of files in the manifest that have status `EXISTING`, when `null` this is assumed to be non-zero                               |
+| _optional_ | _required_ | _required_ | **`514 deleted_rows_count`**     | `long`                                      | Number of rows in all of files in the manifest that have status `DELETED`, when `null` this is assumed to be non-zero                                |
+| _optional_ | _optional_ | _optional_ | **`507 partitions`**             | `list<508: field_summary>` (see below)      | A list of field summaries for each partition field in the spec. Each field in the list corresponds to a field in the manifest file’s partition spec. |
+| _optional_ | _optional_ | _optional_ | **`519 key_metadata`**           | `binary`                                    | Implementation-specific key metadata for encryption                                                                                                  |
+|            |            | _optional_ | **`520 first_row_id`**           | `long`                                      | The starting `_row_id` to assign to rows added by `ADDED` data files [First Row ID Assignment](#first-row-id-assignment)                               |
 
 `field_summary` is a struct with the following fields:
 
@@ -588,7 +727,15 @@ Notes:
 1. Lower and upper bounds are serialized to bytes using the single-object serialization in Appendix D. The type of used to encode the value is the type of the partition field data.
 2. If -0.0 is a value of the partition field, the `lower_bound` must not be +0.0, and if +0.0 is a value of the partition field, the `upper_bound` must not be -0.0.
 
-#### Scan Planning
+#### First Row ID Assignment
+
+Row ID inheritance is used when row lineage is enabled. When not enabled, a manifest's `first_row_id` must always be set to `null`. Once enabled, row lineage cannot be disabled. The rest of this section applies when row lineage is enabled.
+
+When adding a new data manifest file, its `first_row_id` field is assigned the value of the snapshot's `first_row_id` plus the sum of `added_rows_count` for all data manifests that preceded the manifest in the manifest list.
+
+The `first_row_id` is only assigned for new data manifests. Values for existing manifests must be preserved when writing a new manifest list. The value of `first_row_id` for delete manifests is always `null`.
+
+### Scan Planning
 
 Scans are planned by reading the manifest files for the current snapshot. Deleted entries in data and delete manifests (those marked with status "DELETED") are not used in a scan.
 
@@ -599,6 +746,8 @@ For each manifest, scan predicates, which filter data rows, are converted to par
 Scan predicates are converted to partition predicates using an _inclusive projection_: if a scan predicate matches a row, then the partition predicate must match that row’s partition. This is called _inclusive_ [1] because rows that do not match the scan predicate may be included in the scan by the partition predicate.
 
 For example, an `events` table with a timestamp column named `ts` that is partitioned by `ts_day=day(ts)` is queried by users with ranges over the timestamp column: `ts > X`. The inclusive projection is `ts_day >= day(X)`, which is used to select files that may have matching rows. Note that, in most cases, timestamps just before `X` will be included in the scan because the file contains rows that match the predicate and rows that do not match the predicate.
+
+The inclusive projection for an unknown partition transform is _true_ because the partition field is ignored and not used in filtering.
 
 Scan predicates are also used to filter data and delete files using column bounds and counts that are stored by field id in manifests. The same filter logic can be used for both data and delete files because both store metrics of the rows either inserted or deleted. If metrics show that a delete file has no rows that match a scan predicate, it may be ignored just as a data file would be ignored [2].
 
@@ -611,10 +760,10 @@ Delete files that match the query filter must be applied to data files at read t
 
 * A _position_ delete file must be applied to a data file when all of the following are true:
     - The data file's data sequence number is _less than or equal to_ the delete file's data sequence number
-    - The data file's partition (both spec and partition values) is equal to the delete file's partition
+    - The data file's partition (both spec and partition values) is equal [4] to the delete file's partition
 * An _equality_ delete file must be applied to a data file when all of the following are true:
     - The data file's data sequence number is _strictly less than_ the delete's data sequence number
-    - The data file's partition (both spec id and partition values) is equal to the delete file's partition _or_ the delete file's partition spec is unpartitioned
+    - The data file's partition (both spec id and partition values) is equal [4] to the delete file's partition _or_ the delete file's partition spec is unpartitioned
 
 In general, deletes are applied only to data files that are older and in the same partition, except for two special cases:
 
@@ -627,8 +776,9 @@ Notes:
 1. An alternative, *strict projection*, creates a partition predicate that will match a file if all of the rows in the file must match the scan predicate. These projections are used to calculate the residual predicates for each file in a scan.
 2. For example, if `file_a` has rows with `id` between 1 and 10 and a delete file contains rows with `id` between 1 and 4, a scan for `id = 9` may ignore the delete file because none of the deletes can match a row that will be selected.
 3. Floating point partition values are considered equal if their IEEE 754 floating-point "single format" bit layout are equal with NaNs normalized to have only the the most significant mantissa bit set (the equivelant of calling `Float.floatToIntBits` or `Double.doubleToLongBits` in Java). The Avro specification requires all floating point values to be encoded in this format.
+4. Unknown partition transforms do not affect partition equality. Although partition fields with unknown transforms are ignored for filtering, the result of an unknown transform is still used when testing whether partition values are equal.
 
-#### Snapshot Reference
+### Snapshot References
 
 Iceberg tables keep track of branches and tags using snapshot references. 
 Tags are labels for individual snapshots. Branches are mutable named references that can be updated by committing a new snapshot as the branch's referenced snapshot using the [Commit Conflict Resolution and Retry](#commit-conflict-resolution-and-retry) procedures.
@@ -645,7 +795,7 @@ The snapshot reference object records all the information of a reference includi
 
 Valid snapshot references are stored as the values of the `refs` map in table metadata. For serialization, see Appendix C.
 
-#### Snapshot Retention Policy
+### Snapshot Retention Policy
 
 Table snapshots expire and are removed from metadata to allow removed or replaced data files to be physically deleted.
 The snapshot expiration procedure removes snapshots from table metadata and applies the table's retention policy.
@@ -671,33 +821,37 @@ The atomic operation used to commit metadata depends on how tables are tracked a
 
 Table metadata consists of the following fields:
 
-| v1         | v2         | Field | Description |
-| ---------- | ---------- | ----- | ----------- |
-| _required_ | _required_ | **`format-version`** | An integer version number for the format. Currently, this can be 1 or 2 based on the spec. Implementations must throw an exception if a table's version is higher than the supported version. |
-| _optional_ | _required_ | **`table-uuid`** | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata. |
-| _required_ | _required_ | **`location`**| The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files. |
-|            | _required_ | **`last-sequence-number`**| The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table. |
-| _required_ | _required_ | **`last-updated-ms`**| Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing. |
-| _required_ | _required_ | **`last-column-id`**| An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas. |
-| _required_ |            | **`schema`**| The table’s current schema. (**Deprecated**: use `schemas` and `current-schema-id` instead) |
-| _optional_ | _required_ | **`schemas`**| A list of schemas, stored as objects with `schema-id`. |
-| _optional_ | _required_ | **`current-schema-id`**| ID of the table's current schema. |
-| _required_ |            | **`partition-spec`**| The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id` instead) |
-| _optional_ | _required_ | **`partition-specs`**| A list of partition specs, stored as full partition spec objects. |
-| _optional_ | _required_ | **`default-spec-id`**| ID of the "current" spec that writers should use by default. |
-| _optional_ | _required_ | **`last-partition-id`**| An integer; the highest assigned partition field ID across all partition specs for the table. This is used to ensure partition fields are always assigned an unused ID when evolving specs. |
-| _optional_ | _optional_ | **`properties`**| A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. For example, `commit.retry.num-retries` is used to control the number of commit retries. |
-| _optional_ | _optional_ | **`current-snapshot-id`**| `long` ID of the current table snapshot; must be the same as the current ID of the `main` branch in `refs`. |
-| _optional_ | _optional_ | **`snapshots`**| A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected. |
-| _optional_ | _optional_ | **`snapshot-log`**| A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed. |
-| _optional_ | _optional_ | **`metadata-log`**| A list (optional) of timestamp and metadata file location pairs that encodes changes to the previous metadata files for the table. Each time a new metadata file is created, a new entry of the previous metadata file location should be added to the list. Tables can be configured to remove oldest metadata log entries and keep a fixed-size log of the most recent entries after a commit. |
-| _optional_ | _required_ | **`sort-orders`**| A list of sort orders, stored as full sort order objects. |
-| _optional_ | _required_ | **`default-sort-order-id`**| Default sort order id of the table. Note that this could be used by writers, but is not used when reading because reads use the specs stored in manifest files. |
-|            | _optional_ | **`refs`** | A map of snapshot references. The map keys are the unique snapshot reference names in the table, and the map values are snapshot reference objects. There is always a `main` branch reference pointing to the `current-snapshot-id` even if the `refs` map is null. |
-| _optional_ | _optional_ | **`statistics`** | A list (optional) of [table statistics](#table-statistics). |
-| _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics). |
+| v1         | v2         | v3         | Field                       | Description                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------- | ---------- |------------|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| _required_ | _required_ | _required_ | **`format-version`**        | An integer version number for the format. Currently, this can be 1 or 2 based on the spec. Implementations must throw an exception if a table's version is higher than the supported version.                                                                                                                                                                                                    |
+| _optional_ | _required_ | _required_ | **`table-uuid`**            | A UUID that identifies the table, generated when the table is created. Implementations must throw an exception if a table's UUID does not match the expected UUID after refreshing metadata.                                                                                                                                                                                                     |
+| _required_ | _required_ | _required_ | **`location`**              | The table's base location. This is used by writers to determine where to store data files, manifest files, and table metadata files.                                                                                                                                                                                                                                                             |
+|            | _required_ | _required_ | **`last-sequence-number`**  | The table's highest assigned sequence number, a monotonically increasing long that tracks the order of snapshots in a table.                                                                                                                                                                                                                                                                     |
+| _required_ | _required_ | _required_ | **`last-updated-ms`**       | Timestamp in milliseconds from the unix epoch when the table was last updated. Each table metadata file should update this field just before writing.                                                                                                                                                                                                                                            |
+| _required_ | _required_ | _required_ | **`last-column-id`**        | An integer; the highest assigned column ID for the table. This is used to ensure columns are always assigned an unused ID when evolving schemas.                                                                                                                                                                                                                                                 |
+| _required_ |            |            | **`schema`**                | The table’s current schema. (**Deprecated**: use `schemas` and `current-schema-id` instead)                                                                                                                                                                                                                                                                                                      |
+| _optional_ | _required_ | _required_ | **`schemas`**               | A list of schemas, stored as objects with `schema-id`.                                                                                                                                                                                                                                                                                                                                           |
+| _optional_ | _required_ | _required_ | **`current-schema-id`**     | ID of the table's current schema.                                                                                                                                                                                                                                                                                                                                                                |
+| _required_ |            |            | **`partition-spec`**        | The table’s current partition spec, stored as only fields. Note that this is used by writers to partition data, but is not used when reading because reads use the specs stored in manifest files. (**Deprecated**: use `partition-specs` and `default-spec-id` instead)                                                                                                                         |
+| _optional_ | _required_ | _required_ | **`partition-specs`**       | A list of partition specs, stored as full partition spec objects.                                                                                                                                                                                                                                                                                                                                |
+| _optional_ | _required_ | _required_ | **`default-spec-id`**       | ID of the "current" spec that writers should use by default.                                                                                                                                                                                                                                                                                                                                     |
+| _optional_ | _required_ | _required_ | **`last-partition-id`**     | An integer; the highest assigned partition field ID across all partition specs for the table. This is used to ensure partition fields are always assigned an unused ID when evolving specs.                                                                                                                                                                                                      |
+| _optional_ | _optional_ | _optional_ | **`properties`**            | A string to string map of table properties. This is used to control settings that affect reading and writing and is not intended to be used for arbitrary metadata. For example, `commit.retry.num-retries` is used to control the number of commit retries.                                                                                                                                     |
+| _optional_ | _optional_ | _optional_ | **`current-snapshot-id`**   | `long` ID of the current table snapshot; must be the same as the current ID of the `main` branch in `refs`.                                                                                                                                                                                                                                                                                      |
+| _optional_ | _optional_ | _optional_ | **`snapshots`**             | A list of valid snapshots. Valid snapshots are snapshots for which all data files exist in the file system. A data file must not be deleted from the file system until the last snapshot in which it was listed is garbage collected.                                                                                                                                                            |
+| _optional_ | _optional_ | _optional_ | **`snapshot-log`**          | A list (optional) of timestamp and snapshot ID pairs that encodes changes to the current snapshot for the table. Each time the current-snapshot-id is changed, a new entry should be added with the last-updated-ms and the new current-snapshot-id. When snapshots are expired from the list of valid snapshots, all entries before a snapshot that has expired should be removed.              |
+| _optional_ | _optional_ | _optional_ | **`metadata-log`**          | A list (optional) of timestamp and metadata file location pairs that encodes changes to the previous metadata files for the table. Each time a new metadata file is created, a new entry of the previous metadata file location should be added to the list. Tables can be configured to remove oldest metadata log entries and keep a fixed-size log of the most recent entries after a commit. |
+| _optional_ | _required_ | _required_ | **`sort-orders`**           | A list of sort orders, stored as full sort order objects.                                                                                                                                                                                                                                                                                                                                        |
+| _optional_ | _required_ | _required_ | **`default-sort-order-id`** | Default sort order id of the table. Note that this could be used by writers, but is not used when reading because reads use the specs stored in manifest files.                                                                                                                                                                                                                                  |
+|            | _optional_ | _optional_ | **`refs`**                  | A map of snapshot references. The map keys are the unique snapshot reference names in the table, and the map values are snapshot reference objects. There is always a `main` branch reference pointing to the `current-snapshot-id` even if the `refs` map is null.                                                                                                                              |
+| _optional_ | _optional_ | _optional_ | **`statistics`**            | A list (optional) of [table statistics](#table-statistics).                                                                                                                                                                                                                                                                                                                                      |
+| _optional_ | _optional_ | _optional_ | **`partition-statistics`**  | A list (optional) of [partition statistics](#partition-statistics).                                                                                                                                                                                                                                                                                                                              |
+|            |            | _optional_ | **`row-lineage`**           | A boolean, defaulting to false, setting whether or not to track the creation and updates to rows in the table. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                                                  |
+|            |            | _optional_ | **`next-row-id`**           | A value higher than all assigned row IDs; the next snapshot's `first-row-id`. See [Row Lineage](#row-lineage).                                                                                                                                                                                                                                                                                   |
 
 For serialization details, see Appendix C.
+
+When a new snapshot is added, the table's `next-row-id` should be updated to the previous `next-row-id` plus the sum of `record_count` for all data files added in the snapshot (this is also equal to the sum of `added_rows_count` for all manifests added in the snapshot). This ensures that `next-row-id` is always higher than any assigned row ID in the table.
 
 #### Table Statistics
 
@@ -743,7 +897,7 @@ Partition statistics file must be registered in the table metadata file to be co
 | _required_ | _required_ | **`statistics-path`** | `string` | Path of the partition statistics file. See [Partition statistics file](#partition-statistics-file). |
 | _required_ | _required_ | **`file-size-in-bytes`** | `long` | Size of the partition statistics file. |
 
-#### Partition Statistics File
+##### Partition Statistics File
 
 Statistics information for each unique partition tuple is stored as a row in any of the data file format of the table (for example, Parquet or ORC).
 These rows must be sorted (in ascending manner with NULL FIRST) by `partition` field to optimize filtering rows while scanning.
@@ -769,16 +923,18 @@ Note that partition data tuple's schema is based on the partition spec output us
 The unified partition type is a struct containing all fields that have ever been a part of any spec in the table 
 and sorted by the field ids in ascending order.  
 In other words, the struct fields represent a union of all known partition fields sorted in ascending order by the field ids.
+
 For example,
-1) `spec#0` has two fields `{field#1, field#2}`
+
+1. `spec#0` has two fields `{field#1, field#2}`
 and then the table has evolved into `spec#1` which has three fields `{field#1, field#2, field#3}`.
 The unified partition type looks like `Struct<field#1, field#2, field#3>`.
 
-2) `spec#0` has two fields `{field#1, field#2}`
+2. `spec#0` has two fields `{field#1, field#2}`
 and then the table has evolved into `spec#1` which has just one field `{field#2}`.
 The unified partition type looks like `Struct<field#1, field#2>`.
 
-#### Commit Conflict Resolution and Retry
+### Commit Conflict Resolution and Retry
 
 When two commits happen at the same time and are based on the same version, only one commit will succeed. In most cases, the failed commit can be applied to the new current version of table metadata and retried. Updates verify the conditions under which they can be applied to a new version and retry if those conditions are met.
 
@@ -934,6 +1090,7 @@ Maps with non-string keys must use an array representation with the `map` logica
 
 |Type|Avro type|Notes|
 |--- |--- |--- |
+|**`unknown`**|`null` or omitted||
 |**`boolean`**|`boolean`||
 |**`int`**|`int`||
 |**`long`**|`long`||
@@ -987,6 +1144,7 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 
 | Type               | Parquet physical type                                              | Logical type                                | Notes                                                          |
 |--------------------|--------------------------------------------------------------------|---------------------------------------------|----------------------------------------------------------------|
+| **`unknown`**      | None                                                               |                                             | Omit from data files                                           |
 | **`boolean`**      | `boolean`                                                          |                                             |                                                                |
 | **`int`**          | `int`                                                              |                                             |                                                                |
 | **`long`**         | `long`                                                             |                                             |                                                                |
@@ -1008,12 +1166,16 @@ Lists must use the [3-level representation](https://github.com/apache/parquet-fo
 | **`map`**          | `3-level map`                                                      | `MAP`                                       | See Parquet docs for 3-level representation.                   |
 
 
+When reading an `unknown` column, any corresponding column must be ignored and replaced with `null` values.
+
+
 ### ORC
 
 **Data Type Mappings**
 
 | Type               | ORC type            | ORC type attributes                                  | Notes                                                                                   |
 |--------------------|---------------------|------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| **`unknown`**      | None                |                                                      | Omit from data files                                                                    |
 | **`boolean`**      | `boolean`           |                                                      |                                                                                         |
 | **`int`**          | `int`               |                                                      | ORC `tinyint` and `smallint` would also map to **`int`**.                               |
 | **`long`**         | `long`              |                                                      |                                                                                         |
@@ -1063,10 +1225,10 @@ The 32-bit hash implementation is 32-bit Murmur3 hash, x86 variant, seeded with 
 | **`time`**         | `hashLong(microsecsFromMidnight(v))`      | `22:31:08` ￫ `-662762989`                  |
 | **`timestamp`**    | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T22:31:08` ￫ `-2047944441`<br />`2017-11-16T22:31:08.000001` ￫ `-1207196810` |
 | **`timestamptz`**  | `hashLong(microsecsFromUnixEpoch(v))`     | `2017-11-16T14:31:08-08:00` ￫ `-2047944441`<br />`2017-11-16T14:31:08.000001-08:00` ￫ `-1207196810` |
-| **`timestamp_ns`** | `hashLong(nanosecsFromUnixEpoch(v))`      | `2017-11-16T22:31:08` ￫ `-737750069`<br />`2017-11-16T22:31:08.000001` ￫ `-976603392`<br />`2017-11-16T22:31:08.000000001` ￫ `-160215926` |
-| **`timestamptz_ns`** | `hashLong(nanosecsFromUnixEpoch(v))`    | `2017-11-16T14:31:08-08:00` ￫ `-737750069`<br />`2017-11-16T14:31:08.000001-08:00` ￫ `-976603392`<br />`2017-11-16T14:31:08.000000001-08:00` ￫ `-160215926` |
+| **`timestamp_ns`** | `hashLong(microsecsFromUnixEpoch(v))` [3] | `2017-11-16T22:31:08` ￫ `-2047944441`<br />`2017-11-16T22:31:08.000001001` ￫ `-1207196810` |
+| **`timestamptz_ns`** | `hashLong(microsecsFromUnixEpoch(v))` [3]| `2017-11-16T14:31:08-08:00` ￫ `-2047944441`<br />`2017-11-16T14:31:08.000001001-08:00` ￫ `-1207196810` |
 | **`string`**       | `hashBytes(utf8Bytes(v))`                 | `iceberg` ￫ `1210000089`                   |
-| **`uuid`**         | `hashBytes(uuidBytes(v))`		[3]      | `f79c3e09-677c-4bbd-a479-3f349cb785e7` ￫ `1488055340`               |
+| **`uuid`**         | `hashBytes(uuidBytes(v))`		[4]      | `f79c3e09-677c-4bbd-a479-3f349cb785e7` ￫ `1488055340`               |
 | **`fixed(L)`**     | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
 | **`binary`**       | `hashBytes(v)`                            | `00 01 02 03` ￫ `-188683207`               |
 
@@ -1074,18 +1236,20 @@ The types below are not currently valid for bucketing, and so are not hashed. Ho
 
 | Primitive type     | Hash specification                        | Test value                                 |
 |--------------------|-------------------------------------------|--------------------------------------------|
+| **`unknown`**      | always `null`                             |                                            |
 | **`boolean`**      | `false: hashInt(0)`, `true: hashInt(1)`   | `true` ￫ `1392991556`                      |
-| **`float`**        | `hashLong(doubleToLongBits(double(v))` [4]| `1.0F` ￫ `-142385009`, `0.0F` ￫ `1669671676`, `-0.0F` ￫ `1669671676` |
-| **`double`**       | `hashLong(doubleToLongBits(v))`        [4]| `1.0D` ￫ `-142385009`, `0.0D` ￫ `1669671676`, `-0.0D` ￫ `1669671676` |
+| **`float`**        | `hashLong(doubleToLongBits(double(v))` [5]| `1.0F` ￫ `-142385009`, `0.0F` ￫ `1669671676`, `-0.0F` ￫ `1669671676` |
+| **`double`**       | `hashLong(doubleToLongBits(v))`        [5]| `1.0D` ￫ `-142385009`, `0.0D` ￫ `1669671676`, `-0.0D` ￫ `1669671676` |
 
 Notes:
 
 1. Integer and long hash results must be identical for all integer values. This ensures that schema evolution does not change bucket partition values if integer types are promoted.
 2. Decimal values are hashed using the minimum number of bytes required to hold the unscaled value as a two’s complement big-endian; this representation does not include padding bytes required for storage in a fixed-length array.
 Hash results are not dependent on decimal scale, which is part of the type, not the data value.
-3. UUIDs are encoded using big endian. The test UUID for the example above is: `f79c3e09-677c-4bbd-a479-3f349cb785e7`. This UUID encoded as a byte array is:
+3. Nanosecond timestamps must be converted to microsecond precision before hashing to ensure timestamps have the same hash value.
+4. UUIDs are encoded using big endian. The test UUID for the example above is: `f79c3e09-677c-4bbd-a479-3f349cb785e7`. This UUID encoded as a byte array is:
 `F7 9C 3E 09 67 7C 4B BD A4 79 3F 34 9C B7 85 E7`
-4. `doubleToLongBits` must give the IEEE 754 compliant bit representation of the double value. All `NaN` bit patterns must be canonicalized to `0x7ff8000000000000L`. Negative zero (`-0.0`) must be canonicalized to positive zero (`0.0`). Float hash values are the result of hashing the float cast to double to ensure that schema evolution does not change hash values if float types are promoted.
+5. `doubleToLongBits` must give the IEEE 754 compliant bit representation of the double value. All `NaN` bit patterns must be canonicalized to `0x7ff8000000000000L`. Negative zero (`-0.0`) must be canonicalized to positive zero (`0.0`). Float hash values are the result of hashing the float cast to double to ensure that schema evolution does not change hash values if float types are promoted.
 
 ## Appendix C: JSON serialization
 
@@ -1103,6 +1267,7 @@ Types are serialized according to this table:
 
 |Type|JSON representation|Example|
 |--- |--- |--- |
+|**`unknown`**|`JSON string: "unknown"`|`"unknown"`|
 |**`boolean`**|`JSON string: "boolean"`|`"boolean"`|
 |**`int`**|`JSON string: "int"`|`"int"`|
 |**`long`**|`JSON string: "long"`|`"long"`|
@@ -1230,7 +1395,7 @@ Name mapping is serialized as a list of field mapping JSON Objects which are ser
 |Field mapping field|JSON representation|Example|
 |--- |--- |--- |
 |**`names`**|`JSON list of strings`|`["latitude", "lat"]`|
-|**`field_id`**|`JSON int`|`1`|
+|**`field-id`**|`JSON int`|`1`|
 |**`fields`**|`JSON field mappings (list of objects)`|`[{ `<br />&nbsp;&nbsp;`"field-id": 4,`<br />&nbsp;&nbsp;`"names": ["latitude", "lat"]`<br />`}, {`<br />&nbsp;&nbsp;`"field-id": 5,`<br />&nbsp;&nbsp;`"names": ["longitude", "long"]`<br />`}]`|
 
 Example
@@ -1251,6 +1416,7 @@ This serialization scheme is for storing single values as individual binary valu
 
 | Type                         | Binary serialization                                                                                         |
 |------------------------------|--------------------------------------------------------------------------------------------------------------|
+| **`unknown`**                | Not supported                                                                                                |
 | **`boolean`**                | `0x00` for false, non-zero byte for true                                                                     |
 | **`int`**                    | Stored as 4-byte little-endian                                                                               |
 | **`long`**                   | Stored as 8-byte little-endian                                                                               |
@@ -1303,12 +1469,13 @@ This serialization scheme is for storing single values as individual binary valu
 ### Version 3
 
 Default values are added to struct fields in v3.
+
 * The `write-default` is a forward-compatible change because it is only used at write time. Old writers will fail because the field is missing.
 * Tables with `initial-default` will be read correctly by older readers if `initial-default` is always null for optional fields. Otherwise, old readers will default optional columns with null. Old readers will fail to read required fields which are populated by `initial-default` because that default is not supported.
 
-Types `timestamp_ns` and `timestamptz_ns` are added in v3.
+Types `unknown`, `timestamp_ns`, and `timestamptz_ns` are added in v3.
 
-All readers are required to read tables with unknown partition transforms, ignoring them.
+All readers are required to read tables with unknown partition transforms, ignoring the unsupported partition fields when filtering.
 
 Writing v3 metadata:
 
@@ -1407,3 +1574,4 @@ Iceberg supports two types of histories for tables. A history of previous "curre
 might indicate different snapshot IDs for a specific timestamp. The discrepancies can be caused by a variety of table operations (e.g. updating the `current-snapshot-id` can be used to set the snapshot of a table to any arbitrary snapshot, which might have a lineage derived from a table branch or no lineage at all).
 
 When processing point in time queries implementations should use "snapshot-log" metadata to lookup the table state at the given point in time. This ensures time-travel queries reflect the state of the table at the provided timestamp. For example a SQL query like `SELECT * FROM prod.db.table TIMESTAMP AS OF '1986-10-26 01:21:00Z';` would find the snapshot of the Iceberg table just prior to '1986-10-26 01:21:00 UTC' in the snapshot logs and use the metadata from that snapshot to perform the scan of the table. If no  snapshot exists prior to the timestamp given or "snapshot-log" is not populated (it is an optional field), then systems should raise an informative error message about the missing metadata.
+

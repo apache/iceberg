@@ -123,6 +123,25 @@ public class TestPartitioning {
   }
 
   @Test
+  public void testPartitionTypeWithRenamesInV1TableCaseInsensitive() {
+    PartitionSpec initialSpec =
+        PartitionSpec.builderFor(SCHEMA).caseSensitive(false).identity("DATA", "p1").build();
+    TestTables.TestTable table =
+        TestTables.create(tableDir, "test", SCHEMA, initialSpec, V1_FORMAT_VERSION);
+
+    table.updateSpec().addField("category").commit();
+
+    table.updateSpec().renameField("p1", "p2").commit();
+
+    StructType expectedType =
+        StructType.of(
+            NestedField.optional(1000, "p2", Types.StringType.get()),
+            NestedField.optional(1001, "category", Types.StringType.get()));
+    StructType actualType = Partitioning.partitionType(table);
+    assertThat(actualType).isEqualTo(expectedType);
+  }
+
+  @Test
   public void testPartitionTypeWithAddingBackSamePartitionFieldInV1Table() {
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", SCHEMA, BY_DATA_SPEC, V1_FORMAT_VERSION);
@@ -239,6 +258,23 @@ public class TestPartitioning {
   @Test
   public void testGroupingKeyTypeWithRenamesInV1Table() {
     PartitionSpec initialSpec = PartitionSpec.builderFor(SCHEMA).identity("data", "p1").build();
+    TestTables.TestTable table =
+        TestTables.create(tableDir, "test", SCHEMA, initialSpec, V1_FORMAT_VERSION);
+
+    table.updateSpec().addField("category").commit();
+
+    table.updateSpec().renameField("p1", "p2").commit();
+
+    StructType expectedType =
+        StructType.of(NestedField.optional(1000, "p2", Types.StringType.get()));
+    StructType actualType = Partitioning.groupingKeyType(table.schema(), table.specs().values());
+    assertThat(actualType).isEqualTo(expectedType);
+  }
+
+  @Test
+  public void testGroupingKeyTypeWithRenamesInV1TableCaseInsensitive() {
+    PartitionSpec initialSpec =
+        PartitionSpec.builderFor(SCHEMA).caseSensitive(false).identity("DATA", "p1").build();
     TestTables.TestTable table =
         TestTables.create(tableDir, "test", SCHEMA, initialSpec, V1_FORMAT_VERSION);
 

@@ -64,6 +64,10 @@ import org.apache.pig.impl.util.UDFContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * @deprecated will be removed in 1.8.0
+ */
+@Deprecated
 public class IcebergStorage extends LoadFunc
     implements LoadMetadata, LoadPredicatePushdown, LoadPushDown {
   private static final Logger LOG = LoggerFactory.getLogger(IcebergStorage.class);
@@ -76,6 +80,10 @@ public class IcebergStorage extends LoadFunc
   private String signature;
 
   private IcebergRecordReader reader;
+
+  public IcebergStorage() {
+    LOG.warn("Iceberg Pig is deprecated and will be removed in Iceberg 1.8.0");
+  }
 
   @Override
   public void setLocation(String location, Job job) {

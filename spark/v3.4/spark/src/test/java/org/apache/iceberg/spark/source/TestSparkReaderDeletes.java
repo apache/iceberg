@@ -37,6 +37,7 @@ import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Parameter;
@@ -99,8 +100,6 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
 
-  @Parameter private String format;
-
   @Parameter(index = 1)
   private boolean vectorized;
 
@@ -110,10 +109,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   @Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {"parquet", false, PlanningMode.DISTRIBUTED},
-      new Object[] {"parquet", true, PlanningMode.LOCAL},
-      new Object[] {"orc", false, PlanningMode.DISTRIBUTED},
-      new Object[] {"avro", false, PlanningMode.LOCAL}
+      new Object[] {FileFormat.PARQUET, false, PlanningMode.DISTRIBUTED},
+      new Object[] {FileFormat.PARQUET, true, PlanningMode.LOCAL},
+      new Object[] {FileFormat.ORC, false, PlanningMode.DISTRIBUTED},
+      new Object[] {FileFormat.AVRO, false, PlanningMode.LOCAL}
     };
   }
 
@@ -169,17 +168,17 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     ops.commit(meta, meta.upgradeToFormatVersion(2));
     table
         .updateProperties()
-        .set(TableProperties.DEFAULT_FILE_FORMAT, format)
+        .set(TableProperties.DEFAULT_FILE_FORMAT, format.name())
         .set(TableProperties.DATA_PLANNING_MODE, planningMode.modeName())
         .set(TableProperties.DELETE_PLANNING_MODE, planningMode.modeName())
         .commit();
-    if (format.equals("parquet") || format.equals("orc")) {
+    if (format.equals(FileFormat.PARQUET) || format.equals(FileFormat.ORC)) {
       String vectorizationEnabled =
-          format.equals("parquet")
+          format.equals(FileFormat.PARQUET)
               ? TableProperties.PARQUET_VECTORIZATION_ENABLED
               : TableProperties.ORC_VECTORIZATION_ENABLED;
       String batchSize =
-          format.equals("parquet")
+          format.equals(FileFormat.PARQUET)
               ? TableProperties.PARQUET_BATCH_SIZE
               : TableProperties.ORC_BATCH_SIZE;
       table.updateProperties().set(vectorizationEnabled, String.valueOf(vectorized)).commit();

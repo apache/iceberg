@@ -16,28 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.aliyun.oss.mock;
+package org.apache.iceberg.rest.credentials;
 
-public class Range {
+import java.util.Map;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.immutables.value.Value;
 
-  private final long start;
-  private final long end;
+@Value.Immutable
+public interface Credential {
+  String prefix();
 
-  public Range(long start, long end) {
-    this.start = start;
-    this.end = end;
-  }
+  Map<String, String> config();
 
-  public long start() {
-    return start;
-  }
-
-  public long end() {
-    return end;
-  }
-
-  @Override
-  public String toString() {
-    return String.format("%d-%d", start, end);
+  @Value.Check
+  default void validate() {
+    Preconditions.checkArgument(!prefix().isEmpty(), "Invalid prefix: must be non-empty");
+    Preconditions.checkArgument(!config().isEmpty(), "Invalid config: must be non-empty");
   }
 }
