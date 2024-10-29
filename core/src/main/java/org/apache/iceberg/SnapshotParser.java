@@ -148,7 +148,7 @@ public class SnapshotParser {
     // When the operation is not found, default to OVERWRITE
     if (operation == null) {
       LOG.warn(
-          "Encountered invalid summary for snapshot {}: operation is missing, defaulting to overwrite",
+          "Encountered invalid summary for snapshot {}: the field 'operation' is required but missing, setting 'operation' to overwrite",
           snapshotId);
       operation = DataOperations.OVERWRITE;
     }
