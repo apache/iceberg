@@ -129,12 +129,13 @@ public class SnapshotParser {
           "Cannot parse summary from non-object value: %s",
           sNode);
 
-      operation = JsonUtil.getString(OPERATION, sNode);
       ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
       Iterator<String> fields = sNode.fieldNames();
       while (fields.hasNext()) {
         String field = fields.next();
-        if (!field.equals(OPERATION)) {
+        if (field.equals(OPERATION)) {
+          operation = JsonUtil.getString(OPERATION, sNode);
+        } else {
           builder.put(field, JsonUtil.getString(field, sNode));
         }
       }
