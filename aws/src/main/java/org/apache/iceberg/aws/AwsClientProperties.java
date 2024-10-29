@@ -68,10 +68,8 @@ public class AwsClientProperties implements Serializable {
   public static final String CLIENT_REGION = "client.region";
 
   /**
-   * Configure the endpoint to be used to fetch and refresh vended credentials.
-   *
-   * <p>When set, the {@link VendedCredentialsProvider} will be used to fetch and refresh vended
-   * credentials.
+   * When set, the {@link VendedCredentialsProvider} will be used to fetch and refresh vended
+   * credentials from this endpoint.
    */
   public static final String REFRESH_CREDENTIALS_ENDPOINT = "client.refresh-credentials-endpoint";
 
