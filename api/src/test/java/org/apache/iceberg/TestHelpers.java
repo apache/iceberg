@@ -25,8 +25,6 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.ClosureSerializer;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -36,12 +34,10 @@ import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.lang.invoke.SerializedLambda;
-import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.IntStream;
 import org.apache.iceberg.expressions.BoundPredicate;
@@ -406,101 +402,6 @@ public class TestHelpers {
     @Override
     public int hashCode() {
       return 17 * Arrays.hashCode(values);
-    }
-  }
-
-  /** A VariantLike implementation for testing accepting JSON input */
-  public static class JsonVariant implements VariantLike {
-    public static JsonVariant of(String json) {
-      return new JsonVariant(json);
-    }
-
-    private final JsonNode node;
-
-    private JsonVariant(String json) {
-      try {
-        ObjectMapper mapper = new ObjectMapper();
-        this.node = mapper.readTree(json);
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-    }
-
-    private JsonVariant(JsonNode node) {
-      this.node = node;
-    }
-
-    @Override
-    public int size() {
-      return node.size();
-    }
-
-    @Override
-    public <T> T get(Class<T> javaClass) {
-      if (javaClass.equals(Boolean.class)) {
-        return (T) (Boolean) node.asBoolean();
-      } else if (javaClass.equals(Integer.class)) {
-        return (T) (Integer) node.asInt();
-      } else if (javaClass.equals(Long.class)) {
-        return (T) (Long) node.asLong();
-      } else if (javaClass.equals(Float.class)) {
-        return (T) Float.valueOf((float) node.asDouble());
-      } else if (javaClass.equals(Double.class)) {
-        return (T) (Double) (node.asDouble());
-      } else if (CharSequence.class.isAssignableFrom(javaClass)) {
-        return (T) node.asText();
-      } else if (javaClass.equals(ByteBuffer.class)) {
-        try {
-          return (T) ByteBuffer.wrap(node.binaryValue());
-        } catch (IOException e) {
-          throw new RuntimeException(e);
-        }
-      } else if (javaClass.equals(BigDecimal.class)) {
-        return (T) node.decimalValue();
-      }
-
-      throw new IllegalArgumentException("Unsupported type: " + javaClass);
-    }
-
-    @Override
-    public VariantLike get(String[] path) {
-      Preconditions.checkState(
-          path != null && path.length > 0, "path must contain at least one element");
-
-      JsonNode childNode = node;
-      for (String pathElement : path) {
-        childNode = childNode.get(pathElement);
-        if (childNode == null) {
-          return null;
-        }
-      }
-
-      return new JsonVariant(childNode);
-    }
-
-    @Override
-    public String toJson() {
-      return node.toString();
-    }
-
-    @Override
-    public boolean equals(Object other) {
-      if (this == other) {
-        return true;
-      }
-
-      if (other == null || getClass() != other.getClass()) {
-        return false;
-      }
-
-      JsonVariant that = (JsonVariant) other;
-
-      return Objects.equals(node, that.node);
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hashCode(node);
     }
   }
 

@@ -1688,6 +1688,44 @@ public class TestTableMetadata {
   }
 
   @Test
+  public void testV3VariantTypeSupport() {
+    Schema v3Schema =
+        new Schema(
+            Types.NestedField.required(3, "id", Types.LongType.get()),
+            Types.NestedField.required(4, "data", Types.StringType.get()),
+            Types.NestedField.required(
+                5,
+                "struct",
+                Types.StructType.of(Types.NestedField.optional(6, "v", Types.VariantType.get()))));
+
+    for (int unsupportedFormatVersion : ImmutableList.of(1, 2)) {
+      assertThatThrownBy(
+              () ->
+                  TableMetadata.newTableMetadata(
+                      v3Schema,
+                      PartitionSpec.unpartitioned(),
+                      SortOrder.unsorted(),
+                      TEST_LOCATION,
+                      ImmutableMap.of(),
+                      unsupportedFormatVersion))
+          .isInstanceOf(IllegalStateException.class)
+          .hasMessage(
+              "Invalid schema for v%s:\n"
+                  + "- Invalid type for struct.v: variant is not supported until v3",
+              unsupportedFormatVersion);
+    }
+
+    // should be allowed in v3
+    TableMetadata.newTableMetadata(
+        v3Schema,
+        PartitionSpec.unpartitioned(),
+        SortOrder.unsorted(),
+        TEST_LOCATION,
+        ImmutableMap.of(),
+        3);
+  }
+
+  @Test
   public void onlyMetadataLocationIsUpdatedWithoutTimestampAndMetadataLogEntry() {
     String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
     TableMetadata metadata =

@@ -421,6 +421,11 @@ public class Types {
     }
 
     @Override
+    public boolean isPrimitiveType() {
+      return false;
+    }
+
+    @Override
     public TypeID typeId() {
       return TypeID.VARIANT;
     }
