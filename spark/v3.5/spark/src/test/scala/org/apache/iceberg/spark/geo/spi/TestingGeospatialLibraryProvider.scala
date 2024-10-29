@@ -16,16 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.spark.geo.spi;
+package org.apache.iceberg.spark.geo.spi
 
-public class TestingGeospatialLibraryProvider implements GeospatialLibraryProvider {
-  @Override
-  public String name() {
-    return "iceberg-spark-testing";
+import org.apache.iceberg.spark.geo.testing.GeometryUDT
+import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.types.DataType
+import org.locationtech.jts.geom.Geometry
+
+class TestingGeospatialLibraryProvider extends GeospatialLibraryProvider {
+  def name(): String = {
+    "iceberg-spark-extensions-testing"
   }
 
-  @Override
-  public GeospatialLibrary create() {
-    return new TestingGeospatialLibrary();
+  def create(): GeospatialLibrary = {
+    new TestingGeospatialLibrary()
   }
 }

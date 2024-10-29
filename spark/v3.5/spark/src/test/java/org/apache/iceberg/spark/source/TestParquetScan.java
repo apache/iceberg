@@ -53,7 +53,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.spark.data.ParameterizedAvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
-import org.apache.iceberg.spark.geo.testing.GeometryUDT;
+import org.apache.iceberg.spark.geo.testing.TestingGeospatialLibraryInitializer;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
@@ -73,8 +73,8 @@ public class TestParquetScan extends ParameterizedAvroDataTest {
 
   @BeforeAll
   public static void startSpark() {
-    GeometryUDT.register();
     TestParquetScan.spark = SparkSession.builder().master("local[2]").getOrCreate();
+    TestingGeospatialLibraryInitializer.initialize(TestParquetScan.spark);
   }
 
   @AfterAll
