@@ -166,6 +166,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
       if (readableMetricsField == null) {
         return CloseableIterable.transform(files(projection), file -> (StructLike) file);
       } else {
+
         Schema actualProjection = projectionForReadableMetrics(projection, readableMetricsField);
         return CloseableIterable.transform(
             files(actualProjection), f -> withReadableMetrics(f, readableMetricsField));
