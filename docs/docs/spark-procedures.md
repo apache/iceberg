@@ -682,7 +682,7 @@ Warning : Schema is not validated, adding files with different schema to the Ice
 Warning : Files added by this method can be physically deleted by Iceberg operations
 
 !!! warning
-    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147). We will fix it in next release.
+    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147) that is scheduled to be fixed in the next release.
 
 #### Output
 
