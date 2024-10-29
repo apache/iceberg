@@ -452,7 +452,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     String statsFileName = "stats-file-" + UUID.randomUUID();
     String location = table.location();
     // not every catalog will return file proto for local directories
-    // i.e. Hadoop and Hive Catalog does, Jdbc and REST does not
+    // i.e. Hadoop and Hive Catalog do, Jdbc and REST do not
     if (!location.startsWith("file:")) {
       location = "file:" + location;
     }

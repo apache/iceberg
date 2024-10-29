@@ -104,9 +104,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   @BeforeAll
-  public static void setUpAll() throws IOException {
-    //    warehouse = File.createTempFile("warehouse", null);
-    //    assertThat(warehouse.delete()).isTrue();
+  public static void setUpAll() {
     initRESTCatalog();
   }
 
