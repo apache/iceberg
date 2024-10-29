@@ -62,6 +62,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
   static {
     try {
       warehouse = File.createTempFile("warehouse", null);
+      assertThat(warehouse.delete()).isTrue();
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
@@ -104,9 +105,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
 
   @BeforeAll
   public static void setUpAll() throws IOException {
-    if (!warehouse.delete()) {
-      warehouse = File.createTempFile("warehouse", null);
-    }
+    warehouse = File.createTempFile("warehouse", null);
     assertThat(warehouse.delete()).isTrue();
     initRESTCatalog();
   }
