@@ -55,7 +55,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 
-@ExtendWith({ParameterizedTestExtension.class, RESTServerExtension.class})
+@ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestBaseWithCatalog extends TestBase {
   protected static File warehouse;
 
