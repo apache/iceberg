@@ -644,6 +644,7 @@ project(':iceberg-gcp') {
     testImplementation "com.google.cloud:google-cloud-nio"
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 
     testImplementation(libs.hadoop2.common) {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -652,6 +653,8 @@ project(':iceberg-gcp') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
     testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.mockserver.netty
+    testImplementation libs.mockserver.client.java
   }
 }
 
