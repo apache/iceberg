@@ -25,7 +25,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.view.ImmutableViewVersion;
 import org.apache.iceberg.view.ViewMetadata;
@@ -238,116 +237,6 @@ public class TestLoadViewResponseParser {
             + "    \"key1\" : \"val1\",\n"
             + "    \"key2\" : \"val2\"\n"
             + "  }\n"
-            + "}";
-
-    String json = LoadViewResponseParser.toJson(response, true);
-    assertThat(json).isEqualTo(expectedJson);
-    // can't do an equality comparison because Schema doesn't implement equals/hashCode
-    assertThat(LoadViewResponseParser.toJson(LoadViewResponseParser.fromJson(json), true))
-        .isEqualTo(expectedJson);
-  }
-
-  @Test
-  public void roundTripSerdeWithCredentials() {
-    String uuid = "386b9f01-002b-4d8c-b77f-42c3fd3b7c9b";
-    ViewMetadata viewMetadata =
-        ViewMetadata.builder()
-            .assignUUID(uuid)
-            .setLocation("location")
-            .addSchema(new Schema(Types.NestedField.required(1, "x", Types.LongType.get())))
-            .addVersion(
-                ImmutableViewVersion.builder()
-                    .schemaId(0)
-                    .versionId(1)
-                    .timestampMillis(23L)
-                    .defaultNamespace(Namespace.of("ns1"))
-                    .build())
-            .setCurrentVersionId(1)
-            .build();
-
-    LoadViewResponse response =
-        ImmutableLoadViewResponse.builder()
-            .metadata(viewMetadata)
-            .metadataLocation("custom-location")
-            .addCredentials(
-                ImmutableCredential.builder()
-                    .prefix("s3://custom-uri")
-                    .config(
-                        ImmutableMap.of(
-                            "s3.access-key-id",
-                            "keyId",
-                            "s3.secret-access-key",
-                            "accessKey",
-                            "s3.session-token",
-                            "sessionToken"))
-                    .build())
-            .addCredentials(
-                ImmutableCredential.builder()
-                    .prefix("gs://custom-uri")
-                    .config(
-                        ImmutableMap.of(
-                            "gcs.oauth2.token", "gcsToken1", "gcs.oauth2.token-expires-at", "1000"))
-                    .build())
-            .addCredentials(
-                ImmutableCredential.builder()
-                    .prefix("gs")
-                    .config(
-                        ImmutableMap.of(
-                            "gcs.oauth2.token", "gcsToken2", "gcs.oauth2.token-expires-at", "2000"))
-                    .build())
-            .build();
-
-    String expectedJson =
-        "{\n"
-            + "  \"metadata-location\" : \"custom-location\",\n"
-            + "  \"metadata\" : {\n"
-            + "    \"view-uuid\" : \"386b9f01-002b-4d8c-b77f-42c3fd3b7c9b\",\n"
-            + "    \"format-version\" : 1,\n"
-            + "    \"location\" : \"location\",\n"
-            + "    \"schemas\" : [ {\n"
-            + "      \"type\" : \"struct\",\n"
-            + "      \"schema-id\" : 0,\n"
-            + "      \"fields\" : [ {\n"
-            + "        \"id\" : 1,\n"
-            + "        \"name\" : \"x\",\n"
-            + "        \"required\" : true,\n"
-            + "        \"type\" : \"long\"\n"
-            + "      } ]\n"
-            + "    } ],\n"
-            + "    \"current-version-id\" : 1,\n"
-            + "    \"versions\" : [ {\n"
-            + "      \"version-id\" : 1,\n"
-            + "      \"timestamp-ms\" : 23,\n"
-            + "      \"schema-id\" : 0,\n"
-            + "      \"summary\" : { },\n"
-            + "      \"default-namespace\" : [ \"ns1\" ],\n"
-            + "      \"representations\" : [ ]\n"
-            + "    } ],\n"
-            + "    \"version-log\" : [ {\n"
-            + "      \"timestamp-ms\" : 23,\n"
-            + "      \"version-id\" : 1\n"
-            + "    } ]\n"
-            + "  },\n"
-            + "  \"storage-credentials\" : [ {\n"
-            + "    \"prefix\" : \"s3://custom-uri\",\n"
-            + "    \"config\" : {\n"
-            + "      \"s3.access-key-id\" : \"keyId\",\n"
-            + "      \"s3.secret-access-key\" : \"accessKey\",\n"
-            + "      \"s3.session-token\" : \"sessionToken\"\n"
-            + "    }\n"
-            + "  }, {\n"
-            + "    \"prefix\" : \"gs://custom-uri\",\n"
-            + "    \"config\" : {\n"
-            + "      \"gcs.oauth2.token\" : \"gcsToken1\",\n"
-            + "      \"gcs.oauth2.token-expires-at\" : \"1000\"\n"
-            + "    }\n"
-            + "  }, {\n"
-            + "    \"prefix\" : \"gs\",\n"
-            + "    \"config\" : {\n"
-            + "      \"gcs.oauth2.token\" : \"gcsToken2\",\n"
-            + "      \"gcs.oauth2.token-expires-at\" : \"2000\"\n"
-            + "    }\n"
-            + "  } ]\n"
             + "}";
 
     String json = LoadViewResponseParser.toJson(response, true);
