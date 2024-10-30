@@ -18,13 +18,13 @@
  */
 package org.apache.iceberg;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class TestSchema {
   private static final Schema TS_NANO_CASES =
@@ -80,15 +80,13 @@ public class TestSchema {
 
   @Test
   public void testSupportedTimestampNano() {
-    assertThatCode(() -> Schema.checkCompatibility(TS_NANO_CASES, 3))
-        .doesNotThrowAnyException();
+    assertThatCode(() -> Schema.checkCompatibility(TS_NANO_CASES, 3)).doesNotThrowAnyException();
   }
 
   @ParameterizedTest
   @ValueSource(ints = {1, 2})
   public void testUnsupportedInitialDefault(int formatVersion) {
-    assertThatThrownBy(
-            () -> Schema.checkCompatibility(INITIAL_DEFAULT_SCHEMA, formatVersion))
+    assertThatThrownBy(() -> Schema.checkCompatibility(INITIAL_DEFAULT_SCHEMA, formatVersion))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Invalid schema for v%s:\n"
