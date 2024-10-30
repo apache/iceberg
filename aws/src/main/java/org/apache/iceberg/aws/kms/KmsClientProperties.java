@@ -52,6 +52,14 @@ public class KmsClientProperties implements Serializable {
     this.kmsRetryMode = kmsRetryMode;
   }
 
+  /**
+   * Configure <a
+   * href="https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/core/retry/RetryMode.html">RetryMode</a>
+   * for a KMS client.
+   *
+   * <p>For more details, see
+   * https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/core/client/config/ClientOverrideConfiguration.Builder.html#retryStrategy(software.amazon.awssdk.core.retry.RetryMode)
+   */
   public <T extends KmsClientBuilder> void applyRetryConfigurations(T builder) {
     ClientOverrideConfiguration.Builder configBuilder =
         null != builder.overrideConfiguration()
