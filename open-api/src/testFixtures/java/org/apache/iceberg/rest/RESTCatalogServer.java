@@ -48,7 +48,7 @@ public class RESTCatalogServer {
     this.config = Maps.newHashMap();
   }
 
-  public RESTCatalogServer(Map<String, String> config) {
+ RESTCatalogServer(Map<String, String> config) {
     this.config = config;
   }
 
