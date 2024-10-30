@@ -1672,7 +1672,8 @@ public class TestTableMetadata {
                       unsupportedFormatVersion))
           .isInstanceOf(IllegalStateException.class)
           .hasMessage(
-              "Invalid type in v%s schema: struct.ts_nanos timestamptz_ns is not supported until v3",
+              "Invalid schema for v%s:\n"
+                  + "- Invalid type for struct.ts_nanos: timestamptz_ns is not supported until v3",
               unsupportedFormatVersion);
     }
 

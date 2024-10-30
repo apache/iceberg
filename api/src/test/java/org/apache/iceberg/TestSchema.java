@@ -103,7 +103,7 @@ public class TestSchema {
 
   @ParameterizedTest
   @ValueSource(ints = {1, 2, 3})
-  public void testSupportedInitialDefault(int formatVersion) {
+  public void testSupportedWriteDefault(int formatVersion) {
     // only the initial default is a forward-incompatible change
     Assertions.assertThatCode(() -> Schema.checkCompatibility(WRITE_DEFAULT_SCHEMA, formatVersion))
         .doesNotThrowAnyException();
