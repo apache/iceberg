@@ -22,8 +22,6 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.rest.credentials.Credential;
-import org.apache.iceberg.rest.credentials.CredentialParser;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.view.ViewMetadata;
 import org.apache.iceberg.view.ViewMetadataParser;
@@ -33,7 +31,6 @@ public class LoadViewResponseParser {
   private static final String METADATA_LOCATION = "metadata-location";
   private static final String METADATA = "metadata";
   private static final String CONFIG = "config";
-  private static final String STORAGE_CREDENTIALS = "storage-credentials";
 
   private LoadViewResponseParser() {}
 
@@ -59,15 +56,6 @@ public class LoadViewResponseParser {
       JsonUtil.writeStringMap(CONFIG, response.config(), gen);
     }
 
-    if (!response.credentials().isEmpty()) {
-      gen.writeArrayFieldStart(STORAGE_CREDENTIALS);
-      for (Credential credential : response.credentials()) {
-        CredentialParser.toJson(credential, gen);
-      }
-
-      gen.writeEndArray();
-    }
-
     gen.writeEndObject();
   }
 
@@ -90,10 +78,6 @@ public class LoadViewResponseParser {
 
     if (json.has(CONFIG)) {
       builder.config(JsonUtil.getStringMap(CONFIG, json));
-    }
-
-    if (json.hasNonNull(STORAGE_CREDENTIALS)) {
-      builder.addAllCredentials(LoadCredentialsResponseParser.fromJson(json).credentials());
     }
 
     return builder.build();
