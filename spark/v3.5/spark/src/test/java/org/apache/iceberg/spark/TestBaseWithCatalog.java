@@ -119,7 +119,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   private static void initRESTCatalog() {
-    restCatalog = RCKUtils.initCatalogClient(CONFIG);
+    restCatalog = RCKUtils.initCatalogClient(restServerExtension.config());
   }
 
   private static void stopRESTCatalog() throws Exception {
