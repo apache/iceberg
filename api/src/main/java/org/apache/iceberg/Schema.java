@@ -54,7 +54,7 @@ public class Schema implements Serializable {
   private static final Joiner NEWLINE = Joiner.on('\n');
   private static final String ALL_COLUMNS = "*";
   private static final int DEFAULT_SCHEMA_ID = 0;
-  private static final Integer DEFAULT_VALUES_MIN_FORMAT_VERSION = 3;
+  private static final int DEFAULT_VALUES_MIN_FORMAT_VERSION = 3;
   private static final Map<Type.TypeID, Integer> MIN_FORMAT_VERSIONS =
       ImmutableMap.of(Type.TypeID.TIMESTAMP_NANO, 3);
 
