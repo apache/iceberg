@@ -92,7 +92,6 @@ project(':iceberg-hive3') {
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
 
     testImplementation libs.avro.avro
-    testImplementation libs.calcite.core
     testImplementation libs.kryo.shaded
     testImplementation platform(libs.jackson.bom)
     testImplementation(libs.hive3.service) {

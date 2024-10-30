@@ -57,16 +57,12 @@ project(':iceberg-mr') {
 
     implementation libs.caffeine
 
-    testImplementation libs.calcite.core
-    testImplementation libs.calcite.druid
-
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-hive-metastore', configuration: 'testArtifacts')
 
     testImplementation libs.avro.avro
-    testImplementation libs.calcite.core
     testImplementation libs.kryo.shaded
     testImplementation platform(libs.jackson.bom)
     testImplementation libs.jackson.annotations
