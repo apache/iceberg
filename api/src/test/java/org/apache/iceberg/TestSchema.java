@@ -19,10 +19,12 @@
 package org.apache.iceberg;
 
 import org.apache.iceberg.types.Types;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class TestSchema {
   private static final Schema TS_NANO_CASES =
@@ -65,7 +67,7 @@ public class TestSchema {
   @ParameterizedTest
   @ValueSource(ints = {1, 2})
   public void testUnsupportedTimestampNano(int formatVersion) {
-    Assertions.assertThatThrownBy(() -> Schema.checkCompatibility(TS_NANO_CASES, formatVersion))
+    assertThatThrownBy(() -> Schema.checkCompatibility(TS_NANO_CASES, formatVersion))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
             "Invalid schema for v%s:\n"
@@ -78,14 +80,14 @@ public class TestSchema {
 
   @Test
   public void testSupportedTimestampNano() {
-    Assertions.assertThatCode(() -> Schema.checkCompatibility(TS_NANO_CASES, 3))
+    assertThatCode(() -> Schema.checkCompatibility(TS_NANO_CASES, 3))
         .doesNotThrowAnyException();
   }
 
   @ParameterizedTest
   @ValueSource(ints = {1, 2})
   public void testUnsupportedInitialDefault(int formatVersion) {
-    Assertions.assertThatThrownBy(
+    assertThatThrownBy(
             () -> Schema.checkCompatibility(INITIAL_DEFAULT_SCHEMA, formatVersion))
         .isInstanceOf(IllegalStateException.class)
         .hasMessage(
@@ -97,7 +99,7 @@ public class TestSchema {
 
   @Test
   public void testSupportedInitialDefault() {
-    Assertions.assertThatCode(() -> Schema.checkCompatibility(INITIAL_DEFAULT_SCHEMA, 3))
+    assertThatCode(() -> Schema.checkCompatibility(INITIAL_DEFAULT_SCHEMA, 3))
         .doesNotThrowAnyException();
   }
 
@@ -105,7 +107,7 @@ public class TestSchema {
   @ValueSource(ints = {1, 2, 3})
   public void testSupportedWriteDefault(int formatVersion) {
     // only the initial default is a forward-incompatible change
-    Assertions.assertThatCode(() -> Schema.checkCompatibility(WRITE_DEFAULT_SCHEMA, formatVersion))
+    assertThatCode(() -> Schema.checkCompatibility(WRITE_DEFAULT_SCHEMA, formatVersion))
         .doesNotThrowAnyException();
   }
 }

@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
@@ -589,7 +588,7 @@ public class Schema implements Serializable {
    */
   public static void checkCompatibility(Schema schema, int formatVersion) {
     // accumulate errors as a treemap to keep them in a reasonable order
-    TreeMap<Integer, String> problems = Maps.newTreeMap();
+    Map<Integer, String> problems = Maps.newTreeMap();
 
     // check each field's type and defaults
     for (NestedField field : schema.lazyIdToField().values()) {
