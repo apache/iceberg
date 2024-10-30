@@ -1333,19 +1333,11 @@ class LoadViewResult(BaseModel):
 
     - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled
 
-    ## Storage Credentials
-
-    Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
-    Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
-
     """
 
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: ViewMetadata
     config: Optional[Dict[str, str]] = None
-    storage_credentials: Optional[List[StorageCredential]] = Field(
-        None, alias='storage-credentials'
-    )
 
 
 class ReportMetricsRequest(BaseModel):

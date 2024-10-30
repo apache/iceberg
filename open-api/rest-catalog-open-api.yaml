@@ -3466,11 +3466,6 @@ components:
         ## General Configurations
 
         - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled
-
-        ## Storage Credentials
-
-        Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
-        Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
       type: object
       required:
         - metadata-location
@@ -3484,10 +3479,6 @@ components:
           type: object
           additionalProperties:
             type: string
-        storage-credentials:
-          type: array
-          items:
-            $ref: '#/components/schemas/StorageCredential'
 
     TokenType:
       type: string
