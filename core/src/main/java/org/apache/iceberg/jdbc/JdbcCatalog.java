@@ -159,17 +159,6 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
     try {
       connections.run(
           conn -> {
-            DatabaseMetaData dbMeta = conn.getMetaData();
-            ResultSet tableExists =
-                dbMeta.getTables(
-                    null /* catalog name */,
-                    null /* schemaPattern */,
-                    JdbcUtil.CATALOG_TABLE_VIEW_NAME /* tableNamePattern */,
-                    null /* types */);
-            if (tableExists.next()) {
-              return true;
-            }
-
             LOG.debug(
                 "Creating table {} to store iceberg catalog tables",
                 JdbcUtil.CATALOG_TABLE_VIEW_NAME);
@@ -178,18 +167,6 @@ public class JdbcCatalog extends BaseMetastoreViewCatalog
 
       connections.run(
           conn -> {
-            DatabaseMetaData dbMeta = conn.getMetaData();
-            ResultSet tableExists =
-                dbMeta.getTables(
-                    null /* catalog name */,
-                    null /* schemaPattern */,
-                    JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME /* tableNamePattern */,
-                    null /* types */);
-
-            if (tableExists.next()) {
-              return true;
-            }
-
             LOG.debug(
                 "Creating table {} to store iceberg catalog namespace properties",
                 JdbcUtil.NAMESPACE_PROPERTIES_TABLE_NAME);
