@@ -205,6 +205,12 @@ public class TestHadoopCommits extends HadoopTableTestBase {
 
     List<File> manifests = listManifestFiles();
     assertThat(manifests).as("Should contain 0 Avro manifest files").isEmpty();
+
+    // Verifies that there is no temporary metadata.json files left on dist file already exists failures.
+    Set<String> actual =
+            listMetadataJsonFiles().stream().map(File::getName).collect(Collectors.toSet());
+    Set<String> expected = Sets.newHashSet("v1.metadata.json", "v2.metadata.json");
+    assertThat(actual).as("only v1 and v2 metadata.json should exist.").isEqualTo(expected);
   }
 
   @Test
