@@ -36,6 +36,10 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
     this.config = config;
   }
 
+  public Map<String, String> config() {
+    return config;
+  }
+
   @Override
   public void beforeAll(ExtensionContext extensionContext) throws Exception {
     if (Boolean.parseBoolean(

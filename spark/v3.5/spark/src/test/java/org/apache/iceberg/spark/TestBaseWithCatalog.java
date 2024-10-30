@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.metastore.MetaStoreUtils;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.Parameter;
 import org.apache.iceberg.ParameterizedTestExtension;
@@ -68,27 +67,18 @@ public abstract class TestBaseWithCatalog extends TestBase {
     }
   }
 
-  private static final Map<String, String> CONFIG;
-
-  static {
-    try {
-      CONFIG =
+  @RegisterExtension
+  private static RESTServerExtension restServerExtension =
+      new RESTServerExtension(
           Map.of(
-              RESTCatalogServer.REST_PORT, String.valueOf(MetaStoreUtils.findFreePort()),
+              RESTCatalogServer.REST_PORT, String.valueOf(RCKUtils.findFreePort()),
               CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath(),
               // In-memory sqlite database by default is private to the connection that created it.
               // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
               // JdbcCatalog, then different jdbc connections could provide different views of table
               // status even belonging to the same catalog. Reference:
               // https://www.sqlite.org/inmemorydb.html
-              CatalogProperties.CLIENT_POOL_SIZE, "1");
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-  }
-
-  @RegisterExtension
-  private static RESTServerExtension restServerExtension = new RESTServerExtension(CONFIG);
+              CatalogProperties.CLIENT_POOL_SIZE, "1"));
 
   protected static RESTCatalog restCatalog;
 

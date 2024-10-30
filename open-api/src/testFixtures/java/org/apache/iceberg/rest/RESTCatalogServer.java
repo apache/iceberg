@@ -44,11 +44,11 @@ public class RESTCatalogServer {
   private Server httpServer;
   private final Map<String, String> config;
 
- RESTCatalogServer() {
+  RESTCatalogServer() {
     this.config = Maps.newHashMap();
   }
 
- RESTCatalogServer(Map<String, String> config) {
+  RESTCatalogServer(Map<String, String> config) {
     this.config = config;
   }
 
