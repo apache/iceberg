@@ -120,7 +120,8 @@ class RewriteDataFilesProcedure extends BaseProcedure {
             action = checkAndApplyStrategy(action, strategy, sortOrderString, table.schema());
           }
           String branchIdent = Spark3Util.extractBranch(tableIdent);
-          SparkWriteConf writeConf = new SparkWriteConf(spark(), table, branchIdent, Maps.newHashMap());
+          SparkWriteConf writeConf =
+              new SparkWriteConf(spark(), table, branchIdent, Maps.newHashMap());
 
           action = checkAndApplyBranch(action, writeConf);
           action = checkAndApplyFilter(action, where, tableIdent);
@@ -140,8 +141,7 @@ class RewriteDataFilesProcedure extends BaseProcedure {
     return action;
   }
 
-  private RewriteDataFiles checkAndApplyBranch(
-       RewriteDataFiles action, SparkWriteConf writeConf) {
+  private RewriteDataFiles checkAndApplyBranch(RewriteDataFiles action, SparkWriteConf writeConf) {
 
     String targetBranch = writeConf.branch();
     if (targetBranch != null) {
