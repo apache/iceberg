@@ -58,7 +58,6 @@ import org.junit.jupiter.api.io.TempDir;
 public abstract class TestBaseWithCatalog extends TestBase {
   protected static File warehouse = null;
 
-
   @RegisterExtension
   private static RESTServerExtension restServerExtension =
       new RESTServerExtension(
