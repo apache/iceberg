@@ -102,11 +102,13 @@ public class RewriteDataFilesSparkAction
   private boolean useStartingSequenceNumber;
   private RewriteJobOrder rewriteJobOrder;
   private FileRewriter<FileScanTask, DataFile> rewriter = null;
+  private boolean caseSensitive;
 
   RewriteDataFilesSparkAction(SparkSession spark, Table table) {
     super(spark.cloneSession());
     // Disable Adaptive Query Execution as this may change the output partitioning of our write
     spark().conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
+    this.caseSensitive = (boolean)spark().conf().get(SQLConf.CASE_SENSITIVE(), true);
     this.table = table;
   }
 
@@ -198,6 +200,7 @@ public class RewriteDataFilesSparkAction
         table
             .newScan()
             .useSnapshot(startingSnapshotId)
+            .caseSensitive(caseSensitive)
             .filter(filter)
             .ignoreResiduals()
             .planFiles();
