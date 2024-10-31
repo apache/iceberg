@@ -27,9 +27,17 @@ import java.util.stream.Collectors;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class PropertyUtil {
+
+  public static final Set<String> COMMIT_PROPERTIES =
+      ImmutableSet.of(
+          TableProperties.COMMIT_NUM_RETRIES,
+          TableProperties.COMMIT_MIN_RETRY_WAIT_MS,
+          TableProperties.COMMIT_MAX_RETRY_WAIT_MS,
+          TableProperties.COMMIT_TOTAL_RETRY_TIME_MS);
 
   private PropertyUtil() {}
 
@@ -55,6 +63,19 @@ public class PropertyUtil {
     String value = properties.get(property);
     if (value != null) {
       return Double.parseDouble(value);
+    }
+    return defaultValue;
+  }
+
+  public static int propertyTryAsInt(
+      Map<String, String> properties, String property, int defaultValue) {
+    String value = properties.get(property);
+    if (value != null) {
+      try {
+        return Integer.parseInt(value);
+      } catch (NumberFormatException e) {
+        return defaultValue;
+      }
     }
     return defaultValue;
   }
@@ -105,11 +126,9 @@ public class PropertyUtil {
   /**
    * Validate the table commit related properties to have non-negative integer on table creation to
    * prevent commit failure
-   *
-   * @param properties input map
    */
   public static void validateCommitProperties(Map<String, String> properties) {
-    for (String commitProperty : TableProperties.COMMIT_PROPERTIES) {
+    for (String commitProperty : COMMIT_PROPERTIES) {
       if (properties.containsKey(commitProperty)) {
         int parsedValue;
         try {

@@ -29,7 +29,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -490,7 +489,7 @@ public class TableMetadata implements Serializable {
   }
 
   public int propertyTryAsInt(String property, int defaultValue) {
-    return NumberUtils.toInt(property, defaultValue);
+    return PropertyUtil.propertyTryAsInt(properties, property, defaultValue);
   }
 
   public long propertyAsLong(String property, long defaultValue) {
