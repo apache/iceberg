@@ -108,7 +108,7 @@ public class RewriteDataFilesSparkAction
     super(spark.cloneSession());
     // Disable Adaptive Query Execution as this may change the output partitioning of our write
     spark().conf().set(SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), false);
-    this.caseSensitive = (boolean)spark().conf().get(SQLConf.CASE_SENSITIVE(), true);
+    this.caseSensitive = (boolean) spark().conf().get(SQLConf.CASE_SENSITIVE(), true);
     this.table = table;
   }
 
