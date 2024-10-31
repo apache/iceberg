@@ -21,17 +21,18 @@ package org.apache.iceberg.rest.requests;
 import java.util.List;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTRequest;
 
 public class PlanTableScanRequest implements RESTRequest {
-  private Long snapshotId;
-  private List<String> select;
-  private Expression filter;
-  private Boolean caseSensitive;
-  private Boolean useSnapshotSchema;
-  private Long startSnapshotId;
-  private Long endSnapshotId;
-  private List<String> statsFields;
+  private final Long snapshotId;
+  private final List<String> select;
+  private final Expression filter;
+  private final boolean caseSensitive;
+  private final boolean useSnapshotSchema;
+  private final Long startSnapshotId;
+  private final Long endSnapshotId;
+  private final List<String> statsFields;
 
   public Long snapshotId() {
     return snapshotId;
@@ -86,20 +87,21 @@ public class PlanTableScanRequest implements RESTRequest {
 
   @Override
   public void validate() {
-    // validation logic to be performed in PlanTableScanRequestParser
+    if (snapshotId != null || startSnapshotId != null || endSnapshotId != null) {
+      Preconditions.checkArgument(
+          snapshotId != null ^ (startSnapshotId != null && endSnapshotId != null),
+          "Either snapshotId must be provided or both startSnapshotId and endSnapshotId must be provided");
+    }
   }
 
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
         .add("snapshotId", snapshotId)
-        .add("select", select)
-        .add("filter", filter)
         .add("caseSensitive", caseSensitive)
         .add("useSnapshotSchema", useSnapshotSchema)
         .add("startSnapshotId", startSnapshotId)
         .add("endSnapshotId", endSnapshotId)
-        .add("statsFields", statsFields)
         .toString();
   }
 
@@ -120,38 +122,38 @@ public class PlanTableScanRequest implements RESTRequest {
       return this;
     }
 
-    public Builder withSelect(List<String> withSelect) {
-      this.select = withSelect;
+    public Builder withSelect(List<String> projection) {
+      this.select = projection;
       return this;
     }
 
-    public Builder withFilter(Expression withFilter) {
-      this.filter = withFilter;
+    public Builder withFilter(Expression expression) {
+      this.filter = expression;
       return this;
     }
 
-    public Builder withCaseSensitive(boolean withCaseSensitive) {
-      this.caseSensitive = withCaseSensitive;
+    public Builder withCaseSensitive(boolean value) {
+      this.caseSensitive = value;
       return this;
     }
 
-    public Builder withUseSnapshotSchema(boolean withUseSnapshotSchema) {
-      this.useSnapshotSchema = withUseSnapshotSchema;
+    public Builder withUseSnapshotSchema(boolean snapshotSchema) {
+      this.useSnapshotSchema = snapshotSchema;
       return this;
     }
 
-    public Builder withStartSnapshotId(Long withStartSnapshotId) {
-      this.startSnapshotId = withStartSnapshotId;
+    public Builder withStartSnapshotId(Long startingSnapshotId) {
+      this.startSnapshotId = startingSnapshotId;
       return this;
     }
 
-    public Builder withEndSnapshotId(Long withEndSnapshotId) {
-      this.endSnapshotId = withEndSnapshotId;
+    public Builder withEndSnapshotId(Long endingSnapshotId) {
+      this.endSnapshotId = endingSnapshotId;
       return this;
     }
 
-    public Builder withStatsFields(List<String> withStatsFields) {
-      this.statsFields = withStatsFields;
+    public Builder withStatsFields(List<String> fields) {
+      this.statsFields = fields;
       return this;
     }
 

@@ -47,6 +47,8 @@ public class PlanTableScanResponseParser {
     Preconditions.checkArgument(null != response, "Invalid response: planTableScanResponse null");
     Preconditions.checkArgument(
         response.planStatus() != null, "Invalid response: status can not be null");
+    Preconditions.checkArgument(
+        response.specsById() != null, "Cannot serialize planTableScanResponse without specsById");
 
     gen.writeStartObject();
     gen.writeStringField(PLAN_STATUS, response.planStatus().status());

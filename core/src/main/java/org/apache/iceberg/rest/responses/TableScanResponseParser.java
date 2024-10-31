@@ -106,8 +106,12 @@ class TableScanResponseParser {
           }
         }
 
-        PartitionSpec partitionSpec = specsById.get(fileScanTask.file().specId());
-        RESTFileScanTaskParser.toJson(fileScanTask, deleteFileReferences, partitionSpec, gen);
+        PartitionSpec spec = specsById.get(fileScanTask.file().specId());
+        Preconditions.checkArgument(
+            spec != null,
+            "Cannot serialize scan task with unknown spec %s",
+            fileScanTask.file().specId());
+        RESTFileScanTaskParser.toJson(fileScanTask, deleteFileReferences, spec, gen);
       }
       gen.writeEndArray();
     }

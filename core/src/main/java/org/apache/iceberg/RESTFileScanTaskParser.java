@@ -49,18 +49,8 @@ public class RESTFileScanTaskParser {
     generator.writeStartObject();
     generator.writeFieldName(DATA_FILE);
     ContentFileParser.unboundContentFileToJson(fileScanTask.file(), partitionSpec, generator);
-
     if (deleteFileReferences != null) {
-      generator.writeArrayFieldStart(DELETE_FILE_REFERENCES);
-      deleteFileReferences.forEach(
-          delIdx -> {
-            try {
-              generator.writeNumber(delIdx);
-            } catch (IOException e) {
-              throw new RuntimeException(e);
-            }
-          });
-      generator.writeEndArray();
+      JsonUtil.writeIntegerArray(DELETE_FILE_REFERENCES, deleteFileReferences, generator);
     }
 
     if (fileScanTask.residual() != null) {
@@ -92,8 +82,6 @@ public class RESTFileScanTaskParser {
       filter = ExpressionParser.fromJson(jsonNode.get(RESIDUAL));
     }
 
-    // TODO at the time of creation we dont have the schemaString, specString, and residual so will
-    // need to bind later
     return new UnboundBaseFileScanTask(dataFile, deleteFiles, filter);
   }
 }

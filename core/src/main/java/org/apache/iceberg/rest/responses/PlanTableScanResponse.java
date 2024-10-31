@@ -29,12 +29,12 @@ import org.apache.iceberg.rest.PlanStatus;
 import org.apache.iceberg.rest.RESTResponse;
 
 public class PlanTableScanResponse implements RESTResponse {
-  private PlanStatus planStatus;
-  private String planId;
-  private List<String> planTasks;
-  private List<FileScanTask> fileScanTasks;
-  private List<DeleteFile> deleteFiles;
-  private Map<Integer, PartitionSpec> specsById;
+  private final PlanStatus planStatus;
+  private final String planId;
+  private final List<String> planTasks;
+  private final List<FileScanTask> fileScanTasks;
+  private final List<DeleteFile> deleteFiles;
+  private final Map<Integer, PartitionSpec> specsById;
 
   private PlanTableScanResponse(
       PlanStatus planStatus,
@@ -121,33 +121,33 @@ public class PlanTableScanResponse implements RESTResponse {
     private List<DeleteFile> deleteFiles;
     private Map<Integer, PartitionSpec> specsById;
 
-    public Builder withPlanStatus(PlanStatus withPlanStatus) {
-      this.planStatus = withPlanStatus;
+    public Builder withPlanStatus(PlanStatus status) {
+      this.planStatus = status;
       return this;
     }
 
-    public Builder withPlanId(String withPlanId) {
-      this.planId = withPlanId;
+    public Builder withPlanId(String id) {
+      this.planId = id;
       return this;
     }
 
-    public Builder withPlanTasks(List<String> withPlanTasks) {
-      this.planTasks = withPlanTasks;
+    public Builder withPlanTasks(List<String> tasks) {
+      this.planTasks = tasks;
       return this;
     }
 
-    public Builder withFileScanTasks(List<FileScanTask> withFileScanTasks) {
-      this.fileScanTasks = withFileScanTasks;
+    public Builder withFileScanTasks(List<FileScanTask> tasks) {
+      this.fileScanTasks = tasks;
       return this;
     }
 
-    public Builder withDeleteFiles(List<DeleteFile> withDeleteFiles) {
-      this.deleteFiles = withDeleteFiles;
+    public Builder withDeleteFiles(List<DeleteFile> deletes) {
+      this.deleteFiles = deletes;
       return this;
     }
 
-    public Builder withSpecsById(Map<Integer, PartitionSpec> withSpecsById) {
-      this.specsById = withSpecsById;
+    public Builder withSpecsById(Map<Integer, PartitionSpec> specs) {
+      this.specsById = specs;
       return this;
     }
 

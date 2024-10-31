@@ -27,10 +27,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.RESTResponse;
 
 public class FetchScanTasksResponse implements RESTResponse {
-  private List<String> planTasks;
-  private List<FileScanTask> fileScanTasks;
-  private List<DeleteFile> deleteFiles;
-  private Map<Integer, PartitionSpec> specsById;
+  private final List<String> planTasks;
+  private final List<FileScanTask> fileScanTasks;
+  private final List<DeleteFile> deleteFiles;
+  private final Map<Integer, PartitionSpec> specsById;
 
   private FetchScanTasksResponse(
       List<String> planTasks,
@@ -85,23 +85,23 @@ public class FetchScanTasksResponse implements RESTResponse {
     private List<DeleteFile> deleteFiles;
     private Map<Integer, PartitionSpec> specsById;
 
-    public Builder withPlanTasks(List<String> withPlanTasks) {
-      this.planTasks = withPlanTasks;
+    public Builder withPlanTasks(List<String> tasks) {
+      this.planTasks = tasks;
       return this;
     }
 
-    public Builder withFileScanTasks(List<FileScanTask> withFileScanTasks) {
-      this.fileScanTasks = withFileScanTasks;
+    public Builder withFileScanTasks(List<FileScanTask> tasks) {
+      this.fileScanTasks = tasks;
       return this;
     }
 
-    public Builder withDeleteFiles(List<DeleteFile> withDeleteFiles) {
-      this.deleteFiles = withDeleteFiles;
+    public Builder withDeleteFiles(List<DeleteFile> deletes) {
+      this.deleteFiles = deletes;
       return this;
     }
 
-    public Builder withSpecsById(Map<Integer, PartitionSpec> withSpecsById) {
-      this.specsById = withSpecsById;
+    public Builder withSpecsById(Map<Integer, PartitionSpec> specs) {
+      this.specsById = specs;
       return this;
     }
 

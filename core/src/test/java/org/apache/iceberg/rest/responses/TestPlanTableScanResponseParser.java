@@ -186,7 +186,6 @@ public class TestPlanTableScanResponseParser {
             .withPlanStatus(planStatus)
             .withFileScanTasks(List.of(fileScanTask))
             .withDeleteFiles(List.of(FILE_A_DELETES))
-            // assume you have set this already
             .withSpecsById(PARTITION_SPECS_BY_ID)
             .build();
 
@@ -203,11 +202,9 @@ public class TestPlanTableScanResponseParser {
             + "\"residual-filter\":{\"type\":\"eq\",\"term\":\"id\",\"value\":1}}]"
             + "}";
 
-    String json = PlanTableScanResponseParser.toJson(response, false);
+    String json = PlanTableScanResponseParser.toJson(response);
     assertThat(json).isEqualTo(expectedToJson);
 
-    // make an unbound json where you expect to not have partitions for the data file,
-    // delete files as service does not send partition spec
     String expectedFromJson =
         "{\"plan-status\":\"completed\","
             + "\"delete-files\":[{\"spec-id\":0,\"content\":\"POSITION_DELETES\","
@@ -222,7 +219,6 @@ public class TestPlanTableScanResponseParser {
             + "}";
 
     PlanTableScanResponse fromResponse = PlanTableScanResponseParser.fromJson(json);
-    // Need to make a new response with partitionSpec set
     PlanTableScanResponse copyResponse =
         PlanTableScanResponse.builder()
             .withPlanStatus(fromResponse.planStatus())
@@ -235,6 +231,6 @@ public class TestPlanTableScanResponseParser {
 
     // can't do an equality comparison on PlanTableScanRequest because we don't implement
     // equals/hashcode
-    assertThat(PlanTableScanResponseParser.toJson(copyResponse, false)).isEqualTo(expectedFromJson);
+    assertThat(PlanTableScanResponseParser.toJson(copyResponse)).isEqualTo(expectedFromJson);
   }
 }

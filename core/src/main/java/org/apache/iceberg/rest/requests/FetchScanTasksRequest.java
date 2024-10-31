@@ -24,7 +24,7 @@ import org.apache.iceberg.rest.RESTRequest;
 
 public class FetchScanTasksRequest implements RESTRequest {
 
-  private String planTask;
+  private final String planTask;
 
   public FetchScanTasksRequest(String planTask) {
     this.planTask = planTask;
@@ -37,7 +37,7 @@ public class FetchScanTasksRequest implements RESTRequest {
 
   @Override
   public void validate() {
-    Preconditions.checkArgument(planTask != null, "Invalid request: planTask null");
+    Preconditions.checkArgument(planTask != null, "Invalid planTask: null");
   }
 
   @Override

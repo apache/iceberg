@@ -102,26 +102,19 @@ public class PlanTableScanRequestParser {
     Long startSnapshotId = JsonUtil.getLongOrNull(START_SNAPSHOT_ID, json);
     Long endSnapshotId = JsonUtil.getLongOrNull(END_SNAPSHOT_ID, json);
 
-    if (snapshotId != null || startSnapshotId != null || endSnapshotId != null) {
-      Preconditions.checkArgument(
-          snapshotId != null ^ (startSnapshotId != null && endSnapshotId != null),
-          "Either snapshotId must be provided or both startSnapshotId and endSnapshotId must be provided");
-    }
-
     List<String> select = JsonUtil.getStringListOrNull(SELECT, json);
 
     Expression filter = null;
     if (json.has(FILTER)) {
-      // TODO without text value it adds another " "
       filter = ExpressionParser.fromJson(json.get(FILTER).textValue());
     }
 
-    Boolean caseSensitive = true;
+    boolean caseSensitive = true;
     if (json.has(CASE_SENSITIVE)) {
       caseSensitive = JsonUtil.getBool(CASE_SENSITIVE, json);
     }
 
-    Boolean useSnapshotSchema = false;
+    boolean useSnapshotSchema = false;
     if (json.has(USE_SNAPSHOT_SCHEMA)) {
       useSnapshotSchema = JsonUtil.getBool(USE_SNAPSHOT_SCHEMA, json);
     }

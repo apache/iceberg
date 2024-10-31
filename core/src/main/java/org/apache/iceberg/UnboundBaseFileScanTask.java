@@ -20,7 +20,6 @@ package org.apache.iceberg;
 
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
-import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 
 public class UnboundBaseFileScanTask extends BaseFileScanTask {
   private DataFile unboundDataFile;
@@ -45,21 +44,7 @@ public class UnboundBaseFileScanTask extends BaseFileScanTask {
     throw new UnsupportedOperationException("spec() is not supported in UnboundBaseFileScanTask");
   }
 
-  @Override
-  public String toString() {
-    return MoreObjects.toStringHelper(this)
-        .add("unboundDataFile", unboundDataFile)
-        .add("unboundDeleteFiles", unboundDeleteFiles)
-        .add("filter", filter)
-        .toString();
-  }
-
   public FileScanTask bind(PartitionSpec spec, boolean caseSensitive) {
-    // TODO before creating a new task
-    // need to ensure that dataFile is refreshed with correct partitionData using  spec
-    // need to ensure deleteFiles is refreshed with spec info
-    // need to ensure residual refreshed with spec.
-
     Metrics dataFileMetrics =
         new Metrics(
             unboundDataFile.recordCount(),
