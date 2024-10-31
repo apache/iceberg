@@ -56,23 +56,14 @@ import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestBaseWithCatalog extends TestBase {
-  protected static File warehouse;
+  protected static File warehouse = null;
 
-  static {
-    try {
-      warehouse = File.createTempFile("warehouse", null);
-      assertThat(warehouse.delete()).isTrue();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-  }
 
   @RegisterExtension
   private static RESTServerExtension restServerExtension =
       new RESTServerExtension(
           Map.of(
               RESTCatalogServer.REST_PORT, String.valueOf(RCKUtils.findFreePort()),
-              CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath(),
               // In-memory sqlite database by default is private to the connection that created it.
               // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
               // JdbcCatalog, then different jdbc connections could provide different views of table
@@ -94,7 +85,9 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   @BeforeAll
-  public static void setUpAll() {
+  public static void setUpAll() throws IOException {
+    TestBaseWithCatalog.warehouse = File.createTempFile("warehouse", null);
+    assertThat(warehouse.delete()).isTrue();
     initRESTCatalog();
   }
 
