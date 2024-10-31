@@ -32,7 +32,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class PropertyUtil {
 
-  public static final Set<String> COMMIT_PROPERTIES =
+  private static final Set<String> COMMIT_PROPERTIES =
       ImmutableSet.of(
           TableProperties.COMMIT_NUM_RETRIES,
           TableProperties.COMMIT_MIN_RETRY_WAIT_MS,
