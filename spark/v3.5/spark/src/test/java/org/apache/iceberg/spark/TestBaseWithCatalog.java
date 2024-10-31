@@ -74,8 +74,8 @@ public abstract class TestBaseWithCatalog extends TestBase {
           Map.of(
               RESTCatalogServer.REST_PORT,
               String.valueOf(findFreePort()),
-              CatalogProperties.WAREHOUSE_LOCATION,
-              warehouse.getAbsolutePath(),
+              //              CatalogProperties.WAREHOUSE_LOCATION,
+              //              warehouse.getAbsolutePath(),
               // In-memory sqlite database by default is private to the connection that created it.
               // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
               // JdbcCatalog, then different jdbc connections could provide different views of table
