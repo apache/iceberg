@@ -103,7 +103,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   @AfterAll
-  public static void tearDownAll() throws Exception {
+  public static void tearDownAll() throws IOException {
     if (warehouse != null && warehouse.exists()) {
       Path warehousePath = new Path(warehouse.getAbsolutePath());
       FileSystem fs = warehousePath.getFileSystem(hiveConf);
