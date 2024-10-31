@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
@@ -133,6 +134,8 @@ public class TableMetadata implements Serializable {
     // Validate the metrics configuration. Note: we only do this on new tables to we don't
     // break existing tables.
     MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
+
+    PropertyUtil.validateCommitProperties(properties);
 
     return new Builder()
         .setInitialFormatVersion(formatVersion)
@@ -484,6 +487,10 @@ public class TableMetadata implements Serializable {
 
   public int propertyAsInt(String property, int defaultValue) {
     return PropertyUtil.propertyAsInt(properties, property, defaultValue);
+  }
+
+  public int propertyTryAsInt(String property, int defaultValue) {
+    return NumberUtils.toInt(property, defaultValue);
   }
 
   public long propertyAsLong(String property, long defaultValue) {

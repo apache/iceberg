@@ -95,6 +95,13 @@ public class TableProperties {
   public static final String COMMIT_TOTAL_RETRY_TIME_MS = "commit.retry.total-timeout-ms";
   public static final int COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT = 30 * 60 * 1000; // 30 minutes
 
+  public static final Set<String> COMMIT_PROPERTIES =
+      ImmutableSet.of(
+          COMMIT_NUM_RETRIES,
+          COMMIT_MIN_RETRY_WAIT_MS,
+          COMMIT_MAX_RETRY_WAIT_MS,
+          COMMIT_TOTAL_RETRY_TIME_MS);
+
   public static final String COMMIT_NUM_STATUS_CHECKS = "commit.status-check.num-retries";
   public static final int COMMIT_NUM_STATUS_CHECKS_DEFAULT = 3;
 

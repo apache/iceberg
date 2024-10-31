@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
@@ -98,6 +100,30 @@ public class PropertyUtil {
       return value;
     }
     return defaultValue;
+  }
+
+  /**
+   * Validate the table commit related properties to have non-negative integer on table creation to
+   * prevent commit failure
+   *
+   * @param properties input map
+   */
+  public static void validateCommitProperties(Map<String, String> properties) {
+    for (String commitProperty : TableProperties.COMMIT_PROPERTIES) {
+      if (properties.containsKey(commitProperty)) {
+        int parsedValue;
+        try {
+          parsedValue = Integer.parseInt(properties.get(commitProperty));
+        } catch (NumberFormatException e) {
+          throw new ValidationException(
+              "Table property %s must have integer value", commitProperty);
+        }
+        ValidationException.check(
+            parsedValue >= 0,
+            "Table property %s must have non negative integer value",
+            commitProperty);
+      }
+    }
   }
 
   /**
