@@ -18,8 +18,6 @@
  */
 package org.apache.iceberg.rest;
 
-import java.io.IOException;
-import java.net.ServerSocket;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -31,7 +29,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
-public class RCKUtils {
+class RCKUtils {
   private static final String CATALOG_ENV_PREFIX = "CATALOG_";
   static final String RCK_LOCAL = "rck.local";
   static final String RCK_PURGE_TEST_NAMESPACES = "rck.purge-test-namespaces";
@@ -78,11 +76,11 @@ public class RCKUtils {
                 HashMap::new));
   }
 
-  public static RESTCatalog initCatalogClient() {
+  static RESTCatalog initCatalogClient() {
     return initCatalogClient(Maps.newHashMap());
   }
 
-  public static RESTCatalog initCatalogClient(Map<String, String> properties) {
+  static RESTCatalog initCatalogClient(Map<String, String> properties) {
     Map<String, String> catalogProperties = Maps.newHashMap();
     catalogProperties.putAll(RCKUtils.environmentCatalogConfig());
     catalogProperties.putAll(Maps.fromProperties(System.getProperties()));
@@ -115,19 +113,5 @@ public class RCKUtils {
               catalog.listViews(namespace).forEach(catalog::dropView);
               catalog.dropNamespace(namespace);
             });
-  }
-
-  public static int findFreePort() {
-    ServerSocket socket;
-    int port;
-    try {
-      socket = new ServerSocket(0);
-      port = socket.getLocalPort();
-      socket.close();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
-
-    return port;
   }
 }

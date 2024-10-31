@@ -27,6 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.ServerSocket;
 import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -42,7 +44,6 @@ import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
-import org.apache.iceberg.rest.RCKUtils;
 import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.iceberg.rest.RESTCatalogServer;
 import org.apache.iceberg.rest.RESTServerExtension;
@@ -56,14 +57,23 @@ import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public abstract class TestBaseWithCatalog extends TestBase {
-  protected static File warehouse = null;
+  protected static File warehouse;
+
+  static {
+    try {
+      warehouse = File.createTempFile("warehouse", null);
+      assertThat(warehouse.delete()).isTrue();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
 
   @RegisterExtension
   private static final RESTServerExtension REST_SERVER_EXTENSION =
       new RESTServerExtension(
           Map.of(
-              RESTCatalogServer.REST_PORT,
-              String.valueOf(RCKUtils.findFreePort()),
+              RESTCatalogServer.REST_PORT, String.valueOf(findFreePort()),
+              CatalogProperties.WAREHOUSE_LOCATION, warehouse.getAbsolutePath(),
               // In-memory sqlite database by default is private to the connection that created it.
               // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
               // JdbcCatalog, then different jdbc connections could provide different views of table
@@ -86,10 +96,8 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   @BeforeAll
-  public static void setUpAll() throws IOException {
-    TestBaseWithCatalog.warehouse = File.createTempFile("warehouse", null);
-    assertThat(warehouse.delete()).isTrue();
-    initRESTCatalog();
+  public static void setUpAll() {
+    restCatalog = REST_SERVER_EXTENSION.client();
   }
 
   @AfterAll
@@ -99,16 +107,13 @@ public abstract class TestBaseWithCatalog extends TestBase {
       FileSystem fs = warehousePath.getFileSystem(hiveConf);
       assertThat(fs.delete(warehousePath, true)).as("Failed to delete " + warehousePath).isTrue();
     }
-    stopRESTCatalog();
   }
 
-  private static void initRESTCatalog() {
-    restCatalog = RCKUtils.initCatalogClient(REST_SERVER_EXTENSION.config());
-  }
-
-  private static void stopRESTCatalog() throws Exception {
-    if (restCatalog != null) {
-      restCatalog.close();
+  static int findFreePort() {
+    try (ServerSocket socket = new ServerSocket(0)) {
+      return socket.getLocalPort();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
     }
   }
 
