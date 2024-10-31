@@ -59,7 +59,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
   protected static File warehouse = null;
 
   @RegisterExtension
-  private static RESTServerExtension restServerExtension =
+  private static final RESTServerExtension REST_SERVER_EXTENSION =
       new RESTServerExtension(
           Map.of(
               RESTCatalogServer.REST_PORT, String.valueOf(RCKUtils.findFreePort()),
@@ -101,7 +101,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
   }
 
   private static void initRESTCatalog() {
-    restCatalog = RCKUtils.initCatalogClient(restServerExtension.config());
+    restCatalog = RCKUtils.initCatalogClient(REST_SERVER_EXTENSION.config());
   }
 
   private static void stopRESTCatalog() throws Exception {
