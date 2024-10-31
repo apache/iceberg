@@ -62,13 +62,15 @@ public abstract class TestBaseWithCatalog extends TestBase {
   private static final RESTServerExtension REST_SERVER_EXTENSION =
       new RESTServerExtension(
           Map.of(
-              RESTCatalogServer.REST_PORT, String.valueOf(RCKUtils.findFreePort()),
+              RESTCatalogServer.REST_PORT,
+              String.valueOf(RCKUtils.findFreePort()),
               // In-memory sqlite database by default is private to the connection that created it.
               // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
               // JdbcCatalog, then different jdbc connections could provide different views of table
               // status even belonging to the same catalog. Reference:
               // https://www.sqlite.org/inmemorydb.html
-              CatalogProperties.CLIENT_POOL_SIZE, "1"));
+              CatalogProperties.CLIENT_POOL_SIZE,
+              "1"));
 
   protected static RESTCatalog restCatalog;
 
