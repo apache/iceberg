@@ -70,14 +70,14 @@ public class PropertyUtil {
   public static int propertyTryAsInt(
       Map<String, String> properties, String property, int defaultValue) {
     String value = properties.get(property);
-    if (value != null) {
-      try {
-        return Integer.parseInt(value);
-      } catch (NumberFormatException e) {
-        return defaultValue;
-      }
+    if (value == null) {
+      return defaultValue;
     }
-    return defaultValue;
+    try {
+      return Integer.parseInt(value);
+    } catch (NumberFormatException ignored) {
+      return defaultValue;
+    }
   }
 
   public static int propertyAsInt(
@@ -129,10 +129,11 @@ public class PropertyUtil {
    */
   public static void validateCommitProperties(Map<String, String> properties) {
     for (String commitProperty : COMMIT_PROPERTIES) {
-      if (properties.containsKey(commitProperty)) {
+      String value = properties.get(commitProperty);
+      if (value != null) {
         int parsedValue;
         try {
-          parsedValue = Integer.parseInt(properties.get(commitProperty));
+          parsedValue = Integer.parseInt(value);
         } catch (NumberFormatException e) {
           throw new ValidationException(
               "Table property %s must have integer value", commitProperty);
