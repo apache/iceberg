@@ -78,7 +78,10 @@ public interface CommitMetricsResult {
   CounterResult addedPositionalDeleteFiles();
 
   @Nullable
-  CounterResult addedDVs();
+  @Value.Default
+  default CounterResult addedDVs() {
+    return null;
+  }
 
   @Nullable
   CounterResult removedDeleteFiles();
@@ -90,7 +93,10 @@ public interface CommitMetricsResult {
   CounterResult removedPositionalDeleteFiles();
 
   @Nullable
-  CounterResult removedDVs();
+  @Value.Default
+  default CounterResult removedDVs() {
+    return null;
+  }
 
   @Nullable
   CounterResult totalDeleteFiles();

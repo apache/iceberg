@@ -74,7 +74,10 @@ public interface ScanMetricsResult {
   CounterResult positionalDeleteFiles();
 
   @Nullable
-  CounterResult dvs();
+  @Value.Default
+  default CounterResult dvs() {
+    return null;
+  }
 
   static ScanMetricsResult fromScanMetrics(ScanMetrics scanMetrics) {
     Preconditions.checkArgument(null != scanMetrics, "Invalid scan metrics: null");

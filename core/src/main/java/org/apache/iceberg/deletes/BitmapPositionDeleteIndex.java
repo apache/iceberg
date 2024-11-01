@@ -176,7 +176,7 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
     long expectedLength = deleteFile.contentSizeInBytes() - LENGTH_SIZE_BYTES - CRC_SIZE_BYTES;
     Preconditions.checkArgument(
         length == expectedLength,
-        "Invalid bitmap data length %s, expected %s",
+        "Invalid bitmap data length: %s, expected %s",
         length,
         expectedLength);
     return length;
