@@ -29,8 +29,11 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class PropertyUtil {
+  private static final Logger LOG = LoggerFactory.getLogger(PropertyUtil.class);
 
   private static final Set<String> COMMIT_PROPERTIES =
       ImmutableSet.of(
@@ -75,7 +78,8 @@ public class PropertyUtil {
     }
     try {
       return Integer.parseInt(value);
-    } catch (NumberFormatException ignored) {
+    } catch (NumberFormatException e) {
+      LOG.warn("Failed to parse value of {} as integer, default to {}", property, defaultValue, e);
       return defaultValue;
     }
   }
