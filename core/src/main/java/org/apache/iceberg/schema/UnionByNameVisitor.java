@@ -18,9 +18,6 @@
  */
 package org.apache.iceberg.schema;
 
-import static org.apache.iceberg.types.Type.TypeID.INTEGER;
-import static org.apache.iceberg.types.Type.TypeID.LONG;
-
 import java.util.List;
 import java.util.stream.IntStream;
 import org.apache.iceberg.Schema;
@@ -166,9 +163,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     String fullName = partnerSchema.findColumnName(existingField.fieldId());
 
     boolean needsOptionalUpdate = field.isOptional() && existingField.isRequired();
-    boolean needsTypeUpdate =
-        (field.type().isPrimitiveType() && !field.type().equals(existingField.type()))
-            && !ignorableUpdate(field, existingField);
+    boolean needsTypeUpdate = !ignorableUpdate(field.type(), existingField.type());
     boolean needsDocUpdate = field.doc() != null && !field.doc().equals(existingField.doc());
 
     if (needsOptionalUpdate) {
@@ -184,10 +179,17 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     }
   }
 
-  private boolean ignorableUpdate(Types.NestedField field, Types.NestedField existingField) {
-    switch (existingField.type().typeId()) {
-      case LONG:
-        return field.type().typeId() == INTEGER;
+  private boolean ignorableUpdate(Type newType, Type existingType) {
+    if (newType.isPrimitiveType()) {
+      if (newType.equals(existingType)) {
+        return true;
+      }
+      if (existingType.typeId() == Type.TypeID.LONG && newType.typeId() == Type.TypeID.INTEGER) {
+        return true;
+      }
+      if (existingType.typeId() == Type.TypeID.DOUBLE && newType.typeId() == Type.TypeID.FLOAT) {
+        return true;
+      }
     }
     return false;
   }

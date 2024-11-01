@@ -21,10 +21,13 @@ package org.apache.iceberg.spark.source;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
+import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
@@ -229,6 +232,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
 
   @Test
   public void testMergeSchemaIgnoreDowncast() throws Exception {
+    //// test long to int ignore case
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
         tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
@@ -242,7 +246,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
     bigintDF.writeTo(tableName).append();
 
     assertEquals(
-        "Should have initial rows with bigint column",
+        "Should have initial rows with long column",
         ImmutableList.of(row(1L, "a"), row(2L, "b")),
         sql("select * from %s order by id", tableName));
 
@@ -252,14 +256,73 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "{ \"id\": 3, \"data\": \"c\" }",
             "{ \"id\": 4, \"data\": \"d\" }");
 
-    // should not throw 'java.lang.IllegalArgumentException: Cannot change column type: id: long ->
-    // int'
-    assertThatCode(() -> intDF.writeTo(tableName).option("merge-schema", "true").append())
-        .doesNotThrowAnyException();
+    try {
+      intDF.writeTo(tableName).option("merge-schema", "true").append();
+    } catch (IllegalArgumentException e) {
+      Assert.fail(String.format("Should not throw exception: %s", e));
+    }
 
     assertEquals(
-        "Should include new rows with unchanged bigint column type",
+        "Should include new rows with unchanged long column type",
         ImmutableList.of(row(1L, "a"), row(2L, "b"), row(3L, "c"), row(4L, "d")),
         sql("select * from %s order by id", tableName));
+
+    // verify the column type did not change
+    String[] tblNameSplit = tableName.split("\\.");
+    String tblIdentifier =
+        tblNameSplit.length == 3
+            ? String.format("%s.%s", tblNameSplit[1], tblNameSplit[2])
+            : tableName;
+    Table table = validationCatalog.loadTable(TableIdentifier.parse(tblIdentifier));
+    Types.NestedField idField = table.schema().findField("id");
+    Assert.assertEquals("Column type should not change", idField.type().typeId(), Type.TypeID.LONG);
+
+    //// test double to float ignore case
+    removeTables();
+    sql("CREATE TABLE %s (id double, data string) USING iceberg", tableName);
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+
+    Dataset<Row> doubleDF =
+        jsonToDF(
+            "id double, data string",
+            "{ \"id\": 1.0, \"data\": \"a\" }",
+            "{ \"id\": 2.0, \"data\": \"b\" }");
+
+    doubleDF.writeTo(tableName).append();
+
+    assertEquals(
+        "Should have initial rows with double column",
+        ImmutableList.of(row(1.0, "a"), row(2.0, "b")),
+        sql("select * from %s order by id", tableName));
+
+    Dataset<Row> floatDF =
+        jsonToDF(
+            "id float, data string",
+            "{ \"id\": 3.0, \"data\": \"c\" }",
+            "{ \"id\": 4.0, \"data\": \"d\" }");
+
+    try {
+      floatDF.writeTo(tableName).option("merge-schema", "true").append();
+    } catch (IllegalArgumentException e) {
+      Assert.fail(String.format("Should not throw exception: %s", e));
+    }
+
+    assertEquals(
+        "Should include new rows with unchanged double column type",
+        ImmutableList.of(row(1.0, "a"), row(2.0, "b"), row(3.0, "c"), row(4.0, "d")),
+        sql("select * from %s order by id", tableName));
+
+    // verify the column type did not change
+    tblNameSplit = tableName.split("\\.");
+    tblIdentifier =
+        tblNameSplit.length == 3
+            ? String.format("%s.%s", tblNameSplit[1], tblNameSplit[2])
+            : tableName;
+    table = validationCatalog.loadTable(TableIdentifier.parse(tblIdentifier));
+    idField = table.schema().findField("id");
+    Assert.assertEquals(
+        "Column type should not change", idField.type().typeId(), Type.TypeID.DOUBLE);
   }
 }
