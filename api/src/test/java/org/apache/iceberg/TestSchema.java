@@ -151,8 +151,8 @@ public class TestSchema {
 
   @ParameterizedTest
   @FieldSource
-  public void testSupportedInitialDefault() {
-    assertThatCode(() -> Schema.checkCompatibility(INITIAL_DEFAULT_SCHEMA, 3))
+  public void testSupportedInitialDefault(int formatVersion) {
+    assertThatCode(() -> Schema.checkCompatibility(INITIAL_DEFAULT_SCHEMA, formatVersion))
         .doesNotThrowAnyException();
   }
 
