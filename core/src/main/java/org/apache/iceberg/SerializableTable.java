@@ -344,11 +344,6 @@ public class SerializableTable implements Table, HasTableOperations, Serializabl
   }
 
   @Override
-  public MetadataMaintenance maintenance() {
-    throw new UnsupportedOperationException(errorMsg("metadataMaintenance"));
-  }
-
-  @Override
   public RewriteFiles newRewrite() {
     throw new UnsupportedOperationException(errorMsg("newRewrite"));
   }

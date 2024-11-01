@@ -171,11 +171,6 @@ public class BaseTable implements Table, HasTableOperations, Serializable {
   }
 
   @Override
-  public MetadataMaintenance maintenance() {
-    return new BaseMetadataMaintenance(ops);
-  }
-
-  @Override
   public UpdateLocation updateLocation() {
     return new SetLocation(ops);
   }

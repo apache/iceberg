@@ -118,4 +118,14 @@ public interface ExpireSnapshots extends PendingUpdate<List<Snapshot>> {
    * @return this for method chaining
    */
   ExpireSnapshots cleanExpiredFiles(boolean clean);
+
+  /**
+   * Allows removal of unreachable partition specs as part of the expiration operation
+   *
+   * @return this for method chaining
+   */
+  default ExpireSnapshots removeUnusedSpecs() {
+    throw new UnsupportedOperationException(
+        this.getClass().getName() + " doesn't implement removeUnusedSpecs");
+  }
 }
