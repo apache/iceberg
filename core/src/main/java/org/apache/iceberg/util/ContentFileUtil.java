@@ -54,6 +54,10 @@ public class ContentFileUtil {
       return null;
     }
 
+    if (deleteFile.referencedDataFile() != null) {
+      return deleteFile.referencedDataFile();
+    }
+
     int pathId = MetadataColumns.DELETE_FILE_PATH.fieldId();
     Type pathType = MetadataColumns.DELETE_FILE_PATH.type();
 
