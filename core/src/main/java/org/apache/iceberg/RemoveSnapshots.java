@@ -162,8 +162,8 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
-  public ExpireSnapshots removeUnusedSpecs() {
-    this.removeUnusedSpecs = true;
+  public ExpireSnapshots removeUnusedSpecs(boolean remove) {
+    this.removeUnusedSpecs = remove;
     return this;
   }
 

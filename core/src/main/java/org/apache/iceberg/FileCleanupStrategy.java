@@ -35,7 +35,6 @@ abstract class FileCleanupStrategy {
   private static final Logger LOG = LoggerFactory.getLogger(FileCleanupStrategy.class);
 
   protected final FileIO fileIO;
-  protected final Set<Integer> referencedPartitionSpecs = Sets.newConcurrentHashSet();
   protected final ExecutorService planExecutorService;
   private final Consumer<String> deleteFunc;
   private final ExecutorService deleteExecutorService;

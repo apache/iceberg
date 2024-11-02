@@ -1285,6 +1285,35 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
   }
 
   @Test
+  public void testRemoveUnusedSpec() {
+    C catalog = catalog();
+
+    if (requiresNamespaceCreate()) {
+      catalog.createNamespace(NS);
+    }
+
+    Table table =
+        catalog
+            .buildTable(TABLE, SCHEMA)
+            .withPartitionSpec(SPEC)
+            .withProperty(TableProperties.GC_ENABLED, "true")
+            .create();
+    PartitionSpec spec = table.spec();
+    // added some file to trigger expire snapshot
+    table.newFastAppend().appendFile(FILE_A).commit();
+    table.updateSpec().addField(Expressions.bucket("data", 16)).commit();
+    table.updateSpec().removeField(Expressions.bucket("data", 16)).commit();
+    table.updateSpec().addField("data").commit();
+    assertThat(table.specs().size()).as("Should have 3 total specs").isEqualTo(3);
+    PartitionSpec current = table.spec();
+    table.expireSnapshots().removeUnusedSpecs(true).commit();
+
+    Table loaded = catalog.loadTable(TABLE);
+    assertThat(loaded.specs().values())
+        .hasSameElementsAs(Lists.asList(spec, current, new PartitionSpec[0]));
+  }
+
+  @Test
   public void testUpdateTableSortOrder() {
     C catalog = catalog();
 
