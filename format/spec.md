@@ -1540,7 +1540,7 @@ Row-level delete changes:
 
 * Deletion vectors are added in v3, stored using the Puffin `deletion-vector-v1` blob type
 * Manifests are updated to track deletion vectors:
-    * `referenced_data_file` was added and can be used for both delection vectors (required) and v2 position delete files that contain deletes for only one data file (optional)
+    * `referenced_data_file` was added and can be used for both deletion vectors (required) and v2 position delete files that contain deletes for only one data file (optional)
     * `content_offset` was added and must match the deletion vector blob's offset in a Puffin file
     * `content_size_in_bytes` was added and must match the deletion vector blob's length in a Puffin file
 * Deletion vectors are maintained synchronously: Writers must merge DVs (and older position delete files) to ensure there is at most one DV per data file
