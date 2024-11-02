@@ -654,6 +654,18 @@ public class TestBase {
         .build();
   }
 
+  protected DeleteFile newDeleteFileWithRef(DataFile dataFile) {
+    PartitionSpec spec = table.specs().get(dataFile.specId());
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(10)
+        .withPartition(dataFile.partition())
+        .withReferencedDataFile(dataFile.location())
+        .withRecordCount(1)
+        .build();
+  }
+
   protected DeleteFile newEqualityDeleteFile(int specId, String partitionPath, int... fieldIds) {
     PartitionSpec spec = table.specs().get(specId);
     return FileMetadata.deleteFileBuilder(spec)

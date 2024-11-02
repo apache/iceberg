@@ -923,5 +923,10 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     public Integer sortOrderId() {
       return deleteFile.sortOrderId();
     }
+
+    @Override
+    public String referencedDataFile() {
+      return deleteFile.referencedDataFile();
+    }
   }
 }

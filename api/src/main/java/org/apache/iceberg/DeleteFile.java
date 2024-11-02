@@ -31,4 +31,15 @@ public interface DeleteFile extends ContentFile<DeleteFile> {
   default List<Long> splitOffsets() {
     return null;
   }
+
+  /**
+   * Returns the location of a data file that all deletes reference.
+   *
+   * <p>The referenced data file is required for deletion vectors and may be optionally captured for
+   * position delete files that apply to only one data file. This method always returns null for
+   * equality delete files.
+   */
+  default String referencedDataFile() {
+    return null;
+  }
 }
