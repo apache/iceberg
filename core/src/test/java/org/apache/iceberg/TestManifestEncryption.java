@@ -111,6 +111,8 @@ public class TestManifestEncryption {
           SORT_ORDER_ID,
           null,
           CONTENT_KEY_METADATA,
+          null,
+          null,
           null);
 
   private static final EncryptionManager ENCRYPTION_MANAGER =

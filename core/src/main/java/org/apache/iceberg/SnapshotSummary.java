@@ -25,6 +25,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Joiner.MapJoiner;
 import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ContentFileUtil;
 
 public class SnapshotSummary {
   public static final String ADDED_FILES_PROP = "added-data-files";
@@ -275,7 +276,7 @@ public class SnapshotSummary {
     }
 
     void addedFile(ContentFile<?> file) {
-      this.addedSize += file.fileSizeInBytes();
+      this.addedSize += ContentFileUtil.contentSizeInBytes(file);
       switch (file.content()) {
         case DATA:
           this.addedFiles += 1;
@@ -298,7 +299,7 @@ public class SnapshotSummary {
     }
 
     void removedFile(ContentFile<?> file) {
-      this.removedSize += file.fileSizeInBytes();
+      this.removedSize += ContentFileUtil.contentSizeInBytes(file);
       switch (file.content()) {
         case DATA:
           this.removedFiles += 1;

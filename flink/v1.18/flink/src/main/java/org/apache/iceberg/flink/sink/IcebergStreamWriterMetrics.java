@@ -26,6 +26,7 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Histogram;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.util.ContentFileUtil;
 
 class IcebergStreamWriterMetrics {
   // 1,024 reservoir size should cost about 8KB, which is quite small.
@@ -79,7 +80,7 @@ class IcebergStreamWriterMetrics {
     Arrays.stream(result.deleteFiles())
         .forEach(
             deleteFile -> {
-              deleteFilesSizeHistogram.update(deleteFile.fileSizeInBytes());
+              deleteFilesSizeHistogram.update(ContentFileUtil.contentSizeInBytes(deleteFile));
             });
   }
 
