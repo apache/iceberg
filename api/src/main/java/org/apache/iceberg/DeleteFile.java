@@ -36,7 +36,7 @@ public interface DeleteFile extends ContentFile<DeleteFile> {
    * Returns the location of a data file that all deletes reference.
    *
    * <p>The referenced data file is required for deletion vectors and may be optionally captured for
-   * position delete files that apply to only one data file. This method always returns mull for
+   * position delete files that apply to only one data file. This method always returns null for
    * equality delete files.
    */
   default String referencedDataFile() {

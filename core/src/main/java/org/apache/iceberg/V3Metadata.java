@@ -450,7 +450,7 @@ class V3Metadata {
         case 15:
           return wrapped.sortOrderId();
         case 16:
-          if (wrapped instanceof DeleteFile) {
+          if (wrapped.content() == FileContent.POSITION_DELETES) {
             return ((DeleteFile) wrapped).referencedDataFile();
           } else {
             return null;
