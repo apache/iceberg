@@ -18,10 +18,8 @@
  */
 package org.apache.iceberg.spark.source;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTask;
@@ -37,7 +35,6 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkOrcReaders;
 import org.apache.iceberg.spark.data.vectorized.VectorizedSparkParquetReaders;
 import org.apache.iceberg.types.TypeUtil;
-import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.vectorized.ColumnarBatch;
 
 abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBatch, T> {
@@ -84,7 +81,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
       SparkDeleteFilter deleteFilter) {
     // get required schema if there are deletes
     Schema requiredSchema = deleteFilter != null ? deleteFilter.requiredSchema() : expectedSchema();
-    Schema vectorizationSchema = vectorizationSchema(deleteFilter);
+    boolean hasPositionDelete = deleteFilter != null ? deleteFilter.hasPosDeletes() : false;
 
     return Parquet.read(inputFile)
         .project(requiredSchema)
@@ -92,7 +89,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         .createBatchedReaderFunc(
             fileSchema ->
                 VectorizedSparkParquetReaders.buildReader(
-                    vectorizationSchema, fileSchema, idToConstant, deleteFilter))
+                    requiredSchema, fileSchema, idToConstant, deleteFilter))
         .recordsPerBatch(batchSize)
         .filter(residual)
         .caseSensitive(caseSensitive())
@@ -101,6 +98,7 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         // read performance as every batch read doesn't have to pay the cost of allocating memory.
         .reuseContainers()
         .withNameMapping(nameMapping())
+        .hasPositionDelete(hasPositionDelete)
         .build();
   }
 
@@ -128,30 +126,5 @@ abstract class BaseBatchReader<T extends ScanTask> extends BaseReader<ColumnarBa
         .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())
         .build();
-  }
-
-  private Schema vectorizationSchema(SparkDeleteFilter deleteFilter) {
-    // For pos delete, deleteFilter has appended _pos to the required schema.
-    // For example, SELECT id, data FROM test, the requested schema is id and data. If there
-    // is position delete, deleteFilter will append _pos to the schema so the schema becomes
-    // id, data and _pos. However, vectorization reader only needs to read the requested columns,
-    // i.e. id and data, so we want to remove the _pos from the schema when building the
-    // vectorization reader. Before removing _pos, we need to make sure _pos is not explicitly
-    // selected in the query.
-    if (deleteFilter != null) {
-      if (deleteFilter.hasPosDeletes()
-          && expectedSchema().findType(MetadataColumns.ROW_POSITION.name()) == null) {
-        List<String> columnNameWithoutPos =
-            deleteFilter.requiredSchema().columns().stream()
-                .map(Types.NestedField::name)
-                .filter(name -> !name.equals(MetadataColumns.ROW_POSITION.name()))
-                .collect(Collectors.toList());
-        return deleteFilter.requiredSchema().select(columnNameWithoutPos);
-      } else {
-        return deleteFilter.requiredSchema();
-      }
-    } else {
-      return expectedSchema();
-    }
   }
 }

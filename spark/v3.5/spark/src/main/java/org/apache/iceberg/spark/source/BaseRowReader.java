@@ -98,6 +98,7 @@ abstract class BaseRowReader<T extends ScanTask> extends BaseReader<InternalRow,
         .filter(residual)
         .caseSensitive(caseSensitive())
         .withNameMapping(nameMapping())
+        .hasPositionDelete(readSchema.findField(MetadataColumns.ROW_POSITION.fieldId()) == null)
         .build();
   }
 

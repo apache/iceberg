@@ -249,8 +249,9 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   protected class SparkDeleteFilter extends DeleteFilter<InternalRow> {
     private final InternalRowWrapper asStructLike;
 
-    SparkDeleteFilter(String filePath, List<DeleteFile> deletes, DeleteCounter counter) {
-      super(filePath, deletes, tableSchema, expectedSchema, counter);
+    SparkDeleteFilter(
+        String filePath, List<DeleteFile> deletes, DeleteCounter counter, boolean isBatchReading) {
+      super(filePath, deletes, tableSchema, expectedSchema, counter, isBatchReading);
       this.asStructLike =
           new InternalRowWrapper(
               SparkSchemaUtil.convert(requiredSchema()), requiredSchema().asStruct());

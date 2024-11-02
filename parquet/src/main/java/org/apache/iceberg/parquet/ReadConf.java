@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Expression;
@@ -60,6 +59,7 @@ class ReadConf<T> {
   private final boolean reuseContainers;
   private final Integer batchSize;
   private final long[] startRowPositions;
+  private final boolean hasPositionDelete;
 
   // List of column chunk metadata for each row group
   private final List<Map<ColumnPath, ColumnChunkMetaData>> columnChunkMetaDataForRowGroups;
@@ -75,7 +75,8 @@ class ReadConf<T> {
       NameMapping nameMapping,
       boolean reuseContainers,
       boolean caseSensitive,
-      Integer bSize) {
+      Integer bSize,
+      boolean positionDelete) {
     this.file = file;
     this.options = options;
     this.reader = newReader(file, options);
@@ -96,9 +97,10 @@ class ReadConf<T> {
     this.rowGroups = reader.getRowGroups();
     this.shouldSkip = new boolean[rowGroups.size()];
     this.startRowPositions = new long[rowGroups.size()];
+    this.hasPositionDelete = positionDelete;
 
     // Fetch all row groups starting positions to compute the row offsets of the filtered row groups
-    Map<Long, Long> offsetToStartPos = generateOffsetToStartPos(expectedSchema);
+    Map<Long, Long> offsetToStartPos = generateOffsetToStartPos();
 
     ParquetMetricsRowGroupFilter statsFilter = null;
     ParquetDictionaryRowGroupFilter dictFilter = null;
@@ -156,6 +158,7 @@ class ReadConf<T> {
     this.vectorizedModel = toCopy.vectorizedModel;
     this.columnChunkMetaDataForRowGroups = toCopy.columnChunkMetaDataForRowGroups;
     this.startRowPositions = toCopy.startRowPositions;
+    this.hasPositionDelete = toCopy.hasPositionDelete;
   }
 
   ParquetFileReader reader() {
@@ -181,8 +184,8 @@ class ReadConf<T> {
     return shouldSkip;
   }
 
-  private Map<Long, Long> generateOffsetToStartPos(Schema schema) {
-    if (schema.findField(MetadataColumns.ROW_POSITION.fieldId()) == null) {
+  private Map<Long, Long> generateOffsetToStartPos() {
+    if (hasPositionDelete) {
       return null;
     }
 

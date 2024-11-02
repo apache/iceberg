@@ -49,6 +49,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
   private final boolean caseSensitive;
   private final int batchSize;
   private final NameMapping nameMapping;
+  private final boolean hasPositionDelete;
 
   public VectorizedParquetReader(
       InputFile input,
@@ -59,7 +60,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
       Expression filter,
       boolean reuseContainers,
       boolean caseSensitive,
-      int maxRecordsPerBatch) {
+      int maxRecordsPerBatch,
+      boolean hasPositionDelete) {
     this.input = input;
     this.expectedSchema = expectedSchema;
     this.options = options;
@@ -70,6 +72,7 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
     this.caseSensitive = caseSensitive;
     this.batchSize = maxRecordsPerBatch;
     this.nameMapping = nameMapping;
+    this.hasPositionDelete = hasPositionDelete;
   }
 
   private ReadConf conf = null;
@@ -87,7 +90,8 @@ public class VectorizedParquetReader<T> extends CloseableGroup implements Closea
               nameMapping,
               reuseContainers,
               caseSensitive,
-              batchSize);
+              batchSize,
+              hasPositionDelete);
       this.conf = readConf.copy();
       return readConf;
     }
