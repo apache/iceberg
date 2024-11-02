@@ -714,4 +714,22 @@ public class TestTransaction extends TestBase {
     assertThat(paths).isEqualTo(expectedPaths);
     assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);
   }
+
+  @TestTemplate
+  public void testCommitProperties() {
+    table
+        .updateProperties()
+        .set(TableProperties.COMMIT_MAX_RETRY_WAIT_MS, "foo")
+        .set(TableProperties.COMMIT_NUM_RETRIES, "bar")
+        .set(TableProperties.COMMIT_TOTAL_RETRY_TIME_MS, Integer.toString(60 * 60 * 1000))
+        .commit();
+    table.updateProperties().remove(TableProperties.COMMIT_MAX_RETRY_WAIT_MS).commit();
+    table.updateProperties().remove(TableProperties.COMMIT_NUM_RETRIES).commit();
+
+    assertThat(table.properties())
+        .doesNotContainKey(TableProperties.COMMIT_NUM_RETRIES)
+        .doesNotContainKey(TableProperties.COMMIT_MAX_RETRY_WAIT_MS)
+        .containsEntry(
+            TableProperties.COMMIT_TOTAL_RETRY_TIME_MS, Integer.toString(60 * 60 * 1000));
+  }
 }
