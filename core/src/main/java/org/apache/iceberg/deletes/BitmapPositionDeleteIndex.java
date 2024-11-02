@@ -87,4 +87,9 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
   public Collection<DeleteFile> deleteFiles() {
     return deleteFiles;
   }
+
+  @Override
+  public long cardinality() {
+    return bitmap.cardinality();
+  }
 }
