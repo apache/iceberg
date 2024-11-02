@@ -369,7 +369,9 @@ public interface UpdateSchema extends PendingUpdate<Schema> {
    * to create a union schema.
    *
    * <p>For fields with same canonical names in both schemas it is required that the widen types is
-   * supported using {@link UpdateSchema#updateColumn(String, Type.PrimitiveType)}
+   * supported using {@link UpdateSchema#updateColumn(String, Type.PrimitiveType)}. We ignore
+   * differences in type if the new type is narrower than the existing type (e.g. long->int,
+   * double->float).
    *
    * <p>Only supports turning a previously required field into an optional one if it is marked
    * optional in the provided new schema using {@link UpdateSchema#makeColumnOptional(String)}
