@@ -224,7 +224,7 @@ public class HTTPClient implements RESTClient {
         (path.startsWith("https://") || path.startsWith("http://"))
             ? path
             : String.format("%s/%s", uri, path);
-    if(!fullPath.endsWith("/")){
+    if (!fullPath.endsWith("/")) {
       fullPath = String.format("%s/", fullPath);
     }
     try {
