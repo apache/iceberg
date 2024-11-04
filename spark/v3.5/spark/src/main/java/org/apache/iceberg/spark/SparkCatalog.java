@@ -141,7 +141,7 @@ public class SparkCatalog extends BaseCatalog
   private ViewCatalog asViewCatalog = null;
   private String[] defaultNamespace = null;
   private HadoopTables tables;
-  private boolean restServerPurgeEnabled;
+  private boolean restCatalogPurge;
 
   /**
    * Build an Iceberg {@link Catalog} to be used by this Spark catalog adapter.
@@ -371,8 +371,10 @@ public class SparkCatalog extends BaseCatalog
           ((HasTableOperations) table).operations().current().metadataFileLocation();
 
       if ((this.icebergCatalog instanceof RESTCatalog
-              || this.icebergCatalog instanceof RESTSessionCatalog)
-          && this.restServerPurgeEnabled) {
+              || this.icebergCatalog instanceof RESTSessionCatalog
+              || (this.icebergCatalog instanceof CachingCatalog
+                  && ((CachingCatalog) this.icebergCatalog).wrapped_is_instance(RESTCatalog.class)))
+          && this.restCatalogPurge) {
         return dropTableWithPurging(ident);
       }
 
@@ -763,7 +765,7 @@ public class SparkCatalog extends BaseCatalog
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS,
             CatalogProperties.CACHE_EXPIRATION_INTERVAL_MS_DEFAULT);
 
-    this.restServerPurgeEnabled =
+    this.restCatalogPurge =
         PropertyUtil.propertyAsBoolean(options, REST_CATALOG_PURGE, REST_CATALOG_PURGE_DEFAULT);
 
     // An expiration interval of 0ms effectively disables caching.
