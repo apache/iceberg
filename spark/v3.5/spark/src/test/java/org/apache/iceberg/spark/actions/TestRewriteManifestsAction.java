@@ -41,7 +41,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.ManifestContent;
 import org.apache.iceberg.ManifestFile;
@@ -64,6 +66,7 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -126,6 +129,64 @@ public class TestRewriteManifestsAction extends TestBase {
   public void setupTableLocation() throws Exception {
     File tableDir = temp.resolve("junit").toFile();
     this.tableLocation = tableDir.toURI().toString();
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsPreservesOptionalFields() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
+    Map<String, String> options = Maps.newHashMap();
+    options.put(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion));
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    DataFile dataFile1 = newDataFile(table, "c1=0");
+    DataFile dataFile2 = newDataFile(table, "c1=0");
+    DataFile dataFile3 = newDataFile(table, "c1=0");
+    table
+        .newFastAppend()
+        .appendFile(dataFile1)
+        .appendFile(dataFile2)
+        .appendFile(dataFile3)
+        .commit();
+
+    DeleteFile deleteFile1 = newDeleteFileWithRef(table, dataFile1);
+    assertThat(deleteFile1.referencedDataFile()).isEqualTo(dataFile1.location());
+    table.newRowDelta().addDeletes(deleteFile1).commit();
+
+    DeleteFile deleteFile2 = newDeleteFileWithRef(table, dataFile2);
+    assertThat(deleteFile2.referencedDataFile()).isEqualTo(dataFile2.location());
+    table.newRowDelta().addDeletes(deleteFile2).commit();
+
+    DeleteFile deleteFile3 = newDeleteFileWithRef(table, dataFile3);
+    assertThat(deleteFile3.referencedDataFile()).isEqualTo(dataFile3.location());
+    table.newRowDelta().addDeletes(deleteFile3).commit();
+
+    SparkActions actions = SparkActions.get();
+
+    actions
+        .rewriteManifests(table)
+        .rewriteIf(manifest -> true)
+        .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+        .execute();
+
+    table.refresh();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (FileScanTask fileTask : tasks) {
+        DataFile dataFile = fileTask.file();
+        if (dataFile.location().equals(dataFile1.location())) {
+          DeleteFile deleteFile = Iterables.getOnlyElement(fileTask.deletes());
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile1.referencedDataFile());
+        } else if (dataFile.location().equals(dataFile2.location())) {
+          DeleteFile deleteFile = Iterables.getOnlyElement(fileTask.deletes());
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile2.referencedDataFile());
+        } else {
+          DeleteFile deleteFile = Iterables.getOnlyElement(fileTask.deletes());
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile3.referencedDataFile());
+        }
+      }
+    }
   }
 
   @TestTemplate
@@ -974,6 +1035,10 @@ public class TestRewriteManifestsAction extends TestBase {
         .withPath("/path/to/data-" + UUID.randomUUID() + ".parquet")
         .withFileSizeInBytes(10)
         .withRecordCount(1);
+  }
+
+  private DeleteFile newDeleteFileWithRef(Table table, DataFile dataFile) {
+    return FileGenerationUtil.generatePositionDeleteFileWithRef(table, dataFile);
   }
 
   private DeleteFile newDeleteFile(Table table, String partitionPath) {
