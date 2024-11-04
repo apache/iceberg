@@ -136,6 +136,23 @@ public class FileGenerationUtil {
         .build();
   }
 
+  public static DeleteFile generatePositionDeleteFileWithRef(Table table, DataFile dataFile) {
+    PartitionSpec spec = table.specs().get(dataFile.specId());
+    StructLike partition = dataFile.partition();
+    LocationProvider locations = table.locationProvider();
+    String path = locations.newDataLocation(spec, partition, generateFileName());
+    long fileSize = generateFileSize();
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath(path)
+        .withPartition(partition)
+        .withFileSizeInBytes(fileSize)
+        .withFormat(FileFormat.PARQUET)
+        .withReferencedDataFile(dataFile.location())
+        .withRecordCount(3)
+        .build();
+  }
+
   // mimics the behavior of OutputFileFactory
   public static String generateFileName() {
     int partitionId = random().nextInt(100_000);
