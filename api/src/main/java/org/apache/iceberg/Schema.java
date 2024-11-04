@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
 import org.apache.iceberg.relocated.com.google.common.base.Joiner;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.BiMap;
@@ -54,8 +55,11 @@ public class Schema implements Serializable {
   private static final Joiner NEWLINE = Joiner.on('\n');
   private static final String ALL_COLUMNS = "*";
   private static final int DEFAULT_SCHEMA_ID = 0;
-  private static final int DEFAULT_VALUES_MIN_FORMAT_VERSION = 3;
-  private static final Map<Type.TypeID, Integer> MIN_FORMAT_VERSIONS =
+
+  @VisibleForTesting static final int DEFAULT_VALUES_MIN_FORMAT_VERSION = 3;
+
+  @VisibleForTesting
+  static final Map<Type.TypeID, Integer> MIN_FORMAT_VERSIONS =
       ImmutableMap.of(Type.TypeID.TIMESTAMP_NANO, 3);
 
   private final StructType struct;

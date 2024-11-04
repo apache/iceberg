@@ -53,6 +53,8 @@ public class TestHelpers {
 
   private TestHelpers() {}
 
+  public static final int MAX_FORMAT_VERSION = 3;
+
   /** Wait in a tight check loop until system clock is past {@code timestampMillis} */
   public static long waitUntilAfter(long timestampMillis) {
     long current = System.currentTimeMillis();

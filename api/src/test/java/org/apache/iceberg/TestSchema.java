@@ -18,15 +18,16 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.Schema.DEFAULT_VALUES_MIN_FORMAT_VERSION;
+import static org.apache.iceberg.Schema.MIN_FORMAT_VERSIONS;
+import static org.apache.iceberg.TestHelpers.MAX_FORMAT_VERSION;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
-import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -38,13 +39,6 @@ public class TestSchema {
 
   private static final List<Type> TESTTYPES =
       ImmutableList.of(Types.TimestampNanoType.withoutZone(), Types.TimestampNanoType.withZone());
-
-  private static final Map<Type.TypeID, Integer> MIN_FORMAT_VERSIONS =
-      ImmutableMap.of(Type.TypeID.TIMESTAMP_NANO, 3);
-
-  private static final Integer MIN_FORMAT_INITIAL_DEFAULT = 3;
-
-  private static final Integer MAX_FORMAT_VERSION = 3;
 
   private static final Schema INITIAL_DEFAULT_SCHEMA =
       new Schema(
@@ -120,8 +114,8 @@ public class TestSchema {
     return TESTTYPES.stream()
         .flatMap(
             type ->
-                IntStream.range(MIN_FORMAT_VERSIONS.get(type.typeId()), MAX_FORMAT_VERSION + 1)
-                    .mapToObj(unsupportedVersion -> Arguments.of(type, unsupportedVersion)));
+                IntStream.rangeClosed(MIN_FORMAT_VERSIONS.get(type.typeId()), MAX_FORMAT_VERSION)
+                    .mapToObj(supportedVersion -> Arguments.of(type, supportedVersion)));
   }
 
   @ParameterizedTest
@@ -132,7 +126,7 @@ public class TestSchema {
   }
 
   private static int[] testUnsupportedInitialDefault =
-      IntStream.range(1, MIN_FORMAT_INITIAL_DEFAULT).toArray();
+      IntStream.range(1, DEFAULT_VALUES_MIN_FORMAT_VERSION).toArray();
 
   @ParameterizedTest
   @FieldSource
@@ -147,7 +141,7 @@ public class TestSchema {
   }
 
   private static int[] testSupportedInitialDefault =
-      IntStream.rangeClosed(MIN_FORMAT_INITIAL_DEFAULT, MAX_FORMAT_VERSION).toArray();
+      IntStream.rangeClosed(DEFAULT_VALUES_MIN_FORMAT_VERSION, MAX_FORMAT_VERSION).toArray();
 
   @ParameterizedTest
   @FieldSource
