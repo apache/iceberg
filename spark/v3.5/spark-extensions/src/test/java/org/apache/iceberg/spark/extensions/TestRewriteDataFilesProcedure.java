@@ -70,8 +70,10 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testRewriteDataFilesFailsByDefaultSetting() {
+  public void testRewriteDataFilesFailsByCaseSensitive() {
     createTable();
+    insertData(10);
+    sql("set spark.sql.caseSensitive=true");
     assertThatThrownBy(
             () ->
                 sql(
