@@ -91,7 +91,7 @@ public class TableScanUtil {
     Function<FileScanTask, Long> weightFunc =
         file ->
             Math.max(
-                file.length() + ContentFileUtil.contentSizeInBytes(file.deletes()),
+                file.length() + ScanTaskUtil.contentSizeInBytes(file.deletes()),
                 (1 + file.deletes().size()) * openFileCost);
 
     return CloseableIterable.transform(

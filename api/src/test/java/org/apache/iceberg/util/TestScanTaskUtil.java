@@ -26,20 +26,20 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-public class TestContentFileUtil {
+public class TestScanTaskUtil {
 
   @Test
   public void testContentSize() {
     DeleteFile dv1 = mockDV("dv1.puffin", 20L, 25L, "data1.parquet");
     DeleteFile dv2 = mockDV("dv2.puffin", 4L, 15L, "data2.parquet");
 
-    long size1 = ContentFileUtil.contentSizeInBytes(ImmutableList.of());
+    long size1 = ScanTaskUtil.contentSizeInBytes(ImmutableList.of());
     assertThat(size1).isEqualTo(0);
 
-    long size2 = ContentFileUtil.contentSizeInBytes(ImmutableList.of(dv1));
+    long size2 = ScanTaskUtil.contentSizeInBytes(ImmutableList.of(dv1));
     assertThat(size2).isEqualTo(25L);
 
-    long size3 = ContentFileUtil.contentSizeInBytes(ImmutableList.of(dv1, dv2));
+    long size3 = ScanTaskUtil.contentSizeInBytes(ImmutableList.of(dv1, dv2));
     assertThat(size3).isEqualTo(40L);
   }
 

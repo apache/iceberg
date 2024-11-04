@@ -51,7 +51,7 @@ class CommitSummary {
                   .forEach(
                       deleteFile -> {
                         deleteFilesRecordCount.addAndGet(deleteFile.recordCount());
-                        long deleteBytes = ContentFileUtil.contentSizeInBytes(deleteFile);
+                        long deleteBytes = ScanTaskUtil.contentSizeInBytes(deleteFile);
                         deleteFilesByteCount.addAndGet(deleteBytes);
                       });
             });

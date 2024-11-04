@@ -80,7 +80,7 @@ class IcebergStreamWriterMetrics {
     Arrays.stream(result.deleteFiles())
         .forEach(
             deleteFile -> {
-              deleteFilesSizeHistogram.update(ContentFileUtil.contentSizeInBytes(deleteFile));
+              deleteFilesSizeHistogram.update(ScanTaskUtil.contentSizeInBytes(deleteFile));
             });
   }
 

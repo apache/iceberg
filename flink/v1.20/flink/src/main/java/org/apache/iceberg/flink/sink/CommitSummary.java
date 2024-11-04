@@ -23,7 +23,7 @@ import java.util.NavigableMap;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
-import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.ScanTaskUtil;
 
 class CommitSummary {
 
@@ -51,7 +51,7 @@ class CommitSummary {
                   .forEach(
                       deleteFile -> {
                         deleteFilesRecordCount.addAndGet(deleteFile.recordCount());
-                        long deleteBytes = ContentFileUtil.contentSizeInBytes(deleteFile);
+                        long deleteBytes = ScanTaskUtil.contentSizeInBytes(deleteFile);
                         deleteFilesByteCount.addAndGet(deleteBytes);
                       });
             });

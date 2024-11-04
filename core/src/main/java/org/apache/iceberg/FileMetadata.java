@@ -256,8 +256,9 @@ public class FileMetadata {
         Preconditions.checkArgument(contentOffset != null, "Content offset is required for DV");
         Preconditions.checkArgument(contentSizeInBytes != null, "Content size is required for DV");
       } else {
-        Preconditions.checkArgument(contentOffset == null, "Content offset is only for DV");
-        Preconditions.checkArgument(contentSizeInBytes == null, "Content size is only for DV");
+        Preconditions.checkArgument(contentOffset == null, "Content offset can only be set for DV");
+        Preconditions.checkArgument(
+            contentSizeInBytes == null, "Content size can only be set for DV");
       }
 
       switch (content) {

@@ -24,7 +24,6 @@ import java.util.Set;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
-import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
@@ -84,26 +83,5 @@ public class ContentFileUtil {
   public static String referencedDataFileLocation(DeleteFile deleteFile) {
     CharSequence location = referencedDataFile(deleteFile);
     return location != null ? location.toString() : null;
-  }
-
-  public static long contentSizeInBytes(ContentFile<?> file) {
-    if (file.content() == FileContent.DATA) {
-      return file.fileSizeInBytes();
-    } else {
-      DeleteFile deleteFile = (DeleteFile) file;
-      return isDV(deleteFile) ? deleteFile.contentSizeInBytes() : deleteFile.fileSizeInBytes();
-    }
-  }
-
-  public static long contentSizeInBytes(Iterable<? extends ContentFile<?>> files) {
-    long size = 0L;
-    for (ContentFile<?> file : files) {
-      size += contentSizeInBytes(file);
-    }
-    return size;
-  }
-
-  public static boolean isDV(DeleteFile deleteFile) {
-    return deleteFile.format() == FileFormat.PUFFIN;
   }
 }
