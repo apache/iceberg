@@ -87,6 +87,11 @@ public interface PositionDeleteIndex {
     return ImmutableList.of();
   }
 
+  /** Returns the cardinality of this index. */
+  default long cardinality() {
+    throw new UnsupportedOperationException(getClass().getName() + " does not support cardinality");
+  }
+
   /** Returns an empty immutable position delete index. */
   static PositionDeleteIndex empty() {
     return EmptyPositionDeleteIndex.get();

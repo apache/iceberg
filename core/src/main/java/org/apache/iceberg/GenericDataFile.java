@@ -64,7 +64,8 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
         splitOffsets,
         null /* no equality field IDs */,
         sortOrderId,
-        keyMetadata);
+        keyMetadata,
+        null /* no referenced data file */);
   }
 
   /**

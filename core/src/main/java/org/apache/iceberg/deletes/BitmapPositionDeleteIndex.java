@@ -23,40 +23,39 @@ import java.util.List;
 import java.util.function.LongConsumer;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.roaringbitmap.longlong.Roaring64Bitmap;
 
 class BitmapPositionDeleteIndex implements PositionDeleteIndex {
-  private final Roaring64Bitmap roaring64Bitmap;
+  private final RoaringPositionBitmap bitmap;
   private final List<DeleteFile> deleteFiles;
 
   BitmapPositionDeleteIndex() {
-    this.roaring64Bitmap = new Roaring64Bitmap();
+    this.bitmap = new RoaringPositionBitmap();
     this.deleteFiles = Lists.newArrayList();
   }
 
   BitmapPositionDeleteIndex(Collection<DeleteFile> deleteFiles) {
-    this.roaring64Bitmap = new Roaring64Bitmap();
+    this.bitmap = new RoaringPositionBitmap();
     this.deleteFiles = Lists.newArrayList(deleteFiles);
   }
 
   BitmapPositionDeleteIndex(DeleteFile deleteFile) {
-    this.roaring64Bitmap = new Roaring64Bitmap();
+    this.bitmap = new RoaringPositionBitmap();
     this.deleteFiles = deleteFile != null ? Lists.newArrayList(deleteFile) : Lists.newArrayList();
   }
 
   void merge(BitmapPositionDeleteIndex that) {
-    roaring64Bitmap.or(that.roaring64Bitmap);
+    bitmap.setAll(that.bitmap);
     deleteFiles.addAll(that.deleteFiles);
   }
 
   @Override
   public void delete(long position) {
-    roaring64Bitmap.add(position);
+    bitmap.set(position);
   }
 
   @Override
   public void delete(long posStart, long posEnd) {
-    roaring64Bitmap.addRange(posStart, posEnd);
+    bitmap.setRange(posStart, posEnd);
   }
 
   @Override
@@ -71,21 +70,26 @@ class BitmapPositionDeleteIndex implements PositionDeleteIndex {
 
   @Override
   public boolean isDeleted(long position) {
-    return roaring64Bitmap.contains(position);
+    return bitmap.contains(position);
   }
 
   @Override
   public boolean isEmpty() {
-    return roaring64Bitmap.isEmpty();
+    return bitmap.isEmpty();
   }
 
   @Override
   public void forEach(LongConsumer consumer) {
-    roaring64Bitmap.forEach(consumer::accept);
+    bitmap.forEach(consumer);
   }
 
   @Override
   public Collection<DeleteFile> deleteFiles() {
     return deleteFiles;
+  }
+
+  @Override
+  public long cardinality() {
+    return bitmap.cardinality();
   }
 }

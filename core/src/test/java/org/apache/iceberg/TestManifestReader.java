@@ -130,7 +130,7 @@ public class TestManifestReader extends TestBase {
       long expectedPos = 0L;
       for (DataFile file : reader) {
         assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
-        assertThat(((BaseFile) file).get(17))
+        assertThat(((BaseFile) file).get(18))
             .as("Position from field index should match")
             .isEqualTo(expectedPos);
         expectedPos += 1;
@@ -158,7 +158,7 @@ public class TestManifestReader extends TestBase {
       long expectedPos = 0L;
       for (DeleteFile file : reader) {
         assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
-        assertThat(((BaseFile) file).get(17))
+        assertThat(((BaseFile) file).get(18))
             .as("Position from field index should match")
             .isEqualTo(expectedPos);
         expectedPos += 1;
@@ -177,6 +177,24 @@ public class TestManifestReader extends TestBase {
         ManifestFiles.readDeleteManifest(manifest, FILE_IO, null)) {
       for (DeleteFile file : reader) {
         assertThat(file.manifestLocation()).isEqualTo(manifest.path());
+      }
+    }
+  }
+
+  @TestTemplate
+  public void testDeleteFilesWithReferences() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(2);
+    DeleteFile deleteFile1 = newDeleteFileWithRef(FILE_A);
+    DeleteFile deleteFile2 = newDeleteFileWithRef(FILE_B);
+    ManifestFile manifest = writeDeleteManifest(formatVersion, 1000L, deleteFile1, deleteFile2);
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, table.specs())) {
+      for (DeleteFile deleteFile : reader) {
+        if (deleteFile.location().equals(deleteFile1.location())) {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(FILE_A.location());
+        } else {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(FILE_B.location());
+        }
       }
     }
   }

@@ -393,6 +393,7 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `max-concurrent-file-group-rewrites` | 5 | Maximum number of file groups to be simultaneously rewritten |
 | `partial-progress.enabled` | false | Enable committing groups of files prior to the entire rewrite completing |
 | `partial-progress.max-commits` | 10 | Maximum amount of commits that this rewrite is allowed to produce if partial progress is enabled |
+| `partial-progress.max-failed-commits` | value of `partital-progress.max-commits` | Maximum amount of failed commits allowed before job failure, if partial progress is enabled |
 | `use-starting-sequence-number` | true | Use the sequence number of the snapshot at compaction start time instead of that of the newly produced snapshot |
 | `rewrite-job-order` | none | Force the rewrite job order based on the value. <ul><li>If rewrite-job-order=bytes-asc, then rewrite the smallest job groups first.</li><li>If rewrite-job-order=bytes-desc, then rewrite the largest job groups first.</li><li>If rewrite-job-order=files-asc, then rewrite the job groups with the least files first.</li><li>If rewrite-job-order=files-desc, then rewrite the job groups with the most files first.</li><li>If rewrite-job-order=none, then rewrite job groups in the order they were planned (no specific ordering).</li></ul> |
 | `target-file-size-bytes` | 536870912 (512 MB, default value of `write.target-file-size-bytes` from [table properties](configuration.md#write-properties)) | Target output file size |
@@ -402,7 +403,13 @@ Iceberg can compact data files in parallel using Spark with the `rewriteDataFile
 | `rewrite-all` | false | Force rewriting of all provided files overriding other options |
 | `max-file-group-size-bytes` | 107374182400 (100GB) | Largest amount of data that should be rewritten in a single file group. The entire rewrite operation is broken down into pieces based on partitioning and within partitions based on size into file-groups.  This helps with breaking down the rewriting of very large partitions which may not be rewritable otherwise due to the resource constraints of the cluster. |
 | `delete-file-threshold` | 2147483647 | Minimum number of deletes that needs to be associated with a data file for it to be considered for rewriting |
+| `output-spec-id` | current partition spec id | Identifier of the output partition spec. Data will be reorganized during the rewrite to align with the output partitioning. |
+| `remove-dangling-deletes` | false | Remove dangling position and equality deletes after rewriting. A delete file is considered dangling if it does not apply to any live data files. Enabling this will generate an additional commit for the removal. |
 
+!!! info
+    Dangling delete files are removed based solely on data sequence numbers. This action does not apply to global 
+    equality deletes or invalid equality deletes if their delete conditions do not match any data files, 
+    nor to position delete files containing position deletes no longer matching any live data files.
 
 ##### Options for sort strategy
 
@@ -447,9 +454,9 @@ Using the same defaults as bin-pack to determine which files to rewrite.
 CALL catalog_name.system.rewrite_data_files(table => 'db.sample', strategy => 'sort', sort_order => 'zorder(c1,c2)');
 ```
 
-Rewrite the data files in table `db.sample` using bin-pack strategy in any partition where more than 2 or more files need to be rewritten.
+Rewrite the data files in table `db.sample` using bin-pack strategy in any partition where at least two files need rewriting, and then remove any dangling delete files.
 ```sql
-CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files','2'));
+CALL catalog_name.system.rewrite_data_files(table => 'db.sample', options => map('min-input-files', '2', 'remove-dangling-deletes', 'true'));
 ```
 
 Rewrite the data files in table `db.sample` and select the files that may contain data matching the filter (id = 3 and name = "foo") to be rewritten.
@@ -586,6 +593,9 @@ See [`migrate`](#migrate) to replace an existing table with an Iceberg table.
 | `properties`  | ️   | map<string, string> | Properties to add to the newly created table |
 | `parallelism` |    | int | Number of threads to use for file reading (defaults to 1) |
 
+!!! warning
+    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147) that is scheduled to be fixed in the next release.
+
 #### Output
 
 | Output Name | Type | Description |
@@ -628,6 +638,9 @@ By default, the original table is retained with the name `table_BACKUP_`.
 | `drop_backup` |   | boolean | When true, the original table will not be retained as backup (defaults to false) |
 | `backup_table_name` |  | string | Name of the table that will be retained as backup (defaults to `table_BACKUP_`) |
 | `parallelism` |   | int | Number of threads to use for file reading (defaults to 1) |
+
+!!! warning
+    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147) that is scheduled to be fixed in the next release.
 
 #### Output
 
@@ -674,6 +687,9 @@ will then treat these files as if they are part of the set of files  owned by Ic
 Warning : Schema is not validated, adding files with different schema to the Iceberg table will cause issues.
 
 Warning : Files added by this method can be physically deleted by Iceberg operations
+
+!!! warning
+    There's a [known issue with `parallelism > 1`](https://github.com/apache/iceberg/issues/11147) that is scheduled to be fixed in the next release.
 
 #### Output
 

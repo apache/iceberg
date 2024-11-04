@@ -77,6 +77,7 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
           "partition",
           "key_metadata",
           "split_offsets",
+          "referenced_data_file",
           "equality_ids");
 
   protected static final List<String> DELETE_SCAN_WITH_STATS_COLUMNS =

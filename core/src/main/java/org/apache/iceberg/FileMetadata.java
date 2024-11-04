@@ -59,6 +59,7 @@ public class FileMetadata {
     private ByteBuffer keyMetadata = null;
     private Integer sortOrderId = null;
     private List<Long> splitOffsets = null;
+    private String referencedDataFile = null;
 
     Builder(PartitionSpec spec) {
       this.spec = spec;
@@ -220,6 +221,15 @@ public class FileMetadata {
       return this;
     }
 
+    public Builder withReferencedDataFile(CharSequence newReferencedDataFile) {
+      if (newReferencedDataFile != null) {
+        this.referencedDataFile = newReferencedDataFile.toString();
+      } else {
+        this.referencedDataFile = null;
+      }
+      return this;
+    }
+
     public DeleteFile build() {
       Preconditions.checkArgument(filePath != null, "File path is required");
       if (format == null) {
@@ -262,7 +272,8 @@ public class FileMetadata {
           equalityFieldIds,
           sortOrderId,
           splitOffsets,
-          keyMetadata);
+          keyMetadata,
+          referencedDataFile);
     }
   }
 }

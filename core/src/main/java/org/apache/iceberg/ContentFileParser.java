@@ -45,6 +45,7 @@ class ContentFileParser {
   private static final String SPLIT_OFFSETS = "split-offsets";
   private static final String EQUALITY_IDS = "equality-ids";
   private static final String SORT_ORDER_ID = "sort-order-id";
+  private static final String REFERENCED_DATA_FILE = "referenced-data-file";
 
   private ContentFileParser() {}
 
@@ -109,6 +110,14 @@ class ContentFileParser {
       generator.writeNumberField(SORT_ORDER_ID, contentFile.sortOrderId());
     }
 
+    if (contentFile instanceof DeleteFile) {
+      DeleteFile deleteFile = (DeleteFile) contentFile;
+
+      if (deleteFile.referencedDataFile() != null) {
+        generator.writeStringField(REFERENCED_DATA_FILE, deleteFile.referencedDataFile());
+      }
+    }
+
     generator.writeEndObject();
   }
 
@@ -145,6 +154,7 @@ class ContentFileParser {
     List<Long> splitOffsets = JsonUtil.getLongListOrNull(SPLIT_OFFSETS, jsonNode);
     int[] equalityFieldIds = JsonUtil.getIntArrayOrNull(EQUALITY_IDS, jsonNode);
     Integer sortOrderId = JsonUtil.getIntOrNull(SORT_ORDER_ID, jsonNode);
+    String referencedDataFile = JsonUtil.getStringOrNull(REFERENCED_DATA_FILE, jsonNode);
 
     if (fileContent == FileContent.DATA) {
       return new GenericDataFile(
@@ -169,7 +179,8 @@ class ContentFileParser {
           equalityFieldIds,
           sortOrderId,
           splitOffsets,
-          keyMetadata);
+          keyMetadata,
+          referencedDataFile);
     }
   }
 
