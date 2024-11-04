@@ -422,11 +422,11 @@ spark-runtime jar for the Spark installation):
 ```bash
 spark-shell \
     --conf spark.jars.repositories=${MAVEN_URL} \
-    --packages org.apache.iceberg:iceberg-spark3-runtime:{{ icebergVersion }} \
+    --packages org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:{{ icebergVersion }} \
     --conf spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions \
     --conf spark.sql.catalog.local=org.apache.iceberg.spark.SparkCatalog \
     --conf spark.sql.catalog.local.type=hadoop \
-    --conf spark.sql.catalog.local.warehouse=${LOCAL_WAREHOUSE_PATH} \
+    --conf spark.sql.catalog.local.warehouse=$PWD/warehouse \
     --conf spark.sql.catalog.local.default-namespace=default \
     --conf spark.sql.defaultCatalog=local
 ```
@@ -435,13 +435,13 @@ spark-shell \
 
 To verify using Flink, start a Flink SQL Client with the following command:
 ```bash
-wget ${MAVEN_URL}/iceberg-flink-runtime/{{ icebergVersion }}/iceberg-flink-runtime-{{ icebergVersion }}.jar
+wget ${MAVEN_URL}/iceberg-flink-runtime-1.20/{{ icebergVersion }}/iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar
 
 sql-client.sh embedded \
-    -j iceberg-flink-runtime-{{ icebergVersion }}.jar \
-    -j ${FLINK_CONNECTOR_PACKAGE}-${HIVE_VERSION}_${SCALA_VERSION}-${FLINK_VERSION}.jar \
+    -j iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar \
+    -j flink-connector-hive_2.12-1.20.jar \
     shell
-```
+
 
 ## Voting
 
