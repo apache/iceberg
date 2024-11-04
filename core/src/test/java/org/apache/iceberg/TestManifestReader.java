@@ -130,7 +130,7 @@ public class TestManifestReader extends TestBase {
       long expectedPos = 0L;
       for (DataFile file : reader) {
         assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
-        assertThat(((BaseFile) file).get(18))
+        assertThat(((BaseFile) file).get(20))
             .as("Position from field index should match")
             .isEqualTo(expectedPos);
         expectedPos += 1;
@@ -158,7 +158,7 @@ public class TestManifestReader extends TestBase {
       long expectedPos = 0L;
       for (DeleteFile file : reader) {
         assertThat(file.pos()).as("Position should match").isEqualTo(expectedPos);
-        assertThat(((BaseFile) file).get(18))
+        assertThat(((BaseFile) file).get(20))
             .as("Position from field index should match")
             .isEqualTo(expectedPos);
         expectedPos += 1;
@@ -194,6 +194,30 @@ public class TestManifestReader extends TestBase {
           assertThat(deleteFile.referencedDataFile()).isEqualTo(FILE_A.location());
         } else {
           assertThat(deleteFile.referencedDataFile()).isEqualTo(FILE_B.location());
+        }
+      }
+    }
+  }
+
+  @TestTemplate
+  public void testDVs() throws IOException {
+    assumeThat(formatVersion).isGreaterThanOrEqualTo(3);
+    DeleteFile dv1 = newDV(FILE_A);
+    DeleteFile dv2 = newDV(FILE_B);
+    ManifestFile manifest = writeDeleteManifest(formatVersion, 1000L, dv1, dv2);
+    try (ManifestReader<DeleteFile> reader =
+        ManifestFiles.readDeleteManifest(manifest, FILE_IO, table.specs())) {
+      for (DeleteFile dv : reader) {
+        if (dv.location().equals(dv1.location())) {
+          assertThat(dv.location()).isEqualTo(dv1.location());
+          assertThat(dv.referencedDataFile()).isEqualTo(FILE_A.location());
+          assertThat(dv.contentOffset()).isEqualTo(dv1.contentOffset());
+          assertThat(dv.contentSizeInBytes()).isEqualTo(dv1.contentSizeInBytes());
+        } else {
+          assertThat(dv.location()).isEqualTo(dv2.location());
+          assertThat(dv.referencedDataFile()).isEqualTo(FILE_B.location());
+          assertThat(dv.contentOffset()).isEqualTo(dv2.contentOffset());
+          assertThat(dv.contentSizeInBytes()).isEqualTo(dv2.contentSizeInBytes());
         }
       }
     }

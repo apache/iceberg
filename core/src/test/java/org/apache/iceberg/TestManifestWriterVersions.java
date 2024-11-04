@@ -97,6 +97,8 @@ public class TestManifestWriterVersions {
           SORT_ORDER_ID,
           null,
           null,
+          null,
+          null,
           null);
 
   @TempDir private Path temp;

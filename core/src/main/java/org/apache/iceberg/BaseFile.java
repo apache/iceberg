@@ -81,6 +81,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
   private byte[] keyMetadata = null;
   private Integer sortOrderId;
   private String referencedDataFile = null;
+  private Long contentOffset = null;
+  private Long contentSizeInBytes = null;
 
   // cached schema
   private transient Schema avroSchema = null;
@@ -110,6 +112,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
           DataFile.EQUALITY_IDS,
           DataFile.SORT_ORDER_ID,
           DataFile.REFERENCED_DATA_FILE,
+          DataFile.CONTENT_OFFSET,
+          DataFile.CONTENT_SIZE,
           MetadataColumns.ROW_POSITION);
 
   /** Used by Avro reflection to instantiate this class when reading manifest files. */
@@ -152,7 +156,9 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       int[] equalityFieldIds,
       Integer sortOrderId,
       ByteBuffer keyMetadata,
-      String referencedDataFile) {
+      String referencedDataFile,
+      Long contentOffset,
+      Long contentSizeInBytes) {
     super(BASE_TYPE.fields().size());
     this.partitionSpecId = specId;
     this.content = content;
@@ -182,6 +188,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.sortOrderId = sortOrderId;
     this.keyMetadata = ByteBuffers.toByteArray(keyMetadata);
     this.referencedDataFile = referencedDataFile;
+    this.contentOffset = contentOffset;
+    this.contentSizeInBytes = contentSizeInBytes;
   }
 
   /**
@@ -235,6 +243,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     this.dataSequenceNumber = toCopy.dataSequenceNumber;
     this.fileSequenceNumber = toCopy.fileSequenceNumber;
     this.referencedDataFile = toCopy.referencedDataFile;
+    this.contentOffset = toCopy.contentOffset;
+    this.contentSizeInBytes = toCopy.contentSizeInBytes;
   }
 
   /** Constructor for Java serialization. */
@@ -347,6 +357,12 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         this.referencedDataFile = value != null ? value.toString() : null;
         return;
       case 18:
+        this.contentOffset = (Long) value;
+        return;
+      case 19:
+        this.contentSizeInBytes = (Long) value;
+        return;
+      case 20:
         this.fileOrdinal = (long) value;
         return;
       default:
@@ -398,6 +414,10 @@ abstract class BaseFile<F> extends SupportsIndexProjection
       case 17:
         return referencedDataFile;
       case 18:
+        return contentOffset;
+      case 19:
+        return contentSizeInBytes;
+      case 20:
         return fileOrdinal;
       default:
         throw new UnsupportedOperationException("Unknown field ordinal: " + basePos);
@@ -528,6 +548,14 @@ abstract class BaseFile<F> extends SupportsIndexProjection
     return referencedDataFile;
   }
 
+  public Long contentOffset() {
+    return contentOffset;
+  }
+
+  public Long contentSizeInBytes() {
+    return contentSizeInBytes;
+  }
+
   private static <K, V> Map<K, V> copyMap(Map<K, V> map, Set<K> keys) {
     return keys == null ? SerializableMap.copyOf(map) : SerializableMap.filteredCopyOf(map, keys);
   }
@@ -580,6 +608,8 @@ abstract class BaseFile<F> extends SupportsIndexProjection
         .add("data_sequence_number", dataSequenceNumber == null ? "null" : dataSequenceNumber)
         .add("file_sequence_number", fileSequenceNumber == null ? "null" : fileSequenceNumber)
         .add("referenced_data_file", referencedDataFile == null ? "null" : referencedDataFile)
+        .add("content_offset", contentOffset == null ? "null" : contentOffset)
+        .add("content_size_in_bytes", contentSizeInBytes == null ? "null" : contentSizeInBytes)
         .toString();
   }
 }
