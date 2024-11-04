@@ -200,6 +200,114 @@ public class TestRewriteDataFilesAction extends TestBase {
   }
 
   @Test
+  public void testCompactionSdataLdelete() {
+    PartitionSpec spec = PartitionSpec.unpartitioned(); // determines how we are partitioning
+    Map<String, String> options = Maps.newHashMap();
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation); // create empty table
+
+    // Create a large amount of records
+    List<GenericRecord> records = new Lists.newArrayList();
+    GenericRecord record = GenericRecord.create(table.schema());
+
+    for (int i = 1; i <= 100_000; i++) {
+      records.add(record.copy("id", i, "data", "data_" + i));
+    }
+
+    // Create a dataFile with all the records
+    this.dataFile = FileHelpers.writeDataFile(
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            Row.of(0),
+            records);
+    table.newAppend().appendFile(dataFile).commit(); // saving a snapshot of the table
+
+    // Create a lot of deletes
+    PositionDelete<Record> dataDelete = PositionDelete.create();
+    List<DeleteFile> dataDeletes = new Lists.newArrayList();
+    for (int i = 1; i <= 50_000; i++) {
+      dataDeletes.add(dataDelete.copy("data", "data_" + i));
+    }
+
+    // Write several delete files
+    RowDelta r = table.newRowDelta();
+    for (int i = 1; i <= 50_000; i++) {
+      // Create a huge equality delete with all the deletes
+      DeleteFile eqDeletes = FileHelpers.writeDeleteFile( table,
+              Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+              TestHelpers.Row.of(0),
+              ImmutableList.of(dataDeletes),
+              deleteRowSchema);
+      r.addDeletes(eqDeletes);
+    }
+    r.commit();
+
+    // Read and Compact
+    private RewritePositionDeleteFilesSparkAction basicRewritePositionalDeletes (Table curTable) {
+      curTable.refresh(); // updates table snapshot to newest "version"
+      return actions().rewritePositionDeletes(curTable);
+    }
+
+    basicRewritePositionalDeltes(table).execute();
+  }
+
+  @Test
+  public void testCompactionLdataLdeletes() {
+    PartitionSpec spec = PartitionSpec.unpartitioned(); // determines how we are partitioning
+    Map<String, String> options = Maps.newHashMap();
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation); // create empty table
+
+    // Create a large amount of records
+    List<GenericRecord> records = new Lists.newArrayList();
+    GenericRecord record = GenericRecord.create(table.schema());
+
+    for (int i = 1; i <= 100_000; i++) {
+      records.add(record.copy("id", i, "data", "data_" + i));
+    }
+
+    // Create several dataFiles
+    AppendFiles recAppend = table.newAppend();
+    for (int i = 1; i <= 100_000; i++) {
+      // Create a dataFile with all the records
+      this.dataFile = FileHelpers.writeDataFile(
+              table,
+              Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+              Row.of(0),
+              ImmutableList.of(records));
+      recAppennd.appendFile(dataFile);
+    }
+    recAppend.commit(); // saving a snapshot of the table
+
+    // Create a lot of deletes
+
+    List<DeleteFile> dataDeletes = new Lists.newArrayList();
+    for (int i = 1; i <= 50_000; i++) {
+      dataDeletes.add(dataDelete.copy("data", "data_" + i));
+    }
+
+    // Write several delete files
+    RowDelta r = table.newRowDelta();
+    for (int i = 1; i <= 50_000; i++) {
+      // Create a huge equality delete with all the deletes
+      DeleteFile eqDeletes = FileHelpers.writeDeleteFile( table,
+              Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+              TestHelpers.Row.of(0),
+              ImmutableList.of(dataDeletes),
+              deleteRowSchema);
+      r.addDeletes(eqDeletes);
+    }
+    r.commit();
+
+    // Read and Compact, Table refresh with eqDeletes
+    private RewritePositionDeleteFilesSparkAction basicRewritePositionalDeletes (Table curTable) {
+      curTable.refresh(); // updates table snapshot to newest "version"
+      return actions().rewritePositionDeletes(curTable);
+    }
+
+    // Compaction job
+    basicRewritePositionalDeltes(table).execute();
+  }
+
+  @Test
   public void testBinPackUnpartitionedTable() {
     Table table = createTable(4);
     shouldHaveFiles(table, 4);
