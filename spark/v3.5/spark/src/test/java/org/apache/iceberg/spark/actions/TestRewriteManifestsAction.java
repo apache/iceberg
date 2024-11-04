@@ -106,7 +106,8 @@ public class TestRewriteManifestsAction extends TestBase {
       new Object[] {"true", "true", false, 1},
       new Object[] {"false", "true", true, 1},
       new Object[] {"true", "false", false, 2},
-      new Object[] {"false", "false", false, 2}
+      new Object[] {"false", "false", false, 2},
+      new Object[] {"false", "false", false, 3}
     };
   }
 
@@ -150,16 +151,16 @@ public class TestRewriteManifestsAction extends TestBase {
         .appendFile(dataFile3)
         .commit();
 
-    DeleteFile deleteFile1 = newDeleteFileWithRef(table, dataFile1);
-    assertThat(deleteFile1.referencedDataFile()).isEqualTo(dataFile1.location());
+    DeleteFile deleteFile1 = newDeletes(table, dataFile1);
+    assertDeletes(dataFile1, deleteFile1);
     table.newRowDelta().addDeletes(deleteFile1).commit();
 
-    DeleteFile deleteFile2 = newDeleteFileWithRef(table, dataFile2);
-    assertThat(deleteFile2.referencedDataFile()).isEqualTo(dataFile2.location());
+    DeleteFile deleteFile2 = newDeletes(table, dataFile2);
+    assertDeletes(dataFile2, deleteFile2);
     table.newRowDelta().addDeletes(deleteFile2).commit();
 
-    DeleteFile deleteFile3 = newDeleteFileWithRef(table, dataFile3);
-    assertThat(deleteFile3.referencedDataFile()).isEqualTo(dataFile3.location());
+    DeleteFile deleteFile3 = newDeletes(table, dataFile3);
+    assertDeletes(dataFile3, deleteFile3);
     table.newRowDelta().addDeletes(deleteFile3).commit();
 
     SparkActions actions = SparkActions.get();
@@ -178,10 +179,13 @@ public class TestRewriteManifestsAction extends TestBase {
         DeleteFile deleteFile = Iterables.getOnlyElement(fileTask.deletes());
         if (dataFile.location().equals(dataFile1.location())) {
           assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile1.referencedDataFile());
+          assertEqual(deleteFile, deleteFile1);
         } else if (dataFile.location().equals(dataFile2.location())) {
           assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile2.referencedDataFile());
+          assertEqual(deleteFile, deleteFile2);
         } else {
           assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile3.referencedDataFile());
+          assertEqual(deleteFile, deleteFile3);
         }
       }
     }
@@ -1035,8 +1039,16 @@ public class TestRewriteManifestsAction extends TestBase {
         .withRecordCount(1);
   }
 
+  private DeleteFile newDeletes(Table table, DataFile dataFile) {
+    return formatVersion >= 3 ? newDV(table, dataFile) : newDeleteFileWithRef(table, dataFile);
+  }
+
   private DeleteFile newDeleteFileWithRef(Table table, DataFile dataFile) {
     return FileGenerationUtil.generatePositionDeleteFileWithRef(table, dataFile);
+  }
+
+  private DeleteFile newDV(Table table, DataFile dataFile) {
+    return FileGenerationUtil.generateDV(table, dataFile);
   }
 
   private DeleteFile newDeleteFile(Table table, String partitionPath) {
@@ -1096,5 +1108,27 @@ public class TestRewriteManifestsAction extends TestBase {
 
     OutputFile outputFile = Files.localOutput(File.createTempFile("junit", null, temp.toFile()));
     return FileHelpers.writeDeleteFile(table, outputFile, partition, deletes, deleteSchema);
+  }
+
+  private void assertDeletes(DataFile dataFile, DeleteFile deleteFile) {
+    assertThat(deleteFile.referencedDataFile()).isEqualTo(dataFile.location());
+    if (formatVersion >= 3) {
+      assertThat(deleteFile.contentOffset()).isNotNull();
+      assertThat(deleteFile.contentSizeInBytes()).isNotNull();
+    } else {
+      assertThat(deleteFile.contentOffset()).isNull();
+      assertThat(deleteFile.contentSizeInBytes()).isNull();
+    }
+  }
+
+  private void assertEqual(DeleteFile deleteFile1, DeleteFile deleteFile2) {
+    assertThat(deleteFile1.location()).isEqualTo(deleteFile2.location());
+    assertThat(deleteFile1.content()).isEqualTo(deleteFile2.content());
+    assertThat(deleteFile1.specId()).isEqualTo(deleteFile2.specId());
+    assertThat(deleteFile1.partition()).isEqualTo(deleteFile2.partition());
+    assertThat(deleteFile1.format()).isEqualTo(deleteFile2.format());
+    assertThat(deleteFile1.referencedDataFile()).isEqualTo(deleteFile2.referencedDataFile());
+    assertThat(deleteFile1.contentOffset()).isEqualTo(deleteFile2.contentOffset());
+    assertThat(deleteFile1.contentSizeInBytes()).isEqualTo(deleteFile2.contentSizeInBytes());
   }
 }
