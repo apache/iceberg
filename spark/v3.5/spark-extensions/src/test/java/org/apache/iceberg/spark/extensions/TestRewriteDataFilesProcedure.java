@@ -86,8 +86,8 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     createTable();
     sql("set spark.sql.caseSensitive=false");
     assertEquals(
-        "Should have 0 files to rewrite, 0 files to add and 0 bytes to rewrite, since no files are present",
-        ImmutableList.of(row(0, 0, 0)),
+        "Should have done nothing but passed the schema validation, since no files are present",
+        ImmutableList.of(row(0, 0, 0L, 0)),
         sql(
             "CALL %s.system.rewrite_data_files(table=>'%s', where=>'C1 > 0')",
             catalogName, tableIdent));
