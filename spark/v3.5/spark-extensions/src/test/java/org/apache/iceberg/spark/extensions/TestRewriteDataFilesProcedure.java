@@ -70,6 +70,30 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testRewriteDataFilesFailsByDefaultSetting() {
+    createTable();
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table=>'%s', where=>'C1 > 0')",
+                    catalogName, tableIdent))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot find field 'C1' in struct: struct<1: c1, 2: c2, 3: c3>");
+  }
+
+  @TestTemplate
+  public void testRewriteDataFilesSucceedByCaseInsensitive() {
+    createTable();
+    sql("set spark.sql.caseSensitive=false");
+    assertEquals(
+        "Should have 0 files to rewrite, 0 files to add and 0 bytes to rewrite, since no files are present",
+        ImmutableList.of(row(0, 0, 0)),
+        sql(
+            "CALL %s.system.rewrite_data_files(table=>'%s', where=>'C1 > 0')",
+            catalogName, tableIdent));
+  }
+
+  @TestTemplate
   public void testZOrderSortExpression() {
     List<ExtendedParser.RawOrderField> order =
         ExtendedParser.parseSortOrder(spark, "c1, zorder(c2, c3)");
