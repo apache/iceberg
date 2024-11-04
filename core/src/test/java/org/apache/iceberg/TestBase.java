@@ -666,6 +666,10 @@ public class TestBase {
         .build();
   }
 
+  protected DeleteFile newDV(DataFile dataFile) {
+    return FileGenerationUtil.generateDV(table, dataFile);
+  }
+
   protected DeleteFile newEqualityDeleteFile(int specId, String partitionPath, int... fieldIds) {
     PartitionSpec spec = table.specs().get(specId);
     return FileMetadata.deleteFileBuilder(spec)

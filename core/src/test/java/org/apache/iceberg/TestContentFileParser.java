@@ -198,6 +198,7 @@ public class TestContentFileParser {
 
   private static Stream<Arguments> provideSpecAndDeleteFile() {
     return Stream.of(
+        Arguments.of(TestBase.SPEC, dv(TestBase.SPEC), dvJson()),
         Arguments.of(
             PartitionSpec.unpartitioned(),
             deleteFileWithRequiredOnly(PartitionSpec.unpartitioned()),
@@ -233,13 +234,41 @@ public class TestContentFileParser {
         null,
         null,
         null,
-        "/path/to/data/file.parquet");
+        "/path/to/data/file.parquet",
+        null,
+        null);
   }
 
   private static String deleteFileWithDataRefJson() {
     return "{\"spec-id\":0,\"content\":\"POSITION_DELETES\",\"file-path\":\"/path/to/delete.parquet\","
         + "\"file-format\":\"PARQUET\",\"partition\":{\"1000\":4},\"file-size-in-bytes\":1234,"
         + "\"record-count\":10,\"referenced-data-file\":\"/path/to/data/file.parquet\"}";
+  }
+
+  private static DeleteFile dv(PartitionSpec spec) {
+    PartitionData partitionData = new PartitionData(spec.partitionType());
+    partitionData.set(0, 4);
+    return new GenericDeleteFile(
+        spec.specId(),
+        FileContent.POSITION_DELETES,
+        "/path/to/delete.puffin",
+        FileFormat.PUFFIN,
+        partitionData,
+        1234,
+        new Metrics(10L, null, null, null, null),
+        null,
+        null,
+        null,
+        null,
+        "/path/to/data/file.parquet",
+        4L,
+        40L);
+  }
+
+  private static String dvJson() {
+    return "{\"spec-id\":0,\"content\":\"POSITION_DELETES\",\"file-path\":\"/path/to/delete.puffin\","
+        + "\"file-format\":\"PUFFIN\",\"partition\":{\"1000\":4},\"file-size-in-bytes\":1234,\"record-count\":10,"
+        + "\"referenced-data-file\":\"/path/to/data/file.parquet\",\"content-offset\":4,\"content-size-in-bytes\":40}";
   }
 
   private static DeleteFile deleteFileWithRequiredOnly(PartitionSpec spec) {
@@ -257,6 +286,8 @@ public class TestContentFileParser {
         partitionData,
         1234,
         new Metrics(9L, null, null, null, null),
+        null,
+        null,
         null,
         null,
         null,
@@ -301,6 +332,8 @@ public class TestContentFileParser {
         1,
         Collections.singletonList(128L),
         ByteBuffer.wrap(new byte[16]),
+        null,
+        null,
         null);
   }
 
