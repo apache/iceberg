@@ -47,8 +47,9 @@ public class FetchPlanningResultResponseParser {
     Preconditions.checkArgument(
         null != response, "Invalid response: fetchPanningResultResponse null");
     Preconditions.checkArgument(
-        response.specsById() != null,
-        "Cannot serialize fetchingPlanningResultResponse without specsById");
+        response.specsById() != null
+            || (response.fileScanTasks() == null || response.fileScanTasks().isEmpty()),
+        "Cannot serialize fileScanTasks in fetchingPlanningResultResponse without specsById");
     gen.writeStartObject();
     gen.writeStringField(PLAN_STATUS, response.planStatus().status());
     if (response.planTasks() != null) {

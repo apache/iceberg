@@ -21,13 +21,15 @@ package org.apache.iceberg;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.ResidualEvaluator;
 
-public class UnboundBaseFileScanTask extends BaseFileScanTask {
-  private DataFile unboundDataFile;
-  private DeleteFile[] unboundDeleteFiles;
+class UnboundBaseFileScanTask extends BaseFileScanTask {
+  private UnboundGenericDataFile unboundDataFile;
+  private UnboundGenericDeleteFile[] unboundDeleteFiles;
   private Expression filter;
 
-  public UnboundBaseFileScanTask(
-      DataFile unboundDataFile, DeleteFile[] unboundDeleteFiles, Expression filter) {
+  UnboundBaseFileScanTask(
+      UnboundGenericDataFile unboundDataFile,
+      UnboundGenericDeleteFile[] unboundDeleteFiles,
+      Expression filter) {
     super(unboundDataFile, unboundDeleteFiles, null, null, ResidualEvaluator.unpartitioned(filter));
     this.unboundDataFile = unboundDataFile;
     this.unboundDeleteFiles = unboundDeleteFiles;
@@ -45,58 +47,10 @@ public class UnboundBaseFileScanTask extends BaseFileScanTask {
   }
 
   public FileScanTask bind(PartitionSpec spec, boolean caseSensitive) {
-    Metrics dataFileMetrics =
-        new Metrics(
-            unboundDataFile.recordCount(),
-            unboundDataFile.columnSizes(),
-            unboundDataFile.valueCounts(),
-            unboundDataFile.nullValueCounts(),
-            unboundDataFile.nanValueCounts());
-    PartitionData partitionData = new PartitionData(spec.partitionType());
-    GenericDataFile boundDataFile =
-        new GenericDataFile(
-            spec.specId(),
-            (String) unboundDataFile.path(),
-            unboundDataFile.format(),
-            partitionData,
-            unboundDataFile.fileSizeInBytes(),
-            dataFileMetrics,
-            unboundDataFile.keyMetadata(),
-            unboundDataFile.splitOffsets(),
-            unboundDataFile.sortOrderId());
-
+    GenericDataFile boundDataFile = unboundDataFile.bindToSpec(spec);
     DeleteFile[] boundDeleteFiles = new DeleteFile[unboundDeleteFiles.length];
     for (int i = 0; i < unboundDeleteFiles.length; i++) {
-      DeleteFile deleteFile = unboundDeleteFiles[i];
-      Metrics deleteFileMetrics =
-          new Metrics(
-              deleteFile.recordCount(),
-              deleteFile.columnSizes(),
-              deleteFile.valueCounts(),
-              deleteFile.nullValueCounts(),
-              deleteFile.nanValueCounts());
-
-      int[] equalityDeletes = null;
-      if (deleteFile.equalityFieldIds() != null) {
-        equalityDeletes =
-            deleteFile.equalityFieldIds().stream().mapToInt(Integer::intValue).toArray();
-      }
-
-      DeleteFile genericDeleteFile =
-          new GenericDeleteFile(
-              spec.specId(),
-              deleteFile.content(),
-              (String) deleteFile.path(),
-              deleteFile.format(),
-              partitionData,
-              deleteFile.fileSizeInBytes(),
-              deleteFileMetrics,
-              equalityDeletes,
-              deleteFile.sortOrderId(),
-              deleteFile.splitOffsets(),
-              deleteFile.keyMetadata());
-
-      boundDeleteFiles[i] = genericDeleteFile;
+      boundDeleteFiles[i] = unboundDeleteFiles[i].bindToSpec(spec);
     }
 
     String schemaString = SchemaParser.toJson(spec.schema());

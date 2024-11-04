@@ -43,7 +43,9 @@ public class FetchScanTasksResponseParser {
   public static void toJson(FetchScanTasksResponse response, JsonGenerator gen) throws IOException {
     Preconditions.checkArgument(response != null, "Invalid response: fetchScanTasksResponse null");
     Preconditions.checkArgument(
-        response.specsById() != null, "Cannot serialize fetchScanTasksResponse without specsById");
+        response.specsById() != null
+            || (response.fileScanTasks() == null || response.fileScanTasks().isEmpty()),
+        "Cannot serialize fileScanTasks in fetchScanTasksResponse without specsById");
     gen.writeStartObject();
     if (response.planTasks() != null) {
       JsonUtil.writeStringArray(PLAN_TASKS, response.planTasks(), gen);

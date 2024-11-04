@@ -113,23 +113,23 @@ public class ContentFileParser {
     Integer sortOrderId = JsonUtil.getIntOrNull(SORT_ORDER_ID, jsonNode);
 
     if (fileContent == FileContent.DATA) {
-      return new GenericDataFile(
+      return new UnboundGenericDataFile(
           specId,
           filePath,
           fileFormat,
-          null,
+          jsonNode.get(PARTITION),
           fileSizeInBytes,
           metrics,
           keyMetadata,
           splitOffsets,
           sortOrderId);
     } else {
-      return new GenericDeleteFile(
+      return new UnboundGenericDeleteFile(
           specId,
           fileContent,
           filePath,
           fileFormat,
-          null,
+          jsonNode.get(PARTITION),
           fileSizeInBytes,
           metrics,
           equalityFieldIds,
@@ -216,18 +216,7 @@ public class ContentFileParser {
 
     PartitionData partitionData = null;
     if (jsonNode.has(PARTITION)) {
-      partitionData = new PartitionData(spec.partitionType());
-      StructLike structLike =
-          (StructLike) SingleValueParser.fromJson(spec.partitionType(), jsonNode.get(PARTITION));
-      Preconditions.checkState(
-          partitionData.size() == structLike.size(),
-          "Invalid partition data size: expected = %s, actual = %s",
-          partitionData.size(),
-          structLike.size());
-      for (int pos = 0; pos < partitionData.size(); ++pos) {
-        Class<?> javaClass = spec.partitionType().fields().get(pos).type().typeId().javaClass();
-        partitionData.set(pos, structLike.get(pos, javaClass));
-      }
+      partitionData = partitionDataFromRawValue(jsonNode.get(PARTITION), spec);
     }
 
     long fileSizeInBytes = JsonUtil.getLong(FILE_SIZE, jsonNode);
@@ -262,6 +251,27 @@ public class ContentFileParser {
           splitOffsets,
           keyMetadata);
     }
+  }
+
+  static PartitionData partitionDataFromRawValue(JsonNode rawPartitionValue, PartitionSpec spec) {
+    if (rawPartitionValue == null) {
+      return null;
+    }
+
+    PartitionData partitionData = new PartitionData(spec.partitionType());
+    StructLike structLike =
+        (StructLike) SingleValueParser.fromJson(spec.partitionType(), rawPartitionValue);
+    Preconditions.checkState(
+        partitionData.size() == structLike.size(),
+        "Invalid partition data size: expected = %s, actual = %s",
+        partitionData.size(),
+        structLike.size());
+    for (int pos = 0; pos < partitionData.size(); ++pos) {
+      Class<?> javaClass = spec.partitionType().fields().get(pos).type().typeId().javaClass();
+      partitionData.set(pos, structLike.get(pos, javaClass));
+    }
+
+    return partitionData;
   }
 
   private static void metricsToJson(ContentFile<?> contentFile, JsonGenerator generator)

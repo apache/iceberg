@@ -65,16 +65,18 @@ public class RESTFileScanTaskParser {
     Preconditions.checkArgument(
         jsonNode.isObject(), "Invalid JSON node for file scan task: non-object (%s)", jsonNode);
 
-    GenericDataFile dataFile =
-        (GenericDataFile) ContentFileParser.unboundContentFileFromJson(jsonNode.get(DATA_FILE));
+    UnboundGenericDataFile dataFile =
+        (UnboundGenericDataFile)
+            ContentFileParser.unboundContentFileFromJson(JsonUtil.get(DATA_FILE, jsonNode));
 
-    DeleteFile[] deleteFiles = null;
+    UnboundGenericDeleteFile[] deleteFiles = null;
     Set<Integer> deleteFileReferences = Sets.newHashSet();
     if (jsonNode.has(DELETE_FILE_REFERENCES)) {
       deleteFileReferences.addAll(JsonUtil.getIntegerList(DELETE_FILE_REFERENCES, jsonNode));
-      ImmutableList.Builder<DeleteFile> builder = ImmutableList.builder();
-      deleteFileReferences.forEach(delIdx -> builder.add(allDeleteFiles.get(delIdx)));
-      deleteFiles = builder.build().toArray(new DeleteFile[0]);
+      ImmutableList.Builder<UnboundGenericDeleteFile> builder = ImmutableList.builder();
+      deleteFileReferences.forEach(
+          delIdx -> builder.add((UnboundGenericDeleteFile) allDeleteFiles.get(delIdx)));
+      deleteFiles = builder.build().toArray(new UnboundGenericDeleteFile[0]);
     }
 
     Expression filter = null;
