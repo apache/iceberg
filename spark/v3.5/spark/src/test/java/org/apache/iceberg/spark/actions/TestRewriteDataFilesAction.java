@@ -199,6 +199,12 @@ public class TestRewriteDataFilesAction extends TestBase {
     }
   }
 
+  // Read and Compact Helper Method
+  private RewritePositionDeleteFilesSparkAction basicRewritePositionalDeletes (Table curTable) {
+    curTable.refresh(); // updates table snapshot to newest "version"
+    return actions().rewritePositionDeletes(curTable);
+  }
+
   @Test
   public void testCompactionSdataLdelete() {
     PartitionSpec spec = PartitionSpec.unpartitioned(); // determines how we are partitioning
@@ -241,12 +247,7 @@ public class TestRewriteDataFilesAction extends TestBase {
     }
     r.commit();
 
-    // Read and Compact
-    private RewritePositionDeleteFilesSparkAction basicRewritePositionalDeletes (Table curTable) {
-      curTable.refresh(); // updates table snapshot to newest "version"
-      return actions().rewritePositionDeletes(curTable);
-    }
-
+    //Compaction Job
     basicRewritePositionalDeltes(table).execute();
   }
 
@@ -296,12 +297,6 @@ public class TestRewriteDataFilesAction extends TestBase {
       r.addDeletes(eqDeletes);
     }
     r.commit();
-
-    // Read and Compact, Table refresh with eqDeletes
-    private RewritePositionDeleteFilesSparkAction basicRewritePositionalDeletes (Table curTable) {
-      curTable.refresh(); // updates table snapshot to newest "version"
-      return actions().rewritePositionDeletes(curTable);
-    }
 
     // Compaction job
     basicRewritePositionalDeltes(table).execute();
