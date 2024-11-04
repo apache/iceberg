@@ -102,13 +102,13 @@ public class FileGenerationUtil {
   }
 
   public static DeleteFile generatePositionDeleteFile(Table table, DataFile dataFile) {
-    PartitionSpec spec = table.spec();
+    PartitionSpec spec = table.specs().get(dataFile.specId());
     StructLike partition = dataFile.partition();
     LocationProvider locations = table.locationProvider();
     String path = locations.newDataLocation(spec, partition, generateFileName());
     long fileSize = generateFileSize();
     Metrics metrics = generatePositionDeleteMetrics(dataFile);
-    return FileMetadata.deleteFileBuilder(table.spec())
+    return FileMetadata.deleteFileBuilder(spec)
         .ofPositionDeletes()
         .withPath(path)
         .withPartition(partition)
