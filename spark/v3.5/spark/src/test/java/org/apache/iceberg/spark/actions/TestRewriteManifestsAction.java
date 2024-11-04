@@ -125,10 +125,10 @@ public class TestRewriteManifestsAction extends TestBase {
   private String tableLocation = null;
 
   @TempDir private Path temp;
+  @TempDir private File tableDir;
 
   @BeforeEach
   public void setupTableLocation() throws Exception {
-    File tableDir = temp.resolve("junit").toFile();
     this.tableLocation = tableDir.toURI().toString();
   }
 

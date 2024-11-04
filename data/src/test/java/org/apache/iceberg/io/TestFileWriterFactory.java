@@ -26,7 +26,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -95,9 +94,6 @@ public abstract class TestFileWriterFactory<T> extends WriterTestBase<T> {
   @Override
   @BeforeEach
   public void setupTable() throws Exception {
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue(); // created during table creation
-
     this.metadataDir = new File(tableDir, "metadata");
 
     if (partitioned) {
