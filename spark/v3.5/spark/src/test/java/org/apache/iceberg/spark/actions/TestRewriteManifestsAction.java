@@ -175,14 +175,12 @@ public class TestRewriteManifestsAction extends TestBase {
     try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
       for (FileScanTask fileTask : tasks) {
         DataFile dataFile = fileTask.file();
+        DeleteFile deleteFile = Iterables.getOnlyElement(fileTask.deletes());
         if (dataFile.location().equals(dataFile1.location())) {
-          DeleteFile deleteFile = Iterables.getOnlyElement(fileTask.deletes());
           assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile1.referencedDataFile());
         } else if (dataFile.location().equals(dataFile2.location())) {
-          DeleteFile deleteFile = Iterables.getOnlyElement(fileTask.deletes());
           assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile2.referencedDataFile());
         } else {
-          DeleteFile deleteFile = Iterables.getOnlyElement(fileTask.deletes());
           assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile3.referencedDataFile());
         }
       }
