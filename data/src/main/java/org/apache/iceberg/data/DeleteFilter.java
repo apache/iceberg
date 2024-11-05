@@ -54,7 +54,7 @@ public abstract class DeleteFilter<T> {
   private final List<DeleteFile> posDeletes;
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
-  private final Accessor<StructLike> posAccessor;
+  private Accessor<StructLike> posAccessor;
   private final boolean hasIsDeletedColumn;
   private final int isDeletedColumnPosition;
   private final DeleteCounter counter;
@@ -69,8 +69,7 @@ public abstract class DeleteFilter<T> {
       List<DeleteFile> deletes,
       Schema tableSchema,
       Schema requestedSchema,
-      DeleteCounter counter,
-      boolean isBatchReading) {
+      DeleteCounter counter) {
     this.filePath = filePath;
     this.counter = counter;
 
@@ -94,9 +93,7 @@ public abstract class DeleteFilter<T> {
 
     this.posDeletes = posDeleteBuilder.build();
     this.eqDeletes = eqDeleteBuilder.build();
-    this.requiredSchema =
-        fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes, isBatchReading);
-    this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
+    this.requiredSchema = fileProjection(tableSchema, requestedSchema, eqDeletes);
     this.hasIsDeletedColumn =
         requiredSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
     this.isDeletedColumnPosition = requiredSchema.columns().indexOf(MetadataColumns.IS_DELETED);
@@ -104,7 +101,7 @@ public abstract class DeleteFilter<T> {
 
   protected DeleteFilter(
       String filePath, List<DeleteFile> deletes, Schema tableSchema, Schema requestedSchema) {
-    this(filePath, deletes, tableSchema, requestedSchema, new DeleteCounter(), false);
+    this(filePath, deletes, tableSchema, requestedSchema, new DeleteCounter());
   }
 
   protected int columnIsDeletedPosition() {
@@ -129,6 +126,10 @@ public abstract class DeleteFilter<T> {
 
   Accessor<StructLike> posAccessor() {
     return posAccessor;
+  }
+
+  public void setPosAccessor(Accessor<StructLike> posAccessor) {
+    this.posAccessor = posAccessor;
   }
 
   protected abstract StructLike asStructLike(T record);
@@ -250,19 +251,12 @@ public abstract class DeleteFilter<T> {
   }
 
   private static Schema fileProjection(
-      Schema tableSchema,
-      Schema requestedSchema,
-      List<DeleteFile> posDeletes,
-      List<DeleteFile> eqDeletes,
-      boolean isBatchReading) {
-    if (posDeletes.isEmpty() && eqDeletes.isEmpty()) {
+      Schema tableSchema, Schema requestedSchema, List<DeleteFile> eqDeletes) {
+    if (eqDeletes.isEmpty()) {
       return requestedSchema;
     }
 
     Set<Integer> requiredIds = Sets.newLinkedHashSet();
-    if (!posDeletes.isEmpty() && !isBatchReading) {
-      requiredIds.add(MetadataColumns.ROW_POSITION.fieldId());
-    }
 
     for (DeleteFile eqDelete : eqDeletes) {
       requiredIds.addAll(eqDelete.equalityFieldIds());
@@ -280,19 +274,14 @@ public abstract class DeleteFilter<T> {
     // add
     List<Types.NestedField> columns = Lists.newArrayList(requestedSchema.columns());
     for (int fieldId : missingIds) {
-      if (fieldId == MetadataColumns.ROW_POSITION.fieldId()
-          || fieldId == MetadataColumns.IS_DELETED.fieldId()) {
-        continue; // add _pos and _deleted at the end
+      if (fieldId == MetadataColumns.IS_DELETED.fieldId()) {
+        continue; // add _deleted at the end
       }
 
       Types.NestedField field = tableSchema.asStruct().field(fieldId);
       Preconditions.checkArgument(field != null, "Cannot find required field for ID %s", fieldId);
 
       columns.add(field);
-    }
-
-    if (missingIds.contains(MetadataColumns.ROW_POSITION.fieldId())) {
-      columns.add(MetadataColumns.ROW_POSITION);
     }
 
     if (missingIds.contains(MetadataColumns.IS_DELETED.fieldId())) {

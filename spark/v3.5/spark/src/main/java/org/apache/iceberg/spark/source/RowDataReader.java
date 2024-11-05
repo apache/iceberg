@@ -18,11 +18,14 @@
  */
 package org.apache.iceberg.spark.source;
 
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DataTask;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -30,8 +33,10 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.CloseableIterator;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.spark.rdd.InputFileBlockHolder;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -83,11 +88,27 @@ class RowDataReader extends BaseRowReader<FileScanTask> implements PartitionRead
   protected CloseableIterator<InternalRow> open(FileScanTask task) {
     String filePath = task.file().path().toString();
     LOG.debug("Opening data file {}", filePath);
-    SparkDeleteFilter deleteFilter =
-        new SparkDeleteFilter(filePath, task.deletes(), counter(), false);
 
+    boolean hasPosDelete = false;
+    for (DeleteFile deleteFile : task.deletes()) {
+      if (deleteFile.content().name().equalsIgnoreCase("POSITION_DELETES")) {
+        hasPosDelete = true;
+        List<Types.NestedField> columns = Lists.newArrayList(expectedSchema().columns());
+        if (!columns.contains(MetadataColumns.ROW_POSITION)) {
+          columns.add(MetadataColumns.ROW_POSITION);
+          setExpectedSchema(new Schema(columns));
+        }
+      }
+    }
+
+    SparkDeleteFilter deleteFilter = new SparkDeleteFilter(filePath, task.deletes(), counter());
     // schema or rows returned by readers
     Schema requiredSchema = deleteFilter.requiredSchema();
+    if (hasPosDelete) {
+      deleteFilter.setPosAccessor(
+          requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId()));
+    }
+
     Map<Integer, ?> idToConstant = constantsMap(task, requiredSchema);
 
     // update the current file for Spark's filename() function

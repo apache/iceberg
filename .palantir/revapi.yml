@@ -1145,36 +1145,6 @@ acceptedBreaks:
       new: "method org.apache.iceberg.BaseMetastoreOperations.CommitStatus org.apache.iceberg.BaseMetastoreTableOperations::checkCommitStatus(java.lang.String,\
         \ org.apache.iceberg.TableMetadata)"
       justification: "Removing deprecated code"
-    org.apache.iceberg:iceberg-data:
-    - code: "java.method.numberOfParametersChanged"
-      old: "method void org.apache.iceberg.data.DeleteFilter<T>::<init>(java.lang.String,\
-        \ java.util.List<org.apache.iceberg.DeleteFile>, org.apache.iceberg.Schema,\
-        \ org.apache.iceberg.Schema, org.apache.iceberg.deletes.DeleteCounter)"
-      new: "method void org.apache.iceberg.data.DeleteFilter<T>::<init>(java.lang.String,\
-        \ java.util.List<org.apache.iceberg.DeleteFile>, org.apache.iceberg.Schema,\
-        \ org.apache.iceberg.Schema, org.apache.iceberg.deletes.DeleteCounter, boolean)"
-      justification: "add a param to tell if the pos column needs to ve included"
-    org.apache.iceberg:iceberg-parquet:
-    - code: "java.method.numberOfParametersChanged"
-      old: "method void org.apache.iceberg.parquet.ParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
-        \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
-        \ org.apache.iceberg.parquet.ParquetValueReader<?>>, org.apache.iceberg.mapping.NameMapping,\
-        \ org.apache.iceberg.expressions.Expression, boolean, boolean)"
-      new: "method void org.apache.iceberg.parquet.ParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
-        \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
-        \ org.apache.iceberg.parquet.ParquetValueReader<?>>, org.apache.iceberg.mapping.NameMapping,\
-        \ org.apache.iceberg.expressions.Expression, boolean, boolean, boolean)"
-      justification: "add a param to pass pos delete info"
-    - code: "java.method.numberOfParametersChanged"
-      old: "method void org.apache.iceberg.parquet.VectorizedParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
-        \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
-        \ org.apache.iceberg.parquet.VectorizedReader<?>>, org.apache.iceberg.mapping.NameMapping,\
-        \ org.apache.iceberg.expressions.Expression, boolean, boolean, int)"
-      new: "method void org.apache.iceberg.parquet.VectorizedParquetReader<T>::<init>(org.apache.iceberg.io.InputFile,\
-        \ org.apache.iceberg.Schema, org.apache.parquet.ParquetReadOptions, java.util.function.Function<org.apache.parquet.schema.MessageType,\
-        \ org.apache.iceberg.parquet.VectorizedReader<?>>, org.apache.iceberg.mapping.NameMapping,\
-        \ org.apache.iceberg.expressions.Expression, boolean, boolean, int, boolean)"
-      justification: "add a param to pass pos delete info"
   apache-iceberg-0.14.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"
