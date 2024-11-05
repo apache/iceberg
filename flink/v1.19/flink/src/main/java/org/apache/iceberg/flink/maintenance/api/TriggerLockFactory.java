@@ -16,11 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.iceberg.flink.maintenance.operator;
+package org.apache.iceberg.flink.maintenance.api;
 
 import java.io.Closeable;
 import java.io.Serializable;
 import org.apache.flink.annotation.Experimental;
+import org.apache.iceberg.flink.maintenance.operator.LockRemover;
+import org.apache.iceberg.flink.maintenance.operator.TriggerManager;
 
 /** Lock interface for handling locks for the Flink Table Maintenance jobs. */
 @Experimental
@@ -51,12 +53,11 @@ public interface TriggerLockFactory extends Serializable, Closeable {
      */
     boolean isHeld();
 
-    // TODO: Fix the link to the LockRemover when we have a final name and implementation
     /**
      * Releases the lock. Should not fail if the lock is not held by anyone.
      *
-     * <p>Called by LockRemover. Implementations could assume that are no concurrent calls for this
-     * method.
+     * <p>Called by {@link LockRemover}. Implementations could assume that are no concurrent calls
+     * for this method.
      */
     void unlock();
   }
