@@ -103,10 +103,12 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () ->
                 sql(
-                    "CALL %s.system.rewrite_data_files(table=>'%s', where=>\"C2 > 'a'\")",
+                    "CALL %s.system.rewrite_data_files("
+                        + "table=>'%s', where=>\"C2 > 'a' and substr('110111',1,3)='110'\")",
                     catalogName, tableIdent))
-        .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot find field 'C2' in struct: struct<1: c1, 2: c2, 3: c3>");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage(
+            "Cannot parse predicates in where option: C2 > 'a' and substr('110111',1,3)='110'");
   }
 
   @TestTemplate
