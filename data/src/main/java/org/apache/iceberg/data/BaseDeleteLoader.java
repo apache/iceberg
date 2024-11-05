@@ -42,15 +42,20 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.RangeReadable;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.orc.OrcRowReader;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetValueReader;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceMap;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -145,6 +150,28 @@ public class BaseDeleteLoader implements DeleteLoader {
 
   @Override
   public PositionDeleteIndex loadPositionDeletes(
+      Iterable<DeleteFile> deleteFiles, CharSequence filePath) {
+    if (containsDVs(deleteFiles)) {
+      // read DV without caching as there is not enough metadata to read the entire DV file
+      // caching a single DV is unlikely to be useful
+      DeleteFile dv = Iterables.getOnlyElement(deleteFiles);
+      validateDV(dv, filePath);
+      return readDV(dv);
+    } else {
+      return getOrReadPosDeletes(deleteFiles, filePath);
+    }
+  }
+
+  private PositionDeleteIndex readDV(DeleteFile dv) {
+    LOG.trace("Opening DV file {}", dv.location());
+    InputFile inputFile = loadInputFile.apply(dv);
+    long offset = dv.contentOffset();
+    int length = dv.contentSizeInBytes().intValue();
+    byte[] bytes = readBytes(inputFile, offset, length);
+    return PositionDeleteIndex.deserialize(bytes, dv);
+  }
+
+  private PositionDeleteIndex getOrReadPosDeletes(
       Iterable<DeleteFile> deleteFiles, CharSequence filePath) {
     Iterable<PositionDeleteIndex> deletes =
         execute(deleteFiles, deleteFile -> getOrReadPosDeletes(deleteFile, filePath));
@@ -258,5 +285,47 @@ public class BaseDeleteLoader implements DeleteLoader {
 
   private int estimateRecordSize(Schema schema) {
     return schema.columns().stream().mapToInt(TypeUtil::estimateSize).sum();
+  }
+
+  private boolean containsDVs(Iterable<DeleteFile> deleteFiles) {
+    return Iterables.any(deleteFiles, ContentFileUtil::isDV);
+  }
+
+  private void validateDV(DeleteFile dv, CharSequence filePath) {
+    Preconditions.checkArgument(
+        dv.contentOffset() != null,
+        "Invalid DV, offset cannot be null: %s",
+        ContentFileUtil.dvDesc(dv));
+    Preconditions.checkArgument(
+        dv.contentSizeInBytes() != null,
+        "Invalid DV, length is null: %s",
+        ContentFileUtil.dvDesc(dv));
+    Preconditions.checkArgument(
+        dv.contentSizeInBytes() <= Integer.MAX_VALUE,
+        "Can't read DV larger than 2GB: %s",
+        dv.contentSizeInBytes());
+    Preconditions.checkArgument(
+        filePath.toString().equals(dv.referencedDataFile()),
+        "DV is expected to reference %s, not %s",
+        filePath,
+        dv.referencedDataFile());
+  }
+
+  private byte[] readBytes(InputFile inputFile, long offset, int length) {
+    try (SeekableInputStream stream = inputFile.newStream()) {
+      byte[] bytes = new byte[length];
+
+      if (stream instanceof RangeReadable) {
+        RangeReadable rangeReadable = (RangeReadable) stream;
+        rangeReadable.readFully(offset, bytes);
+      } else {
+        stream.seek(offset);
+        ByteStreams.readFully(stream, bytes);
+      }
+
+      return bytes;
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 }
