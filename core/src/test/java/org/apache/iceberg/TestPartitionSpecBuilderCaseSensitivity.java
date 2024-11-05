@@ -22,17 +22,11 @@ import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
 import org.apache.iceberg.types.Types.StructType;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 public class TestPartitionSpecBuilderCaseSensitivity {
 
@@ -56,14 +50,6 @@ public class TestPartitionSpecBuilderCaseSensitivity {
           required(5, "ORDER_DATE", Types.DateType.get()),
           required(6, "order_time", Types.TimestampType.withoutZone()),
           required(7, "ORDER_TIME", Types.TimestampType.withoutZone()));
-
-  @TempDir private Path temp;
-  private File tableDir = null;
-
-  @BeforeEach
-  public void setupTableDir() throws IOException {
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-  }
 
   @AfterEach
   public void cleanupTables() {

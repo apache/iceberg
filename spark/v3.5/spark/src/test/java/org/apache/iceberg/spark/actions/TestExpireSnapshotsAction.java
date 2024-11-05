@@ -121,13 +121,12 @@ public class TestExpireSnapshotsAction extends TestBase {
 
   @TempDir private Path temp;
 
-  private File tableDir;
+  @TempDir private File tableDir;
   private String tableLocation;
   private Table table;
 
   @BeforeEach
   public void setupTableLocation() throws Exception {
-    this.tableDir = temp.resolve("junit").toFile();
     this.tableLocation = tableDir.toURI().toString();
     this.table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
     spark.conf().set("spark.sql.shuffle.partitions", SHUFFLE_PARTITIONS);

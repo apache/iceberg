@@ -266,11 +266,8 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testUnpartitionedTableScan() throws IOException {
-    File location = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(location.delete()).isTrue();
-
     Table unpartitioned =
-        TestTables.create(location, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
+        TestTables.create(tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
 
     DataFile unpartitionedFile = unpartitionedFile(unpartitioned.spec());
     unpartitioned.newAppend().appendFile(unpartitionedFile).commit();

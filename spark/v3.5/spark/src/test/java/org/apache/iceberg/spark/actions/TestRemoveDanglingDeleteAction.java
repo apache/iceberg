@@ -22,7 +22,6 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -202,14 +201,13 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
           .withRecordCount(1)
           .build();
 
-  @TempDir private Path temp;
+  @TempDir private File tableDir;
 
   private String tableLocation = null;
   private Table table;
 
   @BeforeEach
   public void before() throws Exception {
-    File tableDir = temp.resolve("junit").toFile();
     this.tableLocation = tableDir.toURI().toString();
   }
 

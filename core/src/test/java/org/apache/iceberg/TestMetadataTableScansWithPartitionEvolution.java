@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -45,9 +44,6 @@ public class TestMetadataTableScansWithPartitionEvolution extends MetadataTableS
   @BeforeEach
   public void createTable() throws IOException {
     TestTables.clearTables();
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    tableDir.delete();
-
     Schema schema =
         new Schema(
             required(1, "id", Types.IntegerType.get()),

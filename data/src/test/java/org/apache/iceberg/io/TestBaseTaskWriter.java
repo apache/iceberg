@@ -69,9 +69,6 @@ public class TestBaseTaskWriter extends TestBase {
   @Override
   @BeforeEach
   public void setupTable() throws IOException {
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue(); // created by table create
-
     this.metadataDir = new File(tableDir, "metadata");
 
     this.table = create(SCHEMA, PartitionSpec.unpartitioned());

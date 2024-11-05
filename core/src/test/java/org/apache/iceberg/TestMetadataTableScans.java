@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -1066,7 +1065,6 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   @TestTemplate
   public void testPartitionColumnNamedPartition() throws Exception {
     TestTables.clearTables();
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
 
     Schema schema =
         new Schema(
