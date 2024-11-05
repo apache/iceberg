@@ -90,6 +90,8 @@ public class TableMetadata implements Serializable {
     persistedProperties.put(
         TableProperties.PARQUET_COMPRESSION,
         TableProperties.PARQUET_COMPRESSION_DEFAULT_SINCE_1_4_0);
+    persistedProperties.put(
+        TableProperties.DELETE_GRANULARITY, TableProperties.DELETE_GRANULARITY_DEFAULT_SINCE_1_8_0);
 
     rawProperties.entrySet().stream()
         .filter(entry -> !TableProperties.RESERVED_PROPERTIES.contains(entry.getKey()))

@@ -354,6 +354,8 @@ public class TableProperties {
 
   public static final String DELETE_GRANULARITY = "write.delete.granularity";
   public static final String DELETE_GRANULARITY_DEFAULT = DeleteGranularity.PARTITION.toString();
+  public static final String DELETE_GRANULARITY_DEFAULT_SINCE_1_8_0 =
+      DeleteGranularity.FILE.toString();
 
   public static final String DELETE_ISOLATION_LEVEL = "write.delete.isolation-level";
   public static final String DELETE_ISOLATION_LEVEL_DEFAULT = "serializable";

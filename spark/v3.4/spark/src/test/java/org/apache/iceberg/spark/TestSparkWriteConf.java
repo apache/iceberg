@@ -106,7 +106,7 @@ public class TestSparkWriteConf extends SparkTestBaseWithCatalog {
     SparkWriteConf writeConf = new SparkWriteConf(spark, table, ImmutableMap.of());
 
     DeleteGranularity value = writeConf.deleteGranularity();
-    assertThat(value).isEqualTo(DeleteGranularity.PARTITION);
+    assertThat(value).isEqualTo(DeleteGranularity.FILE);
   }
 
   @Test

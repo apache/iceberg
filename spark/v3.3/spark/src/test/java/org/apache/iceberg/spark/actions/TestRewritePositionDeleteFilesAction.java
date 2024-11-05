@@ -53,6 +53,7 @@ import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
 import org.apache.iceberg.actions.SizeBasedFileRewriter;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
@@ -676,7 +677,9 @@ public class TestRewritePositionDeleteFilesAction extends SparkCatalogTestBase {
         TableProperties.FORMAT_VERSION,
         "2",
         TableProperties.DEFAULT_FILE_FORMAT,
-        format.toString());
+        format.toString(),
+        TableProperties.DELETE_GRANULARITY,
+        DeleteGranularity.PARTITION.toString());
   }
 
   private void writeRecords(Table table, int files, int numRecords) {
