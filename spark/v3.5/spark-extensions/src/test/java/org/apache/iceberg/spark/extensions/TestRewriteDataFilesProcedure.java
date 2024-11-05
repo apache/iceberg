@@ -70,7 +70,7 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
   }
 
   @TestTemplate
-  public void testRewriteDataFilesFailsByCaseSensitive() {
+  public void testFailsByCaseSensitiveWhereSql() {
     createTable();
     insertData(10);
     sql("set spark.sql.caseSensitive=true");
@@ -79,12 +79,12 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
                 sql(
                     "CALL %s.system.rewrite_data_files(table=>'%s', where=>'C1 > 0')",
                     catalogName, tableIdent))
-        .isInstanceOf(ValidationException.class)
-        .hasMessage("Cannot find field 'C1' in struct: struct<1: c1, 2: c2, 3: c3>");
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot parse predicates in where option: C1 > 0");
   }
 
   @TestTemplate
-  public void testRewriteDataFilesSucceedByCaseInsensitive() {
+  public void testSucceedByCaseInsensitiveWhereSql() {
     createTable();
     sql("set spark.sql.caseSensitive=false");
     assertEquals(
@@ -92,6 +92,32 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         ImmutableList.of(row(0, 0, 0L, 0)),
         sql(
             "CALL %s.system.rewrite_data_files(table=>'%s', where=>'C1 > 0')",
+            catalogName, tableIdent));
+  }
+
+  @TestTemplate
+  public void testFailsByCaseSensitiveWhereSqlOnPartitionTable() {
+    createTruncatePartitionTable();
+    insertData(10);
+    sql("set spark.sql.caseSensitive=true");
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CALL %s.system.rewrite_data_files(table=>'%s', where=>\"C2 > 'a'\")",
+                    catalogName, tableIdent))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot find field 'C2' in struct: struct<1: c1, 2: c2, 3: c3>");
+  }
+
+  @TestTemplate
+  public void testSucceedByCaseInsensitiveWhereSqlOnPartitionTable() {
+    createTruncatePartitionTable();
+    sql("set spark.sql.caseSensitive=false");
+    assertEquals(
+        "Should have done nothing but passed the schema validation, since no files are present",
+        ImmutableList.of(row(0, 0, 0L, 0)),
+        sql(
+            "CALL %s.system.rewrite_data_files(table=>'%s', where=>\"C2 > 'a'\")",
             catalogName, tableIdent));
   }
 
@@ -943,6 +969,17 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
         "CREATE TABLE %s (c1 int, c2 string, c3 string) "
             + "USING iceberg "
             + "PARTITIONED BY (bucket(2, c2)) "
+            + "TBLPROPERTIES ('%s' '%s')",
+        tableName,
+        TableProperties.WRITE_DISTRIBUTION_MODE,
+        TableProperties.WRITE_DISTRIBUTION_MODE_NONE);
+  }
+
+  private void createTruncatePartitionTable() {
+    sql(
+        "CREATE TABLE %s (c1 int, c2 string, c3 string) "
+            + "USING iceberg "
+            + "PARTITIONED BY (truncate(1, c2)) "
             + "TBLPROPERTIES ('%s' '%s')",
         tableName,
         TableProperties.WRITE_DISTRIBUTION_MODE,
