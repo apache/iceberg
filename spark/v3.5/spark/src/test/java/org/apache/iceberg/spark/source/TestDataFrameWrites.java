@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.NoSuchFileException;
+import java.nio.file.FileSystemException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
@@ -425,8 +425,8 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
     while (location.exists()) {
       try {
         FileUtils.deleteDirectory(location);
-      } catch (NoSuchFileException e) {
-        // ignore NoSuchFileException when a file is already deleted
+      } catch (FileSystemException e) {
+        // TODO work around NoSuchFileException or DirectoryNotEmptyException during delete
       }
     }
   }
