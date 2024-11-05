@@ -76,13 +76,13 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   private final Table table;
   private final Schema tableSchema;
+  private final Schema expectedSchema;
   private final boolean caseSensitive;
   private final NameMapping nameMapping;
   private final ScanTaskGroup<TaskT> taskGroup;
   private final Iterator<TaskT> tasks;
   private final DeleteCounter counter;
 
-  private Schema expectedSchema;
   private Map<String, InputFile> lazyInputFiles;
   private CloseableIterator<T> currentIterator;
   private T current = null;
@@ -113,10 +113,6 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
 
   protected Schema expectedSchema() {
     return expectedSchema;
-  }
-
-  protected void setExpectedSchema(Schema schema) {
-    expectedSchema = schema;
   }
 
   protected boolean caseSensitive() {
@@ -253,8 +249,9 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
   protected class SparkDeleteFilter extends DeleteFilter<InternalRow> {
     private final InternalRowWrapper asStructLike;
 
-    SparkDeleteFilter(String filePath, List<DeleteFile> deletes, DeleteCounter counter) {
-      super(filePath, deletes, tableSchema, expectedSchema, counter);
+    SparkDeleteFilter(
+        String filePath, List<DeleteFile> deletes, DeleteCounter counter, boolean needRowPosCol) {
+      super(filePath, deletes, tableSchema, expectedSchema, counter, needRowPosCol);
       this.asStructLike =
           new InternalRowWrapper(
               SparkSchemaUtil.convert(requiredSchema()), requiredSchema().asStruct());
