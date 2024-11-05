@@ -30,7 +30,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FetchScanTasksResponseParser;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.SchemaParser;
@@ -54,7 +53,7 @@ public class TestFetchScanTasksResponse {
   @Test
   public void roundTripSerdeWithEmptyObject() {
     assertThatThrownBy(
-            () -> FetchScanTasksResponseParser.toJson(new FetchScanTasksResponse.Builder().build()))
+            () -> FetchScanTasksResponseParser.toJson(FetchScanTasksResponse.builder().build()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid response: planTasks and fileScanTask can not both be null");
 
@@ -67,7 +66,7 @@ public class TestFetchScanTasksResponse {
   @Test
   public void roundTripSerdeWithPlanTasks() {
     FetchScanTasksResponse response =
-        new FetchScanTasksResponse.Builder().withPlanTasks(List.of("task1", "task2")).build();
+        FetchScanTasksResponse.builder().withPlanTasks(List.of("task1", "task2")).build();
 
     String expectedJson = "{\"plan-tasks\":[\"task1\",\"task2\"]}";
     String json = FetchScanTasksResponseParser.toJson(response);
@@ -83,7 +82,7 @@ public class TestFetchScanTasksResponse {
   @Test
   public void roundTripSerdeWithDeleteFilesNoFileScanTasksPresent() {
     FetchScanTasksResponse response =
-        new FetchScanTasksResponse.Builder()
+        FetchScanTasksResponse.builder()
             .withPlanTasks(List.of("task1", "task2"))
             .withDeleteFiles(List.of(FILE_A_DELETES))
             .build();
@@ -119,7 +118,7 @@ public class TestFetchScanTasksResponse {
             residualEvaluator);
 
     FetchScanTasksResponse response =
-        new FetchScanTasksResponse.Builder()
+        FetchScanTasksResponse.builder()
             .withFileScanTasks(List.of(fileScanTask))
             .withDeleteFiles(List.of(FILE_A_DELETES))
             // assume you have set this already
@@ -160,7 +159,7 @@ public class TestFetchScanTasksResponse {
     FetchScanTasksResponse fromResponse = FetchScanTasksResponseParser.fromJson(json);
     // Need to make a new response with partitionSpec set
     FetchScanTasksResponse copyResponse =
-        new FetchScanTasksResponse.Builder()
+        FetchScanTasksResponse.builder()
             .withPlanTasks(fromResponse.planTasks())
             .withDeleteFiles(fromResponse.deleteFiles())
             .withFileScanTasks(fromResponse.fileScanTasks())

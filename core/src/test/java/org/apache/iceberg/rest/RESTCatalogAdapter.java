@@ -536,7 +536,9 @@ public class RESTCatalogAdapter implements RESTClient {
         {
           TableIdentifier ident = tableIdentFromPathVars(vars);
           PlanTableScanRequest request = castRequest(PlanTableScanRequest.class, body);
-          TableScan tableScan = catalog.loadTable(ident).newScan();
+          Table table = catalog.loadTable(ident);
+          TableScan tableScan = table.newScan();
+
           if (request.snapshotId() != null) {
             tableScan.useSnapshot(request.snapshotId());
           }
@@ -558,9 +560,10 @@ public class RESTCatalogAdapter implements RESTClient {
           if (ident.equals(TABLE_COMPLETED_WITH_FILE_SCAN_TASK)) {
             return castResponse(
                 responseType,
-                new PlanTableScanResponse.Builder()
+                PlanTableScanResponse.builder()
                     .withPlanStatus(PlanStatus.COMPLETED)
                     .withFileScanTasks(fileScanTasks)
+                    .withSpecsById(table.specs())
                     .build());
           }
 
@@ -571,9 +574,10 @@ public class RESTCatalogAdapter implements RESTClient {
             planToFileScanTasks.put(planId, fileScanTasks);
             return castResponse(
                 responseType,
-                new PlanTableScanResponse.Builder()
+                PlanTableScanResponse.builder()
                     .withPlanId(planId)
                     .withPlanStatus(PlanStatus.SUBMITTED)
+                    // .withSpecsById(table.specs())
                     .build());
           }
 
@@ -585,9 +589,10 @@ public class RESTCatalogAdapter implements RESTClient {
             planTasks.forEach(task -> planToFileScanTasks.put(task, fileScanTasks));
             return castResponse(
                 responseType,
-                new PlanTableScanResponse.Builder()
+                PlanTableScanResponse.builder()
                     .withPlanStatus(PlanStatus.COMPLETED)
                     .withPlanTasks(planTasks)
+                    // .withSpecsById(table.specs())
                     .build());
           }
 
@@ -608,7 +613,7 @@ public class RESTCatalogAdapter implements RESTClient {
 
             return castResponse(
                 responseType,
-                new PlanTableScanResponse.Builder()
+                PlanTableScanResponse.builder()
                     .withPlanStatus(PlanStatus.COMPLETED)
                     .withPlanTasks(outerPlanTasks)
                     .build());
@@ -623,7 +628,7 @@ public class RESTCatalogAdapter implements RESTClient {
             String planId = planIDFromPathVars(vars);
             return castResponse(
                 responseType,
-                new FetchPlanningResultResponse.Builder()
+                FetchPlanningResultResponse.builder()
                     .withPlanStatus(PlanStatus.fromName("completed"))
                     .withFileScanTasks(planToFileScanTasks.get(planId))
                     .build());
@@ -638,7 +643,7 @@ public class RESTCatalogAdapter implements RESTClient {
           if (ident.equals(TABLE_COMPLETED_WITH_PLAN_TASK)) {
             return castResponse(
                 responseType,
-                new FetchScanTasksResponse.Builder()
+                FetchScanTasksResponse.builder()
                     .withFileScanTasks(planToFileScanTasks.get(request.planTask()))
                     .build());
           }
@@ -649,9 +654,7 @@ public class RESTCatalogAdapter implements RESTClient {
               String innerPlanTask = planToPlanTasks.remove(request.planTask());
               return castResponse(
                   responseType,
-                  new FetchScanTasksResponse.Builder()
-                      .withPlanTasks(List.of(innerPlanTask))
-                      .build());
+                  FetchScanTasksResponse.builder().withPlanTasks(List.of(innerPlanTask)).build());
             }
 
             if (planToFileScanTasks.containsKey(request.planTask())) {
@@ -660,7 +663,7 @@ public class RESTCatalogAdapter implements RESTClient {
                   planToFileScanTasks.remove(request.planTask());
               return castResponse(
                   responseType,
-                  new FetchScanTasksResponse.Builder()
+                  FetchScanTasksResponse.builder()
                       .withFileScanTasks(fileScanTasksFromPlanTask)
                       .build());
             }

@@ -25,9 +25,8 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.rest.PlanStatus;
-import org.apache.iceberg.rest.RESTResponse;
 
-public class FetchPlanningResultResponse implements RESTResponse {
+public class FetchPlanningResultResponse implements TableScanResponse {
   private final PlanStatus planStatus;
   private final List<String> planTasks;
   private final List<FileScanTask> fileScanTasks;

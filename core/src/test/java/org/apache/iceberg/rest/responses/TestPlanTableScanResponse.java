@@ -32,7 +32,6 @@ import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpecParser;
-import org.apache.iceberg.PlanTableScanResponseParser;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.expressions.ResidualEvaluator;
@@ -53,7 +52,7 @@ public class TestPlanTableScanResponse {
 
   @Test
   public void roundTripSerdeWithEmptyObject() {
-    PlanTableScanResponse response = new PlanTableScanResponse.Builder().build();
+    PlanTableScanResponse response = PlanTableScanResponse.builder().build();
 
     assertThatThrownBy(() -> PlanTableScanResponseParser.toJson(response))
         .isInstanceOf(IllegalArgumentException.class)
@@ -77,7 +76,7 @@ public class TestPlanTableScanResponse {
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithoutPlanId() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
     PlanTableScanResponse response =
-        new PlanTableScanResponse.Builder().withPlanStatus(planStatus).build();
+        PlanTableScanResponse.builder().withPlanStatus(planStatus).build();
 
     assertThatThrownBy(() -> PlanTableScanResponseParser.toJson(response))
         .isInstanceOf(IllegalArgumentException.class)
@@ -93,7 +92,7 @@ public class TestPlanTableScanResponse {
   public void roundTripSerdeWithInvalidPlanStatusCancelled() {
     PlanStatus planStatus = PlanStatus.fromName("cancelled");
     PlanTableScanResponse response =
-        new PlanTableScanResponse.Builder().withPlanStatus(planStatus).build();
+        PlanTableScanResponse.builder().withPlanStatus(planStatus).build();
 
     assertThatThrownBy(() -> PlanTableScanResponseParser.toJson(response))
         .isInstanceOf(IllegalArgumentException.class)
@@ -109,7 +108,7 @@ public class TestPlanTableScanResponse {
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithTasksPresent() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
     PlanTableScanResponse response =
-        new PlanTableScanResponse.Builder()
+        PlanTableScanResponse.builder()
             .withPlanStatus(planStatus)
             .withPlanId("somePlanId")
             .withPlanTasks(List.of("task1", "task2"))
@@ -133,10 +132,7 @@ public class TestPlanTableScanResponse {
   public void roundTripSerdeWithInvalidPlanIdWithIncorrectStatus() {
     PlanStatus planStatus = PlanStatus.fromName("failed");
     PlanTableScanResponse response =
-        new PlanTableScanResponse.Builder()
-            .withPlanStatus(planStatus)
-            .withPlanId("somePlanId")
-            .build();
+        PlanTableScanResponse.builder().withPlanStatus(planStatus).withPlanId("somePlanId").build();
 
     assertThatThrownBy(() -> PlanTableScanResponseParser.toJson(response))
         .isInstanceOf(IllegalArgumentException.class)
@@ -153,7 +149,7 @@ public class TestPlanTableScanResponse {
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
     PlanTableScanResponse response =
-        new PlanTableScanResponse.Builder()
+        PlanTableScanResponse.builder()
             .withPlanStatus(planStatus)
             .withPlanId("somePlanId")
             .withDeleteFiles(List.of(FILE_A_DELETES))
@@ -192,7 +188,7 @@ public class TestPlanTableScanResponse {
 
     PlanStatus planStatus = PlanStatus.fromName("completed");
     PlanTableScanResponse response =
-        new PlanTableScanResponse.Builder()
+        PlanTableScanResponse.builder()
             .withPlanStatus(planStatus)
             .withFileScanTasks(List.of(fileScanTask))
             .withDeleteFiles(List.of(FILE_A_DELETES))
@@ -234,7 +230,7 @@ public class TestPlanTableScanResponse {
     PlanTableScanResponse fromResponse = PlanTableScanResponseParser.fromJson(json);
     // Need to make a new response with partitionSpec set
     PlanTableScanResponse copyResponse =
-        new PlanTableScanResponse.Builder()
+        PlanTableScanResponse.builder()
             .withPlanStatus(fromResponse.planStatus())
             .withPlanId(fromResponse.planId())
             .withPlanTasks(fromResponse.planTasks())

@@ -30,7 +30,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.DeleteFile;
-import org.apache.iceberg.FetchPlanningResultResponseParser;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.SchemaParser;
@@ -57,7 +56,7 @@ public class TestFetchPlanningResultResponse {
     assertThatThrownBy(
             () ->
                 FetchPlanningResultResponseParser.toJson(
-                    new FetchPlanningResultResponse.Builder().build()))
+                    FetchPlanningResultResponse.builder().build()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Invalid status: null");
 
@@ -79,7 +78,7 @@ public class TestFetchPlanningResultResponse {
   public void roundTripSerdeWithValidSubmittedStatus() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
     FetchPlanningResultResponse response =
-        new FetchPlanningResultResponse.Builder().withPlanStatus(planStatus).build();
+        FetchPlanningResultResponse.builder().withPlanStatus(planStatus).build();
 
     String expectedJson = "{\"plan-status\":\"submitted\"}";
     String json = FetchPlanningResultResponseParser.toJson(response);
@@ -93,7 +92,7 @@ public class TestFetchPlanningResultResponse {
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithTasksPresent() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
     FetchPlanningResultResponse response =
-        new FetchPlanningResultResponse.Builder()
+        FetchPlanningResultResponse.builder()
             .withPlanStatus(planStatus)
             .withPlanTasks(List.of("task1", "task2"))
             .build();
@@ -114,7 +113,7 @@ public class TestFetchPlanningResultResponse {
   public void roundTripSerdeWithInvalidPlanStatusSubmittedWithDeleteFilesNoFileScanTasksPresent() {
     PlanStatus planStatus = PlanStatus.fromName("submitted");
     FetchPlanningResultResponse response =
-        new FetchPlanningResultResponse.Builder()
+        FetchPlanningResultResponse.builder()
             .withPlanStatus(planStatus)
             .withDeleteFiles(List.of(FILE_A_DELETES))
             .build();
@@ -151,7 +150,7 @@ public class TestFetchPlanningResultResponse {
 
     PlanStatus planStatus = PlanStatus.fromName("completed");
     FetchPlanningResultResponse response =
-        new FetchPlanningResultResponse.Builder()
+        FetchPlanningResultResponse.builder()
             .withPlanStatus(planStatus)
             .withFileScanTasks(List.of(fileScanTask))
             .withDeleteFiles(List.of(FILE_A_DELETES))
@@ -193,7 +192,7 @@ public class TestFetchPlanningResultResponse {
     FetchPlanningResultResponse fromResponse = FetchPlanningResultResponseParser.fromJson(json);
     // Need to make a new response with partitionSpec set
     FetchPlanningResultResponse copyResponse =
-        new FetchPlanningResultResponse.Builder()
+        FetchPlanningResultResponse.builder()
             .withPlanStatus(fromResponse.planStatus())
             .withPlanTasks(fromResponse.planTasks())
             .withDeleteFiles(fromResponse.deleteFiles())

@@ -24,9 +24,8 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.rest.RESTResponse;
 
-public class FetchScanTasksResponse implements RESTResponse {
+public class FetchScanTasksResponse implements TableScanResponse {
   private final List<String> planTasks;
   private final List<FileScanTask> fileScanTasks;
   private final List<DeleteFile> deleteFiles;
