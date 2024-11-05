@@ -42,15 +42,20 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.RangeReadable;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.orc.OrcRowReader;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetValueReader;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceMap;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -141,6 +146,47 @@ public class BaseDeleteLoader implements DeleteLoader {
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to close iterable", e);
     }
+  }
+
+  /**
+   * Loads the content of the deletion vector into a position index.
+   *
+   * <p>The deletion vector is currently loaded without caching as the existing Puffin reader
+   * requires at least 3 requests to fetch the entire file. Caching a single deletion vector may
+   * only be useful when multiple data file splits are processed on the same node, which is unlikely
+   * as task locality is not guaranteed.
+   *
+   * @param dv a deletion vector
+   * @return a position delete index for the provided deletion vector
+   */
+  @Override
+  public PositionDeleteIndex loadDV(DeleteFile dv) {
+    validateDV(dv);
+    return readDV(dv);
+  }
+
+  private void validateDV(DeleteFile dv) {
+    Preconditions.checkArgument(
+        dv.contentOffset() != null,
+        "Invalid DV, offset cannot be null: %s",
+        ContentFileUtil.dvDesc(dv));
+    Preconditions.checkArgument(
+        dv.contentSizeInBytes() != null,
+        "Invalid DV, length is null: %s",
+        ContentFileUtil.dvDesc(dv));
+    Preconditions.checkArgument(
+        dv.contentSizeInBytes() <= Integer.MAX_VALUE,
+        "Can't read DV larger than 2GB: %s",
+        ContentFileUtil.dvDesc(dv));
+  }
+
+  private PositionDeleteIndex readDV(DeleteFile dv) {
+    LOG.trace("Opening DV file {}", dv.location());
+    InputFile inputFile = loadInputFile.apply(dv);
+    long offset = dv.contentOffset();
+    int length = dv.contentSizeInBytes().intValue();
+    byte[] bytes = readBytes(inputFile, offset, length);
+    return PositionDeleteIndex.deserialize(bytes, dv);
   }
 
   @Override
@@ -258,5 +304,23 @@ public class BaseDeleteLoader implements DeleteLoader {
 
   private int estimateRecordSize(Schema schema) {
     return schema.columns().stream().mapToInt(TypeUtil::estimateSize).sum();
+  }
+
+  private static byte[] readBytes(InputFile inputFile, long offset, int length) {
+    try (SeekableInputStream stream = inputFile.newStream()) {
+      byte[] bytes = new byte[length];
+
+      if (stream instanceof RangeReadable) {
+        RangeReadable rangeReadable = (RangeReadable) stream;
+        rangeReadable.readFully(offset, bytes);
+      } else {
+        stream.seek(offset);
+        ByteStreams.readFully(stream, bytes);
+      }
+
+      return bytes;
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 }

@@ -64,6 +64,7 @@ import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.io.PartitioningWriter;
 import org.apache.iceberg.io.PositionDeltaWriter;
 import org.apache.iceberg.io.WriteResult;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.spark.CommitMetadata;
@@ -72,6 +73,7 @@ import org.apache.iceberg.spark.SparkWriteConf;
 import org.apache.iceberg.spark.SparkWriteRequirements;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -524,9 +526,12 @@ class SparkPositionDeltaWrite implements DeltaWrite, RequiresDistributionAndOrde
       DeleteFileSet deleteFileSet = deleteFiles.get(path.toString());
       if (deleteFileSet == null) {
         return null;
+      } else if (ContentFileUtil.containsSingleDV(deleteFileSet)) {
+        DeleteFile dv = Iterables.getOnlyElement(deleteFileSet);
+        return deleteLoader.loadDV(dv);
+      } else {
+        return deleteLoader.loadPositionDeletes(deleteFileSet, path);
       }
-
-      return deleteLoader.loadPositionDeletes(deleteFileSet, path);
     }
   }
 

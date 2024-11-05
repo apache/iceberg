@@ -19,6 +19,7 @@
 package org.apache.iceberg.data;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,7 +35,6 @@ import org.apache.iceberg.deletes.PositionDeleteIndex;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Multimap;
@@ -42,6 +42,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Multimaps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructProjection;
 import org.slf4j.Logger;
@@ -51,6 +52,7 @@ public abstract class DeleteFilter<T> {
   private static final Logger LOG = LoggerFactory.getLogger(DeleteFilter.class);
 
   private final String filePath;
+  private final DeleteFile dv;
   private final List<DeleteFile> posDeletes;
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
@@ -73,17 +75,25 @@ public abstract class DeleteFilter<T> {
     this.filePath = filePath;
     this.counter = counter;
 
-    ImmutableList.Builder<DeleteFile> posDeleteBuilder = ImmutableList.builder();
-    ImmutableList.Builder<DeleteFile> eqDeleteBuilder = ImmutableList.builder();
+    DeleteFile foundDV = null;
+    List<DeleteFile> foundPosDeletes = Lists.newArrayList();
+    List<DeleteFile> foundEqDeletes = Lists.newArrayList();
+
     for (DeleteFile delete : deletes) {
       switch (delete.content()) {
         case POSITION_DELETES:
-          LOG.debug("Adding position delete file {} to filter", delete.path());
-          posDeleteBuilder.add(delete);
+          if (ContentFileUtil.isDV(delete)) {
+            Preconditions.checkArgument(foundDV == null, "Multiple DVs for %s", filePath);
+            LOG.debug("Adding DV {} to filter", ContentFileUtil.dvDesc(delete));
+            foundDV = delete;
+          } else {
+            LOG.debug("Adding position delete file {} to filter", delete.path());
+            foundPosDeletes.add(delete);
+          }
           break;
         case EQUALITY_DELETES:
           LOG.debug("Adding equality delete file {} to filter", delete.path());
-          eqDeleteBuilder.add(delete);
+          foundEqDeletes.add(delete);
           break;
         default:
           throw new UnsupportedOperationException(
@@ -91,9 +101,15 @@ public abstract class DeleteFilter<T> {
       }
     }
 
-    this.posDeletes = posDeleteBuilder.build();
-    this.eqDeletes = eqDeleteBuilder.build();
-    this.requiredSchema = fileProjection(tableSchema, requestedSchema, posDeletes, eqDeletes);
+    Preconditions.checkArgument(
+        foundDV == null || foundPosDeletes.isEmpty(),
+        "Can't have both DV and position delete files for %s",
+        filePath);
+
+    this.dv = foundDV;
+    this.posDeletes = Collections.unmodifiableList(foundPosDeletes);
+    this.eqDeletes = Collections.unmodifiableList(foundEqDeletes);
+    this.requiredSchema = fileProjection(tableSchema, requestedSchema, dv, posDeletes, eqDeletes);
     this.posAccessor = requiredSchema.accessorForField(MetadataColumns.ROW_POSITION.fieldId());
     this.hasIsDeletedColumn =
         requiredSchema.findField(MetadataColumns.IS_DELETED.fieldId()) != null;
@@ -114,7 +130,7 @@ public abstract class DeleteFilter<T> {
   }
 
   public boolean hasPosDeletes() {
-    return !posDeletes.isEmpty();
+    return dv != null || !posDeletes.isEmpty();
   }
 
   public boolean hasEqDeletes() {
@@ -225,13 +241,15 @@ public abstract class DeleteFilter<T> {
   public PositionDeleteIndex deletedRowPositions() {
     if (deleteRowPositions == null && !posDeletes.isEmpty()) {
       this.deleteRowPositions = deleteLoader().loadPositionDeletes(posDeletes, filePath);
+    } else if (deleteRowPositions == null && dv != null) {
+      this.deleteRowPositions = deleteLoader().loadDV(dv);
     }
 
     return deleteRowPositions;
   }
 
   private CloseableIterable<T> applyPosDeletes(CloseableIterable<T> records) {
-    if (posDeletes.isEmpty()) {
+    if (dv == null && posDeletes.isEmpty()) {
       return records;
     }
 
@@ -247,17 +265,19 @@ public abstract class DeleteFilter<T> {
         : Deletes.filterDeleted(records, isDeleted, counter);
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static Schema fileProjection(
       Schema tableSchema,
       Schema requestedSchema,
+      DeleteFile dv,
       List<DeleteFile> posDeletes,
       List<DeleteFile> eqDeletes) {
-    if (posDeletes.isEmpty() && eqDeletes.isEmpty()) {
+    if (dv == null && posDeletes.isEmpty() && eqDeletes.isEmpty()) {
       return requestedSchema;
     }
 
     Set<Integer> requiredIds = Sets.newLinkedHashSet();
-    if (!posDeletes.isEmpty()) {
+    if (dv != null || !posDeletes.isEmpty()) {
       requiredIds.add(MetadataColumns.ROW_POSITION.fieldId());
     }
 

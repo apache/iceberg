@@ -42,4 +42,14 @@ public interface DeleteLoader {
    * @return a position delete index for the provided data file path
    */
   PositionDeleteIndex loadPositionDeletes(Iterable<DeleteFile> deleteFiles, CharSequence filePath);
+
+  /**
+   * Loads the content of the deletion vector into a position index.
+   *
+   * @param dv a deletion vector
+   * @return a position delete index for the provided deletion vector
+   */
+  default PositionDeleteIndex loadDV(DeleteFile dv) {
+    throw new UnsupportedOperationException(getClass().getName() + " doesn't support DVs");
+  }
 }
