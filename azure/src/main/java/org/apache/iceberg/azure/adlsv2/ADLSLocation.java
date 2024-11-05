@@ -25,14 +25,16 @@ import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 
 /**
- * This class represents a fully qualified location in Azure expressed as a URI.
+ * This class represents a fully qualified location to a file or directory in Azure Data Lake
+ * Storage Gen2 storage.
  *
- * <p>Locations follow the conventions used by Hadoop's Azure support, i.e.
+ * <p>Locations follow a URI like structure to identify resources
  *
  * <pre>{@code abfs[s]://[<container>@]<storage account host>/<file path>}</pre>
  *
- * <p>See <a href="https://hadoop.apache.org/docs/stable/hadoop-azure/abfs.html">Hadoop Azure
- * Support</a>
+ * <p>See <a
+ * href="https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction-abfs-uri#uri-syntax">Azure
+ * Data Lake Storage URI</a>
  */
 class ADLSLocation {
   private static final Pattern URI_PATTERN = Pattern.compile("^abfss?://([^/?#]+)(.*)?$");
@@ -64,8 +66,7 @@ class ADLSLocation {
     }
 
     String uriPath = matcher.group(2);
-    uriPath = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
-    this.path = uriPath.split("\\?", -1)[0].split("#", -1)[0];
+    this.path = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
   }
 
   /** Returns Azure storage account. */
