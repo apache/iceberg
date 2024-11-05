@@ -24,6 +24,7 @@ import java.util.Set;
 import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
@@ -83,5 +84,18 @@ public class ContentFileUtil {
   public static String referencedDataFileLocation(DeleteFile deleteFile) {
     CharSequence location = referencedDataFile(deleteFile);
     return location != null ? location.toString() : null;
+  }
+
+  public static boolean isDV(DeleteFile deleteFile) {
+    return deleteFile.format() == FileFormat.PUFFIN;
+  }
+
+  public static String dvDesc(DeleteFile deleteFile) {
+    return String.format(
+        "DV{location=%s, offset=%s, length=%s, referencedDataFile=%s}",
+        deleteFile.location(),
+        deleteFile.contentOffset(),
+        deleteFile.contentSizeInBytes(),
+        deleteFile.referencedDataFile());
   }
 }
