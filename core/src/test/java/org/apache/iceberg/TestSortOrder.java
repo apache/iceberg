@@ -28,9 +28,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -39,7 +36,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SortOrderUtil;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
@@ -70,9 +66,7 @@ public class TestSortOrder {
           required(30, "ext", Types.StringType.get()),
           required(42, "Ext1", Types.StringType.get()));
 
-  @TempDir private Path temp;
-
-  private File tableDir = null;
+  @TempDir private File tableDir;
 
   @Parameters(name = "formatVersion = {0}")
   protected static List<Object> parameters() {
@@ -80,11 +74,6 @@ public class TestSortOrder {
   }
 
   @Parameter private int formatVersion;
-
-  @BeforeEach
-  public void setupTableDir() throws IOException {
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-  }
 
   @AfterEach
   public void cleanupTables() {

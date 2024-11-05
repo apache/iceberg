@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
-import java.nio.file.Path;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -112,13 +111,12 @@ public class TestDeleteReachableFilesAction extends TestBase {
           .withRecordCount(1)
           .build();
 
-  @TempDir private Path temp;
+  @TempDir private File tableDir;
 
   private Table table;
 
   @BeforeEach
   public void setupTableLocation() throws Exception {
-    File tableDir = temp.resolve("junit").toFile();
     String tableLocation = tableDir.toURI().toString();
     this.table = TABLES.create(SCHEMA, SPEC, Maps.newHashMap(), tableLocation);
     spark.conf().set("spark.sql.shuffle.partitions", SHUFFLE_PARTITIONS);

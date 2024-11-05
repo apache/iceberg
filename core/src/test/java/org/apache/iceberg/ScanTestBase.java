@@ -23,9 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Collections;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -149,9 +147,8 @@ public abstract class ScanTestBase<
             required(2, "b", Types.StringType.get()),
             required(3, "data", Types.IntegerType.get()));
     PartitionSpec initialSpec = PartitionSpec.builderFor(schema).identity("a").build();
-    File dir = Files.createTempDirectory(temp, "junit").toFile();
-    dir.delete();
-    this.table = TestTables.create(dir, "test_part_evolution", schema, initialSpec, formatVersion);
+    this.table =
+        TestTables.create(tableDir, "test_part_evolution", schema, initialSpec, formatVersion);
     table
         .newFastAppend()
         .appendFile(
@@ -222,11 +219,13 @@ public abstract class ScanTestBase<
     Schema schema =
         new Schema(
             required(1, "a", Types.IntegerType.get()), required(2, "b", Types.StringType.get()));
-    File dir = Files.createTempDirectory(temp, "junit").toFile();
-    dir.delete();
     this.table =
         TestTables.create(
-            dir, "test_data_file_sorted", schema, PartitionSpec.unpartitioned(), formatVersion);
+            tableDir,
+            "test_data_file_sorted",
+            schema,
+            PartitionSpec.unpartitioned(),
+            formatVersion);
     table
         .newFastAppend()
         .appendFile(
