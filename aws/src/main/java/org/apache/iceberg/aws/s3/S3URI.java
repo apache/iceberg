@@ -37,6 +37,9 @@ class S3URI {
   private static final String QUERY_DELIM = "\\?";
   private static final String FRAGMENT_DELIM = "#";
 
+  /** Suffix of S3Express storage bucket names. */
+  private static final String S3_DIRECTORY_BUCKET_SUFFIX = "--x-s3";
+
   private final String location;
   private final String scheme;
   private final String bucket;
@@ -114,5 +117,35 @@ class S3URI {
   @Override
   public String toString() {
     return location;
+  }
+
+  /**
+   * Converts the current S3URI to a directory path.
+   *
+   * <p>This method ensures that the S3URI represents a directory by adding a "/" delimiter at the
+   * end of the prefix if it's not already present.
+   *
+   * @return a S3URI with the directory path configured
+   */
+  public S3URI toDirectoryPath() {
+    if (key.endsWith(PATH_DELIM)) {
+      return this;
+    }
+    return new S3URI(String.format("%s://%s/%s/", scheme, bucket, key));
+  }
+
+  public boolean useS3DirectoryBucket() {
+    return isS3DirectoryBucket(this.bucket);
+  }
+
+  /**
+   * Check if the bucket name indicates the bucket is a directory bucket. This method does not check
+   * against the S3 service.
+   *
+   * @param bucket bucket to probe.
+   * @return true if the bucket name indicates the bucket is a directory bucket
+   */
+  public static boolean isS3DirectoryBucket(final String bucket) {
+    return bucket.endsWith(S3_DIRECTORY_BUCKET_SUFFIX);
   }
 }

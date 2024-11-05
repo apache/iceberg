@@ -20,10 +20,12 @@ package org.apache.iceberg.aws.s3;
 
 import java.io.Serializable;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.xml.stream.XMLStreamException;
 import org.apache.iceberg.EnvironmentContext;
 import org.apache.iceberg.aws.AwsClientProperties;
 import org.apache.iceberg.aws.glue.GlueCatalog;
@@ -38,6 +40,14 @@ import org.apache.iceberg.util.SerializableMap;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.core.retry.RetryMode;
+import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.core.retry.backoff.EqualJitterBackoffStrategy;
+import software.amazon.awssdk.core.retry.conditions.OrRetryCondition;
+import software.amazon.awssdk.core.retry.conditions.RetryCondition;
+import software.amazon.awssdk.core.retry.conditions.RetryOnExceptionsCondition;
+import software.amazon.awssdk.core.retry.conditions.TokenBucketRetryCondition;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -216,6 +226,13 @@ public class S3FileIOProperties implements Serializable {
   public static final String SESSION_TOKEN = "s3.session-token";
 
   /**
+   * Configure the expiration time in millis of the static session token used to access S3FileIO.
+   * This expiration time is currently only used in {@link VendedCredentialsProvider} for refreshing
+   * vended credentials.
+   */
+  static final String SESSION_TOKEN_EXPIRES_AT_MS = "s3.session-token-expires-at-ms";
+
+  /**
    * Enable to make S3FileIO, to make cross-region call to the region specified in the ARN of an
    * access point.
    *
@@ -283,7 +300,7 @@ public class S3FileIOProperties implements Serializable {
    * catalog property. After set, x-amz-storage-class header will be set to this property
    *
    * <p>For more details, see
-   * https://docs.aws.amazon.com/zh_cn/AmazonS3/latest/userguide/storage-class-intro.html
+   * https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html
    *
    * <p>Example: s3.write.storage-class=INTELLIGENT_TIERING
    */
@@ -367,6 +384,16 @@ public class S3FileIOProperties implements Serializable {
   public static final boolean DUALSTACK_ENABLED_DEFAULT = false;
 
   /**
+   * Determines if S3 client will allow Cross-Region bucket access, default to false.
+   *
+   * <p>For more details, see
+   * https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/s3-cross-region.html
+   */
+  public static final String CROSS_REGION_ACCESS_ENABLED = "s3.cross-region-access-enabled";
+
+  public static final boolean CROSS_REGION_ACCESS_ENABLED_DEFAULT = false;
+
+  /**
    * Used by {@link S3FileIO}, prefix used for bucket access point configuration. To set, we can
    * pass a catalog property.
    *
@@ -393,6 +420,40 @@ public class S3FileIOProperties implements Serializable {
    */
   private static final String S3_FILE_IO_USER_AGENT = "s3fileio/" + EnvironmentContext.get();
 
+  /** Number of times to retry S3 operations. */
+  public static final String S3_RETRY_NUM_RETRIES = "s3.retry.num-retries";
+
+  public static final int S3_RETRY_NUM_RETRIES_DEFAULT = 5;
+
+  /** Minimum wait time to retry a S3 operation */
+  public static final String S3_RETRY_MIN_WAIT_MS = "s3.retry.min-wait-ms";
+
+  public static final long S3_RETRY_MIN_WAIT_MS_DEFAULT = 2_000; // 2 seconds
+
+  /** Maximum wait time to retry a S3 read operation */
+  public static final String S3_RETRY_MAX_WAIT_MS = "s3.retry.max-wait-ms";
+
+  public static final long S3_RETRY_MAX_WAIT_MS_DEFAULT = 20_000; // 20 seconds
+
+  /**
+   * Controls whether to list prefixes as directories for S3 Directory buckets Defaults value is
+   * true, where it will add the "/"
+   *
+   * <p>Example: s3://bucket/prefix will be shown as s3://bucket/prefix/
+   *
+   * <p>For more details see delimiter section in:
+   * https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html#API_ListObjectsV2_RequestSyntax
+   *
+   * <p>If set to false, this will throw an error when the "/" is not provided for directory bucket.
+   * Turn off this feature if you are using S3FileIO.listPrefix for listing bucket prefixes that are
+   * not directories. This would ensure correctness and fail the operation based on S3 requirement
+   * when listing against a non-directory prefix in a directory bucket.
+   */
+  public static final String S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY =
+      "s3.directory-bucket.list-prefix-as-directory";
+
+  public static final boolean S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT = true;
+
   private String sseType;
   private String sseKey;
   private String sseMd5;
@@ -417,12 +478,18 @@ public class S3FileIOProperties implements Serializable {
   private final Map<String, String> bucketToAccessPointMapping;
   private boolean isPreloadClientEnabled;
   private final boolean isDualStackEnabled;
+  private final boolean isCrossRegionAccessEnabled;
   private final boolean isPathStyleAccess;
   private final boolean isUseArnRegionEnabled;
   private final boolean isAccelerationEnabled;
   private final String endpoint;
   private final boolean isRemoteSigningEnabled;
   private String writeStorageClass;
+  private int s3RetryNumRetries;
+  private long s3RetryMinWaitMs;
+  private long s3RetryMaxWaitMs;
+
+  private boolean s3DirectoryBucketListPrefixAsDirectory;
   private final Map<String, String> allProperties;
 
   public S3FileIOProperties() {
@@ -449,12 +516,18 @@ public class S3FileIOProperties implements Serializable {
     this.bucketToAccessPointMapping = Collections.emptyMap();
     this.isPreloadClientEnabled = PRELOAD_CLIENT_ENABLED_DEFAULT;
     this.isDualStackEnabled = DUALSTACK_ENABLED_DEFAULT;
+    this.isCrossRegionAccessEnabled = CROSS_REGION_ACCESS_ENABLED_DEFAULT;
     this.isPathStyleAccess = PATH_STYLE_ACCESS_DEFAULT;
     this.isUseArnRegionEnabled = USE_ARN_REGION_ENABLED_DEFAULT;
     this.isAccelerationEnabled = ACCELERATION_ENABLED_DEFAULT;
     this.isRemoteSigningEnabled = REMOTE_SIGNING_ENABLED_DEFAULT;
     this.isS3AccessGrantsEnabled = S3_ACCESS_GRANTS_ENABLED_DEFAULT;
     this.isS3AccessGrantsFallbackToIamEnabled = S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED_DEFAULT;
+    this.s3RetryNumRetries = S3_RETRY_NUM_RETRIES_DEFAULT;
+    this.s3RetryMinWaitMs = S3_RETRY_MIN_WAIT_MS_DEFAULT;
+    this.s3RetryMaxWaitMs = S3_RETRY_MAX_WAIT_MS_DEFAULT;
+    this.s3DirectoryBucketListPrefixAsDirectory =
+        S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT;
     this.allProperties = Maps.newHashMap();
 
     ValidationException.check(
@@ -490,6 +563,9 @@ public class S3FileIOProperties implements Serializable {
             properties, ACCELERATION_ENABLED, ACCELERATION_ENABLED_DEFAULT);
     this.isDualStackEnabled =
         PropertyUtil.propertyAsBoolean(properties, DUALSTACK_ENABLED, DUALSTACK_ENABLED_DEFAULT);
+    this.isCrossRegionAccessEnabled =
+        PropertyUtil.propertyAsBoolean(
+            properties, CROSS_REGION_ACCESS_ENABLED, CROSS_REGION_ACCESS_ENABLED_DEFAULT);
     try {
       this.multiPartSize =
           PropertyUtil.propertyAsInt(properties, MULTIPART_SIZE, MULTIPART_SIZE_DEFAULT);
@@ -553,6 +629,17 @@ public class S3FileIOProperties implements Serializable {
             properties,
             S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED,
             S3_ACCESS_GRANTS_FALLBACK_TO_IAM_ENABLED_DEFAULT);
+    this.s3RetryNumRetries =
+        PropertyUtil.propertyAsInt(properties, S3_RETRY_NUM_RETRIES, S3_RETRY_NUM_RETRIES_DEFAULT);
+    this.s3RetryMinWaitMs =
+        PropertyUtil.propertyAsLong(properties, S3_RETRY_MIN_WAIT_MS, S3_RETRY_MIN_WAIT_MS_DEFAULT);
+    this.s3RetryMaxWaitMs =
+        PropertyUtil.propertyAsLong(properties, S3_RETRY_MAX_WAIT_MS, S3_RETRY_MAX_WAIT_MS_DEFAULT);
+    this.s3DirectoryBucketListPrefixAsDirectory =
+        PropertyUtil.propertyAsBoolean(
+            properties,
+            S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY,
+            S3_DIRECTORY_BUCKET_LIST_PREFIX_AS_DIRECTORY_DEFAULT);
 
     ValidationException.check(
         keyIdAccessKeyBothConfigured(),
@@ -641,6 +728,10 @@ public class S3FileIOProperties implements Serializable {
 
   public boolean isDualStackEnabled() {
     return this.isDualStackEnabled;
+  }
+
+  public boolean isCrossRegionAccessEnabled() {
+    return this.isCrossRegionAccessEnabled;
   }
 
   public boolean isPathStyleAccess() {
@@ -753,6 +844,43 @@ public class S3FileIOProperties implements Serializable {
     this.isS3AccessGrantsFallbackToIamEnabled = s3AccessGrantsFallbackToIamEnabled;
   }
 
+  public int s3RetryNumRetries() {
+    return s3RetryNumRetries;
+  }
+
+  public void setS3RetryNumRetries(int s3RetryNumRetries) {
+    this.s3RetryNumRetries = s3RetryNumRetries;
+  }
+
+  public long s3RetryMinWaitMs() {
+    return s3RetryMinWaitMs;
+  }
+
+  public void setS3RetryMinWaitMs(long s3RetryMinWaitMs) {
+    this.s3RetryMinWaitMs = s3RetryMinWaitMs;
+  }
+
+  public long s3RetryMaxWaitMs() {
+    return s3RetryMaxWaitMs;
+  }
+
+  public void setS3RetryMaxWaitMs(long s3RetryMaxWaitMs) {
+    this.s3RetryMaxWaitMs = s3RetryMaxWaitMs;
+  }
+
+  public long s3RetryTotalWaitMs() {
+    return (long) s3RetryNumRetries() * s3RetryMaxWaitMs();
+  }
+
+  public boolean isS3DirectoryBucketListPrefixAsDirectory() {
+    return s3DirectoryBucketListPrefixAsDirectory;
+  }
+
+  public void setS3DirectoryBucketListPrefixAsDirectory(
+      boolean s3DirectoryBucketListPrefixAsDirectory) {
+    this.s3DirectoryBucketListPrefixAsDirectory = s3DirectoryBucketListPrefixAsDirectory;
+  }
+
   private boolean keyIdAccessKeyBothConfigured() {
     return (accessKeyId == null) == (secretAccessKey == null);
   }
@@ -767,7 +895,7 @@ public class S3FileIOProperties implements Serializable {
 
   /**
    * Configure services settings for an S3 client. The settings include: s3DualStack,
-   * s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
+   * crossRegionAccessEnabled, s3UseArnRegion, s3PathStyleAccess, and s3Acceleration
    *
    * <p>Sample usage:
    *
@@ -778,6 +906,7 @@ public class S3FileIOProperties implements Serializable {
   public <T extends S3ClientBuilder> void applyServiceConfigurations(T builder) {
     builder
         .dualstackEnabled(isDualStackEnabled)
+        .crossRegionAccessEnabled(isCrossRegionAccessEnabled)
         .serviceConfiguration(
             S3Configuration.builder()
                 .pathStyleAccessEnabled(isPathStyleAccess)
@@ -822,6 +951,71 @@ public class S3FileIOProperties implements Serializable {
     if (endpoint != null) {
       builder.endpointOverride(URI.create(endpoint));
     }
+  }
+
+  /**
+   * Override the retry configurations for an S3 client.
+   *
+   * <p>Sample usage:
+   *
+   * <pre>
+   *     S3Client.builder().applyMutation(s3FileIOProperties::applyRetryConfigurations)
+   * </pre>
+   */
+  public <T extends S3ClientBuilder> void applyRetryConfigurations(T builder) {
+    ClientOverrideConfiguration.Builder configBuilder =
+        null != builder.overrideConfiguration()
+            ? builder.overrideConfiguration().toBuilder()
+            : ClientOverrideConfiguration.builder();
+
+    builder.overrideConfiguration(
+        configBuilder
+            .retryPolicy(
+                // Use a retry strategy which will persistently retry throttled exceptions with
+                // exponential backoff, to give S3 a chance to autoscale.
+                // LEGACY mode works best here, as it will allow throttled exceptions to use all of
+                // the configured retry attempts.
+                RetryPolicy.builder(RetryMode.LEGACY)
+                    .numRetries(s3RetryNumRetries)
+                    .throttlingBackoffStrategy(
+                        EqualJitterBackoffStrategy.builder()
+                            .baseDelay(Duration.ofMillis(s3RetryMinWaitMs))
+                            .maxBackoffTime(Duration.ofMillis(s3RetryMaxWaitMs))
+                            .build())
+
+                    // Workaround: add XMLStreamException as a retryable exception.
+                    // https://github.com/aws/aws-sdk-java-v2/issues/5442
+                    // Without this workaround, we see SDK failures if there's a socket exception
+                    // while parsing an error XML response.
+                    .retryCondition(
+                        OrRetryCondition.create(
+                            RetryCondition.defaultRetryCondition(),
+                            RetryOnExceptionsCondition.create(XMLStreamException.class)))
+
+                    // Workaround: exclude all 503s from consuming retry tokens.
+                    // https://github.com/aws/aws-sdk-java-v2/issues/5414
+                    // Without this workaround, workloads which see 503s from S3 HEAD will fail
+                    // prematurely.
+                    .retryCapacityCondition(
+                        TokenBucketRetryCondition.builder()
+                            .tokenBucketSize(500) // 500 is the SDK default
+                            .exceptionCostFunction(
+                                e -> {
+                                  if (e instanceof SdkServiceException) {
+                                    SdkServiceException sdkServiceException =
+                                        (SdkServiceException) e;
+                                    if (sdkServiceException.isThrottlingException()
+                                        || sdkServiceException.statusCode() == 503) {
+                                      return 0;
+                                    }
+                                  }
+
+                                  // 5 is the SDK default for non-throttling exceptions
+                                  return 5;
+                                })
+                            .build())
+                    .build())
+            .build());
   }
 
   /**

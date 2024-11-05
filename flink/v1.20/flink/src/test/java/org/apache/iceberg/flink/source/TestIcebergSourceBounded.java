@@ -24,8 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -130,11 +128,8 @@ public class TestIcebergSourceBounded extends TestFlinkScan {
     sourceBuilder.properties(options);
 
     DataStream<Row> stream =
-        env.fromSource(
-                sourceBuilder.build(),
-                WatermarkStrategy.noWatermarks(),
-                "testBasicRead",
-                TypeInformation.of(RowData.class))
+        sourceBuilder
+            .buildStream(env)
             .map(
                 new RowDataToRowMapper(
                     FlinkSchemaUtil.convert(

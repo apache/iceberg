@@ -443,7 +443,9 @@ public class SparkTableUtil {
    * @param sourceTableIdent an identifier of the source Spark table
    * @param targetTable an Iceberg table where to import the data
    * @param stagingDir a staging directory to store temporary manifest files
-   * @param service executor service to use for file reading
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. * If non-null, the provided ExecutorService will be
+   *     shutdown within this method after file reading is complete.
    */
   public static void importSparkTable(
       SparkSession spark,
@@ -501,7 +503,9 @@ public class SparkTableUtil {
    * @param partitionFilter only import partitions whose values match those in the map, can be
    *     partially defined
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @param service executor service to use for file reading
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
    */
   public static void importSparkTable(
       SparkSession spark,
@@ -719,7 +723,9 @@ public class SparkTableUtil {
    * @param spec a partition spec
    * @param stagingDir a staging directory to store temporary manifest files
    * @param checkDuplicateFiles if true, throw exception if import results in a duplicate data file
-   * @param service executor service to use for file reading
+   * @param service executor service to use for file reading. If null, file reading will be
+   *     performed on the current thread. If non-null, the provided ExecutorService will be shutdown
+   *     within this method after file reading is complete.
    */
   public static void importSparkPartitions(
       SparkSession spark,
@@ -851,6 +857,12 @@ public class SparkTableUtil {
         .run(item -> io.deleteFile(item.path()));
   }
 
+  public static Dataset<Row> loadTable(SparkSession spark, Table table, long snapshotId) {
+    SparkTable sparkTable = new SparkTable(table, snapshotId, false);
+    DataSourceV2Relation relation = createRelation(sparkTable, ImmutableMap.of());
+    return Dataset.ofRows(spark, relation);
+  }
+
   public static Dataset<Row> loadMetadataTable(
       SparkSession spark, Table table, MetadataTableType type) {
     return loadMetadataTable(spark, table, type, ImmutableMap.of());
@@ -858,11 +870,16 @@ public class SparkTableUtil {
 
   public static Dataset<Row> loadMetadataTable(
       SparkSession spark, Table table, MetadataTableType type, Map<String, String> extraOptions) {
-    SparkTable metadataTable =
-        new SparkTable(MetadataTableUtils.createMetadataTableInstance(table, type), false);
+    Table metadataTable = MetadataTableUtils.createMetadataTableInstance(table, type);
+    SparkTable sparkMetadataTable = new SparkTable(metadataTable, false);
+    DataSourceV2Relation relation = createRelation(sparkMetadataTable, extraOptions);
+    return Dataset.ofRows(spark, relation);
+  }
+
+  private static DataSourceV2Relation createRelation(
+      SparkTable sparkTable, Map<String, String> extraOptions) {
     CaseInsensitiveStringMap options = new CaseInsensitiveStringMap(extraOptions);
-    return Dataset.ofRows(
-        spark, DataSourceV2Relation.create(metadataTable, Some.empty(), Some.empty(), options));
+    return DataSourceV2Relation.create(sparkTable, Option.empty(), Option.empty(), options);
   }
 
   /**

@@ -237,10 +237,10 @@ public class StructRowData implements RowData {
 
   @Override
   public RowData getRow(int pos, int numFields) {
-    return isNullAt(pos) ? null : getStructRowData(pos, numFields);
+    return isNullAt(pos) ? null : getStructRowData(pos);
   }
 
-  private StructRowData getStructRowData(int pos, int numFields) {
+  private StructRowData getStructRowData(int pos) {
     return new StructRowData(
         type.fields().get(pos).type().asStructType(), struct.get(pos, StructLike.class));
   }

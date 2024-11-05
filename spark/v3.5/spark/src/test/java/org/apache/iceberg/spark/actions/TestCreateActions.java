@@ -77,6 +77,7 @@ import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.io.TempDir;
 import scala.Option;
 import scala.Some;
 import scala.collection.JavaConverters;
@@ -142,7 +143,7 @@ public class TestCreateActions extends CatalogTestBase {
   }
 
   private final String baseTableName = "baseTable";
-  private File tableDir;
+  @TempDir private File tableDir;
   private String tableLocation;
 
   @Parameter(index = 3)
@@ -154,11 +155,6 @@ public class TestCreateActions extends CatalogTestBase {
   @Override
   public void before() {
     super.before();
-    try {
-      this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
     this.tableLocation = tableDir.toURI().toString();
     this.catalog = (TableCatalog) spark.sessionState().catalogManager().catalog(catalogName);
 
@@ -186,6 +182,11 @@ public class TestCreateActions extends CatalogTestBase {
   public void after() throws IOException {
     // Drop the hive table.
     spark.sql(String.format("DROP TABLE IF EXISTS %s", baseTableName));
+    spark.sessionState().catalogManager().reset();
+    spark.conf().unset("spark.sql.catalog.spark_catalog.type");
+    spark.conf().unset("spark.sql.catalog.spark_catalog.default-namespace");
+    spark.conf().unset("spark.sql.catalog.spark_catalog.parquet-enabled");
+    spark.conf().unset("spark.sql.catalog.spark_catalog.cache-enabled");
   }
 
   @TestTemplate
@@ -746,6 +747,8 @@ public class TestCreateActions extends CatalogTestBase {
 
   @TestTemplate
   public void testTwoLevelList() throws IOException {
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", true);
 
     String tableName = sourceName("testTwoLevelList");
@@ -829,6 +832,8 @@ public class TestCreateActions extends CatalogTestBase {
   }
 
   private void threeLevelList(boolean useLegacyMode) throws Exception {
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
     String tableName = sourceName(String.format("threeLevelList_%s", useLegacyMode));
@@ -851,6 +856,8 @@ public class TestCreateActions extends CatalogTestBase {
   }
 
   private void threeLevelListWithNestedStruct(boolean useLegacyMode) throws Exception {
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
     String tableName =
@@ -876,6 +883,8 @@ public class TestCreateActions extends CatalogTestBase {
   }
 
   private void threeLevelLists(boolean useLegacyMode) throws Exception {
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
     String tableName = sourceName(String.format("threeLevelLists_%s", useLegacyMode));
@@ -903,6 +912,8 @@ public class TestCreateActions extends CatalogTestBase {
   }
 
   private void structOfThreeLevelLists(boolean useLegacyMode) throws Exception {
+    assumeThat(type).as("Cannot migrate to a hadoop based catalog").isNotEqualTo("hadoop");
+
     spark.conf().set("spark.sql.parquet.writeLegacyFormat", useLegacyMode);
 
     String tableName = sourceName(String.format("structOfThreeLevelLists_%s", useLegacyMode));

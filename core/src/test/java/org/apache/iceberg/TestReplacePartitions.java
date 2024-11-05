@@ -23,9 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.ManifestEntry.Status;
@@ -167,9 +165,6 @@ public class TestReplacePartitions extends TestBase {
 
   @TestTemplate
   public void testReplaceWithUnpartitionedTable() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Table unpartitioned =
         TestTables.create(
             tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -206,9 +201,6 @@ public class TestReplacePartitions extends TestBase {
 
   @TestTemplate
   public void testReplaceAndMergeWithUnpartitionedTable() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Table unpartitioned =
         TestTables.create(
             tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), formatVersion);
@@ -369,9 +361,6 @@ public class TestReplacePartitions extends TestBase {
 
   @TestTemplate
   public void testValidateWithVoidTransform() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
-
     Table tableVoid = TestTables.create(tableDir, "tablevoid", SCHEMA, SPEC_VOID, formatVersion);
     commit(tableVoid, tableVoid.newReplacePartitions().addFile(FILE_A_VOID_PARTITION), branch);
 

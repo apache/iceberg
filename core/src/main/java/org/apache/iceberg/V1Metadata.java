@@ -400,6 +400,11 @@ class V1Metadata {
     }
 
     @Override
+    public String manifestLocation() {
+      return null;
+    }
+
+    @Override
     public int specId() {
       return wrapped.specId();
     }

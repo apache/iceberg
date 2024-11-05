@@ -32,6 +32,11 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
     super(avroSchema);
   }
 
+  /** Used by internal readers to instantiate this class with a projection schema. */
+  GenericDeleteFile(Types.StructType projection) {
+    super(projection);
+  }
+
   GenericDeleteFile(
       int specId,
       FileContent content,
@@ -43,7 +48,10 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
       int[] equalityFieldIds,
       Integer sortOrderId,
       List<Long> splitOffsets,
-      ByteBuffer keyMetadata) {
+      ByteBuffer keyMetadata,
+      String referencedDataFile,
+      Long contentOffset,
+      Long contentSizeInBytes) {
     super(
         specId,
         content,
@@ -61,7 +69,10 @@ class GenericDeleteFile extends BaseFile<DeleteFile> implements DeleteFile {
         splitOffsets,
         equalityFieldIds,
         sortOrderId,
-        keyMetadata);
+        keyMetadata,
+        referencedDataFile,
+        contentOffset,
+        contentSizeInBytes);
   }
 
   /**

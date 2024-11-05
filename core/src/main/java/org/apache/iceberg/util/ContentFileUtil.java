@@ -54,6 +54,10 @@ public class ContentFileUtil {
       return null;
     }
 
+    if (deleteFile.referencedDataFile() != null) {
+      return deleteFile.referencedDataFile();
+    }
+
     int pathId = MetadataColumns.DELETE_FILE_PATH.fieldId();
     Type pathType = MetadataColumns.DELETE_FILE_PATH.type();
 
@@ -74,5 +78,10 @@ public class ContentFileUtil {
     } else {
       return null;
     }
+  }
+
+  public static String referencedDataFileLocation(DeleteFile deleteFile) {
+    CharSequence location = referencedDataFile(deleteFile);
+    return location != null ? location.toString() : null;
   }
 }

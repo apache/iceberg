@@ -370,7 +370,7 @@ public class TestRemoveSnapshots extends TestBase {
     }
 
     // Retain last 3 snapshots, but explicitly remove the first snapshot
-    removeSnapshots(table).expireSnapshotId(firstSnapshotId).retainLast(3).commit();
+    table.expireSnapshots().expireSnapshotId(firstSnapshotId).retainLast(3).commit();
 
     assertThat(table.snapshots()).hasSize(2);
     assertThat(table.snapshot(firstSnapshotId)).isNull();
@@ -956,7 +956,8 @@ public class TestRemoveSnapshots extends TestBase {
     List<String> deletedFiles = Lists.newArrayList();
 
     // Expire `B` commit.
-    removeSnapshots(table)
+    table
+        .expireSnapshots()
         .deleteWith(deletedFiles::add)
         .expireSnapshotId(snapshotB.snapshotId())
         .commit();
@@ -1169,6 +1170,26 @@ public class TestRemoveSnapshots extends TestBase {
     assertThat(table.ops().current().ref("branch")).isNull();
     assertThat(table.ops().current().ref("tag")).isNotNull();
     assertThat(table.ops().current().ref(SnapshotRef.MAIN_BRANCH)).isNotNull();
+  }
+
+  @TestTemplate
+  public void testIncrementalCleanupFailsWhenExpiringSnapshotId() {
+    table.newAppend().appendFile(FILE_A).commit();
+    table.newDelete().deleteFile(FILE_A).commit();
+    long snapshotId = table.currentSnapshot().snapshotId();
+    table.newAppend().appendFile(FILE_B).commit();
+    waitUntilAfter(table.currentSnapshot().timestampMillis());
+    RemoveSnapshots removeSnapshots = (RemoveSnapshots) table.expireSnapshots();
+
+    assertThatThrownBy(
+            () ->
+                removeSnapshots
+                    .withIncrementalCleanup(true)
+                    .expireSnapshotId(snapshotId)
+                    .cleanExpiredFiles(true)
+                    .commit())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessage("Cannot clean files incrementally when snapshot IDs are specified");
   }
 
   @TestTemplate

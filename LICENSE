@@ -298,6 +298,7 @@ License: https://www.apache.org/licenses/LICENSE-2.0
 This product includes code from Delta Lake.
 
 * AssignmentAlignmentSupport is an independent development but UpdateExpressionsSupport in Delta was used as a reference.
+* RoaringPositionBitmap is a Java implementation of RoaringBitmapArray in Delta.
 
 Copyright: 2020 The Delta Lake Project Authors.
 Home page: https://delta.io/

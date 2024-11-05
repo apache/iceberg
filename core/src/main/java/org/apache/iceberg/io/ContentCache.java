@@ -28,7 +28,7 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.List;
-import java.util.function.Function;
+import java.util.Locale;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
@@ -111,24 +111,6 @@ public class ContentCache {
     return cache.stats();
   }
 
-  /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
-  @Deprecated
-  public CacheEntry get(String key, Function<String, FileContent> mappingFunction) {
-    return cache.get(key, mappingFunction);
-  }
-
-  /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
-  @Deprecated
-  public CacheEntry getIfPresent(String location) {
-    return cache.getIfPresent(location);
-  }
-
-  /** @deprecated will be removed in 1.7; use {@link #tryCache(InputFile)} instead */
-  @Deprecated
-  public InputFile tryCache(FileIO io, String location, long length) {
-    return tryCache(io.newInputFile(location, length));
-  }
-
   /**
    * Try cache the file-content of file in the given location upon stream reading.
    *
@@ -147,10 +129,23 @@ public class ContentCache {
     return input;
   }
 
+  /**
+   * Invalidate the cache entry for the given key.
+   *
+   * <p>Note: if there is ongoing load, this is a blocking operation, i.e. it will wait for the load
+   * to complete before invalidating the entry.
+   */
   public void invalidate(String key) {
     cache.invalidate(key);
   }
 
+  /**
+   * @deprecated since 1.7.0, will be removed in 2.0.0; This method does only best-effort
+   *     invalidation and is susceptible to a race condition. If the caller changed the state that
+   *     could be cached (perhaps files on the storage) and calls this method, there is no guarantee
+   *     that the cache will not contain stale entries some time after this method returns.
+   */
+  @Deprecated
   public void invalidateAll() {
     cache.invalidateAll();
   }
@@ -173,11 +168,7 @@ public class ContentCache {
         .toString();
   }
 
-  /** @deprecated will be removed in 1.7; use {@link FileContent} instead. */
-  @Deprecated
-  private static class CacheEntry {}
-
-  private static class FileContent extends CacheEntry {
+  private static class FileContent {
     private final long length;
     private final List<ByteBuffer> buffers;
 
@@ -276,8 +267,10 @@ public class ContentCache {
           // IOException and let the caller fallback to non-caching input file.
           throw new IOException(
               String.format(
+                  Locale.ROOT,
                   "Failed to read %d bytes: %d bytes in stream",
-                  fileLength, fileLength - totalBytesToRead));
+                  fileLength,
+                  fileLength - totalBytesToRead));
         } else {
           buffers.add(ByteBuffer.wrap(buf));
         }

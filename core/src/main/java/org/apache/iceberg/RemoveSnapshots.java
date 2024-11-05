@@ -84,6 +84,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private ExecutorService deleteExecutorService = DEFAULT_DELETE_EXECUTOR_SERVICE;
   private ExecutorService planExecutorService = ThreadPools.getWorkerPool();
   private Boolean incrementalCleanup;
+  private boolean specifiedSnapshotId = false;
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -116,6 +117,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   public ExpireSnapshots expireSnapshotId(long expireSnapshotId) {
     LOG.info("Expiring snapshot with id: {}", expireSnapshotId);
     idsToRemove.add(expireSnapshotId);
+    specifiedSnapshotId = true;
     return this;
   }
 
@@ -320,6 +322,15 @@ class RemoveSnapshots implements ExpireSnapshots {
 
   private void cleanExpiredSnapshots() {
     TableMetadata current = ops.refresh();
+
+    if (specifiedSnapshotId) {
+      if (incrementalCleanup != null && incrementalCleanup) {
+        throw new UnsupportedOperationException(
+            "Cannot clean files incrementally when snapshot IDs are specified");
+      }
+
+      incrementalCleanup = false;
+    }
 
     if (incrementalCleanup == null) {
       incrementalCleanup = current.refs().size() == 1;

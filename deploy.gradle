@@ -22,12 +22,8 @@ if (project.hasProperty('release') && jdkVersion != '11') {
 }
 
 subprojects {
-  if (it.name == 'iceberg-open-api') {
-    // don't publish iceberg-open-api
-    return
-  }
-
   def isBom = it.name == 'iceberg-bom'
+  def isOpenApi = it.name == 'iceberg-open-api'
 
   apply plugin: 'maven-publish'
   apply plugin: 'signing'
@@ -76,6 +72,9 @@ subprojects {
         apache(MavenPublication) {
           if (isBom) {
             from components.javaPlatform
+          } else if (isOpenApi) {
+            artifact testJar
+            artifact testFixturesJar
           } else {
             if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
               from components.java

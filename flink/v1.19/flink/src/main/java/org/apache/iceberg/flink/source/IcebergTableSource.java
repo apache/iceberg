@@ -23,11 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.connector.ChangelogMode;
@@ -128,26 +125,18 @@ public class IcebergTableSource
         .build();
   }
 
-  private DataStreamSource<RowData> createFLIP27Stream(StreamExecutionEnvironment env) {
+  private DataStream<RowData> createFLIP27Stream(StreamExecutionEnvironment env) {
     SplitAssignerType assignerType =
         readableConfig.get(FlinkConfigOptions.TABLE_EXEC_SPLIT_ASSIGNER_TYPE);
-    IcebergSource<RowData> source =
-        IcebergSource.forRowData()
-            .tableLoader(loader)
-            .assignerFactory(assignerType.factory())
-            .properties(properties)
-            .project(getProjectedSchema())
-            .limit(limit)
-            .filters(filters)
-            .flinkConfig(readableConfig)
-            .build();
-    DataStreamSource stream =
-        env.fromSource(
-            source,
-            WatermarkStrategy.noWatermarks(),
-            source.name(),
-            TypeInformation.of(RowData.class));
-    return stream;
+    return IcebergSource.forRowData()
+        .tableLoader(loader)
+        .assignerFactory(assignerType.factory())
+        .properties(properties)
+        .project(getProjectedSchema())
+        .limit(limit)
+        .filters(filters)
+        .flinkConfig(readableConfig)
+        .buildStream(env);
   }
 
   private TableSchema getProjectedSchema() {

@@ -31,6 +31,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.spark.CatalogTestBase;
 import org.apache.iceberg.types.Types;
@@ -346,6 +347,47 @@ public class TestCreateTable extends CatalogTestBase {
         .isEqualTo(expectedSchema);
     assertThat(table.spec().fields()).as("Should not be partitioned").hasSize(0);
     assertThat(table.properties()).containsEntry("p1", "2").containsEntry("p2", "x");
+  }
+
+  @TestTemplate
+  public void testCreateTableCommitProperties() {
+    assertThat(validationCatalog.tableExists(tableIdent))
+        .as("Table should not already exist")
+        .isFalse();
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE TABLE %s "
+                        + "(id BIGINT NOT NULL, data STRING) "
+                        + "USING iceberg "
+                        + "TBLPROPERTIES ('commit.retry.num-retries'='x', p2='x')",
+                    tableName))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Table property commit.retry.num-retries must have integer value");
+
+    assertThatThrownBy(
+            () ->
+                sql(
+                    "CREATE TABLE %s "
+                        + "(id BIGINT NOT NULL, data STRING) "
+                        + "USING iceberg "
+                        + "TBLPROPERTIES ('commit.retry.max-wait-ms'='-1')",
+                    tableName))
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Table property commit.retry.max-wait-ms must have non negative integer value");
+
+    sql(
+        "CREATE TABLE %s "
+            + "(id BIGINT NOT NULL, data STRING) "
+            + "USING iceberg "
+            + "TBLPROPERTIES ('commit.retry.num-retries'='1', 'commit.retry.max-wait-ms'='3000')",
+        tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    assertThat(table.properties())
+        .containsEntry(TableProperties.COMMIT_NUM_RETRIES, "1")
+        .containsEntry(TableProperties.COMMIT_MAX_RETRY_WAIT_MS, "3000");
   }
 
   @TestTemplate

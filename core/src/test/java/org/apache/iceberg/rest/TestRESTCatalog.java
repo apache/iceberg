@@ -155,15 +155,10 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
           }
         };
 
-    RESTCatalogServlet servlet = new RESTCatalogServlet(adaptor);
     ServletContextHandler servletContext =
         new ServletContextHandler(ServletContextHandler.NO_SESSIONS);
-    servletContext.setContextPath("/");
-    ServletHolder servletHolder = new ServletHolder(servlet);
-    servletHolder.setInitParameter("javax.ws.rs.Application", "ServiceListPublic");
-    servletContext.addServlet(servletHolder, "/*");
-    servletContext.setVirtualHosts(null);
-    servletContext.setGzipHandler(new GzipHandler());
+    servletContext.addServlet(new ServletHolder(new RESTCatalogServlet(adaptor)), "/*");
+    servletContext.setHandler(new GzipHandler());
 
     this.httpServer = new Server(0);
     httpServer.setHandler(servletContext);
@@ -2346,13 +2341,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
                 RESTSessionCatalog.REST_PAGE_SIZE));
   }
 
-  @Test
-  public void testPaginationForListNamespaces() {
+  @ParameterizedTest
+  @ValueSource(ints = {21, 30})
+  public void testPaginationForListNamespaces(int numberOfItems) {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
-    int numberOfItems = 30;
     String namespaceName = "newdb";
 
     // create several namespaces for listing and verify
@@ -2408,13 +2403,13 @@ public class TestRESTCatalog extends CatalogTests<RESTCatalog> {
             eq(ListNamespacesResponse.class));
   }
 
-  @Test
-  public void testPaginationForListTables() {
+  @ParameterizedTest
+  @ValueSource(ints = {21, 30})
+  public void testPaginationForListTables(int numberOfItems) {
     RESTCatalogAdapter adapter = Mockito.spy(new RESTCatalogAdapter(backendCatalog));
     RESTCatalog catalog =
         new RESTCatalog(SessionCatalog.SessionContext.createEmpty(), (config) -> adapter);
     catalog.initialize("test", ImmutableMap.of(RESTSessionCatalog.REST_PAGE_SIZE, "10"));
-    int numberOfItems = 30;
     String namespaceName = "newdb";
     String tableName = "newtable";
     catalog.createNamespace(Namespace.of(namespaceName));

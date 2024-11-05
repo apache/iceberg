@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -939,8 +938,8 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
             .withPartition(data10Key)
             .build();
     PartitionKey data11Key = new PartitionKey(newSpec, table.schema());
-    data11Key.set(0, 1); // data=0
-    data10Key.set(1, 11); // id=11
+    data11Key.set(0, 1); // data=1
+    data11Key.set(1, 11); // id=11
     DataFile data11 =
         DataFiles.builder(newSpec)
             .withPath("/path/to/data-11.parquet")
@@ -1066,7 +1065,6 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
   @TestTemplate
   public void testPartitionColumnNamedPartition() throws Exception {
     TestTables.clearTables();
-    this.tableDir = Files.createTempDirectory(temp, "junit").toFile();
 
     Schema schema =
         new Schema(

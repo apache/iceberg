@@ -141,7 +141,8 @@ public class SparkWriteConf {
         .booleanConf()
         .option(SparkWriteOptions.MERGE_SCHEMA)
         .option(SparkWriteOptions.SPARK_MERGE_SCHEMA)
-        .defaultValue(SparkWriteOptions.MERGE_SCHEMA_DEFAULT)
+        .sessionConf(SparkSQLProperties.MERGE_SCHEMA)
+        .defaultValue(SparkSQLProperties.MERGE_SCHEMA_DEFAULT)
         .parse();
   }
 

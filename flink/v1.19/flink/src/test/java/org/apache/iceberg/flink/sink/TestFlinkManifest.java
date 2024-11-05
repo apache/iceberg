@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.flink.sink;
 
-import static org.apache.iceberg.flink.sink.ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
@@ -134,7 +133,9 @@ public class TestFlinkManifest {
     String operatorId = newOperatorUniqueId();
     File userProvidedFolder = Files.createTempDirectory(temporaryFolder, "junit").toFile();
     Map<String, String> props =
-        ImmutableMap.of(FLINK_MANIFEST_LOCATION, userProvidedFolder.getAbsolutePath() + "///");
+        ImmutableMap.of(
+            ManifestOutputFileFactory.FLINK_MANIFEST_LOCATION,
+            userProvidedFolder.getAbsolutePath() + "///");
     ManifestOutputFileFactory factory =
         new ManifestOutputFileFactory(() -> table, props, flinkJobId, operatorId, 1, 1);
 

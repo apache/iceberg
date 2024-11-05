@@ -297,7 +297,13 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
 
   @Override
   public Iterable<FileInfo> listPrefix(String prefix) {
-    S3URI s3uri = new S3URI(prefix, s3FileIOProperties.bucketToAccessPointMapping());
+    S3URI uri = new S3URI(prefix, s3FileIOProperties.bucketToAccessPointMapping());
+    if (uri.useS3DirectoryBucket()
+        && s3FileIOProperties.isS3DirectoryBucketListPrefixAsDirectory()) {
+      uri = uri.toDirectoryPath();
+    }
+
+    S3URI s3uri = uri;
     ListObjectsV2Request request =
         ListObjectsV2Request.builder().bucket(s3uri.bucket()).prefix(s3uri.key()).build();
 
@@ -342,7 +348,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
       synchronized (S3FileIO.class) {
         if (executorService == null) {
           executorService =
-              ThreadPools.newWorkerPool(
+              ThreadPools.newExitingWorkerPool(
                   "iceberg-s3fileio-delete", s3FileIOProperties.deleteThreads());
         }
       }
@@ -412,7 +418,7 @@ public class S3FileIO implements CredentialSupplier, DelegateFileIO, SupportsRec
     }
   }
 
-  @SuppressWarnings("checkstyle:NoFinalizer")
+  @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
   @Override
   protected void finalize() throws Throwable {
     super.finalize();

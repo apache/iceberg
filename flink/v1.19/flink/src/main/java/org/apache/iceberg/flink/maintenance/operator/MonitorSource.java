@@ -43,7 +43,7 @@ import org.slf4j.LoggerFactory;
 
 /** Monitors an Iceberg table for changes */
 @Internal
-public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
+class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
   private static final Logger LOG = LoggerFactory.getLogger(MonitorSource.class);
 
   private final TableLoader tableLoader;
@@ -58,7 +58,7 @@ public class MonitorSource extends SingleThreadedIteratorSource<TableChange> {
    * @param rateLimiterStrategy limits the frequency the table is checked
    * @param maxReadBack sets the number of snapshots read before stopping change collection
    */
-  public MonitorSource(
+  MonitorSource(
       TableLoader tableLoader, RateLimiterStrategy rateLimiterStrategy, long maxReadBack) {
     Preconditions.checkNotNull(tableLoader, "Table loader should no be null");
     Preconditions.checkNotNull(rateLimiterStrategy, "Rate limiter strategy should no be null");

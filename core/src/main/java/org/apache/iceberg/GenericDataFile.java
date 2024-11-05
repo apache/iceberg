@@ -32,6 +32,11 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
     super(avroSchema);
   }
 
+  /** Used by internal readers to instantiate this class with a projection schema. */
+  GenericDataFile(Types.StructType projection) {
+    super(projection);
+  }
+
   GenericDataFile(
       int specId,
       String filePath,
@@ -59,7 +64,10 @@ class GenericDataFile extends BaseFile<DataFile> implements DataFile {
         splitOffsets,
         null /* no equality field IDs */,
         sortOrderId,
-        keyMetadata);
+        keyMetadata,
+        null /* no referenced data file */,
+        null /* no content offset */,
+        null /* no content size */);
   }
 
   /**

@@ -54,6 +54,9 @@ public class Schema implements Serializable {
   private static final Joiner NEWLINE = Joiner.on('\n');
   private static final String ALL_COLUMNS = "*";
   private static final int DEFAULT_SCHEMA_ID = 0;
+  private static final int DEFAULT_VALUES_MIN_FORMAT_VERSION = 3;
+  private static final Map<Type.TypeID, Integer> MIN_FORMAT_VERSIONS =
+      ImmutableMap.of(Type.TypeID.TIMESTAMP_NANO, 3);
 
   private final StructType struct;
   private final int schemaId;
@@ -572,5 +575,49 @@ public class Schema implements Serializable {
               return newId;
             });
     return res.asStructType().fields();
+  }
+
+  /**
+   * Check the compatibility of the schema with a format version.
+   *
+   * <p>This validates that the schema does not contain types that were released in later format
+   * versions.
+   *
+   * @param schema a Schema
+   * @param formatVersion table format version
+   */
+  public static void checkCompatibility(Schema schema, int formatVersion) {
+    // accumulate errors as a treemap to keep them in a reasonable order
+    Map<Integer, String> problems = Maps.newTreeMap();
+
+    // check each field's type and defaults
+    for (NestedField field : schema.lazyIdToField().values()) {
+      Integer minFormatVersion = MIN_FORMAT_VERSIONS.get(field.type().typeId());
+      if (minFormatVersion != null && formatVersion < minFormatVersion) {
+        problems.put(
+            field.fieldId(),
+            String.format(
+                "Invalid type for %s: %s is not supported until v%s",
+                schema.findColumnName(field.fieldId()), field.type(), minFormatVersion));
+      }
+
+      if (field.initialDefault() != null && formatVersion < DEFAULT_VALUES_MIN_FORMAT_VERSION) {
+        problems.put(
+            field.fieldId(),
+            String.format(
+                "Invalid initial default for %s: non-null default (%s) is not supported until v%s",
+                schema.findColumnName(field.fieldId()),
+                field.initialDefault(),
+                DEFAULT_VALUES_MIN_FORMAT_VERSION));
+      }
+    }
+
+    // throw if there are any compatibility problems
+    if (!problems.isEmpty()) {
+      throw new IllegalStateException(
+          String.format(
+              "Invalid schema for v%s:\n- %s",
+              formatVersion, Joiner.on("\n- ").join(problems.values())));
+    }
   }
 }

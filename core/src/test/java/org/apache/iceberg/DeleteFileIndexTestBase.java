@@ -139,6 +139,8 @@ public abstract class DeleteFileIndexTestBase<
 
     DataFile file = unpartitionedFile(partSpec);
 
+    assertThat(index.hasEqualityDeletes()).isTrue();
+    assertThat(index.hasPositionDeletes()).isFalse();
     assertThat(index.forDataFile(0, file)).as("Only one delete file should apply").hasSize(1);
   }
 
@@ -157,6 +159,9 @@ public abstract class DeleteFileIndexTestBase<
         DeleteFileIndex.builderFor(Arrays.asList(deleteFiles))
             .specsById(ImmutableMap.of(partSpec.specId(), partSpec, 1, SPEC))
             .build();
+
+    assertThat(index.hasEqualityDeletes()).isTrue();
+    assertThat(index.hasPositionDeletes()).isTrue();
 
     DataFile unpartitionedFile = unpartitionedFile(partSpec);
     assertThat(index.forDataFile(0, unpartitionedFile))
@@ -213,6 +218,9 @@ public abstract class DeleteFileIndexTestBase<
             .specsById(ImmutableMap.of(SPEC.specId(), SPEC, 1, PartitionSpec.unpartitioned()))
             .build();
 
+    assertThat(index.hasEqualityDeletes()).isTrue();
+    assertThat(index.hasPositionDeletes()).isTrue();
+
     assertThat(index.forDataFile(0, FILE_A))
         .as("All deletes should apply to seq 0")
         .isEqualTo(deleteFiles);
@@ -258,11 +266,8 @@ public abstract class DeleteFileIndexTestBase<
 
   @TestTemplate
   public void testUnpartitionedTableScan() throws IOException {
-    File location = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(location.delete()).isTrue();
-
     Table unpartitioned =
-        TestTables.create(location, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
+        TestTables.create(tableDir, "unpartitioned", SCHEMA, PartitionSpec.unpartitioned(), 2);
 
     DataFile unpartitionedFile = unpartitionedFile(unpartitioned.spec());
     unpartitioned.newAppend().appendFile(unpartitionedFile).commit();

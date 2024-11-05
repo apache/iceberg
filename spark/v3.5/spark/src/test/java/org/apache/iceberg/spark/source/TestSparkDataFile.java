@@ -25,7 +25,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -133,12 +132,11 @@ public class TestSparkDataFile {
     currentSpark.stop();
   }
 
-  @TempDir private Path temp;
+  @TempDir private File tableDir;
   private String tableLocation = null;
 
   @BeforeEach
   public void setupTableLocation() throws Exception {
-    File tableDir = temp.toFile();
     this.tableLocation = tableDir.toURI().toString();
   }
 

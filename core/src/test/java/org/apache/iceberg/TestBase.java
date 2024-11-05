@@ -27,10 +27,12 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import org.apache.iceberg.avro.AvroSchemaUtil;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.OutputFile;
@@ -349,7 +351,24 @@ public class TestBase {
       Long fileSequenceNumber,
       F file) {
 
-    GenericManifestEntry<F> entry = new GenericManifestEntry<>(table.spec().partitionType());
+    Schema manifestEntrySchema;
+    switch (table.ops().current().formatVersion()) {
+      case 1:
+        manifestEntrySchema = V1Metadata.entrySchema(table.spec().partitionType());
+        break;
+      case 2:
+        manifestEntrySchema = V2Metadata.entrySchema(table.spec().partitionType());
+        break;
+      case 3:
+        manifestEntrySchema = V3Metadata.entrySchema(table.spec().partitionType());
+        break;
+      default:
+        throw new IllegalArgumentException(
+            "Unsupported format version: " + table.ops().current().formatVersion());
+    }
+
+    GenericManifestEntry<F> entry =
+        new GenericManifestEntry<>(AvroSchemaUtil.convert(manifestEntrySchema, "manifest_entry"));
     switch (status) {
       case ADDED:
         if (dataSequenceNumber != null && dataSequenceNumber != 0) {
@@ -460,6 +479,10 @@ public class TestBase {
   }
 
   void validateTableFiles(Table tbl, DataFile... expectedFiles) {
+    validateTableFiles(tbl, Arrays.asList(expectedFiles));
+  }
+
+  void validateTableFiles(Table tbl, Collection<DataFile> expectedFiles) {
     Set<CharSequence> expectedFilePaths = Sets.newHashSet();
     for (DataFile file : expectedFiles) {
       expectedFilePaths.add(file.path());
@@ -631,6 +654,22 @@ public class TestBase {
         .build();
   }
 
+  protected DeleteFile newDeleteFileWithRef(DataFile dataFile) {
+    PartitionSpec spec = table.specs().get(dataFile.specId());
+    return FileMetadata.deleteFileBuilder(spec)
+        .ofPositionDeletes()
+        .withPath("/path/to/delete-" + UUID.randomUUID() + ".parquet")
+        .withFileSizeInBytes(10)
+        .withPartition(dataFile.partition())
+        .withReferencedDataFile(dataFile.location())
+        .withRecordCount(1)
+        .build();
+  }
+
+  protected DeleteFile newDV(DataFile dataFile) {
+    return FileGenerationUtil.generateDV(table, dataFile);
+  }
+
   protected DeleteFile newEqualityDeleteFile(int specId, String partitionPath, int... fieldIds) {
     PartitionSpec spec = table.specs().get(specId);
     return FileMetadata.deleteFileBuilder(spec)
@@ -640,6 +679,10 @@ public class TestBase {
         .withPartitionPath(partitionPath)
         .withRecordCount(1)
         .build();
+  }
+
+  protected <T> PositionDelete<T> positionDelete(CharSequence path, long pos) {
+    return positionDelete(path, pos, null /* no row */);
   }
 
   protected <T> PositionDelete<T> positionDelete(CharSequence path, long pos, T row) {

@@ -98,11 +98,27 @@ public interface DataFile extends ContentFile<DataFile> {
   Types.NestedField SORT_ORDER_ID =
       optional(140, "sort_order_id", IntegerType.get(), "Sort order ID");
   Types.NestedField SPEC_ID = optional(141, "spec_id", IntegerType.get(), "Partition spec ID");
+  Types.NestedField REFERENCED_DATA_FILE =
+      optional(
+          143,
+          "referenced_data_file",
+          StringType.get(),
+          "Fully qualified location (URI with FS scheme) of a data file that all deletes reference");
+  Types.NestedField CONTENT_OFFSET =
+      optional(
+          144, "content_offset", LongType.get(), "The offset in the file where the content starts");
+  Types.NestedField CONTENT_SIZE =
+      optional(
+          145,
+          "content_size_in_bytes",
+          LongType.get(),
+          "The length of referenced content stored in the file");
 
   int PARTITION_ID = 102;
   String PARTITION_NAME = "partition";
   String PARTITION_DOC = "Partition data tuple, schema based on the partition spec";
-  // NEXT ID TO ASSIGN: 142
+
+  // NEXT ID TO ASSIGN: 146
 
   static StructType getType(StructType partitionType) {
     // IDs start at 100 to leave room for changes to ManifestEntry
@@ -123,10 +139,15 @@ public interface DataFile extends ContentFile<DataFile> {
         KEY_METADATA,
         SPLIT_OFFSETS,
         EQUALITY_IDS,
-        SORT_ORDER_ID);
+        SORT_ORDER_ID,
+        REFERENCED_DATA_FILE,
+        CONTENT_OFFSET,
+        CONTENT_SIZE);
   }
 
-  /** @return the content stored in the file; one of DATA, POSITION_DELETES, or EQUALITY_DELETES */
+  /**
+   * @return the content stored in the file; one of DATA, POSITION_DELETES, or EQUALITY_DELETES
+   */
   @Override
   default FileContent content() {
     return FileContent.DATA;

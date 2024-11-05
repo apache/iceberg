@@ -39,6 +39,8 @@ public class TestReadabilityChecks {
         Types.TimeType.get(),
         Types.TimestampType.withoutZone(),
         Types.TimestampType.withZone(),
+        Types.TimestampNanoType.withoutZone(),
+        Types.TimestampNanoType.withZone(),
         Types.StringType.get(),
         Types.UUIDType.get(),
         Types.FixedType.ofLength(3),

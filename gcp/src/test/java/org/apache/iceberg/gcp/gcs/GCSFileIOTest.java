@@ -19,11 +19,17 @@
 package org.apache.iceberg.gcp.gcs;
 
 import static java.lang.String.format;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
+import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
+import com.google.auth.oauth2.OAuth2Credentials;
+import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
@@ -32,6 +38,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.StreamSupport;
@@ -222,5 +230,44 @@ public class GCSFileIOTest {
             .build(resolvingFileIO)
             .invoke("gs://foo/bar");
     assertThat(result).isInstanceOf(GCSFileIO.class);
+  }
+
+  @Test
+  public void refreshCredentialsEndpointSet() {
+    Storage client;
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.initialize(
+          ImmutableMap.of(
+              GCS_OAUTH2_TOKEN,
+              "gcsToken",
+              GCS_OAUTH2_TOKEN_EXPIRES_AT,
+              Long.toString(Instant.now().plus(5, ChronoUnit.MINUTES).toEpochMilli()),
+              GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+              "/v1/credentials"));
+      client = fileIO.client();
+    }
+
+    assertThat(client.getOptions().getCredentials())
+        .isInstanceOf(OAuth2CredentialsWithRefresh.class);
+  }
+
+  @Test
+  public void refreshCredentialsEndpointSetButRefreshDisabled() {
+    Storage client;
+    try (GCSFileIO fileIO = new GCSFileIO()) {
+      fileIO.initialize(
+          ImmutableMap.of(
+              GCS_OAUTH2_TOKEN,
+              "gcsTokenWithoutRefresh",
+              GCS_OAUTH2_TOKEN_EXPIRES_AT,
+              Long.toString(Instant.now().plus(5, ChronoUnit.MINUTES).toEpochMilli()),
+              GCS_OAUTH2_REFRESH_CREDENTIALS_ENDPOINT,
+              "/v1/credentials",
+              GCS_OAUTH2_REFRESH_CREDENTIALS_ENABLED,
+              "false"));
+      client = fileIO.client();
+    }
+
+    assertThat(client.getOptions().getCredentials()).isInstanceOf(OAuth2Credentials.class);
   }
 }

@@ -26,9 +26,9 @@ buildscript {
     gradlePluginPortal()
   }
   dependencies {
-    classpath 'io.github.goooler.shadow:shadow-gradle-plugin:8.1.8'
-    classpath 'com.palantir.baseline:gradle-baseline-java:5.61.0'
-    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.13.0'
+    classpath 'com.gradleup.shadow:shadow-gradle-plugin:8.3.5'
+    classpath 'com.palantir.baseline:gradle-baseline-java:5.72.0'
+    classpath 'com.diffplug.spotless:spotless-plugin-gradle:6.25.0'
     classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
     classpath 'me.champeau.jmh:jmh-gradle-plugin:0.7.2'
     classpath 'gradle.plugin.io.morethan.jmhreport:gradle-jmh-report:0.9.6'
@@ -246,7 +246,7 @@ subprojects {
 }
 
 project(':iceberg-bundled-guava') {
-  apply plugin: 'io.github.goooler.shadow'
+  apply plugin: 'com.gradleup.shadow'
 
   tasks.jar.dependsOn tasks.shadowJar
 
@@ -347,6 +347,7 @@ project(':iceberg-core') {
     implementation libs.jackson.core
     implementation libs.jackson.databind
     implementation libs.caffeine
+    implementation libs.failsafe
     implementation libs.roaringbitmap
     compileOnly(libs.hadoop2.client) {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -437,16 +438,6 @@ project(':iceberg-aliyun') {
     testImplementation platform(libs.jackson.bom)
     testImplementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml"
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation libs.spring.web
-    testImplementation(libs.spring.boot.starter.jetty) {
-      exclude module: 'logback-classic'
-      exclude group: 'org.eclipse.jetty.websocket', module: 'javax-websocket-server-impl'
-      exclude group: 'org.eclipse.jetty.websocket', module: 'websocket-server'
-    }
-    testImplementation(libs.spring.boot.starter.web) {
-      exclude module: 'logback-classic'
-      exclude module: 'spring-boot-starter-logging'
-    }
   }
 }
 
@@ -462,6 +453,7 @@ project(':iceberg-aws') {
     annotationProcessor libs.immutables.value
     compileOnly libs.immutables.value
     implementation libs.caffeine
+    implementation libs.failsafe
     implementation platform(libs.jackson.bom)
     implementation libs.jackson.core
     implementation libs.jackson.databind
@@ -471,6 +463,7 @@ project(':iceberg-aws') {
     compileOnly("software.amazon.awssdk:url-connection-client")
     compileOnly("software.amazon.awssdk:apache-client")
     compileOnly("software.amazon.awssdk:auth")
+    compileOnly("software.amazon.awssdk:http-auth-aws-crt")
     compileOnly("software.amazon.awssdk:s3")
     compileOnly("software.amazon.awssdk:kms")
     compileOnly("software.amazon.awssdk:glue")
@@ -492,20 +485,18 @@ project(':iceberg-aws') {
     testImplementation("software.amazon.awssdk:s3control")
     testImplementation("software.amazon.s3.accessgrants:aws-s3-accessgrants-java-plugin")
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
-    testImplementation(libs.s3mock.junit5) {
-      exclude module: "spring-boot-starter-logging"
-      exclude module: "logback-classic"
-      exclude group: 'junit'
-    }
     testImplementation libs.esotericsoftware.kryo
     testImplementation libs.sqlite.jdbc
     testImplementation libs.testcontainers
+    testImplementation libs.testcontainers.junit.jupiter
+    testImplementation libs.testcontainers.minio
     testImplementation libs.httpcomponents.httpclient5
     testImplementation libs.mockserver.netty
     testImplementation libs.mockserver.client.java
     testImplementation libs.jaxb.api
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation libs.awaitility
+    testImplementation libs.jetty.servlet
   }
 
   sourceSets {
@@ -653,6 +644,7 @@ project(':iceberg-gcp') {
     testImplementation "com.google.cloud:google-cloud-nio"
 
     testImplementation project(path: ':iceberg-api', configuration: 'testArtifacts')
+    testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
 
     testImplementation(libs.hadoop2.common) {
       exclude group: 'org.apache.avro', module: 'avro'
@@ -661,6 +653,8 @@ project(':iceberg-gcp') {
       exclude group: 'com.google.code.gson', module: 'gson'
     }
     testImplementation libs.esotericsoftware.kryo
+    testImplementation libs.mockserver.netty
+    testImplementation libs.mockserver.client.java
   }
 }
 
@@ -952,6 +946,71 @@ project(':iceberg-snowflake') {
 }
 
 project(':iceberg-open-api') {
+  apply plugin: 'java-test-fixtures'
+
+  dependencies {
+    testImplementation project(':iceberg-api')
+    testImplementation project(':iceberg-core')
+    testImplementation project(':iceberg-core').sourceSets.test.runtimeClasspath
+    testImplementation(testFixtures(project(':iceberg-open-api')))
+
+    testImplementation libs.junit.jupiter
+    testImplementation libs.junit.suite.api
+    testImplementation libs.junit.suite.engine
+    testImplementation libs.assertj.core
+
+    testImplementation project(':iceberg-aws-bundle')
+    testImplementation project(':iceberg-gcp-bundle')
+    testImplementation project(':iceberg-azure-bundle')
+
+    testFixturesImplementation project(':iceberg-api')
+    testFixturesImplementation project(':iceberg-core')
+    testFixturesImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
+    testFixturesImplementation project(':iceberg-aws')
+    testFixturesImplementation project(':iceberg-gcp')
+    testFixturesImplementation project(':iceberg-azure')
+    testFixturesImplementation(libs.hadoop3.common) {
+      exclude group: 'log4j'
+      exclude group: 'org.slf4j'
+      exclude group: 'ch.qos.reload4j'
+      exclude group: 'org.apache.avro', module: 'avro'
+      exclude group: 'com.fasterxml.woodstox'
+      exclude group: 'com.google.guava'
+      exclude group: 'com.google.protobuf'
+      exclude group: 'org.apache.curator'
+      exclude group: 'org.apache.zookeeper'
+      exclude group: 'org.apache.kerby'
+      exclude group: 'org.apache.hadoop', module: 'hadoop-auth'
+      exclude group: 'org.apache.commons', module: 'commons-configuration2'
+      exclude group: 'org.apache.hadoop.thirdparty', module: 'hadoop-shaded-protobuf_3_7'
+      exclude group: 'org.codehaus.woodstox'
+      exclude group: 'org.eclipse.jetty'
+    }
+    testFixturesImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    testFixturesImplementation libs.junit.jupiter
+
+    testFixturesImplementation libs.jetty.servlet
+    testFixturesImplementation libs.jetty.server
+    testFixturesImplementation libs.sqlite.jdbc
+
+    testFixturesCompileOnly libs.apiguardian
+  }
+
+  test {
+    useJUnitPlatform()
+
+    // Always rerun the compatibility tests
+    outputs.upToDateWhen {false}
+    maxParallelForks = 1
+
+    // Pass through any system properties that start with "rck" (REST Compatibility Kit)
+    // Note: only pass through specific properties so they do not affect other build/test
+    //       configurations
+    systemProperties System.properties
+            .findAll { k, v -> k.startsWith("rck") }
+            .collectEntries { k, v -> { [(k):v, (k.replaceFirst("rck.", "")):v] }} // strip prefix
+  }
+
   def restCatalogSpec = "$projectDir/rest-catalog-open-api.yaml"
   tasks.register('validateRESTCatalogSpec', org.openapitools.generator.gradle.plugin.tasks.ValidateTask) {
     inputSpec.set(restCatalogSpec)

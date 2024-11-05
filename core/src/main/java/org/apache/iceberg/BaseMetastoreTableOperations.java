@@ -18,7 +18,7 @@
  */
 package org.apache.iceberg;
 
-import java.util.Set;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -31,11 +31,8 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.io.SupportsBulkOperations;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
-import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
@@ -126,7 +123,7 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
 
     long start = System.currentTimeMillis();
     doCommit(base, metadata);
-    deleteRemovedMetadataFiles(base, metadata);
+    CatalogUtil.deleteRemovedMetadataFiles(io(), base, metadata);
     requestRefresh();
 
     LOG.info(
@@ -285,17 +282,6 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
   }
 
   /**
-   * @deprecated since 1.6.0, will be removed in 1.7.0; Use {@link
-   *     BaseMetastoreOperations.CommitStatus} instead
-   */
-  @Deprecated
-  protected enum CommitStatus {
-    FAILURE,
-    SUCCESS,
-    UNKNOWN
-  }
-
-  /**
    * Attempt to load the table and see if any current or past metadata location matches the one we
    * were attempting to set. This is used as a last resort when we are dealing with exceptions that
    * may indicate the commit has failed but are not proof that this is the case. Past locations must
@@ -338,7 +324,8 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
             TableProperties.METADATA_COMPRESSION, TableProperties.METADATA_COMPRESSION_DEFAULT);
     String fileExtension = TableMetadataParser.getFileExtension(codecName);
     return metadataFileLocation(
-        meta, String.format("%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
+        meta,
+        String.format(Locale.ROOT, "%05d-%s%s", newVersion, UUID.randomUUID(), fileExtension));
   }
 
   /**
@@ -361,49 +348,6 @@ public abstract class BaseMetastoreTableOperations extends BaseMetastoreOperatio
     } catch (NumberFormatException e) {
       LOG.warn("Unable to parse version from metadata location: {}", metadataLocation, e);
       return -1;
-    }
-  }
-
-  /**
-   * Deletes the oldest metadata files if {@link
-   * TableProperties#METADATA_DELETE_AFTER_COMMIT_ENABLED} is true.
-   *
-   * @param base table metadata on which previous versions were based
-   * @param metadata new table metadata with updated previous versions
-   */
-  private void deleteRemovedMetadataFiles(TableMetadata base, TableMetadata metadata) {
-    if (base == null) {
-      return;
-    }
-
-    boolean deleteAfterCommit =
-        metadata.propertyAsBoolean(
-            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED,
-            TableProperties.METADATA_DELETE_AFTER_COMMIT_ENABLED_DEFAULT);
-
-    if (deleteAfterCommit) {
-      Set<TableMetadata.MetadataLogEntry> removedPreviousMetadataFiles =
-          Sets.newHashSet(base.previousFiles());
-      // TableMetadata#addPreviousFile builds up the metadata log and uses
-      // TableProperties.METADATA_PREVIOUS_VERSIONS_MAX to determine how many files should stay in
-      // the log, thus we don't include metadata.previousFiles() for deletion - everything else can
-      // be removed
-      removedPreviousMetadataFiles.removeAll(metadata.previousFiles());
-      if (io() instanceof SupportsBulkOperations) {
-        ((SupportsBulkOperations) io())
-            .deleteFiles(
-                Iterables.transform(
-                    removedPreviousMetadataFiles, TableMetadata.MetadataLogEntry::file));
-      } else {
-        Tasks.foreach(removedPreviousMetadataFiles)
-            .noRetry()
-            .suppressFailureWhenFinished()
-            .onFailure(
-                (previousMetadataFile, exc) ->
-                    LOG.warn(
-                        "Delete failed for previous metadata file: {}", previousMetadataFile, exc))
-            .run(previousMetadataFile -> io().deleteFile(previousMetadataFile.file()));
-      }
     }
   }
 }

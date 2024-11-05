@@ -19,6 +19,7 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -265,8 +266,10 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
           }
         },
         String.format(
+            Locale.ROOT,
             "Failed to send operator %s coordinator global data statistics for checkpoint %d",
-            operatorName, statistics.checkpointId()));
+            operatorName,
+            statistics.checkpointId()));
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
@@ -290,8 +293,11 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
             }
           },
           String.format(
+              Locale.ROOT,
               "Failed to send operator %s coordinator global data statistics to requesting subtask %d for checkpoint %d",
-              operatorName, subtask, globalStatistics.checkpointId()));
+              operatorName,
+              subtask,
+              globalStatistics.checkpointId()));
     } else {
       LOG.info(
           "Ignore global statistics request from subtask {} as statistics not available", subtask);
@@ -318,8 +324,11 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
           }
         },
         String.format(
+            Locale.ROOT,
             "handling operator event %s from subtask %d (#%d)",
-            event.getClass(), subtask, attemptNumber));
+            event.getClass(),
+            subtask,
+            attemptNumber));
   }
 
   @Override
@@ -339,7 +348,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
                     completedStatistics, completedStatisticsSerializer));
           }
         },
-        String.format("taking checkpoint %d", checkpointId));
+        String.format(Locale.ROOT, "taking checkpoint %d", checkpointId));
   }
 
   @Override
@@ -381,7 +390,8 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
               this.coordinatorThreadFactory.isCurrentThreadCoordinatorThread());
           subtaskGateways.reset(subtask);
         },
-        String.format("handling subtask %d recovery to checkpoint %d", subtask, checkpointId));
+        String.format(
+            Locale.ROOT, "handling subtask %d recovery to checkpoint %d", subtask, checkpointId));
   }
 
   @Override
@@ -397,7 +407,7 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
               this.coordinatorThreadFactory.isCurrentThreadCoordinatorThread());
           subtaskGateways.unregisterSubtaskGateway(subtask, attemptNumber);
         },
-        String.format("handling subtask %d (#%d) failure", subtask, attemptNumber));
+        String.format(Locale.ROOT, "handling subtask %d (#%d) failure", subtask, attemptNumber));
   }
 
   @Override
@@ -411,7 +421,10 @@ class DataStatisticsCoordinator implements OperatorCoordinator {
           subtaskGateways.registerSubtaskGateway(gateway);
         },
         String.format(
-            "making event gateway to subtask %d (#%d) available", subtask, attemptNumber));
+            Locale.ROOT,
+            "making event gateway to subtask %d (#%d) available",
+            subtask,
+            attemptNumber));
   }
 
   @VisibleForTesting

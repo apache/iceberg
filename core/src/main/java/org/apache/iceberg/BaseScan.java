@@ -77,6 +77,9 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
           "partition",
           "key_metadata",
           "split_offsets",
+          "referenced_data_file",
+          "content_offset",
+          "content_size_in_bytes",
           "equality_ids");
 
   protected static final List<String> DELETE_SCAN_WITH_STATS_COLUMNS =
@@ -288,5 +291,22 @@ abstract class BaseScan<ThisT, T extends ScanTask, G extends ScanTaskGroup<T>>
   @Override
   public ThisT metricsReporter(MetricsReporter reporter) {
     return newRefinedScan(table, schema, context.reportWith(reporter));
+  }
+
+  /**
+   * Retrieves a list of column names based on the type of manifest content provided.
+   *
+   * @param content the manifest content type to scan.
+   * @return a list of column names corresponding to the specified manifest content type.
+   */
+  static List<String> scanColumns(ManifestContent content) {
+    switch (content) {
+      case DATA:
+        return BaseScan.SCAN_COLUMNS;
+      case DELETES:
+        return BaseScan.DELETE_SCAN_COLUMNS;
+      default:
+        throw new UnsupportedOperationException("Cannot read unknown manifest type: " + content);
+    }
   }
 }

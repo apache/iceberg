@@ -343,7 +343,10 @@ Data stored in S3 with a traditional Hive storage layout can face S3 request thr
 
 Iceberg by default uses the Hive storage layout but can be switched to use the `ObjectStoreLocationProvider`. 
 With `ObjectStoreLocationProvider`, a deterministic hash is generated for each stored file, with the hash appended 
-directly after the `write.data.path`. This ensures files written to s3 are equally distributed across multiple [prefixes](https://aws.amazon.com/premiumsupport/knowledge-center/s3-object-key-naming-pattern/) in the S3 bucket. Resulting in minimized throttling and maximized throughput for S3-related IO operations. When using `ObjectStoreLocationProvider` having a shared and short `write.data.path` across your Iceberg tables will improve performance.
+directly after the `write.data.path`. This ensures files written to S3 are equally distributed across multiple
+[prefixes](https://aws.amazon.com/premiumsupport/knowledge-center/s3-object-key-naming-pattern/) in the S3 bucket;
+resulting in minimized throttling and maximized throughput for S3-related IO operations. When using `ObjectStoreLocationProvider`
+having a shared `write.data.path` across your Iceberg tables will improve performance.
 
 For more information on how S3 scales API QPS, check out the 2018 re:Invent session on [Best Practices for Amazon S3 and Amazon S3 Glacier](https://youtu.be/rHeTn9pHNKo?t=3219). At [53:39](https://youtu.be/rHeTn9pHNKo?t=3219) it covers how S3 scales/partitions & at [54:50](https://youtu.be/rHeTn9pHNKo?t=3290) it discusses the 30-60 minute wait time before new partitions are created.
 
@@ -357,7 +360,7 @@ CREATE TABLE my_catalog.my_ns.my_table (
 USING iceberg
 OPTIONS (
     'write.object-storage.enabled'=true, 
-    'write.data.path'='s3://my-table-data-bucket')
+    'write.data.path'='s3://my-table-data-bucket/my_table')
 PARTITIONED BY (category);
 ```
 
@@ -366,9 +369,16 @@ We can then insert a single row into this new table
 INSERT INTO my_catalog.my_ns.my_table VALUES (1, "Pizza", "orders");
 ```
 
-Which will write the data to S3 with a hash (`2d3905f8`) appended directly after the `write.object-storage.path`, ensuring reads to the table are spread evenly  across [S3 bucket prefixes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance.html), and improving performance.
+Which will write the data to S3 with a 20-bit base2 hash (`01010110100110110010`) appended directly after the `write.object-storage.path`, 
+ensuring reads to the table are spread evenly across [S3 bucket prefixes](https://docs.aws.amazon.com/AmazonS3/latest/userguide/optimizing-performance.html), and improving performance.
+Previously provided base64 hash was updated to base2 in order to provide an improved auto-scaling behavior on S3 General Purpose Buckets.
+
+As part of this update, we have also divided the entropy into multiple directories in order to improve the efficiency of the
+orphan clean up process for Iceberg since directories are used as a mean to divide the work across workers for faster traversal. You
+can see from the example below that we divide the hash to create 4-bit directories with a depth of 3 and attach the final part of the hash to
+the end.
 ```
-s3://my-table-data-bucket/2d3905f8/my_ns.db/my_table/category=orders/00000-0-5affc076-96a4-48f2-9cd2-d5efbc9f0c94-00001.parquet
+s3://my-table-data-bucket/my_ns.db/my_table/0101/0110/1001/10110010/category=orders/00000-0-5affc076-96a4-48f2-9cd2-d5efbc9f0c94-00001.parquet
 ```
 
 Note, the path resolution logic for `ObjectStoreLocationProvider` is `write.data.path` then `<tableLocation>/data`.
@@ -377,6 +387,28 @@ However, for the older versions up to 0.12.0, the logic is as follows:
 - at 0.12.0, `write.object-storage.path` then `write.folder-storage.path` then `<tableLocation>/data`.
 
 For more details, please refer to the [LocationProvider Configuration](custom-catalog.md#custom-location-provider-implementation) section.  
+
+We have also added a new table property `write.object-storage.partitioned-paths` that if set to false(default=true), this will
+omit the partition values from the file path. Iceberg does not need these values in the file path and setting this value to false
+can further reduce the key size. In this case, we also append the final 8 bit of entropy directly to the file name.
+Inserted key would look like the following with this config set, note that `category=orders` is removed:
+```
+s3://my-table-data-bucket/my_ns.db/my_table/1101/0100/1011/00111010-00000-0-5affc076-96a4-48f2-9cd2-d5efbc9f0c94-00001.parquet
+```
+
+### S3 Retries
+
+Workloads which encounter S3 throttling should persistently retry, with exponential backoff, to make progress while S3
+automatically scales. We provide the configurations below to adjust S3 retries for this purpose. For workloads that encounter
+throttling and fail due to retry exhaustion, we recommend retry count to set 32 in order allow S3 to auto-scale. Note that
+workloads with exceptionally high throughput against tables that S3 has not yet scaled, it may be necessary to increase the retry count further.
+
+
+| Property             | Default | Description                                                                           |
+|----------------------|---------|---------------------------------------------------------------------------------------|
+| s3.retry.num-retries | 5       | Number of times to retry S3 operations. Recommended 32 for high-throughput workloads. |
+| s3.retry.min-wait-ms | 2s      | Minimum wait time to retry a S3 operation.                                            |
+| s3.retry.max-wait-ms | 20s     | Maximum wait time to retry a S3 read operation.                                       |
 
 ### S3 Strong Consistency
 
@@ -468,13 +500,13 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
     --conf spark.sql.catalog.my_catalog.type=glue \
     --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
     --conf spark.sql.catalog.my_catalog.s3.use-arn-region-enabled=false \
-    --conf spark.sql.catalog.my_catalog.s3.access-points.my-bucket1=arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap \
-    --conf spark.sql.catalog.my_catalog.s3.access-points.my-bucket2=arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap
+    --conf spark.sql.catalog.my_catalog.s3.access-points.my-bucket1=arn:aws:s3::<ACCOUNT_ID>:accesspoint/<MRAP_ALIAS> \
+    --conf spark.sql.catalog.my_catalog.s3.access-points.my-bucket2=arn:aws:s3::<ACCOUNT_ID>:accesspoint/<MRAP_ALIAS>
 ```
-For the above example, the objects in S3 on `my-bucket1` and `my-bucket2` buckets will use `arn:aws:s3::123456789012:accesspoint:mfzwi23gnjvgw.mrap`
+For the above example, the objects in S3 on `my-bucket1` and `my-bucket2` buckets will use `arn:aws:s3::<ACCOUNT_ID>:accesspoint/<MRAP_ALIAS>`
 access-point for all S3 operations.
 
-For more details on using access-points, please refer [Using access points with compatible Amazon S3 operations](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-usage-examples.html).
+For more details on using access-points, please refer [Using access points with compatible Amazon S3 operations](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-points-usage-examples.html), [Sample notebook](https://github.com/aws-samples/quant-research/tree/main) .
 
 ### S3 Access Grants
 
@@ -499,6 +531,22 @@ spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCata
 ```
 
 For more details on using S3 Access Grants, please refer to [Managing access with S3 Access Grants](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-grants.html).
+
+### S3 Cross-Region Access
+
+S3 Cross-Region bucket access can be turned on by setting catalog property `s3.cross-region-access-enabled` to `true`. 
+This is turned off by default to avoid first S3 API call increased latency.
+
+For example, to enable S3 Cross-Region bucket access with Spark 3.3, you can start the Spark SQL shell with:
+```
+spark-sql --conf spark.sql.catalog.my_catalog=org.apache.iceberg.spark.SparkCatalog \
+    --conf spark.sql.catalog.my_catalog.warehouse=s3://my-bucket2/my/key/prefix \
+    --conf spark.sql.catalog.my_catalog.type=glue \
+    --conf spark.sql.catalog.my_catalog.io-impl=org.apache.iceberg.aws.s3.S3FileIO \
+    --conf spark.sql.catalog.my_catalog.s3.cross-region-access-enabled=true
+```
+
+For more details, please refer to [Cross-Region access for Amazon S3](https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/s3-cross-region.html).
 
 ### S3 Acceleration
 
@@ -685,3 +733,9 @@ Search the [Iceberg blogs](../../blogs.md) page for tutorials around running Ice
 
 [Amazon Kinesis Data Analytics](https://aws.amazon.com/about-aws/whats-new/2019/11/you-can-now-run-fully-managed-apache-flink-applications-with-apache-kafka/) provides a platform 
 to run fully managed Apache Flink applications. You can include Iceberg in your application Jar and run it in the platform.
+
+### AWS Redshift
+[AWS Redshift Spectrum or Redshift Serverless](https://docs.aws.amazon.com/redshift/latest/dg/querying-iceberg.html) supports querying Apache Iceberg tables cataloged in the AWS Glue Data Catalog.
+
+### Amazon Data Firehose
+You can use [Firehose](https://docs.aws.amazon.com/firehose/latest/dev/apache-iceberg-destination.html) to directly deliver streaming data to Apache Iceberg Tables in Amazon S3. With this feature, you can route records from a single stream into different Apache Iceberg Tables, and automatically apply insert, update, and delete operations to records in the Apache Iceberg Tables. This feature requires using the AWS Glue Data Catalog.

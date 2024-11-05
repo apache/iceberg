@@ -51,10 +51,8 @@ public class DynMethods {
           (method == null || method.isVarArgs()) ? -1 : method.getParameterTypes().length;
     }
 
-    /** @deprecated since 1.6.0, will be removed in 1.7.0 */
-    @Deprecated // will become private
     @SuppressWarnings("unchecked")
-    public <R> R invokeChecked(Object target, Object... args) throws Exception {
+    <R> R invokeChecked(Object target, Object... args) throws Exception {
       try {
         if (argLength < 0) {
           return (R) method.invoke(target, args);
@@ -127,6 +125,10 @@ public class DynMethods {
     /** Singleton {@link UnboundMethod}, performs no operation and returns null. */
     private static final UnboundMethod NOOP =
         new UnboundMethod(null, "NOOP") {
+          /**
+           * @deprecated since 1.7.0, visibility will be reduced in 1.8.0
+           */
+          @Deprecated // will become package-private
           @Override
           public <R> R invokeChecked(Object target, Object... args) {
             return null;
@@ -312,38 +314,6 @@ public class DynMethods {
      */
     public Builder impl(Class<?> targetClass, Class<?>... argClasses) {
       impl(targetClass, name, argClasses);
-      return this;
-    }
-
-    /** @deprecated since 1.6.0, will be removed in 1.7.0 */
-    @Deprecated
-    public Builder ctorImpl(Class<?> targetClass, Class<?>... argClasses) {
-      // don't do any work if an implementation has been found
-      if (method != null) {
-        return this;
-      }
-
-      try {
-        this.method = new DynConstructors.Builder().impl(targetClass, argClasses).buildChecked();
-      } catch (NoSuchMethodException e) {
-        // not the right implementation
-      }
-      return this;
-    }
-
-    /** @deprecated since 1.6.0, will be removed in 1.7.0 */
-    @Deprecated
-    public Builder ctorImpl(String className, Class<?>... argClasses) {
-      // don't do any work if an implementation has been found
-      if (method != null) {
-        return this;
-      }
-
-      try {
-        this.method = new DynConstructors.Builder().impl(className, argClasses).buildChecked();
-      } catch (NoSuchMethodException e) {
-        // not the right implementation
-      }
       return this;
     }
 

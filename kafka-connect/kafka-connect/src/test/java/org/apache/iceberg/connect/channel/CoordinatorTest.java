@@ -24,7 +24,6 @@ import static org.mockito.Mockito.when;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -47,14 +46,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 public class CoordinatorTest extends ChannelTestBase {
 
   @Test
   public void testCommitAppend() {
-    Assertions.assertEquals(0, ImmutableList.copyOf(table.snapshots().iterator()).size());
+    assertThat(table.snapshots()).isEmpty();
 
     OffsetDateTime ts = EventTestUtil.now();
     UUID commitId =
@@ -66,17 +64,17 @@ public class CoordinatorTest extends ChannelTestBase {
     assertCommitComplete(2, commitId, ts);
 
     List<Snapshot> snapshots = ImmutableList.copyOf(table.snapshots());
-    Assertions.assertEquals(1, snapshots.size());
+    assertThat(snapshots).hasSize(1);
 
     Snapshot snapshot = snapshots.get(0);
-    Assertions.assertEquals(DataOperations.APPEND, snapshot.operation());
-    Assertions.assertEquals(1, ImmutableList.copyOf(snapshot.addedDataFiles(table.io())).size());
-    Assertions.assertEquals(0, ImmutableList.copyOf(snapshot.addedDeleteFiles(table.io())).size());
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.APPEND);
+    assertThat(snapshot.addedDataFiles(table.io())).hasSize(1);
+    assertThat(snapshot.addedDeleteFiles(table.io())).isEmpty();
 
-    Map<String, String> summary = snapshot.summary();
-    Assertions.assertEquals(commitId.toString(), summary.get(COMMIT_ID_SNAPSHOT_PROP));
-    Assertions.assertEquals("{\"0\":3}", summary.get(OFFSETS_SNAPSHOT_PROP));
-    Assertions.assertEquals(ts.toString(), summary.get(VALID_THROUGH_TS_SNAPSHOT_PROP));
+    assertThat(snapshot.summary())
+        .containsEntry(COMMIT_ID_SNAPSHOT_PROP, commitId.toString())
+        .containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":3}")
+        .containsEntry(VALID_THROUGH_TS_SNAPSHOT_PROP, ts.toString());
   }
 
   @Test
@@ -93,17 +91,17 @@ public class CoordinatorTest extends ChannelTestBase {
     assertCommitComplete(2, commitId, ts);
 
     List<Snapshot> snapshots = ImmutableList.copyOf(table.snapshots());
-    Assertions.assertEquals(1, snapshots.size());
+    assertThat(snapshots).hasSize(1);
 
     Snapshot snapshot = snapshots.get(0);
-    Assertions.assertEquals(DataOperations.OVERWRITE, snapshot.operation());
-    Assertions.assertEquals(1, ImmutableList.copyOf(snapshot.addedDataFiles(table.io())).size());
-    Assertions.assertEquals(1, ImmutableList.copyOf(snapshot.addedDeleteFiles(table.io())).size());
+    assertThat(snapshot.operation()).isEqualTo(DataOperations.OVERWRITE);
+    assertThat(snapshot.addedDataFiles(table.io())).hasSize(1);
+    assertThat(snapshot.addedDeleteFiles(table.io())).hasSize(1);
 
-    Map<String, String> summary = snapshot.summary();
-    Assertions.assertEquals(commitId.toString(), summary.get(COMMIT_ID_SNAPSHOT_PROP));
-    Assertions.assertEquals("{\"0\":3}", summary.get(OFFSETS_SNAPSHOT_PROP));
-    Assertions.assertEquals(ts.toString(), summary.get(VALID_THROUGH_TS_SNAPSHOT_PROP));
+    assertThat(snapshot.summary())
+        .containsEntry(COMMIT_ID_SNAPSHOT_PROP, commitId.toString())
+        .containsEntry(OFFSETS_SNAPSHOT_PROP, "{\"0\":3}")
+        .containsEntry(VALID_THROUGH_TS_SNAPSHOT_PROP, ts.toString());
   }
 
   @Test
@@ -114,8 +112,7 @@ public class CoordinatorTest extends ChannelTestBase {
     assertThat(producer.history()).hasSize(2);
     assertCommitComplete(1, commitId, ts);
 
-    List<Snapshot> snapshots = ImmutableList.copyOf(table.snapshots());
-    Assertions.assertEquals(0, snapshots.size());
+    assertThat(table.snapshots()).isEmpty();
   }
 
   @Test
@@ -136,8 +133,7 @@ public class CoordinatorTest extends ChannelTestBase {
     // no commit messages sent
     assertThat(producer.history()).hasSize(1);
 
-    List<Snapshot> snapshots = ImmutableList.copyOf(table.snapshots());
-    Assertions.assertEquals(0, snapshots.size());
+    assertThat(table.snapshots()).isEmpty();
   }
 
   private void assertCommitTable(int idx, UUID commitId, OffsetDateTime ts) {

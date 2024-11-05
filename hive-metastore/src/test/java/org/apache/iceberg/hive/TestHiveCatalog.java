@@ -156,6 +156,21 @@ public class TestHiveCatalog extends CatalogTests<HiveCatalog> {
   }
 
   @Test
+  public void testInvalidIdentifiersWithRename() {
+    TableIdentifier invalidFrom = TableIdentifier.of(Namespace.of("l1", "l2"), "table1");
+    TableIdentifier validTo = TableIdentifier.of(Namespace.of("l1"), "renamedTable");
+    assertThatThrownBy(() -> catalog.renameTable(invalidFrom, validTo))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid identifier: " + invalidFrom);
+
+    TableIdentifier validFrom = TableIdentifier.of(Namespace.of("l1"), "table1");
+    TableIdentifier invalidTo = TableIdentifier.of(Namespace.of("l1", "l2"), "renamedTable");
+    assertThatThrownBy(() -> catalog.renameTable(validFrom, invalidTo))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Invalid identifier: " + invalidTo);
+  }
+
+  @Test
   public void testCreateTableBuilder() throws Exception {
     Schema schema = getTestSchema();
     PartitionSpec spec = PartitionSpec.builderFor(schema).bucket("data", 16).build();

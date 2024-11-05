@@ -38,8 +38,9 @@ class GenericManifestEntry<F extends ContentFile<F>>
     this.schema = schema;
   }
 
-  GenericManifestEntry(Types.StructType partitionType) {
-    this.schema = AvroSchemaUtil.convert(V1Metadata.entrySchema(partitionType), "manifest_entry");
+  /** Used by internal readers to instantiate this class with a projection schema. */
+  GenericManifestEntry(Types.StructType schema) {
+    this.schema = AvroSchemaUtil.convert(schema, "manifest_entry");
   }
 
   private GenericManifestEntry(GenericManifestEntry<F> toCopy, boolean fullCopy) {
@@ -94,13 +95,17 @@ class GenericManifestEntry<F extends ContentFile<F>>
     return this;
   }
 
-  /** @return the status of the file, whether EXISTING, ADDED, or DELETED */
+  /**
+   * @return the status of the file, whether EXISTING, ADDED, or DELETED
+   */
   @Override
   public Status status() {
     return status;
   }
 
-  /** @return id of the snapshot in which the file was added to the table */
+  /**
+   * @return id of the snapshot in which the file was added to the table
+   */
   @Override
   public Long snapshotId() {
     return snapshotId;
@@ -116,7 +121,9 @@ class GenericManifestEntry<F extends ContentFile<F>>
     return fileSequenceNumber;
   }
 
-  /** @return a file */
+  /**
+   * @return a file
+   */
   @Override
   public F file() {
     return file;

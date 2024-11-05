@@ -43,6 +43,25 @@ public class TestFastAppend extends TestBase {
   }
 
   @TestTemplate
+  public void testAddManyFiles() {
+    assertThat(listManifestFiles()).as("Table should start empty").isEmpty();
+
+    List<DataFile> dataFiles = Lists.newArrayList();
+
+    for (int ordinal = 0; ordinal < 2 * SnapshotProducer.MIN_FILE_GROUP_SIZE; ordinal++) {
+      StructLike partition = TestHelpers.Row.of(ordinal % 2);
+      DataFile dataFile = FileGenerationUtil.generateDataFile(table, partition);
+      dataFiles.add(dataFile);
+    }
+
+    AppendFiles append = table.newFastAppend();
+    dataFiles.forEach(append::appendFile);
+    append.commit();
+
+    validateTableFiles(table, dataFiles);
+  }
+
+  @TestTemplate
   public void appendNullFile() {
     assertThatThrownBy(() -> table.newFastAppend().appendFile(null).commit())
         .isInstanceOf(NullPointerException.class)
@@ -250,6 +269,31 @@ public class TestFastAppend extends TestBase {
         .hasMessage("Injected failure");
 
     assertThat(new File(newManifest.path())).doesNotExist();
+  }
+
+  @TestTemplate
+  public void testIncreaseNumRetries() {
+    TestTables.TestTableOperations ops = table.ops();
+    ops.failCommits(TableProperties.COMMIT_NUM_RETRIES_DEFAULT + 1);
+
+    AppendFiles append = table.newFastAppend().appendFile(FILE_B);
+
+    // Default number of retries results in a failed commit
+    assertThatThrownBy(append::commit)
+        .isInstanceOf(CommitFailedException.class)
+        .hasMessage("Injected failure");
+
+    // After increasing the number of retries the commit succeeds
+    table
+        .updateProperties()
+        .set(
+            TableProperties.COMMIT_NUM_RETRIES,
+            String.valueOf(TableProperties.COMMIT_NUM_RETRIES_DEFAULT + 1))
+        .commit();
+
+    append.commit();
+
+    validateSnapshot(null, readMetadata().currentSnapshot(), FILE_B);
   }
 
   @TestTemplate

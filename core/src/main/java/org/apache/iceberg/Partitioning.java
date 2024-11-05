@@ -242,6 +242,16 @@ public class Partitioning {
     return buildPartitionProjectionType("table partition", specs, allFieldIds(specs));
   }
 
+  /**
+   * Checks if any of the specs in a table is partitioned.
+   *
+   * @param table the table to check.
+   * @return {@code true} if the table is partitioned, {@code false} otherwise.
+   */
+  public static boolean isPartitioned(Table table) {
+    return table.specs().values().stream().anyMatch(PartitionSpec::isPartitioned);
+  }
+
   private static StructType buildPartitionProjectionType(
       String typeName, Collection<PartitionSpec> specs, Set<Integer> projectedFieldIds) {
 

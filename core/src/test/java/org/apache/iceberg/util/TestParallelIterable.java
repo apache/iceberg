@@ -20,7 +20,6 @@ package org.apache.iceberg.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -43,8 +42,7 @@ import org.junit.jupiter.api.Test;
 
 public class TestParallelIterable {
   @Test
-  public void closeParallelIteratorWithoutCompleteIteration()
-      throws IOException, IllegalAccessException, NoSuchFieldException {
+  public void closeParallelIteratorWithoutCompleteIteration() {
     ExecutorService executor = Executors.newFixedThreadPool(1);
 
     Iterable<CloseableIterable<Integer>> transform =
@@ -76,8 +74,7 @@ public class TestParallelIterable {
   }
 
   @Test
-  public void closeMoreDataParallelIteratorWithoutCompleteIteration()
-      throws IOException, IllegalAccessException, NoSuchFieldException {
+  public void closeMoreDataParallelIteratorWithoutCompleteIteration() {
     ExecutorService executor = Executors.newFixedThreadPool(1);
     Iterator<Integer> integerIterator =
         new Iterator<Integer>() {
@@ -137,8 +134,7 @@ public class TestParallelIterable {
   }
 
   @Test
-  public void limitQueueSize() throws IOException, IllegalAccessException, NoSuchFieldException {
-
+  public void limitQueueSize() {
     List<Iterable<Integer>> iterables =
         ImmutableList.of(
             () -> IntStream.range(0, 100).iterator(),
@@ -163,6 +159,41 @@ public class TestParallelIterable {
       assertThat(iterator.queueSize())
           .as("iterator internal queue size")
           .isLessThanOrEqualTo(maxQueueSize + iterables.size());
+      actualValues.add(iterator.next());
+    }
+
+    assertThat(actualValues)
+        .as("multiset of values returned by the iterator")
+        .isEqualTo(expectedValues);
+
+    iterator.close();
+    executor.shutdownNow();
+  }
+
+  @Test
+  public void queueSizeOne() {
+    List<Iterable<Integer>> iterables =
+        ImmutableList.of(
+            () -> IntStream.range(0, 100).iterator(),
+            () -> IntStream.range(0, 100).iterator(),
+            () -> IntStream.range(0, 100).iterator());
+
+    Multiset<Integer> expectedValues =
+        IntStream.range(0, 100)
+            .boxed()
+            .flatMap(i -> Stream.of(i, i, i))
+            .collect(ImmutableMultiset.toImmutableMultiset());
+
+    ExecutorService executor = Executors.newCachedThreadPool();
+    ParallelIterable<Integer> parallelIterable = new ParallelIterable<>(iterables, executor, 1);
+    ParallelIterator<Integer> iterator = (ParallelIterator<Integer>) parallelIterable.iterator();
+
+    Multiset<Integer> actualValues = HashMultiset.create();
+
+    while (iterator.hasNext()) {
+      assertThat(iterator.queueSize())
+          .as("iterator internal queue size")
+          .isLessThanOrEqualTo(1 + iterables.size());
       actualValues.add(iterator.next());
     }
 

@@ -40,7 +40,6 @@ import org.apache.iceberg.flink.FlinkWriteOptions;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.io.BaseTaskWriter;
 import org.apache.iceberg.io.TaskWriter;
-import org.apache.iceberg.io.WriteResult;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -210,8 +209,10 @@ public class TestCompressionSettings {
         .containsEntry(TableProperties.ORC_COMPRESSION_STRATEGY, "speed");
   }
 
-  private static OneInputStreamOperatorTestHarness<RowData, WriteResult> createIcebergStreamWriter(
-      Table icebergTable, TableSchema flinkSchema, Map<String, String> override) throws Exception {
+  private static OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult>
+      createIcebergStreamWriter(
+          Table icebergTable, TableSchema flinkSchema, Map<String, String> override)
+          throws Exception {
     RowType flinkRowType = FlinkSink.toFlinkRowType(icebergTable.schema(), flinkSchema);
     FlinkWriteConf flinkWriteConfig =
         new FlinkWriteConf(
@@ -219,7 +220,7 @@ public class TestCompressionSettings {
 
     IcebergStreamWriter<RowData> streamWriter =
         FlinkSink.createStreamWriter(() -> icebergTable, flinkWriteConfig, flinkRowType, null);
-    OneInputStreamOperatorTestHarness<RowData, WriteResult> harness =
+    OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> harness =
         new OneInputStreamOperatorTestHarness<>(streamWriter, 1, 1, 0);
 
     harness.setup();
@@ -230,7 +231,7 @@ public class TestCompressionSettings {
 
   private static Map<String, String> appenderProperties(
       Table table, TableSchema schema, Map<String, String> override) throws Exception {
-    try (OneInputStreamOperatorTestHarness<RowData, WriteResult> testHarness =
+    try (OneInputStreamOperatorTestHarness<RowData, FlinkWriteResult> testHarness =
         createIcebergStreamWriter(table, schema, override)) {
       testHarness.processElement(SimpleDataUtil.createRowData(1, "hello"), 1);
 

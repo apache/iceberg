@@ -122,7 +122,7 @@ public class HadoopStreams {
       return stream.read(b, off, len);
     }
 
-    @SuppressWarnings("checkstyle:NoFinalizer")
+    @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
     @Override
     protected void finalize() throws Throwable {
       super.finalize();
@@ -195,7 +195,7 @@ public class HadoopStreams {
       }
     }
 
-    @SuppressWarnings("checkstyle:NoFinalizer")
+    @SuppressWarnings({"checkstyle:NoFinalizer", "Finalize"})
     @Override
     protected void finalize() throws Throwable {
       super.finalize();
