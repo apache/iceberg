@@ -714,14 +714,12 @@ public class SparkWriteConf {
   }
 
   public DeleteGranularity deleteGranularity() {
-    String valueAsString =
-        confParser
-            .stringConf()
-            .option(SparkWriteOptions.DELETE_GRANULARITY)
-            .tableProperty(TableProperties.DELETE_GRANULARITY)
-            .defaultValue(TableProperties.DELETE_GRANULARITY_DEFAULT)
-            .parse();
-    return DeleteGranularity.fromString(valueAsString);
+    return confParser
+        .enumConf(DeleteGranularity::fromString)
+        .option(SparkWriteOptions.DELETE_GRANULARITY)
+        .tableProperty(TableProperties.DELETE_GRANULARITY)
+        .defaultValue(DeleteGranularity.FILE)
+        .parse();
   }
 
   public boolean useDVs() {
