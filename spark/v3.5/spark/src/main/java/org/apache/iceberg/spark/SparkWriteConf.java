@@ -717,7 +717,7 @@ public class SparkWriteConf {
             .stringConf()
             .option(SparkWriteOptions.DELETE_GRANULARITY)
             .tableProperty(TableProperties.DELETE_GRANULARITY)
-            .defaultValue(TableProperties.DELETE_GRANULARITY_DEFAULT)
+            .defaultValue(DeleteGranularity.FILE.toString())
             .parse();
     return DeleteGranularity.fromString(valueAsString);
   }

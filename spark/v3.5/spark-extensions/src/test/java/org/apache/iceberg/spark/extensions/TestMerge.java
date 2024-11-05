@@ -54,6 +54,7 @@ import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.deletes.DeleteGranularity;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
@@ -230,7 +231,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
   }
 
   @TestTemplate
-  public void testCoalesceMerge() {
+  public void testCoalesceMergeWithPartitionGranularity() {
     createAndInitTable("id INT, salary INT, dep STRING");
 
     String[] records = new String[100];
@@ -249,7 +250,9 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
             SPLIT_OPEN_FILE_COST,
             String.valueOf(Integer.MAX_VALUE),
             MERGE_DISTRIBUTION_MODE,
-            DistributionMode.NONE.modeName());
+            DistributionMode.NONE.modeName(),
+            TableProperties.DELETE_GRANULARITY,
+            DeleteGranularity.PARTITION.toString());
     sql("ALTER TABLE %s SET TBLPROPERTIES (%s)", tableName, tablePropsAsString(tableProps));
 
     createBranchIfNeeded();
