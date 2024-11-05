@@ -1733,7 +1733,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertEstimatedRowCount(new AllDataFilesTable(table), 4);
     assertEstimatedRowCount(new AllFilesTable(table), 4);
 
-    if (formatVersion == 2) {
+    if (formatVersion >= 2) {
       assertEstimatedRowCount(new DeleteFilesTable(table), 4);
       assertEstimatedRowCount(new AllDeleteFilesTable(table), 4);
     }
