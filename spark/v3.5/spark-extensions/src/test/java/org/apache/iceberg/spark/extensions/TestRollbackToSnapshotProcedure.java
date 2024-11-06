@@ -27,10 +27,10 @@ import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.logging.log4j.core.parser.ParseException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -255,7 +255,7 @@ public class TestRollbackToSnapshotProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rollback_to_snapshot('n', 't', 1L)", catalogName))
         .isInstanceOf(ParseException.class)
-        .hasMessage("Procedure custom.rollback_to_snapshot not found");
+        .hasMessage("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
 
     assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_snapshot('t')", catalogName))
         .isInstanceOf(AnalysisException.class)

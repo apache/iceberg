@@ -251,8 +251,8 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.remove_orphan_files('n', 't')", catalogName))
-        .isInstanceOf(org.apache.logging.log4j.core.parser.ParseException.class)
-        .hasMessage("Procedure custom.remove_orphan_files not found");
+        .isInstanceOf(ParseException.class)
+        .hasMessage("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
 
     assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
