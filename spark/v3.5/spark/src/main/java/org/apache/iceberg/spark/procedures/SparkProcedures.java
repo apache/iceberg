@@ -19,8 +19,8 @@
 package org.apache.iceberg.spark.procedures;
 
 import java.util.Locale;
-import java.util.Set;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.spark.sql.connector.catalog.TableCatalog;
