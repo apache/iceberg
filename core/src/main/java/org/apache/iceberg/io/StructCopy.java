@@ -20,9 +20,15 @@ package org.apache.iceberg.io;
 
 import org.apache.iceberg.StructLike;
 
-/** Copy the StructLike's values into a new one. It does not handle list or map values now. */
-public class StructCopy implements StructLike {
-  public static StructLike copy(StructLike struct) {
+/**
+ * Copy the StructLike's values into a new one. It does not handle list or map values now.
+ *
+ * @deprecated since 1.8.0, will be removed in 1.9.0; use {@link
+ *     org.apache.iceberg.util.StructLikeUtil#copy(StructLike)} instead.
+ */
+@Deprecated
+class StructCopy implements StructLike {
+  static StructLike copy(StructLike struct) {
     return struct != null ? new StructCopy(struct) : null;
   }
 

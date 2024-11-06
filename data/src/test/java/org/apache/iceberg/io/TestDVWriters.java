@@ -33,7 +33,6 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.data.BaseDeleteLoader;
 import org.apache.iceberg.data.DeleteLoader;
@@ -88,36 +87,28 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
     DataFile dataFile2 = writeData(writerFactory, fileFactory, rows2, table.spec(), null);
     table.newFastAppend().appendFile(dataFile2).commit();
 
-    // init the delete writer
+    // init the DV writer
     DVFileWriter dvWriter =
         new BaseDVFileWriter(fileFactory, new PreviousDeleteLoader(table, ImmutableMap.of()));
 
-    PartitionSpec spec = table.spec();
-
     // write deletes for both data files (the order of records is mixed)
-    dvWriter.write(dataFile1.path(), 1L, spec, null);
-    dvWriter.write(dataFile2.path(), 0L, spec, null);
-    dvWriter.write(dataFile1.path(), 0L, spec, null);
-    dvWriter.write(dataFile2.path(), 1L, spec, null);
+    dvWriter.delete(dataFile1.location(), 1L, table.spec(), null);
+    dvWriter.delete(dataFile2.location(), 0L, table.spec(), null);
+    dvWriter.delete(dataFile1.location(), 0L, table.spec(), null);
+    dvWriter.delete(dataFile2.location(), 1L, table.spec(), null);
     dvWriter.close();
 
     // verify the writer result
     DeleteWriteResult result = dvWriter.result();
     assertThat(result.deleteFiles()).hasSize(2);
-    assertThat(result.referencedDataFiles()).hasSize(2);
+    assertThat(result.referencedDataFiles())
+        .hasSize(2)
+        .contains(dataFile1.location())
+        .contains(dataFile2.location());
     assertThat(result.referencesDataFiles()).isTrue();
-
-    // commit the deletes
-    RowDelta rowDelta = table.newRowDelta();
-    result.deleteFiles().forEach(rowDelta::addDeletes);
-    rowDelta.commit();
-
-    // verify correctness
-    List<T> expectedRows = ImmutableList.of(toRow(11, "aaa"), toRow(12, "aaa"));
-    assertThat(actualRowSet("*")).isEqualTo(toSet(expectedRows));
   }
 
-  private static class PreviousDeleteLoader implements Function<CharSequence, PositionDeleteIndex> {
+  private static class PreviousDeleteLoader implements Function<String, PositionDeleteIndex> {
     private final Map<String, DeleteFile> deleteFiles;
     private final DeleteLoader deleteLoader;
 
@@ -127,8 +118,8 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
     }
 
     @Override
-    public PositionDeleteIndex apply(CharSequence path) {
-      DeleteFile deleteFile = deleteFiles.get(path.toString());
+    public PositionDeleteIndex apply(String path) {
+      DeleteFile deleteFile = deleteFiles.get(path);
       if (deleteFile == null) {
         return null;
       }

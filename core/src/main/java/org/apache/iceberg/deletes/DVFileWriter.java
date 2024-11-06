@@ -34,7 +34,7 @@ public interface DVFileWriter extends Closeable {
    * @param spec the data file partition spec
    * @param partition the data file partition
    */
-  void write(CharSequence path, long pos, PartitionSpec spec, StructLike partition);
+  void delete(String path, long pos, PartitionSpec spec, StructLike partition);
 
   /**
    * Returns a result that contains information about written {@link DeleteFile}s. The result is

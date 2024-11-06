@@ -20,6 +20,7 @@ package org.apache.iceberg.deletes;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
@@ -31,7 +32,6 @@ import org.apache.iceberg.StructLike;
 import org.apache.iceberg.encryption.EncryptedOutputFile;
 import org.apache.iceberg.io.DeleteWriteResult;
 import org.apache.iceberg.io.OutputFileFactory;
-import org.apache.iceberg.io.StructCopy;
 import org.apache.iceberg.puffin.Blob;
 import org.apache.iceberg.puffin.BlobMetadata;
 import org.apache.iceberg.puffin.Puffin;
@@ -41,9 +41,10 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.util.CharSequenceMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.ContentFileUtil;
+import org.apache.iceberg.util.StructLikeUtil;
 
 public class BaseDVFileWriter implements DVFileWriter {
 
@@ -51,21 +52,21 @@ public class BaseDVFileWriter implements DVFileWriter {
   private static final String CARDINALITY_KEY = "cardinality";
 
   private final OutputFileFactory fileFactory;
-  private final Function<CharSequence, PositionDeleteIndex> loadPreviousDeletes;
-  private final CharSequenceMap<Deletes> deletesByPath = CharSequenceMap.create();
-  private final CharSequenceMap<BlobMetadata> blobsByPath = CharSequenceMap.create();
+  private final Function<String, PositionDeleteIndex> loadPreviousDeletes;
+  private final Map<String, Deletes> deletesByPath = Maps.newHashMap();
+  private final Map<String, BlobMetadata> blobsByPath = Maps.newHashMap();
   private DeleteWriteResult result = null;
 
   public BaseDVFileWriter(
-      OutputFileFactory fileFactory,
-      Function<CharSequence, PositionDeleteIndex> loadPreviousDeletes) {
+      OutputFileFactory fileFactory, Function<String, PositionDeleteIndex> loadPreviousDeletes) {
     this.fileFactory = fileFactory;
     this.loadPreviousDeletes = loadPreviousDeletes;
   }
 
   @Override
-  public void write(CharSequence path, long pos, PartitionSpec spec, StructLike partition) {
-    Deletes deletes = deletesByPath.computeIfAbsent(path, () -> new Deletes(path, spec, partition));
+  public void delete(String path, long pos, PartitionSpec spec, StructLike partition) {
+    Deletes deletes =
+        deletesByPath.computeIfAbsent(path, key -> new Deletes(path, spec, partition));
     PositionDeleteIndex positions = deletes.positions();
     positions.delete(pos);
   }
@@ -79,7 +80,7 @@ public class BaseDVFileWriter implements DVFileWriter {
   @Override
   public void close() throws IOException {
     if (result == null) {
-      List<DeleteFile> deleteFiles = Lists.newArrayList();
+      List<DeleteFile> dvs = Lists.newArrayList();
       CharSequenceSet referencedDataFiles = CharSequenceSet.empty();
       List<DeleteFile> rewrittenDeleteFiles = Lists.newArrayList();
 
@@ -87,14 +88,14 @@ public class BaseDVFileWriter implements DVFileWriter {
 
       try (PuffinWriter closeableWriter = writer) {
         for (Deletes deletes : deletesByPath.values()) {
-          CharSequence path = deletes.path();
+          String path = deletes.path();
           PositionDeleteIndex positions = deletes.positions();
           PositionDeleteIndex previousPositions = loadPreviousDeletes.apply(path);
           if (previousPositions != null) {
             positions.merge(previousPositions);
             for (DeleteFile previousDeleteFile : previousPositions.deleteFiles()) {
-              // only file-scoped deletes can be discarded from the table state
-              if (ContentFileUtil.referencedDataFile(previousDeleteFile) != null) {
+              // only DVs and file-scoped deletes can be discarded from the table state
+              if (ContentFileUtil.isFileScoped(previousDeleteFile)) {
                 rewrittenDeleteFiles.add(previousDeleteFile);
               }
             }
@@ -104,21 +105,20 @@ public class BaseDVFileWriter implements DVFileWriter {
         }
       }
 
-      // all delete files share the same Puffin path but have different content offsets
+      // DVs share the Puffin path and file size but have different offsets
       String puffinPath = writer.location();
       long puffinFileSize = writer.fileSize();
 
-      for (CharSequence path : deletesByPath.keySet()) {
-        DeleteFile deleteFile = createDeleteFile(puffinPath, puffinFileSize, path);
-        deleteFiles.add(deleteFile);
+      for (String path : deletesByPath.keySet()) {
+        DeleteFile dv = createDV(puffinPath, puffinFileSize, path);
+        dvs.add(dv);
       }
 
-      this.result = new DeleteWriteResult(deleteFiles, referencedDataFiles, rewrittenDeleteFiles);
+      this.result = new DeleteWriteResult(dvs, referencedDataFiles, rewrittenDeleteFiles);
     }
   }
 
-  @SuppressWarnings("CollectionUndefinedEquality")
-  private DeleteFile createDeleteFile(String path, long size, CharSequence referencedDataFile) {
+  private DeleteFile createDV(String path, long size, String referencedDataFile) {
     Deletes deletes = deletesByPath.get(referencedDataFile);
     BlobMetadata blobMetadata = blobsByPath.get(referencedDataFile);
     return FileMetadata.deleteFileBuilder(deletes.spec())
@@ -135,7 +135,7 @@ public class BaseDVFileWriter implements DVFileWriter {
   }
 
   private void write(PuffinWriter writer, Deletes deletes) {
-    CharSequence path = deletes.path();
+    String path = deletes.path();
     PositionDeleteIndex positions = deletes.positions();
     BlobMetadata blobMetadata = writer.write(toBlob(positions, path));
     blobsByPath.put(path, blobMetadata);
@@ -147,7 +147,7 @@ public class BaseDVFileWriter implements DVFileWriter {
     return Puffin.write(outputFile).createdBy(ident).build();
   }
 
-  private Blob toBlob(PositionDeleteIndex positions, CharSequence path) {
+  private Blob toBlob(PositionDeleteIndex positions, String path) {
     return new Blob(
         StandardBlobTypes.DV_V1,
         ImmutableList.of(MetadataColumns.ROW_POSITION.fieldId()),
@@ -157,25 +157,25 @@ public class BaseDVFileWriter implements DVFileWriter {
         null /* uncompressed */,
         ImmutableMap.of(
             REFERENCED_DATA_FILE_KEY,
-            path.toString(),
+            path,
             CARDINALITY_KEY,
             String.valueOf(positions.cardinality())));
   }
 
   private static class Deletes {
-    private final CharSequence path;
+    private final String path;
     private final PositionDeleteIndex positions;
     private final PartitionSpec spec;
     private final StructLike partition;
 
-    private Deletes(CharSequence path, PartitionSpec spec, StructLike partition) {
+    private Deletes(String path, PartitionSpec spec, StructLike partition) {
       this.path = path;
       this.positions = new BitmapPositionDeleteIndex();
       this.spec = spec;
-      this.partition = StructCopy.copy(partition);
+      this.partition = StructLikeUtil.copy(partition);
     }
 
-    public CharSequence path() {
+    public String path() {
       return path;
     }
 

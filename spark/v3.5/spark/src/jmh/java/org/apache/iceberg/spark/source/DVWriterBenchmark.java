@@ -120,7 +120,7 @@ public class DVWriterBenchmark {
       for (InternalRow row : positionDeletes) {
         String path = row.getString(0);
         long pos = row.getLong(1);
-        closableWriter.write(path, pos, table.spec(), null);
+        closableWriter.delete(path, pos, table.spec(), null);
       }
     }
 
