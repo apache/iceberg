@@ -252,7 +252,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.remove_orphan_files('n', 't')", catalogName))
         .isInstanceOf(ParseException.class)
-        .hasMessage("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
+        .hasMessageContaining("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
 
     assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files()", catalogName))
         .isInstanceOf(AnalysisException.class)

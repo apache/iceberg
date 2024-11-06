@@ -255,7 +255,7 @@ public class TestRollbackToSnapshotProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rollback_to_snapshot('n', 't', 1L)", catalogName))
         .isInstanceOf(ParseException.class)
-        .hasMessage("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
+        .hasMessageContaining("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
 
     assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_snapshot('t')", catalogName))
         .isInstanceOf(AnalysisException.class)

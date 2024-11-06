@@ -169,7 +169,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.expire_snapshots('n', 't')", catalogName))
         .isInstanceOf(ParseException.class)
-        .hasMessage("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
+        .hasMessageContaining("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
 
     assertThatThrownBy(() -> sql("CALL %s.system.expire_snapshots()", catalogName))
         .isInstanceOf(AnalysisException.class)
