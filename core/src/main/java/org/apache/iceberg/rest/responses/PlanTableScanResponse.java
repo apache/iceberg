@@ -25,7 +25,6 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.relocated.com.google.common.base.MoreObjects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.PlanStatus;
 
 public class PlanTableScanResponse implements TableScanResponse {
@@ -48,7 +47,8 @@ public class PlanTableScanResponse implements TableScanResponse {
     this.planTasks = planTasks;
     this.fileScanTasks = fileScanTasks;
     this.deleteFiles = deleteFiles;
-    this.specsById = specsById != null ? specsById : Maps.newHashMap();
+    this.specsById = specsById;
+    validate();
   }
 
   public PlanStatus planStatus() {
