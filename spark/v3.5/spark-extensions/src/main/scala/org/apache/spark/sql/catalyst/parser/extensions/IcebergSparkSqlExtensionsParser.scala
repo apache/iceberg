@@ -136,8 +136,10 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       // Strip comments of the form  /* ... */. This must come after stripping newlines so that
       // comments that span multiple lines are caught.
       .replaceAll("/\\*.*?\\*/", " ")
+      .replace("`", "")
       .trim()
-    normalized.startsWith("call") || (
+    // All builtin Iceberg procedures are under the 'system' namespace
+    normalized.startsWith("call") && normalized.contains("system.") || (
         normalized.startsWith("alter table") && (
             normalized.contains("add partition field") ||
             normalized.contains("drop partition field") ||
