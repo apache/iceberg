@@ -37,7 +37,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 public class TestSchema {
 
-  private static final List<Type> TESTTYPES =
+  private static final List<Type> TEST_TYPES =
       ImmutableList.of(Types.TimestampNanoType.withoutZone(), Types.TimestampNanoType.withZone());
 
   private static final Schema INITIAL_DEFAULT_SCHEMA =
@@ -76,8 +76,8 @@ public class TestSchema {
                     Types.StructType.of(Types.NestedField.optional(9, "deep", type))))));
   }
 
-  private static Stream<Arguments> testTypeUnsupported() {
-    return TESTTYPES.stream()
+  private static Stream<Arguments> unsupportedTypes() {
+    return TEST_TYPES.stream()
         .flatMap(
             type ->
                 IntStream.range(1, MIN_FORMAT_VERSIONS.get(type.typeId()))
@@ -85,8 +85,8 @@ public class TestSchema {
   }
 
   @ParameterizedTest
-  @MethodSource
-  public void testTypeUnsupported(Type type, int unsupportedVersion) {
+  @MethodSource("unsupportedTypes")
+  public void testUnsupportedTypes(Type type, int unsupportedVersion) {
     assertThatThrownBy(
             () -> Schema.checkCompatibility(generateTypeSchema(type), unsupportedVersion))
         .isInstanceOf(IllegalStateException.class)
@@ -110,8 +110,8 @@ public class TestSchema {
             MIN_FORMAT_VERSIONS.get(type.typeId()));
   }
 
-  private static Stream<Arguments> testTypeSupported() {
-    return TESTTYPES.stream()
+  private static Stream<Arguments> supportedTypes() {
+    return TEST_TYPES.stream()
         .flatMap(
             type ->
                 IntStream.rangeClosed(MIN_FORMAT_VERSIONS.get(type.typeId()), MAX_FORMAT_VERSION)
@@ -119,17 +119,17 @@ public class TestSchema {
   }
 
   @ParameterizedTest
-  @MethodSource
+  @MethodSource("supportedTypes")
   public void testTypeSupported(Type type, int supportedVersion) {
     assertThatCode(() -> Schema.checkCompatibility(generateTypeSchema(type), supportedVersion))
         .doesNotThrowAnyException();
   }
 
-  private static int[] testUnsupportedInitialDefault =
+  private static int[] unsupportedInitialDefault =
       IntStream.range(1, DEFAULT_VALUES_MIN_FORMAT_VERSION).toArray();
 
   @ParameterizedTest
-  @FieldSource
+  @FieldSource("unsupportedInitialDefault")
   public void testUnsupportedInitialDefault(int formatVersion) {
     assertThatThrownBy(() -> Schema.checkCompatibility(INITIAL_DEFAULT_SCHEMA, formatVersion))
         .isInstanceOf(IllegalStateException.class)
@@ -140,21 +140,19 @@ public class TestSchema {
             formatVersion);
   }
 
-  private static int[] testSupportedInitialDefault =
+  private static int[] supportedInitialDefault =
       IntStream.rangeClosed(DEFAULT_VALUES_MIN_FORMAT_VERSION, MAX_FORMAT_VERSION).toArray();
 
   @ParameterizedTest
-  @FieldSource
+  @FieldSource("supportedInitialDefault")
   public void testSupportedInitialDefault(int formatVersion) {
     assertThatCode(() -> Schema.checkCompatibility(INITIAL_DEFAULT_SCHEMA, formatVersion))
         .doesNotThrowAnyException();
   }
 
-  private static int[] testSupportedWriteDefault =
-      IntStream.rangeClosed(1, MAX_FORMAT_VERSION).toArray();
 
   @ParameterizedTest
-  @FieldSource
+  @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testSupportedWriteDefault(int formatVersion) {
     // only the initial default is a forward-incompatible change
     assertThatCode(() -> Schema.checkCompatibility(WRITE_DEFAULT_SCHEMA, formatVersion))

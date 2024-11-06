@@ -54,6 +54,7 @@ public class TestHelpers {
   private TestHelpers() {}
 
   public static final int MAX_FORMAT_VERSION = 3;
+  public static final int[] ALL_VERSIONS = IntStream.rangeClosed(1, MAX_FORMAT_VERSION).toArray();
 
   /** Wait in a tight check loop until system clock is past {@code timestampMillis} */
   public static long waitUntilAfter(long timestampMillis) {
