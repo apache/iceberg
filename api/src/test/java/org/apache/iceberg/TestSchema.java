@@ -150,7 +150,6 @@ public class TestSchema {
         .doesNotThrowAnyException();
   }
 
-
   @ParameterizedTest
   @FieldSource("org.apache.iceberg.TestHelpers#ALL_VERSIONS")
   public void testSupportedWriteDefault(int formatVersion) {
