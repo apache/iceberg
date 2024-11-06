@@ -27,10 +27,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.ivy.util.cli.ParseException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -169,8 +169,8 @@ public class TestCherrypickSnapshotProcedure extends ExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.cherrypick_snapshot('n', 't', 1L)", catalogName))
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessage("Procedure custom.cherrypick_snapshot not found");
+        .isInstanceOf(ParseException.class)
+        .hasMessage("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
 
     assertThatThrownBy(() -> sql("CALL %s.system.cherrypick_snapshot('t')", catalogName))
         .isInstanceOf(AnalysisException.class)
