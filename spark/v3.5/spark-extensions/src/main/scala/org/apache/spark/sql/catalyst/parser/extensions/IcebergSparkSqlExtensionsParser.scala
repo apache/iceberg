@@ -138,7 +138,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       // comments that span multiple lines are caught.
       .replaceAll("/\\*.*?\\*/", " ")
       // Strip backtick then `system`.`ancestors_of` changes to system.ancestors_of
-      .replace("`", "")
+      .replaceAll("`", "")
       .trim()
 
     normalized.startsWith("call") && isIcebergProcedure(normalized) || (
