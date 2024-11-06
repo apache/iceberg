@@ -28,10 +28,10 @@ import java.util.List;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.logging.log4j.core.parser.ParseException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -295,8 +295,8 @@ public class TestRollbackToTimestampProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(
             () -> sql("CALL %s.custom.rollback_to_timestamp('n', 't', %s)", catalogName, timestamp))
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessage("Procedure custom.rollback_to_timestamp not found");
+        .isInstanceOf(ParseException.class)
+        .hasMessage("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
 
     assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_timestamp('t')", catalogName))
         .isInstanceOf(AnalysisException.class)

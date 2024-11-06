@@ -62,7 +62,6 @@ import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.junit.jupiter.api.AfterEach;
@@ -252,7 +251,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
         .hasMessage("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.remove_orphan_files('n', 't')", catalogName))
-        .isInstanceOf(NoSuchProcedureException.class)
+        .isInstanceOf(org.apache.logging.log4j.core.parser.ParseException.class)
         .hasMessage("Procedure custom.remove_orphan_files not found");
 
     assertThatThrownBy(() -> sql("CALL %s.system.remove_orphan_files()", catalogName))

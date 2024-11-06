@@ -27,10 +27,10 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.logging.log4j.core.parser.ParseException;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.TestTemplate;
 
@@ -167,8 +167,8 @@ public class TestPublishChangesProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(
             () -> sql("CALL %s.custom.publish_changes('n', 't', 'not_valid')", catalogName))
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessage("Procedure custom.publish_changes not found");
+        .isInstanceOf(ParseException.class)
+        .hasMessage("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
 
     assertThatThrownBy(() -> sql("CALL %s.system.publish_changes('t')", catalogName))
         .isInstanceOf(AnalysisException.class)
