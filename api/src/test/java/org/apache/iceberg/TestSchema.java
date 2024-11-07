@@ -38,7 +38,10 @@ import org.junit.jupiter.params.provider.MethodSource;
 public class TestSchema {
 
   private static final List<Type> TEST_TYPES =
-      ImmutableList.of(Types.TimestampNanoType.withoutZone(), Types.TimestampNanoType.withZone());
+      ImmutableList.of(
+          Types.TimestampNanoType.withoutZone(),
+          Types.TimestampNanoType.withZone(),
+          Types.VariantType.get());
 
   private static final Schema INITIAL_DEFAULT_SCHEMA =
       new Schema(
