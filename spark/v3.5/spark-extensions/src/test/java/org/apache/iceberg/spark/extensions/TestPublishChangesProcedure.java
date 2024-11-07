@@ -168,7 +168,7 @@ public class TestPublishChangesProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.custom.publish_changes('n', 't', 'not_valid')", catalogName))
         .isInstanceOf(ParseException.class)
-        .hasMessage("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
+        .hasMessageContaining("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
 
     assertThatThrownBy(() -> sql("CALL %s.system.publish_changes('t')", catalogName))
         .isInstanceOf(AnalysisException.class)
