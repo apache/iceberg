@@ -17,19 +17,18 @@
   - under the License.
   -->
 
-# Iceberg rest adapter image
+# Iceberg REST Catalog Adapter Test Fixture
 
 For converting different catalog implementations into a rest one.
+Adapter for wrapping the existing catalog backends over REST.
 
-## Building the Docker Image locally
 
-If you want to make changes to the local files, and test them out, you can build the image locally and use that instead:
+## Build the Docker Image
+
+When making changes to the local files and test them out, you can build the image locally:
 
 ```bash
-# Navigate to the iceberg root directory
-cd ../../ 
-
-# Build the project
+# Build the project from iceberg root directory
 ./gradlew :iceberg-open-api:shadowJar
 
 # Rebuild the docker image

@@ -415,7 +415,18 @@ License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
 
+Group: org.apache.commons  Name: commons-configuration2  Version: 2.10.1
+Project URL: https://commons.apache.org/proper/commons-configuration/
+License (from POM): Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
 Group: org.apache.hadoop  Name: hadoop-common  Version: 3.3.6
+License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+Group: org.apache.hadoop  Name: hadoop-auth  Version: 3.3.6
 License (from POM): Apache License, Version 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------

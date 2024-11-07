@@ -981,8 +981,6 @@ project(':iceberg-open-api') {
       exclude group: 'org.apache.curator'
       exclude group: 'org.apache.zookeeper'
       exclude group: 'org.apache.kerby'
-      exclude group: 'org.apache.hadoop', module: 'hadoop-auth'
-      exclude group: 'org.apache.commons', module: 'commons-configuration2'
       exclude group: 'org.apache.hadoop.thirdparty', module: 'hadoop-shaded-protobuf_3_7'
       exclude group: 'org.eclipse.jetty'
       exclude group: 'com.google.re2j', module: 're2j'
@@ -997,6 +995,9 @@ project(':iceberg-open-api') {
     }
     testFixturesImplementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     testFixturesImplementation libs.junit.jupiter
+
+    testFixturesImplementation libs.slf4j.api
+    testFixturesImplementation libs.slf4j.simple
 
     testFixturesImplementation libs.jetty.servlet
     testFixturesImplementation libs.jetty.server
