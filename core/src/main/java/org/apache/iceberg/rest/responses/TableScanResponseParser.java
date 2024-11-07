@@ -31,6 +31,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RESTFileScanTaskParser;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.JsonUtil;
@@ -64,13 +65,13 @@ class TableScanResponseParser {
       JsonNode scanTasks = JsonUtil.get(FILE_SCAN_TASKS, node);
       Preconditions.checkArgument(
           scanTasks.isArray(), "Cannot parse file scan tasks from non-array: %s", scanTasks);
-      ImmutableList.Builder<FileScanTask> fileScanTaskBuilder = ImmutableList.builder();
+      List<FileScanTask> fileScanTaskList = Lists.newArrayList();
       for (JsonNode fileScanTaskNode : scanTasks) {
         FileScanTask fileScanTask = RESTFileScanTaskParser.fromJson(fileScanTaskNode, deleteFiles);
-        fileScanTaskBuilder.add(fileScanTask);
+        fileScanTaskList.add(fileScanTask);
       }
 
-      return fileScanTaskBuilder.build();
+      return fileScanTaskList;
     }
 
     return null;

@@ -44,6 +44,8 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
   // well more planTasks
   private final List<FileScanTask> fileScanTasks;
   private ExecutorService executorService;
+  private Map<Integer, PartitionSpec> specsById;
+  private boolean caseSensitive;
 
   public ScanTasksIterable(
       String planTask,
@@ -51,7 +53,9 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       ResourcePaths resourcePaths,
       TableIdentifier tableIdentifier,
       Supplier<Map<String, String>> headers,
-      ExecutorService executorService) {
+      ExecutorService executorService,
+      Map<Integer, PartitionSpec> specsById,
+      boolean caseSensitive) {
     this.planTask = planTask;
     this.fileScanTasks = null;
     this.client = client;
@@ -59,6 +63,8 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     this.tableIdentifier = tableIdentifier;
     this.headers = headers;
     this.executorService = executorService;
+    this.specsById = specsById;
+    this.caseSensitive = caseSensitive;
   }
 
   public ScanTasksIterable(
@@ -67,7 +73,9 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       ResourcePaths resourcePaths,
       TableIdentifier tableIdentifier,
       Supplier<Map<String, String>> headers,
-      ExecutorService executorService) {
+      ExecutorService executorService,
+      Map<Integer, PartitionSpec> specsById,
+      boolean caseSensitive) {
     this.planTask = null;
     this.fileScanTasks = fileScanTasks;
     this.client = client;
@@ -75,12 +83,22 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     this.tableIdentifier = tableIdentifier;
     this.headers = headers;
     this.executorService = executorService;
+    this.specsById = specsById;
+    this.caseSensitive = caseSensitive;
   }
 
   @Override
   public CloseableIterator<FileScanTask> iterator() {
     return new ScanTasksIterator(
-        planTask, fileScanTasks, client, resourcePaths, tableIdentifier, headers, executorService);
+        planTask,
+        fileScanTasks,
+        client,
+        resourcePaths,
+        tableIdentifier,
+        headers,
+        executorService,
+        specsById,
+        caseSensitive);
   }
 
   @Override
@@ -94,6 +112,8 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
     private String planTask;
     private List<FileScanTask> fileScanTasks;
     private ExecutorService executorService;
+    private Map<Integer, PartitionSpec> specsById;
+    private boolean caseSensitive;
 
     ScanTasksIterator(
         String planTask,
@@ -102,7 +122,9 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
         ResourcePaths resourcePaths,
         TableIdentifier tableIdentifier,
         Supplier<Map<String, String>> headers,
-        ExecutorService executorService) {
+        ExecutorService executorService,
+        Map<Integer, PartitionSpec> specsById,
+        boolean caseSensitive) {
       this.client = client;
       this.resourcePaths = resourcePaths;
       this.tableIdentifier = tableIdentifier;
@@ -110,6 +132,8 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       this.planTask = planTask;
       this.fileScanTasks = fileScanTasks != null ? fileScanTasks : Lists.newArrayList();
       this.executorService = executorService;
+      this.specsById = specsById;
+      this.caseSensitive = caseSensitive;
     }
 
     @Override
@@ -133,7 +157,10 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
 
     @Override
     public FileScanTask next() {
-      return fileScanTasks.remove(0);
+      UnboundBaseFileScanTask unboundBaseFileScanTask =
+          (UnboundBaseFileScanTask) fileScanTasks.remove(0);
+      Integer specId = unboundBaseFileScanTask.file().specId();
+      return unboundBaseFileScanTask.bind(specsById.get(specId), caseSensitive);
     }
 
     private void fetchScanTasks(String withPlanTask) {
@@ -165,7 +192,14 @@ public class ScanTasksIterable implements CloseableIterable<FileScanTask> {
       for (String withPlanTask : planTasks) {
         ScanTasksIterable iterable =
             new ScanTasksIterable(
-                withPlanTask, client, resourcePaths, tableIdentifier, headers, executorService);
+                withPlanTask,
+                client,
+                resourcePaths,
+                tableIdentifier,
+                headers,
+                executorService,
+                specsById,
+                caseSensitive);
         iterableOfScanTaskIterables.add(iterable);
       }
       return new ParallelIterable<>(iterableOfScanTaskIterables, executorService);

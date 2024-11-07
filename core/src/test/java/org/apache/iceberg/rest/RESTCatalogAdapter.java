@@ -577,7 +577,7 @@ public class RESTCatalogAdapter implements RESTClient {
                 PlanTableScanResponse.builder()
                     .withPlanId(planId)
                     .withPlanStatus(PlanStatus.SUBMITTED)
-                    // .withSpecsById(table.specs())
+                    .withSpecsById(table.specs())
                     .build());
           }
 
@@ -592,7 +592,7 @@ public class RESTCatalogAdapter implements RESTClient {
                 PlanTableScanResponse.builder()
                     .withPlanStatus(PlanStatus.COMPLETED)
                     .withPlanTasks(planTasks)
-                    // .withSpecsById(table.specs())
+                    .withSpecsById(table.specs())
                     .build());
           }
 
@@ -616,6 +616,7 @@ public class RESTCatalogAdapter implements RESTClient {
                 PlanTableScanResponse.builder()
                     .withPlanStatus(PlanStatus.COMPLETED)
                     .withPlanTasks(outerPlanTasks)
+                    .withSpecsById(table.specs())
                     .build());
           }
           break;
@@ -624,6 +625,7 @@ public class RESTCatalogAdapter implements RESTClient {
       case FETCH_PLANNING_RESULT:
         {
           TableIdentifier ident = tableIdentFromPathVars(vars);
+          Table table = catalog.loadTable(ident);
           if (ident.equals(TABLE_SUBMITTED_WITH_FILE_SCAN_TASK)) {
             String planId = planIDFromPathVars(vars);
             return castResponse(
@@ -631,6 +633,7 @@ public class RESTCatalogAdapter implements RESTClient {
                 FetchPlanningResultResponse.builder()
                     .withPlanStatus(PlanStatus.fromName("completed"))
                     .withFileScanTasks(planToFileScanTasks.get(planId))
+                    .withSpecsById(table.specs())
                     .build());
           }
           break;
@@ -639,12 +642,14 @@ public class RESTCatalogAdapter implements RESTClient {
       case FETCH_SCAN_TASKS:
         {
           TableIdentifier ident = tableIdentFromPathVars(vars);
+          Table table = catalog.loadTable(ident);
           FetchScanTasksRequest request = castRequest(FetchScanTasksRequest.class, body);
           if (ident.equals(TABLE_COMPLETED_WITH_PLAN_TASK)) {
             return castResponse(
                 responseType,
                 FetchScanTasksResponse.builder()
                     .withFileScanTasks(planToFileScanTasks.get(request.planTask()))
+                    .withSpecsById(table.specs())
                     .build());
           }
 
@@ -654,7 +659,10 @@ public class RESTCatalogAdapter implements RESTClient {
               String innerPlanTask = planToPlanTasks.remove(request.planTask());
               return castResponse(
                   responseType,
-                  FetchScanTasksResponse.builder().withPlanTasks(List.of(innerPlanTask)).build());
+                  FetchScanTasksResponse.builder()
+                      .withPlanTasks(List.of(innerPlanTask))
+                      .withSpecsById(table.specs())
+                      .build());
             }
 
             if (planToFileScanTasks.containsKey(request.planTask())) {
@@ -665,6 +673,7 @@ public class RESTCatalogAdapter implements RESTClient {
                   responseType,
                   FetchScanTasksResponse.builder()
                       .withFileScanTasks(fileScanTasksFromPlanTask)
+                      .withSpecsById(table.specs())
                       .build());
             }
           }

@@ -212,7 +212,14 @@ public class RESTTableScan extends DataTableScan {
       // add this to the list for below if planTasks will also be present
       ScanTasksIterable scanTasksIterable =
           new ScanTasksIterable(
-              fileScanTasks, client, resourcePaths, tableIdentifier, headers, planExecutor());
+              fileScanTasks,
+              client,
+              resourcePaths,
+              tableIdentifier,
+              headers,
+              planExecutor(),
+              table.specs(),
+              isCaseSensitive());
       iterableOfScanTaskIterables.add(scanTasksIterable);
     }
     if (planTasks != null) {
@@ -220,7 +227,14 @@ public class RESTTableScan extends DataTableScan {
       for (String planTask : planTasks) {
         ScanTasksIterable iterable =
             new ScanTasksIterable(
-                planTask, client, resourcePaths, tableIdentifier, headers, planExecutor());
+                planTask,
+                client,
+                resourcePaths,
+                tableIdentifier,
+                headers,
+                planExecutor(),
+                table.specs(),
+                isCaseSensitive());
         iterableOfScanTaskIterables.add(iterable);
       }
       return new ParallelIterable<>(iterableOfScanTaskIterables, planExecutor());
@@ -228,6 +242,13 @@ public class RESTTableScan extends DataTableScan {
     }
     // use a single scanTasks iterable since no need to parallelize since no planTasks
     return new ScanTasksIterable(
-        fileScanTasks, client, resourcePaths, tableIdentifier, headers, planExecutor());
+        fileScanTasks,
+        client,
+        resourcePaths,
+        tableIdentifier,
+        headers,
+        planExecutor(),
+        table.specs(),
+        isCaseSensitive());
   }
 }
