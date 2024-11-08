@@ -26,6 +26,7 @@ import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 
@@ -92,6 +93,10 @@ public class ContentFileUtil {
 
   public static boolean isDV(DeleteFile deleteFile) {
     return deleteFile.format() == FileFormat.PUFFIN;
+  }
+
+  public static boolean containsSingleDV(Iterable<DeleteFile> deleteFiles) {
+    return Iterables.size(deleteFiles) == 1 && Iterables.all(deleteFiles, ContentFileUtil::isDV);
   }
 
   public static String dvDesc(DeleteFile deleteFile) {

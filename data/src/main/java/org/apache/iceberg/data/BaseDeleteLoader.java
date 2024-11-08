@@ -148,13 +148,31 @@ public class BaseDeleteLoader implements DeleteLoader {
     }
   }
 
+  /**
+   * Loads the content of a deletion vector or position delete files for a given data file path into
+   * a position index.
+   *
+   * <p>The deletion vector is currently loaded without caching as the existing Puffin reader
+   * requires at least 3 requests to fetch the entire file. Caching a single deletion vector may
+   * only be useful when multiple data file splits are processed on the same node, which is unlikely
+   * as task locality is not guaranteed.
+   *
+   * <p>For position delete files, however, caching may be more effective as such delete files
+   * potentially apply to many data files, especially in unpartitioned tables and tables with deep
+   * partitions. If the entire file is small enough for caching, this method will attempt to cache a
+   * position index for each referenced data file.
+   *
+   * @param deleteFiles a deletion vector or position delete files
+   * @param filePath the data file path for which to load deletes
+   * @return a position delete index for the provided data file path
+   */
   @Override
   public PositionDeleteIndex loadPositionDeletes(
       Iterable<DeleteFile> deleteFiles, CharSequence filePath) {
-    if (containsDVs(deleteFiles)) {
+    if (ContentFileUtil.containsSingleDV(deleteFiles)) {
       DeleteFile dv = Iterables.getOnlyElement(deleteFiles);
       validateDV(dv, filePath);
-      return readDV(dv); // TODO: support caching entire DV files
+      return readDV(dv);
     } else {
       return getOrReadPosDeletes(deleteFiles, filePath);
     }
@@ -285,10 +303,6 @@ public class BaseDeleteLoader implements DeleteLoader {
     return schema.columns().stream().mapToInt(TypeUtil::estimateSize).sum();
   }
 
-  private boolean containsDVs(Iterable<DeleteFile> deleteFiles) {
-    return Iterables.any(deleteFiles, ContentFileUtil::isDV);
-  }
-
   private void validateDV(DeleteFile dv, CharSequence filePath) {
     Preconditions.checkArgument(
         dv.contentOffset() != null,
@@ -309,7 +323,7 @@ public class BaseDeleteLoader implements DeleteLoader {
         dv.referencedDataFile());
   }
 
-  private byte[] readBytes(InputFile inputFile, long offset, int length) {
+  private static byte[] readBytes(InputFile inputFile, long offset, int length) {
     try (SeekableInputStream stream = inputFile.newStream()) {
       byte[] bytes = new byte[length];
 
