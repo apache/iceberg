@@ -42,7 +42,7 @@ public class TestBatchScans extends TestBase {
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
     if (formatVersion > 1) {
-      table.newRowDelta().addDeletes(FILE_A_DELETES).commit();
+      table.newRowDelta().addDeletes(fileADeletes()).commit();
     }
 
     BatchScan scan = table.newBatchScan();
