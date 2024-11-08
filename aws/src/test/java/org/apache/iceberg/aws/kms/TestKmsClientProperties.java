@@ -20,8 +20,6 @@ package org.apache.iceberg.aws.kms;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Map;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.services.kms.KmsClient;
@@ -30,9 +28,7 @@ import software.amazon.awssdk.services.kms.KmsClientBuilder;
 public class TestKmsClientProperties {
   @Test
   public void testApplyRetryConfiguration() {
-    Map<String, String> properties = Maps.newHashMap();
-    properties.put(KmsClientProperties.KMS_RETRY_MODE, "ADAPTIVE_V2");
-    KmsClientProperties kmsClientProperties = new KmsClientProperties(properties);
+    KmsClientProperties kmsClientProperties = new KmsClientProperties();
 
     KmsClientBuilder builder = KmsClient.builder();
     kmsClientProperties.applyRetryConfigurations(builder);

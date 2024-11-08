@@ -19,41 +19,15 @@
 package org.apache.iceberg.aws.kms;
 
 import java.io.Serializable;
-import java.util.Map;
-import org.apache.iceberg.util.PropertyUtil;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.services.kms.KmsClientBuilder;
 
 public class KmsClientProperties implements Serializable {
-
-  /** This property is used to configure {@link RetryMode} for AWS KMS client */
-  public static final String KMS_RETRY_MODE = "kms.retry.mode";
-
-  public static final String KMS_RETRY_MODE_DEFAULT = "LEGACY";
-
-  private RetryMode kmsRetryMode;
-
-  public KmsClientProperties() {
-    this.kmsRetryMode = RetryMode.valueOf(KMS_RETRY_MODE_DEFAULT);
-  }
-
-  public KmsClientProperties(Map<String, String> properties) {
-    this.kmsRetryMode =
-        RetryMode.valueOf(
-            PropertyUtil.propertyAsString(properties, KMS_RETRY_MODE, KMS_RETRY_MODE_DEFAULT));
-  }
-
-  public RetryMode kmsRetryMode() {
-    return kmsRetryMode;
-  }
-
-  public void setKmsRetryMode(RetryMode kmsRetryMode) {
-    this.kmsRetryMode = kmsRetryMode;
-  }
+  public KmsClientProperties() {}
 
   /**
-   * Configure <a
+   * Set ADAPTIVE_V2 <a
    * href="https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/core/retry/RetryMode.html">RetryMode</a>
    * for a KMS client.
    *
@@ -66,6 +40,6 @@ public class KmsClientProperties implements Serializable {
             ? builder.overrideConfiguration().toBuilder()
             : ClientOverrideConfiguration.builder();
 
-    builder.overrideConfiguration(configBuilder.retryStrategy(kmsRetryMode).build());
+    builder.overrideConfiguration(configBuilder.retryStrategy(RetryMode.ADAPTIVE_V2).build());
   }
 }

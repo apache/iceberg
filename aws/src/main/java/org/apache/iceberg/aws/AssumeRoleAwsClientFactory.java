@@ -84,6 +84,7 @@ public class AssumeRoleAwsClientFactory implements AwsClientFactory {
     this.awsProperties = new AwsProperties(properties);
     this.s3FileIOProperties = new S3FileIOProperties(properties);
     this.httpClientProperties = new HttpClientProperties(properties);
+    this.kmsClientProperties = new KmsClientProperties();
     this.roleSessionName = genSessionName();
     Preconditions.checkNotNull(
         awsProperties.clientAssumeRoleArn(),

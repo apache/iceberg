@@ -157,7 +157,7 @@ public class AwsClientFactories {
       this.awsClientProperties = new AwsClientProperties(properties);
       this.s3FileIOProperties = new S3FileIOProperties(properties);
       this.httpClientProperties = new HttpClientProperties(properties);
-      this.kmsClientProperties = new KmsClientProperties(properties);
+      this.kmsClientProperties = new KmsClientProperties();
     }
   }
 
