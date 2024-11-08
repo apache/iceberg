@@ -157,10 +157,11 @@ public class BaseDeleteLoader implements DeleteLoader {
    * only be useful when multiple data file splits are processed on the same node, which is unlikely
    * as task locality is not guaranteed.
    *
-   * <p>For position delete files, however, caching may be more effective as such delete files
-   * potentially apply to many data files, especially in unpartitioned tables and tables with deep
-   * partitions. If the entire file is small enough for caching, this method will attempt to cache a
-   * position index for each referenced data file.
+   * <p>For position delete files, however, there is no efficient way to read deletes for a
+   * particular data file. Therefore, caching may be more effective as such delete files potentially
+   * apply to many data files, especially in unpartitioned tables and tables with deep partitions.
+   * If a position delete file qualifies for caching, this method will attempt to cache a position
+   * index for each referenced data file.
    *
    * @param deleteFiles a deletion vector or position delete files
    * @param filePath the data file path for which to load deletes
