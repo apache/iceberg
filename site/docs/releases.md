@@ -151,6 +151,18 @@ The 1.7.0 release contains fixes, dependency updates, and new features. For full
   - Adds Row Lineage [\#11130](https://github.com/apache/iceberg/pull/11130))
   - Deprecate the file system table scheme. [\#10833](https://github.com/apache/iceberg/pull/10833))
 
+### 1.6.1 release
+
+Apache Iceberg 1.6.1 was released on August 27, 2024.
+
+The 1.6.1 Release contains bug fixes and performance improvements. For full release notes visit [Github](https://github.com/apache/iceberg/releases/tag/apache-iceberg-1.6.1)
+
+* Core
+  - Limit ParallelIterable memory consumption by yielding in tasks ([\#10787](https://github.com/apache/iceberg/#10787))
+  - Drop ParallelIterable's queue low water mark ([\#10979](https://github.com/apache/iceberg/#10979))
+* Dependencies
+  - ORC 1.9.4  
+
 
 ### 1.6.0 release
 Apache Iceberg 1.6.0 was released on July 23, 2024.
