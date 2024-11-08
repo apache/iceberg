@@ -103,8 +103,17 @@ public abstract class DeleteFilter<T> {
   }
 
   protected DeleteFilter(
+      String filePath,
+      List<DeleteFile> deletes,
+      Schema tableSchema,
+      Schema requestedSchema,
+      DeleteCounter counter) {
+    this(filePath, deletes, tableSchema, requestedSchema, counter, true);
+  }
+
+  protected DeleteFilter(
       String filePath, List<DeleteFile> deletes, Schema tableSchema, Schema requestedSchema) {
-    this(filePath, deletes, tableSchema, requestedSchema, new DeleteCounter(), true);
+    this(filePath, deletes, tableSchema, requestedSchema, new DeleteCounter());
   }
 
   protected int columnIsDeletedPosition() {
