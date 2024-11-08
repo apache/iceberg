@@ -93,7 +93,7 @@ public class AzureProperties implements Serializable {
     if (connectionString != null && !connectionString.isEmpty()) {
       builder.endpoint(connectionString);
     } else {
-      builder.endpoint("https://" + account);
+      builder.endpoint("https://" + account + ".dfs.core.windows.net");
     }
   }
 }
