@@ -269,7 +269,7 @@ public abstract class DeleteFilter<T> {
     }
 
     Set<Integer> requiredIds = Sets.newLinkedHashSet();
-    if (!posDeletes.isEmpty() && needRowPosCol) {
+    if (needRowPosCol && !posDeletes.isEmpty()) {
       requiredIds.add(MetadataColumns.ROW_POSITION.fieldId());
     }
 
