@@ -41,7 +41,7 @@ public class EqualityDeleteRowReader extends RowDataReader {
   @Override
   protected CloseableIterator<InternalRow> open(FileScanTask task) {
     SparkDeleteFilter matches =
-        new SparkDeleteFilter(task.file().path().toString(), task.deletes(), counter());
+        new SparkDeleteFilter(task.file().path().toString(), task.deletes(), counter(), true);
 
     // schema or rows returned by readers
     Schema requiredSchema = matches.requiredSchema();
