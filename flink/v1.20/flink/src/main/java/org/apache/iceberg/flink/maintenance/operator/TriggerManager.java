@@ -29,6 +29,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.TimerService;
@@ -121,33 +122,17 @@ public class TriggerManager extends KeyedProcessFunction<Boolean, TableChange, T
 
   @Override
   public void open(Configuration parameters) throws Exception {
+    MetricGroup mainGroup = TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableName);
     this.rateLimiterTriggeredCounter =
-        getRuntimeContext()
-            .getMetricGroup()
-            .addGroup(TableMaintenanceMetrics.GROUP_KEY)
-            .addGroup(TableMaintenanceMetrics.TABLE_NAME_KEY, tableName)
-            .counter(TableMaintenanceMetrics.RATE_LIMITER_TRIGGERED);
+        mainGroup.counter(TableMaintenanceMetrics.RATE_LIMITER_TRIGGERED);
     this.concurrentRunThrottledCounter =
-        getRuntimeContext()
-            .getMetricGroup()
-            .addGroup(TableMaintenanceMetrics.GROUP_KEY)
-            .addGroup(TableMaintenanceMetrics.TABLE_NAME_KEY, tableName)
-            .counter(TableMaintenanceMetrics.CONCURRENT_RUN_THROTTLED);
-    this.nothingToTriggerCounter =
-        getRuntimeContext()
-            .getMetricGroup()
-            .addGroup(TableMaintenanceMetrics.GROUP_KEY)
-            .addGroup(TableMaintenanceMetrics.TABLE_NAME_KEY, tableName)
-            .counter(TableMaintenanceMetrics.NOTHING_TO_TRIGGER);
+        mainGroup.counter(TableMaintenanceMetrics.CONCURRENT_RUN_THROTTLED);
+    this.nothingToTriggerCounter = mainGroup.counter(TableMaintenanceMetrics.NOTHING_TO_TRIGGER);
     this.triggerCounters = Lists.newArrayListWithExpectedSize(maintenanceTaskNames.size());
     for (int taskIndex = 0; taskIndex < maintenanceTaskNames.size(); ++taskIndex) {
       triggerCounters.add(
-          getRuntimeContext()
-              .getMetricGroup()
-              .addGroup(TableMaintenanceMetrics.GROUP_KEY)
-              .addGroup(TableMaintenanceMetrics.TABLE_NAME_KEY, tableName)
-              .addGroup(TableMaintenanceMetrics.TASK_NAME_KEY, maintenanceTaskNames.get(taskIndex))
-              .addGroup(TableMaintenanceMetrics.TASK_INDEX_KEY, String.valueOf(taskIndex))
+          TableMaintenanceMetrics.groupFor(
+                  mainGroup, maintenanceTaskNames.get(taskIndex), taskIndex)
               .counter(TableMaintenanceMetrics.TRIGGERED));
     }
 

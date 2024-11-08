@@ -21,6 +21,7 @@ package org.apache.iceberg.flink.maintenance.operator;
 import java.util.Set;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -40,17 +41,17 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
     implements OneInputStreamOperator<String, Void> {
   private static final Logger LOG = LoggerFactory.getLogger(DeleteFilesProcessor.class);
 
-  private final String taskIndex;
-  private final String taskName;
-  private final SupportsBulkOperations io;
   private final String tableName;
+  private final String taskName;
+  private final int taskIndex;
+  private final SupportsBulkOperations io;
   private final Set<String> filesToDelete = Sets.newHashSet();
   private final int batchSize;
 
   private transient Counter failedCounter;
   private transient Counter succeededCounter;
 
-  public DeleteFilesProcessor(int taskIndex, String taskName, Table table, int batchSize) {
+  public DeleteFilesProcessor(Table table, String taskName, int taskIndex, int batchSize) {
     Preconditions.checkNotNull(taskName, "Task name should no be null");
     Preconditions.checkNotNull(table, "Table should no be null");
 
@@ -60,31 +61,21 @@ public class DeleteFilesProcessor extends AbstractStreamOperator<Void>
         "%s doesn't support bulk delete",
         fileIO.getClass().getSimpleName());
 
-    this.taskIndex = String.valueOf(taskIndex);
-    this.taskName = taskName;
-    this.io = (SupportsBulkOperations) fileIO;
     this.tableName = table.name();
+    this.taskName = taskName;
+    this.taskIndex = taskIndex;
+    this.io = (SupportsBulkOperations) fileIO;
     this.batchSize = batchSize;
   }
 
   @Override
   public void open() throws Exception {
+    MetricGroup taskMetricGroup =
+        TableMaintenanceMetrics.groupFor(getRuntimeContext(), tableName, taskName, taskIndex);
     this.failedCounter =
-        getRuntimeContext()
-            .getMetricGroup()
-            .addGroup(TableMaintenanceMetrics.GROUP_KEY)
-            .addGroup(TableMaintenanceMetrics.TABLE_NAME_KEY, tableName)
-            .addGroup(TableMaintenanceMetrics.TASK_NAME_KEY, taskName)
-            .addGroup(TableMaintenanceMetrics.TASK_INDEX_KEY, taskIndex)
-            .counter(TableMaintenanceMetrics.DELETE_FILE_FAILED_COUNTER);
+        taskMetricGroup.counter(TableMaintenanceMetrics.DELETE_FILE_FAILED_COUNTER);
     this.succeededCounter =
-        getRuntimeContext()
-            .getMetricGroup()
-            .addGroup(TableMaintenanceMetrics.GROUP_KEY)
-            .addGroup(TableMaintenanceMetrics.TABLE_NAME_KEY, tableName)
-            .addGroup(TableMaintenanceMetrics.TASK_NAME_KEY, taskName)
-            .addGroup(TableMaintenanceMetrics.TASK_INDEX_KEY, taskIndex)
-            .counter(TableMaintenanceMetrics.DELETE_FILE_SUCCEEDED_COUNTER);
+        taskMetricGroup.counter(TableMaintenanceMetrics.DELETE_FILE_SUCCEEDED_COUNTER);
   }
 
   @Override

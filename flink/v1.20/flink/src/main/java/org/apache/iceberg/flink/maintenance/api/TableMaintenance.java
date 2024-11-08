@@ -83,7 +83,7 @@ public class TableMaintenance {
 
   /**
    * Use this for standalone maintenance job. It creates a monitor source that detect table changes
-   * and build the maintenance pipelines afterwards.
+   * and build the maintenance pipelines afterward.
    *
    * @param env used to register the monitor source
    * @param tableLoader used for accessing the table
@@ -257,9 +257,9 @@ public class TableMaintenance {
           DataStream<TaskResult> result =
               builder.append(
                   filtered,
-                  taskIndex,
-                  taskNames.get(taskIndex),
                   tableName,
+                  taskNames.get(taskIndex),
+                  taskIndex,
                   loader,
                   uidSuffix,
                   slotSharingGroup,
@@ -300,8 +300,7 @@ public class TableMaintenance {
     }
 
     private static String nameFor(MaintenanceTaskBuilder<?> streamBuilder, int taskIndex) {
-      return String.format(
-          "%s [%s]", streamBuilder.getClass().getSimpleName(), String.valueOf(taskIndex));
+      return String.format("%s [%s]", streamBuilder.getClass().getSimpleName(), taskIndex);
     }
   }
 
