@@ -29,6 +29,10 @@ import org.apache.pig.ResourceSchema.ResourceFieldSchema;
 import org.apache.pig.data.DataType;
 import org.apache.pig.impl.logicalLayer.FrontendException;
 
+/**
+ * @deprecated will be removed in 1.8.0
+ */
+@Deprecated
 public class SchemaUtil {
 
   private SchemaUtil() {}

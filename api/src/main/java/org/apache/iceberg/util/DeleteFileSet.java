@@ -97,13 +97,14 @@ public class DeleteFileSet extends WrapperSet<DeleteFile> {
       }
 
       DeleteFileWrapper that = (DeleteFileWrapper) o;
-      // this needs to be updated once deletion vector support is added
-      return Objects.equals(file.location(), that.file.location());
+      return Objects.equals(file.location(), that.file.location())
+          && Objects.equals(file.contentOffset(), that.file.contentOffset())
+          && Objects.equals(file.contentSizeInBytes(), that.file.contentSizeInBytes());
     }
 
     @Override
     public int hashCode() {
-      return Objects.hashCode(file.location());
+      return Objects.hash(file.location(), file.contentOffset(), file.contentSizeInBytes());
     }
 
     @Override

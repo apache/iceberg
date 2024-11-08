@@ -134,6 +134,8 @@ public class TableMetadata implements Serializable {
     // break existing tables.
     MetricsConfig.fromProperties(properties).validateReferencedColumns(schema);
 
+    PropertyUtil.validateCommitProperties(properties);
+
     return new Builder()
         .setInitialFormatVersion(formatVersion)
         .setCurrentSchema(freshSchema, lastColumnId.get())
@@ -484,6 +486,10 @@ public class TableMetadata implements Serializable {
 
   public int propertyAsInt(String property, int defaultValue) {
     return PropertyUtil.propertyAsInt(properties, property, defaultValue);
+  }
+
+  public int propertyTryAsInt(String property, int defaultValue) {
+    return PropertyUtil.propertyTryAsInt(properties, property, defaultValue);
   }
 
   public long propertyAsLong(String property, long defaultValue) {

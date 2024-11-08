@@ -95,13 +95,11 @@ public abstract class TestRemoveOrphanFilesAction extends TestBase {
   protected static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA).truncate("c2", 2).identity("c3").build();
 
-  @TempDir private java.nio.file.Path temp;
-  private File tableDir = null;
+  @TempDir private File tableDir = null;
   protected String tableLocation = null;
 
   @BeforeEach
   public void setupTableLocation() throws Exception {
-    this.tableDir = temp.resolve("junit").toFile();
     this.tableLocation = tableDir.toURI().toString();
   }
 

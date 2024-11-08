@@ -40,6 +40,7 @@ public abstract class ScanMetrics {
   public static final String INDEXED_DELETE_FILES = "indexed-delete-files";
   public static final String EQUALITY_DELETE_FILES = "equality-delete-files";
   public static final String POSITIONAL_DELETE_FILES = "positional-delete-files";
+  public static final String DVS = "dvs";
 
   public static ScanMetrics noop() {
     return ScanMetrics.of(MetricsContext.nullMetrics());
@@ -125,6 +126,11 @@ public abstract class ScanMetrics {
   @Value.Derived
   public Counter positionalDeleteFiles() {
     return metricsContext().counter(POSITIONAL_DELETE_FILES);
+  }
+
+  @Value.Derived
+  public Counter dvs() {
+    return metricsContext().counter(DVS);
   }
 
   public static ScanMetrics of(MetricsContext metricsContext) {

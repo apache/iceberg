@@ -39,9 +39,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSQLProperties;
+import org.apache.iceberg.spark.source.SimpleRecord;
 import org.apache.iceberg.spark.source.SparkTable;
 import org.apache.iceberg.spark.source.TestSparkCatalog;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.apache.spark.sql.connector.catalog.Identifier;
 import org.junit.jupiter.api.BeforeEach;
@@ -97,6 +99,87 @@ public class TestMergeOnReadDelete extends TestDelete {
   @TestTemplate
   public void testDeletePartitionGranularity() throws NoSuchTableException {
     checkDeleteFileGranularity(DeleteGranularity.PARTITION);
+  }
+
+  @TestTemplate
+  public void testPositionDeletesAreMaintainedDuringDelete() throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id int, data string) USING iceberg PARTITIONED BY (id) TBLPROPERTIES"
+            + "('%s'='%s', '%s'='%s', '%s'='%s')",
+        tableName,
+        TableProperties.FORMAT_VERSION,
+        2,
+        TableProperties.DELETE_MODE,
+        "merge-on-read",
+        TableProperties.DELETE_GRANULARITY,
+        "file");
+    createBranchIfNeeded();
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(1, "b"),
+            new SimpleRecord(1, "c"),
+            new SimpleRecord(2, "d"),
+            new SimpleRecord(2, "e"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(commitTarget())
+        .append();
+
+    sql("DELETE FROM %s WHERE id = 1 and data='a'", commitTarget());
+    sql("DELETE FROM %s WHERE id = 2 and data='d'", commitTarget());
+    sql("DELETE FROM %s WHERE id = 1 and data='c'", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot latest = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(latest.removedDeleteFiles(table.io())).hasSize(1);
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "b"), row(2, "e")),
+        sql("SELECT * FROM %s ORDER BY id ASC", selectTarget()));
+  }
+
+  @TestTemplate
+  public void testUnpartitionedPositionDeletesAreMaintainedDuringDelete()
+      throws NoSuchTableException {
+    sql(
+        "CREATE TABLE %s (id int, data string) USING iceberg TBLPROPERTIES"
+            + "('%s'='%s', '%s'='%s', '%s'='%s')",
+        tableName,
+        TableProperties.FORMAT_VERSION,
+        2,
+        TableProperties.DELETE_MODE,
+        "merge-on-read",
+        TableProperties.DELETE_GRANULARITY,
+        "file");
+    createBranchIfNeeded();
+
+    List<SimpleRecord> records =
+        Lists.newArrayList(
+            new SimpleRecord(1, "a"),
+            new SimpleRecord(1, "b"),
+            new SimpleRecord(1, "c"),
+            new SimpleRecord(2, "d"),
+            new SimpleRecord(2, "e"));
+    spark
+        .createDataset(records, Encoders.bean(SimpleRecord.class))
+        .coalesce(1)
+        .writeTo(commitTarget())
+        .append();
+
+    sql("DELETE FROM %s WHERE id = 1 and data='a'", commitTarget());
+    sql("DELETE FROM %s WHERE id = 2 and data='d'", commitTarget());
+    sql("DELETE FROM %s WHERE id = 1 and data='c'", commitTarget());
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot latest = SnapshotUtil.latestSnapshot(table, branch);
+    assertThat(latest.removedDeleteFiles(table.io())).hasSize(1);
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1, "b"), row(2, "e")),
+        sql("SELECT * FROM %s ORDER BY id ASC", selectTarget()));
   }
 
   private void checkDeleteFileGranularity(DeleteGranularity deleteGranularity)

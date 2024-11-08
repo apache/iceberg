@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,40 +61,27 @@ class TestMonitorSource extends OperatorTestBase {
 
   @ParameterizedTest
   @ValueSource(booleans = {true, false})
-  void testChangeReaderIterator(boolean withDelete) {
-    if (withDelete) {
-      sql.exec(
-          "CREATE TABLE %s (id int, data varchar, PRIMARY KEY(`id`) NOT ENFORCED) WITH ('format-version'='2', 'write.upsert.enabled'='true')",
-          TABLE_NAME);
-    } else {
-      sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    }
-
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
-    Table table = tableLoader.loadTable();
+  void testChangeReaderIterator(boolean withDelete) throws IOException {
+    Table table = withDelete ? createTableWithDelete() : createTable();
 
     MonitorSource.TableChangeIterator iterator =
-        new MonitorSource.TableChangeIterator(tableLoader, null, Long.MAX_VALUE);
+        new MonitorSource.TableChangeIterator(tableLoader(), null, Long.MAX_VALUE);
 
     // For an empty table we get an empty result
     assertThat(iterator.next()).isEqualTo(EMPTY_EVENT);
 
     // Add a single commit and get back the commit data in the event
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-    table.refresh();
+    insert(table, 1, "a");
     TableChange expected = tableChangeWithLastSnapshot(table, TableChange.empty());
     assertThat(iterator.next()).isEqualTo(expected);
     // Make sure that consecutive calls do not return the data again
     assertThat(iterator.next()).isEqualTo(EMPTY_EVENT);
 
     // Add two more commits, but fetch the data in one loop
-    sql.exec("INSERT INTO %s VALUES (2, 'b')", TABLE_NAME);
-    table.refresh();
+    insert(table, 2, "b");
     expected = tableChangeWithLastSnapshot(table, TableChange.empty());
 
-    sql.exec("INSERT INTO %s VALUES (3, 'c')", TABLE_NAME);
-    table.refresh();
+    insert(table, 3, "c");
     expected = tableChangeWithLastSnapshot(table, expected);
 
     assertThat(iterator.next()).isEqualTo(expected);
@@ -106,17 +94,11 @@ class TestMonitorSource extends OperatorTestBase {
    */
   @Test
   void testSource() throws Exception {
-    sql.exec(
-        "CREATE TABLE %s (id int, data varchar) "
-            + "WITH ('flink.max-continuous-empty-commits'='100000')",
-        TABLE_NAME);
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
-    Table table = tableLoader.loadTable();
+    Table table = createTable();
     DataStream<TableChange> events =
         env.fromSource(
-                new MonitorSource(tableLoader, HIGH_RATE, Long.MAX_VALUE),
+                new MonitorSource(tableLoader(), HIGH_RATE, Long.MAX_VALUE),
                 WatermarkStrategy.noWatermarks(),
                 "TableChangeSource")
             .forceNonParallel();
@@ -176,8 +158,9 @@ class TestMonitorSource extends OperatorTestBase {
   /** Check that the {@link MonitorSource} operator state is restored correctly. */
   @Test
   void testStateRestore(@TempDir File savepointDir) throws Exception {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
+    Table table = createTable();
+    insert(table, 1, "a");
+    TableLoader tableLoader = tableLoader();
 
     Configuration config = new Configuration();
     config.set(CheckpointingOptions.CHECKPOINT_STORAGE, "filesystem");
@@ -185,8 +168,6 @@ class TestMonitorSource extends OperatorTestBase {
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(config);
     env.enableCheckpointing(1000);
 
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
     DataStream<TableChange> events =
         env.fromSource(
                 new MonitorSource(tableLoader, HIGH_RATE, Long.MAX_VALUE),
@@ -268,14 +249,12 @@ class TestMonitorSource extends OperatorTestBase {
 
   @Test
   void testNotOneParallelismThrows() {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
+    createTable();
 
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
 
     env.fromSource(
-            new MonitorSource(tableLoader, HIGH_RATE, Long.MAX_VALUE),
+            new MonitorSource(tableLoader(), HIGH_RATE, Long.MAX_VALUE),
             WatermarkStrategy.noWatermarks(),
             "TableChangeSource")
         .setParallelism(2)
@@ -289,14 +268,13 @@ class TestMonitorSource extends OperatorTestBase {
   }
 
   @Test
-  void testMaxReadBack() {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (2, 'b')", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (3, 'c')", TABLE_NAME);
+  void testMaxReadBack() throws IOException {
+    Table table = createTable();
+    insert(table, 1, "a");
+    insert(table, 2, "b");
+    insert(table, 3, "c");
 
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
+    TableLoader tableLoader = tableLoader();
 
     MonitorSource.TableChangeIterator iterator =
         new MonitorSource.TableChangeIterator(tableLoader, null, 1);
@@ -316,12 +294,11 @@ class TestMonitorSource extends OperatorTestBase {
   }
 
   @Test
-  void testSkipReplace() {
-    sql.exec("CREATE TABLE %s (id int, data varchar)", TABLE_NAME);
-    sql.exec("INSERT INTO %s VALUES (1, 'a')", TABLE_NAME);
+  void testSkipReplace() throws IOException {
+    Table table = createTable();
+    insert(table, 1, "a");
 
-    TableLoader tableLoader = sql.tableLoader(TABLE_NAME);
-    tableLoader.open();
+    TableLoader tableLoader = tableLoader();
 
     MonitorSource.TableChangeIterator iterator =
         new MonitorSource.TableChangeIterator(tableLoader, null, Long.MAX_VALUE);
@@ -330,7 +307,6 @@ class TestMonitorSource extends OperatorTestBase {
     assertThat(iterator.next().commitCount()).isEqualTo(1);
 
     // Create a DataOperations.REPLACE snapshot
-    Table table = tableLoader.loadTable();
     DataFile dataFile =
         table.snapshots().iterator().next().addedDataFiles(table.io()).iterator().next();
     RewriteFiles rewrite = tableLoader.loadTable().newRewrite();

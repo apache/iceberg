@@ -37,16 +37,28 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 
+/**
+ * @deprecated will be removed in 1.8.0; use FlinkPlannedAvroReader instead.
+ */
+@Deprecated
 public class FlinkAvroReader implements DatumReader<RowData>, SupportsRowPosition {
 
   private final Schema readSchema;
   private final ValueReader<RowData> reader;
   private Schema fileSchema = null;
 
+  /**
+   * @deprecated will be removed in 1.8.0; use FlinkPlannedAvroReader instead.
+   */
+  @Deprecated
   public FlinkAvroReader(org.apache.iceberg.Schema expectedSchema, Schema readSchema) {
     this(expectedSchema, readSchema, ImmutableMap.of());
   }
 
+  /**
+   * @deprecated will be removed in 1.8.0; use FlinkPlannedAvroReader instead.
+   */
+  @Deprecated
   @SuppressWarnings("unchecked")
   public FlinkAvroReader(
       org.apache.iceberg.Schema expectedSchema, Schema readSchema, Map<Integer, ?> constants) {

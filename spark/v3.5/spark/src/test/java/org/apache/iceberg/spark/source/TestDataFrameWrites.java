@@ -56,7 +56,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.ParameterizedAvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
-import org.apache.iceberg.spark.data.SparkAvroReader;
+import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkException;
 import org.apache.spark.TaskContext;
@@ -74,6 +74,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestDataFrameWrites extends ParameterizedAvroDataTest {
@@ -85,6 +86,8 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
   }
 
   @Parameter private String format;
+
+  @TempDir private File location;
 
   private static SparkSession spark = null;
   private static JavaSparkContext sc = null;
@@ -138,47 +141,37 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
 
   @Override
   protected void writeAndValidate(Schema schema) throws IOException {
-    File location = createTableFolder();
-    Table table = createTable(schema, location);
-    writeAndValidateWithLocations(table, location, new File(location, "data"));
+    Table table = createTable(schema);
+    writeAndValidateWithLocations(table, new File(location, "data"));
   }
 
   @TestTemplate
   public void testWriteWithCustomDataLocation() throws IOException {
-    File location = createTableFolder();
     File tablePropertyDataLocation = temp.resolve("test-table-property-data-dir").toFile();
-    Table table = createTable(new Schema(SUPPORTED_PRIMITIVES.fields()), location);
+    Table table = createTable(new Schema(SUPPORTED_PRIMITIVES.fields()));
     table
         .updateProperties()
         .set(TableProperties.WRITE_DATA_LOCATION, tablePropertyDataLocation.getAbsolutePath())
         .commit();
-    writeAndValidateWithLocations(table, location, tablePropertyDataLocation);
+    writeAndValidateWithLocations(table, tablePropertyDataLocation);
   }
 
-  private File createTableFolder() throws IOException {
-    File parent = temp.resolve("parquet").toFile();
-    File location = new File(parent, "test");
-    assertThat(location.mkdirs()).as("Mkdir should succeed").isTrue();
-    return location;
-  }
-
-  private Table createTable(Schema schema, File location) {
+  private Table createTable(Schema schema) {
     HadoopTables tables = new HadoopTables(CONF);
     return tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
   }
 
-  private void writeAndValidateWithLocations(Table table, File location, File expectedDataDir)
-      throws IOException {
+  private void writeAndValidateWithLocations(Table table, File expectedDataDir) throws IOException {
     Schema tableSchema = table.schema(); // use the table schema because ids are reassigned
 
     table.updateProperties().set(TableProperties.DEFAULT_FILE_FORMAT, format).commit();
 
     Iterable<Record> expected = RandomData.generate(tableSchema, 100, 0L);
-    writeData(expected, tableSchema, location.toString());
+    writeData(expected, tableSchema);
 
     table.refresh();
 
-    List<Row> actual = readTable(location.toString());
+    List<Row> actual = readTable();
 
     Iterator<Record> expectedIter = expected.iterator();
     Iterator<Row> actualIter = actual.iterator();
@@ -202,21 +195,20 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
                     .startsWith(expectedDataDir.getAbsolutePath()));
   }
 
-  private List<Row> readTable(String location) {
-    Dataset<Row> result = spark.read().format("iceberg").load(location);
+  private List<Row> readTable() {
+    Dataset<Row> result = spark.read().format("iceberg").load(location.toString());
 
     return result.collectAsList();
   }
 
-  private void writeData(Iterable<Record> records, Schema schema, String location)
-      throws IOException {
+  private void writeData(Iterable<Record> records, Schema schema) throws IOException {
     Dataset<Row> df = createDataset(records, schema);
     DataFrameWriter<?> writer = df.write().format("iceberg").mode("append");
-    writer.save(location);
+    writer.save(location.toString());
   }
 
-  private void writeDataWithFailOnPartition(
-      Iterable<Record> records, Schema schema, String location) throws IOException, SparkException {
+  private void writeDataWithFailOnPartition(Iterable<Record> records, Schema schema)
+      throws IOException, SparkException {
     final int numPartitions = 10;
     final int partitionToFail = new Random().nextInt(numPartitions);
     MapPartitionsFunction<Row, Row> failOnFirstPartitionFunc =
@@ -239,7 +231,7 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
     // Setting "check-nullability" option to "false" doesn't help as it fails at Spark analyzer.
     Dataset<Row> convertedDf = df.sqlContext().createDataFrame(df.rdd(), convert(schema));
     DataFrameWriter<?> writer = convertedDf.write().format("iceberg").mode("append");
-    writer.save(location);
+    writer.save(location.toString());
   }
 
   private Dataset<Row> createDataset(Iterable<Record> records, Schema schema) throws IOException {
@@ -259,7 +251,7 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
     List<InternalRow> rows = Lists.newArrayList();
     try (AvroIterable<InternalRow> reader =
         Avro.read(Files.localInput(testFile))
-            .createReaderFunc(SparkAvroReader::new)
+            .createResolvingReader(SparkPlannedAvroReader::create)
             .project(schema)
             .build()) {
 
@@ -285,7 +277,6 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
         .as("Spark 3 rejects writing nulls to a required column")
         .startsWith("2");
 
-    File location = temp.resolve("parquet").resolve("test").toFile();
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location);
     String targetPath = String.format("%s/nullable_poc/targetFolder/", location);
 
@@ -339,7 +330,6 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
         .as("Spark 3 rejects writing nulls to a required column")
         .startsWith("2");
 
-    File location = temp.resolve("parquet").resolve("test").toFile();
     String sourcePath = String.format("%s/nullable_poc/sourceFolder/", location);
     String targetPath = String.format("%s/nullable_poc/targetFolder/", location);
 
@@ -395,27 +385,26 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
 
   @TestTemplate
   public void testFaultToleranceOnWrite() throws IOException {
-    File location = createTableFolder();
     Schema schema = new Schema(SUPPORTED_PRIMITIVES.fields());
-    Table table = createTable(schema, location);
+    Table table = createTable(schema);
 
     Iterable<Record> records = RandomData.generate(schema, 100, 0L);
-    writeData(records, schema, location.toString());
+    writeData(records, schema);
 
     table.refresh();
 
     Snapshot snapshotBeforeFailingWrite = table.currentSnapshot();
-    List<Row> resultBeforeFailingWrite = readTable(location.toString());
+    List<Row> resultBeforeFailingWrite = readTable();
 
     Iterable<Record> records2 = RandomData.generate(schema, 100, 0L);
 
-    assertThatThrownBy(() -> writeDataWithFailOnPartition(records2, schema, location.toString()))
+    assertThatThrownBy(() -> writeDataWithFailOnPartition(records2, schema))
         .isInstanceOf(SparkException.class);
 
     table.refresh();
 
     Snapshot snapshotAfterFailingWrite = table.currentSnapshot();
-    List<Row> resultAfterFailingWrite = readTable(location.toString());
+    List<Row> resultAfterFailingWrite = readTable();
 
     assertThat(snapshotBeforeFailingWrite).isEqualTo(snapshotAfterFailingWrite);
     assertThat(resultBeforeFailingWrite).isEqualTo(resultAfterFailingWrite);

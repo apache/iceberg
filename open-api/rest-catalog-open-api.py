@@ -475,6 +475,12 @@ class StorageCredential(BaseModel):
     config: Dict[str, str]
 
 
+class LoadCredentialsResponse(BaseModel):
+    storage_credentials: List[StorageCredential] = Field(
+        ..., alias='storage-credentials'
+    )
+
+
 class PlanStatus(BaseModel):
     __root__: Literal['completed', 'submitted', 'cancelled', 'failed'] = Field(
         ..., description='Status of a server-side planning operation'
@@ -824,7 +830,7 @@ class PrimitiveTypeValue(BaseModel):
 
 
 class FileFormat(BaseModel):
-    __root__: Literal['avro', 'orc', 'parquet']
+    __root__: Literal['avro', 'orc', 'parquet', 'puffin']
 
 
 class ContentFile(BaseModel):
@@ -854,6 +860,16 @@ class ContentFile(BaseModel):
 
 class PositionDeleteFile(ContentFile):
     content: Literal['position-deletes']
+    content_offset: Optional[int] = Field(
+        None,
+        alias='content-offset',
+        description='Offset within the delete file of delete content',
+    )
+    content_size_in_bytes: Optional[int] = Field(
+        None,
+        alias='content-size-in-bytes',
+        description='Length, in bytes, of the delete content; required if content-offset is present',
+    )
 
 
 class EqualityDeleteFile(ContentFile):
@@ -1327,19 +1343,11 @@ class LoadViewResult(BaseModel):
 
     - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled
 
-    ## Storage Credentials
-
-    Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
-    Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
-
     """
 
     metadata_location: str = Field(..., alias='metadata-location')
     metadata: ViewMetadata
     config: Optional[Dict[str, str]] = None
-    storage_credentials: Optional[List[StorageCredential]] = Field(
-        None, alias='storage-credentials'
-    )
 
 
 class ReportMetricsRequest(BaseModel):

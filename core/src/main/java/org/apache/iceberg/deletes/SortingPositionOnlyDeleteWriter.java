@@ -167,12 +167,8 @@ public class SortingPositionOnlyDeleteWriter<T>
 
   private void validatePreviousDeletes(PositionDeleteIndex index) {
     Preconditions.checkArgument(
-        index.deleteFiles().stream().allMatch(this::isFileScoped),
+        index.deleteFiles().stream().allMatch(ContentFileUtil::isFileScoped),
         "Previous deletes must be file-scoped");
-  }
-
-  private boolean isFileScoped(DeleteFile deleteFile) {
-    return ContentFileUtil.referencedDataFile(deleteFile) != null;
   }
 
   private Collection<CharSequence> sort(Collection<CharSequence> paths) {
