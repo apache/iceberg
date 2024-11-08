@@ -163,7 +163,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     String fullName = partnerSchema.findColumnName(existingField.fieldId());
 
     boolean needsOptionalUpdate = field.isOptional() && existingField.isRequired();
-    boolean needsTypeUpdate = !ignorableUpdate(field.type(), existingField.type());
+    boolean needsTypeUpdate = needsTypeUpdate(field.type(), existingField.type());
     boolean needsDocUpdate = field.doc() != null && !field.doc().equals(existingField.doc());
 
     if (needsOptionalUpdate) {
@@ -179,17 +179,18 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     }
   }
 
-  private boolean ignorableUpdate(Type newType, Type existingType) {
+  private boolean needsTypeUpdate(Type newType, Type existingType) {
     if (newType.isPrimitiveType()) {
       if (newType.equals(existingType)) {
-        return true;
+        return false;
       }
       if (existingType.typeId() == Type.TypeID.LONG && newType.typeId() == Type.TypeID.INTEGER) {
-        return true;
+        return false;
       }
       if (existingType.typeId() == Type.TypeID.DOUBLE && newType.typeId() == Type.TypeID.FLOAT) {
-        return true;
+        return false;
       }
+      return true;
     }
     return false;
   }

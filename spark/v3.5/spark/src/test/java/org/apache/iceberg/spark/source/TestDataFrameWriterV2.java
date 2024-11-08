@@ -23,9 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.TestBaseWithCatalog;
@@ -250,8 +248,7 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
   }
 
   @TestTemplate
-  public void testMergeSchemaIgnoreDowncast() throws Exception {
-    //// test long to int ignore case
+  public void testMergeSchemaIgnoreCastingLongToInt() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
         tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
@@ -284,16 +281,13 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
         sql("select * from %s order by id", tableName));
 
     // verify the column type did not change
-    String[] tblNameSplit = tableName.split("\\.");
-    String tblIdentifier =
-        tblNameSplit.length == 3
-            ? String.format("%s.%s", tblNameSplit[1], tblNameSplit[2])
-            : tableName;
-    Table table = validationCatalog.loadTable(TableIdentifier.parse(tblIdentifier));
-    Types.NestedField idField = table.schema().findField("id");
+    Types.NestedField idField =
+        Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id");
     assertThat(idField.type().typeId().equals(Type.TypeID.LONG));
+  }
 
-    //// test double to float ignore case
+  @TestTemplate
+  public void testMergeSchemaIgnoreCastingDoubleToFloat() throws Exception {
     removeTables();
     sql("CREATE TABLE %s (id double, data string) USING iceberg", tableName);
     sql(
@@ -323,18 +317,13 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
         .doesNotThrowAnyException();
 
     assertEquals(
-        "Should include new rows with unchanged bigint column type",
+        "Should include new rows with unchanged double column type",
         ImmutableList.of(row(1.0, "a"), row(2.0, "b"), row(3.0, "c"), row(4.0, "d")),
         sql("select * from %s order by id", tableName));
 
     // verify the column type did not change
-    tblNameSplit = tableName.split("\\.");
-    tblIdentifier =
-        tblNameSplit.length == 3
-            ? String.format("%s.%s", tblNameSplit[1], tblNameSplit[2])
-            : tableName;
-    table = validationCatalog.loadTable(TableIdentifier.parse(tblIdentifier));
-    idField = table.schema().findField("id");
+    Types.NestedField idField =
+        Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id");
     assertThat(idField.type().typeId().equals(Type.TypeID.DOUBLE));
   }
 }

@@ -18,12 +18,12 @@
  */
 package org.apache.iceberg.spark.source;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
-import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkTestBaseWithCatalog;
@@ -214,8 +214,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
   }
 
   @Test
-  public void testMergeSchemaIgnoreDowncast() throws Exception {
-    //// test long to int ignore case
+  public void testMergeSchemaIgnoreCastingLongToInt() throws Exception {
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
         tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
@@ -239,11 +238,8 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "{ \"id\": 3, \"data\": \"c\" }",
             "{ \"id\": 4, \"data\": \"d\" }");
 
-    try {
-      intDF.writeTo(tableName).option("merge-schema", "true").append();
-    } catch (IllegalArgumentException e) {
-      Assert.fail(String.format("Should not throw exception: %s", e));
-    }
+    assertThatCode(() -> intDF.writeTo(tableName).option("merge-schema", "true").append())
+        .doesNotThrowAnyException();
 
     assertEquals(
         "Should include new rows with unchanged long column type",
@@ -251,17 +247,15 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
         sql("select * from %s order by id", tableName));
 
     // verify the column type did not change
-    String[] tblNameSplit = tableName.split("\\.");
-    String tblIdentifier =
-        tblNameSplit.length == 3
-            ? String.format("%s.%s", tblNameSplit[1], tblNameSplit[2])
-            : tableName;
-    Table table = validationCatalog.loadTable(TableIdentifier.parse(tblIdentifier));
-    Types.NestedField idField = table.schema().findField("id");
-    Assert.assertEquals("Column type should not change", idField.type().typeId(), Type.TypeID.LONG);
+    Types.NestedField idField =
+        Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id");
+    assertThat(idField.type().typeId().equals(Type.TypeID.LONG));
+  }
 
-    //// test double to float ignore case
+  @Test
+  public void testMergeSchemaIgnoreCastingDoubleToFloat() throws Exception {
     removeTables();
+    SparkSession sparkSession = spark.cloneSession();
     sql("CREATE TABLE %s (id double, data string) USING iceberg", tableName);
     sql(
         "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
@@ -286,11 +280,8 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "{ \"id\": 3.0, \"data\": \"c\" }",
             "{ \"id\": 4.0, \"data\": \"d\" }");
 
-    try {
-      floatDF.writeTo(tableName).option("merge-schema", "true").append();
-    } catch (IllegalArgumentException e) {
-      Assert.fail(String.format("Should not throw exception: %s", e));
-    }
+    assertThatCode(() -> floatDF.writeTo(tableName).option("merge-schema", "true").append())
+        .doesNotThrowAnyException();
 
     assertEquals(
         "Should include new rows with unchanged double column type",
@@ -298,14 +289,8 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
         sql("select * from %s order by id", tableName));
 
     // verify the column type did not change
-    tblNameSplit = tableName.split("\\.");
-    tblIdentifier =
-        tblNameSplit.length == 3
-            ? String.format("%s.%s", tblNameSplit[1], tblNameSplit[2])
-            : tableName;
-    table = validationCatalog.loadTable(TableIdentifier.parse(tblIdentifier));
-    idField = table.schema().findField("id");
-    Assert.assertEquals(
-        "Column type should not change", idField.type().typeId(), Type.TypeID.DOUBLE);
+    Types.NestedField idField =
+        Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id");
+    assertThat(idField.type().typeId().equals(Type.TypeID.DOUBLE));
   }
 }
