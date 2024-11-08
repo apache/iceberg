@@ -96,7 +96,7 @@ The 1.7.0 release contains fixes, dependency updates, and new features. For full
   - Build: Add checkstyle rule to ban assert usage [\#10886](https://github.com/apache/iceberg/pull/10886))
   - Support building with Java 21 [\#10474](https://github.com/apache/iceberg/pull/10474))
 * Dependencies
-  - AWS SDK  2.29.1
+  - AWS SDK 2.29.1
   - Apache Avro to 1.12.0
   - Spark 3.4 to 3.4.4 
   - Spark 3.5 to 3.5.2
