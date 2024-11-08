@@ -34,6 +34,7 @@ import org.apache.iceberg.ParameterizedTestExtension;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.RowDelta;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.BaseDeleteLoader;
@@ -295,9 +296,13 @@ public abstract class TestDVWriters<T> extends WriterTestBase<T> {
   }
 
   private void commit(DeleteWriteResult result) {
+    Snapshot startSnapshot = table.currentSnapshot();
     RowDelta rowDelta = table.newRowDelta();
     result.rewrittenDeleteFiles().forEach(rowDelta::removeDeletes);
     result.deleteFiles().forEach(rowDelta::addDeletes);
+    if (startSnapshot != null) {
+      rowDelta.validateFromSnapshot(startSnapshot.snapshotId());
+    }
     rowDelta.commit();
   }
 

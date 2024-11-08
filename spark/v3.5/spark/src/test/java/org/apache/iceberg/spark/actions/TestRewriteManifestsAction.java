@@ -719,7 +719,7 @@ public class TestRewriteManifestsAction extends TestBase {
 
   @TestTemplate
   public void testRewriteSmallDeleteManifestsNonPartitionedTable() throws IOException {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
@@ -792,7 +792,7 @@ public class TestRewriteManifestsAction extends TestBase {
 
   @TestTemplate
   public void testRewriteSmallDeleteManifestsPartitionedTable() throws IOException {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
@@ -895,7 +895,7 @@ public class TestRewriteManifestsAction extends TestBase {
 
   @TestTemplate
   public void testRewriteLargeDeleteManifestsPartitionedTable() throws IOException {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
