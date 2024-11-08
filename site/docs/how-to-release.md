@@ -441,6 +441,7 @@ sql-client.sh embedded \
     -j iceberg-flink-runtime-1.20-{{ icebergVersion }}.jar \
     -j flink-connector-hive_2.12-1.20.jar \
     shell
+```
 
 
 ## Voting
