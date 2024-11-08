@@ -135,7 +135,7 @@ subprojects {
     revapi {
       oldGroup = project.group
       oldName = project.name
-      oldVersion = "1.6.0"
+      oldVersion = "1.7.0"
     }
 
     tasks.register('showDeprecationRulesOnRevApiFailure') {
