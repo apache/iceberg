@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.arrow.vectorized.parquet;
 
+import java.util.Locale;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
@@ -78,7 +79,9 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
         if (numValsToRead < 0) {
           throw new IllegalStateException(
               String.format(
-                  "Cannot read a negative number of values. numValsToRead = %d", numValsToRead));
+                  Locale.ROOT,
+                  "Cannot read a negative number of values. numValsToRead = %d",
+                  numValsToRead));
         } else {
           expectedBatchSize = Math.min(batchSize - rowsReadSoFar, numValsToRead - rowsReadSoFar);
         }
