@@ -18,7 +18,6 @@
  */
 package org.apache.iceberg.spark.source;
 
-import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT;
 import static org.apache.iceberg.TableProperties.DEFAULT_FILE_FORMAT_DEFAULT;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,9 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
@@ -50,28 +47,21 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TestHelpers.Row;
-import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.exceptions.AlreadyExistsException;
-import org.apache.iceberg.hive.HiveCatalog;
-import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkSQLProperties;
 import org.apache.iceberg.spark.SparkValueConverter;
+import org.apache.iceberg.spark.TestBase;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan;
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -79,16 +69,12 @@ import org.junit.jupiter.api.io.TempDir;
 import scala.collection.JavaConverters;
 
 @ExtendWith(ParameterizedTestExtension.class)
-public class TestLimitPushDown {
+public class TestLimitPushDown extends TestBase {
 
   protected String tableName = null;
   protected Table table = null;
   protected List<Record> records = null;
   protected DataFile dataFile = null;
-
-  private static TestHiveMetastore metastore = null;
-  protected static SparkSession spark = null;
-  protected static HiveCatalog catalog = null;
 
   // Schema passed to create tables
   public static final Schema SCHEMA =
@@ -133,40 +119,6 @@ public class TestLimitPushDown {
   @AfterEach
   public void cleanup() {
     dropTable("test");
-  }
-
-  @BeforeAll
-  public static void startMetastoreAndSpark() {
-    metastore = new TestHiveMetastore();
-    metastore.start();
-    HiveConf hiveConf = metastore.hiveConf();
-
-    spark =
-        SparkSession.builder()
-            .master("local[2]")
-            .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
-            .enableHiveSupport()
-            .getOrCreate();
-
-    catalog =
-        (HiveCatalog)
-            CatalogUtil.loadCatalog(
-                HiveCatalog.class.getName(), "hive", ImmutableMap.of(), hiveConf);
-
-    try {
-      catalog.createNamespace(Namespace.of("default"));
-    } catch (AlreadyExistsException ignored) {
-      // the default namespace already exists. ignore the create error
-    }
-  }
-
-  @AfterAll
-  public static void stopMetastoreAndSpark() throws Exception {
-    catalog = null;
-    metastore.stop();
-    metastore = null;
-    spark.stop();
-    spark = null;
   }
 
   protected void createTable(String name, Schema schema) {
@@ -296,7 +248,7 @@ public class TestLimitPushDown {
     if (limitPushedDown) {
       assertThat(pushedLimit).as("Pushed down limit should be " + limit).isEqualTo(limit);
     } else {
-      assertThat(pushedLimit).as("Pushed down limit should be " + limit).isEqualTo(null);
+      assertThat(pushedLimit).as("Pushed down limit should be " + limit).isNull();
     }
 
     List<org.apache.spark.sql.Row> collectedRows = limitedDf.collectAsList();
