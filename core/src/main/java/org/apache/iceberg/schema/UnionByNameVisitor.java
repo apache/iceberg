@@ -24,6 +24,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -163,7 +164,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     String fullName = partnerSchema.findColumnName(existingField.fieldId());
 
     boolean needsOptionalUpdate = field.isOptional() && existingField.isRequired();
-    boolean needsTypeUpdate = needsTypeUpdate(field.type(), existingField.type());
+    boolean needsTypeUpdate = !compatibleType(field.type(), existingField.type());
     boolean needsDocUpdate = field.doc() != null && !field.doc().equals(existingField.doc());
 
     if (needsOptionalUpdate) {
@@ -179,20 +180,8 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     }
   }
 
-  private boolean needsTypeUpdate(Type newType, Type existingType) {
-    if (newType.isPrimitiveType()) {
-      if (newType.equals(existingType)) {
-        return false;
-      }
-      if (existingType.typeId() == Type.TypeID.LONG && newType.typeId() == Type.TypeID.INTEGER) {
-        return false;
-      }
-      if (existingType.typeId() == Type.TypeID.DOUBLE && newType.typeId() == Type.TypeID.FLOAT) {
-        return false;
-      }
-      return true;
-    }
-    return false;
+  private boolean compatibleType(Type newType, Type existingType) {
+    return existingType.isPrimitiveType() && TypeUtil.isPromotionAllowed(newType, existingType.asPrimitiveType());
   }
 
   private static class PartnerIdByNameAccessors implements PartnerAccessors<Integer> {
