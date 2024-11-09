@@ -799,7 +799,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   // validates there are no concurrently added DVs for referenced data files
-  protected void validateNoNewDVs(
+  protected void validateAddedDVs(
       TableMetadata base,
       Long startingSnapshotId,
       Expression conflictDetectionFilter,
