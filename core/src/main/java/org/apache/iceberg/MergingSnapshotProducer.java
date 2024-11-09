@@ -72,7 +72,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // delete files can be added in "overwrite" or "delete" operations
   private static final Set<String> VALIDATE_ADDED_DELETE_FILES_OPERATIONS =
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE);
-  // DVs can be added in "overwrite", "delete", and "replace"
+  // DVs can be added in "overwrite", "delete", and "replace" operations
   private static final Set<String> VALIDATE_ADDED_DVS_OPERATIONS =
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE, DataOperations.REPLACE);
 
@@ -88,6 +88,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
   private Long newDataFilesDataSequenceNumber;
   private final Map<Integer, DeleteFileSet> newDeleteFilesBySpec = Maps.newHashMap();
+  private final Set<String> newDVRefs = Sets.newHashSet();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
@@ -273,6 +274,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     if (deleteFiles.add(file)) {
       addedFilesSummary.addedFile(spec, file);
       hasNewDeleteFiles = true;
+      if (ContentFileUtil.isDV(file)) {
+        newDVRefs.add(file.referencedDataFile());
+      }
     }
   }
 
@@ -795,19 +799,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   }
 
   // validates there are no concurrently added DVs for referenced data files
-  protected void validateAddedDVs(
+  protected void validateNoNewDVs(
       TableMetadata base,
       Long startingSnapshotId,
       Expression conflictDetectionFilter,
       Snapshot parent) {
-    // skip if there is no current table state or table format doesn't support DVs
-    if (parent == null || base.formatVersion() < 3) {
-      return;
-    }
-
-    // skip if this operation doesn't add new DVs
-    Set<String> dvRefs = dvRefs();
-    if (dvRefs.isEmpty()) {
+    // skip if there is no current table state or this operation doesn't add new DVs
+    if (parent == null || newDVRefs.isEmpty()) {
       return;
     }
 
@@ -825,14 +823,11 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         .stopOnFailure()
         .throwFailureWhenFinished()
         .executeWith(workerPool())
-        .run(m -> validateAddedDVs(m, conflictDetectionFilter, newSnapshotIds, dvRefs));
+        .run(manifest -> validateAddedDVs(manifest, conflictDetectionFilter, newSnapshotIds));
   }
 
   private void validateAddedDVs(
-      ManifestFile manifest,
-      Expression conflictDetectionFilter,
-      Set<Long> newSnapshotIds,
-      Set<String> dvRefs) {
+      ManifestFile manifest, Expression conflictDetectionFilter, Set<Long> newSnapshotIds) {
     try (CloseableIterable<ManifestEntry<DeleteFile>> entries =
         ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.current().specsById())
             .filterRows(conflictDetectionFilter)
@@ -843,7 +838,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         DeleteFile file = entry.file();
         if (newSnapshotIds.contains(entry.snapshotId()) && ContentFileUtil.isDV(file)) {
           ValidationException.check(
-              !dvRefs.contains(file.referencedDataFile()),
+              !newDVRefs.contains(file.referencedDataFile()),
               "Found concurrently added DV for %s: %s",
               file.referencedDataFile(),
               ContentFileUtil.dvDesc(file));
@@ -852,21 +847,6 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
-  }
-
-  // builds a set of data file locations referenced by new DVs
-  private Set<String> dvRefs() {
-    Set<String> refs = Sets.newHashSet();
-
-    for (DeleteFileSet deleteFiles : newDeleteFilesBySpec.values()) {
-      for (DeleteFile deleteFile : deleteFiles) {
-        if (ContentFileUtil.isDV(deleteFile)) {
-          refs.add(deleteFile.referencedDataFile());
-        }
-      }
-    }
-
-    return refs;
   }
 
   // returns newly added manifests and snapshot IDs between the starting and parent snapshots
