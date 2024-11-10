@@ -24,24 +24,37 @@ import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_REFRESH_CREDENTIAL
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN;
 import static org.apache.iceberg.gcp.GCPProperties.GCS_OAUTH2_TOKEN_EXPIRES_AT;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
+import com.google.api.gax.paging.Page;
 import com.google.auth.oauth2.OAuth2Credentials;
 import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
+import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
 import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Bucket;
+import com.google.cloud.storage.BucketInfo;
+import com.google.cloud.storage.CopyWriter;
 import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.TestHelpers;
@@ -269,5 +282,137 @@ public class GCSFileIOTest {
     }
 
     assertThat(client.getOptions().getCredentials()).isInstanceOf(OAuth2Credentials.class);
+  }
+
+  @Test
+  void recoverSoftDeletedObject_WhenSoftDeleteDisabled_ReturnsFalse() {
+    BlobId blobId = BlobId.of(TEST_BUCKET, "object");
+    Bucket bucket = mock(Bucket.class);
+    BucketInfo.SoftDeletePolicy policy = mock(BucketInfo.SoftDeletePolicy.class);
+
+    when(storage.get(TEST_BUCKET)).thenReturn(bucket);
+    when(bucket.getSoftDeletePolicy()).thenReturn(policy);
+    when(policy.getRetentionDuration()).thenReturn(Duration.ofSeconds(0)); // soft-delete disabled
+
+    assertThat(io.recoverSoftDeletedObject(blobId)).isFalse();
+  }
+
+  @Test
+  void recoverSoftDeletedObject_WhenSoftDeletedBlobExists_ReturnsTrue() {
+    BlobId blobId = BlobId.of(TEST_BUCKET, "object");
+    Bucket bucket = mock(Bucket.class);
+    BucketInfo.SoftDeletePolicy policy = mock(BucketInfo.SoftDeletePolicy.class);
+    Page<Blob> page = mock(Page.class);
+    Blob softDeletedBlob = mock(Blob.class);
+
+    when(storage.get(TEST_BUCKET)).thenReturn(bucket);
+    when(bucket.getSoftDeletePolicy()).thenReturn(policy);
+    when(policy.getRetentionDuration()).thenReturn(Duration.ofDays(7)); // soft-delete enabled
+    doAnswer(invoke -> page).when(storage).list(eq(TEST_BUCKET), any(), any());
+    when(page.streamAll()).thenReturn(Stream.of(softDeletedBlob));
+    when(softDeletedBlob.getName()).thenReturn("object");
+    when(softDeletedBlob.getSoftDeleteTime()).thenReturn(OffsetDateTime.now());
+    when(softDeletedBlob.getBlobId()).thenReturn(blobId);
+    doAnswer(invocation -> softDeletedBlob).when(storage).restore(any(), any());
+
+    assertThat(io.recoverSoftDeletedObject(blobId)).isTrue();
+  }
+
+  @Test
+  void recoverSoftDeletedObject_WhenNoSoftDeletedBlobExists_ReturnsFalse() {
+    BlobId blobId = BlobId.of(TEST_BUCKET, "object");
+    Bucket bucket = mock(Bucket.class);
+    BucketInfo.SoftDeletePolicy policy = mock(BucketInfo.SoftDeletePolicy.class);
+    Page<Blob> page = mock(Page.class);
+
+    when(storage.get(TEST_BUCKET)).thenReturn(bucket);
+    when(bucket.getSoftDeletePolicy()).thenReturn(policy);
+    when(policy.getRetentionDuration()).thenReturn(Duration.ofDays(7)); // soft-delete enabled
+    when(page.streamAll()).thenReturn(Stream.empty());
+
+    assertThat(io.recoverSoftDeletedObject(blobId)).isFalse();
+  }
+
+  @Test
+  void recoverSoftDelete_WhenStorageException_ReturnsFalse() {
+    BlobId blobId = BlobId.of(TEST_BUCKET, "object");
+    Bucket bucket = mock(Bucket.class);
+    BucketInfo.SoftDeletePolicy policy = mock(BucketInfo.SoftDeletePolicy.class);
+
+    when(storage.get(TEST_BUCKET)).thenReturn(bucket);
+    when(bucket.getSoftDeletePolicy()).thenReturn(policy);
+    when(policy.getRetentionDuration()).thenReturn(Duration.ofDays(7)); // soft-delete enabled
+    doThrow(StorageException.class).when(storage).list(eq(TEST_BUCKET), any(), any());
+
+    assertThat(io.recoverLatestVersion(blobId)).isFalse();
+  }
+
+  @Test
+  void recoverLatestVersion_WhenVersioningDisabled_ReturnsFalse() {
+    BlobId blobId = BlobId.of(TEST_BUCKET, "object");
+    Bucket bucket = mock(Bucket.class);
+
+    when(storage.get(TEST_BUCKET)).thenReturn(bucket);
+    when(bucket.versioningEnabled()).thenReturn(false);
+
+    assertThat(io.recoverLatestVersion(blobId)).isFalse();
+  }
+
+  @Test
+  void recoverLatestVersion_WhenVersionExists_ReturnsTrue() {
+    BlobId blobId = BlobId.of(TEST_BUCKET, "object");
+    Bucket bucket = mock(Bucket.class);
+    Blob versionedBlob = mock(Blob.class);
+    CopyWriter copyWriter = mock(CopyWriter.class);
+    Page<Blob> page = mock(Page.class);
+
+    when(storage.get(TEST_BUCKET)).thenReturn(bucket);
+    when(bucket.versioningEnabled()).thenReturn(true);
+    when(versionedBlob.getName()).thenReturn("object");
+    when(versionedBlob.getUpdateTimeOffsetDateTime()).thenReturn(OffsetDateTime.now());
+    when(versionedBlob.getDeleteTimeOffsetDateTime()).thenReturn(OffsetDateTime.now());
+    when(versionedBlob.getBlobId()).thenReturn(blobId);
+    doAnswer(invoke -> page).when(storage).list(eq(TEST_BUCKET), any(), any());
+    when(page.streamAll()).thenReturn(Stream.of(versionedBlob));
+    // mock successful copy operation
+    doAnswer(invocation -> copyWriter).when(storage).copy(any());
+    when(storage.copy(any())).thenReturn(copyWriter);
+    when(copyWriter.getResult()).thenReturn(versionedBlob);
+
+    assertThat(io.recoverLatestVersion(blobId)).isTrue();
+  }
+
+  @Test
+  void recoverLatestVersion_WhenNoVersionExists_ReturnsFalse() {
+    BlobId blobId = BlobId.of(TEST_BUCKET, "object");
+    Bucket bucket = mock(Bucket.class);
+    Page<Blob> page = mock(Page.class);
+
+    when(storage.get(TEST_BUCKET)).thenReturn(bucket);
+    when(bucket.versioningEnabled()).thenReturn(true);
+    doAnswer(invoke -> page).when(storage).list(eq(TEST_BUCKET), any(), any());
+    when(page.streamAll()).thenReturn(Stream.empty());
+
+    assertThat(io.recoverLatestVersion(blobId)).isFalse();
+  }
+
+  @Test
+  void recoverLatestVersion_WhenCopyFails_ReturnsFalse() {
+    BlobId blobId = BlobId.of(TEST_BUCKET, "object");
+    Bucket bucket = mock(Bucket.class);
+    Blob versionedBlob = mock(Blob.class);
+    Page<Blob> page = mock(Page.class);
+
+    when(storage.get(TEST_BUCKET)).thenReturn(bucket);
+    when(bucket.versioningEnabled()).thenReturn(true);
+    when(versionedBlob.getName()).thenReturn("object");
+    when(versionedBlob.getUpdateTimeOffsetDateTime()).thenReturn(OffsetDateTime.now());
+    when(versionedBlob.getBlobId()).thenReturn(blobId);
+    doAnswer(invoke -> page).when(storage).list(eq(TEST_BUCKET), any(), any());
+    when(page.streamAll()).thenReturn(Stream.of(versionedBlob));
+    // mock failed copy operation
+    doThrow(StorageException.class).when(storage).copy(any());
+
+    assertThat(io.recoverLatestVersion(blobId)).isFalse();
   }
 }
