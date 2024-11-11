@@ -66,6 +66,9 @@ class RESTTableOperations implements TableOperations {
   private UpdateType updateType;
   private TableMetadata current;
 
+  private EncryptionManager encryptionManager;
+  private EncryptingFileIO encryptingFileIO;
+
   RESTTableOperations(
       RESTClient client,
       String path,
@@ -166,13 +169,19 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public FileIO io() {
-    return EncryptingFileIO.combine(io, encryption());
+    if (encryptingFileIO == null) {
+      encryptingFileIO = EncryptingFileIO.combine(io, encryption());
+    }
+    return encryptingFileIO;
   }
 
   @Override
   public EncryptionManager encryption() {
-    return EncryptionUtil.createEncryptionManager(DummyKeyManagementClient.MASTER_KEY_NAME1,
-            TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT, new DummyKeyManagementClient());
+    if (encryptionManager == null) {
+      encryptionManager = EncryptionUtil.createEncryptionManager(DummyKeyManagementClient.MASTER_KEY_NAME1,
+              TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT, new DummyKeyManagementClient());
+    }
+    return encryptionManager;
   }
 
   private TableMetadata updateCurrentMetadata(LoadTableResponse response) {
