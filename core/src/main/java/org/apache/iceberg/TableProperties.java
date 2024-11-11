@@ -388,4 +388,13 @@ public class TableProperties {
   public static final int ENCRYPTION_DEK_LENGTH_DEFAULT = 16;
 
   public static final int ENCRYPTION_AAD_LENGTH_DEFAULT = 16;
+
+  // on the fly stats estimation
+  public static final String DERIVE_NUM_NULLS_ON_THE_FLY_ENABLED =
+      "derive-num-nulls-on-the-fly-enabled";
+  public static final boolean DERIVE_NUM_NULLS_ON_THE_FLY_ENABLED_DEFAULT = false;
+
+  public static final String DERIVE_MIN_MAX_ON_THE_FLY_ENABLED =
+      "derive-min-max-on-the-fly-enabled";
+  public static final boolean DERIVE_MIN_MAX_ON_THE_FLY_ENABLED_DEFAULT = false;
 }

@@ -355,4 +355,38 @@ public class SparkReadConf {
         .defaultValue(SparkSQLProperties.REPORT_COLUMN_STATS_DEFAULT)
         .parse();
   }
+
+  public boolean deriveNumNullsOnFlySessionConf() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.DERIVE_NUM_NULLS_ON_FLY_ENABLED)
+        .defaultValue(SparkSQLProperties.DERIVE_NUM_NULLS_ON_FLY_ENABLED_DEFAULT)
+        .parse();
+  }
+
+  public boolean deriveMinMaxOnFlySessionConf() {
+    return confParser
+        .booleanConf()
+        .sessionConf(SparkSQLProperties.DERIVE_MIN_MAX_ON_FLY_ENABLED)
+        .defaultValue(SparkSQLProperties.DERIVE_MIN_MAX_ON_FLY_ENABLED_DEFAULT)
+        .parse();
+  }
+
+  public boolean deriveNumNullsOnTheFly() {
+    return confParser
+        .booleanConf()
+        .option(SparkReadOptions.DERIVE_NUM_NULLS_ON_THE_FLY_ENABLED)
+        .tableProperty(TableProperties.DERIVE_NUM_NULLS_ON_THE_FLY_ENABLED)
+        .defaultValue(TableProperties.DERIVE_NUM_NULLS_ON_THE_FLY_ENABLED_DEFAULT)
+        .parse();
+  }
+
+  public boolean deriveMinMaxOnTheFly() {
+    return confParser
+        .booleanConf()
+        .option(SparkReadOptions.DERIVE_MIN_MAX_ON_THE_FLY_ENABLED)
+        .tableProperty(TableProperties.DERIVE_MIN_MAX_ON_THE_FLY_ENABLED)
+        .defaultValue(TableProperties.DERIVE_MIN_MAX_ON_THE_FLY_ENABLED_DEFAULT)
+        .parse();
+  }
 }

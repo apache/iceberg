@@ -98,4 +98,14 @@ public class SparkSQLProperties {
   // Controls whether to report available column statistics to Spark for query optimization.
   public static final String REPORT_COLUMN_STATS = "spark.sql.iceberg.report-column-stats";
   public static final boolean REPORT_COLUMN_STATS_DEFAULT = true;
+
+  // Controls whether to enable flag for onFly Collection of nullCount.
+  public static final String DERIVE_NUM_NULLS_ON_FLY_ENABLED =
+      "spark.sql.iceberg.derive-num-nulls-on-the-fly-enabled";
+  public static final boolean DERIVE_NUM_NULLS_ON_FLY_ENABLED_DEFAULT = false;
+
+  // Controls whether to enable flag for onFly Collection of Min and Max.
+  public static final String DERIVE_MIN_MAX_ON_FLY_ENABLED =
+      "spark.sql.iceberg.derive-min-max-on-the-fly-enabled";
+  public static final boolean DERIVE_MIN_MAX_ON_FLY_ENABLED_DEFAULT = false;
 }

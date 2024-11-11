@@ -95,4 +95,9 @@ public class SparkReadOptions {
   public static final String TIMESTAMP_AS_OF = "timestampAsOf";
 
   public static final String AGGREGATE_PUSH_DOWN_ENABLED = "aggregate-push-down-enabled";
+  // on the fly stats estimation
+  public static final String DERIVE_NUM_NULLS_ON_THE_FLY_ENABLED =
+      "derive-num-nulls-on-the-fly-enabled";
+  public static final String DERIVE_MIN_MAX_ON_THE_FLY_ENABLED =
+      "derive-min-max-on-the-fly-enabled";
 }
