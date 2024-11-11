@@ -123,7 +123,7 @@ public class TestSnapshot extends TestBase {
     int specId = table.spec().specId();
 
     DataFile secondSnapshotDataFile = newDataFile("data_bucket=8/data_trunc_2=aa");
-    DeleteFile secondSnapshotDeleteFile = newDeleteFile(specId, "data_bucket=8/data_trunc_2=aa");
+    DeleteFile secondSnapshotDeleteFile = newDeletes(secondSnapshotDataFile);
 
     table
         .newRowDelta()
@@ -131,7 +131,7 @@ public class TestSnapshot extends TestBase {
         .addDeletes(secondSnapshotDeleteFile)
         .commit();
 
-    DeleteFile thirdSnapshotDeleteFile = newDeleteFile(specId, "data_bucket=8/data_trunc_2=aa");
+    DeleteFile thirdSnapshotDeleteFile = newDeletes(secondSnapshotDataFile);
 
     ImmutableSet<DeleteFile> replacedDeleteFiles = ImmutableSet.of(secondSnapshotDeleteFile);
     ImmutableSet<DeleteFile> newDeleteFiles = ImmutableSet.of(thirdSnapshotDeleteFile);
@@ -248,11 +248,9 @@ public class TestSnapshot extends TestBase {
 
     table.newFastAppend().appendFile(FILE_A).appendFile(FILE_B).commit();
 
-    int specId = table.spec().specId();
+    runAddedDeleteFileSequenceNumberTest(newDeletes(FILE_A), 2);
 
-    runAddedDeleteFileSequenceNumberTest(newDeleteFile(specId, "data_bucket=8"), 2);
-
-    runAddedDeleteFileSequenceNumberTest(newDeleteFile(specId, "data_bucket=28"), 3);
+    runAddedDeleteFileSequenceNumberTest(newDeletes(FILE_B), 3);
   }
 
   private void runAddedDeleteFileSequenceNumberTest(

@@ -95,10 +95,12 @@ public class TestCommitReporting extends TestBase {
     // 2 positional + 1 equality
     table
         .newRowDelta()
-        .addDeletes(FILE_A_DELETES)
-        .addDeletes(FILE_B_DELETES)
+        .addDeletes(fileADeletes())
+        .addDeletes(fileBDeletes())
         .addDeletes(FILE_C2_DELETES)
         .commit();
+
+    long totalDeleteContentSize = contentSize(fileADeletes(), fileBDeletes(), FILE_C2_DELETES);
 
     CommitReport report = reporter.lastCommitReport();
     assertThat(report).isNotNull();
@@ -110,7 +112,13 @@ public class TestCommitReporting extends TestBase {
     CommitMetricsResult metrics = report.commitMetrics();
     assertThat(metrics.addedDeleteFiles().value()).isEqualTo(3L);
     assertThat(metrics.totalDeleteFiles().value()).isEqualTo(3L);
-    assertThat(metrics.addedPositionalDeleteFiles().value()).isEqualTo(2L);
+    if (formatVersion == 2) {
+      assertThat(metrics.addedPositionalDeleteFiles().value()).isEqualTo(2L);
+      assertThat(metrics.addedDVs()).isNull();
+    } else {
+      assertThat(metrics.addedPositionalDeleteFiles()).isNull();
+      assertThat(metrics.addedDVs().value()).isEqualTo(2L);
+    }
     assertThat(metrics.addedEqualityDeleteFiles().value()).isEqualTo(1L);
 
     assertThat(metrics.addedPositionalDeletes().value()).isEqualTo(2L);
@@ -119,15 +127,15 @@ public class TestCommitReporting extends TestBase {
     assertThat(metrics.addedEqualityDeletes().value()).isEqualTo(1L);
     assertThat(metrics.totalEqualityDeletes().value()).isEqualTo(1L);
 
-    assertThat(metrics.addedFilesSizeInBytes().value()).isEqualTo(30L);
-    assertThat(metrics.totalFilesSizeInBytes().value()).isEqualTo(30L);
+    assertThat(metrics.addedFilesSizeInBytes().value()).isEqualTo(totalDeleteContentSize);
+    assertThat(metrics.totalFilesSizeInBytes().value()).isEqualTo(totalDeleteContentSize);
 
     // now remove those 2 positional + 1 equality delete files
     table
         .newRewrite()
         .rewriteFiles(
             ImmutableSet.of(),
-            ImmutableSet.of(FILE_A_DELETES, FILE_B_DELETES, FILE_C2_DELETES),
+            ImmutableSet.of(fileADeletes(), fileBDeletes(), FILE_C2_DELETES),
             ImmutableSet.of(),
             ImmutableSet.of())
         .commit();
@@ -142,7 +150,13 @@ public class TestCommitReporting extends TestBase {
     metrics = report.commitMetrics();
     assertThat(metrics.removedDeleteFiles().value()).isEqualTo(3L);
     assertThat(metrics.totalDeleteFiles().value()).isEqualTo(0L);
-    assertThat(metrics.removedPositionalDeleteFiles().value()).isEqualTo(2L);
+    if (formatVersion == 2) {
+      assertThat(metrics.removedPositionalDeleteFiles().value()).isEqualTo(2L);
+      assertThat(metrics.removedDVs()).isNull();
+    } else {
+      assertThat(metrics.removedPositionalDeleteFiles()).isNull();
+      assertThat(metrics.removedDVs().value()).isEqualTo(2L);
+    }
     assertThat(metrics.removedEqualityDeleteFiles().value()).isEqualTo(1L);
 
     assertThat(metrics.removedPositionalDeletes().value()).isEqualTo(2L);
@@ -151,7 +165,7 @@ public class TestCommitReporting extends TestBase {
     assertThat(metrics.removedEqualityDeletes().value()).isEqualTo(1L);
     assertThat(metrics.totalEqualityDeletes().value()).isEqualTo(0L);
 
-    assertThat(metrics.removedFilesSizeInBytes().value()).isEqualTo(30L);
+    assertThat(metrics.removedFilesSizeInBytes().value()).isEqualTo(totalDeleteContentSize);
     assertThat(metrics.totalFilesSizeInBytes().value()).isEqualTo(0L);
   }
 
