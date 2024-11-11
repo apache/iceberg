@@ -80,13 +80,12 @@ public class ComputeTableStatsProcedure extends BaseProcedure {
   }
 
   @Override
-  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public InternalRow[] call(InternalRow args) {
     ProcedureInput input = new ProcedureInput(spark(), tableCatalog(), PARAMETERS, args);
-    Identifier tableIdent = toIdentifier(args.getString(0), PARAMETERS[0].name());
+    Identifier tableIdent = input.ident(TABLE_PARAM);
 
-    Long snapshotId = input.isProvided(SNAPSHOT_ID_PARAM) ? input.asLong(SNAPSHOT_ID_PARAM) : null;
-    String[] columns = input.isProvided(COLUMNS_PARAM) ? input.asStringArray(COLUMNS_PARAM) : null;
+    Long snapshotId = input.asLong(SNAPSHOT_ID_PARAM, null);
+    String[] columns = input.asStringArray(COLUMNS_PARAM, null);
 
     return modifyIcebergTable(
         tableIdent,
