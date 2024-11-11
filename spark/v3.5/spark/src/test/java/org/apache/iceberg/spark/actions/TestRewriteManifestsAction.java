@@ -957,7 +957,7 @@ public class TestRewriteManifestsAction extends TestBase {
   }
 
   @TestTemplate
-  public void testUpgradeToV3() throws IOException {
+  public void testRewriteManifestsAfterUpgradeToV3() throws IOException {
     assumeThat(formatVersion).isEqualTo(2);
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
