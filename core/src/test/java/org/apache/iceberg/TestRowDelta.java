@@ -1568,7 +1568,7 @@ public class TestRowDelta extends V2TableTestBase {
   }
 
   @TestTemplate
-  public void testUpgradeToV3() {
+  public void testManifestMergingAfterUpgradeToV3() {
     assumeThat(formatVersion).isEqualTo(2);
 
     // enable manifest merging
