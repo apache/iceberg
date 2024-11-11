@@ -282,17 +282,24 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   protected void validateNewDeleteFile(DeleteFile file) {
     Preconditions.checkNotNull(file, "Invalid delete file: null");
-    Preconditions.checkArgument(formatVersion() >= 2, "Deletes are supported in V2 and above");
-    if (file.content() == FileContent.POSITION_DELETES) {
-      Preconditions.checkArgument(
-          formatVersion() != 2 || !ContentFileUtil.isDV(file),
-          "Must not use DVs for position deletes in V2: %s",
-          ContentFileUtil.dvDesc(file));
-      Preconditions.checkArgument(
-          formatVersion() == 2 || ContentFileUtil.isDV(file),
-          "Must use DVs for position deletes in V%s: %s",
-          formatVersion(),
-          file.location());
+    switch (formatVersion()) {
+      case 1:
+        throw new IllegalArgumentException("Deletes are supported in V2 and above");
+      case 2:
+        Preconditions.checkArgument(
+            file.content() == FileContent.EQUALITY_DELETES || !ContentFileUtil.isDV(file),
+            "Must not use DVs for position deletes in V2: %s",
+            ContentFileUtil.dvDesc(file));
+        break;
+      case 3:
+        Preconditions.checkArgument(
+            file.content() == FileContent.EQUALITY_DELETES || ContentFileUtil.isDV(file),
+            "Must use DVs for position deletes in V%s: %s",
+            formatVersion(),
+            file.location());
+        break;
+      default:
+        throw new IllegalArgumentException("Unsupported format version: " + formatVersion());
     }
   }
 
