@@ -236,14 +236,16 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
     List<ManifestFile> manifests = apply(base, parentSnapshot);
 
     OutputFile manifestList = manifestListPath();
-
-    try (ManifestListWriter writer =
-        ManifestLists.write(
-            ops.current().formatVersion(),
-            manifestList,
-            snapshotId(),
-            parentSnapshotId,
-            sequenceNumber)) {
+    ManifestListWriter writer = null;
+    try {
+      writer =
+          ManifestLists.write(
+              ops.current().formatVersion(),
+              ops.encryption(),
+              manifestList,
+              snapshotId(),
+              parentSnapshotId,
+              sequenceNumber);
 
       // keep track of the manifest lists created
       manifestLists.add(manifestList.location());
@@ -257,8 +259,15 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
           .run(index -> manifestFiles[index] = manifestsWithMetadata.get(manifests.get(index)));
 
       writer.addAll(Arrays.asList(manifestFiles));
-    } catch (IOException e) {
-      throw new RuntimeIOException(e, "Failed to write manifest list file");
+
+    } finally {
+      if (writer != null) {
+        try {
+          writer.close(); // must close before getting file length
+        } catch (IOException e) {
+          throw new RuntimeIOException(e, "Failed to close manifest list file writer");
+        }
+      }
     }
 
     return new BaseSnapshot(
@@ -269,7 +278,7 @@ abstract class SnapshotProducer<ThisT> implements SnapshotUpdate<ThisT> {
         operation(),
         summary(base),
         base.currentSchemaId(),
-        manifestList.location());
+        writer.toManifestListFile());
   }
 
   protected abstract Map<String, String> summary();

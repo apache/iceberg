@@ -21,6 +21,8 @@ package org.apache.iceberg;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.Map;
 import org.apache.iceberg.io.FileIO;
@@ -30,6 +32,7 @@ import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.JsonUtil;
 
 public class SnapshotParser {
@@ -48,6 +51,8 @@ public class SnapshotParser {
   private static final String MANIFESTS = "manifests";
   private static final String MANIFEST_LIST = "manifest-list";
   private static final String SCHEMA_ID = "schema-id";
+  private static final String ENCRYPTED_KEY_METADATA = "encrypted-key-metadata";
+  private static final String KEY_METADATA_KEY_ID = "key-metadata-key-id";
 
   static void toJson(Snapshot snapshot, JsonGenerator generator) throws IOException {
     generator.writeStartObject();
@@ -76,10 +81,10 @@ public class SnapshotParser {
       generator.writeEndObject();
     }
 
-    String manifestList = snapshot.manifestListLocation();
-    if (manifestList != null) {
+    ManifestListFile manifestList = snapshot.manifestListFile();
+    if (manifestList.location() != null) {
       // write just the location. manifests should not be embedded in JSON along with a list
-      generator.writeStringField(MANIFEST_LIST, manifestList);
+      generator.writeStringField(MANIFEST_LIST, manifestList.location());
     } else {
       // embed the manifest list in the JSON, v1 only
       JsonUtil.writeStringArray(
@@ -91,6 +96,14 @@ public class SnapshotParser {
     // schema ID might be null for snapshots written by old writers
     if (snapshot.schemaId() != null) {
       generator.writeNumberField(SCHEMA_ID, snapshot.schemaId());
+    }
+
+    if (manifestList.encryptedKeyMetadata() != null) {
+      String encodedKeyMetadata =
+          Base64.getEncoder()
+              .encodeToString(ByteBuffers.toByteArray(manifestList.encryptedKeyMetadata()));
+      generator.writeStringField(ENCRYPTED_KEY_METADATA, encodedKeyMetadata);
+      generator.writeStringField(KEY_METADATA_KEY_ID, manifestList.keyMetadataKeyId());
     }
 
     generator.writeEndObject();
@@ -147,6 +160,18 @@ public class SnapshotParser {
     if (node.has(MANIFEST_LIST)) {
       // the manifest list is stored in a manifest list file
       String manifestList = JsonUtil.getString(MANIFEST_LIST, node);
+
+      // Manifest list can be encrypted
+      ManifestListFile manifestListFile;
+      if (node.has(ENCRYPTED_KEY_METADATA)) {
+        String encodedKeyMetadata = JsonUtil.getString(ENCRYPTED_KEY_METADATA, node);
+        ByteBuffer keyMetadata = ByteBuffer.wrap(Base64.getDecoder().decode(encodedKeyMetadata));
+        String keyId = JsonUtil.getString(KEY_METADATA_KEY_ID, node);
+        manifestListFile = new BaseManifestListFile(manifestList, snapshotId, keyId, keyMetadata);
+      } else {
+        manifestListFile = new BaseManifestListFile(manifestList, snapshotId, null, null);
+      }
+
       return new BaseSnapshot(
           sequenceNumber,
           snapshotId,
@@ -155,7 +180,7 @@ public class SnapshotParser {
           operation,
           summary,
           schemaId,
-          manifestList);
+          manifestListFile);
 
     } else {
       // fall back to an embedded manifest list. pass in the manifest's InputFile so length can be

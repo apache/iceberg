@@ -19,9 +19,15 @@
 package org.apache.iceberg;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
 import org.apache.iceberg.avro.Avro;
+import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.NativeEncryptionKeyMetadata;
+import org.apache.iceberg.encryption.NativeEncryptionOutputFile;
+import org.apache.iceberg.encryption.StandardEncryptionManager;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
@@ -29,16 +35,47 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 
 abstract class ManifestListWriter implements FileAppender<ManifestFile> {
+  private final long snapshotId;
+  private final StandardEncryptionManager em;
+  private final NativeEncryptionKeyMetadata keyMetadata;
   private final FileAppender<ManifestFile> writer;
+  private final OutputFile file;
 
-  private ManifestListWriter(OutputFile file, Map<String, String> meta) {
-    this.writer = newAppender(file, meta);
+  private ManifestListWriter(
+      OutputFile file, EncryptionManager em, long snapshotId, Map<String, String> meta) {
+    if (em instanceof StandardEncryptionManager) {
+      // only encrypt the manifest list if standard table encryption is used because the ability to
+      // encrypt the manifest list key was introduced for standard encryption.
+      this.em = (StandardEncryptionManager) em;
+      NativeEncryptionOutputFile encryptedFile = this.em.encrypt(file);
+      this.file = encryptedFile.encryptingOutputFile();
+      this.keyMetadata = encryptedFile.keyMetadata();
+    } else {
+      this.em = null;
+      this.file = file;
+      this.keyMetadata = null;
+    }
+
+    this.snapshotId = snapshotId;
+    this.writer = newAppender(this.file, meta);
   }
 
   protected abstract ManifestFile prepare(ManifestFile manifest);
 
   protected abstract FileAppender<ManifestFile> newAppender(
-      OutputFile file, Map<String, String> meta);
+      OutputFile outputFile, Map<String, String> meta);
+
+  public ManifestListFile toManifestListFile() {
+    if (em != null) {
+      String keyId = em.currentSnapshotKeyId();
+      ByteBuffer encryptedKeyMetadata =
+          EncryptionUtil.encryptSnapshotKeyMetadata(
+              em.unwrapKey(keyId), snapshotId, keyMetadata.copyWithLength(writer.length()));
+      return new BaseManifestListFile(file.location(), snapshotId, keyId, encryptedKeyMetadata);
+    } else {
+      return new BaseManifestListFile(file.location(), snapshotId, null, null);
+    }
+  }
 
   @Override
   public void add(ManifestFile manifest) {
@@ -73,9 +110,16 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   static class V3Writer extends ManifestListWriter {
     private final V3Metadata.IndexedManifestFile wrapper;
 
-    V3Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, long sequenceNumber) {
+    V3Writer(
+        OutputFile snapshotFile,
+        EncryptionManager encryptionManager,
+        long snapshotId,
+        Long parentSnapshotId,
+        long sequenceNumber) {
       super(
           snapshotFile,
+          encryptionManager,
+          snapshotId,
           ImmutableMap.of(
               "snapshot-id", String.valueOf(snapshotId),
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
@@ -108,9 +152,16 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   static class V2Writer extends ManifestListWriter {
     private final V2Metadata.IndexedManifestFile wrapper;
 
-    V2Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId, long sequenceNumber) {
+    V2Writer(
+        OutputFile snapshotFile,
+        EncryptionManager encryptionManager,
+        long snapshotId,
+        Long parentSnapshotId,
+        long sequenceNumber) {
       super(
           snapshotFile,
+          encryptionManager,
+          snapshotId,
           ImmutableMap.of(
               "snapshot-id", String.valueOf(snapshotId),
               "parent-snapshot-id", String.valueOf(parentSnapshotId),
@@ -143,9 +194,15 @@ abstract class ManifestListWriter implements FileAppender<ManifestFile> {
   static class V1Writer extends ManifestListWriter {
     private final V1Metadata.IndexedManifestFile wrapper = new V1Metadata.IndexedManifestFile();
 
-    V1Writer(OutputFile snapshotFile, long snapshotId, Long parentSnapshotId) {
+    V1Writer(
+        OutputFile snapshotFile,
+        EncryptionManager encryptionManager,
+        long snapshotId,
+        Long parentSnapshotId) {
       super(
           snapshotFile,
+          encryptionManager,
+          snapshotId,
           ImmutableMap.of(
               "snapshot-id", String.valueOf(snapshotId),
               "parent-snapshot-id", String.valueOf(parentSnapshotId),

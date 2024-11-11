@@ -85,7 +85,7 @@ public class TestManifestEncryption {
 
   private static final DataFile DATA_FILE =
       new GenericDataFile(
-          0,
+          SPEC.specId(),
           PATH,
           FORMAT,
           PARTITION,
