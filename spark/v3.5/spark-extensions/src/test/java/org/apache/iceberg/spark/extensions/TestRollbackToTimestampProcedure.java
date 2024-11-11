@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.extensions;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.sql.Timestamp;
@@ -296,7 +297,12 @@ public class TestRollbackToTimestampProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.custom.rollback_to_timestamp('n', 't', %s)", catalogName, timestamp))
         .isInstanceOf(ParseException.class)
-        .hasMessageContaining("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
+              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.rollback_to_timestamp('t')", catalogName))
         .isInstanceOf(AnalysisException.class)

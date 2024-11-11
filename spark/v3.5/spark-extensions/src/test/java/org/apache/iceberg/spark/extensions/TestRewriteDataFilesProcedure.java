@@ -698,7 +698,12 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
         .isInstanceOf(ParseException.class)
-        .hasMessageContaining("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
+              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
         .isInstanceOf(AnalysisException.class)

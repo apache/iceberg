@@ -20,6 +20,7 @@ package org.apache.iceberg.spark.extensions;
 
 import static org.apache.iceberg.TableProperties.WRITE_AUDIT_PUBLISH_ENABLED;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 import java.util.List;
 import org.apache.iceberg.Snapshot;
@@ -168,7 +169,12 @@ public class TestPublishChangesProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.custom.publish_changes('n', 't', 'not_valid')", catalogName))
         .isInstanceOf(ParseException.class)
-        .hasMessageContaining("[PARSE_SYNTAX_ERROR] Syntax error at or near 'CALL'.");
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
+              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.publish_changes('t')", catalogName))
         .isInstanceOf(AnalysisException.class)
