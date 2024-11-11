@@ -141,7 +141,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
       .replaceAll("`", "")
       .trim()
 
-    normalized.startsWith("call") && isIcebergProcedure(normalized) || (
+     isIcebergProcedure(normalized) || (
         normalized.startsWith("alter table") && (
             normalized.contains("add partition field") ||
             normalized.contains("drop partition field") ||
@@ -155,8 +155,9 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
             isSnapshotRefDdl(normalized)))
   }
 
+  // All builtin Iceberg procedures are under the 'system' namespace
   private def isIcebergProcedure(normalized: String): Boolean = {
-    // All builtin Iceberg procedures are under the 'system' namespace
+    normalized.startsWith("call") &&
     SparkProcedures.names().asScala.map("system." + _).exists(normalized.contains)
   }
 
