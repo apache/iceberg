@@ -104,7 +104,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
       exclude group: 'org.apache.hadoop', module: 'hadoop-auth'
       exclude group: 'org.apache.commons', module: 'commons-configuration2'
       exclude group: 'org.apache.hadoop.thirdparty', module: 'hadoop-shaded-protobuf_3_7'
-      exclude group: 'org.codehaus.woodstox'
       exclude group: 'org.eclipse.jetty'
     }
     implementation project(':iceberg-orc')
