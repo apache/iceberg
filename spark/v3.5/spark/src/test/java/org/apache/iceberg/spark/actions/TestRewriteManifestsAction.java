@@ -719,7 +719,7 @@ public class TestRewriteManifestsAction extends TestBase {
 
   @TestTemplate
   public void testRewriteSmallDeleteManifestsNonPartitionedTable() throws IOException {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     PartitionSpec spec = PartitionSpec.unpartitioned();
     Map<String, String> options = Maps.newHashMap();
@@ -792,7 +792,7 @@ public class TestRewriteManifestsAction extends TestBase {
 
   @TestTemplate
   public void testRewriteSmallDeleteManifestsPartitionedTable() throws IOException {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
@@ -895,7 +895,7 @@ public class TestRewriteManifestsAction extends TestBase {
 
   @TestTemplate
   public void testRewriteLargeDeleteManifestsPartitionedTable() throws IOException {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c3").build();
     Map<String, String> options = Maps.newHashMap();
@@ -954,6 +954,62 @@ public class TestRewriteManifestsAction extends TestBase {
     // the current snapshot must return the correct number of delete manifests
     List<ManifestFile> deleteManifests = table.currentSnapshot().deleteManifests(table.io());
     assertThat(deleteManifests).hasSizeGreaterThanOrEqualTo(2);
+  }
+
+  @TestTemplate
+  public void testRewriteManifestsAfterUpgradeToV3() throws IOException {
+    assumeThat(formatVersion).isEqualTo(2);
+
+    PartitionSpec spec = PartitionSpec.builderFor(SCHEMA).identity("c1").build();
+    Map<String, String> options = ImmutableMap.of(TableProperties.FORMAT_VERSION, "2");
+    Table table = TABLES.create(SCHEMA, spec, options, tableLocation);
+
+    DataFile dataFile1 = newDataFile(table, "c1=1");
+    DeleteFile deleteFile1 = newDeletes(table, dataFile1);
+    table.newRowDelta().addRows(dataFile1).addDeletes(deleteFile1).commit();
+
+    DataFile dataFile2 = newDataFile(table, "c1=1");
+    DeleteFile deleteFile2 = newDeletes(table, dataFile2);
+    table.newRowDelta().addRows(dataFile2).addDeletes(deleteFile2).commit();
+
+    // upgrade the table to enable DVs
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+
+    DataFile dataFile3 = newDataFile(table, "c1=1");
+    DeleteFile dv3 = newDV(table, dataFile3);
+    table.newRowDelta().addRows(dataFile3).addDeletes(dv3).commit();
+
+    SparkActions actions = SparkActions.get();
+
+    RewriteManifests.Result result =
+        actions
+            .rewriteManifests(table)
+            .rewriteIf(manifest -> true)
+            .option(RewriteManifestsSparkAction.USE_CACHING, useCaching)
+            .execute();
+
+    assertThat(result.rewrittenManifests()).as("Action should rewrite 6 manifests").hasSize(6);
+    assertThat(result.addedManifests()).as("Action should add 2 manifests").hasSize(2);
+    assertManifestsLocation(result.addedManifests());
+
+    table.refresh();
+
+    try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
+      for (FileScanTask fileTask : tasks) {
+        DataFile dataFile = fileTask.file();
+        DeleteFile deleteFile = Iterables.getOnlyElement(fileTask.deletes());
+        if (dataFile.location().equals(dataFile1.location())) {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile1.referencedDataFile());
+          assertEqual(deleteFile, deleteFile1);
+        } else if (dataFile.location().equals(dataFile2.location())) {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(deleteFile2.referencedDataFile());
+          assertEqual(deleteFile, deleteFile2);
+        } else {
+          assertThat(deleteFile.referencedDataFile()).isEqualTo(dv3.referencedDataFile());
+          assertEqual(deleteFile, dv3);
+        }
+      }
+    }
   }
 
   private List<ThreeColumnRecord> actualRecords() {
