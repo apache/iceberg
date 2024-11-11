@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -30,11 +32,16 @@ import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.UpdateRequirements;
+import org.apache.iceberg.encryption.Ciphers;
+import org.apache.iceberg.encryption.EncryptingFileIO;
 import org.apache.iceberg.encryption.EncryptionManager;
+import org.apache.iceberg.encryption.EncryptionUtil;
+import org.apache.iceberg.encryption.KeyManagementClient;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ErrorResponse;
@@ -159,7 +166,13 @@ class RESTTableOperations implements TableOperations {
 
   @Override
   public FileIO io() {
-    return io;
+    return EncryptingFileIO.combine(io, encryption());
+  }
+
+  @Override
+  public EncryptionManager encryption() {
+    return EncryptionUtil.createEncryptionManager(DummyKeyManagementClient.MASTER_KEY_NAME1,
+            TableProperties.ENCRYPTION_DEK_LENGTH_DEFAULT, new DummyKeyManagementClient());
   }
 
   private TableMetadata updateCurrentMetadata(LoadTableResponse response) {
@@ -239,5 +252,44 @@ class RESTTableOperations implements TableOperations {
         return RESTTableOperations.this.newSnapshotId();
       }
     };
+  }
+
+  private static class DummyKeyManagementClient implements KeyManagementClient {
+
+    private final Map<String, byte[]> masterKeys = ImmutableMap.of(
+            MASTER_KEY_NAME1, MASTER_KEY1,
+            MASTER_KEY_NAME2, MASTER_KEY2);
+
+    public static final String MASTER_KEY_NAME1 = "keyA";
+    public static final byte[] MASTER_KEY1 = "0123456789012345".getBytes(StandardCharsets.UTF_8);
+    public static final String MASTER_KEY_NAME2 = "keyB";
+    public static final byte[] MASTER_KEY2 = "1123456789012345".getBytes(StandardCharsets.UTF_8);
+
+    @Override
+    @SuppressWarnings("ByteBufferBackingArray")
+    public ByteBuffer wrapKey(ByteBuffer key, String wrappingKeyId) {
+      byte[] wrappingKey = masterKeys.get(wrappingKeyId);
+      if (null == wrappingKey) {
+        throw new RuntimeException("Cannot wrap, because wrapping key " + wrappingKeyId + " is not found");
+      }
+      Ciphers.AesGcmEncryptor keyEncryptor = new Ciphers.AesGcmEncryptor(wrappingKey);
+      byte[] encryptedKey = keyEncryptor.encrypt(key.array(), null);
+      return ByteBuffer.wrap(encryptedKey);
+    }
+
+    @Override
+    @SuppressWarnings("ByteBufferBackingArray")
+    public ByteBuffer unwrapKey(ByteBuffer wrappedKey, String wrappingKeyId) {
+      byte[] wrappingKey = masterKeys.get(wrappingKeyId);
+      if (null == wrappingKey) {
+        throw new RuntimeException("Cannot unwrap, because wrapping key " + wrappingKeyId + " is not found");
+      }
+      Ciphers.AesGcmDecryptor keyDecryptor = new Ciphers.AesGcmDecryptor(wrappingKey);
+      byte[] key = keyDecryptor.decrypt(wrappedKey.array(), null);
+      return ByteBuffer.wrap(key);
+    }
+
+    @Override
+    public void initialize(Map<String, String> _properties) {}
   }
 }
