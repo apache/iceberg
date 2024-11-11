@@ -30,8 +30,11 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.util.JsonUtil;
 import org.apache.iceberg.view.ViewVersionParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MetadataUpdateParser {
+  private static final Logger LOG = LoggerFactory.getLogger(MetadataUpdateParser.class);
 
   private MetadataUpdateParser() {}
 
@@ -462,6 +465,8 @@ public class MetadataUpdateParser {
     Schema schema = SchemaParser.fromJson(schemaNode);
     int lastColumnId;
     if (node.has(LAST_COLUMN_ID)) {
+      LOG.warn(
+          "Field last-column-id of MetadataUpdate.AddSchema is since 1.8.0, will be removed 1.9.0 or 2.0.0");
       lastColumnId = JsonUtil.getInt(LAST_COLUMN_ID, node);
     } else {
       lastColumnId = schema.highestFieldId();
