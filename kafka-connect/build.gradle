@@ -96,7 +96,6 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
       exclude group: 'org.slf4j'
       exclude group: 'ch.qos.reload4j'
       exclude group: 'org.apache.avro', module: 'avro'
-      exclude group: 'com.fasterxml.woodstox'
       exclude group: 'com.google.guava'
       exclude group: 'com.google.protobuf'
       exclude group: 'org.apache.curator'
