@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -30,11 +31,14 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
 import org.apache.iceberg.Partitioning;
 import org.apache.iceberg.PositionDeletesScanTask;
+import org.apache.iceberg.PositionDeletesTable;
 import org.apache.iceberg.PositionDeletesTable.PositionDeletesBatchScan;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
@@ -404,8 +408,31 @@ public class RewritePositionDeleteFilesSparkAction
         maxCommits,
         PARTIAL_PROGRESS_ENABLED);
 
-    Preconditions.checkArgument(
-        TableUtil.formatVersion(table) <= 2, "Cannot rewrite position deletes for V3 table");
+    if (TableUtil.formatVersion(table) >= 3) {
+      PositionDeletesBatchScan scan =
+          (PositionDeletesBatchScan)
+              MetadataTableUtils.createMetadataTableInstance(
+                      table, MetadataTableType.POSITION_DELETES)
+                  .newBatchScan();
+      Optional<PositionDeletesScanTask> foundPuffinFiles =
+          StreamSupport.stream(
+                  CloseableIterable.transform(
+                          scan.baseTableFilter(filter)
+                              .caseSensitive(caseSensitive)
+                              .select(PositionDeletesTable.DELETE_FILE_PATH)
+                              .ignoreResiduals()
+                              .planFiles(),
+                          task -> (PositionDeletesScanTask) task)
+                      .spliterator(),
+                  false)
+              .filter(t -> t.file().format() == FileFormat.PUFFIN)
+              .findAny();
+
+      if (foundPuffinFiles.isPresent()) {
+        throw new IllegalArgumentException(
+            "Cannot rewrite DVs: v2 deletes have already been rewritten to v3 DVs");
+      }
+    }
   }
 
   private String jobDesc(RewritePositionDeletesGroup group, RewriteExecutionContext ctx) {
