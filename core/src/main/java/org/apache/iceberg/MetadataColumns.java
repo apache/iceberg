@@ -92,6 +92,20 @@ public class MetadataColumns {
           Types.LongType.get(),
           "Commit snapshot ID");
 
+  // the content size and offset of a DV
+  public static final NestedField CONTENT_OFFSET =
+      Types.NestedField.optional(
+          Integer.MAX_VALUE - 107,
+          "content_offset",
+          Types.LongType.get(),
+          "The offset in the DV where the content starts");
+  public static final NestedField CONTENT_SIZE_IN_BYTES =
+      Types.NestedField.optional(
+          Integer.MAX_VALUE - 108,
+          "content_size_in_bytes",
+          Types.LongType.get(),
+          "The length in bytes of referenced content stored in a DV");
+
   private static final Map<String, NestedField> META_COLUMNS =
       ImmutableMap.of(
           FILE_PATH.name(), FILE_PATH,

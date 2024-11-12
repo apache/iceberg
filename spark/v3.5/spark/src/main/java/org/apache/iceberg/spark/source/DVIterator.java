@@ -30,6 +30,7 @@ import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.ScanTaskUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.unsafe.types.UTF8String;
@@ -79,6 +80,10 @@ class DVIterator implements CloseableIterator<InternalRow> {
           rowValues.add(idToConstant.get(MetadataColumns.SPEC_ID_COLUMN_ID));
         } else if (fieldId == MetadataColumns.FILE_PATH_COLUMN_ID) {
           rowValues.add(idToConstant.get(MetadataColumns.FILE_PATH_COLUMN_ID));
+        } else if (fieldId == MetadataColumns.CONTENT_OFFSET.fieldId()) {
+          rowValues.add(deleteFile.contentOffset());
+        } else if (fieldId == MetadataColumns.CONTENT_SIZE_IN_BYTES.fieldId()) {
+          rowValues.add(ScanTaskUtil.contentSizeInBytes(deleteFile));
         }
       }
 

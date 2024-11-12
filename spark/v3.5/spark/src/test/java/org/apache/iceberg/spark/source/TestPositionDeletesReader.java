@@ -157,13 +157,17 @@ public class TestPositionDeletesReader extends TestBase {
     Table positionDeletesTable =
         catalog.loadTable(TableIdentifier.of("default", "test", "position_deletes"));
 
-    Schema projectedSchema =
-        positionDeletesTable
-            .schema()
-            .select(
-                MetadataColumns.DELETE_FILE_PATH.name(),
-                MetadataColumns.DELETE_FILE_POS.name(),
-                PositionDeletesTable.DELETE_FILE_PATH);
+    List<String> columns =
+        Lists.newArrayList(
+            MetadataColumns.DELETE_FILE_PATH.name(),
+            MetadataColumns.DELETE_FILE_POS.name(),
+            PositionDeletesTable.DELETE_FILE_PATH);
+    if (formatVersion >= 3) {
+      columns.add(MetadataColumns.CONTENT_OFFSET.name());
+      columns.add(MetadataColumns.CONTENT_SIZE_IN_BYTES.name());
+    }
+
+    Schema projectedSchema = positionDeletesTable.schema().select(columns);
 
     List<ScanTask> scanTasks =
         Lists.newArrayList(
@@ -187,15 +191,27 @@ public class TestPositionDeletesReader extends TestBase {
 
       String dataFileLocation =
           formatVersion >= 3 ? deleteFile1.referencedDataFile() : dataFile1.location();
-      Object[] first = {
-        UTF8String.fromString(dataFileLocation), 0L, UTF8String.fromString(deleteFile1.location())
-      };
-      Object[] second = {
-        UTF8String.fromString(dataFileLocation), 1L, UTF8String.fromString(deleteFile1.location())
-      };
+      List<Object> first =
+          Lists.newArrayList(
+              UTF8String.fromString(dataFileLocation),
+              0L,
+              UTF8String.fromString(deleteFile1.location()));
+      List<Object> second =
+          Lists.newArrayList(
+              UTF8String.fromString(dataFileLocation),
+              1L,
+              UTF8String.fromString(deleteFile1.location()));
+
+      if (formatVersion >= 3) {
+        first.add(deleteFile1.contentOffset());
+        first.add(deleteFile1.contentSizeInBytes());
+        second.add(deleteFile1.contentOffset());
+        second.add(deleteFile1.contentSizeInBytes());
+      }
+
       assertThat(internalRowsToJava(actualRows, projectedSchema))
           .hasSize(2)
-          .containsExactly(first, second);
+          .containsExactly(first.toArray(), second.toArray());
     }
 
     assertThat(scanTasks.get(1)).isInstanceOf(PositionDeletesScanTask.class);
@@ -214,15 +230,27 @@ public class TestPositionDeletesReader extends TestBase {
 
       String dataFileLocation =
           formatVersion >= 3 ? deleteFile2.referencedDataFile() : dataFile2.location();
-      Object[] first = {
-        UTF8String.fromString(dataFileLocation), 2L, UTF8String.fromString(deleteFile2.location())
-      };
-      Object[] second = {
-        UTF8String.fromString(dataFileLocation), 3L, UTF8String.fromString(deleteFile2.location())
-      };
+      List<Object> first =
+          Lists.newArrayList(
+              UTF8String.fromString(dataFileLocation),
+              2L,
+              UTF8String.fromString(deleteFile2.location()));
+      List<Object> second =
+          Lists.newArrayList(
+              UTF8String.fromString(dataFileLocation),
+              3L,
+              UTF8String.fromString(deleteFile2.location()));
+
+      if (formatVersion >= 3) {
+        first.add(deleteFile2.contentOffset());
+        first.add(deleteFile2.contentSizeInBytes());
+        second.add(deleteFile2.contentOffset());
+        second.add(deleteFile2.contentSizeInBytes());
+      }
+
       assertThat(internalRowsToJava(actualRows, projectedSchema))
           .hasSize(2)
-          .containsExactly(first, second);
+          .containsExactly(first.toArray(), second.toArray());
     }
   }
 
