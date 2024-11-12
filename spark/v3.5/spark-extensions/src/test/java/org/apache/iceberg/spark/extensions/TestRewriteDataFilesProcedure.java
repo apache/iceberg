@@ -45,7 +45,7 @@ import org.apache.iceberg.spark.source.ThreeColumnRecord;
 import org.apache.spark.sql.AnalysisException;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.catalyst.analysis.NoSuchProcedureException;
+import org.apache.spark.sql.catalyst.parser.ParseException;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -694,11 +694,16 @@ public class TestRewriteDataFilesProcedure extends ExtensionsTestBase {
     assertThatThrownBy(
             () -> sql("CALL %s.system.rewrite_data_files('n', table => 't')", catalogName))
         .isInstanceOf(AnalysisException.class)
-        .hasMessage("Named and positional arguments cannot be mixed");
+        .hasMessageContaining("Named and positional arguments cannot be mixed");
 
     assertThatThrownBy(() -> sql("CALL %s.custom.rewrite_data_files('n', 't')", catalogName))
-        .isInstanceOf(NoSuchProcedureException.class)
-        .hasMessage("Procedure custom.rewrite_data_files not found");
+        .isInstanceOf(ParseException.class)
+        .satisfies(
+            exception -> {
+              ParseException parseException = (ParseException) exception;
+              assertThat(parseException.getErrorClass()).isEqualTo("PARSE_SYNTAX_ERROR");
+              assertThat(parseException.getMessageParameters().get("error")).isEqualTo("'CALL'");
+            });
 
     assertThatThrownBy(() -> sql("CALL %s.system.rewrite_data_files()", catalogName))
         .isInstanceOf(AnalysisException.class)
