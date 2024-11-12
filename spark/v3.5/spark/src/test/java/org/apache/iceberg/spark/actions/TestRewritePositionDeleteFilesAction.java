@@ -19,6 +19,7 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.expr;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -729,19 +730,47 @@ public class TestRewritePositionDeleteFilesAction extends CatalogTestBase {
   }
 
   @TestTemplate
-  public void testRewritePositionDeletesForV3TableFails() {
-    Table table =
-        validationCatalog.createTable(
-            TableIdentifier.of("default", TABLE_NAME),
-            SCHEMA,
-            PartitionSpec.unpartitioned(),
-            tableProperties(3));
+  public void testRewriteV2PositionDeletesToV3DVs() throws IOException {
+    Table table = createTableUnpartitioned(2, SCALE);
+    List<DataFile> dataFiles = TestHelpers.dataFiles(table);
+    writePosDeletesForFiles(table, 2, DELETES_SCALE, dataFiles);
+    assertThat(dataFiles).hasSize(2);
+    assertThat(deleteFiles(table)).hasSize(2).allMatch(file -> file.format() == FileFormat.PARQUET);
 
-    writeRecords(table, 2, SCALE);
+    List<Object[]> expectedRecords = records(table);
+    List<Object[]> expectedDeletes = deleteRecords(table);
+    assertThat(expectedRecords).hasSize(2000);
+    assertThat(expectedDeletes).hasSize(2000);
+    assertThat(dvRecords(table)).isEmpty();
 
-    assertThatThrownBy(() -> SparkActions.get(spark).rewritePositionDeletes(table).execute())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot rewrite position deletes for V3 table");
+    // upgrade the table to V3
+    table.updateProperties().set(TableProperties.FORMAT_VERSION, "3").commit();
+
+    // v2 position deletes should now be rewritten to DVs
+    Result result =
+        SparkActions.get(spark)
+            .rewritePositionDeletes(table)
+            .option(SizeBasedFileRewriter.REWRITE_ALL, "true")
+            .execute();
+    assertThat(result.rewrittenDeleteFilesCount()).isEqualTo(2);
+    assertThat(result.addedDeleteFilesCount()).isEqualTo(2);
+    assertThat(deleteFiles(table)).hasSize(2).allMatch(file -> file.format() == FileFormat.PUFFIN);
+    assertThat(dvRecords(table)).hasSize(2);
+
+    // rewriting DVs via rewritePositionDeletes shouldn't be possible anymore
+    assertThat(SparkActions.get(spark).rewritePositionDeletes(table).execute().rewriteResults())
+        .isEmpty();
+  }
+
+  private List<Row> dvRecords(Table table) {
+    return spark
+        .read()
+        .format("iceberg")
+        .load(name(table) + ".position_deletes")
+        .select("file_path", "delete_file_path")
+        .where(col("delete_file_path").endsWith(".puffin"))
+        .distinct()
+        .collectAsList();
   }
 
   private Table createTablePartitioned(int partitions, int files, int numRecords) {
