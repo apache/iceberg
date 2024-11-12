@@ -35,12 +35,12 @@ This page describes the procedures that the release manager and voting PMC membe
 To create a release candidate, you will need:
 
 * Apache LDAP credentials for Nexus and SVN
-* A [GPG key for signing](https://www.apache.org/dev/release-signing#generate), published in [KEYS](https://dist.apache.org/repos/dist/dev/iceberg/KEYS)
+* A [GPG key for signing](https://www.apache.org/dev/release-signing#generate), published in [KEYS](https://downloads.apache.org/iceberg/KEYS)
 
 If you have not published your GPG key yet, you must publish it before sending the vote email by doing:
 
 ```shell
-svn co https://dist.apache.org/repos/dist/dev/iceberg icebergsvn
+svn co https://dist.apache.org/repos/dist/release/iceberg icebergsvn
 cd icebergsvn
 echo "" >> KEYS # append a newline
 gpg --list-sigs <YOUR KEY ID HERE> >> KEYS # append signatures
@@ -204,7 +204,7 @@ The release tarball, signature, and checksums are here:
 * https://dist.apache.org/repos/dist/dev/iceberg/apache-iceberg-<VERSION>-rc<NUM>/
 
 You can find the KEYS file here:
-* https://dist.apache.org/repos/dist/dev/iceberg/KEYS
+* https://downloads.apache.org/iceberg/KEYS
 
 Convenience binary artifacts are staged in Nexus. The Maven repository URL is:
 * https://repository.apache.org/content/repositories/orgapacheiceberg-<ID>/
@@ -349,7 +349,7 @@ verify signatures, checksums, and documentation.
 
 First, import the keys.
 ```bash
-curl https://dist.apache.org/repos/dist/dev/iceberg/KEYS -o KEYS
+curl https://downloads.apache.org/iceberg/KEYS -o KEYS
 gpg --import KEYS
 ```
 
