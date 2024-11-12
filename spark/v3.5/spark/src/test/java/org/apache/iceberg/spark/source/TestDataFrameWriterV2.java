@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.util.List;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -325,5 +326,53 @@ public class TestDataFrameWriterV2 extends TestBaseWithCatalog {
     Types.NestedField idField =
         Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id");
     assertThat(idField.type().typeId().equals(Type.TypeID.DOUBLE));
+  }
+
+  @TestTemplate
+  public void testMergeSchemaIgnoreCastingDecimalToDecimalWithNarrowerPrecision() throws Exception {
+    removeTables();
+    sql("CREATE TABLE %s (id decimal(6,2), data string) USING iceberg", tableName);
+    sql(
+        "ALTER TABLE %s SET TBLPROPERTIES ('%s'='true')",
+        tableName, TableProperties.SPARK_WRITE_ACCEPT_ANY_SCHEMA);
+
+    Dataset<Row> decimalPrecision6DF =
+        jsonToDF(
+            "id decimal(6,2), data string",
+            "{ \"id\": 1.0, \"data\": \"a\" }",
+            "{ \"id\": 2.0, \"data\": \"b\" }");
+
+    decimalPrecision6DF.writeTo(tableName).append();
+
+    assertEquals(
+        "Should have initial rows with decimal column with precision 6",
+        ImmutableList.of(row(new BigDecimal("1.00"), "a"), row(new BigDecimal("2.00"), "b")),
+        sql("select * from %s order by id", tableName));
+
+    Dataset<Row> decimalPrecision4DF =
+        jsonToDF(
+            "id decimal(4,2), data string",
+            "{ \"id\": 3.0, \"data\": \"c\" }",
+            "{ \"id\": 4.0, \"data\": \"d\" }");
+
+    assertThatCode(
+            () -> decimalPrecision4DF.writeTo(tableName).option("merge-schema", "true").append())
+        .doesNotThrowAnyException();
+
+    assertEquals(
+        "Should include new rows with unchanged decimal precision",
+        ImmutableList.of(
+            row(new BigDecimal("1.00"), "a"),
+            row(new BigDecimal("2.00"), "b"),
+            row(new BigDecimal("3.00"), "c"),
+            row(new BigDecimal("4.00"), "d")),
+        sql("select * from %s order by id", tableName));
+
+    // verify the decimal column precision did not change
+    Type idFieldType =
+        Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id").type();
+    assertThat(idFieldType.typeId().equals(Type.TypeID.DECIMAL));
+    Types.DecimalType decimalType = (Types.DecimalType) idFieldType;
+    assertThat(decimalType.precision() == 6);
   }
 }

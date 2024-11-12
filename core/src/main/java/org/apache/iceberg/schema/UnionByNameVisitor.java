@@ -181,7 +181,14 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
   }
 
   private boolean compatibleType(Type newType, Type existingType) {
-    return existingType.isPrimitiveType() && TypeUtil.isPromotionAllowed(newType, existingType.asPrimitiveType());
+    if (existingType.isPrimitiveType()) {
+      // Primitive -> Wider Primitive
+      return newType.isPrimitiveType()
+          && TypeUtil.isPromotionAllowed(newType, existingType.asPrimitiveType());
+    } else {
+      // Complex -> Complex
+      return !newType.isPrimitiveType();
+    }
   }
 
   private static class PartnerIdByNameAccessors implements PartnerAccessors<Integer> {

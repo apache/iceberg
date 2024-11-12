@@ -324,6 +324,15 @@ public class TestSchemaUnionByFieldName {
   }
 
   @Test
+  public void testIgnoreTypePromoteDecimalToNarrowerPrecision() {
+    Schema currentSchema = new Schema(required(1, "aCol", DecimalType.of(20, 1)));
+    Schema newSchema = new Schema(required(1, "aCol", DecimalType.of(10, 1)));
+
+    Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    assertThat(applied.asStruct()).isEqualTo(currentSchema.asStruct());
+  }
+
+  @Test
   // decimal(P,S) Fixed-point decimal; precision P, scale S -> Scale is fixed [1], precision must be
   // 38 or less
   public void testTypePromoteDecimalToFixedScaleWithWiderPrecision() {
