@@ -37,6 +37,7 @@ import static org.apache.spark.sql.connector.write.RowLevelOperation.Command.DEL
 
 import java.util.Locale;
 import java.util.Map;
+import org.apache.iceberg.BaseMetadataTable;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.HasTableOperations;
@@ -218,9 +219,25 @@ public class SparkWriteConf {
         confParser
             .stringConf()
             .option(SparkWriteOptions.DELETE_FORMAT)
-            .tableProperty(TableProperties.DELETE_DEFAULT_FILE_FORMAT)
+            .tableProperty(
+                formatVersion() >= 3
+                    ? FileFormat.PUFFIN.name()
+                    : TableProperties.DELETE_DEFAULT_FILE_FORMAT)
             .parseOptional();
-    return valueAsString != null ? FileFormat.fromString(valueAsString) : dataFileFormat();
+    return valueAsString != null
+        ? FileFormat.fromString(valueAsString)
+        : formatVersion() >= 3 ? FileFormat.PUFFIN : dataFileFormat();
+  }
+
+  private int formatVersion() {
+    if (table instanceof HasTableOperations) {
+      TableOperations ops = ((HasTableOperations) table).operations();
+      return ops.current().formatVersion();
+    } else if (table instanceof BaseMetadataTable) {
+      return ((BaseMetadataTable) table).table().operations().current().formatVersion();
+    } else {
+      return 2;
+    }
   }
 
   private String deleteCompressionCodec() {

@@ -73,6 +73,7 @@ class PositionDeletesRowReader extends BaseRowReader<PositionDeletesScanTask>
     return Stream.of(task.file());
   }
 
+  @SuppressWarnings("resource")
   @Override
   protected CloseableIterator<InternalRow> open(PositionDeletesScanTask task) {
     String filePath = task.file().location();
