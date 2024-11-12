@@ -188,6 +188,8 @@ public class AvroSchemaUtil {
       Preconditions.checkArgument(
           isOptionSchema(schema), "Union schemas are not supported: %s", schema);
       return schema;
+    } else if (schema.getType() == Schema.Type.NULL) {
+      return schema;
     } else {
       return Schema.createUnion(NULL, schema);
     }

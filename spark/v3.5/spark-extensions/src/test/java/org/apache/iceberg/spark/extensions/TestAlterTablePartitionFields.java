@@ -437,6 +437,20 @@ public class TestAlterTablePartitionFields extends ExtensionsTestBase {
   }
 
   @TestTemplate
+  public void testDropPartitionAndUnderlyingField() {
+    sql(
+        "CREATE TABLE %s (col0 BIGINT, col1 BIGINT, col2 BIGINT) USING ICEBERG TBLPROPERTIES ('format-version' = %d, 'write.delete.mode' = 'merge-on-read')",
+        tableName, formatVersion);
+    sql("INSERT INTO %s VALUES (1, 11, 21)", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD col2", tableName);
+    sql("INSERT INTO %s VALUES (2, 12, 22)", tableName);
+    sql("ALTER TABLE %s DROP PARTITION FIELD col2", tableName);
+    sql("INSERT INTO %s VALUES (3, 13, 23)", tableName);
+    sql("ALTER TABLE %s DROP COLUMN col2", tableName);
+    sql("SELECT * FROM %s", tableName);
+  }
+
+  @TestTemplate
   public void testReplaceNamedPartition() {
     createTable("id bigint NOT NULL, category string, ts timestamp, data string");
     Table table = validationCatalog.loadTable(tableIdent);
