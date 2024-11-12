@@ -43,6 +43,7 @@ import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.Files;
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
+import org.apache.iceberg.Parameter;
 import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PositionDeletesScanTask;
 import org.apache.iceberg.RowDelta;
@@ -54,6 +55,8 @@ import org.apache.iceberg.actions.RewritePositionDeleteFiles.Result;
 import org.apache.iceberg.actions.SizeBasedFileRewriter;
 import org.apache.iceberg.data.GenericAppenderFactory;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.deletes.BaseDVFileWriter;
+import org.apache.iceberg.deletes.DVFileWriter;
 import org.apache.iceberg.deletes.PositionDelete;
 import org.apache.iceberg.deletes.PositionDeleteWriter;
 import org.apache.iceberg.encryption.EncryptedFiles;
@@ -62,12 +65,14 @@ import org.apache.iceberg.encryption.EncryptionKeyMetadata;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.FileAppenderFactory;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.io.OutputFileFactory;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkCatalogConfig;
 import org.apache.iceberg.spark.actions.SparkActions;
 import org.apache.iceberg.util.Pair;
+import org.apache.iceberg.util.ScanTaskUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.StructType;
@@ -88,13 +93,23 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
   private static final int DELETE_FILES_PER_PARTITION = 2;
   private static final int DELETE_FILE_SIZE = 10;
 
-  @Parameters(name = "formatVersion = {0}, catalogName = {1}, implementation = {2}, config = {3}")
+  @Parameter(index = 3)
+  private int formatVersion;
+
+  @Parameters(name = "catalogName = {0}, implementation = {1}, config = {2}, formatVersion = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
       {
         SparkCatalogConfig.HIVE.catalogName(),
         SparkCatalogConfig.HIVE.implementation(),
-        CATALOG_PROPS
+        CATALOG_PROPS,
+        2
+      },
+      {
+        SparkCatalogConfig.HIVE.catalogName(),
+        SparkCatalogConfig.HIVE.implementation(),
+        CATALOG_PROPS,
+        3
       }
     };
   }
@@ -223,7 +238,11 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
     // write dangling delete files for 'old data files'
     writePosDeletesForFiles(table, dataFiles);
     List<DeleteFile> deleteFiles = deleteFiles(table);
-    assertThat(deleteFiles).hasSize(numDataFiles * DELETE_FILES_PER_PARTITION);
+    if (formatVersion >= 3) {
+      assertThat(deleteFiles).hasSize(numDataFiles);
+    } else {
+      assertThat(deleteFiles).hasSize(numDataFiles * DELETE_FILES_PER_PARTITION);
+    }
 
     List<Object[]> expectedRecords = records(tableName, partitionCol);
 
@@ -250,8 +269,8 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
         "CREATE TABLE %s (id long, %s %s, c1 string, c2 string) "
             + "USING iceberg "
             + "PARTITIONED BY (%s) "
-            + "TBLPROPERTIES('format-version'='2')",
-        tableName, partitionCol, partitionType, partitionTransform);
+            + "TBLPROPERTIES('format-version'='%s')",
+        tableName, partitionCol, partitionType, partitionTransform, formatVersion);
   }
 
   private void insertData(Function<Integer, ?> partitionValueFunction) throws Exception {
@@ -303,17 +322,24 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
 
       int counter = 0;
       List<Pair<CharSequence, Long>> deletes = Lists.newArrayList();
-      for (DataFile partitionFile : partitionFiles) {
-        for (int deletePos = 0; deletePos < DELETE_FILE_SIZE; deletePos++) {
-          deletes.add(Pair.of(partitionFile.location(), (long) deletePos));
-          counter++;
-          if (counter == deleteFileSize) {
-            // Dump to file and reset variables
-            OutputFile output =
-                Files.localOutput(temp.resolve(UUID.randomUUID().toString()).toFile());
-            deleteFiles.add(writeDeleteFile(table, output, partition, deletes));
-            counter = 0;
-            deletes.clear();
+      if (formatVersion >= 3) {
+        for (DataFile partitionFile : partitionFiles) {
+          deleteFiles.addAll(
+              writeDV(table, partition, partitionFile.location(), deletesForPartition));
+        }
+      } else {
+        for (DataFile partitionFile : partitionFiles) {
+          for (int deletePos = 0; deletePos < DELETE_FILE_SIZE; deletePos++) {
+            deletes.add(Pair.of(partitionFile.location(), (long) deletePos));
+            counter++;
+            if (counter == deleteFileSize) {
+              // Dump to file and reset variables
+              OutputFile output =
+                  Files.localOutput(temp.resolve(UUID.randomUUID().toString()).toFile());
+              deleteFiles.add(writeDeleteFile(table, output, partition, deletes));
+              counter = 0;
+              deletes.clear();
+            }
           }
         }
       }
@@ -322,6 +348,20 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
     RowDelta rowDelta = table.newRowDelta();
     deleteFiles.forEach(rowDelta::addDeletes);
     rowDelta.commit();
+  }
+
+  private List<DeleteFile> writeDV(
+      Table table, StructLike partition, String path, int numPositionsToDelete) throws IOException {
+    OutputFileFactory fileFactory =
+        OutputFileFactory.builderFor(table, 1, 1).format(FileFormat.PUFFIN).build();
+    DVFileWriter writer = new BaseDVFileWriter(fileFactory, p -> null);
+    try (DVFileWriter closeableWriter = writer) {
+      for (int row = 0; row < numPositionsToDelete; row++) {
+        closeableWriter.delete(path, row, table.spec(), partition);
+      }
+    }
+
+    return writer.result().deleteFiles();
   }
 
   private DeleteFile writeDeleteFile(
@@ -357,7 +397,7 @@ public class TestRewritePositionDeleteFiles extends ExtensionsTestBase {
   }
 
   private long size(List<DeleteFile> deleteFiles) {
-    return deleteFiles.stream().mapToLong(DeleteFile::fileSizeInBytes).sum();
+    return deleteFiles.stream().mapToLong(ScanTaskUtil::contentSizeInBytes).sum();
   }
 
   private List<DataFile> dataFiles(Table table) {
