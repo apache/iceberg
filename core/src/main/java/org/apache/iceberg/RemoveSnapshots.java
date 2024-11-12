@@ -86,7 +86,7 @@ class RemoveSnapshots implements ExpireSnapshots {
   private ExecutorService planExecutorService = ThreadPools.getWorkerPool();
   private Boolean incrementalCleanup;
   private boolean specifiedSnapshotId = false;
-  private boolean removeUnusedSpecs = false;
+  private boolean cleanExpiredMeta = false;
 
   RemoveSnapshots(TableOperations ops) {
     this.ops = ops;
@@ -162,8 +162,8 @@ class RemoveSnapshots implements ExpireSnapshots {
   }
 
   @Override
-  public ExpireSnapshots removeUnusedSpecs(boolean remove) {
-    this.removeUnusedSpecs = remove;
+  public ExpireSnapshots cleanExpiredMeta(boolean clean) {
+    this.cleanExpiredMeta = clean;
     return this;
   }
 
@@ -217,7 +217,8 @@ class RemoveSnapshots implements ExpireSnapshots {
         .forEach(idsToRemove::add);
     updatedMetaBuilder.removeSnapshots(idsToRemove);
 
-    if (removeUnusedSpecs) {
+    if (cleanExpiredMeta) {
+      // TODO: Support cleaning expired schema as well.
       Set<Integer> reachableSpecs = Sets.newConcurrentHashSet();
       reachableSpecs.add(base.defaultSpecId());
       Tasks.foreach(idsToRetain)

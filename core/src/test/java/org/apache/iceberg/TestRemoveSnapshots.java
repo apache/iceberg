@@ -1660,7 +1660,7 @@ public class TestRemoveSnapshots extends TestBase {
     // Expiring snapshots should remove the data_bucket partition
     removeSnapshots(table)
         .expireOlderThan(System.currentTimeMillis())
-        .removeUnusedSpecs(true)
+        .cleanExpiredMeta(true)
         .deleteWith(deletedFiles::add)
         .commit();
 
@@ -1695,7 +1695,7 @@ public class TestRemoveSnapshots extends TestBase {
     // Expiring snapshots should remove only the unpartitioned spec
     removeSnapshots(table)
         .expireOlderThan(System.currentTimeMillis())
-        .removeUnusedSpecs(true)
+        .cleanExpiredMeta(true)
         .deleteWith(deletedFiles::add)
         .commit();
 

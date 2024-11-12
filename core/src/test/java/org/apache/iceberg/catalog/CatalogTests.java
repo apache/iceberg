@@ -1306,7 +1306,7 @@ public abstract class CatalogTests<C extends Catalog & SupportsNamespaces> {
     table.updateSpec().addField("data").commit();
     assertThat(table.specs().size()).as("Should have 3 total specs").isEqualTo(3);
     PartitionSpec current = table.spec();
-    table.expireSnapshots().removeUnusedSpecs(true).commit();
+    table.expireSnapshots().cleanExpiredMeta(true).commit();
 
     Table loaded = catalog.loadTable(TABLE);
     assertThat(loaded.specs().values())
