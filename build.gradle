@@ -1004,6 +1004,10 @@ project(':iceberg-open-api') {
     testFixturesImplementation libs.sqlite.jdbc
 
     testFixturesCompileOnly libs.apiguardian
+
+    testFixturesRuntimeOnly project(':iceberg-aws-bundle')
+    testFixturesRuntimeOnly project(':iceberg-azure-bundle')
+    testFixturesRuntimeOnly project(':iceberg-gcp-bundle')
   }
 
   test {
