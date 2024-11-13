@@ -35,6 +35,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
+import org.apache.iceberg.util.Pair;
 
 /** Base class logic for files metadata tables */
 abstract class BaseFilesTable extends BaseMetadataTable {
@@ -58,7 +59,7 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
   private static CloseableIterable<FileScanTask> planFiles(
       Table table,
-      CloseableIterable<ManifestFile> manifests,
+      CloseableIterable<Pair<Snapshot, ManifestFile>> snapshotManifestPairs,
       Schema tableSchema,
       Schema projectedSchema,
       TableScanContext context) {
@@ -77,7 +78,8 @@ abstract class BaseFilesTable extends BaseMetadataTable {
 
     CloseableIterable<ManifestFile> filteredManifests =
         CloseableIterable.filter(
-            manifests, manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
+            CloseableIterable.transform(snapshotManifestPairs, Pair::second),
+            manifest -> evalCache.get(manifest.partitionSpecId()).eval(manifest));
 
     Expression filter = ignoreResiduals ? Expressions.alwaysTrue() : rowFilter;
 
@@ -100,9 +102,16 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     /** Returns an iterable of manifest files to explore for this files metadata table scan */
     protected abstract CloseableIterable<ManifestFile> manifests();
 
+    /**
+     * Returns an iterable of (reference_snapshot, manifest file) pairs to explore for this files
+     * metadata table scan
+     */
+    protected abstract CloseableIterable<Pair<Snapshot, ManifestFile>> snapshotManifestPairs();
+
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
-      return BaseFilesTable.planFiles(table(), manifests(), tableSchema(), schema(), context());
+      return BaseFilesTable.planFiles(
+          table(), snapshotManifestPairs(), tableSchema(), schema(), context());
     }
   }
 
@@ -120,9 +129,16 @@ abstract class BaseFilesTable extends BaseMetadataTable {
     /** Returns an iterable of manifest files to explore for this all files metadata table scan */
     protected abstract CloseableIterable<ManifestFile> manifests();
 
+    /**
+     * Returns an iterable of (reference_snapshot, manifest file) pairs to explore for this all
+     * files metadata table scan
+     */
+    protected abstract CloseableIterable<Pair<Snapshot, ManifestFile>> snapshotManifestPairs();
+
     @Override
     protected CloseableIterable<FileScanTask> doPlanFiles() {
-      return BaseFilesTable.planFiles(table(), manifests(), tableSchema(), schema(), context());
+      return BaseFilesTable.planFiles(
+          table(), snapshotManifestPairs(), tableSchema(), schema(), context());
     }
   }
 

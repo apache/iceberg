@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
@@ -144,7 +145,13 @@ public class TestEntriesMetadataTable extends TestBase {
         .as("A tableScan.select() should prune the schema")
         .isEqualTo(expectedSchema.asStruct());
 
-    List<FileScanTask> files = ImmutableList.copyOf(scan.planFiles());
+    List<FileScanTask> files =
+        ImmutableList.sortedCopyOf(
+            Comparator.comparingInt(
+                (FileScanTask t) ->
+                    ((BaseEntriesTable.ManifestReadTask) t).manifest().content().id()),
+            scan.planFiles());
+
     assertThat(files.get(0).file().path())
         .as("Data file should be the table's manifest")
         .isEqualTo(table.currentSnapshot().dataManifests(table.io()).get(0).path());

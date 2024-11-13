@@ -28,6 +28,7 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.base.Function;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.ParallelIterable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,6 +79,20 @@ abstract class BaseAllMetadataTableScan extends BaseMetadataTableScan {
         Iterables.transform(snapshots, toManifests);
 
     try (CloseableIterable<ManifestFile> iterable =
+        new ParallelIterable<>(manifestIterables, planExecutor())) {
+      return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to close parallel iterable", e);
+    }
+  }
+
+  protected CloseableIterable<Pair<Snapshot, ManifestFile>> reachableSnapshotManifestPairs(
+      Function<Snapshot, Iterable<Pair<Snapshot, ManifestFile>>> toManifests) {
+    Iterable<Snapshot> snapshots = table().snapshots();
+    Iterable<Iterable<Pair<Snapshot, ManifestFile>>> manifestIterables =
+        Iterables.transform(snapshots, toManifests);
+
+    try (CloseableIterable<Pair<Snapshot, ManifestFile>> iterable =
         new ParallelIterable<>(manifestIterables, planExecutor())) {
       return CloseableIterable.withNoopClose(Sets.newHashSet(iterable));
     } catch (IOException e) {
