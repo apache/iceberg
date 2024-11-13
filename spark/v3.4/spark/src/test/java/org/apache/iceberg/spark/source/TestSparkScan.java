@@ -884,7 +884,7 @@ public class TestSparkScan extends SparkTestBaseWithCatalog {
     assertThat(stats.numRows().getAsLong()).isEqualTo(expectedRowCount);
 
     Map<NamedReference, ColumnStatistics> columnStats = stats.columnStats();
-    assertThat(columnStats.isEmpty());
+    assertThat(columnStats).isEmpty();
   }
 
   private void checkColStatisticsReported(
