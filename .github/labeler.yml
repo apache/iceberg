@@ -130,12 +130,6 @@ MR:
       'mr/**/*'
     ]
 
-PIG:
-  - changed-files:
-    - any-glob-to-any-file: [
-      'pig/**/*'
-    ]
-
 AWS:
   - changed-files:
     - any-glob-to-any-file: [

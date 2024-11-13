@@ -78,7 +78,7 @@ public class TestSnapshotSummary extends TestBase {
 
   @TestTemplate
   public void testFileSizeSummaryWithDeletes() {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
 
     table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
 
@@ -260,7 +260,7 @@ public class TestSnapshotSummary extends TestBase {
 
   @TestTemplate
   public void rowDeltaWithDeletesAndDuplicates() {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
     assertThat(listManifestFiles()).isEmpty();
 
     table
@@ -325,7 +325,7 @@ public class TestSnapshotSummary extends TestBase {
 
   @TestTemplate
   public void rewriteWithDeletesAndDuplicates() {
-    assumeThat(formatVersion).isGreaterThan(1);
+    assumeThat(formatVersion).isEqualTo(2);
     assertThat(listManifestFiles()).isEmpty();
 
     table.newRowDelta().addRows(FILE_A2).addDeletes(FILE_A_DELETES).commit();

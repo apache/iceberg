@@ -139,6 +139,8 @@ class BaseRowDelta extends MergingSnapshotProducer<RowDelta> implements RowDelta
       if (validateNewDeleteFiles) {
         validateNoNewDeleteFiles(base, startingSnapshotId, conflictDetectionFilter, parent);
       }
+
+      validateAddedDVs(base, startingSnapshotId, conflictDetectionFilter, parent);
     }
   }
 }
