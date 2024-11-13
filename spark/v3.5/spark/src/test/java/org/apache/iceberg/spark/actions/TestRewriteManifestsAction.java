@@ -37,6 +37,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -107,6 +108,7 @@ public class TestRewriteManifestsAction extends TestBase {
       new Object[] {"false", "true", true, 1},
       new Object[] {"true", "false", false, 2},
       new Object[] {"false", "false", false, 2},
+      new Object[] {"true", "false", false, 3},
       new Object[] {"false", "false", false, 3}
     };
   }
@@ -1108,13 +1110,23 @@ public class TestRewriteManifestsAction extends TestBase {
   }
 
   private DeleteFile newDeleteFile(Table table, String partitionPath) {
-    return FileMetadata.deleteFileBuilder(table.spec())
-        .ofPositionDeletes()
-        .withPath("/path/to/pos-deletes-" + UUID.randomUUID() + ".parquet")
-        .withFileSizeInBytes(5)
-        .withPartitionPath(partitionPath)
-        .withRecordCount(1)
-        .build();
+    return formatVersion >= 3
+        ? FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/pos-deletes-" + UUID.randomUUID() + ".puffin")
+            .withFileSizeInBytes(5)
+            .withPartitionPath(partitionPath)
+            .withRecordCount(1)
+            .withContentOffset(ThreadLocalRandom.current().nextInt())
+            .withContentSizeInBytes(ThreadLocalRandom.current().nextInt())
+            .build()
+        : FileMetadata.deleteFileBuilder(table.spec())
+            .ofPositionDeletes()
+            .withPath("/path/to/pos-deletes-" + UUID.randomUUID() + ".parquet")
+            .withFileSizeInBytes(5)
+            .withPartitionPath(partitionPath)
+            .withRecordCount(1)
+            .build();
   }
 
   private List<Pair<CharSequence, Long>> generatePosDeletes(String predicate) {
@@ -1145,7 +1157,7 @@ public class TestRewriteManifestsAction extends TestBase {
       Table table, StructLike partition, List<Pair<CharSequence, Long>> deletes)
       throws IOException {
     OutputFile outputFile = Files.localOutput(File.createTempFile("junit", null, temp.toFile()));
-    return FileHelpers.writeDeleteFile(table, outputFile, partition, deletes);
+    return FileHelpers.writeDeleteFile(table, outputFile, partition, deletes, formatVersion);
   }
 
   private DeleteFile writeEqDeletes(Table table, String key, Object... values) throws IOException {
