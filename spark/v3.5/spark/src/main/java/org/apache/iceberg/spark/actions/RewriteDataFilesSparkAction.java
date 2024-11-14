@@ -41,7 +41,7 @@ import org.apache.iceberg.actions.RewriteDataFiles;
 import org.apache.iceberg.actions.RewriteDataFilesCommitManager;
 import org.apache.iceberg.actions.RewriteFileGroup;
 import org.apache.iceberg.actions.RewriteFileGroupPlanner;
-import org.apache.iceberg.actions.RewriteFileGroupPlanner.RewritePlanResult;
+import org.apache.iceberg.actions.RewriteFileGroupPlanner.RewritePlan;
 import org.apache.iceberg.exceptions.CommitFailedException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Expression;
@@ -163,17 +163,17 @@ public class RewriteDataFilesSparkAction
 
     validateAndInitOptions();
 
-    RewritePlanResult result = plan(startingSnapshotId);
+    RewritePlan plan = plan(startingSnapshotId);
 
-    if (result.totalGroupCount() == 0) {
+    if (plan.totalGroupCount() == 0) {
       LOG.info("Nothing found to rewrite in {}", table.name());
       return EMPTY_RESULT;
     }
 
     Builder resultBuilder =
         partialProgressEnabled
-            ? doExecuteWithPartialProgress(result, commitManager(startingSnapshotId))
-            : doExecute(result, commitManager(startingSnapshotId));
+            ? doExecuteWithPartialProgress(plan, commitManager(startingSnapshotId))
+            : doExecute(plan, commitManager(startingSnapshotId));
 
     if (removeDanglingDeletes) {
       RemoveDanglingDeletesSparkAction action =
@@ -185,13 +185,13 @@ public class RewriteDataFilesSparkAction
     return resultBuilder.build();
   }
 
-  RewritePlanResult plan(long startingSnapshotId) {
+  RewritePlan plan(long startingSnapshotId) {
     return new RewriteFileGroupPlanner(rewriter, rewriteJobOrder)
         .plan(table, filter, startingSnapshotId, caseSensitive);
   }
 
   @VisibleForTesting
-  RewriteFileGroup rewriteFiles(RewritePlanResult planResult, RewriteFileGroup fileGroup) {
+  RewriteFileGroup rewriteFiles(RewritePlan planResult, RewriteFileGroup fileGroup) {
     String desc = jobDesc(fileGroup, planResult);
     Set<DataFile> addedFiles =
         withJobGroupInfo(
@@ -217,8 +217,7 @@ public class RewriteDataFilesSparkAction
         table, startingSnapshotId, useStartingSequenceNumber, commitSummary());
   }
 
-  private Builder doExecute(
-      RewritePlanResult planResult, RewriteDataFilesCommitManager commitManager) {
+  private Builder doExecute(RewritePlan planResult, RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     ConcurrentLinkedQueue<RewriteFileGroup> rewrittenGroups = Queues.newConcurrentLinkedQueue();
@@ -229,11 +228,10 @@ public class RewriteDataFilesSparkAction
             .stopOnFailure()
             .noRetry()
             .onFailure(
-                (fileGroup, exception) ->
-                    LOG.warn(
-                        "Failure during rewrite process for group {}",
-                        fileGroup.info(),
-                        exception));
+                (fileGroup, exception) -> {
+                  LOG.warn(
+                      "Failure during rewrite process for group {}", fileGroup.info(), exception);
+                });
 
     try {
       rewriteTaskBuilder.run(fileGroup -> rewrittenGroups.add(rewriteFiles(planResult, fileGroup)));
@@ -279,7 +277,7 @@ public class RewriteDataFilesSparkAction
   }
 
   private Builder doExecuteWithPartialProgress(
-      RewritePlanResult planResult, RewriteDataFilesCommitManager commitManager) {
+      RewritePlan planResult, RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     // start commit service
@@ -399,7 +397,7 @@ public class RewriteDataFilesSparkAction
         PARTIAL_PROGRESS_ENABLED);
   }
 
-  private String jobDesc(RewriteFileGroup group, RewritePlanResult planResult) {
+  private String jobDesc(RewriteFileGroup group, RewritePlan planResult) {
     StructLike partition = group.info().partition();
     if (partition.size() > 0) {
       return String.format(

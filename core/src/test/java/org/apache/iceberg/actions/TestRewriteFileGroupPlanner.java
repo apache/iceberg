@@ -91,7 +91,7 @@ class TestRewriteFileGroupPlanner {
         .appendFile(FILE_6)
         .commit();
     RewriteFileGroupPlanner planner = new RewriteFileGroupPlanner(new DummyRewriter(false), order);
-    RewriteFileGroupPlanner.RewritePlanResult result =
+    RewriteFileGroupPlanner.RewritePlan result =
         planner.plan(table, Expressions.alwaysTrue(), table.currentSnapshot().snapshotId(), false);
     List<RewriteFileGroup> groups = result.groups().collect(Collectors.toList());
     assertThat(groups.stream().map(group -> group.info().partition()).collect(Collectors.toList()))
@@ -113,7 +113,7 @@ class TestRewriteFileGroupPlanner {
         .commit();
     RewriteFileGroupPlanner planner =
         new RewriteFileGroupPlanner(new DummyRewriter(true), RewriteJobOrder.FILES_DESC);
-    RewriteFileGroupPlanner.RewritePlanResult result =
+    RewriteFileGroupPlanner.RewritePlan result =
         planner.plan(table, Expressions.alwaysTrue(), table.currentSnapshot().snapshotId(), false);
     assertThat(result.totalGroupCount()).isEqualTo(6);
     assertThat(result.groupsInPartition(FILE_1.partition())).isEqualTo(3);

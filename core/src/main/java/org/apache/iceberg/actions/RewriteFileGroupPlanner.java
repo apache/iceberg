@@ -24,11 +24,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.EmptyStructLike;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -40,8 +40,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Checks the files in the table, and using the {@link FileRewriter} plans the groups for
- * compaction.
+ * Checks the files in the {@link Table}. The {@link RewriteFileGroup}s are grouped by partitions
+ * and split by the {@link FileRewriter}.
  */
 public class RewriteFileGroupPlanner {
   private static final Logger LOG = LoggerFactory.getLogger(RewriteFileGroupPlanner.class);
@@ -55,10 +55,18 @@ public class RewriteFileGroupPlanner {
     this.rewriteJobOrder = rewriteJobOrder;
   }
 
-  public RewritePlanResult plan(
-      Table table, Expression filter, long startingSnapshotId, boolean caseSensitive) {
+  /**
+   * Generates the plan for the current table.
+   *
+   * @param table to plan for
+   * @param filter to exclude files from planning
+   * @param snapshotId of the last snapshot included in the plan
+   * @param caseSensitive setting for filtering
+   * @return the generated plan which could be executed during the compaction
+   */
+  public RewritePlan plan(Table table, Expression filter, long snapshotId, boolean caseSensitive) {
     StructLikeMap<List<List<FileScanTask>>> plan =
-        planFileGroups(table, filter, startingSnapshotId, caseSensitive);
+        planFileGroups(table, filter, snapshotId, caseSensitive);
     RewriteExecutionContext ctx = new RewriteExecutionContext();
     Stream<RewriteFileGroup> groups =
         plan.entrySet().stream()
@@ -72,15 +80,15 @@ public class RewriteFileGroupPlanner {
             .sorted(RewriteFileGroup.comparator(rewriteJobOrder));
     Map<StructLike, Integer> groupsInPartition = plan.transformValues(List::size);
     int totalGroupCount = groupsInPartition.values().stream().reduce(Integer::sum).orElse(0);
-    return new RewritePlanResult(groups, totalGroupCount, groupsInPartition);
+    return new RewritePlan(groups, totalGroupCount, groupsInPartition);
   }
 
   private StructLikeMap<List<List<FileScanTask>>> planFileGroups(
-      Table table, Expression filter, long startingSnapshotId, boolean caseSensitive) {
+      Table table, Expression filter, long snapshotId, boolean caseSensitive) {
     CloseableIterable<FileScanTask> fileScanTasks =
         table
             .newScan()
-            .useSnapshot(startingSnapshotId)
+            .useSnapshot(snapshotId)
             .caseSensitive(caseSensitive)
             .filter(filter)
             .ignoreResiduals()
@@ -104,14 +112,15 @@ public class RewriteFileGroupPlanner {
   private StructLikeMap<List<FileScanTask>> groupByPartition(
       Table table, Types.StructType partitionType, Iterable<FileScanTask> tasks) {
     StructLikeMap<List<FileScanTask>> filesByPartition = StructLikeMap.create(partitionType);
-    StructLike emptyStruct = GenericRecord.create(partitionType);
 
     for (FileScanTask task : tasks) {
       // If a task uses an incompatible partition spec the data inside could contain values
       // which belong to multiple partitions in the current spec. Treating all such files as
       // un-partitioned and grouping them together helps to minimize new files made.
       StructLike taskPartition =
-          task.file().specId() == table.spec().specId() ? task.file().partition() : emptyStruct;
+          task.file().specId() == table.spec().specId()
+              ? task.file().partition()
+              : EmptyStructLike.get();
 
       filesByPartition.computeIfAbsent(taskPartition, unused -> Lists.newArrayList()).add(task);
     }
@@ -130,12 +139,13 @@ public class RewriteFileGroupPlanner {
     return new RewriteFileGroup(info, Lists.newArrayList(tasks));
   }
 
-  public static class RewritePlanResult {
+  /** Result of the data file rewrite planning. */
+  public static class RewritePlan {
     private final Stream<RewriteFileGroup> groups;
     private final int totalGroupCount;
     private final Map<StructLike, Integer> groupsInPartition;
 
-    private RewritePlanResult(
+    private RewritePlan(
         Stream<RewriteFileGroup> groups,
         int totalGroupCount,
         Map<StructLike, Integer> groupsInPartition) {
@@ -144,14 +154,17 @@ public class RewriteFileGroupPlanner {
       this.groupsInPartition = groupsInPartition;
     }
 
+    /** The stream of the generated {@link RewriteFileGroup}s. */
     public Stream<RewriteFileGroup> groups() {
       return groups;
     }
 
+    /** The number of the generated groups in the given partition. */
     public int groupsInPartition(StructLike partition) {
       return groupsInPartition.get(partition);
     }
 
+    /** The total number of the groups generated by this plan. */
     public int totalGroupCount() {
       return totalGroupCount;
     }
