@@ -180,7 +180,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     }
   }
 
-  private boolean compatibleType(Type newType, Type existingType) {
+  private boolean isCompatibleType(Type existingType, Type newType) {
     if (existingType.isPrimitiveType()) {
       // Primitive -> Wider Primitive
       return newType.isPrimitiveType()
