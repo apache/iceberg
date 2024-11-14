@@ -354,7 +354,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
     // verify the decimal column precision did not change
     Type idFieldType =
         Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id").type();
-    assertThat(idFieldType.typeId().equals(Type.TypeID.DECIMAL));
+    assertThat(idFieldType.typeId()).isEqualTo(Type.TypeID.DECIMAL);
     Types.DecimalType decimalType = (Types.DecimalType) idFieldType;
     assertThat(decimalType.precision() == 6);
   }
