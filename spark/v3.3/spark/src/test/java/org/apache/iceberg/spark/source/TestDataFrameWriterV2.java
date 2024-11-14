@@ -356,6 +356,6 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
         Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id").type();
     assertThat(idFieldType.typeId()).isEqualTo(Type.TypeID.DECIMAL);
     Types.DecimalType decimalType = (Types.DecimalType) idFieldType;
-    assertThat(decimalType.precision() == 6);
+    assertThat(decimalType.precision()).isEqualTo(6);
   }
 }
