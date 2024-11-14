@@ -27,8 +27,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.ServerSocket;
 import java.util.Map;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -64,7 +62,7 @@ public abstract class TestBaseWithCatalog extends TestBase {
       new RESTServerExtension(
           Map.of(
               RESTCatalogServer.REST_PORT,
-              String.valueOf(findFreePort()),
+              RESTServerExtension.FREE_PORT,
               // In-memory sqlite database by default is private to the connection that created it.
               // If more than 1 jdbc connection backed by in-memory sqlite is created behind one
               // JdbcCatalog, then different jdbc connections could provide different views of table
@@ -99,14 +97,6 @@ public abstract class TestBaseWithCatalog extends TestBase {
       Path warehousePath = new Path(warehouse.getAbsolutePath());
       FileSystem fs = warehousePath.getFileSystem(hiveConf);
       assertThat(fs.delete(warehousePath, true)).as("Failed to delete " + warehousePath).isTrue();
-    }
-  }
-
-  static int findFreePort() {
-    try (ServerSocket socket = new ServerSocket(0)) {
-      return socket.getLocalPort();
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
     }
   }
 

@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.rest;
 
+import static org.apache.iceberg.rest.RESTCatalogServer.REST_PORT;
+
 import java.util.Map;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.junit.jupiter.api.extension.AfterAllCallback;
@@ -25,6 +27,10 @@ import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
 public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback {
+  // if the caller explicitly wants the server to start on port 0, it means the caller wants to
+  // launch on a free port
+  public static final String FREE_PORT = "0";
+
   private RESTCatalogServer localServer;
   private RESTCatalog client;
   private final Map<String, String> config;
@@ -34,6 +40,10 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
   }
 
   public RESTServerExtension(Map<String, String> config) {
+    Map<String, String> conf = Maps.newHashMap(config);
+    if (conf.containsKey(REST_PORT) && conf.get(REST_PORT).equals(FREE_PORT)) {
+      conf.put(REST_PORT, String.valueOf(RCKUtils.findFreePort()));
+    }
     this.config = config;
   }
 
