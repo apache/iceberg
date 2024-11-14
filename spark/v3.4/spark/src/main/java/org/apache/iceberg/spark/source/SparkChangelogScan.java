@@ -88,7 +88,7 @@ class SparkChangelogScan implements Scan, SupportsReportStatistics {
   public Statistics estimateStatistics() {
     long rowsCount = taskGroups().stream().mapToLong(ScanTaskGroup::estimatedRowsCount).sum();
     long sizeInBytes = SparkSchemaUtil.estimateSize(readSchema(), rowsCount);
-    return new Stats(sizeInBytes, rowsCount);
+    return new Stats(sizeInBytes, rowsCount, Collections.emptyMap());
   }
 
   @Override
