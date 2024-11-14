@@ -130,7 +130,7 @@ public class HTTPClient implements RESTClient {
       clientBuilder.setProxy(proxy);
     }
 
-    this.httpClient = clientBuilder.build();
+    this.httpClient = clientBuilder.useSystemProperties().build();
   }
 
   private static String extractResponseBodyAsString(CloseableHttpResponse response) {
