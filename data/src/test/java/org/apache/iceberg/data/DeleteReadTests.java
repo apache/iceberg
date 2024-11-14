@@ -123,7 +123,7 @@ public abstract class DeleteReadTests {
     dropTable("test2");
   }
 
-  private void initDateTable() throws IOException {
+  protected void initDateTable() throws IOException {
     dropTable("test2");
     this.dateTableName = "test2";
     this.dateTable = createTable(dateTableName, DATE_SCHEMA, DATE_SPEC);

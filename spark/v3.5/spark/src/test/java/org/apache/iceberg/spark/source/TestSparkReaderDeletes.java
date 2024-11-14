@@ -26,6 +26,8 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
@@ -82,6 +84,7 @@ import org.apache.iceberg.util.TableScanUtil;
 import org.apache.parquet.hadoop.ParquetFileWriter;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.internal.SQLConf;
@@ -95,7 +98,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestSparkReaderDeletes extends DeleteReadTests {
-
   private static TestHiveMetastore metastore = null;
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
@@ -620,6 +622,41 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         .commit();
 
     assertThat(rowSet(tblName, tbl, "*")).hasSize(193);
+  }
+
+  @TestTemplate
+  public void testEqualityDeleteWithDifferentScanAndDeleteColumns() throws IOException {
+    initDateTable();
+
+    Schema deleteRowSchema = dateTable.schema().select("dt");
+    Record dataDelete = GenericRecord.create(deleteRowSchema);
+    List<Record> dataDeletes =
+        Lists.newArrayList(
+            dataDelete.copy("dt", LocalDate.parse("2021-09-01")),
+            dataDelete.copy("dt", LocalDate.parse("2021-09-02")),
+            dataDelete.copy("dt", LocalDate.parse("2021-09-03")));
+
+    DeleteFile eqDeletes =
+        FileHelpers.writeDeleteFile(
+            dateTable,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            TestHelpers.Row.of(0),
+            dataDeletes.subList(0, 3),
+            deleteRowSchema);
+
+    dateTable.newRowDelta().addDeletes(eqDeletes).commit();
+    Dataset<Row> df =
+        spark
+            .read()
+            .format("iceberg")
+            .load(TableIdentifier.of("default", dateTableName).toString())
+            .selectExpr("id");
+    df.show();
+
+    List<Row> actualRows = df.collectAsList();
+    List<Row> expectedRows = Arrays.asList(RowFactory.create(4), RowFactory.create(5));
+
+    assertThat(expectedRows).isEqualTo(actualRows);
   }
 
   private static final Schema PROJECTION_SCHEMA =

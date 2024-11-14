@@ -45,11 +45,23 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
   private final boolean hasIsDeletedColumn;
   private DeleteFilter<InternalRow> deletes = null;
   private long rowStartPosInBatch = 0;
+  // In the case of Equality Delete, we have also built ColumnarBatchReader for the equality delete
+  // filter columns to read the value to find out which rows are deleted. If these deleted filter
+  // columns are not in the requested schema, then these are the extra columns that we want to
+  // remove before return the ColumnBatch to Spark.
+  // Supposed table schema is C1, C2, C3, C4, C5, The query is:
+  // SELECT C5 FROM table, and the equality delete Filter is on C3, C4,
+  // We read the values of C3, C4 to figure out which rows are deleted, but we don't want to include
+  // these values in the ColumnBatch that we return to Spark. In this example, the numOfExtraColumns
+  // is 2. Since when creating the DeleteFilter, we append these extra columns in the end of the
+  // requested schema, we can just remove them from the end of the ColumnVector.
+  private int numOfExtraColumns = 0;
 
-  public ColumnarBatchReader(List<VectorizedReader<?>> readers) {
+  public ColumnarBatchReader(List<VectorizedReader<?>> readers, int numExtraCol) {
     super(readers);
     this.hasIsDeletedColumn =
         readers.stream().anyMatch(reader -> reader instanceof DeletedVectorReader);
+    this.numOfExtraColumns = numExtraCol;
   }
 
   @Override
@@ -102,6 +114,8 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
 
       if (hasEqDeletes()) {
         applyEqDelete(newColumnarBatch);
+        newColumnarBatch =
+            removeExtraColumnsFromColumnarBatch(arrowColumnVectors, newColumnarBatch);
       }
 
       if (hasIsDeletedColumn && rowIdMapping != null) {
@@ -244,6 +258,17 @@ public class ColumnarBatchReader extends BaseBatchReader<ColumnarBatch> {
       }
 
       columnarBatch.setNumRows(currentRowId);
+    }
+
+    ColumnarBatch removeExtraColumnsFromColumnarBatch(
+        ColumnVector[] arrowColumnVectors, ColumnarBatch columnarBatch) {
+      if (numOfExtraColumns > 0) {
+        int newLength = arrowColumnVectors.length - numOfExtraColumns;
+        ColumnVector[] newColumns = java.util.Arrays.copyOf(arrowColumnVectors, newLength);
+        return new ColumnarBatch(newColumns, columnarBatch.numRows());
+      } else {
+        return columnarBatch;
+      }
     }
   }
 }

@@ -54,6 +54,7 @@ public abstract class DeleteFilter<T> {
   private final List<DeleteFile> posDeletes;
   private final List<DeleteFile> eqDeletes;
   private final Schema requiredSchema;
+  private final Schema requestedSchema;
   private final Accessor<StructLike> posAccessor;
   private final boolean hasIsDeletedColumn;
   private final int isDeletedColumnPosition;
@@ -73,6 +74,7 @@ public abstract class DeleteFilter<T> {
       boolean needRowPosCol) {
     this.filePath = filePath;
     this.counter = counter;
+    this.requestedSchema = requestedSchema;
 
     ImmutableList.Builder<DeleteFile> posDeleteBuilder = ImmutableList.builder();
     ImmutableList.Builder<DeleteFile> eqDeleteBuilder = ImmutableList.builder();
@@ -122,6 +124,10 @@ public abstract class DeleteFilter<T> {
 
   public Schema requiredSchema() {
     return requiredSchema;
+  }
+
+  public Schema requestedSchema() {
+    return requestedSchema;
   }
 
   public boolean hasPosDeletes() {

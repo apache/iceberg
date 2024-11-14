@@ -27,6 +27,7 @@ import org.apache.iceberg.arrow.vectorized.VectorizedReaderBuilder;
 import org.apache.iceberg.data.DeleteFilter;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.schema.MessageType;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.slf4j.Logger;
@@ -65,7 +66,7 @@ public class VectorizedSparkParquetReaders {
                 fileSchema,
                 NullCheckingForGet.NULL_CHECKING_ENABLED,
                 idToConstant,
-                ColumnarBatchReader::new,
+                readers -> new ColumnarBatchReader(readers, numOfExtraColumns(deleteFilter)),
                 deleteFilter));
   }
 
@@ -124,5 +125,26 @@ public class VectorizedSparkParquetReaders {
       }
       return reader;
     }
+  }
+
+  private static int numOfExtraColumns(DeleteFilter deleteFilter) {
+    if (deleteFilter != null) {
+      if (deleteFilter.hasEqDeletes()) {
+        // For Equality Delete, the requiredColumns and expectedColumns may not be the
+        // same. For example, supposed table schema is C1, C2, C3, C4, C5, The query is:
+        // SELECT C5 FROM table, and the equality delete Filter is on C3, C4, then
+        // the requestedSchema is C5, and the required schema is C5, C3 and C4. The
+        // vectorized reader reads also need to read C3 and C4 columns to figure out
+        // which rows are deleted. However, after figuring out the deleted rows, the
+        // extra columns values are not needed to returned to Spark.
+        // Getting the numOfExtraColumns so we can remove these extra columns
+        // from ColumnBatch later.
+        List<Types.NestedField> requiredColumns = deleteFilter.requiredSchema().columns();
+        List<Types.NestedField> expectedColumns = deleteFilter.requestedSchema().columns();
+        return requiredColumns.size() - expectedColumns.size();
+      }
+    }
+
+    return 0;
   }
 }
