@@ -422,10 +422,6 @@ public class SparkScanBuilder
     Schema expectedSchema = schemaWithMetadataColumns();
     org.apache.iceberg.Scan scan =
         buildIcebergBatchScan(false /* not include Column Stats */, expectedSchema);
-    if (pushedLimit != null && pushedLimit > 0 && hasDeletes(scan)) {
-      LOG.info("Skipping limit pushdown: detected row level deletes");
-      pushedLimit = null;
-    }
     return new SparkBatchQueryScan(
         spark,
         table,
@@ -435,20 +431,6 @@ public class SparkScanBuilder
         filterExpressions,
         metricsReporter::scanReport,
         pushedLimit);
-  }
-
-  private boolean hasDeletes(org.apache.iceberg.Scan scan) {
-    try (CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles()) {
-      for (FileScanTask task : fileScanTasks) {
-        if (!task.deletes().isEmpty()) {
-          return true;
-        }
-      }
-    } catch (IOException e) {
-      throw new RuntimeException("Failed to plan files for scan", e);
-    }
-
-    return false;
   }
 
   private org.apache.iceberg.Scan buildIcebergBatchScan(boolean withStats, Schema expectedSchema) {

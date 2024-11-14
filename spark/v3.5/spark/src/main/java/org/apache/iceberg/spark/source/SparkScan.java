@@ -169,6 +169,10 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     return pushedLimit;
   }
 
+  protected void setPushedLimit(Integer limit) {
+    pushedLimit = limit;
+  }
+
   protected Types.StructType groupingKeyType() {
     return Types.StructType.of();
   }

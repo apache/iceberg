@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionScanTask;
 import org.apache.iceberg.PartitionSpec;
@@ -187,6 +188,15 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
         List<T> plannedTasks = Lists.newArrayList();
 
         for (ScanTask task : taskIterable) {
+          if (task instanceof FileScanTask) {
+            if (!((FileScanTask) task).deletes().isEmpty()) {
+              if (pushedLimit() != null && pushedLimit() > 0) {
+                LOG.info("Skipping limit pushdown: detected row level deletes");
+                setPushedLimit(null);
+              }
+            }
+          }
+
           ValidationException.check(
               taskJavaClass().isInstance(task),
               "Unsupported task type, expected a subtype of %s: %",
