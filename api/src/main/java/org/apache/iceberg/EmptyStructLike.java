@@ -20,13 +20,13 @@ package org.apache.iceberg;
 
 import java.io.Serializable;
 
-public class EmptyStructLike implements StructLike, Serializable {
+class EmptyStructLike implements StructLike, Serializable {
 
   private static final EmptyStructLike INSTANCE = new EmptyStructLike();
 
   private EmptyStructLike() {}
 
-  public static EmptyStructLike get() {
+  static EmptyStructLike get() {
     return INSTANCE;
   }
 

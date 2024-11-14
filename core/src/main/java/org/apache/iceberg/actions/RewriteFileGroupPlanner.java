@@ -24,11 +24,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.apache.iceberg.DataFile;
-import org.apache.iceberg.EmptyStructLike;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.RewriteJobOrder;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -112,15 +112,14 @@ public class RewriteFileGroupPlanner {
   private StructLikeMap<List<FileScanTask>> groupByPartition(
       Table table, Types.StructType partitionType, Iterable<FileScanTask> tasks) {
     StructLikeMap<List<FileScanTask>> filesByPartition = StructLikeMap.create(partitionType);
+    StructLike emptyStruct = GenericRecord.create(partitionType);
 
     for (FileScanTask task : tasks) {
       // If a task uses an incompatible partition spec the data inside could contain values
       // which belong to multiple partitions in the current spec. Treating all such files as
       // un-partitioned and grouping them together helps to minimize new files made.
       StructLike taskPartition =
-          task.file().specId() == table.spec().specId()
-              ? task.file().partition()
-              : EmptyStructLike.get();
+          task.file().specId() == table.spec().specId() ? task.file().partition() : emptyStruct;
 
       filesByPartition.computeIfAbsent(taskPartition, unused -> Lists.newArrayList()).add(task);
     }
