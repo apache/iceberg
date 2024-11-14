@@ -239,6 +239,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "{ \"id\": 3, \"data\": \"c\" }",
             "{ \"id\": 4, \"data\": \"d\" }");
 
+    // merge-schema=true on writes allows table schema updates when incoming data has schema changes
     assertThatCode(() -> intDF.writeTo(tableName).option("merge-schema", "true").append())
         .doesNotThrowAnyException();
 
@@ -280,6 +281,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "{ \"id\": 3.0, \"data\": \"c\" }",
             "{ \"id\": 4.0, \"data\": \"d\" }");
 
+    // merge-schema=true on writes allows table schema updates when incoming data has schema changes
     assertThatCode(() -> floatDF.writeTo(tableName).option("merge-schema", "true").append())
         .doesNotThrowAnyException();
 
@@ -321,6 +323,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "{ \"id\": 3.0, \"data\": \"c\" }",
             "{ \"id\": 4.0, \"data\": \"d\" }");
 
+    // merge-schema=true on writes allows table schema updates when incoming data has schema changes
     assertThatCode(
             () -> decimalPrecision4DF.writeTo(tableName).option("merge-schema", "true").append())
         .doesNotThrowAnyException();
@@ -339,6 +342,6 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
         Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id").type();
     assertThat(idFieldType.typeId()).isEqualTo(Type.TypeID.DECIMAL);
     Types.DecimalType decimalType = (Types.DecimalType) idFieldType;
-    assertThat(decimalType.precision() == 6);
+    assertThat(decimalType.precision()).isEqualTo(6);
   }
 }

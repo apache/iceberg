@@ -256,6 +256,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "{ \"id\": 3, \"data\": \"c\" }",
             "{ \"id\": 4, \"data\": \"d\" }");
 
+    // merge-schema=true on writes allows table schema updates when incoming data has schema changes
     assertThatCode(() -> intDF.writeTo(tableName).option("merge-schema", "true").append())
         .doesNotThrowAnyException();
 
@@ -297,6 +298,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "{ \"id\": 3.0, \"data\": \"c\" }",
             "{ \"id\": 4.0, \"data\": \"d\" }");
 
+    // merge-schema=true on writes allows table schema updates when incoming data has schema changes
     assertThatCode(() -> floatDF.writeTo(tableName).option("merge-schema", "true").append())
         .doesNotThrowAnyException();
 
@@ -338,6 +340,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
             "{ \"id\": 3.0, \"data\": \"c\" }",
             "{ \"id\": 4.0, \"data\": \"d\" }");
 
+    // merge-schema=true on writes allows table schema updates when incoming data has schema changes
     assertThatCode(
             () -> decimalPrecision4DF.writeTo(tableName).option("merge-schema", "true").append())
         .doesNotThrowAnyException();

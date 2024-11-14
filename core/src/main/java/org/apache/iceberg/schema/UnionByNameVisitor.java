@@ -182,13 +182,13 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
 
   private boolean isIgnorableTypeUpdate(Type existingType, Type newType) {
     if (existingType.isPrimitiveType()) {
-      /* TypeUtil.isPromotionAllowed is used to check whether type promotion is allowed in the reverse order,
-       * newType to existingType. A true result implies that the newType is more narrow than the existingType,
-       * which translates in this context as an ignorable type update. A false result implies the opposite.
-       * Examples:
-       * existingType:long -> newType:int returns true, meaning it is ignorable
-       * existingType:int -> newType:long returns false, meaning it is not ignorable
-       */
+      // TypeUtil.isPromotionAllowed is used to check whether type promotion is allowed in the
+      // reverse order, newType to existingType. A true result implies that the newType is more
+      // narrow than the existingType, which translates in this context as an ignorable update when
+      // evaluating the existingType to newType order. A false result implies the opposite.
+      // Examples:
+      // existingType:long -> newType:int returns true, meaning it is ignorable
+      // existingType:int -> newType:long returns false, meaning it is not ignorable
       return newType.isPrimitiveType()
           && TypeUtil.isPromotionAllowed(newType, existingType.asPrimitiveType());
     } else {
