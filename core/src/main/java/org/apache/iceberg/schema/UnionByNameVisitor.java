@@ -164,7 +164,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     String fullName = partnerSchema.findColumnName(existingField.fieldId());
 
     boolean needsOptionalUpdate = field.isOptional() && existingField.isRequired();
-    boolean needsTypeUpdate = !isCompatibleType(existingField.type(), field.type());
+    boolean needsTypeUpdate = !isIgnorableTypeUpdate(existingField.type(), field.type());
     boolean needsDocUpdate = field.doc() != null && !field.doc().equals(existingField.doc());
 
     if (needsOptionalUpdate) {
@@ -180,9 +180,15 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     }
   }
 
-  private boolean isCompatibleType(Type existingType, Type newType) {
+  private boolean isIgnorableTypeUpdate(Type existingType, Type newType) {
     if (existingType.isPrimitiveType()) {
-      // Primitive -> Wider Primitive
+      /* TypeUtil.isPromotionAllowed is used to check whether type promotion is allowed in the reverse order,
+       * newType to existingType. A true result implies that the newType is more narrow than the existingType,
+       * which translates in this context as an ignorable type update. A false result implies the opposite.
+       * Examples:
+       * existingType:long -> newType:int returns true, meaning it is ignorable
+       * existingType:int -> newType:long returns false, meaning it is not ignorable
+       */
       return newType.isPrimitiveType()
           && TypeUtil.isPromotionAllowed(newType, existingType.asPrimitiveType());
     } else {
