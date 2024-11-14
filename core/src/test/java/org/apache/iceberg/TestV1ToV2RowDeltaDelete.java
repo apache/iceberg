@@ -84,12 +84,13 @@ public class TestV1ToV2RowDeltaDelete extends TestBase {
     verifyManifestSequenceNumber(deleteManifest, 1, 1);
     assertThat(table.newScan().planFiles())
         .hasSize(3)
-        .filteredOn(fileScanTask -> fileScanTask.file().path().equals(FILE_A.path()))
+        .filteredOn(fileScanTask -> fileScanTask.file().location().equals(FILE_A.location()))
         .first()
         .satisfies(
             fileScanTask -> {
               assertThat(fileScanTask.deletes()).hasSize(1);
-              assertThat(fileScanTask.deletes().get(0).path()).isEqualTo(FILE_A_EQ_1.path());
+              assertThat(fileScanTask.deletes().get(0).location())
+                  .isEqualTo(FILE_A_EQ_1.location());
             });
 
     // first commit after row-delta changes
@@ -103,7 +104,7 @@ public class TestV1ToV2RowDeltaDelete extends TestBase {
     verifyManifestSequenceNumber(dataManifest2, 2, 0);
     assertThat(table.newScan().planFiles())
         .hasSize(2)
-        .filteredOn(fileScanTask -> fileScanTask.file().path().equals(FILE_A.path()))
+        .filteredOn(fileScanTask -> fileScanTask.file().location().equals(FILE_A.location()))
         .first()
         .satisfies(fileScanTask -> assertThat(fileScanTask.deletes()).hasSize(1));
 
@@ -117,7 +118,7 @@ public class TestV1ToV2RowDeltaDelete extends TestBase {
     verifyManifestSequenceNumber(dataManifests.get(0), 3, 0);
     assertThat(table.newScan().planFiles())
         .hasSize(1)
-        .filteredOn(fileScanTask -> fileScanTask.file().path().equals(FILE_A.path()))
+        .filteredOn(fileScanTask -> fileScanTask.file().location().equals(FILE_A.location()))
         .first()
         .satisfies(fileScanTask -> assertThat(fileScanTask.deletes()).hasSize(1));
   }
@@ -138,7 +139,7 @@ public class TestV1ToV2RowDeltaDelete extends TestBase {
         .first()
         .satisfies(
             fileScanTask -> {
-              assertThat(fileScanTask.file().path()).isEqualTo(FILE_B.path());
+              assertThat(fileScanTask.file().location()).isEqualTo(FILE_B.location());
               assertThat(fileScanTask.deletes()).isEmpty();
             });
 
@@ -199,10 +200,10 @@ public class TestV1ToV2RowDeltaDelete extends TestBase {
     assertThat(tasks).hasSize(1);
 
     FileScanTask task = tasks.get(0);
-    assertThat(task.file().path()).isEqualTo(FILE_A.path());
+    assertThat(task.file().location()).isEqualTo(FILE_A.location());
     assertThat(task.deletes()).hasSize(2);
-    assertThat(task.deletes().get(0).path()).isEqualTo(FILE_A_EQ_1.path());
-    assertThat(task.deletes().get(1).path()).isEqualTo(FILE_A_POS_1.path());
+    assertThat(task.deletes().get(0).location()).isEqualTo(FILE_A_EQ_1.location());
+    assertThat(task.deletes().get(1).location()).isEqualTo(FILE_A_POS_1.location());
   }
 
   @TestTemplate

@@ -355,7 +355,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             "Found conflicting files that can contain records matching partitions %s: %s",
             partitionSet,
             Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -386,7 +386,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             "Found conflicting files that can contain records matching %s: %s",
             conflictDetectionFilter,
             Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -550,7 +550,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         deletes.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
         dataFilter,
-        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::location));
   }
 
   /**
@@ -570,7 +570,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         deletes.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
         partitionSet,
-        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::location));
   }
 
   /**
@@ -628,7 +628,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             "Found conflicting deleted files that can contain records matching %s: %s",
             dataFilter,
             Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -657,7 +657,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             "Found conflicting deleted files that can apply to records matching %s: %s",
             partitionSet,
             Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -783,7 +783,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                 entry ->
                     entry.status() != ManifestEntry.Status.ADDED
                         && newSnapshots.contains(entry.snapshotId())
-                        && requiredDataFiles.contains(entry.file().path()))
+                        && requiredDataFiles.contains(entry.file().location()))
             .specsById(base.specsById())
             .ignoreExisting();
 
@@ -797,7 +797,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         throw new ValidationException(
             "Cannot commit, missing data files: %s",
             Iterators.toString(
-                Iterators.transform(deletes, entry -> entry.file().path().toString())));
+                Iterators.transform(deletes, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
