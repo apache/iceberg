@@ -211,7 +211,13 @@ public class ParquetValueReaders {
 
     @Override
     public void setPageSource(PageReadStore pageStore) {
-      this.rowGroupStart = pageStore.getRowIndexOffset().orElse(0L);
+      this.rowGroupStart =
+          pageStore
+              .getRowIndexOffset()
+              .orElseThrow(
+                  () ->
+                      new IllegalArgumentException(
+                          "PageReadStore does not contain row index offset"));
       this.rowOffset = -1;
     }
   }

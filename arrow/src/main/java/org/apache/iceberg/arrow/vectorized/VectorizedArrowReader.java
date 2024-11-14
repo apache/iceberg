@@ -556,7 +556,13 @@ public class VectorizedArrowReader implements VectorizedReader<VectorHolder> {
     @Override
     public void setRowGroupInfo(
         PageReadStore source, Map<ColumnPath, ColumnChunkMetaData> metadata) {
-      this.rowStart = source.getRowIndexOffset().orElse(0L);
+      this.rowStart =
+          source
+              .getRowIndexOffset()
+              .orElseThrow(
+                  () ->
+                      new IllegalArgumentException(
+                          "PageReadStore does not contain row index offset"));
     }
 
     @Override
