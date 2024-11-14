@@ -30,14 +30,21 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
  *
  * <p>Locations follow a URI like structure to identify resources
  *
- * <pre>{@code abfs[s]://[<container>@]<storage account host>/<file path>}</pre>
+ * <pre>{@code abfs[s]://[<container>@]<storageAccount>.dfs.core.windows.net/<path>}</pre>
+ *
+ * or
+ *
+ * <pre>{@code wasb[s]://<container>@<storageAccount>.blob.core.windows.net/<path>}</pre>
+ *
+ * For compatibility, locations using the wasb scheme are also accepted but will use the Azure Data
+ * Lake Storage Gen2 REST APIs instead of the Blob Storage REST APIs.
  *
  * <p>See <a
  * href="https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction-abfs-uri#uri-syntax">Azure
  * Data Lake Storage URI</a>
  */
 class ADLSLocation {
-  private static final Pattern URI_PATTERN = Pattern.compile("^abfss?://([^/?#]+)(.*)?$");
+  private static final Pattern URI_PATTERN = Pattern.compile("^(abfss?|wasbs?)://([^/?#]+)(.*)?$");
 
   private final String storageAccount;
   private final String container;
@@ -55,17 +62,18 @@ class ADLSLocation {
 
     ValidationException.check(matcher.matches(), "Invalid ADLS URI: %s", location);
 
-    String authority = matcher.group(1);
+    String authority = matcher.group(2);
     String[] parts = authority.split("@", -1);
     if (parts.length > 1) {
       this.container = parts[0];
-      this.storageAccount = parts[1];
+      String host = parts[1];
+      this.storageAccount = host.split("\\.", -1)[0];
     } else {
       this.container = null;
-      this.storageAccount = authority;
+      this.storageAccount = authority.split("\\.", -1)[0];
     }
 
-    String uriPath = matcher.group(2);
+    String uriPath = matcher.group(3);
     this.path = uriPath == null ? "" : uriPath.startsWith("/") ? uriPath.substring(1) : uriPath;
   }
 
