@@ -231,6 +231,7 @@ public abstract class TestMerge extends SparkRowLevelOperationsTestBase {
 
   @TestTemplate
   public void testCoalesceMerge() {
+    assumeThat(formatVersion).isLessThan(3);
     createAndInitTable("id INT, salary INT, dep STRING");
 
     String[] records = new String[100];
