@@ -308,7 +308,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
     // verify the column type did not change
     Types.NestedField idField =
         Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id");
-    assertThat(idField.type().typeId().equals(Type.TypeID.DOUBLE));
+    assertThat(idField.type().typeId()).isEqualTo(Type.TypeID.DOUBLE);
   }
 
   @Test

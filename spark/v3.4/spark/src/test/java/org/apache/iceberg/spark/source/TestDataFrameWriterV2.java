@@ -250,7 +250,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
     // verify the column type did not change
     Types.NestedField idField =
         Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id");
-    assertThat(idField.type().typeId().equals(Type.TypeID.LONG));
+    assertThat(idField.type().typeId()).isEqualTo(Type.TypeID.LONG);
   }
 
   @Test
@@ -291,7 +291,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
     // verify the column type did not change
     Types.NestedField idField =
         Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id");
-    assertThat(idField.type().typeId().equals(Type.TypeID.DOUBLE));
+    assertThat(idField.type().typeId()).isEqualTo(Type.TypeID.DOUBLE);
   }
 
   @Test
@@ -337,7 +337,7 @@ public class TestDataFrameWriterV2 extends SparkTestBaseWithCatalog {
     // verify the decimal column precision did not change
     Type idFieldType =
         Spark3Util.loadIcebergTable(spark, tableName).schema().findField("id").type();
-    assertThat(idFieldType.typeId().equals(Type.TypeID.DECIMAL));
+    assertThat(idFieldType.typeId()).isEqualTo(Type.TypeID.DECIMAL);
     Types.DecimalType decimalType = (Types.DecimalType) idFieldType;
     assertThat(decimalType.precision() == 6);
   }

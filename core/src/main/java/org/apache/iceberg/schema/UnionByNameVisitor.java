@@ -164,7 +164,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     String fullName = partnerSchema.findColumnName(existingField.fieldId());
 
     boolean needsOptionalUpdate = field.isOptional() && existingField.isRequired();
-    boolean needsTypeUpdate = !compatibleType(field.type(), existingField.type());
+    boolean needsTypeUpdate = !isCompatibleType(existingField.type(), field.type());
     boolean needsDocUpdate = field.doc() != null && !field.doc().equals(existingField.doc());
 
     if (needsOptionalUpdate) {
