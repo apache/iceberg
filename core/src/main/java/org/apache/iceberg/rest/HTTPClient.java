@@ -468,12 +468,16 @@ public class HTTPClient implements RESTClient {
     if (connectionConfig != null) {
       connectionManagerBuilder.setDefaultConnectionConfig(connectionConfig);
     }
+    Integer maxConnections = Integer.getInteger(REST_MAX_CONNECTIONS);
+    if (maxConnections == null) {
+      maxConnections =
+          PropertyUtil.propertyAsInt(
+              properties, REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT);
+    }
 
     return connectionManagerBuilder
         .useSystemProperties()
-        .setMaxConnTotal(
-            PropertyUtil.propertyAsInt(
-                properties, REST_MAX_CONNECTIONS, REST_MAX_CONNECTIONS_DEFAULT))
+        .setMaxConnTotal(maxConnections)
         .setMaxConnPerRoute(
             PropertyUtil.propertyAsInt(
                 properties, REST_MAX_CONNECTIONS_PER_ROUTE, REST_MAX_CONNECTIONS_PER_ROUTE_DEFAULT))
