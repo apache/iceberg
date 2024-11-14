@@ -44,7 +44,7 @@ public class RESTServerExtension implements BeforeAllCallback, AfterAllCallback 
     if (conf.containsKey(REST_PORT) && conf.get(REST_PORT).equals(FREE_PORT)) {
       conf.put(REST_PORT, String.valueOf(RCKUtils.findFreePort()));
     }
-    this.config = config;
+    this.config = conf;
   }
 
   public Map<String, String> config() {
