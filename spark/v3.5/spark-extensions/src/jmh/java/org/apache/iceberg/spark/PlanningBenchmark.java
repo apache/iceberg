@@ -60,6 +60,7 @@ import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
@@ -106,6 +107,9 @@ public class PlanningBenchmark {
   private final Configuration hadoopConf = new Configuration();
   private SparkSession spark;
   private Table table;
+
+  @Param({"partition", "file", "dv"})
+  private String type;
 
   @Setup
   public void setupBenchmark() throws NoSuchTableException, ParseException {
@@ -266,7 +270,7 @@ public class PlanningBenchmark {
         TableProperties.DELETE_MODE,
         RowLevelOperationMode.MERGE_ON_READ.modeName(),
         TableProperties.FORMAT_VERSION,
-        2);
+        type.equals("dv") ? 3 : 2);
 
     this.table = Spark3Util.loadIcebergTable(spark, TABLE_NAME);
   }
@@ -276,6 +280,16 @@ public class PlanningBenchmark {
   }
 
   private void initDataAndDeletes() {
+    if (type.equals("partition")) {
+      initDataAndPartitionScopedDeletes();
+    } else if (type.equals("file")) {
+      initDataAndFileScopedDeletes();
+    } else {
+      initDataAndDVs();
+    }
+  }
+
+  private void initDataAndPartitionScopedDeletes() {
     for (int partitionOrdinal = 0; partitionOrdinal < NUM_PARTITIONS; partitionOrdinal++) {
       StructLike partition = TestHelpers.Row.of(partitionOrdinal);
 
@@ -294,6 +308,48 @@ public class PlanningBenchmark {
         DeleteFile deleteFile = FileGenerationUtil.generatePositionDeleteFile(table, partition);
         rowDelta.addDeletes(deleteFile);
       }
+
+      rowDelta.commit();
+    }
+  }
+
+  private void initDataAndFileScopedDeletes() {
+    for (int partitionOrdinal = 0; partitionOrdinal < NUM_PARTITIONS; partitionOrdinal++) {
+      StructLike partition = TestHelpers.Row.of(partitionOrdinal);
+
+      RowDelta rowDelta = table.newRowDelta();
+
+      for (int fileOrdinal = 0; fileOrdinal < NUM_DATA_FILES_PER_PARTITION; fileOrdinal++) {
+        DataFile dataFile = generateDataFile(partition, Integer.MIN_VALUE, Integer.MIN_VALUE);
+        DeleteFile deleteFile = FileGenerationUtil.generatePositionDeleteFile(table, dataFile);
+        rowDelta.addRows(dataFile);
+        rowDelta.addDeletes(deleteFile);
+      }
+
+      // add one data file that would match the sort key predicate
+      DataFile sortKeyDataFile = generateDataFile(partition, SORT_KEY_VALUE, SORT_KEY_VALUE);
+      rowDelta.addRows(sortKeyDataFile);
+
+      rowDelta.commit();
+    }
+  }
+
+  private void initDataAndDVs() {
+    for (int partitionOrdinal = 0; partitionOrdinal < NUM_PARTITIONS; partitionOrdinal++) {
+      StructLike partition = TestHelpers.Row.of(partitionOrdinal);
+
+      RowDelta rowDelta = table.newRowDelta();
+
+      for (int fileOrdinal = 0; fileOrdinal < NUM_DATA_FILES_PER_PARTITION; fileOrdinal++) {
+        DataFile dataFile = generateDataFile(partition, Integer.MIN_VALUE, Integer.MIN_VALUE);
+        DeleteFile dv = FileGenerationUtil.generateDV(table, dataFile);
+        rowDelta.addRows(dataFile);
+        rowDelta.addDeletes(dv);
+      }
+
+      // add one data file that would match the sort key predicate
+      DataFile sortKeyDataFile = generateDataFile(partition, SORT_KEY_VALUE, SORT_KEY_VALUE);
+      rowDelta.addRows(sortKeyDataFile);
 
       rowDelta.commit();
     }
