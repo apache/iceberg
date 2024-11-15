@@ -295,8 +295,9 @@ public class TableMetadata implements Serializable {
         sortOrders != null && !sortOrders.isEmpty(), "Sort orders cannot be null or empty");
     Preconditions.checkArgument(
         formatVersion <= SUPPORTED_TABLE_FORMAT_VERSION,
-        "Unsupported format version: v%s",
-        formatVersion);
+        "Unsupported format version: v%s (supported: v%s)",
+        formatVersion,
+        SUPPORTED_TABLE_FORMAT_VERSION);
     Preconditions.checkArgument(
         formatVersion == 1 || uuid != null, "UUID is required in format v%s", formatVersion);
     Preconditions.checkArgument(
