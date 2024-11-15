@@ -19,7 +19,6 @@
 package org.apache.iceberg.flink.sink.shuffle;
 
 import org.apache.flink.api.common.ExecutionConfig;
-import org.apache.flink.api.common.serialization.SerializerConfig;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.table.data.RowData;
@@ -73,14 +72,9 @@ public class StatisticsOrRecordTypeInformation extends TypeInformation<Statistic
   }
 
   @Override
-  public TypeSerializer<StatisticsOrRecord> createSerializer(SerializerConfig config) {
+  public TypeSerializer<StatisticsOrRecord> createSerializer(ExecutionConfig config) {
     TypeSerializer<RowData> recordSerializer = rowTypeInformation.createSerializer(config);
     return new StatisticsOrRecordSerializer(globalStatisticsSerializer, recordSerializer);
-  }
-
-  @Override
-  public TypeSerializer<StatisticsOrRecord> createSerializer(ExecutionConfig config) {
-    return createSerializer(config.getSerializerConfig());
   }
 
   @Override
