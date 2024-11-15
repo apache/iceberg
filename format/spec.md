@@ -1016,7 +1016,7 @@ Row-level delete files and deletion vectors are tracked by manifests. A separate
 Both position and equality delete files allow encoding deleted row values with a delete. This can be used to reconstruct a stream of changes to a table.
 
 
-### Deletion Vectors
+#### Deletion Vectors
 
 Deletion vectors identify deleted rows of a file by encoding deleted positions in a bitmap. A set bit at position P indicates that the row at position P is deleted.
 
