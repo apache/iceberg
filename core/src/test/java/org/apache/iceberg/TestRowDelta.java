@@ -137,7 +137,7 @@ public class TestRowDelta extends V2TableTestBase {
                         .newRowDelta()
                         .addDeletes(fileADeletes())
                         .validateFromSnapshot(validateFromSnapshotId)
-                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
                     branch))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot commit, missing data files");
@@ -153,7 +153,7 @@ public class TestRowDelta extends V2TableTestBase {
         table
             .newRowDelta()
             .addDeletes(fileBDeletes())
-            .validateDataFilesExist(ImmutableList.of(FILE_B.path()))
+            .validateDataFilesExist(ImmutableList.of(FILE_B.location()))
             .validateFromSnapshot(validateFromSnapshotId),
         branch);
 
@@ -188,7 +188,7 @@ public class TestRowDelta extends V2TableTestBase {
                         .newRowDelta()
                         .addDeletes(fileADeletes())
                         .validateFromSnapshot(validateFromSnapshotId)
-                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
                     branch))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot commit, missing data files");
@@ -220,7 +220,7 @@ public class TestRowDelta extends V2TableTestBase {
                         .newRowDelta()
                         .addDeletes(fileADeletes())
                         .validateFromSnapshot(validateFromSnapshotId)
-                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
                     branch))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot commit, missing data files");
@@ -253,7 +253,7 @@ public class TestRowDelta extends V2TableTestBase {
             .newRowDelta()
             .addDeletes(fileADeletes())
             .validateFromSnapshot(validateFromSnapshotId)
-            .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+            .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
         branch);
 
     Snapshot snap = latestSnapshot(table, branch);
@@ -312,7 +312,7 @@ public class TestRowDelta extends V2TableTestBase {
                         .newRowDelta()
                         .addDeletes(fileADeletes())
                         .validateFromSnapshot(validateFromSnapshotId)
-                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
                     branch))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot commit, missing data files");
@@ -345,7 +345,7 @@ public class TestRowDelta extends V2TableTestBase {
                         .addDeletes(fileADeletes())
                         .validateDeletedFiles()
                         .validateFromSnapshot(validateFromSnapshotId)
-                        .validateDataFilesExist(ImmutableList.of(FILE_A.path())),
+                        .validateDataFilesExist(ImmutableList.of(FILE_A.location())),
                     branch))
         .isInstanceOf(ValidationException.class)
         .hasMessageStartingWith("Cannot commit, missing data files");
@@ -411,7 +411,7 @@ public class TestRowDelta extends V2TableTestBase {
             .addDeletes(fileADeletes())
             .validateDeletedFiles()
             .validateFromSnapshot(validateFromSnapshotId)
-            .validateDataFilesExist(ImmutableList.of(FILE_A.path()))
+            .validateDataFilesExist(ImmutableList.of(FILE_A.location()))
             .conflictDetectionFilter(Expressions.equal("data", "u")) // bucket16("u") -> 0
             .validateNoConflictingDataFiles(),
         branch);
@@ -744,7 +744,7 @@ public class TestRowDelta extends V2TableTestBase {
         table
             .newRowDelta()
             .addDeletes(deleteFile)
-            .validateDataFilesExist(ImmutableList.of(dataFile1.path()))
+            .validateDataFilesExist(ImmutableList.of(dataFile1.location()))
             .validateDeletedFiles()
             .validateFromSnapshot(baseSnapshot.snapshotId())
             .conflictDetectionFilter(conflictDetectionFilter)
@@ -798,7 +798,7 @@ public class TestRowDelta extends V2TableTestBase {
         table
             .newRowDelta()
             .addDeletes(deleteFile)
-            .validateDataFilesExist(ImmutableList.of(dataFile1.path()))
+            .validateDataFilesExist(ImmutableList.of(dataFile1.location()))
             .validateDeletedFiles()
             .validateFromSnapshot(baseSnapshot.snapshotId())
             .conflictDetectionFilter(conflictDetectionFilter)
@@ -1035,7 +1035,7 @@ public class TestRowDelta extends V2TableTestBase {
             .addDeletes(secondDeleteFile)
             .deleteWith(deletedFiles::add)
             .validateDeletedFiles()
-            .validateDataFilesExist(ImmutableList.of(firstSnapshotDataFile.path()));
+            .validateDataFilesExist(ImmutableList.of(firstSnapshotDataFile.location()));
 
     rowDelta.apply();
 

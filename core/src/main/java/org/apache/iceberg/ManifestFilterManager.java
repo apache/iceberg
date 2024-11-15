@@ -246,7 +246,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
 
       CharSequenceSet deletedFilePaths =
           deletedFiles.stream()
-              .map(ContentFile::path)
+              .map(ContentFile::location)
               .collect(Collectors.toCollection(CharSequenceSet::empty));
 
       ValidationException.check(
@@ -388,7 +388,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
     for (ManifestEntry<F> entry : reader.liveEntries()) {
       F file = entry.file();
       boolean markedForDelete =
-          deletePaths.contains(file.path())
+          deletePaths.contains(file.location())
               || deleteFiles.contains(file)
               || dropPartitions.contains(file.specId(), file.partition())
               || (isDelete
@@ -436,7 +436,7 @@ abstract class ManifestFilterManager<F extends ContentFile<F>> {
                 entry -> {
                   F file = entry.file();
                   boolean markedForDelete =
-                      deletePaths.contains(file.path())
+                      deletePaths.contains(file.location())
                           || deleteFiles.contains(file)
                           || dropPartitions.contains(file.specId(), file.partition())
                           || (isDelete

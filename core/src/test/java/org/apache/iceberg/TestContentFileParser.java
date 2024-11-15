@@ -378,7 +378,7 @@ public class TestContentFileParser {
     assertThat(actual.getClass()).isEqualTo(expected.getClass());
     assertThat(actual.specId()).isEqualTo(expected.specId());
     assertThat(actual.content()).isEqualTo(expected.content());
-    assertThat(actual.path()).isEqualTo(expected.path());
+    assertThat(actual.location()).isEqualTo(expected.location());
     assertThat(actual.format()).isEqualTo(expected.format());
     assertThat(actual.partition())
         .usingComparator(Comparators.forType(spec.partitionType()))

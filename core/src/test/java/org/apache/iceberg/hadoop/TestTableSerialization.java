@@ -194,13 +194,13 @@ public class TestTableSerialization extends HadoopTableTestBase {
                 .equals(MetadataTableType.POSITION_DELETES))) {
       try (CloseableIterable<ScanTask> tasks = table.newBatchScan().planFiles()) {
         for (ScanTask task : tasks) {
-          files.add(((PositionDeletesScanTask) task).file().path());
+          files.add(((PositionDeletesScanTask) task).file().location());
         }
       }
     } else {
       try (CloseableIterable<FileScanTask> tasks = table.newScan().planFiles()) {
         for (FileScanTask task : tasks) {
-          files.add(task.file().path());
+          files.add(task.file().location());
         }
       }
     }

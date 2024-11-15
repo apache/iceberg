@@ -117,7 +117,7 @@ abstract class BaseContentScanTask<ThisT extends ContentScanTask<F>, F extends C
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-        .add("file", file().path())
+        .add("file", file().location())
         .add("partition_data", file().partition())
         .add("residual", residual())
         .toString();

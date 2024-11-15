@@ -213,7 +213,7 @@ public class FileGenerationUtil {
       int fieldId = column.fieldId();
       columnSizes.put(fieldId, generateColumnSize());
       if (fieldId == MetadataColumns.DELETE_FILE_PATH.fieldId()) {
-        ByteBuffer bound = Conversions.toByteBuffer(Types.StringType.get(), dataFile.path());
+        ByteBuffer bound = Conversions.toByteBuffer(Types.StringType.get(), dataFile.location());
         lowerBounds.put(fieldId, bound);
         upperBounds.put(fieldId, bound);
       }
