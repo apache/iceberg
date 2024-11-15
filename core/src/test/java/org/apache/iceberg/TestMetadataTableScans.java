@@ -1407,12 +1407,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct partition spec id on constant column")
         .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 0);
-    assertThat(posDeleteTask.file().path())
+    assertThat(posDeleteTask.file().location())
         .as("Expected correct delete file on task")
-        .isEqualTo(fileBDeletes().path());
+        .isEqualTo(fileBDeletes().location());
     assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct delete file on constant column")
-        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), fileBDeletes().path().toString());
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), fileBDeletes().location());
   }
 
   @TestTemplate
@@ -1477,12 +1477,12 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
     assertThat((Map<Integer, Integer>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct partition spec id on constant column")
         .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 0);
-    assertThat(posDeleteTask.file().path())
+    assertThat(posDeleteTask.file().location())
         .as("Expected correct delete file on task")
-        .isEqualTo(fileADeletes().path());
+        .isEqualTo(fileADeletes().location());
     assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))
         .as("Expected correct delete file on constant column")
-        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), fileADeletes().path().toString());
+        .containsEntry(MetadataColumns.FILE_PATH.fieldId(), fileADeletes().location());
   }
 
   @TestTemplate
@@ -1560,7 +1560,7 @@ public class TestMetadataTableScans extends MetadataTableScanTestBase {
         .as("Expected correct partition spec id on constant column")
         .containsEntry(MetadataColumns.SPEC_ID.fieldId(), 1);
 
-    assertThat(posDeleteTask.file().path())
+    assertThat(posDeleteTask.file().location())
         .as("Expected correct delete file on task")
         .isEqualTo(path1);
     assertThat((Map<Integer, String>) constantsMap(posDeleteTask, partitionType))

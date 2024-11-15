@@ -24,6 +24,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.UpdateSchema;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 
 /**
@@ -163,8 +164,7 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
     String fullName = partnerSchema.findColumnName(existingField.fieldId());
 
     boolean needsOptionalUpdate = field.isOptional() && existingField.isRequired();
-    boolean needsTypeUpdate =
-        field.type().isPrimitiveType() && !field.type().equals(existingField.type());
+    boolean needsTypeUpdate = !isIgnorableTypeUpdate(existingField.type(), field.type());
     boolean needsDocUpdate = field.doc() != null && !field.doc().equals(existingField.doc());
 
     if (needsOptionalUpdate) {
@@ -177,6 +177,23 @@ public class UnionByNameVisitor extends SchemaWithPartnerVisitor<Integer, Boolea
 
     if (needsDocUpdate) {
       api.updateColumnDoc(fullName, field.doc());
+    }
+  }
+
+  private boolean isIgnorableTypeUpdate(Type existingType, Type newType) {
+    if (existingType.isPrimitiveType()) {
+      // TypeUtil.isPromotionAllowed is used to check whether type promotion is allowed in the
+      // reverse order, newType to existingType. A true result implies that the newType is more
+      // narrow than the existingType, which translates in this context as an ignorable update when
+      // evaluating the existingType to newType order. A false result implies the opposite.
+      // Examples:
+      // existingType:long -> newType:int returns true, meaning it is ignorable
+      // existingType:int -> newType:long returns false, meaning it is not ignorable
+      return newType.isPrimitiveType()
+          && TypeUtil.isPromotionAllowed(newType, existingType.asPrimitiveType());
+    } else {
+      // Complex -> Complex
+      return !newType.isPrimitiveType();
     }
   }
 

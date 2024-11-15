@@ -293,7 +293,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                   if (entry.status() == ManifestEntry.Status.DELETED
                       && !validIds.contains(entry.snapshotId())) {
                     // use toString to ensure the path will not change (Utf8 is reused)
-                    filesToDelete.add(entry.file().path().toString());
+                    filesToDelete.add(entry.file().location());
                   }
                 }
               } catch (IOException e) {
@@ -317,7 +317,7 @@ class IncrementalFileCleanup extends FileCleanupStrategy {
                   // delete any ADDED file from manifests that were reverted
                   if (entry.status() == ManifestEntry.Status.ADDED) {
                     // use toString to ensure the path will not change (Utf8 is reused)
-                    filesToDelete.add(entry.file().path().toString());
+                    filesToDelete.add(entry.file().location());
                   }
                 }
               } catch (IOException e) {
