@@ -2692,6 +2692,7 @@ components:
           $ref: '#/components/schemas/Schema'
         last-column-id:
           type: integer
+          deprecated: true
           description:
             This optional field is **DEPRECATED for REMOVAL** since it more safe to handle this internally,
             and shouldn't be exposed to the clients.
