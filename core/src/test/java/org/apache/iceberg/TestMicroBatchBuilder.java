@@ -178,7 +178,7 @@ public class TestMicroBatchBuilder extends TestBase {
         Iterables.transform(
             tasks,
             t -> {
-              String path = t.file().path().toString();
+              String path = t.file().location();
               return path.split("\\.")[0];
             });
     return Lists.newArrayList(filesToRead);

@@ -45,7 +45,7 @@ public abstract class MetadataTableScanTestBase extends TestBase {
 
   protected Set<String> scannedPaths(TableScan scan) {
     return StreamSupport.stream(scan.planFiles().spliterator(), false)
-        .map(t -> t.file().path().toString())
+        .map(t -> t.file().location().toString())
         .collect(Collectors.toSet());
   }
 

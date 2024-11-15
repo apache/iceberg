@@ -422,7 +422,7 @@ class V3Metadata {
         case 0:
           return wrapped.content().id();
         case 1:
-          return wrapped.path().toString();
+          return wrapped.location();
         case 2:
           return wrapped.format() != null ? wrapped.format().toString() : null;
         case 3:

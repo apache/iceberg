@@ -236,7 +236,7 @@ public class TestManifestWriterVersions {
   void checkDataFile(ContentFile<?> dataFile, FileContent content) {
     // DataFile is the superclass of DeleteFile, so this method can check both
     assertThat(dataFile.content()).isEqualTo(content);
-    assertThat(dataFile.path()).isEqualTo(PATH);
+    assertThat(dataFile.location()).isEqualTo(PATH);
     assertThat(dataFile.format()).isEqualTo(FORMAT);
     assertThat(dataFile.partition()).isEqualTo(PARTITION);
     assertThat(dataFile.recordCount()).isEqualTo(METRICS.recordCount());

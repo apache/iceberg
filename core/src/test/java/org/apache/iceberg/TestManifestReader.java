@@ -54,7 +54,7 @@ public class TestManifestReader extends TestBase {
     try (ManifestReader<DataFile> reader = ManifestFiles.read(manifest, FILE_IO)) {
       ManifestEntry<DataFile> entry = Iterables.getOnlyElement(reader.entries());
       assertThat(entry.status()).isEqualTo(Status.EXISTING);
-      assertThat(entry.file().path()).isEqualTo(FILE_A.path());
+      assertThat(entry.file().location()).isEqualTo(FILE_A.location());
       assertThat(entry.snapshotId()).isEqualTo(1000L);
     }
   }
