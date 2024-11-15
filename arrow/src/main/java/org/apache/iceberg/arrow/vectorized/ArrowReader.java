@@ -260,7 +260,7 @@ public class ArrowReader extends CloseableGroup {
       Map<String, ByteBuffer> keyMetadata = Maps.newHashMap();
       fileTasks.stream()
           .map(FileScanTask::file)
-          .forEach(file -> keyMetadata.put(file.path().toString(), file.keyMetadata()));
+          .forEach(file -> keyMetadata.put(file.location(), file.keyMetadata()));
 
       Stream<EncryptedInputFile> encrypted =
           keyMetadata.entrySet().stream()
@@ -364,7 +364,7 @@ public class ArrowReader extends CloseableGroup {
 
     private InputFile getInputFile(FileScanTask task) {
       Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
-      return inputFiles.get(task.file().path().toString());
+      return inputFiles.get(task.file().location());
     }
 
     /**

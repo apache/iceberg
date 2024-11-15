@@ -150,7 +150,7 @@ abstract class BaseReader<T, TaskT extends ScanTask> implements Closeable {
       if (currentTask != null && !currentTask.isDataTask()) {
         String filePaths =
             referencedFiles(currentTask)
-                .map(file -> file.path().toString())
+                .map(ContentFile::location)
                 .collect(Collectors.joining(", "));
         LOG.error("Error reading file(s): {}", filePaths, e);
       }

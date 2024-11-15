@@ -412,7 +412,7 @@ public class TestRemoveOrphanFilesProcedure extends ExtensionsTestBase {
     assertThat(TestHelpers.deleteFiles(table)).as("Should have 1 delete file").hasSize(1);
     Path deleteManifestPath = new Path(TestHelpers.deleteManifests(table).iterator().next().path());
     Path deleteFilePath =
-        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().path()));
+        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().location()));
 
     // wait to ensure files are old enough
     waitUntilAfter(System.currentTimeMillis());

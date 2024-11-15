@@ -464,8 +464,8 @@ public class TestSnapshotDeltaLakeTable extends SparkDeltaLakeSnapshotTestBase {
         .addedDataFiles(icebergTable.io())
         .forEach(
             dataFile -> {
-              assertThat(URI.create(dataFile.path().toString()).isAbsolute()).isTrue();
-              assertThat(deltaTableDataFilePaths).contains(dataFile.path().toString());
+              assertThat(URI.create(dataFile.location()).isAbsolute()).isTrue();
+              assertThat(deltaTableDataFilePaths).contains(dataFile.location());
             });
   }
 

@@ -343,10 +343,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     // deleted.
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 0L), // id = 29
-            Pair.of(dataFile.path(), 1L), // id = 43
-            Pair.of(dataFile.path(), 2L), // id = 61
-            Pair.of(dataFile.path(), 3L) // id = 89
+            Pair.of(dataFile.location(), 0L), // id = 29
+            Pair.of(dataFile.location(), 1L), // id = 43
+            Pair.of(dataFile.location(), 2L), // id = 61
+            Pair.of(dataFile.location(), 3L) // id = 89
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
@@ -376,10 +376,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     // deleted.
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 0L), // id = 29
-            Pair.of(dataFile.path(), 1L), // id = 43
-            Pair.of(dataFile.path(), 2L), // id = 61
-            Pair.of(dataFile.path(), 3L) // id = 89
+            Pair.of(dataFile.location(), 0L), // id = 29
+            Pair.of(dataFile.location(), 1L), // id = 43
+            Pair.of(dataFile.location(), 2L), // id = 61
+            Pair.of(dataFile.location(), 3L) // id = 89
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
@@ -455,8 +455,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 3L), // id = 89
-            Pair.of(dataFile.path(), 5L) // id = 121
+            Pair.of(dataFile.location(), 3L), // id = 89
+            Pair.of(dataFile.location(), 5L) // id = 121
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
@@ -486,10 +486,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   public void testFilterOnDeletedMetadataColumn() throws IOException {
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 0L), // id = 29
-            Pair.of(dataFile.path(), 1L), // id = 43
-            Pair.of(dataFile.path(), 2L), // id = 61
-            Pair.of(dataFile.path(), 3L) // id = 89
+            Pair.of(dataFile.location(), 0L), // id = 29
+            Pair.of(dataFile.location(), 1L), // id = 43
+            Pair.of(dataFile.location(), 2L), // id = 61
+            Pair.of(dataFile.location(), 3L) // id = 89
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
@@ -611,13 +611,13 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
     // Add positional deletes to the table
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 97L),
-            Pair.of(dataFile.path(), 98L),
-            Pair.of(dataFile.path(), 99L),
-            Pair.of(dataFile.path(), 101L),
-            Pair.of(dataFile.path(), 103L),
-            Pair.of(dataFile.path(), 107L),
-            Pair.of(dataFile.path(), 109L));
+            Pair.of(dataFile.location(), 97L),
+            Pair.of(dataFile.location(), 98L),
+            Pair.of(dataFile.location(), 99L),
+            Pair.of(dataFile.location(), 101L),
+            Pair.of(dataFile.location(), 103L),
+            Pair.of(dataFile.location(), 107L),
+            Pair.of(dataFile.location(), 109L));
     Pair<DeleteFile, CharSequenceSet> posDeletes =
         FileHelpers.writeDeleteFile(
             table,

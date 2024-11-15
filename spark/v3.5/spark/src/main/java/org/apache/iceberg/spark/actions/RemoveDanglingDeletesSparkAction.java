@@ -90,7 +90,7 @@ class RemoveDanglingDeletesSparkAction
     RewriteFiles rewriteFiles = table.newRewrite();
     List<DeleteFile> danglingDeletes = findDanglingDeletes();
     for (DeleteFile deleteFile : danglingDeletes) {
-      LOG.debug("Removing dangling delete file {}", deleteFile.path());
+      LOG.debug("Removing dangling delete file {}", deleteFile.location());
       rewriteFiles.deleteFile(deleteFile);
     }
 

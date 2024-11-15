@@ -187,11 +187,11 @@ public class TestDataFrameWrites extends ParameterizedAvroDataTest {
         .addedDataFiles(table.io())
         .forEach(
             dataFile ->
-                assertThat(URI.create(dataFile.path().toString()).getPath())
+                assertThat(URI.create(dataFile.location()).getPath())
                     .as(
                         String.format(
                             "File should have the parent directory %s, but has: %s.",
-                            expectedDataDir.getAbsolutePath(), dataFile.path()))
+                            expectedDataDir.getAbsolutePath(), dataFile.location()))
                     .startsWith(expectedDataDir.getAbsolutePath()));
   }
 
