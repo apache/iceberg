@@ -214,9 +214,11 @@ public class TableMetadataParser {
     // write properties map
     JsonUtil.writeStringMap(PROPERTIES, metadata.properties(), generator);
 
-    generator.writeNumberField(
-        CURRENT_SNAPSHOT_ID,
-        metadata.currentSnapshot() != null ? metadata.currentSnapshot().snapshotId() : -1);
+    if (metadata.currentSnapshot() != null) {
+      generator.writeNumberField(CURRENT_SNAPSHOT_ID, metadata.currentSnapshot().snapshotId());
+    } else {
+      generator.writeNullField(CURRENT_SNAPSHOT_ID);
+    }
 
     toJson(metadata.refs(), generator);
 
