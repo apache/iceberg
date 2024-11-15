@@ -65,6 +65,7 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.sink.shuffle.DataStatisticsOperatorFactory;
 import org.apache.iceberg.flink.sink.shuffle.RangePartitioner;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecord;
+import org.apache.iceberg.flink.sink.shuffle.StatisticsOrRecordTypeInformation;
 import org.apache.iceberg.flink.sink.shuffle.StatisticsType;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.annotations.VisibleForTesting;
@@ -632,14 +633,15 @@ public class FlinkSink {
             sortOrder = Partitioning.sortOrderFor(partitionSpec);
             LOG.info("Construct sort order from partition spec");
           }
-
+          StatisticsOrRecordTypeInformation statisticsOrRecordTypeInformation =
+              new StatisticsOrRecordTypeInformation(flinkRowType, iSchema, sortOrder);
           LOG.info("Range distribute rows by sort order: {}", sortOrder);
           StatisticsType statisticsType = flinkWriteConf.rangeDistributionStatisticsType();
           SingleOutputStreamOperator<StatisticsOrRecord> shuffleStream =
               input
                   .transform(
                       operatorName("range-shuffle"),
-                      TypeInformation.of(StatisticsOrRecord.class),
+                      statisticsOrRecordTypeInformation,
                       new DataStatisticsOperatorFactory(
                           iSchema,
                           sortOrder,
