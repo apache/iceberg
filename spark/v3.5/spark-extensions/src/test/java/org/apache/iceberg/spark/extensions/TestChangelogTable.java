@@ -408,4 +408,60 @@ public class TestChangelogTable extends ExtensionsTestBase {
         .orderBy("_change_ordinal", "_commit_snapshot_id", "_change_type", "id")
         .collectAsList();
   }
+
+  @TestTemplate
+  public void testChangelogViewOutsideTimeRange() {
+    createTableWithDefaultRows();
+
+    // Insert new records
+    sql("INSERT INTO %s VALUES (3, 'c')", tableName);
+    sql("INSERT INTO %s VALUES (4, 'd')", tableName);
+
+    Table table = validationCatalog.loadTable(tableIdent);
+    Snapshot insertSnapshot = table.currentSnapshot();
+
+    // Get timestamp after inserts but before our changelog window
+    long beforeWindowTime = System.currentTimeMillis();
+
+    // Small delay to ensure our timestamps are different
+    try {
+      Thread.sleep(100);
+    } catch (InterruptedException e) {
+      throw new RuntimeException("Test interrupted", e);
+    }
+
+    long startTime = System.currentTimeMillis();
+    long endTime = startTime + 1000; // 1 second window
+
+    // Create changelog view for a time window after our inserts
+    sql(
+        "CALL %s.system.create_changelog_view("
+            + "  table => '%s', "
+            + "  options => map("
+            + "    'start-timestamp', '%d',"
+            + "    'end-timestamp', '%d'"
+            + "  ),"
+            + "  changelog_view => 'test_changelog_view'"
+            + ")",
+        catalogName, tableName, startTime, endTime);
+
+    // Query the changelog view
+    List<Object[]> results =
+        sql(
+            "SELECT * FROM test_changelog_view WHERE _change_type IN ('INSERT', 'DELETE') ORDER BY _change_ordinal");
+
+    // Verify no changes are returned since our window is after the inserts
+    // TODO: this currently fails here and returns all 4 records but should be 0 records
+    // TODO: becasue the records are not in the time range but prior to range
+    //    java.lang.AssertionError: [Num records must be zero]
+    //    Expecting empty but was: [[1, "a", "INSERT", 0, 1369318112747935444L],
+    //        [2, "b", "INSERT", 1, 8560714774500713640L],
+    //        [3, "c", "INSERT", 2, 7302500464847668500L],
+    //        [4, "d", "INSERT", 3, 7807948732874377651L]]
+    assertThat(results).as("Num records must be zero").isEmpty();
+
+
+    // Clean up the changelog view
+    sql("DROP VIEW IF EXISTS test_changelog_view");
+  }
 }
