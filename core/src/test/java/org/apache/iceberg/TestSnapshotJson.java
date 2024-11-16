@@ -243,7 +243,6 @@ public class TestSnapshotJson {
                 + "  \"snapshot-id\" : 2,\n"
                 + "  \"parent-snapshot-id\" : 1,\n"
                 + "  \"timestamp-ms\" : %s,\n"
-                + "  \"summary\" : null,\n"
                 + "  \"manifests\" : [ \"/tmp/manifest1.avro\", \"/tmp/manifest2.avro\" ],\n"
                 + "  \"schema-id\" : 3\n"
                 + "}",
