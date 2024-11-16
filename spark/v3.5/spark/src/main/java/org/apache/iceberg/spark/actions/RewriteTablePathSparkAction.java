@@ -117,7 +117,7 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   public RewriteTablePath startVersion(String sVersion) {
     Preconditions.checkArgument(
         sVersion != null && !sVersion.trim().isEmpty(),
-        "Last copied version('%s') cannot be empty.",
+        "Start version('%s') cannot be empty.",
         sVersion);
     this.startVersionName = sVersion;
     return this;
@@ -188,7 +188,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     if (endVersionName == null) {
       LOG.info("No end version specified. Will stage all files to the latest table version.");
-      Preconditions.checkNotNull(tableMetadata.metadataFileLocation());
+      Preconditions.checkNotNull(
+          tableMetadata.metadataFileLocation(), "Metadata file location should not be null");
       this.endVersionName = tableMetadata.metadataFileLocation();
     } else {
       this.endVersionName = validateVersion(tableMetadata, endVersionName);
@@ -270,7 +271,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     // rebuild version files
     RewriteResult<Snapshot> rewriteVersionResult = rewriteVersionFiles(endMetadata);
-    Set<Snapshot> diffSnapshots = getDiffSnapshotIds(startMetadata, rewriteVersionResult.toRewrite);
+    Set<Snapshot> diffSnapshots =
+        getDiffSnapshotIds(startMetadata, rewriteVersionResult.toRewrite());
 
     Set<String> manifestsToRewrite = manifestsToRewrite(diffSnapshots, startMetadata);
     Set<Snapshot> validSnapshots =
@@ -284,11 +286,11 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
     // rebuild manifest files
     Set<Pair<String, String>> contentFilesToMove =
-        rewriteManifests(endMetadata, rewriteManifestListResult.toRewrite);
+        rewriteManifests(endMetadata, rewriteManifestListResult.toRewrite());
 
     Set<Pair<String, String>> movePlan = Sets.newHashSet();
-    movePlan.addAll(rewriteVersionResult.copyPlan);
-    movePlan.addAll(rewriteManifestListResult.copyPlan);
+    movePlan.addAll(rewriteVersionResult.copyPlan());
+    movePlan.addAll(rewriteManifestListResult.copyPlan());
     movePlan.addAll(contentFilesToMove);
 
     return saveFileList(movePlan);
@@ -326,8 +328,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
   private RewriteResult<Snapshot> rewriteVersionFiles(TableMetadata endMetadata) {
     RewriteResult<Snapshot> result = new RewriteResult<>();
-    result.toRewrite.addAll(endMetadata.snapshots());
-    result.copyPlan.add(rewriteVersionFile(endMetadata, endVersionName));
+    result.toRewrite().addAll(endMetadata.snapshots());
+    result.copyPlan().add(rewriteVersionFile(endMetadata, endVersionName));
 
     List<MetadataLogEntry> versions = endMetadata.previousFiles();
     for (int i = versions.size() - 1; i >= 0; i--) {
@@ -342,8 +344,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       TableMetadata tableMetadata =
           new StaticTableOperations(versionFilePath, table.io()).current();
 
-      result.toRewrite.addAll(tableMetadata.snapshots());
-      result.copyPlan.add(rewriteVersionFile(tableMetadata, versionFilePath));
+      result.toRewrite().addAll(tableMetadata.snapshots());
+      result.copyPlan().add(rewriteVersionFile(tableMetadata, versionFilePath));
     }
 
     return result;
@@ -391,12 +393,12 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
 
         // return the ManifestFile object for subsequent rewriting
         if (manifestsToRewrite.contains(file.path())) {
-          result.toRewrite.add(file);
-          result.copyPlan.add(Pair.of(stagingPath(file.path(), stagingDir), newFile.path()));
+          result.toRewrite().add(file);
+          result.copyPlan().add(Pair.of(stagingPath(file.path(), stagingDir), newFile.path()));
         }
       }
 
-      result.copyPlan.add(Pair.of(stagingPath, newPath(path, sourcePrefix, targetPrefix)));
+      result.copyPlan().add(Pair.of(stagingPath, newPath(path, sourcePrefix, targetPrefix)));
       return result;
     } catch (IOException e) {
       throw new UncheckedIOException("Failed to rewrite the manifest list file " + path, e);
@@ -720,8 +722,8 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
   }
 
   static class RewriteResult<T> {
-    Set<T> toRewrite = Sets.newHashSet();
-    Set<Pair<String, String>> copyPlan = Sets.newHashSet();
+    private final Set<T> toRewrite = Sets.newHashSet();
+    private final Set<Pair<String, String>> copyPlan = Sets.newHashSet();
 
     RewriteResult() {}
 
@@ -730,6 +732,14 @@ public class RewriteTablePathSparkAction extends BaseSparkAction<RewriteTablePat
       toRewrite.addAll(r2.toRewrite);
       copyPlan.addAll(r1.copyPlan);
       copyPlan.addAll(r2.copyPlan);
+    }
+
+    private Set<T> toRewrite() {
+      return toRewrite;
+    }
+
+    private Set<Pair<String, String>> copyPlan() {
+      return copyPlan;
     }
   }
 }
