@@ -29,8 +29,8 @@ arrow = "15.0.2"
 avro = "1.12.0"
 assertj-core = "3.26.3"
 awaitility = "4.2.2"
-awssdk-bom = "2.29.1"
-azuresdk-bom = "1.2.28"
+awssdk-bom = "2.29.9"
+azuresdk-bom = "1.2.29"
 awssdk-s3accessgrants = "2.3.0"
 caffeine = "2.9.3"
 calcite = "1.10.0"
@@ -44,15 +44,15 @@ findbugs-jsr305 = "3.0.2"
 flink118 =  { strictly = "1.18.1"}
 flink119 =  { strictly = "1.19.0"}
 flink120 = { strictly = "1.20.0"}
-google-libraries-bom = "26.49.0"
+google-libraries-bom = "26.50.0"
 guava = "33.3.1-jre"
 hadoop2 = "2.7.3"
-hadoop3 = "3.3.6"
-httpcomponents-httpclient5 = "5.4"
+hadoop3 = "3.4.1"
+httpcomponents-httpclient5 = "5.4.1"
 hive2 = { strictly = "2.3.9"} # see rich version usage explanation above
 hive3 = "3.1.3"
 immutables-value = "2.10.1"
-jackson-bom = "2.18.0"
+jackson-bom = "2.18.1"
 jackson211 = { strictly = "2.11.4"} # see rich version usage explanation above
 jackson212 = { strictly = "2.12.3"}
 jackson213 = { strictly = "2.13.4"}
@@ -65,7 +65,7 @@ jaxb-runtime = "2.3.9"
 jetty = "11.0.24"
 junit = "5.11.3"
 junit-platform = "1.11.3"
-kafka = "3.8.0"
+kafka = "3.9.0"
 kryo-shaded = "4.0.3"
 microprofile-openapi-api = "3.1.2"
 mockito = "4.11.0"
@@ -75,12 +75,11 @@ netty-buffer = "4.1.114.Final"
 netty-buffer-compat = "4.1.114.Final"
 object-client-bundle = "3.3.2"
 orc = "1.9.4"
-parquet = "1.14.3"
-pig = "0.17.0"
+parquet = "1.13.1"
 roaringbitmap = "1.3.0"
 scala-collection-compat = "2.12.0"
 slf4j = "2.0.16"
-snowflake-jdbc = "3.19.1"
+snowflake-jdbc = "3.20.0"
 spark-hive33 = "3.3.4"
 spark-hive34 = "3.4.4"
 spark-hive35 = "3.5.2"
@@ -169,7 +168,6 @@ orc-core = { module = "org.apache.orc:orc-core", version.ref = "orc" }
 parquet-avro = { module = "org.apache.parquet:parquet-avro", version.ref = "parquet" }
 parquet-column = { module = "org.apache.parquet:parquet-column", version.ref = "parquet" }
 parquet-hadoop = { module = "org.apache.parquet:parquet-hadoop", version.ref = "parquet" }
-pig = { module = "org.apache.pig:pig", version.ref = "pig" }
 roaringbitmap = { module = "org.roaringbitmap:RoaringBitmap", version.ref = "roaringbitmap" }
 scala-collection-compat = { module = "org.scala-lang.modules:scala-collection-compat_2.13", version.ref = "scala-collection-compat"}
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }

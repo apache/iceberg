@@ -554,7 +554,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
 
   @TestTemplate
   public void testPosDeletesOnParquetFileWithMultipleRowGroups() throws IOException {
-    assumeThat(format).isEqualTo("parquet");
+    assumeThat(format).isEqualTo(FileFormat.PARQUET);
 
     String tblName = "test3";
     Table tbl = createTable(tblName, SCHEMA, PartitionSpec.unpartitioned());

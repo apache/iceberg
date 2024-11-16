@@ -22,9 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.types.Types;
@@ -55,9 +53,6 @@ public class TestTimestampPartitions extends TestBase {
             .withRecordCount(0)
             .withPartitionPath("date=2018-06-08")
             .build();
-
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
 
     this.table =
         TestTables.create(

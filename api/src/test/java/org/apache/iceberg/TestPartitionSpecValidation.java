@@ -21,6 +21,7 @@ package org.apache.iceberg;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.NestedField;
@@ -34,7 +35,8 @@ public class TestPartitionSpecValidation {
           NestedField.required(3, "another_ts", Types.TimestampType.withZone()),
           NestedField.required(4, "d", Types.TimestampType.withZone()),
           NestedField.required(5, "another_d", Types.TimestampType.withZone()),
-          NestedField.required(6, "s", Types.StringType.get()));
+          NestedField.required(6, "s", Types.StringType.get()),
+          NestedField.required(7, "v", Types.VariantType.get()));
 
   @Test
   public void testMultipleTimestampPartitions() {
@@ -311,5 +313,16 @@ public class TestPartitionSpecValidation {
     assertThat(spec.fields().get(1).fieldId()).isEqualTo(1005);
     assertThat(spec.fields().get(2).fieldId()).isEqualTo(1006);
     assertThat(spec.lastAssignedFieldId()).isEqualTo(1006);
+  }
+
+  @Test
+  public void testVariantUnsupported() {
+    assertThatThrownBy(
+            () ->
+                PartitionSpec.builderFor(SCHEMA)
+                    .add(7, 1005, "variant_partition1", Transforms.bucket(5))
+                    .build())
+        .isInstanceOf(ValidationException.class)
+        .hasMessage("Cannot partition by non-primitive source field: variant");
   }
 }

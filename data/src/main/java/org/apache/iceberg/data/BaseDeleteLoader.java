@@ -42,15 +42,20 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.io.DeleteSchemaUtil;
 import org.apache.iceberg.io.InputFile;
+import org.apache.iceberg.io.RangeReadable;
+import org.apache.iceberg.io.SeekableInputStream;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.orc.OrcRowReader;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.parquet.ParquetValueReader;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.io.ByteStreams;
 import org.apache.iceberg.relocated.com.google.common.math.LongMath;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.util.CharSequenceMap;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -143,8 +148,47 @@ public class BaseDeleteLoader implements DeleteLoader {
     }
   }
 
+  /**
+   * Loads the content of a deletion vector or position delete files for a given data file path into
+   * a position index.
+   *
+   * <p>The deletion vector is currently loaded without caching as the existing Puffin reader
+   * requires at least 3 requests to fetch the entire file. Caching a single deletion vector may
+   * only be useful when multiple data file splits are processed on the same node, which is unlikely
+   * as task locality is not guaranteed.
+   *
+   * <p>For position delete files, however, there is no efficient way to read deletes for a
+   * particular data file. Therefore, caching may be more effective as such delete files potentially
+   * apply to many data files, especially in unpartitioned tables and tables with deep partitions.
+   * If a position delete file qualifies for caching, this method will attempt to cache a position
+   * index for each referenced data file.
+   *
+   * @param deleteFiles a deletion vector or position delete files
+   * @param filePath the data file path for which to load deletes
+   * @return a position delete index for the provided data file path
+   */
   @Override
   public PositionDeleteIndex loadPositionDeletes(
+      Iterable<DeleteFile> deleteFiles, CharSequence filePath) {
+    if (ContentFileUtil.containsSingleDV(deleteFiles)) {
+      DeleteFile dv = Iterables.getOnlyElement(deleteFiles);
+      validateDV(dv, filePath);
+      return readDV(dv);
+    } else {
+      return getOrReadPosDeletes(deleteFiles, filePath);
+    }
+  }
+
+  private PositionDeleteIndex readDV(DeleteFile dv) {
+    LOG.trace("Opening DV file {}", dv.location());
+    InputFile inputFile = loadInputFile.apply(dv);
+    long offset = dv.contentOffset();
+    int length = dv.contentSizeInBytes().intValue();
+    byte[] bytes = readBytes(inputFile, offset, length);
+    return PositionDeleteIndex.deserialize(bytes, dv);
+  }
+
+  private PositionDeleteIndex getOrReadPosDeletes(
       Iterable<DeleteFile> deleteFiles, CharSequence filePath) {
     Iterable<PositionDeleteIndex> deletes =
         execute(deleteFiles, deleteFile -> getOrReadPosDeletes(deleteFile, filePath));
@@ -258,5 +302,43 @@ public class BaseDeleteLoader implements DeleteLoader {
 
   private int estimateRecordSize(Schema schema) {
     return schema.columns().stream().mapToInt(TypeUtil::estimateSize).sum();
+  }
+
+  private void validateDV(DeleteFile dv, CharSequence filePath) {
+    Preconditions.checkArgument(
+        dv.contentOffset() != null,
+        "Invalid DV, offset cannot be null: %s",
+        ContentFileUtil.dvDesc(dv));
+    Preconditions.checkArgument(
+        dv.contentSizeInBytes() != null,
+        "Invalid DV, length is null: %s",
+        ContentFileUtil.dvDesc(dv));
+    Preconditions.checkArgument(
+        dv.contentSizeInBytes() <= Integer.MAX_VALUE,
+        "Can't read DV larger than 2GB: %s",
+        dv.contentSizeInBytes());
+    Preconditions.checkArgument(
+        filePath.toString().equals(dv.referencedDataFile()),
+        "DV is expected to reference %s, not %s",
+        filePath,
+        dv.referencedDataFile());
+  }
+
+  private static byte[] readBytes(InputFile inputFile, long offset, int length) {
+    try (SeekableInputStream stream = inputFile.newStream()) {
+      byte[] bytes = new byte[length];
+
+      if (stream instanceof RangeReadable) {
+        RangeReadable rangeReadable = (RangeReadable) stream;
+        rangeReadable.readFully(offset, bytes);
+      } else {
+        stream.seek(offset);
+        ByteStreams.readFully(stream, bytes);
+      }
+
+      return bytes;
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 }

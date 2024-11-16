@@ -40,6 +40,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.CharSequenceSet;
 import org.apache.iceberg.util.StructLikeMap;
+import org.apache.iceberg.util.StructLikeUtil;
 import org.apache.iceberg.util.StructProjection;
 import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
@@ -91,7 +92,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
         .executeWith(ThreadPools.getWorkerPool())
         .throwFailureWhenFinished()
         .noRetry()
-        .run(file -> io.deleteFile(file.path().toString()));
+        .run(file -> io.deleteFile(file.location()));
   }
 
   @Override
@@ -149,7 +150,7 @@ public abstract class BaseTaskWriter<T> implements TaskWriter<T> {
       PathOffset pathOffset = PathOffset.of(dataWriter.currentPath(), dataWriter.currentRows());
 
       // Create a copied key from this row.
-      StructLike copiedKey = StructCopy.copy(structProjection.wrap(asStructLike(row)));
+      StructLike copiedKey = StructLikeUtil.copy(structProjection.wrap(asStructLike(row)));
 
       // Adding a pos-delete to replace the old path-offset.
       PathOffset previous = insertedRowMap.put(copiedKey, pathOffset);

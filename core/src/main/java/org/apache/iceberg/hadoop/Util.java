@@ -62,7 +62,7 @@ public class Util {
   public static String[] blockLocations(CombinedScanTask task, Configuration conf) {
     Set<String> locationSets = Sets.newHashSet();
     for (FileScanTask f : task.files()) {
-      Path path = new Path(f.file().path().toString());
+      Path path = new Path(f.file().location());
       try {
         FileSystem fs = path.getFileSystem(conf);
         for (BlockLocation b : fs.getFileBlockLocations(path, f.start(), f.length())) {
@@ -104,7 +104,7 @@ public class Util {
   }
 
   private static String[] blockLocations(FileIO io, ContentScanTask<?> task) {
-    String location = task.file().path().toString();
+    String location = task.file().location();
     if (usesHadoopFileIO(io, location)) {
       InputFile inputFile = io.newInputFile(location);
       if (inputFile instanceof HadoopInputFile) {

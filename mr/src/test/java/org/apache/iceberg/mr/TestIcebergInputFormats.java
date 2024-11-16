@@ -223,8 +223,6 @@ public class TestIcebergInputFormats {
         .hasMessage(
             "Filter expression ref(name=\"id\") == 0 is not completely satisfied. Additional rows can be returned not satisfied by the filter expression");
 
-    builder.usePigTuples();
-
     assertThatThrownBy(() -> testInputFormat.create(builder.conf()))
         .isInstanceOf(UnsupportedOperationException.class)
         .hasMessage(

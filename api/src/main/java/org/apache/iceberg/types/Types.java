@@ -412,6 +412,41 @@ public class Types {
     }
   }
 
+  public static class VariantType implements Type {
+    private static final VariantType INSTANCE = new VariantType();
+
+    public static VariantType get() {
+      return INSTANCE;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.VARIANT;
+    }
+
+    @Override
+    public String toString() {
+      return "variant";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (this == o) {
+        return true;
+      } else if (!(o instanceof VariantType)) {
+        return false;
+      }
+
+      VariantType that = (VariantType) o;
+      return typeId() == that.typeId();
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(VariantType.class, typeId());
+    }
+  }
+
   public static class DecimalType extends PrimitiveType {
     public static DecimalType of(int precision, int scale) {
       return new DecimalType(precision, scale);

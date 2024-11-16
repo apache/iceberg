@@ -226,6 +226,13 @@ public class S3FileIOProperties implements Serializable {
   public static final String SESSION_TOKEN = "s3.session-token";
 
   /**
+   * Configure the expiration time in millis of the static session token used to access S3FileIO.
+   * This expiration time is currently only used in {@link VendedCredentialsProvider} for refreshing
+   * vended credentials.
+   */
+  static final String SESSION_TOKEN_EXPIRES_AT_MS = "s3.session-token-expires-at-ms";
+
+  /**
    * Enable to make S3FileIO, to make cross-region call to the region specified in the ARN of an
    * access point.
    *

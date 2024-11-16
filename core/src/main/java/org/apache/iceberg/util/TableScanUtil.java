@@ -25,7 +25,6 @@ import java.util.function.Function;
 import org.apache.iceberg.BaseCombinedScanTask;
 import org.apache.iceberg.BaseScanTaskGroup;
 import org.apache.iceberg.CombinedScanTask;
-import org.apache.iceberg.ContentFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MergeableScanTask;
@@ -92,8 +91,7 @@ public class TableScanUtil {
     Function<FileScanTask, Long> weightFunc =
         file ->
             Math.max(
-                file.length()
-                    + file.deletes().stream().mapToLong(ContentFile::fileSizeInBytes).sum(),
+                file.length() + ScanTaskUtil.contentSizeInBytes(file.deletes()),
                 (1 + file.deletes().size()) * openFileCost);
 
     return CloseableIterable.transform(

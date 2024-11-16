@@ -62,12 +62,12 @@ public class TestScanTaskSerialization extends TestBase {
           optional(3, "c3", Types.StringType.get()));
 
   @TempDir private Path temp;
+  @TempDir private File tableDir;
 
   private String tableLocation = null;
 
   @BeforeEach
   public void setupTableLocation() throws Exception {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
     this.tableLocation = tableDir.toURI().toString();
   }
 

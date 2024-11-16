@@ -3466,11 +3466,6 @@ components:
         ## General Configurations
 
         - `token`: Authorization bearer token to use for view requests if OAuth2 security is enabled
-
-        ## Storage Credentials
-
-        Credentials for ADLS / GCS / S3 / ... are provided through the `storage-credentials` field.
-        Clients must first check whether the respective credentials exist in the `storage-credentials` field before checking the `config` for credentials.
       type: object
       required:
         - metadata-location
@@ -3484,10 +3479,6 @@ components:
           type: object
           additionalProperties:
             type: string
-        storage-credentials:
-          type: array
-          items:
-            $ref: '#/components/schemas/StorageCredential'
 
     TokenType:
       type: string
@@ -4141,6 +4132,7 @@ components:
         - avro
         - orc
         - parquet
+        - puffin
 
     ContentFile:
       discriminator:
@@ -4250,6 +4242,14 @@ components:
         content:
           type: string
           enum: [ "position-deletes" ]
+        content-offset:
+          type: integer
+          format: int64
+          description: Offset within the delete file of delete content
+        content-size-in-bytes:
+          type: integer
+          format: int64
+          description: Length, in bytes, of the delete content; required if content-offset is present
 
     EqualityDeleteFile:
       allOf:

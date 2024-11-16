@@ -48,11 +48,13 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.util.CharSequenceSet;
+import org.apache.iceberg.util.ContentFileUtil;
 import org.apache.iceberg.util.DataFileSet;
 import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.PartitionSet;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.iceberg.util.Tasks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,6 +72,9 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   // delete files can be added in "overwrite" or "delete" operations
   private static final Set<String> VALIDATE_ADDED_DELETE_FILES_OPERATIONS =
       ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE);
+  // DVs can be added in "overwrite", "delete", and "replace" operations
+  private static final Set<String> VALIDATE_ADDED_DVS_OPERATIONS =
+      ImmutableSet.of(DataOperations.OVERWRITE, DataOperations.DELETE, DataOperations.REPLACE);
 
   private final String tableName;
   private final TableOperations ops;
@@ -83,6 +88,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
   private final Map<Integer, DataFileSet> newDataFilesBySpec = Maps.newHashMap();
   private Long newDataFilesDataSequenceNumber;
   private final Map<Integer, DeleteFileSet> newDeleteFilesBySpec = Maps.newHashMap();
+  private final Set<String> newDVRefs = Sets.newHashSet();
   private final List<ManifestFile> appendManifests = Lists.newArrayList();
   private final List<ManifestFile> rewrittenAppendManifests = Lists.newArrayList();
   private final SnapshotSummary.Builder addedFilesSummary = SnapshotSummary.builder();
@@ -245,13 +251,13 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file) {
-    Preconditions.checkNotNull(file, "Invalid delete file: null");
+    validateNewDeleteFile(file);
     add(new PendingDeleteFile(file));
   }
 
   /** Add a delete file to the new snapshot. */
   protected void add(DeleteFile file, long dataSequenceNumber) {
-    Preconditions.checkNotNull(file, "Invalid delete file: null");
+    validateNewDeleteFile(file);
     add(new PendingDeleteFile(file, dataSequenceNumber));
   }
 
@@ -268,7 +274,37 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     if (deleteFiles.add(file)) {
       addedFilesSummary.addedFile(spec, file);
       hasNewDeleteFiles = true;
+      if (ContentFileUtil.isDV(file)) {
+        newDVRefs.add(file.referencedDataFile());
+      }
     }
+  }
+
+  protected void validateNewDeleteFile(DeleteFile file) {
+    Preconditions.checkNotNull(file, "Invalid delete file: null");
+    switch (formatVersion()) {
+      case 1:
+        throw new IllegalArgumentException("Deletes are supported in V2 and above");
+      case 2:
+        Preconditions.checkArgument(
+            file.content() == FileContent.EQUALITY_DELETES || !ContentFileUtil.isDV(file),
+            "Must not use DVs for position deletes in V2: %s",
+            ContentFileUtil.dvDesc(file));
+        break;
+      case 3:
+        Preconditions.checkArgument(
+            file.content() == FileContent.EQUALITY_DELETES || ContentFileUtil.isDV(file),
+            "Must use DVs for position deletes in V%s: %s",
+            formatVersion(),
+            file.location());
+        break;
+      default:
+        throw new IllegalArgumentException("Unsupported format version: " + formatVersion());
+    }
+  }
+
+  private int formatVersion() {
+    return ops.current().formatVersion();
   }
 
   /** Add all files in a manifest to the new snapshot. */
@@ -319,7 +355,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             "Found conflicting files that can contain records matching partitions %s: %s",
             partitionSet,
             Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -350,7 +386,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             "Found conflicting files that can contain records matching %s: %s",
             conflictDetectionFilter,
             Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -514,7 +550,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         deletes.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
         dataFilter,
-        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::location));
   }
 
   /**
@@ -534,7 +570,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         deletes.isEmpty(),
         "Found new conflicting delete files that can apply to records matching %s: %s",
         partitionSet,
-        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::path));
+        Iterables.transform(deletes.referencedDeleteFiles(), ContentFile::location));
   }
 
   /**
@@ -592,7 +628,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             "Found conflicting deleted files that can contain records matching %s: %s",
             dataFilter,
             Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -621,7 +657,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
             "Found conflicting deleted files that can apply to records matching %s: %s",
             partitionSet,
             Iterators.toString(
-                Iterators.transform(conflicts, entry -> entry.file().path().toString())));
+                Iterators.transform(conflicts, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -747,7 +783,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
                 entry ->
                     entry.status() != ManifestEntry.Status.ADDED
                         && newSnapshots.contains(entry.snapshotId())
-                        && requiredDataFiles.contains(entry.file().path()))
+                        && requiredDataFiles.contains(entry.file().location()))
             .specsById(base.specsById())
             .ignoreExisting();
 
@@ -761,7 +797,7 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
         throw new ValidationException(
             "Cannot commit, missing data files: %s",
             Iterators.toString(
-                Iterators.transform(deletes, entry -> entry.file().path().toString())));
+                Iterators.transform(deletes, entry -> entry.file().location().toString())));
       }
 
     } catch (IOException e) {
@@ -769,6 +805,58 @@ abstract class MergingSnapshotProducer<ThisT> extends SnapshotProducer<ThisT> {
     }
   }
 
+  // validates there are no concurrently added DVs for referenced data files
+  protected void validateAddedDVs(
+      TableMetadata base,
+      Long startingSnapshotId,
+      Expression conflictDetectionFilter,
+      Snapshot parent) {
+    // skip if there is no current table state or this operation doesn't add new DVs
+    if (parent == null || newDVRefs.isEmpty()) {
+      return;
+    }
+
+    Pair<List<ManifestFile>, Set<Long>> history =
+        validationHistory(
+            base,
+            startingSnapshotId,
+            VALIDATE_ADDED_DVS_OPERATIONS,
+            ManifestContent.DELETES,
+            parent);
+    List<ManifestFile> newDeleteManifests = history.first();
+    Set<Long> newSnapshotIds = history.second();
+
+    Tasks.foreach(newDeleteManifests)
+        .stopOnFailure()
+        .throwFailureWhenFinished()
+        .executeWith(workerPool())
+        .run(manifest -> validateAddedDVs(manifest, conflictDetectionFilter, newSnapshotIds));
+  }
+
+  private void validateAddedDVs(
+      ManifestFile manifest, Expression conflictDetectionFilter, Set<Long> newSnapshotIds) {
+    try (CloseableIterable<ManifestEntry<DeleteFile>> entries =
+        ManifestFiles.readDeleteManifest(manifest, ops.io(), ops.current().specsById())
+            .filterRows(conflictDetectionFilter)
+            .caseSensitive(caseSensitive)
+            .liveEntries()) {
+
+      for (ManifestEntry<DeleteFile> entry : entries) {
+        DeleteFile file = entry.file();
+        if (newSnapshotIds.contains(entry.snapshotId()) && ContentFileUtil.isDV(file)) {
+          ValidationException.check(
+              !newDVRefs.contains(file.referencedDataFile()),
+              "Found concurrently added DV for %s: %s",
+              file.referencedDataFile(),
+              ContentFileUtil.dvDesc(file));
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  // returns newly added manifests and snapshot IDs between the starting and parent snapshots
   private Pair<List<ManifestFile>, Set<Long>> validationHistory(
       TableMetadata base,
       Long startingSnapshotId,

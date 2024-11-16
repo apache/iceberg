@@ -141,7 +141,7 @@ public class BaseOverwriteFiles extends MergingSnapshotProducer<OverwriteFiles>
                 && (strict.eval(file.partition()) || metrics.eval(file)),
             "Cannot append file with rows that do not match filter: %s: %s",
             rowFilter,
-            file.path());
+            file.location());
       }
     }
 

@@ -186,7 +186,7 @@ public abstract class ScanPlanningAndReportingTestBase<
             reporter);
 
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_C).commit();
-    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_B_DELETES).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).addDeletes(fileBDeletes()).commit();
     ScanT tableScan = newScan(table);
 
     try (CloseableIterable<T> fileScanTasks = tableScan.planFiles()) {
@@ -208,12 +208,19 @@ public abstract class ScanPlanningAndReportingTestBase<
     assertThat(result.totalDataManifests().value()).isEqualTo(1);
     assertThat(result.totalDeleteManifests().value()).isEqualTo(1);
     assertThat(result.totalFileSizeInBytes().value()).isEqualTo(30L);
-    assertThat(result.totalDeleteFileSizeInBytes().value()).isEqualTo(20L);
+    assertThat(result.totalDeleteFileSizeInBytes().value())
+        .isEqualTo(contentSize(fileADeletes(), fileBDeletes()));
     assertThat(result.skippedDataFiles().value()).isEqualTo(0);
     assertThat(result.skippedDeleteFiles().value()).isEqualTo(0);
     assertThat(result.indexedDeleteFiles().value()).isEqualTo(2);
     assertThat(result.equalityDeleteFiles().value()).isEqualTo(0);
-    assertThat(result.positionalDeleteFiles().value()).isEqualTo(2);
+    if (formatVersion == 2) {
+      assertThat(result.positionalDeleteFiles().value()).isEqualTo(2);
+      assertThat(result.dvs().value()).isEqualTo(0);
+    } else {
+      assertThat(result.positionalDeleteFiles().value()).isEqualTo(0);
+      assertThat(result.dvs().value()).isEqualTo(2);
+    }
   }
 
   @TestTemplate
@@ -234,7 +241,7 @@ public abstract class ScanPlanningAndReportingTestBase<
     }
     assertThat(fileTasks)
         .singleElement()
-        .satisfies(task -> assertThat(task.file().path()).isEqualTo(FILE_D.path()));
+        .satisfies(task -> assertThat(task.file().location()).isEqualTo(FILE_D.location()));
 
     ScanReport scanReport = reporter.lastReport();
     assertThat(scanReport).isNotNull();
@@ -264,8 +271,8 @@ public abstract class ScanPlanningAndReportingTestBase<
             tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
     table.newAppend().appendFile(FILE_A).appendFile(FILE_B).appendFile(FILE_D).commit();
     table.newOverwrite().deleteFile(FILE_A).addFile(FILE_A2).commit();
-    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_D2_DELETES).commit();
-    table.newRowDelta().addDeletes(FILE_B_DELETES).addDeletes(FILE_C2_DELETES).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).addDeletes(FILE_D2_DELETES).commit();
+    table.newRowDelta().addDeletes(fileBDeletes()).addDeletes(FILE_C2_DELETES).commit();
     ScanT tableScan = newScan(table);
 
     List<FileScanTask> fileTasks = Lists.newArrayList();
@@ -308,7 +315,7 @@ public abstract class ScanPlanningAndReportingTestBase<
             tableDir, tableName, SCHEMA, SPEC, SortOrder.unsorted(), formatVersion, reporter);
     table.newAppend().appendFile(FILE_A).commit();
     // FILE_A_DELETES = positionalDelete / FILE_A2_DELETES = equalityDelete
-    table.newRowDelta().addDeletes(FILE_A_DELETES).addDeletes(FILE_A2_DELETES).commit();
+    table.newRowDelta().addDeletes(fileADeletes()).addDeletes(FILE_A2_DELETES).commit();
     ScanT tableScan = newScan(table);
 
     try (CloseableIterable<T> fileScanTasks =
@@ -321,7 +328,13 @@ public abstract class ScanPlanningAndReportingTestBase<
     ScanMetricsResult result = scanReport.scanMetrics();
     assertThat(result.indexedDeleteFiles().value()).isEqualTo(2);
     assertThat(result.equalityDeleteFiles().value()).isEqualTo(1);
-    assertThat(result.positionalDeleteFiles().value()).isEqualTo(1);
+    if (formatVersion == 2) {
+      assertThat(result.positionalDeleteFiles().value()).isEqualTo(1);
+      assertThat(result.dvs().value()).isEqualTo(0);
+    } else {
+      assertThat(result.positionalDeleteFiles().value()).isEqualTo(0);
+      assertThat(result.dvs().value()).isEqualTo(1);
+    }
   }
 
   static class TestMetricsReporter implements MetricsReporter {

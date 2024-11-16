@@ -19,6 +19,7 @@
 package org.apache.iceberg.transforms;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
@@ -154,5 +155,22 @@ public class TestIdentity {
     assertThat(identity.toHumanString(decimal, bigDecimal))
         .as("Should not modify Strings")
         .isEqualTo(decimalString);
+  }
+
+  @Test
+  public void testVariantUnsupported() {
+    assertThatThrownBy(() -> Transforms.identity().bind(Types.VariantType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Cannot bind to unsupported type: variant");
+
+    assertThatThrownBy(() -> Transforms.fromString(Types.VariantType.get(), "identity"))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type for identity: variant");
+
+    assertThatThrownBy(() -> Transforms.identity(Types.VariantType.get()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type for identity: variant");
+
+    assertThat(Transforms.identity().canTransform(Types.VariantType.get())).isFalse();
   }
 }

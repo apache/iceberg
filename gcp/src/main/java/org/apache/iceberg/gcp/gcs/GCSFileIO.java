@@ -20,6 +20,7 @@ package org.apache.iceberg.gcp.gcs;
 
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.OAuth2Credentials;
+import com.google.auth.oauth2.OAuth2CredentialsWithRefresh;
 import com.google.cloud.NoCredentials;
 import com.google.cloud.storage.Blob;
 import com.google.cloud.storage.BlobId;
@@ -156,7 +157,16 @@ public class GCSFileIO implements DelegateFileIO {
                     // Explicitly configure an OAuth token.
                     AccessToken accessToken =
                         new AccessToken(token, gcpProperties.oauth2TokenExpiresAt().orElse(null));
-                    builder.setCredentials(OAuth2Credentials.create(accessToken));
+                    if (gcpProperties.oauth2RefreshCredentialsEnabled()
+                        && gcpProperties.oauth2RefreshCredentialsEndpoint().isPresent()) {
+                      builder.setCredentials(
+                          OAuth2CredentialsWithRefresh.newBuilder()
+                              .setAccessToken(accessToken)
+                              .setRefreshHandler(OAuth2RefreshCredentialsHandler.create(properties))
+                              .build());
+                    } else {
+                      builder.setCredentials(OAuth2Credentials.create(accessToken));
+                    }
                   });
 
           return builder.build().getService();

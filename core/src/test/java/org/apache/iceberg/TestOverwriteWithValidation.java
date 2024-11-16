@@ -30,11 +30,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assumptions.assumeThat;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -201,8 +199,6 @@ public class TestOverwriteWithValidation extends TestBase {
 
   @BeforeEach
   public void before() throws IOException {
-    File tableDir = Files.createTempDirectory(temp, "junit").toFile();
-    assertThat(tableDir.delete()).isTrue();
     this.table =
         TestTables.create(tableDir, TABLE_NAME, DATE_SCHEMA, PARTITION_SPEC, formatVersion);
   }
