@@ -19,8 +19,8 @@
 package org.apache.iceberg.spark.actions;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.File;
 import java.io.IOException;
@@ -64,7 +64,6 @@ import org.apache.spark.sql.Encoder;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -153,7 +152,7 @@ public class TestRewriteTablePathsAction extends TestBase {
             .select("file_path")
             .as(Encoders.STRING())
             .collectAsList();
-    Assertions.assertEquals(2, validDataFiles.size(), "Should be 2 valid data files");
+    assertThat(validDataFiles.size()).isEqualTo(2);
 
     RewriteTablePath.Result result =
         actions()
@@ -162,8 +161,7 @@ public class TestRewriteTablePathsAction extends TestBase {
             .endVersion("v3.metadata.json")
             .execute();
 
-    Assertions.assertEquals(
-        "v3.metadata.json", result.latestVersion(), "The latest version should be");
+    assertThat(result.latestVersion()).isEqualTo("v3.metadata.json");
 
     checkFileNum(3, 2, 2, 9, result);
 
@@ -179,10 +177,9 @@ public class TestRewriteTablePathsAction extends TestBase {
             .select("file_path")
             .as(Encoders.STRING())
             .collectAsList();
-    Assertions.assertEquals(2, validDataFilesAfterRebuilt.size(), "Should be 2 valid data files");
+    assertThat(validDataFilesAfterRebuilt.size()).isEqualTo(2);
     for (String item : validDataFilesAfterRebuilt) {
-      assertTrue(
-          item.startsWith(targetTableLocation), "Data file should point to the new location");
+      assertThat(item).startsWith(targetTableLocation);
     }
 
     // verify data rows
@@ -194,20 +191,20 @@ public class TestRewriteTablePathsAction extends TestBase {
     expectedRecords.add(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
     expectedRecords.add(new ThreeColumnRecord(1, "AAAAAAAAAA", "AAAA"));
 
-    Assertions.assertEquals(expectedRecords, actualRecords, "Rows must match");
+    assertThat(expectedRecords).isEqualTo(actualRecords);
   }
 
   @Test
   public void testSameLocations() throws Exception {
-    assertThrows(
-        IllegalArgumentException.class,
-        () ->
-            actions()
-                .rewriteTablePath(table)
-                .rewriteLocationPrefix(tableLocation, tableLocation)
-                .endVersion("v1.metadata.json")
-                .execute(),
-        "Source prefix cannot be the same as target prefix");
+    assertThatThrownBy(
+            () ->
+                actions()
+                    .rewriteTablePath(table)
+                    .rewriteLocationPrefix(tableLocation, tableLocation)
+                    .endVersion("v1.metadata.json")
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Source prefix cannot be the same as target prefix");
   }
 
   @Test
@@ -224,16 +221,14 @@ public class TestRewriteTablePathsAction extends TestBase {
     List<Tuple2<String, String>> paths = readPathPairList(result.fileListLocation());
 
     String currentSnapshotId = String.valueOf(table.currentSnapshot().snapshotId());
-    Assertions.assertEquals(
-        1,
-        paths.stream().filter(c -> c._2().contains(currentSnapshotId)).count(),
-        "Should have the current snapshot file");
+    assertThat(paths.stream().filter(c -> c._2().contains(currentSnapshotId)).count())
+        .withFailMessage("Should have the current snapshot file")
+        .isEqualTo(1);
 
     String parentSnapshotId = String.valueOf(table.currentSnapshot().parentId());
-    Assertions.assertEquals(
-        0,
-        paths.stream().filter(c -> c._2().contains(parentSnapshotId)).count(),
-        "Should NOT have the parent snapshot file");
+    assertThat(paths.stream().filter(c -> c._2().contains(parentSnapshotId)).count())
+        .withFailMessage("Should NOT have the parent snapshot file")
+        .isEqualTo(0);
   }
 
   @Test
@@ -299,10 +294,9 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     // verify data rows
     Dataset<Row> resultDF = spark.read().format("iceberg").load(targetTableLocation());
-    Assertions.assertEquals(
-        1,
-        resultDF.as(Encoders.bean(ThreeColumnRecord.class)).count(),
-        "There are only one row left since we deleted a data file");
+    assertThat(resultDF.as(Encoders.bean(ThreeColumnRecord.class)).count())
+        .withFailMessage("There are only one row left since we deleted a data file")
+        .isEqualTo(1);
   }
 
   @Test
@@ -321,7 +315,7 @@ public class TestRewriteTablePathsAction extends TestBase {
 
     table.newRowDelta().addDeletes(positionDeletes).commit();
 
-    Assertions.assertEquals(1, spark.read().format("iceberg").load(table.location()).count());
+    assertThat(spark.read().format("iceberg").load(table.location()).count()).isEqualTo(1);
 
     RewriteTablePath.Result result =
         actions()
@@ -338,7 +332,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     copyTableFiles(result);
 
     // Positional delete affects a single row, so only one row must remain
-    Assertions.assertEquals(1, spark.read().format("iceberg").load(targetTableLocation()).count());
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(1);
   }
 
   @Test
@@ -392,7 +386,7 @@ public class TestRewriteTablePathsAction extends TestBase {
     copyTableFiles(result);
 
     // Equality deletes affect three rows, so just two rows must remain
-    Assertions.assertEquals(2, spark.read().format("iceberg").load(targetTableLocation()).count());
+    assertThat(spark.read().format("iceberg").load(targetTableLocation()).count()).isEqualTo(2);
   }
 
   @Test
@@ -461,8 +455,9 @@ public class TestRewriteTablePathsAction extends TestBase {
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
 
-    Assertions.assertEquals(
-        1, ((List) table.snapshots()).size(), "1 out 2 snapshot has been removed");
+    assertThat(((List) table.snapshots()).size())
+        .withFailMessage("1 out 2 snapshot has been removed")
+        .isEqualTo(1);
 
     RewriteTablePath.Result result =
         actions()
@@ -499,16 +494,19 @@ public class TestRewriteTablePathsAction extends TestBase {
     // expire one snapshot
     actions().expireSnapshots(table).expireSnapshotId(table.currentSnapshot().parentId()).execute();
 
-    Assertions.assertThrows(
-        UnsupportedOperationException.class,
-        () ->
-            actions()
-                .rewriteTablePath(table)
-                .rewriteLocationPrefix(table.location(), newTableLocation())
-                .stagingLocation(stagingLocation())
-                .endVersion("v3.metadata.json")
-                .execute(),
-        "Copy a version with invalid snapshots aren't allowed");
+    assertThatThrownBy(
+            () ->
+                actions()
+                    .rewriteTablePath(table)
+                    .rewriteLocationPrefix(table.location(), newTableLocation())
+                    .stagingLocation(stagingLocation())
+                    .endVersion("v3.metadata.json")
+                    .execute())
+        .isInstanceOf(UnsupportedOperationException.class)
+        .hasMessageContaining(
+            "Failed to build the manifest files dataframe, "
+                + "the end version you are trying to copy may contain invalid snapshots, "
+                + "please a younger version that doesn't have invalid snapshots");
   }
 
   @Test
@@ -628,40 +626,33 @@ public class TestRewriteTablePathsAction extends TestBase {
   public void testInvalidArgs() {
     RewriteTablePath actions = actions().rewriteTablePath(table);
 
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> actions.rewriteLocationPrefix("", null),
-        "Source prefix('') cannot be empty");
+    assertThatThrownBy(() -> actions.rewriteLocationPrefix("", null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Source prefix('') cannot be empty");
 
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> actions.rewriteLocationPrefix(null, null),
-        "Source prefix('null') cannot be empty");
+    assertThatThrownBy(() -> actions.rewriteLocationPrefix(null, null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Source prefix('null') cannot be empty");
 
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> actions.stagingLocation(""),
-        "Staging location('') cannot be empty");
+    assertThatThrownBy(() -> actions.stagingLocation(""))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Staging location('') cannot be empty");
 
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> actions.stagingLocation(null),
-        "Staging location('null') cannot be empty");
+    assertThatThrownBy(() -> actions.stagingLocation(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Staging location('null') cannot be empty");
 
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> actions.startVersion(null),
-        "Start version('null') cannot be empty");
+    assertThatThrownBy(() -> actions.startVersion(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Start version('null') cannot be empty");
 
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> actions.endVersion(" "),
-        "End version cannot be empty");
+    assertThatThrownBy(() -> actions.endVersion(" "))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("End version(' ') cannot be empty");
 
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> actions.endVersion(null),
-        "End version cannot be empty");
+    assertThatThrownBy(() -> actions.endVersion(null))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("End version('null') cannot be empty");
   }
 
   @Test
@@ -685,15 +676,14 @@ public class TestRewriteTablePathsAction extends TestBase {
     OutputFile file = sourceTable.io().newOutputFile(metadata.metadataFileLocation());
     TableMetadataParser.overwrite(withStatistics, file);
 
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> {
-          actions()
-              .rewriteTablePath(sourceTable)
-              .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
-              .execute();
-        },
-        "Should fail to copy a table with the statistics field");
+    assertThatThrownBy(
+            () ->
+                actions()
+                    .rewriteTablePath(sourceTable)
+                    .rewriteLocationPrefix(sourceTableLocation, targetTableLocation())
+                    .execute())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Statistic files are not supported yet");
   }
 
   @Test
@@ -812,7 +802,7 @@ public class TestRewriteTablePathsAction extends TestBase {
                 .sort("c1", "c2", "c3")
                 .collectAsList());
     // two rows
-    Assertions.assertEquals(2, originalData.size());
+    assertThat(originalData.size()).isEqualTo(2);
 
     // copy table and check the results
     RewriteTablePath.Result result =
@@ -857,19 +847,16 @@ public class TestRewriteTablePathsAction extends TestBase {
             .load(result.fileListLocation())
             .as(Encoders.STRING())
             .collectAsList();
-    Assertions.assertEquals(totalCount, filesToMove.size(), "Wrong total file count");
-    Assertions.assertEquals(
-        versionFileCount,
-        filesToMove.stream().filter(f -> f.endsWith(".metadata.json")).count(),
-        "Wrong rebuilt version file count");
-    Assertions.assertEquals(
-        manifestListCount,
-        filesToMove.stream().filter(f -> f.contains("snap-")).count(),
-        "Wrong rebuilt Manifest list file count");
-    Assertions.assertEquals(
-        manifestFileCount,
-        filesToMove.stream().filter(f -> f.endsWith("-m0.avro")).count(),
-        "Wrong rebuilt Manifest file file count");
+    assertThat(filesToMove.size()).withFailMessage("Wrong total file count").isEqualTo(totalCount);
+    assertThat(filesToMove.stream().filter(f -> f.endsWith(".metadata.json")).count())
+        .withFailMessage("Wrong rebuilt version file count")
+        .isEqualTo(versionFileCount);
+    assertThat(filesToMove.stream().filter(f -> f.contains("snap-")).count())
+        .withFailMessage("Wrong rebuilt Manifest list file count")
+        .isEqualTo(manifestListCount);
+    assertThat(filesToMove.stream().filter(f -> f.endsWith("-m0.avro")).count())
+        .withFailMessage("Wrong rebuilt Manifest file file count")
+        .isEqualTo(manifestFileCount);
   }
 
   protected String newTableLocation() throws IOException {
