@@ -38,6 +38,8 @@ import org.apache.iceberg.util.Pair;
 
 public class RewriteTablePathUtil {
 
+  private RewriteTablePathUtil() {}
+
   public static List<Pair<String, String>> rewriteManifest(
       FileIO io,
       int format,
