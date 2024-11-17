@@ -37,7 +37,7 @@ public class TestGenericReaderDeletes extends DeleteReadTests {
 
   @Override
   protected Table createTable(String name, Schema schema, PartitionSpec spec) throws IOException {
-    return TestTables.create(tableDir, name, schema, spec, 2);
+    return TestTables.create(tableDir, name, schema, spec, formatVersion);
   }
 
   @Override

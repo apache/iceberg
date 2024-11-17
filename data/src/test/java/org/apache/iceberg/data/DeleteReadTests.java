@@ -19,6 +19,7 @@
 package org.apache.iceberg.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.File;
 import java.io.IOException;
@@ -82,12 +83,16 @@ public abstract class DeleteReadTests {
 
   @Parameter protected FileFormat format;
 
+  @Parameter(index = 1)
+  protected int formatVersion;
+
   @Parameters(name = "fileFormat = {0}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {FileFormat.PARQUET},
-      new Object[] {FileFormat.AVRO},
-      new Object[] {FileFormat.ORC}
+      new Object[] {FileFormat.PARQUET, 2},
+      new Object[] {FileFormat.AVRO, 2},
+      new Object[] {FileFormat.ORC, 2},
+      new Object[] {FileFormat.PARQUET, 3},
     };
   }
 
@@ -384,7 +389,8 @@ public abstract class DeleteReadTests {
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             Row.of(0),
-            deletes);
+            deletes,
+            formatVersion);
 
     table
         .newRowDelta()
@@ -401,6 +407,10 @@ public abstract class DeleteReadTests {
 
   @TestTemplate
   public void testMultiplePosDeleteFiles() throws IOException {
+    assumeThat(formatVersion)
+        .as("Can't write multiple delete files with formatVersion >= 3")
+        .isEqualTo(2);
+
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
             Pair.of(dataFile.path(), 0L), // id = 29
@@ -412,7 +422,8 @@ public abstract class DeleteReadTests {
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             Row.of(0),
-            deletes);
+            deletes,
+            formatVersion);
 
     table
         .newRowDelta()
@@ -420,17 +431,15 @@ public abstract class DeleteReadTests {
         .validateDataFilesExist(posDeletes.second())
         .commit();
 
-    deletes =
-        Lists.newArrayList(
-            Pair.of(dataFile.path(), 6L) // id = 122
-            );
+    deletes = Lists.newArrayList(Pair.of(dataFile.path(), 6L)); // id = 122
 
     posDeletes =
         FileHelpers.writeDeleteFile(
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             Row.of(0),
-            deletes);
+            deletes,
+            formatVersion);
 
     table
         .newRowDelta()
@@ -475,7 +484,8 @@ public abstract class DeleteReadTests {
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             Row.of(0),
-            deletes);
+            deletes,
+            formatVersion);
 
     table
         .newRowDelta()
