@@ -100,19 +100,21 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
   protected static SparkSession spark = null;
   protected static HiveCatalog catalog = null;
 
-  @Parameter(index = 1)
+  @Parameter(index = 2)
   private boolean vectorized;
 
-  @Parameter(index = 2)
+  @Parameter(index = 3)
   private PlanningMode planningMode;
 
-  @Parameters(name = "format = {0}, vectorized = {1}, planningMode = {2}")
+  @Parameters(name = "fileFormat = {0}, formatVersion = {1}, vectorized = {2}, planningMode = {3}")
   public static Object[][] parameters() {
     return new Object[][] {
-      new Object[] {FileFormat.PARQUET, false, PlanningMode.DISTRIBUTED},
-      new Object[] {FileFormat.PARQUET, true, PlanningMode.LOCAL},
-      new Object[] {FileFormat.ORC, false, PlanningMode.DISTRIBUTED},
-      new Object[] {FileFormat.AVRO, false, PlanningMode.LOCAL}
+      new Object[] {FileFormat.PARQUET, 2, false, PlanningMode.DISTRIBUTED},
+      new Object[] {FileFormat.PARQUET, 2, true, PlanningMode.LOCAL},
+      new Object[] {FileFormat.ORC, 2, false, PlanningMode.DISTRIBUTED},
+      new Object[] {FileFormat.AVRO, 2, false, PlanningMode.LOCAL},
+      new Object[] {FileFormat.PARQUET, 3, false, PlanningMode.DISTRIBUTED},
+      new Object[] {FileFormat.PARQUET, 3, true, PlanningMode.LOCAL},
     };
   }
 
@@ -171,6 +173,7 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
         .set(TableProperties.DEFAULT_FILE_FORMAT, format.name())
         .set(TableProperties.DATA_PLANNING_MODE, planningMode.modeName())
         .set(TableProperties.DELETE_PLANNING_MODE, planningMode.modeName())
+        .set(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion))
         .commit();
     if (format.equals(FileFormat.PARQUET) || format.equals(FileFormat.ORC)) {
       String vectorizationEnabled =
@@ -351,7 +354,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             TestHelpers.Row.of(0),
-            deletes);
+            deletes,
+            formatVersion);
 
     table
         .newRowDelta()
@@ -383,7 +387,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             TestHelpers.Row.of(0),
-            deletes);
+            deletes,
+            formatVersion);
 
     table
         .newRowDelta()
@@ -459,7 +464,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             TestHelpers.Row.of(0),
-            deletes);
+            deletes,
+            formatVersion);
 
     table
         .newRowDelta()
@@ -491,7 +497,8 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             table,
             Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
             TestHelpers.Row.of(0),
-            deletes);
+            deletes,
+            formatVersion);
 
     table
         .newRowDelta()
@@ -613,7 +620,10 @@ public class TestSparkReaderDeletes extends DeleteReadTests {
             Pair.of(dataFile.path(), 109L));
     Pair<DeleteFile, CharSequenceSet> posDeletes =
         FileHelpers.writeDeleteFile(
-            table, Files.localOutput(File.createTempFile("junit", null, temp.toFile())), deletes);
+            table,
+            Files.localOutput(File.createTempFile("junit", null, temp.toFile())),
+            deletes,
+            formatVersion);
     tbl.newRowDelta()
         .addDeletes(posDeletes.first())
         .validateDataFilesExist(posDeletes.second())

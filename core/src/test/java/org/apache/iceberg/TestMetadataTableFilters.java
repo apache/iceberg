@@ -396,8 +396,8 @@ public class TestMetadataTableFilters extends TestBase {
             .withPartitionPath("id=11")
             .build();
 
-    DeleteFile delete10 = posDelete(table, data10);
-    DeleteFile delete11 = posDelete(table, data11);
+    DeleteFile delete10 = newDeletes(data10);
+    DeleteFile delete11 = newDeletes(data11);
 
     table.newFastAppend().appendFile(data10).commit();
     table.newFastAppend().appendFile(data11).commit();
@@ -439,12 +439,6 @@ public class TestMetadataTableFilters extends TestBase {
     // 1 original data/delete files written by old spec, plus both of new data file/delete file
     // written by new spec
     assertThat(tasks).hasSize(expectedScanTaskCount(3));
-  }
-
-  private DeleteFile posDelete(Table table, DataFile dataFile) {
-    return formatVersion >= 3
-        ? FileGenerationUtil.generateDV(table, dataFile)
-        : FileGenerationUtil.generatePositionDeleteFile(table, dataFile);
   }
 
   @TestTemplate
@@ -537,8 +531,8 @@ public class TestMetadataTableFilters extends TestBase {
             .withPartitionPath("data_bucket=1/id=11")
             .build();
 
-    DeleteFile delete10 = posDelete(table, data10);
-    DeleteFile delete11 = posDelete(table, data11);
+    DeleteFile delete10 = newDeletes(data10);
+    DeleteFile delete11 = newDeletes(data11);
 
     table.newFastAppend().appendFile(data10).commit();
     table.newFastAppend().appendFile(data11).commit();
