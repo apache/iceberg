@@ -534,6 +534,7 @@ public class TypeUtil {
       case FIXED:
         return ((Types.FixedType) type).length();
       case BINARY:
+      case VARIANT:
         return 80;
       case DECIMAL:
         // 12 (header) + (12 + 12 + 4) (BigInteger) + 4 (scale) = 44 bytes
@@ -612,6 +613,10 @@ public class TypeUtil {
       return null;
     }
 
+    public T variant() {
+      return null;
+    }
+
     public T primitive(Type.PrimitiveType primitive) {
       return null;
     }
@@ -674,6 +679,9 @@ public class TypeUtil {
         }
 
         return visitor.map(map, keyResult, valueResult);
+
+      case VARIANT:
+        return visitor.variant();
 
       default:
         return visitor.primitive(type.asPrimitiveType());

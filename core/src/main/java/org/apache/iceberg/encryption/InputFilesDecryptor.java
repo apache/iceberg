@@ -59,7 +59,7 @@ public class InputFilesDecryptor {
 
   public InputFile getInputFile(FileScanTask task) {
     Preconditions.checkArgument(!task.isDataTask(), "Invalid task type");
-    return decryptedInputFiles.get(task.file().path().toString());
+    return decryptedInputFiles.get(task.file().location());
   }
 
   public InputFile getInputFile(String location) {

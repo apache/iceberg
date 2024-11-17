@@ -490,9 +490,7 @@ public class TestBase {
             snap.sequenceNumber(),
             entry.file().fileSequenceNumber().longValue());
       }
-      assertThat(file.path().toString())
-          .as("Path should match expected")
-          .isEqualTo(newPaths.next());
+      assertThat(file.location()).as("Path should match expected").isEqualTo(newPaths.next());
       assertThat(entry.snapshotId()).as("File's snapshot ID should match").isEqualTo(id);
     }
 
@@ -508,11 +506,11 @@ public class TestBase {
   void validateTableFiles(Table tbl, Collection<DataFile> expectedFiles) {
     Set<CharSequence> expectedFilePaths = Sets.newHashSet();
     for (DataFile file : expectedFiles) {
-      expectedFilePaths.add(file.path());
+      expectedFilePaths.add(file.location());
     }
     Set<CharSequence> actualFilePaths = Sets.newHashSet();
     for (FileScanTask task : tbl.newScan().planFiles()) {
-      actualFilePaths.add(task.file().path());
+      actualFilePaths.add(task.file().location());
     }
     assertThat(actualFilePaths).as("Files should match").isEqualTo(expectedFilePaths);
   }
@@ -520,11 +518,11 @@ public class TestBase {
   void validateBranchFiles(Table tbl, String ref, DataFile... expectedFiles) {
     Set<CharSequence> expectedFilePaths = Sets.newHashSet();
     for (DataFile file : expectedFiles) {
-      expectedFilePaths.add(file.path());
+      expectedFilePaths.add(file.location());
     }
     Set<CharSequence> actualFilePaths = Sets.newHashSet();
     for (FileScanTask task : tbl.newScan().useRef(ref).planFiles()) {
-      actualFilePaths.add(task.file().path());
+      actualFilePaths.add(task.file().location());
     }
     assertThat(actualFilePaths).as("Files should match").isEqualTo(expectedFilePaths);
   }
@@ -532,12 +530,12 @@ public class TestBase {
   void validateBranchDeleteFiles(Table tbl, String branch, DeleteFile... expectedFiles) {
     Set<CharSequence> expectedFilePaths = Sets.newHashSet();
     for (DeleteFile file : expectedFiles) {
-      expectedFilePaths.add(file.path());
+      expectedFilePaths.add(file.location());
     }
     Set<CharSequence> actualFilePaths = Sets.newHashSet();
     for (FileScanTask task : tbl.newScan().useRef(branch).planFiles()) {
       for (DeleteFile file : task.deletes()) {
-        actualFilePaths.add(file.path());
+        actualFilePaths.add(file.location());
       }
     }
     assertThat(actualFilePaths).as("Delete files should match").isEqualTo(expectedFilePaths);
@@ -546,7 +544,7 @@ public class TestBase {
   List<String> paths(DataFile... dataFiles) {
     List<String> paths = Lists.newArrayListWithExpectedSize(dataFiles.length);
     for (DataFile file : dataFiles) {
-      paths.add(file.path().toString());
+      paths.add(file.location());
     }
     return paths;
   }
@@ -578,9 +576,7 @@ public class TestBase {
 
       validateManifestSequenceNumbers(entry, dataSeqs, fileSeqs);
 
-      assertThat(file.path().toString())
-          .as("Path should match expected")
-          .isEqualTo(expected.path().toString());
+      assertThat(file.location()).as("Path should match expected").isEqualTo(expected.location());
       assertThat(entry.snapshotId())
           .as("Snapshot ID should match expected ID")
           .isEqualTo(ids.next());
@@ -606,9 +602,7 @@ public class TestBase {
 
       validateManifestSequenceNumbers(entry, dataSeqs, fileSeqs);
 
-      assertThat(file.path().toString())
-          .as("Path should match expected")
-          .isEqualTo(expected.path().toString());
+      assertThat(file.location()).as("Path should match expected").isEqualTo(expected.location());
       assertThat(entry.snapshotId())
           .as("Snapshot ID should match expected ID")
           .isEqualTo(ids.next());
@@ -763,9 +757,7 @@ public class TestBase {
       DataFile file = entry.file();
       DataFile expected = expectedFiles.next();
       final ManifestEntry.Status expectedStatus = expectedStatuses.next();
-      assertThat(file.path().toString())
-          .as("Path should match expected")
-          .isEqualTo(expected.path().toString());
+      assertThat(file.location()).as("Path should match expected").isEqualTo(expected.location());
       assertThat(entry.snapshotId())
           .as("Snapshot ID should match expected ID")
           .isEqualTo(ids.next());

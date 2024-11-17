@@ -22,6 +22,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -30,7 +31,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileGenerationUtil;
 import org.apache.iceberg.FileMetadata;
+import org.apache.iceberg.Parameter;
+import org.apache.iceberg.ParameterizedTestExtension;
+import org.apache.iceberg.Parameters;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -44,10 +49,12 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Encoders;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import scala.Tuple2;
 
+@ExtendWith(ParameterizedTestExtension.class)
 public class TestRemoveDanglingDeleteAction extends TestBase {
 
   private static final HadoopTables TABLES = new HadoopTables(new Configuration());
@@ -202,6 +209,12 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
           .build();
 
   @TempDir private File tableDir;
+  @Parameter private int formatVersion;
+
+  @Parameters(name = "formatVersion = {0}")
+  protected static List<Object> parameters() {
+    return Arrays.asList(2, 3);
+  }
 
   private String tableLocation = null;
   private Table table;
@@ -219,7 +232,10 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
   private void setupPartitionedTable() {
     this.table =
         TABLES.create(
-            SCHEMA, SPEC, ImmutableMap.of(TableProperties.FORMAT_VERSION, "2"), tableLocation);
+            SCHEMA,
+            SPEC,
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
+            tableLocation);
   }
 
   private void setupUnpartitionedTable() {
@@ -227,11 +243,33 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
         TABLES.create(
             SCHEMA,
             PartitionSpec.unpartitioned(),
-            ImmutableMap.of(TableProperties.FORMAT_VERSION, "2"),
+            ImmutableMap.of(TableProperties.FORMAT_VERSION, String.valueOf(formatVersion)),
             tableLocation);
   }
 
-  @Test
+  private DeleteFile fileADeletes() {
+    return formatVersion >= 3 ? FileGenerationUtil.generateDV(table, FILE_A) : FILE_A_POS_DELETES;
+  }
+
+  private DeleteFile fileA2Deletes() {
+    return formatVersion >= 3 ? FileGenerationUtil.generateDV(table, FILE_A2) : FILE_A2_POS_DELETES;
+  }
+
+  private DeleteFile fileBDeletes() {
+    return formatVersion >= 3 ? FileGenerationUtil.generateDV(table, FILE_B) : FILE_B_POS_DELETES;
+  }
+
+  private DeleteFile fileB2Deletes() {
+    return formatVersion >= 3 ? FileGenerationUtil.generateDV(table, FILE_B2) : FILE_B2_POS_DELETES;
+  }
+
+  private DeleteFile fileUnpartitionedDeletes() {
+    return formatVersion >= 3
+        ? FileGenerationUtil.generateDV(table, FILE_UNPARTITIONED)
+        : FILE_UNPARTITIONED_POS_DELETE;
+  }
+
+  @TestTemplate
   public void testPartitionedDeletesWithLesserSeqNo() {
     setupPartitionedTable();
 
@@ -239,12 +277,16 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
     table.newAppend().appendFile(FILE_B).appendFile(FILE_C).appendFile(FILE_D).commit();
 
     // Add Delete Files
+    DeleteFile fileADeletes = fileADeletes();
+    DeleteFile fileA2Deletes = fileA2Deletes();
+    DeleteFile fileBDeletes = fileBDeletes();
+    DeleteFile fileB2Deletes = fileB2Deletes();
     table
         .newRowDelta()
-        .addDeletes(FILE_A_POS_DELETES)
-        .addDeletes(FILE_A2_POS_DELETES)
-        .addDeletes(FILE_B_POS_DELETES)
-        .addDeletes(FILE_B2_POS_DELETES)
+        .addDeletes(fileADeletes)
+        .addDeletes(fileA2Deletes)
+        .addDeletes(fileBDeletes)
+        .addDeletes(fileB2Deletes)
         .addDeletes(FILE_A_EQ_DELETES)
         .addDeletes(FILE_A2_EQ_DELETES)
         .addDeletes(FILE_B_EQ_DELETES)
@@ -275,18 +317,18 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(1L, FILE_C.path().toString()),
             Tuple2.apply(1L, FILE_D.path().toString()),
             Tuple2.apply(2L, FILE_A_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A_POS_DELETES.path().toString()),
+            Tuple2.apply(2L, fileADeletes.path().toString()),
             Tuple2.apply(2L, FILE_A2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A2_POS_DELETES.path().toString()),
+            Tuple2.apply(2L, fileA2Deletes.path().toString()),
             Tuple2.apply(2L, FILE_B_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B_POS_DELETES.path().toString()),
+            Tuple2.apply(2L, fileBDeletes.path().toString()),
             Tuple2.apply(2L, FILE_B2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B2_POS_DELETES.path().toString()),
+            Tuple2.apply(2L, fileB2Deletes.path().toString()),
             Tuple2.apply(3L, FILE_A2.path().toString()),
             Tuple2.apply(3L, FILE_B2.path().toString()),
             Tuple2.apply(3L, FILE_C2.path().toString()),
             Tuple2.apply(3L, FILE_D2.path().toString()));
-    assertThat(actual).isEqualTo(expected);
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(expected);
 
     RemoveDanglingDeleteFiles.Result result =
         SparkActions.get().removeDanglingDeleteFiles(table).execute();
@@ -302,8 +344,8 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
         .as("Expected 4 delete files removed")
         .hasSize(4)
         .containsExactlyInAnyOrder(
-            FILE_A_POS_DELETES.path(),
-            FILE_A2_POS_DELETES.path(),
+            fileADeletes.path(),
+            fileA2Deletes.path(),
             FILE_A_EQ_DELETES.path(),
             FILE_A2_EQ_DELETES.path());
 
@@ -323,17 +365,17 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(1L, FILE_C.path().toString()),
             Tuple2.apply(1L, FILE_D.path().toString()),
             Tuple2.apply(2L, FILE_B_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B_POS_DELETES.path().toString()),
+            Tuple2.apply(2L, fileBDeletes.path().toString()),
             Tuple2.apply(2L, FILE_B2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B2_POS_DELETES.path().toString()),
+            Tuple2.apply(2L, fileB2Deletes.path().toString()),
             Tuple2.apply(3L, FILE_A2.path().toString()),
             Tuple2.apply(3L, FILE_B2.path().toString()),
             Tuple2.apply(3L, FILE_C2.path().toString()),
             Tuple2.apply(3L, FILE_D2.path().toString()));
-    assertThat(actualAfter).isEqualTo(expectedAfter);
+    assertThat(actualAfter).containsExactlyInAnyOrderElementsOf(expectedAfter);
   }
 
-  @Test
+  @TestTemplate
   public void testPartitionedDeletesWithEqSeqNo() {
     setupPartitionedTable();
 
@@ -341,18 +383,22 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
     table.newAppend().appendFile(FILE_A).appendFile(FILE_C).appendFile(FILE_D).commit();
 
     // Add Data Files with EQ and POS deletes
+    DeleteFile fileADeletes = fileADeletes();
+    DeleteFile fileA2Deletes = fileA2Deletes();
+    DeleteFile fileBDeletes = fileBDeletes();
+    DeleteFile fileB2Deletes = fileB2Deletes();
     table
         .newRowDelta()
         .addRows(FILE_A2)
         .addRows(FILE_B2)
         .addRows(FILE_C2)
         .addRows(FILE_D2)
-        .addDeletes(FILE_A_POS_DELETES)
-        .addDeletes(FILE_A2_POS_DELETES)
+        .addDeletes(fileADeletes)
+        .addDeletes(fileA2Deletes)
         .addDeletes(FILE_A_EQ_DELETES)
         .addDeletes(FILE_A2_EQ_DELETES)
-        .addDeletes(FILE_B_POS_DELETES)
-        .addDeletes(FILE_B2_POS_DELETES)
+        .addDeletes(fileBDeletes)
+        .addDeletes(fileB2Deletes)
         .addDeletes(FILE_B_EQ_DELETES)
         .addDeletes(FILE_B2_EQ_DELETES)
         .commit();
@@ -372,18 +418,18 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(1L, FILE_C.path().toString()),
             Tuple2.apply(1L, FILE_D.path().toString()),
             Tuple2.apply(2L, FILE_A_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A_POS_DELETES.path().toString()),
+            Tuple2.apply(2L, fileADeletes.path().toString()),
             Tuple2.apply(2L, FILE_A2.path().toString()),
             Tuple2.apply(2L, FILE_A2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A2_POS_DELETES.path().toString()),
+            Tuple2.apply(2L, fileA2Deletes.path().toString()),
             Tuple2.apply(2L, FILE_B_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B_POS_DELETES.path().toString()),
+            Tuple2.apply(2L, fileBDeletes.path().toString()),
             Tuple2.apply(2L, FILE_B2.path().toString()),
             Tuple2.apply(2L, FILE_B2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B2_POS_DELETES.path().toString()),
+            Tuple2.apply(2L, fileB2Deletes.path().toString()),
             Tuple2.apply(2L, FILE_C2.path().toString()),
             Tuple2.apply(2L, FILE_D2.path().toString()));
-    assertThat(actual).isEqualTo(expected);
+    assertThat(actual).containsExactlyInAnyOrderElementsOf(expected);
 
     RemoveDanglingDeleteFiles.Result result =
         SparkActions.get().removeDanglingDeleteFiles(table).execute();
@@ -415,25 +461,25 @@ public class TestRemoveDanglingDeleteAction extends TestBase {
             Tuple2.apply(1L, FILE_C.path().toString()),
             Tuple2.apply(1L, FILE_D.path().toString()),
             Tuple2.apply(2L, FILE_A_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A_POS_DELETES.path().toString()),
+            Tuple2.apply(2L, fileADeletes.path().toString()),
             Tuple2.apply(2L, FILE_A2.path().toString()),
             Tuple2.apply(2L, FILE_A2_EQ_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_A2_POS_DELETES.path().toString()),
-            Tuple2.apply(2L, FILE_B_POS_DELETES.path().toString()),
+            Tuple2.apply(2L, fileA2Deletes.path().toString()),
+            Tuple2.apply(2L, fileBDeletes.path().toString()),
             Tuple2.apply(2L, FILE_B2.path().toString()),
-            Tuple2.apply(2L, FILE_B2_POS_DELETES.path().toString()),
+            Tuple2.apply(2L, fileB2Deletes.path().toString()),
             Tuple2.apply(2L, FILE_C2.path().toString()),
             Tuple2.apply(2L, FILE_D2.path().toString()));
-    assertThat(actualAfter).isEqualTo(expectedAfter);
+    assertThat(actualAfter).containsExactlyInAnyOrderElementsOf(expectedAfter);
   }
 
-  @Test
+  @TestTemplate
   public void testUnpartitionedTable() {
     setupUnpartitionedTable();
 
     table
         .newRowDelta()
-        .addDeletes(FILE_UNPARTITIONED_POS_DELETE)
+        .addDeletes(fileUnpartitionedDeletes())
         .addDeletes(FILE_UNPARTITIONED_EQ_DELETE)
         .commit();
     table.newAppend().appendFile(FILE_UNPARTITIONED).commit();

@@ -303,13 +303,33 @@ public class TestSchemaUnionByFieldName {
   }
 
   @Test
-  public void testInvalidTypePromoteDoubleToFloat() {
+  public void testIgnoreTypePromoteDoubleToFloat() {
     Schema currentSchema = new Schema(required(1, "aCol", DoubleType.get()));
     Schema newSchema = new Schema(required(1, "aCol", FloatType.get()));
 
-    assertThatThrownBy(() -> new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply())
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("Cannot change column type: aCol: double -> float");
+    Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    assertThat(applied.asStruct()).isEqualTo(currentSchema.asStruct());
+    assertThat(applied.asStruct().fields()).hasSize(1);
+    assertThat(applied.asStruct().fields().get(0).type()).isEqualTo(DoubleType.get());
+  }
+
+  @Test
+  public void testIgnoreTypePromoteLongToInt() {
+    Schema currentSchema = new Schema(required(1, "aCol", LongType.get()));
+    Schema newSchema = new Schema(required(1, "aCol", IntegerType.get()));
+
+    Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    assertThat(applied.asStruct().fields()).hasSize(1);
+    assertThat(applied.asStruct().fields().get(0).type()).isEqualTo(LongType.get());
+  }
+
+  @Test
+  public void testIgnoreTypePromoteDecimalToNarrowerPrecision() {
+    Schema currentSchema = new Schema(required(1, "aCol", DecimalType.of(20, 1)));
+    Schema newSchema = new Schema(required(1, "aCol", DecimalType.of(10, 1)));
+
+    Schema applied = new SchemaUpdate(currentSchema, 1).unionByNameWith(newSchema).apply();
+    assertThat(applied.asStruct()).isEqualTo(currentSchema.asStruct());
   }
 
   @Test

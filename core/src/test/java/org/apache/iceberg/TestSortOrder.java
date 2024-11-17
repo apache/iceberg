@@ -327,6 +327,22 @@ public class TestSortOrder {
   }
 
   @TestTemplate
+  public void testVariantUnsupported() {
+    Schema v3Schema =
+        new Schema(
+            Types.NestedField.required(3, "id", Types.LongType.get()),
+            Types.NestedField.required(4, "data", Types.StringType.get()),
+            Types.NestedField.required(
+                5,
+                "struct",
+                Types.StructType.of(Types.NestedField.optional(6, "v", Types.VariantType.get()))));
+
+    assertThatThrownBy(() -> SortOrder.builderFor(v3Schema).withOrderId(10).asc("struct.v").build())
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("Unsupported type for identity: variant");
+  }
+
+  @TestTemplate
   public void testPreservingOrderSortedColumnNames() {
     SortOrder order =
         SortOrder.builderFor(SCHEMA)

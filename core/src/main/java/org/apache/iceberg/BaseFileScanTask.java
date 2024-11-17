@@ -176,6 +176,8 @@ public class BaseFileScanTask extends BaseContentScanTask<FileScanTask, DataFile
     @Override
     public SplitScanTask merge(ScanTask other) {
       SplitScanTask that = (SplitScanTask) other;
+      // don't use deletesSizeBytes() here so that deletesSizeBytes is only calculated once after
+      // merging rather than for each task before merging
       return new SplitScanTask(offset, len + that.length(), fileScanTask, deletesSizeBytes);
     }
 
