@@ -18,30 +18,49 @@
  */
 package org.apache.iceberg.azure;
 
+import static org.apache.iceberg.azure.adlsv2.VendedAzureSasCredentialProvider.URI;
+
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.iceberg.azure.adlsv2.VendedAzureSasCredentialProvider;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.base.Strings;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.util.PropertyUtil;
 
 public class AzureProperties implements Serializable {
   public static final String ADLS_SAS_TOKEN_PREFIX = "adls.sas-token.";
+  public static final String ADLS_SAS_TOKEN_EXPIRE_AT_MS_PREFIX = "adls.sas-token-expire-at-ms.";
   public static final String ADLS_CONNECTION_STRING_PREFIX = "adls.connection-string.";
   public static final String ADLS_READ_BLOCK_SIZE = "adls.read.block-size-bytes";
   public static final String ADLS_WRITE_BLOCK_SIZE = "adls.write.block-size-bytes";
   public static final String ADLS_SHARED_KEY_ACCOUNT_NAME = "adls.auth.shared-key.account.name";
   public static final String ADLS_SHARED_KEY_ACCOUNT_KEY = "adls.auth.shared-key.account.key";
 
+  /**
+   * When set, the {@link org.apache.iceberg.azure.adlsv2.VendedAzureSasCredentialProvider} will be
+   * used to fetch and refresh vended credentials from this endpoint.
+   */
+  public static final String REFRESH_CREDENTIALS_ENDPOINT = "client.refresh-credentials-endpoint";
+
+  /** Controls whether vended credentials should be refreshed or not. Defaults to true. */
+  public static final String REFRESH_CREDENTIALS_ENABLED = "client.refresh-credentials-enabled";
+
   private Map<String, String> adlsSasTokens = Collections.emptyMap();
   private Map<String, String> adlsConnectionStrings = Collections.emptyMap();
   private Map.Entry<String, String> namedKeyCreds;
   private Integer adlsReadBlockSize;
   private Long adlsWriteBlockSize;
+
+  private VendedAzureSasCredentialProvider vendedAzureSasCredentialProvider;
+  private String refreshCredentialsEndpoint;
+  private boolean refreshCredentialsEnabled;
 
   public AzureProperties() {}
 
@@ -67,6 +86,15 @@ public class AzureProperties implements Serializable {
     if (properties.containsKey(ADLS_WRITE_BLOCK_SIZE)) {
       this.adlsWriteBlockSize = Long.parseLong(properties.get(ADLS_WRITE_BLOCK_SIZE));
     }
+    this.refreshCredentialsEndpoint = properties.get(REFRESH_CREDENTIALS_ENDPOINT);
+    this.refreshCredentialsEnabled =
+        PropertyUtil.propertyAsBoolean(properties, REFRESH_CREDENTIALS_ENABLED, true);
+    Map<String, String> credentialProviderProperties = new HashMap<>(properties);
+    if (refreshCredentialsEnabled && !Strings.isNullOrEmpty(refreshCredentialsEndpoint)) {
+      credentialProviderProperties.put(URI, refreshCredentialsEndpoint);
+      this.vendedAzureSasCredentialProvider =
+          new VendedAzureSasCredentialProvider(credentialProviderProperties);
+    }
   }
 
   public Optional<Integer> adlsReadBlockSize() {
@@ -90,7 +118,9 @@ public class AzureProperties implements Serializable {
    */
   public void applyClientConfiguration(String account, DataLakeFileSystemClientBuilder builder) {
     String sasToken = adlsSasTokens.get(account);
-    if (sasToken != null && !sasToken.isEmpty()) {
+    if (refreshCredentialsEnabled && !Strings.isNullOrEmpty(refreshCredentialsEndpoint)) {
+      builder.credential(vendedAzureSasCredentialProvider.getCredential(account));
+    } else if (sasToken != null && !sasToken.isEmpty()) {
       builder.sasToken(sasToken);
     } else if (namedKeyCreds != null) {
       builder.credential(
