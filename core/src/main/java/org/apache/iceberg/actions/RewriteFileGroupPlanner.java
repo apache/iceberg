@@ -40,8 +40,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Checks the files in the {@link Table}. The {@link RewriteFileGroup}s are grouped by partitions
- * and split by the {@link FileRewriter}.
+ * Groups specified files in the {@link Table} by {@link RewriteFileGroup}s. These will be grouped
+ * by partitions.
  */
 public class RewriteFileGroupPlanner {
   private static final Logger LOG = LoggerFactory.getLogger(RewriteFileGroupPlanner.class);

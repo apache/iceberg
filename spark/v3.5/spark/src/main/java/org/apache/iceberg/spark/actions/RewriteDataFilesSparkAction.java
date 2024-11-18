@@ -191,8 +191,8 @@ public class RewriteDataFilesSparkAction
   }
 
   @VisibleForTesting
-  RewriteFileGroup rewriteFiles(RewritePlan planResult, RewriteFileGroup fileGroup) {
-    String desc = jobDesc(fileGroup, planResult);
+  RewriteFileGroup rewriteFiles(RewritePlan plan, RewriteFileGroup fileGroup) {
+    String desc = jobDesc(fileGroup, plan);
     Set<DataFile> addedFiles =
         withJobGroupInfo(
             newJobGroupInfo("REWRITE-DATA-FILES", desc),
@@ -217,13 +217,13 @@ public class RewriteDataFilesSparkAction
         table, startingSnapshotId, useStartingSequenceNumber, commitSummary());
   }
 
-  private Builder doExecute(RewritePlan planResult, RewriteDataFilesCommitManager commitManager) {
+  private Builder doExecute(RewritePlan plan, RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     ConcurrentLinkedQueue<RewriteFileGroup> rewrittenGroups = Queues.newConcurrentLinkedQueue();
 
     Tasks.Builder<RewriteFileGroup> rewriteTaskBuilder =
-        Tasks.foreach(planResult.groups())
+        Tasks.foreach(plan.groups())
             .executeWith(rewriteService)
             .stopOnFailure()
             .noRetry()
@@ -234,7 +234,7 @@ public class RewriteDataFilesSparkAction
                 });
 
     try {
-      rewriteTaskBuilder.run(fileGroup -> rewrittenGroups.add(rewriteFiles(planResult, fileGroup)));
+      rewriteTaskBuilder.run(fileGroup -> rewrittenGroups.add(rewriteFiles(plan, fileGroup)));
     } catch (Exception e) {
       // At least one rewrite group failed, clean up all completed rewrites
       LOG.error(
@@ -277,19 +277,18 @@ public class RewriteDataFilesSparkAction
   }
 
   private Builder doExecuteWithPartialProgress(
-      RewritePlan planResult, RewriteDataFilesCommitManager commitManager) {
+      RewritePlan plan, RewriteDataFilesCommitManager commitManager) {
     ExecutorService rewriteService = rewriteService();
 
     // start commit service
-    int groupsPerCommit =
-        IntMath.divide(planResult.totalGroupCount(), maxCommits, RoundingMode.CEILING);
+    int groupsPerCommit = IntMath.divide(plan.totalGroupCount(), maxCommits, RoundingMode.CEILING);
     RewriteDataFilesCommitManager.CommitService commitService =
         commitManager.service(groupsPerCommit);
     commitService.start();
 
     Collection<FileGroupFailureResult> rewriteFailures = new ConcurrentLinkedQueue<>();
     // start rewrite tasks
-    Tasks.foreach(planResult.groups())
+    Tasks.foreach(plan.groups())
         .suppressFailureWhenFinished()
         .executeWith(rewriteService)
         .noRetry()
@@ -302,7 +301,7 @@ public class RewriteDataFilesSparkAction
                       .dataFilesCount(fileGroup.numFiles())
                       .build());
             })
-        .run(fileGroup -> commitService.offer(rewriteFiles(planResult, fileGroup)));
+        .run(fileGroup -> commitService.offer(rewriteFiles(plan, fileGroup)));
     rewriteService.shutdown();
 
     // stop commit service
@@ -397,7 +396,7 @@ public class RewriteDataFilesSparkAction
         PARTIAL_PROGRESS_ENABLED);
   }
 
-  private String jobDesc(RewriteFileGroup group, RewritePlan planResult) {
+  private String jobDesc(RewriteFileGroup group, RewritePlan plan) {
     StructLike partition = group.info().partition();
     if (partition.size() > 0) {
       return String.format(
@@ -405,10 +404,10 @@ public class RewriteDataFilesSparkAction
           group.rewrittenFiles().size(),
           rewriter.description(),
           group.info().globalIndex(),
-          planResult.totalGroupCount(),
+          plan.totalGroupCount(),
           partition,
           group.info().partitionIndex(),
-          planResult.groupsInPartition(partition),
+          plan.groupsInPartition(partition),
           table.name());
     } else {
       return String.format(
@@ -416,7 +415,7 @@ public class RewriteDataFilesSparkAction
           group.rewrittenFiles().size(),
           rewriter.description(),
           group.info().globalIndex(),
-          planResult.totalGroupCount(),
+          plan.totalGroupCount(),
           table.name());
     }
   }
