@@ -61,7 +61,9 @@ public class TestComputeTableStatsProcedure extends ExtensionsTestBase {
         sql(
             "CALL %s.system.compute_table_stats(table => '%s', columns => array('id'))",
             catalogName, tableIdent);
-    assertThat(output.get(0)).isNotNull();
+    assertThat(output.get(0)).isNotEmpty();
+    Object obj = output.get(0)[0];
+    assertThat(obj.toString()).endsWith(".stats");
     verifyTableStats(tableName);
   }
 
@@ -77,7 +79,9 @@ public class TestComputeTableStatsProcedure extends ExtensionsTestBase {
         sql(
             "CALL %s.system.compute_table_stats('%s', %dL)",
             catalogName, tableIdent, snapshot.snapshotId());
-    assertThat(output.get(0)).isNotNull();
+    assertThat(output.get(0)).isNotEmpty();
+    Object obj = output.get(0)[0];
+    assertThat(obj.toString()).endsWith(".stats");
     verifyTableStats(tableName);
   }
 
@@ -86,7 +90,6 @@ public class TestComputeTableStatsProcedure extends ExtensionsTestBase {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
         tableName);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
     assertThatThrownBy(
             () ->
                 sql(
@@ -101,7 +104,6 @@ public class TestComputeTableStatsProcedure extends ExtensionsTestBase {
     sql(
         "CREATE TABLE %s (id bigint NOT NULL, data string) USING iceberg PARTITIONED BY (data)",
         tableName);
-    sql("INSERT INTO TABLE %s VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')", tableName);
     assertThatThrownBy(
             () ->
                 sql(
