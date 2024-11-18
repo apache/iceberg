@@ -51,7 +51,6 @@ import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.hive.HiveCatalog;
-import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestCatalogs;
@@ -418,12 +417,7 @@ abstract class TestTables {
     private final String warehouseLocation;
 
     CustomCatalogTestTables(Configuration conf, Path temp, String catalogName) throws IOException {
-      this(
-          conf,
-          temp,
-          (HiveVersion.min(HiveVersion.HIVE_3) ? "file:" : "")
-              + temp.resolve(Paths.get("custom", "warehouse")),
-          catalogName);
+      this(conf, temp, "file:" + temp.resolve(Paths.get("custom", "warehouse")), catalogName);
     }
 
     CustomCatalogTestTables(
@@ -452,12 +446,7 @@ abstract class TestTables {
     private final String warehouseLocation;
 
     HadoopCatalogTestTables(Configuration conf, Path temp, String catalogName) throws IOException {
-      this(
-          conf,
-          temp,
-          (HiveVersion.min(HiveVersion.HIVE_3) ? "file:" : "")
-              + temp.resolve(Paths.get("hadoop", "warehouse")),
-          catalogName);
+      this(conf, temp, "file:" + temp.resolve(Paths.get("hadoop", "warehouse")), catalogName);
     }
 
     HadoopCatalogTestTables(

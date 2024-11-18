@@ -48,7 +48,6 @@ import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.hadoop.ConfigProperties;
 import org.apache.iceberg.hive.HiveSchemaUtil;
-import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.mr.TestHelper;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -60,11 +59,13 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+@Disabled // Fix of HIVE-21584 is not released on Hive 3.1
 @ExtendWith(ParameterizedTestExtension.class)
 @Timeout(value = 200_000, unit = TimeUnit.MILLISECONDS)
 public class TestHiveIcebergStorageHandlerWithEngine {
@@ -129,8 +130,7 @@ public class TestHiveIcebergStorageHandlerWithEngine {
               new Object[] {fileFormat, engine, TestTables.TestTableType.HIVE_CATALOG, false});
           // test for vectorization=ON in case of ORC format and Tez engine
           if ((fileFormat == FileFormat.PARQUET || fileFormat == FileFormat.ORC)
-              && "tez".equals(engine)
-              && HiveVersion.min(HiveVersion.HIVE_3)) {
+              && "tez".equals(engine)) {
             testParams.add(
                 new Object[] {fileFormat, engine, TestTables.TestTableType.HIVE_CATALOG, true});
           }

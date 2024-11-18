@@ -20,7 +20,6 @@ package org.apache.iceberg.mr.hive;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,7 +33,6 @@ import org.apache.hadoop.io.Text;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
-import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.mr.hive.serde.objectinspector.IcebergObjectInspector;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Test;
@@ -156,27 +154,6 @@ public class TestDeserializer {
     Record actual = deserializer.deserialize(data);
 
     assertThat(actual).isEqualTo(expected);
-  }
-
-  @Test
-  public void testDeserializeEverySupportedType() {
-    assumeThat(HiveVersion.min(HiveVersion.HIVE_3))
-        .as("No test yet for Hive3 (Date/Timestamp creation)")
-        .isFalse();
-
-    Deserializer deserializer =
-        new Deserializer.Builder()
-            .schema(HiveIcebergTestUtils.FULL_SCHEMA)
-            .writerInspector(
-                (StructObjectInspector)
-                    IcebergObjectInspector.create(HiveIcebergTestUtils.FULL_SCHEMA))
-            .sourceInspector(HiveIcebergTestUtils.FULL_SCHEMA_OBJECT_INSPECTOR)
-            .build();
-
-    Record expected = HiveIcebergTestUtils.getTestRecord();
-    Record actual = deserializer.deserialize(HiveIcebergTestUtils.valuesForTestRecord(expected));
-
-    HiveIcebergTestUtils.assertEquals(expected, actual);
   }
 
   @Test

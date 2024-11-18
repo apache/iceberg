@@ -134,7 +134,7 @@ project(':iceberg-kafka-connect:iceberg-kafka-connect-runtime') {
     implementation 'com.azure:azure-identity'
 
     hive project(':iceberg-hive-metastore')
-    hive(libs.hive2.metastore) {
+    hive(libs.hive3.metastore) {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
       exclude group: 'org.pentaho' // missing dependency

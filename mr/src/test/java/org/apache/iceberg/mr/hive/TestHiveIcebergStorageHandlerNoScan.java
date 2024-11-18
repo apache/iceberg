@@ -55,7 +55,6 @@ import org.apache.iceberg.data.Record;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.hive.HiveSchemaUtil;
-import org.apache.iceberg.hive.HiveVersion;
 import org.apache.iceberg.mr.Catalogs;
 import org.apache.iceberg.mr.InputFormatConfig;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -70,10 +69,12 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestTemplate;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 
+@Disabled // Fix of HIVE-21584 is not released on Hive 3.1
 @ExtendWith(ParameterizedTestExtension.class)
 public class TestHiveIcebergStorageHandlerNoScan {
   private static final PartitionSpec SPEC = PartitionSpec.unpartitioned();
@@ -770,9 +771,8 @@ public class TestHiveIcebergStorageHandlerNoScan {
     if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
       expectedIcebergProperties.put(TableProperties.ENGINE_HIVE_ENABLED, "true");
     }
-    if (HiveVersion.min(HiveVersion.HIVE_3)) {
-      expectedIcebergProperties.put("bucketing_version", "2");
-    }
+
+    expectedIcebergProperties.put("bucketing_version", "2");
     assertThat(icebergTable.properties()).isEqualTo((expectedIcebergProperties));
 
     if (Catalogs.hiveCatalog(shell.getHiveConf(), tableProperties)) {
@@ -868,7 +868,7 @@ public class TestHiveIcebergStorageHandlerNoScan {
 
     TableIdentifier identifier = TableIdentifier.of("default", "customers");
 
-    // Create HMS table with with a property to be translated
+    // Create HMS table with a property to be translated
     shell.executeStatement(
         String.format(
             "CREATE EXTERNAL TABLE default.customers "

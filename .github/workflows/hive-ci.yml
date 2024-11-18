@@ -66,7 +66,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  hive2-tests:
+  mr-tests:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
@@ -87,7 +87,7 @@ jobs:
         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: ${{ runner.os }}-gradle-
     - run: echo -e "$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)\t$(hostname -f) $(hostname -s)" | sudo tee -a /etc/hosts
-    - run: ./gradlew -DsparkVersions= -DhiveVersions=2 -DflinkVersions= -DkafkaVersions= -Pquick=true :iceberg-mr:check :iceberg-hive-runtime:check -x javadoc
+    - run: ./gradlew -DsparkVersions= -DhiveVersions=3 -DflinkVersions= -DkafkaVersions= -Pquick=true :iceberg-mr:check :iceberg-hive-runtime:check -x javadoc
     - uses: actions/upload-artifact@v4
       if: failure()
       with:
