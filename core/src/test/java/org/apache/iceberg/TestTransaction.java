@@ -702,14 +702,9 @@ public class TestTransaction extends TestBase {
 
     Set<String> paths =
         Sets.newHashSet(
-            Iterables.transform(
-                table.newScan().planFiles(), task -> task.file().path().toString()));
+            Iterables.transform(table.newScan().planFiles(), task -> task.file().location()));
     Set<String> expectedPaths =
-        Sets.newHashSet(
-            FILE_A.path().toString(),
-            FILE_B.path().toString(),
-            FILE_C.path().toString(),
-            FILE_D.path().toString());
+        Sets.newHashSet(FILE_A.location(), FILE_B.location(), FILE_C.location(), FILE_D.location());
 
     assertThat(paths).isEqualTo(expectedPaths);
     assertThat(table.currentSnapshot().allManifests(table.io())).hasSize(2);

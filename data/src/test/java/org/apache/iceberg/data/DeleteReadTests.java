@@ -379,9 +379,9 @@ public abstract class DeleteReadTests {
   public void testPositionDeletes() throws IOException {
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 0L), // id = 29
-            Pair.of(dataFile.path(), 3L), // id = 89
-            Pair.of(dataFile.path(), 6L) // id = 122
+            Pair.of(dataFile.location(), 0L), // id = 29
+            Pair.of(dataFile.location(), 3L), // id = 89
+            Pair.of(dataFile.location(), 6L) // id = 122
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
@@ -413,8 +413,8 @@ public abstract class DeleteReadTests {
 
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 0L), // id = 29
-            Pair.of(dataFile.path(), 3L) // id = 89
+            Pair.of(dataFile.location(), 0L), // id = 29
+            Pair.of(dataFile.location(), 3L) // id = 89
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
@@ -431,7 +431,7 @@ public abstract class DeleteReadTests {
         .validateDataFilesExist(posDeletes.second())
         .commit();
 
-    deletes = Lists.newArrayList(Pair.of(dataFile.path(), 6L)); // id = 122
+    deletes = Lists.newArrayList(Pair.of(dataFile.location(), 6L)); // id = 122
 
     posDeletes =
         FileHelpers.writeDeleteFile(
@@ -475,8 +475,8 @@ public abstract class DeleteReadTests {
 
     List<Pair<CharSequence, Long>> deletes =
         Lists.newArrayList(
-            Pair.of(dataFile.path(), 3L), // id = 89
-            Pair.of(dataFile.path(), 5L) // id = 121
+            Pair.of(dataFile.location(), 3L), // id = 89
+            Pair.of(dataFile.location(), 5L) // id = 121
             );
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =

@@ -116,12 +116,12 @@ public class TestDataFileIndexStatsFilters {
   }
 
   @Test
-  public void testPositionDeletePlanningPath() throws IOException {
+  public void testPositionDeletePlanninglocation() throws IOException {
     table.newAppend().appendFile(dataFile).commit();
 
     List<Pair<CharSequence, Long>> deletes = Lists.newArrayList();
-    deletes.add(Pair.of(dataFile.path(), 0L));
-    deletes.add(Pair.of(dataFile.path(), 1L));
+    deletes.add(Pair.of(dataFile.location(), 0L));
+    deletes.add(Pair.of(dataFile.location(), 1L));
 
     Pair<DeleteFile, CharSequenceSet> posDeletes =
         FileHelpers.writeDeleteFile(table, Files.localOutput(createTempFile()), deletes);
@@ -383,7 +383,7 @@ public class TestDataFileIndexStatsFilters {
         writePosDeletes(
             evenPartition,
             ImmutableList.of(
-                Pair.of(dataFileWithEvenRecords.path(), 0L),
+                Pair.of(dataFileWithEvenRecords.location(), 0L),
                 Pair.of("some-other-file.parquet", 0L)));
     table
         .newRowDelta()
@@ -396,8 +396,8 @@ public class TestDataFileIndexStatsFilters {
         writePosDeletes(
             evenPartition,
             ImmutableList.of(
-                Pair.of(dataFileWithEvenRecords.path(), 1L),
-                Pair.of(dataFileWithEvenRecords.path(), 2L)));
+                Pair.of(dataFileWithEvenRecords.location(), 1L),
+                Pair.of(dataFileWithEvenRecords.location(), 2L)));
     table
         .newRowDelta()
         .addDeletes(pathPosDeletes.first())
@@ -437,7 +437,7 @@ public class TestDataFileIndexStatsFilters {
   }
 
   private boolean coversDataFile(FileScanTask task, DataFile file) {
-    return task.file().path().toString().equals(file.path().toString());
+    return task.file().location().toString().equals(file.location().toString());
   }
 
   private void assertDeletes(FileScanTask task, DeleteFile... expectedDeleteFiles) {
@@ -446,7 +446,7 @@ public class TestDataFileIndexStatsFilters {
     assertThat(actualDeletePaths.size()).isEqualTo(expectedDeleteFiles.length);
 
     for (DeleteFile expectedDeleteFile : expectedDeleteFiles) {
-      assertThat(actualDeletePaths.contains(expectedDeleteFile.path())).isTrue();
+      assertThat(actualDeletePaths.contains(expectedDeleteFile.location())).isTrue();
     }
   }
 
