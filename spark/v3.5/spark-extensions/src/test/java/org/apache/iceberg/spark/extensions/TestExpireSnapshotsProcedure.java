@@ -283,7 +283,7 @@ public class TestExpireSnapshotsProcedure extends ExtensionsTestBase {
     assertThat(TestHelpers.deleteFiles(table)).as("Should have 1 delete file").hasSize(1);
     Path deleteManifestPath = new Path(TestHelpers.deleteManifests(table).iterator().next().path());
     Path deleteFilePath =
-        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().path()));
+        new Path(String.valueOf(TestHelpers.deleteFiles(table).iterator().next().location()));
 
     sql(
         "CALL %s.system.rewrite_data_files("

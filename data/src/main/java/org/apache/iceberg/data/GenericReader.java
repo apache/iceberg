@@ -92,7 +92,7 @@ class GenericReader implements Serializable {
   }
 
   private CloseableIterable<Record> openFile(FileScanTask task, Schema fileProjection) {
-    InputFile input = io.newInputFile(task.file().path().toString());
+    InputFile input = io.newInputFile(task.file().location());
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
 
@@ -147,7 +147,7 @@ class GenericReader implements Serializable {
       default:
         throw new UnsupportedOperationException(
             String.format(
-                "Cannot read %s file: %s", task.file().format().name(), task.file().path()));
+                "Cannot read %s file: %s", task.file().format().name(), task.file().location()));
     }
   }
 

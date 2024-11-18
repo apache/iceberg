@@ -99,7 +99,7 @@ public class TestSnapshot extends TestBase {
     assertThat(removedDataFiles).as("Must have 1 removed data file").hasSize(1);
 
     DataFile removedDataFile = Iterables.getOnlyElement(removedDataFiles);
-    assertThat(removedDataFile.path()).isEqualTo(FILE_A.path());
+    assertThat(removedDataFile.location()).isEqualTo(FILE_A.location());
     assertThat(removedDataFile.specId()).isEqualTo(FILE_A.specId());
     assertThat(removedDataFile.partition()).isEqualTo(FILE_A.partition());
 
@@ -107,7 +107,7 @@ public class TestSnapshot extends TestBase {
     assertThat(addedDataFiles).as("Must have 1 added data file").hasSize(1);
 
     DataFile addedDataFile = Iterables.getOnlyElement(addedDataFiles);
-    assertThat(addedDataFile.path()).isEqualTo(thirdSnapshotDataFile.path());
+    assertThat(addedDataFile.location()).isEqualTo(thirdSnapshotDataFile.location());
     assertThat(addedDataFile.specId()).isEqualTo(thirdSnapshotDataFile.specId());
     assertThat(addedDataFile.partition()).isEqualTo(thirdSnapshotDataFile.partition());
   }
@@ -147,7 +147,7 @@ public class TestSnapshot extends TestBase {
     assertThat(removedDeleteFiles).as("Must have 1 removed delete file").hasSize(1);
 
     DeleteFile removedDeleteFile = Iterables.getOnlyElement(removedDeleteFiles);
-    assertThat(removedDeleteFile.path()).isEqualTo(secondSnapshotDeleteFile.path());
+    assertThat(removedDeleteFile.location()).isEqualTo(secondSnapshotDeleteFile.location());
     assertThat(removedDeleteFile.specId()).isEqualTo(secondSnapshotDeleteFile.specId());
     assertThat(removedDeleteFile.partition()).isEqualTo(secondSnapshotDeleteFile.partition());
 
@@ -155,7 +155,7 @@ public class TestSnapshot extends TestBase {
     assertThat(addedDeleteFiles).as("Must have 1 added delete file").hasSize(1);
 
     DeleteFile addedDeleteFile = Iterables.getOnlyElement(addedDeleteFiles);
-    assertThat(addedDeleteFile.path()).isEqualTo(thirdSnapshotDeleteFile.path());
+    assertThat(addedDeleteFile.location()).isEqualTo(thirdSnapshotDeleteFile.location());
     assertThat(addedDeleteFile.specId()).isEqualTo(thirdSnapshotDeleteFile.specId());
     assertThat(addedDeleteFile.partition()).isEqualTo(thirdSnapshotDeleteFile.partition());
   }

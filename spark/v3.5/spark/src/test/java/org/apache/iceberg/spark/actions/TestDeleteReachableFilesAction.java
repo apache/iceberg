@@ -220,7 +220,7 @@ public class TestDeleteReachableFilesAction extends TestBase {
             file ->
                 assertThat(deletedFiles)
                     .as("FILE_A should be deleted")
-                    .contains(FILE_A.path().toString()));
+                    .contains(FILE_A.location()));
     checkRemoveFilesResults(4L, 0, 0, 6L, 4L, 6, result);
   }
 
