@@ -2190,11 +2190,11 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
     TableIdentifier tableIdentifier = TableIdentifier.of("db", "session_config_table");
     Table table = createTable(tableIdentifier, SCHEMA, spec);
 
-    List<SimpleRecord> records =
+    List<SimpleRecord> initialRecords =
         Lists.newArrayList(
             new SimpleRecord(1, "a"), new SimpleRecord(2, "b"), new SimpleRecord(3, "c"));
 
-    Dataset<Row> df = spark.createDataFrame(records, SimpleRecord.class);
+    Dataset<Row> df = spark.createDataFrame(initialRecords, SimpleRecord.class);
 
     df.select("id", "data")
         .write()
@@ -2202,7 +2202,7 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
         .mode(SaveMode.Append)
         .save(loadLocation(tableIdentifier));
 
-    long snapshotId = table.currentSnapshot().snapshotId();
+    long s1 = table.currentSnapshot().snapshotId();
 
     withSQLConf(
         // set write option through session configuration
@@ -2219,16 +2219,6 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
 
     table.refresh();
 
-    withSQLConf(
-        // set read option through session configuration
-        ImmutableMap.of("spark.datasource.iceberg.snapshot-id", String.valueOf(snapshotId)),
-        () -> {
-          Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
-          List<SimpleRecord> actual = result.as(Encoders.bean(SimpleRecord.class)).collectAsList();
-          Assert.assertEquals("Number of rows should match", records.size(), actual.size());
-          Assert.assertEquals("Result rows should match", records, actual);
-        });
-
     Dataset<Row> result = spark.read().format("iceberg").load(loadLocation(tableIdentifier));
     List<SimpleRecord> actual =
         result.orderBy("id").as(Encoders.bean(SimpleRecord.class)).collectAsList();
@@ -2241,6 +2231,19 @@ public abstract class TestIcebergSourceTablesBase extends SparkTestBase {
             new SimpleRecord(6, "c"));
     Assert.assertEquals("Number of rows should match", expected.size(), actual.size());
     Assert.assertEquals("Result rows should match", expected, actual);
+
+    withSQLConf(
+        // set read option through session configuration
+        ImmutableMap.of("spark.datasource.iceberg.snapshot-id", String.valueOf(s1)),
+        () -> {
+          Dataset<Row> s1Result =
+              spark.read().format("iceberg").load(loadLocation(tableIdentifier));
+          List<SimpleRecord> s1Actual =
+              s1Result.as(Encoders.bean(SimpleRecord.class)).collectAsList();
+          Assert.assertEquals(
+              "Number of rows should match", initialRecords.size(), s1Actual.size());
+          Assert.assertEquals("Result rows should match", initialRecords, s1Actual);
+        });
   }
 
   private GenericData.Record manifestRecord(
