@@ -106,6 +106,43 @@ public class TestSinkWriter {
   }
 
   @Test
+  public void testTopicRegexRoute() {
+    TableSinkConfig tableConfig = mock(TableSinkConfig.class);
+    when(tableConfig.topicRegex()).thenReturn(Pattern.compile("topic"));
+
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tablesRouteWith())
+        .thenAnswer(invocation -> RecordRouter.TopicRegexRecordRouter.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(tableConfig);
+
+    Map<String, Object> value = ImmutableMap.of();
+    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
+    assertThat(writerResults.size()).isEqualTo(1);
+    IcebergWriterResult writerResult = writerResults.get(0);
+    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+  }
+
+  @Test
+  public void testTopicNameRoute() {
+    TableSinkConfig tableConfig = mock(TableSinkConfig.class);
+    when(tableConfig.topics()).thenReturn("topic");
+
+    System.out.println(RecordRouter.DynamicRecordRouter.class.getName());
+    IcebergSinkConfig config = mock(IcebergSinkConfig.class);
+    when(config.tablesRouteWith())
+        .thenAnswer(invocation -> RecordRouter.TopicNameRecordRouter.class);
+    when(config.tables()).thenReturn(ImmutableList.of(TABLE_IDENTIFIER.toString()));
+    when(config.tableConfig(any())).thenReturn(tableConfig);
+
+    Map<String, Object> value = ImmutableMap.of();
+    List<IcebergWriterResult> writerResults = sinkWriterTest(value, config);
+    assertThat(writerResults.size()).isEqualTo(1);
+    IcebergWriterResult writerResult = writerResults.get(0);
+    assertThat(writerResult.tableIdentifier()).isEqualTo(TABLE_IDENTIFIER);
+  }
+
+  @Test
   public void testStaticRoute() {
     TableSinkConfig tableConfig = mock(TableSinkConfig.class);
     when(tableConfig.routeRegex()).thenReturn(Pattern.compile("val"));
