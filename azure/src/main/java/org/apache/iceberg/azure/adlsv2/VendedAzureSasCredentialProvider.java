@@ -18,12 +18,8 @@
  */
 package org.apache.iceberg.azure.adlsv2;
 
-import static org.apache.iceberg.azure.AzureProperties.ADLS_SAS_TOKEN_EXPIRE_AT_MS_PREFIX;
-import static org.apache.iceberg.azure.AzureProperties.ADLS_SAS_TOKEN_PREFIX;
-
 import com.azure.core.credential.AzureSasCredential;
 import java.io.Serializable;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
@@ -32,7 +28,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.iceberg.azure.AzureProperties;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.rest.ErrorHandlers;
 import org.apache.iceberg.rest.HTTPClient;
 import org.apache.iceberg.rest.RESTClient;
@@ -61,7 +59,7 @@ public class VendedAzureSasCredentialProvider implements Serializable, AutoClose
     Preconditions.checkArgument(null != properties, "Invalid properties: null");
     Preconditions.checkArgument(null != properties.get(URI), "Invalid URI: null");
     this.properties = SerializableMap.copyOf(properties);
-    azureSasCredentialRefresherMap = new HashMap<>();
+    azureSasCredentialRefresherMap = Maps.newHashMap();
   }
 
   public AzureSasCredential getCredential(String storageAccount) {
@@ -91,12 +89,16 @@ public class VendedAzureSasCredentialProvider implements Serializable, AutoClose
         "Invalid ADLS Credentials: only one ADLS credential should exist per storage-account");
 
     Credential adlsCredential = adlsCredentials.get(0);
-    checkCredential(adlsCredential, ADLS_SAS_TOKEN_PREFIX + storageAccount);
-    checkCredential(adlsCredential, ADLS_SAS_TOKEN_EXPIRE_AT_MS_PREFIX + storageAccount);
+    checkCredential(adlsCredential, AzureProperties.ADLS_SAS_TOKEN_PREFIX + storageAccount);
+    checkCredential(
+        adlsCredential, AzureProperties.ADLS_SAS_TOKEN_EXPIRE_AT_MS_PREFIX + storageAccount);
 
-    String updatedSasToken = adlsCredential.config().get(ADLS_SAS_TOKEN_PREFIX + storageAccount);
+    String updatedSasToken =
+        adlsCredential.config().get(AzureProperties.ADLS_SAS_TOKEN_PREFIX + storageAccount);
     String tokenExpiresAtMillis =
-        adlsCredential.config().get(ADLS_SAS_TOKEN_EXPIRE_AT_MS_PREFIX + storageAccount);
+        adlsCredential
+            .config()
+            .get(AzureProperties.ADLS_SAS_TOKEN_EXPIRE_AT_MS_PREFIX + storageAccount);
 
     Long expiresAtMs = Long.parseLong(tokenExpiresAtMillis);
 
@@ -107,7 +109,7 @@ public class VendedAzureSasCredentialProvider implements Serializable, AutoClose
     if (this.azureSasCredentialRefresherMap == null) {
       synchronized (this) {
         if (this.azureSasCredentialRefresherMap == null) {
-          this.azureSasCredentialRefresherMap = new HashMap<>();
+          this.azureSasCredentialRefresherMap = Maps.newHashMap();
         }
       }
     }

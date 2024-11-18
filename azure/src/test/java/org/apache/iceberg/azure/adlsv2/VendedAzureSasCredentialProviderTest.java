@@ -197,7 +197,7 @@ public class VendedAzureSasCredentialProviderTest {
       assertThat(azureSasCredential.getSignature())
           .isEqualTo(credential.config().get(ADLS_SAS_TOKEN_PREFIX + STORAGE_ACCOUNT));
 
-      Thread.sleep(10);
+      Thread.sleep(20);
       // Since expiration time past to current time, the refresh will fall back at minimum 10ms
       // interval
     }

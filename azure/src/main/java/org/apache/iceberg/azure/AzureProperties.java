@@ -18,14 +18,11 @@
  */
 package org.apache.iceberg.azure;
 
-import static org.apache.iceberg.azure.adlsv2.VendedAzureSasCredentialProvider.URI;
-
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.file.datalake.DataLakeFileSystemClientBuilder;
 import java.io.Serializable;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.azure.adlsv2.VendedAzureSasCredentialProvider;
@@ -89,9 +86,10 @@ public class AzureProperties implements Serializable {
     this.refreshCredentialsEndpoint = properties.get(REFRESH_CREDENTIALS_ENDPOINT);
     this.refreshCredentialsEnabled =
         PropertyUtil.propertyAsBoolean(properties, REFRESH_CREDENTIALS_ENABLED, true);
-    Map<String, String> credentialProviderProperties = new HashMap<>(properties);
+    Map<String, String> credentialProviderProperties = Maps.newHashMap(properties);
     if (refreshCredentialsEnabled && !Strings.isNullOrEmpty(refreshCredentialsEndpoint)) {
-      credentialProviderProperties.put(URI, refreshCredentialsEndpoint);
+      credentialProviderProperties.put(
+          VendedAzureSasCredentialProvider.URI, refreshCredentialsEndpoint);
       this.vendedAzureSasCredentialProvider =
           new VendedAzureSasCredentialProvider(credentialProviderProperties);
     }
